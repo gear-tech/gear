@@ -29,16 +29,20 @@ use reqwest::Client;
 use std::{
     collections::{HashMap, HashSet},
     hash::RandomState,
-    sync::Arc,
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
-use tokio::{
-    sync::RwLock,
-    time::{self, Duration},
-};
+use tokio::time::{self, Duration};
 
 #[async_trait]
 pub trait BlobReader: Send + Sync {
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>>;
+    fn clone_boxed(&self) -> Box<dyn BlobReader>;
+}
+
+impl Clone for Box<dyn BlobReader> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
 }
 
 #[derive(Clone)]
@@ -78,6 +82,10 @@ impl ConsensusLayerBlobReader {
 
 #[async_trait]
 impl BlobReader for ConsensusLayerBlobReader {
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
+        Box::new(self.clone())
+    }
+
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
         const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
@@ -149,8 +157,10 @@ impl MockBlobReader {
         }
     }
 
-    pub async fn add_blob_transaction(&self, tx_hash: H256, data: Vec<u8>) {
-        self.transactions.write().await.insert(tx_hash, data);
+    pub fn storage_mut(&self) -> RwLockWriteGuard<'_, HashMap<H256, Vec<u8>>> {
+        self.transactions
+            .write()
+            .expect("failed to lock transactions")
     }
 }
 
@@ -162,23 +172,20 @@ impl Default for MockBlobReader {
 
 #[async_trait]
 impl BlobReader for MockBlobReader {
-    async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
-        let maybe_blob_data = match attempts {
-            Some(attempts) => {
-                let mut count = 0;
-                loop {
-                    log::trace!("trying to get blob, attempt #{}", count + 1);
-                    let maybe_blob_data = self.transactions.read().await.get(&tx_hash).cloned();
-                    if maybe_blob_data.is_some() || count >= attempts {
-                        break maybe_blob_data;
-                    } else {
-                        count += 1;
-                    }
-                }
-            }
-            None => self.transactions.read().await.get(&tx_hash).cloned(),
-        };
-        let blob_data = maybe_blob_data.ok_or_else(|| anyhow!("failed to get blob"))?;
-        Ok(blob_data)
+    fn clone_boxed(&self) -> Box<dyn BlobReader> {
+        Box::new(self.clone())
+    }
+
+    async fn read_blob_from_tx_hash(
+        &self,
+        tx_hash: H256,
+        _attempts: Option<u8>,
+    ) -> Result<Vec<u8>> {
+        self.transactions
+            .read()
+            .expect("failed to lock transactions")
+            .get(&tx_hash)
+            .cloned()
+            .ok_or_else(|| anyhow!("failed to get blob"))
     }
 }

@@ -22,6 +22,7 @@ use crate::*;
 pub type Migrations = (
     BagsListMigrate<Runtime>,
     pallet_gear_bank::migrations::MigrateToV1<Runtime>,
+    pallet_gear_builtin::migration::MigrateToV1<Runtime, TreasuryAccount>,
     pallet_gear_program::migrations::v11_code_metadata_delete_migration::MigrateRemoveCodeMetadata<Runtime>,
     // migrate program code hash to code id and remove code_exports and static_pages
     pallet_gear_program::migrations::v12_program_code_id_migration::MigrateProgramCodeHashToCodeId<Runtime>,
@@ -29,9 +30,7 @@ pub type Migrations = (
     pallet_gear_program::migrations::v13_split_instrumented_code_migration::MigrateSplitInstrumentedCode<Runtime>,
 );
 
-pub struct BagsListMigrate<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>(
-    core::marker::PhantomData<T>,
-);
+pub struct BagsListMigrate<T>(core::marker::PhantomData<T>);
 
 impl<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>
     frame_support::traits::OnRuntimeUpgrade for BagsListMigrate<T>

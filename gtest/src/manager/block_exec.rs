@@ -101,8 +101,13 @@ impl ExtManager {
             Accounts::transfer(source, destination, EXISTENTIAL_DEPOSIT, false);
         }
 
+        if dispatch.is_error_reply() {
+            panic!("Internal error: users are not allowed to send error replies");
+        }
+
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
         if dispatch.value() != 0 {
-            // Deposit message value
             self.bank.deposit_value(source, dispatch.value(), false);
         }
 

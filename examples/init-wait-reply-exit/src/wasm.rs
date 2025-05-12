@@ -1,7 +1,4 @@
-use gstd::{
-    exec, msg,
-    prelude::{vec, *},
-};
+use gstd::{exec, msg, prelude::vec};
 
 #[gstd::async_init]
 async fn init() {

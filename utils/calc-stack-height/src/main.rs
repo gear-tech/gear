@@ -149,7 +149,7 @@ fn main() -> anyhow::Result<()> {
 
                 log::info!("Overflow at {} height", mid);
             }
-            code => panic!("unexpected trap code: {:?}", code),
+            code => panic!("unexpected trap code: {code:?}"),
         }
     }
 

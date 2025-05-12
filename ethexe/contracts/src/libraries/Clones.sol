@@ -12,6 +12,7 @@ library Clones {
         uint256 size = 0x02b4;
         uint256 memPtr = Memory.allocate(size);
 
+        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
         Memory.writeWord(memPtr, 0x0000, 0x6080806040526102a290816100128239f3fe608060405260043610610258575f);
         Memory.writeWord(memPtr, 0x0020, 0x3560e01c806329336f391461009b57806336a52a1814610096578063701da98e);
         Memory.writeWord(memPtr, 0x0040, 0x14610091578063704ed5421461008c57806391d5a64c146100875780639ce110);

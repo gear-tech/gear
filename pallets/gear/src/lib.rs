@@ -136,9 +136,11 @@ pub type GasBalanceOf<T> = <<T as Config>::GasProvider as GasProvider>::Balance;
 pub type ProgramStorageOf<T> = <T as Config>::ProgramStorage;
 pub(crate) type GearBank<T> = pallet_gear_bank::Pallet<T>;
 
+/// Lock for programs on ED.
+pub const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
+
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
-pub(crate) const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
 
 pub trait DebugInfo {
     fn is_remap_id_enabled() -> bool;

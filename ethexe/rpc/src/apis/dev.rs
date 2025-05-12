@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::Arc;
-
 use ethexe_observer::MockBlobReader;
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
@@ -35,11 +33,11 @@ pub trait Dev {
 
 #[derive(Clone)]
 pub struct DevApi {
-    blob_reader: Arc<MockBlobReader>,
+    blob_reader: MockBlobReader,
 }
 
 impl DevApi {
-    pub fn new(blob_reader: Arc<MockBlobReader>) -> Self {
+    pub fn new(blob_reader: MockBlobReader) -> Self {
         Self { blob_reader }
     }
 }
@@ -49,7 +47,7 @@ impl DevServer for DevApi {
     async fn set_blob(&self, tx_hash: H256, blob: Bytes) -> RpcResult<CodeId> {
         let code_id = CodeId::generate(&blob);
 
-        self.blob_reader.add_blob_transaction(tx_hash, blob.0).await;
+        self.blob_reader.storage_mut().insert(tx_hash, blob.0);
 
         Ok(code_id)
     }

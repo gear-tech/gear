@@ -242,14 +242,18 @@ where
 
         log::debug!("Gas burned after Allocations {:?}", context.gas_burned());
 
-        let allocations = (program.allocations_tree_len != 0).then(|| {
-            ProgramStorageOf::<T>::allocations(destination_id).unwrap_or_else(|| {
+        let allocations = if program.allocations_tree_len != 0 {
+            {
+                ProgramStorageOf::<T>::allocations(destination_id).unwrap_or_else(|| {
                 unreachable!(
                     "`allocations_tree_len` {} is not zero, so program {destination_id:?} must have allocations",
                     program.allocations_tree_len,
                 )
             })
-        }).unwrap_or_default();
+            }
+        } else {
+            Default::default()
+        };
 
         let actor_data = ExecutableActorData {
             allocations,

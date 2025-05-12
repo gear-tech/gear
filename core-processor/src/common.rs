@@ -262,9 +262,11 @@ pub enum JournalNote {
         /// Value sender
         from: ProgramId,
         /// Value beneficiary,
-        to: Option<ProgramId>,
+        to: ProgramId,
         /// Value amount
         value: u128,
+        /// If to send locked value.
+        locked: bool,
     },
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
@@ -388,7 +390,7 @@ pub trait JournalHandler {
     /// Process [JournalNote::UpdateAllocations].
     fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
     /// Send value.
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, locked: bool);
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.

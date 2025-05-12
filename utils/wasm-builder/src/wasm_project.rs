@@ -293,7 +293,7 @@ impl WasmProject {
                     );
                 })
                 .unwrap_or_else(|err| {
-                    println!("cargo:warning=wasm-opt optimizations error: {}", err);
+                    println!("cargo:warning=wasm-opt optimizations error: {err}");
                 });
         }
 

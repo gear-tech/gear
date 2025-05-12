@@ -63,6 +63,13 @@ enum Key {
     LatestSyncedBlockHeight = 12,
 }
 
+#[derive(Debug, Encode, Decode)]
+enum BlockOutcome {
+    Transitions(Vec<StateTransition>),
+    /// The actual outcome is not available but it must be considered non-empty.
+    ForcedNonEmpty,
+}
+
 impl Key {
     fn prefix(&self) -> [u8; 32] {
         // SAFETY: Because `Key` is marked as `#[repr(u64)]` it's actual layout
@@ -143,7 +150,11 @@ impl Database {
         self.cas.read(hash)
     }
 
-    pub fn write(&self, data: &[u8]) -> H256 {
+    pub fn contains_hash(&self, hash: H256) -> bool {
+        self.cas.contains(hash)
+    }
+
+    pub fn write_hash(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
     }
 
@@ -231,6 +242,26 @@ impl Database {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
+
+    fn block_outcome_inner(&self, block_hash: H256) -> Option<BlockOutcome> {
+        self.kv
+            .get(&Key::BlockOutcome(block_hash).to_bytes())
+            .map(|data| {
+                BlockOutcome::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
+            })
+    }
+
+    /// # Safety
+    ///
+    /// If the block is actually empty but forced to be not, then database invariants are violated.
+    pub unsafe fn set_non_empty_block_outcome(&self, block_hash: H256) {
+        log::trace!("For block {block_hash} set non-empty outcome");
+        self.kv.put(
+            &Key::BlockOutcome(block_hash).to_bytes(),
+            BlockOutcome::ForcedNonEmpty.encode(),
+        );
+    }
 }
 
 #[cfg_attr(test, derive(serde::Serialize))]
@@ -302,18 +333,29 @@ impl BlockMetaStorage for Database {
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
-        self.kv
-            .get(&Key::BlockOutcome(block_hash).to_bytes())
-            .map(|data| {
-                Vec::<StateTransition>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<StateTransition>`")
+        self.block_outcome_inner(block_hash)
+            .map(|outcome| match outcome {
+                BlockOutcome::Transitions(transitions) => transitions,
+                BlockOutcome::ForcedNonEmpty => {
+                    panic!("`block_outcome()` called on forced non-empty block {block_hash}")
+                }
             })
     }
 
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
         log::trace!("For block {block_hash} set outcome: {outcome:?}");
-        self.kv
-            .put(&Key::BlockOutcome(block_hash).to_bytes(), outcome.encode());
+        self.kv.put(
+            &Key::BlockOutcome(block_hash).to_bytes(),
+            BlockOutcome::Transitions(outcome).encode(),
+        );
+    }
+
+    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
+        self.block_outcome_inner(block_hash)
+            .map(|outcome| match outcome {
+                BlockOutcome::Transitions(transitions) => transitions.is_empty(),
+                BlockOutcome::ForcedNonEmpty => false,
+            })
     }
 
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule> {
@@ -350,7 +392,7 @@ impl BlockMetaStorage for Database {
 
 impl CodesStorage for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.cas.read(code_id.into()).is_some()
+        self.kv.contains(code_id.as_ref())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
@@ -393,6 +435,11 @@ impl CodesStorage for Database {
                 program_id
             })
             .collect()
+    }
+
+    fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool {
+        self.kv
+            .contains(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
     }
 
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
