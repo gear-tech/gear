@@ -114,7 +114,7 @@ impl Signature {
         bytes[..SIGNATURE_LAST_BYTE].copy_from_slice(self.inner.to_bytes().as_ref());
 
         let v = self.recovery_id.to_byte();
-        assert!(v == 0 || v == 1, "Invalid v value: {}", v);
+        assert!(v == 0 || v == 1, "Invalid v value: {v}");
         bytes[SIGNATURE_LAST_BYTE] = v + 27;
 
         bytes

@@ -111,6 +111,15 @@ pub struct OperatorRewardsCommitment {
     pub root: H256,
 }
 
+impl ToDigest for OperatorRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let OperatorRewardsCommitment { amount, root } = self;
+
+        hasher.update(<[u8; 32]>::from(*amount));
+        hasher.update(root);
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct StakerRewards {
     pub vault: Address,
@@ -124,12 +133,47 @@ pub struct StakerRewardsCommitment {
     pub token: Address,
 }
 
+impl ToDigest for StakerRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let StakerRewardsCommitment {
+            distribution,
+            total_amount,
+            token,
+        } = &self;
+
+        distribution
+            .iter()
+            .for_each(|StakerRewards { vault, amount }| {
+                hasher.update(vault);
+                hasher.update(<[u8; 32]>::from(*amount));
+            });
+
+        hasher.update(<[u8; 32]>::from(*total_amount));
+        hasher.update(token);
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct RewardsCommitment {
     pub operators: OperatorRewardsCommitment,
     pub stakers: StakerRewardsCommitment,
     /// represented as u48 in router contract
     pub timestamp: u64,
+}
+
+impl ToDigest for RewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            operators,
+            stakers,
+            timestamp,
+        } = self;
+
+        hasher.update(operators.to_digest().as_ref());
+        hasher.update(stakers.to_digest().as_ref());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -145,11 +189,12 @@ impl ToDigest for BatchCommitment {
         let Self {
             code_commitments,
             block_commitments,
+            rewards_commitments,
         } = self;
 
-        hasher.update(block_commitments.to_digest().as_ref());
-        hasher.update(code_commitments.to_digest().as_ref());
-        hasher.update([0u8; 0].to_digest().as_ref()); // Placeholder for the rewards commitment
+        hasher.update(block_commitments.to_digest());
+        hasher.update(code_commitments.to_digest());
+        hasher.update(rewards_commitments.to_digest());
     }
 }
 

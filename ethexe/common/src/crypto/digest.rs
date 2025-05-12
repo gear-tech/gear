@@ -37,7 +37,6 @@ use sha3::Digest as _;
     Decode,
     derive_more::From,
     derive_more::Into,
-    derive_more::AsRef,
     derive_more::Debug,
     derive_more::Display,
 )]
@@ -105,5 +104,11 @@ impl ToDigest for [u8] {
 impl ToDigest for Vec<u8> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.as_slice());
+    }
+}
+
+impl AsRef<[u8]> for Digest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
