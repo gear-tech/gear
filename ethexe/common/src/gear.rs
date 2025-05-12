@@ -49,29 +49,67 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
-pub struct BlockCommitment {
-    pub hash: H256,
-    /// represented as u48 in router contract.
-    pub timestamp: u64,
-    pub previous_committed_block: H256,
-    pub predecessor_block: H256,
-    pub transitions: Vec<StateTransition>,
-}
+// #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+// pub struct BlockCommitment {
+//     pub hash: H256,
+//     /// represented as u48 in router contract.
+//     pub timestamp: u64,
+//     pub previous_committed_block: H256,
+//     pub predecessor_block: H256,
+//     pub transitions: Vec<StateTransition>,
+// }
+
+// #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+// pub struct CodeCommitment {
+//     pub id: CodeId,
+//     /// represented as u48 in router contract.
+//     pub timestamp: u64,
+//     pub valid: bool,
+// }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct GearBlock {
+    pub block_hash: H256,
+    pub off_chain_transaction_hash: H256,
+    pub gas_allowance: u64,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct ChainCommitment {
+    pub transitions: Vec<StateTransition>,
+    pub gear_blocks: Vec<GearBlock>,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
-    /// represented as u48 in router contract.
-    pub timestamp: u64,
     pub valid: bool,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitment {
-    pub block_commitments: Vec<BlockCommitment>,
+    // Hash of ethereum block for which this batch has been created
+    // This is used to identify whether router have to apply this batch,
+    // it can be a batch from another branch and after reorg it's not actual anymore (currently we have predecessorBlock for this)
+    pub block_hash: H256,
+
+    /// Timestamp of ethereum block for which this batch has been created
+    /// This timestamp is used to identify validator set to verify commitment (current or previous era)
+    pub timestamp: u64,
+
+    pub previous_committed_block_hash: H256,
+
+    pub chain_commitments: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
+    pub validators_commitment: Option<ValidatorsCommitment>,
+    pub rewards_commitment: Vec<()>,
 }
+
+// #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+// pub struct BatchCommitment {
+//     pub block_commitments: Vec<BlockCommitment>,
+//     pub code_commitments: Vec<CodeCommitment>,
+// }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {

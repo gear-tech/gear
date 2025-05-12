@@ -20,13 +20,17 @@
 //!
 //! Implements `ToDigest` hashing for ethexe common types.
 
+use core::{hash, ops::Not};
+
 use crate::{
     gear::{
-        BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+        BatchCommitment, ChainCommitment, CodeCommitment, GearBlock, Message, StateTransition,
+        ValueClaim,
     },
     ProducerBlock,
 };
 use alloc::vec::Vec;
+use gear_core::code;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -117,14 +121,9 @@ impl ToDigest for Vec<u8> {
 impl ToDigest for CodeCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Self {
-            id,
-            timestamp,
-            valid,
-        } = self;
+        let Self { id, valid } = self;
 
-        hasher.update(id.into_bytes().as_slice());
-        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update(id.as_ref());
         hasher.update([*valid as u8]);
     }
 }
@@ -187,22 +186,30 @@ impl ToDigest for Message {
     }
 }
 
-impl ToDigest for BlockCommitment {
+impl ToDigest for GearBlock {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            block_hash,
+            off_chain_transaction_hash,
+            gas_allowance,
+        } = &self;
+
+        hasher.update(block_hash.as_bytes());
+        hasher.update(off_chain_transaction_hash.as_bytes());
+        hasher.update(gas_allowance.to_be_bytes().as_slice());
+    }
+}
+
+impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
         let Self {
-            hash,
-            timestamp,
-            previous_committed_block,
-            predecessor_block,
             transitions,
+            gear_blocks,
         } = self;
 
-        hasher.update(hash.as_bytes());
-        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
-        hasher.update(previous_committed_block.as_bytes());
-        hasher.update(predecessor_block.as_bytes());
         hasher.update(transitions.to_digest().as_ref());
+        hasher.update(gear_blocks.to_digest().as_ref());
     }
 }
 
@@ -210,13 +217,27 @@ impl ToDigest for BatchCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
         let Self {
+            block_hash,
+            timestamp,
+            previous_committed_block_hash,
+            chain_commitments,
             code_commitments,
-            block_commitments,
+            validators_commitment,
+            rewards_commitment: _,
         } = self;
 
-        hasher.update(block_commitments.to_digest().as_ref());
-        hasher.update(code_commitments.to_digest().as_ref());
-        hasher.update([0u8; 0].to_digest().as_ref()); // Placeholder for the rewards commitment
+        hasher.update(block_hash.as_bytes());
+        hasher.update(timestamp.to_be_bytes().as_slice());
+        hasher.update(previous_committed_block_hash.as_bytes());
+        chain_commitments.map(|c| hasher.update(c.to_digest().as_ref()));
+        code_commitments
+            .is_empty()
+            .not()
+            .then(|| hasher.update(code_commitments.to_digest().as_ref()));
+        validators_commitment.map(|c| hasher.update(c.to_digest().as_ref()));
+
+        // Placeholder for the rewards commitment
+        hasher.update([0u8; 0].to_digest().as_ref());
     }
 }
 
