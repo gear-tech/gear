@@ -22,6 +22,7 @@
 
 pub mod gas_provider;
 pub mod mailbox;
+pub mod overlay;
 pub mod task_pool;
 pub mod waitlist;
 
@@ -37,6 +38,7 @@ pub type BlockNumber = u32;
 /// Double key `BTreeMap`.
 ///
 /// Basically is just a map of the map.
+#[derive(Clone)]
 pub struct DoubleBTreeMap<K1, K2, V> {
     inner: BTreeMap<K1, BTreeMap<K2, V>>,
 }
