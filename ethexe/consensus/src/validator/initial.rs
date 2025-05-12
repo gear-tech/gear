@@ -73,8 +73,7 @@ impl StateHandler for Initial {
                     Producer::create(self.ctx, block.clone(), data.validators)
                 } else {
                     // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-                    let is_validator_for_current_block =
-                        data.validators.iter().any(|v| *v == my_address);
+                    let is_validator_for_current_block = data.validators.contains(&my_address);
 
                     log::info!(
                         "👷 Start to work as a subordinate for block: {}, producer is {producer}, \

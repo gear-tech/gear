@@ -60,7 +60,7 @@ where
                 .await
                 .unwrap();
             let block_hash = match command.from.block {
-                Some(ref h) => format!("{}", h),
+                Some(ref h) => format!("{h}"),
                 _ => "latext".to_owned(),
             };
             let path_str = format!(
