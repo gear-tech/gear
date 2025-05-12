@@ -122,14 +122,6 @@ async fn test_deployment() -> Result<()> {
         request_code_id
     };
 
-    // let mut observer_next = async move || {
-    //     observer
-    //         .next()
-    //         .await
-    //         .expect("observer did not receive event")
-    //         .expect("received error instead of event")
-    // };
-
     let wat = r#"
         (module
             (import "env" "memory" (memory 0))

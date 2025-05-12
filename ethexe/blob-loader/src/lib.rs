@@ -30,16 +30,32 @@ use std::{collections::HashSet, fmt, pin::Pin, task::Poll};
 
 use utils::*;
 
-pub mod blobs;
-pub mod utils;
 pub mod local;
+pub mod utils;
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct BlobData {
+    pub code_id: CodeId,
+    pub timestamp: u64,
+    pub code: Vec<u8>,
+}
+
+impl fmt::Debug for BlobData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BlobData")
+            .field("code_id", &self.code_id)
+            .field("timestamp", &self.timestamp)
+            .field("code", &format_args!("{} bytes", self.code.len()))
+            .finish()
+    }
+}
 
 #[derive(Clone)]
 pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
 }
 
-pub trait BlobLoaderService{
+pub trait BlobLoaderService {
     fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()>;
 }
 
@@ -88,8 +104,16 @@ impl FusedStream for BlobLoader {
     }
 }
 
-impl BlobLoader{
-    pub fn new(blob_reader: Box<dyn BlobReader>, db: Database) -> Self {
+// #[derive(Clone)]
+// pub struct ConsensusLayerBlobReader {
+//     provider: RootProvider,
+//     http_client: Client,
+//     ethereum_beacon_rpc: String,
+//     beacon_block_time: Duration,
+// }
+
+impl BlobLoader {
+    pub fn new(db: Database) -> Self {
         Self {
             futures: FuturesUnordered::new(),
             codes_loading: HashSet::new(),
@@ -97,9 +121,81 @@ impl BlobLoader{
             db,
         }
     }
+
+    async fn read_code_from_tx_hash(&mut self) -> Result<BlobData> {}
+
+    async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
+        //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
+        const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
+
+        let tx = self
+            .provider
+            .get_transaction_by_hash(tx_hash.0.into())
+            .await?
+            .ok_or_else(|| anyhow!("failed to get transaction"))?;
+        let blob_versioned_hashes = tx
+            .blob_versioned_hashes()
+            .ok_or_else(|| anyhow!("failed to get versioned hashes"))?;
+        let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
+        let block_hash = tx
+            .block_hash
+            .ok_or_else(|| anyhow!("failed to get block hash"))?;
+        let block = self
+            .provider
+            .get_block_by_hash(block_hash)
+            .await?
+            .ok_or_else(|| anyhow!("failed to get block"))?;
+        let slot =
+            (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME) / self.beacon_block_time.as_secs();
+        let blob_bundle_result = match attempts {
+            Some(attempts) => {
+                let mut count = 0;
+                loop {
+                    log::trace!("trying to get blob, attempt #{}", count + 1);
+                    let blob_bundle_result = self.read_blob_bundle(slot).await;
+                    if blob_bundle_result.is_ok() || count >= attempts {
+                        break blob_bundle_result;
+                    } else {
+                        time::sleep(self.beacon_block_time).await;
+                        count += 1;
+                    }
+                }
+            }
+            None => self.read_blob_bundle(slot).await,
+        };
+        let blob_bundle = blob_bundle_result?;
+
+        let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());
+        for blob_data in blob_bundle.into_iter().filter(|blob_data| {
+            blob_versioned_hashes
+                .contains(&kzg_to_versioned_hash(blob_data.kzg_commitment.as_ref()))
+        }) {
+            blobs.push(*blob_data.blob);
+        }
+
+        let mut coder = SimpleCoder::default();
+        let data = coder
+            .decode_all(&blobs)
+            .ok_or_else(|| anyhow!("failed to decode blobs"))?
+            .concat();
+
+        Ok(data)
+    }
+
+    async fn read_blob_bundle(&self, slot: u64) -> reqwest::Result<BeaconBlobBundle> {
+        let ethereum_beacon_rpc = &self.ethereum_beacon_rpc;
+        self.http_client
+            .get(format!(
+                "{ethereum_beacon_rpc}/eth/v1/beacon/blob_sidecars/{slot}"
+            ))
+            .send()
+            .await?
+            .json::<BeaconBlobBundle>()
+            .await
+    }
 }
 
-impl BlobLoaderService for BlobLoader{
+impl BlobLoaderService for BlobLoader {
     fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
         log::info!("Request load codes: {codes:?}");
         for code_id in codes {
