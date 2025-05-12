@@ -164,15 +164,13 @@ impl OngoingRequests {
         }
     }
 
-    pub(crate) fn poll_next_states(
+    pub(crate) fn poll(
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
-    ) -> Vec<Event> {
+    ) -> Poll<Vec<Event>> {
         let mut events = Vec::new();
         let mut kept = Vec::new();
-
-        self.waker = Some(cx.waker().clone());
 
         for (request_id, mut fut) in self.requests.drain() {
             let response = self.responses.remove(&request_id);
@@ -211,6 +209,7 @@ impl OngoingRequests {
                 }
             }
 
+            log::error!("poll: {poll:?}");
             match poll {
                 Poll::Ready(Ok(response)) => events.push(Event::RequestSucceed {
                     request_id,
@@ -223,13 +222,22 @@ impl OngoingRequests {
                     },
                     error,
                 }),
-                Poll::Pending => kept.push((request_id, fut)),
+                Poll::Pending => {
+                    kept.push((request_id, fut));
+                }
             }
         }
 
-        self.requests.extend(kept);
+        if !kept.is_empty() {
+            self.waker = Some(cx.waker().clone());
+            self.requests.extend(kept);
+        }
 
-        events
+        if events.is_empty() {
+            Poll::Pending
+        } else {
+            Poll::Ready(events)
+        }
     }
 }
 
