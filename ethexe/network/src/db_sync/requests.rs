@@ -183,9 +183,7 @@ impl OngoingRequests {
                 response,
             };
 
-            CONTEXT.set(Some(ctx));
-            let poll = fut.poll_unpin(cx);
-            let ctx = CONTEXT.take().expect("context must be set");
+            let (ctx, poll) = context::scope(ctx, || fut.poll_unpin(cx));
 
             for event in ctx.pending_events {
                 match event {
@@ -267,7 +265,7 @@ impl OngoingRequest {
     async fn choose_next_peer(&mut self) -> (PeerId, Option<NewRequestRoundReason>) {
         let mut event_sent = false;
 
-        let peer = poll_context(|ctx| {
+        let peer = context::poll_fn(|ctx| {
             log::debug!("connections: {:?}", ctx.peers);
             let peer = ctx
                 .peers
@@ -299,7 +297,7 @@ impl OngoingRequest {
         peer: PeerId,
         reason: NewRequestRoundReason,
     ) -> Result<Response, ()> {
-        context(|ctx| {
+        context::with(|ctx| {
             ctx.pending_events
                 .push_back(OngoingRequestEvent::SendRequest(
                     peer,
@@ -309,7 +307,7 @@ impl OngoingRequest {
         })
         .await;
 
-        poll_context(|ctx| {
+        context::poll_fn(|ctx| {
             if let Some(res) = ctx.response.take() {
                 Poll::Ready(res)
             } else {
@@ -363,7 +361,7 @@ impl OngoingRequest {
         };
         if !no_external_validation {
             let (sender, receiver) = oneshot::channel();
-            context(|ctx| {
+            context::with(|ctx| {
                 ctx.pending_events
                     .push_back(OngoingRequestEvent::ExternalValidationRequired(
                         sender,
@@ -438,28 +436,44 @@ struct OngoingRequestContext {
     response: Option<Result<Response, ()>>,
 }
 
-thread_local! {
-    static CONTEXT: RefCell<Option<OngoingRequestContext>> = const { RefCell::new(None) };
-}
+mod context {
+    use super::*;
 
-fn context<T>(f: impl FnOnce(&mut OngoingRequestContext) -> T) -> impl Future<Output = T> {
-    future::lazy(|_cx| {
-        CONTEXT.with_borrow_mut(|ctx| {
-            let ctx = ctx.as_mut().expect("context must be set");
-            f(ctx)
-        })
-    })
-}
+    thread_local! {
+        static CONTEXT: RefCell<Option<OngoingRequestContext>> = const { RefCell::new(None) };
+    }
 
-fn poll_context<T>(
-    mut f: impl FnMut(&mut OngoingRequestContext) -> Poll<T>,
-) -> impl Future<Output = T> {
-    future::poll_fn(move |_cx| {
-        CONTEXT.with_borrow_mut(|ctx| {
-            let ctx = ctx.as_mut().expect("context must be set");
-            f(ctx)
+    pub(crate) fn scope<T>(
+        ctx: OngoingRequestContext,
+        f: impl FnOnce() -> T,
+    ) -> (OngoingRequestContext, T) {
+        CONTEXT.set(Some(ctx));
+        let res = f();
+        let ctx = CONTEXT.take().expect("context is set above");
+        (ctx, res)
+    }
+
+    pub(crate) fn with<T>(
+        f: impl FnOnce(&mut OngoingRequestContext) -> T,
+    ) -> impl Future<Output = T> {
+        future::lazy(|_cx| {
+            CONTEXT.with_borrow_mut(|ctx| {
+                let ctx = ctx.as_mut().expect("context must be set");
+                f(ctx)
+            })
         })
-    })
+    }
+
+    pub(crate) fn poll_fn<T>(
+        mut f: impl FnMut(&mut OngoingRequestContext) -> Poll<T>,
+    ) -> impl Future<Output = T> {
+        future::poll_fn(move |_cx| {
+            CONTEXT.with_borrow_mut(|ctx| {
+                let ctx = ctx.as_mut().expect("context must be set");
+                f(ctx)
+            })
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
