@@ -175,9 +175,7 @@ impl OngoingRequests {
             return Poll::Ready(event);
         }
 
-        let mut kept = Vec::new();
-
-        for (request_id, mut fut) in self.requests.drain() {
+        self.requests.retain(|&request_id, fut| {
             let response = self.responses.remove(&request_id);
             let ctx = OngoingRequestContext {
                 pending_events: VecDeque::new(),
@@ -217,29 +215,27 @@ impl OngoingRequests {
             }
 
             log::error!("poll: {poll:?}");
-            match poll {
-                Poll::Ready(Ok(response)) => self.pending_events.push_back(Event::RequestSucceed {
+            let event = match poll {
+                Poll::Ready(Ok(response)) => Event::RequestSucceed {
                     request_id,
                     response,
-                }),
-                Poll::Ready(Err((error, request))) => {
-                    self.pending_events.push_back(Event::RequestFailed {
-                        request: RetriableRequest {
-                            request_id,
-                            request,
-                        },
-                        error,
-                    })
-                }
-                Poll::Pending => {
-                    kept.push((request_id, fut));
-                }
-            }
-        }
+                },
+                Poll::Ready(Err((error, request))) => Event::RequestFailed {
+                    request: RetriableRequest {
+                        request_id,
+                        request,
+                    },
+                    error,
+                },
+                Poll::Pending => return true,
+            };
+            self.pending_events.push_back(event);
 
-        if !kept.is_empty() {
+            false
+        });
+
+        if !self.requests.is_empty() {
             self.waker = Some(cx.waker().clone());
-            self.requests.extend(kept);
         }
 
         if !self.pending_events.is_empty() {
