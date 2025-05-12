@@ -31,6 +31,7 @@ use crate::ToDigest;
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
 pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
+pub type Address = [u8; 20];
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
@@ -105,9 +106,37 @@ impl ToDigest for CodeCommitment {
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct OperatorRewardsCommitment {
+    pub amount: U256,
+    pub root: H256,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct StakerRewards {
+    pub vault: Address,
+    pub amount: U256,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct StakerRewardsCommitment {
+    pub distribution: Vec<StakerRewards>,
+    pub total_amount: U256,
+    pub token: Address,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct RewardsCommitment {
+    pub operators: OperatorRewardsCommitment,
+    pub stakers: StakerRewardsCommitment,
+    /// represented as u48 in router contract
+    pub timestamp: u64,
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitment {
     pub block_commitments: Vec<BlockCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
+    pub rewards_commitments: Vec<RewardsCommitment>,
 }
 
 impl ToDigest for BatchCommitment {

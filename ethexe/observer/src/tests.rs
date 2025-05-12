@@ -113,9 +113,7 @@ async fn test_deployment() -> Result<()> {
         let request_code_id = pending_builder.code_id();
         let request_tx_hash = pending_builder.tx_hash();
 
-        blobs_reader
-            .add_blob_transaction(request_tx_hash, wasm)
-            .await;
+        blobs_reader.storage_mut().insert(request_tx_hash, wasm);
 
         request_code_id
     };

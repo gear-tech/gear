@@ -126,6 +126,6 @@ async fn test_add_transaction() {
     let res = tx_pool.validate(invalid_tx.clone());
     assert!(res.is_err());
     let err_string = format!("{:?}", res.expect_err("checked"));
-    println!("{}", err_string);
+    println!("{err_string}");
     assert!(err_string.contains("Transaction reference block hash is out of recent blocks window"));
 }

@@ -67,12 +67,12 @@ fn run_diff_test<F: FnOnce(&[u8]) -> Vec<u8>>(test_dir: &str, name: &str, test: 
     if actual_wat != expected_wat {
         println!("difference!");
         println!("--- {}", expected_path.display());
-        println!("+++ {} test {}", test_dir, name);
+        println!("+++ {test_dir} test {name}");
         for diff in diff::lines(expected_wat, &actual_wat) {
             match diff {
-                diff::Result::Left(l) => println!("-{}", l),
-                diff::Result::Both(l, _) => println!(" {}", l),
-                diff::Result::Right(r) => println!("+{}", r),
+                diff::Result::Left(l) => println!("-{l}"),
+                diff::Result::Both(l, _) => println!(" {l}"),
+                diff::Result::Right(r) => println!("+{r}"),
             }
         }
 

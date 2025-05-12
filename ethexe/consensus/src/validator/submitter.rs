@@ -118,6 +118,7 @@ mod tests {
             block_commitments: vec![
                 mock_block_commitment(H256::random(), H256::random(), H256::random()).1,
             ],
+            rewards_commitments: vec![],
         };
 
         let multisigned_batch =

@@ -103,7 +103,7 @@ where
                 _ => false,
             };
             if !old_sig_handler_works {
-                panic!("Signal handler failed: {}", err);
+                panic!("Signal handler failed: {err}");
             }
         }
     }
