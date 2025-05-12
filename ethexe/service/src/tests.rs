@@ -573,7 +573,7 @@ async fn mailbox() {
         .db
         .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
-    assert!(schedule.is_empty(), "{:?}", schedule);
+    assert!(schedule.is_empty(), "{schedule:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1388,10 +1388,10 @@ mod utils {
                         anvil = anvil.block_time(block_time.as_secs())
                     }
                     if let Some(slots_in_epoch) = slots_in_epoch {
-                        anvil = anvil.arg(format!("--slots-in-an-epoch={}", slots_in_epoch));
+                        anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                     }
                     if let Some(genesis_timestamp) = genesis_timestamp {
-                        anvil = anvil.arg(format!("--timestamp={}", genesis_timestamp));
+                        anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                     }
 
                     let anvil = anvil.spawn();
@@ -1541,7 +1541,7 @@ mod utils {
                     .instrument(tracing::trace_span!("network-stream")),
                 );
 
-                let bootstrap_address = format!("{address}/p2p/{}", local_peer_id);
+                let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
 
                 (handle, bootstrap_address, nonce)
             });

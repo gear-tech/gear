@@ -29,8 +29,8 @@ use wasm_encoder::{
     reencode::{Reencode, RoundtripReencoder},
 };
 use wasmparser::{
-    BinaryReader, BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType,
-    MemoryType, NameSectionReader, Payload, RefType, TableType, TypeRef, ValType, WasmFeatures,
+    BinaryReaderError, Encoding, ExternalKind, FuncType, FunctionBody, GlobalType, KnownCustom,
+    MemoryType, Payload, RefType, TableType, TypeRef, ValType, WasmFeatures,
 };
 
 pub const GEAR_SUPPORTED_FEATURES: WasmFeatures = WasmFeatures::WASM1
@@ -1404,25 +1404,22 @@ impl Module {
                         .expect("code section start missing")
                         .push(Function::from_entry(entry)?);
                 }
-                Payload::CustomSection(section) => {
-                    // we avoid usage of `CustomSectionReader::as_known()`
-                    // because compiler is unable to remove branch with `CoreDumpSection`
-                    // which reads f32 and f64 values
-                    if section.name() == "name" {
-                        let section = NameSectionReader::new(BinaryReader::new(section.data(), 0));
+                Payload::CustomSection(section) => match section.as_known() {
+                    KnownCustom::Name(name_section_reader) => {
                         name_section = Some(
-                            section
+                            name_section_reader
                                 .into_iter()
                                 .map(|name| name.map_err(Into::into).and_then(Name::parse))
                                 .collect::<Result<Vec<_>>>()?,
                         );
-                    } else {
+                    }
+                    _ => {
                         let custom_sections = custom_sections.get_or_insert_with(Vec::new);
                         let name = section.name().to_string().into();
                         let data = section.data().to_vec();
                         custom_sections.push((name, data));
                     }
-                }
+                },
                 Payload::UnknownSection { .. } => {}
                 _ => {}
             }

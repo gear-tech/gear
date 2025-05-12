@@ -3851,9 +3851,7 @@ fn initial_pages_cheaper_than_allocated_pages() {
         let spent_for_allocated_pages = gas_spent(wat_alloc);
         assert!(
             spent_for_initial_pages < spent_for_allocated_pages,
-            "spent {} gas for initial pages, spent {} gas for allocated pages",
-            spent_for_initial_pages,
-            spent_for_allocated_pages,
+            "spent {spent_for_initial_pages} gas for initial pages, spent {spent_for_allocated_pages} gas for allocated pages",
         );
     });
 }
@@ -8882,7 +8880,7 @@ fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
                 0,
                 false,
             )
-            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            .unwrap_or_else(|_| panic!("Failed to send command {command:?} to Waiter"));
             let msg_id = get_last_message_id();
             let msg_block_number = System::block_number() + 1;
             run_to_next_block(None);
@@ -8967,7 +8965,7 @@ fn waking_message_waiting_for_rw_lock_does_not_lead_to_deadlock() {
                 0,
                 false,
             )
-            .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+            .unwrap_or_else(|_| panic!("Failed to send command {command:?} to Waiter"));
             let msg_id = get_last_message_id();
             let msg_block_number = System::block_number() + 1;
             run_to_next_block(None);
@@ -9101,7 +9099,7 @@ fn mx_lock_ownership_exceedance() {
                     0,
                     false,
                 )
-                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                .unwrap_or_else(|_| panic!("Failed to send command {command:?} to Waiter"));
                 let msg_id = get_last_message_id();
                 let msg_block_number = System::block_number() + 1;
                 run_to_next_block(None);
@@ -9410,7 +9408,7 @@ fn async_sleep_for() {
                     0,
                     false,
                 )
-                .unwrap_or_else(|_| panic!("Failed to send command {:?} to Waiter", command));
+                .unwrap_or_else(|_| panic!("Failed to send command {command:?} to Waiter"));
                 let msg_id = get_last_message_id();
                 let msg_block_number = System::block_number() + 1;
                 run_to_next_block(None);
@@ -9421,15 +9419,13 @@ fn async_sleep_for() {
                 assert_eq!(
                     MailboxOf::<Test>::len(&USER_1),
                     1,
-                    "Asserting Waiter reply {}",
-                    expected_reply
+                    "Asserting Waiter reply {expected_reply}",
                 );
                 let waiter_reply = <String>::decode(&mut get_last_mail(USER_1).payload_bytes())
                     .expect("Failed to decode Waiter reply");
                 assert_eq!(
                     waiter_reply, expected_reply,
-                    "Asserting Waiter reply {}",
-                    expected_reply
+                    "Asserting Waiter reply {expected_reply}",
                 );
             };
 
@@ -9445,8 +9441,7 @@ fn async_sleep_for() {
         // The message payload is a number of the block the program received
         // the SleepFor message in.
         assert_waiter_single_reply(format!(
-            "Before the sleep at block: {}",
-            sleep_for_block_number
+            "Before the sleep at block: {sleep_for_block_number}",
         ));
 
         // Assert the SleepFor message is in the waitlist.
