@@ -358,7 +358,7 @@ impl OngoingRequest {
             .await
             .map_err(|()| NewRequestRoundReason::PeerFailed)?;
 
-        let no_external_validation = match response.validate() {
+        let no_external_validation = match response.validate(&self.original_request) {
             Ok(is_valid) => is_valid,
             Err(err) => {
                 log::trace!("response validation failed for request from {peer}: {err:?}");
