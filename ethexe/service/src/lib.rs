@@ -43,7 +43,6 @@ use futures::StreamExt;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::pin::Pin;
-use tokio::sync::broadcast::Sender;
 
 pub mod config;
 
@@ -51,13 +50,8 @@ mod fast_sync;
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Clone, derive_more::From)]
+#[derive(Debug, derive_more::From)]
 pub enum Event {
-    // Fast sync done. Sent just once.
-    FastSyncDone(H256),
-    // Basic event to notify that service has started. Sent just once.
-    ServiceStarted,
-    // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
     Network(NetworkEvent),
@@ -82,8 +76,8 @@ pub struct Service {
 
     fast_sync: bool,
 
-    // Optional global event broadcaster.
-    sender: Option<Sender<Event>>,
+    #[cfg(test)]
+    sender: tests::TestableEventSender,
 }
 
 // TODO #4176: consider to move this to another module
@@ -235,6 +229,7 @@ impl Service {
 
         let fast_sync = config.node.fast_sync;
 
+        #[allow(unreachable_code)]
         Ok(Self {
             db,
             network,
@@ -245,8 +240,9 @@ impl Service {
             prometheus,
             rpc,
             tx_pool,
-            sender: None,
             fast_sync,
+            #[cfg(test)]
+            sender: unreachable!(),
         })
     }
 
@@ -270,7 +266,7 @@ impl Service {
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
-        sender: Option<Sender<Event>>,
+        sender: tests::TestableEventSender,
         fast_sync: bool,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
@@ -311,8 +307,9 @@ impl Service {
             tx_pool,
             mut prometheus,
             rpc,
-            sender,
             fast_sync: _,
+            #[cfg(test)]
+            sender,
         } = self;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
@@ -328,13 +325,10 @@ impl Service {
         let roles = vec!["Observer".to_string(), consensus.role()];
         log::info!("⚙️ Node service starting, roles: {roles:?}");
 
-        // Broadcast service started event.
-        // Never supposed to be Some in production code.
-        if let Some(sender) = sender.as_ref() {
-            sender
-                .send(Event::ServiceStarted)
-                .expect("failed to broadcast service STARTED event");
-        }
+        #[cfg(test)]
+        sender
+            .send(tests::TestableEvent::ServiceStarted)
+            .expect("failed to broadcast service STARTED event");
 
         loop {
             let event: Event = tokio::select! {
@@ -352,18 +346,12 @@ impl Service {
 
             log::trace!("Primary service produced event, start handling: {event:?}");
 
-            // Broadcast event.
-            // Never supposed to be Some in production.
-            if let Some(sender) = sender.as_ref() {
-                sender
-                    .send(event.clone())
-                    .expect("failed to broadcast service event");
-            }
+            #[cfg(test)]
+            sender
+                .send(tests::TestableEvent::new(&event))
+                .expect("failed to broadcast service event");
 
             match event {
-                Event::FastSyncDone(_) | Event::ServiceStarted => {
-                    unreachable!("never handled here")
-                }
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,
@@ -442,9 +430,10 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::DbResponse { .. }
-                        | NetworkEvent::PeerBlocked(_)
-                        | NetworkEvent::PeerConnected(_) => (),
+                        NetworkEvent::DbResponse { .. } => {
+                            unreachable!("`db-sync` is never used for requests in the main loop")
+                        }
+                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
                 Event::Prometheus(event) => {

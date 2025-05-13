@@ -34,12 +34,12 @@ use std::{
 };
 use tokio::task::JoinSet;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BlockProcessed {
     pub block_hash: H256,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ComputeEvent {
     BlockProcessed(BlockProcessed),
     CodeProcessed(CodeCommitment),

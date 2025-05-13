@@ -18,6 +18,8 @@
 
 //! Integration tests.
 
+pub(crate) use utils::{TestableEvent, TestableEventSender};
+
 use crate::{
     config::{self, Config},
     tests::utils::Node,
@@ -1299,7 +1301,8 @@ mod utils {
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
-    use ethexe_rpc::RpcService;
+    use ethexe_prometheus::PrometheusEvent;
+    use ethexe_rpc::{RpcEvent, RpcService};
     use ethexe_tx_pool::TxPoolService;
     use futures::{executor::block_on, StreamExt};
     use gear_core::message::ReplyCode;
@@ -2101,7 +2104,7 @@ mod utils {
         pub latest_fast_synced_block: Option<H256>,
 
         eth_cfg: EthereumConfig,
-        receiver: Option<Receiver<Event>>,
+        receiver: Option<TestableEventReceiver>,
         blob_reader: MockBlobReader,
         signer: Signer,
         threshold: u64,
@@ -2191,7 +2194,7 @@ mod utils {
                 network,
                 None,
                 rpc,
-                Some(sender),
+                sender,
                 self.fast_sync,
             );
 
@@ -2209,7 +2212,7 @@ mod utils {
                 self.latest_fast_synced_block = self
                     .listener()
                     .apply_until(|e| {
-                        if let Event::FastSyncDone(block) = e {
+                        if let TestableEvent::FastSyncDone(block) = e {
                             Ok(Some(block))
                         } else {
                             Ok(None)
@@ -2220,12 +2223,18 @@ mod utils {
                     .unwrap();
             }
 
-            self.wait_for(|e| matches!(e, Event::ServiceStarted)).await;
+            self.wait_for(|e| matches!(e, TestableEvent::ServiceStarted))
+                .await;
 
             // fast sync implies network has connections
             if wait_for_network && !self.fast_sync {
-                self.wait_for(|e| matches!(e, Event::Network(NetworkEvent::PeerConnected(_))))
-                    .await;
+                self.wait_for(|e| {
+                    matches!(
+                        e,
+                        TestableEvent::Network(TestableNetworkEvent::PeerConnected(_))
+                    )
+                })
+                .await;
             }
         }
 
@@ -2255,7 +2264,7 @@ mod utils {
         }
 
         // TODO(playX18): Tests that actually use Event broadcast channel extensively
-        pub async fn wait_for(&mut self, f: impl Fn(Event) -> bool) {
+        pub async fn wait_for(&mut self, f: impl Fn(TestableEvent) -> bool) {
             self.listener()
                 .wait_for(|e| Ok(f(e)))
                 .await
@@ -2271,16 +2280,112 @@ mod utils {
         }
     }
 
+    pub type TestableEventSender = Sender<TestableEvent>;
+    pub type TestableEventReceiver = Receiver<TestableEvent>;
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    #[allow(dead_code)]
+    pub(crate) enum TestableNetworkEvent {
+        DbResponse {
+            request_id: db_sync::RequestId,
+            result: std::result::Result<db_sync::Response, db_sync::RequestFailure>,
+        },
+        DbExternalValidation {
+            request_id: db_sync::RequestId,
+            response: db_sync::Response,
+        },
+        Message {
+            data: Vec<u8>,
+            source: Option<PeerId>,
+        },
+        PeerBlocked(PeerId),
+        PeerConnected(PeerId),
+    }
+
+    impl TestableNetworkEvent {
+        fn new(event: &NetworkEvent) -> Self {
+            match event {
+                NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
+                    request_id: *request_id,
+                    result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
+                },
+                NetworkEvent::DbExternalValidation {
+                    request_id,
+                    response,
+                    sender: _,
+                } => Self::DbExternalValidation {
+                    request_id: *request_id,
+                    response: response.clone(),
+                },
+                NetworkEvent::Message { data, source } => Self::Message {
+                    data: data.clone(),
+                    source: *source,
+                },
+                NetworkEvent::PeerBlocked(peer) => Self::PeerBlocked(*peer),
+                NetworkEvent::PeerConnected(peer) => Self::PeerConnected(*peer),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    pub enum TestableRpcEvent {
+        OffchainTransaction {
+            transaction: SignedOffchainTransaction,
+        },
+    }
+
+    impl TestableRpcEvent {
+        fn new(event: &RpcEvent) -> Self {
+            match event {
+                RpcEvent::OffchainTransaction {
+                    transaction,
+                    response_sender: _,
+                } => Self::OffchainTransaction {
+                    transaction: transaction.clone(),
+                },
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Eq, PartialEq)]
+    #[allow(dead_code)]
+    pub(crate) enum TestableEvent {
+        // Fast sync done. Sent just once.
+        FastSyncDone(H256),
+        // Basic event to notify that service has started. Sent just once.
+        ServiceStarted,
+        // Services events.
+        Compute(ComputeEvent),
+        Consensus(ConsensusEvent),
+        Network(TestableNetworkEvent),
+        Observer(ObserverEvent),
+        Prometheus(PrometheusEvent),
+        Rpc(TestableRpcEvent),
+    }
+
+    impl TestableEvent {
+        pub(crate) fn new(event: &Event) -> Self {
+            match event {
+                Event::Compute(event) => Self::Compute(event.clone()),
+                Event::Consensus(event) => Self::Consensus(event.clone()),
+                Event::Network(event) => Self::Network(TestableNetworkEvent::new(event)),
+                Event::Observer(event) => Self::Observer(event.clone()),
+                Event::Prometheus(event) => Self::Prometheus(event.clone()),
+                Event::Rpc(event) => Self::Rpc(TestableRpcEvent::new(event)),
+            }
+        }
+    }
+
     pub struct ServiceEventsListener<'a> {
-        receiver: &'a mut Receiver<Event>,
+        receiver: &'a mut TestableEventReceiver,
     }
 
     impl ServiceEventsListener<'_> {
-        pub async fn next_event(&mut self) -> Result<Event> {
+        pub async fn next_event(&mut self) -> Result<TestableEvent> {
             self.receiver.recv().await.map_err(Into::into)
         }
 
-        pub async fn wait_for(&mut self, f: impl Fn(Event) -> Result<bool>) -> Result<()> {
+        pub async fn wait_for(&mut self, f: impl Fn(TestableEvent) -> Result<bool>) -> Result<()> {
             self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
                 .await
         }
@@ -2289,14 +2394,14 @@ mod utils {
             self.wait_for(|event| {
                 Ok(matches!(
                     event,
-                    Event::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
+                    TestableEvent::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
                 ))
             }).await.unwrap();
         }
 
         pub async fn apply_until<R: Sized>(
             &mut self,
-            f: impl Fn(Event) -> Result<Option<R>>,
+            f: impl Fn(TestableEvent) -> Result<Option<R>>,
         ) -> Result<R> {
             loop {
                 let event = self.next_event().await?;
