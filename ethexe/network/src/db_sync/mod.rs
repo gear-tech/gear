@@ -109,26 +109,34 @@ enum ResponseValidationError {
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 pub enum Response {
     Hashes(BTreeMap<H256, Vec<u8>>),
-    ProgramIdsAt(H256, BTreeSet<ActorId>),
+    ProgramIdsAt(H256, Option<BTreeSet<ActorId>>),
 }
 
 impl fmt::Debug for Response {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let (name, values, len) = match self {
-            Response::Hashes(hashes) => ("Hashes", hashes as &dyn fmt::Debug, hashes.len()),
-            Response::ProgramIdsAt(block, program_ids) => (
-                "ProgramCodeIdsAt",
-                &(block, program_ids) as &dyn fmt::Debug,
-                program_ids.len(),
-            ),
-        };
-
-        if f.alternate() {
-            f.debug_tuple(name).field(values).finish()
-        } else {
-            f.debug_tuple(name)
-                .field(&format_args!("{len} entries"))
-                .finish()
+        let alternate = f.alternate();
+        match self {
+            Response::Hashes(hashes) => {
+                let mut d = f.debug_tuple("Hashes");
+                if alternate {
+                    d.field(hashes);
+                } else {
+                    d.field(&format_args!("{:?} keys", hashes.len()));
+                }
+                d.finish()
+            }
+            Response::ProgramIdsAt(at, ids) => {
+                let mut d = f.debug_tuple("ProgramIdsAt");
+                d.field(at);
+                if alternate {
+                    d.field(ids);
+                } else if let Some(ids) = ids {
+                    d.field(&format_args!("{:?} keys", ids.len()));
+                } else {
+                    d.field(&None::<()>);
+                }
+                d.finish()
+            }
         }
     }
 }
@@ -145,9 +153,7 @@ impl Response {
             Request::ProgramIdsAt(block) => Self::ProgramIdsAt(
                 block,
                 db.block_program_states(block)
-                    .unwrap_or_default()
-                    .into_keys()
-                    .collect(),
+                    .map(|states| states.into_keys().collect()),
             ),
         }
     }
@@ -158,7 +164,16 @@ impl Response {
                 hashes.extend(new_hashes);
             }
             (Self::ProgramIdsAt(_, program_ids), Response::ProgramIdsAt(_, new_program_ids)) => {
-                program_ids.extend(new_program_ids);
+                match (program_ids, new_program_ids) {
+                    (Some(program_ids), Some(new_program_ids)) => {
+                        program_ids.extend(new_program_ids);
+                    }
+                    (Some(_program_ids), None) => {}
+                    (program_ids @ None, Some(new_program_ids)) => {
+                        *program_ids = Some(new_program_ids);
+                    }
+                    (None, None) => {}
+                }
             }
             _ => unreachable!(),
         }
@@ -1109,6 +1124,83 @@ mod tests {
                 request_id: rid,
                 response
             } if rid == request_id && response == Response::Hashes([(request_key, b"test".to_vec())].into())
+        );
+    }
+
+    #[tokio::test]
+    async fn external_validation() {
+        init_logger();
+
+        let (mut alice, _alice_db) = new_swarm().await;
+        let (mut bob, _bob_db) = new_swarm().await;
+        let (mut charlie, charlie_db) = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let program_states = BTreeMap::from_iter([
+            (ActorId::new([1; 32]), H256::random()),
+            (ActorId::new([2; 32]), H256::random()),
+        ]);
+        charlie_db.set_block_program_states(H256::zero(), program_states.clone());
+        let expected_response =
+            Response::ProgramIdsAt(H256::zero(), Some(program_states.keys().cloned().collect()));
+
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::ProgramIdsAt(H256::zero()));
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(
+            event,
+            Event::NewRequestRound {
+                request_id: rid,
+                peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            } if rid == request_id && peer_id == bob_peer_id
+        );
+
+        let event = alice.next_behaviour_event().await;
+        if let Event::ExternalValidationRequired {
+            request_id: rid,
+            response,
+            sender,
+        } = event
+        {
+            assert_eq!(request_id, rid);
+            assert_eq!(response, Response::ProgramIdsAt(H256::zero(), None));
+            sender.send(false).unwrap();
+        } else {
+            unreachable!();
+        }
+
+        alice.connect(&mut charlie).await;
+        tokio::spawn(charlie.loop_on_next());
+
+        // `Event::NewRequestRound` skipped by `connect()` above
+
+        let event = alice.next_behaviour_event().await;
+        if let Event::ExternalValidationRequired {
+            request_id: rid,
+            response,
+            sender,
+        } = event
+        {
+            assert_eq!(request_id, rid);
+            assert_eq!(response, expected_response);
+            sender.send(true).unwrap();
+        } else {
+            unreachable!();
+        }
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(
+            event,
+            Event::RequestSucceed {
+                request_id: rid,
+                response,
+            } if rid == request_id && response == expected_response
         );
     }
 }
