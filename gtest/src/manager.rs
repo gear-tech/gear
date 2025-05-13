@@ -22,6 +22,7 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     program::{Gas, WasmProgram},
     state::{
+        self,
         accounts::Accounts,
         actors::{Actors, GenuineProgram, Program, TestActor},
         bank::Bank,
@@ -41,7 +42,7 @@ use core_processor::{
 };
 use gear_common::{
     auxiliary::{
-        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
+        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, overlay, waitlist::WaitlistErrorImpl,
         BlockNumber,
     },
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
@@ -285,5 +286,27 @@ impl ExtManager {
             });
 
         Ok(message)
+    }
+
+    /// Enables the overlay mode for gear-runtime emulating storages
+    /// (auxiliaries and internal ones), like:
+    /// - gas tree
+    /// - mailbox
+    /// - task pool
+    /// - waitlist
+    /// - actors (internal)
+    /// - accounts (internal)
+    /// - blocks (internal)
+    /// - bank (internal) 
+    pub(crate) fn enable_overlay(&self) {
+        overlay::enable_overlay();
+        state::enable_overlay();
+    } 
+
+    /// Disables the overlay mode for gear-runtime emulating storages
+    /// (auxiliaries and internal ones).
+    pub(crate) fn disable_overlay(&self) {
+        overlay::disable_overlay();
+        state::disable_overlay();
     }
 }

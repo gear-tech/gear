@@ -18,8 +18,7 @@
 
 //! Actors storage.
 
-use std::{cell::RefCell, collections::BTreeMap, fmt};
-
+use std::{cell::RefCell, collections::BTreeMap, fmt, thread::LocalKey};
 use core_processor::common::ExecutableActorData;
 use gear_common::{CodeId, GearPage, MessageId, PageBuf, ProgramId};
 use gear_core::{
@@ -31,19 +30,26 @@ use gear_core::{
 use crate::WasmProgram;
 
 thread_local! {
-    static ACTORS_STORAGE: RefCell<BTreeMap<ProgramId, TestActor>> = RefCell::new(Default::default());
+    pub(super) static ACTORS_STORAGE: RefCell<BTreeMap<ProgramId, TestActor>> = RefCell::new(Default::default());
+}
+
+fn storage() -> &'static LocalKey<RefCell<BTreeMap<ProgramId, TestActor>>> {
+    if super::overlay_enabled() {
+        &super::ACTORS_STORAGE_OVERLAY
+    } else {
+        &ACTORS_STORAGE
+    }
 }
 
 pub(crate) struct Actors;
 
 impl Actors {
     // Accesses actor by program id.
-
     pub(crate) fn access<R>(
         program_id: ProgramId,
         access: impl FnOnce(Option<&TestActor>) -> R,
     ) -> R {
-        ACTORS_STORAGE.with_borrow(|storage| access(storage.get(&program_id)))
+        storage().with_borrow(|storage| access(storage.get(&program_id)))
     }
 
     // Modifies actor by program id.
@@ -51,28 +57,28 @@ impl Actors {
         program_id: ProgramId,
         modify: impl FnOnce(Option<&mut TestActor>) -> R,
     ) -> R {
-        ACTORS_STORAGE.with_borrow_mut(|storage| modify(storage.get_mut(&program_id)))
+        storage().with_borrow_mut(|storage| modify(storage.get_mut(&program_id)))
     }
 
     // Inserts actor by program id.
     pub(crate) fn insert(program_id: ProgramId, actor: TestActor) -> Option<TestActor> {
-        ACTORS_STORAGE.with_borrow_mut(|storage| storage.insert(program_id, actor))
+        storage().with_borrow_mut(|storage| storage.insert(program_id, actor))
     }
 
     // Checks if actor by program id exists.
     pub(crate) fn contains_key(program_id: ProgramId) -> bool {
-        ACTORS_STORAGE.with_borrow(|storage| storage.contains_key(&program_id))
+        storage().with_borrow(|storage| storage.contains_key(&program_id))
     }
 
     // Checks if actor by program id is a user.
     pub(crate) fn is_user(id: ProgramId) -> bool {
         // Non-existent program is a user
-        ACTORS_STORAGE.with_borrow(|storage| storage.get(&id).is_none())
+        storage().with_borrow(|storage| storage.get(&id).is_none())
     }
 
     // Checks if actor by program id is active.
     pub(crate) fn is_active_program(id: ProgramId) -> bool {
-        ACTORS_STORAGE.with_borrow(|storage| {
+        storage().with_borrow(|storage| {
             matches!(
                 storage.get(&id),
                 Some(TestActor::Initialized(_) | TestActor::Uninitialized(_, _))
@@ -88,18 +94,18 @@ impl Actors {
 
     // Returns all program ids.
     pub(crate) fn program_ids() -> Vec<ProgramId> {
-        ACTORS_STORAGE.with_borrow(|storage| storage.keys().copied().collect())
+        storage().with_borrow(|storage| storage.keys().copied().collect())
     }
 
     // Clears actors storage.
     pub(crate) fn clear() {
-        ACTORS_STORAGE.with_borrow_mut(|storage| storage.clear())
+        storage().with_borrow_mut(|storage| storage.clear())
     }
 }
 
 impl fmt::Debug for Actors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ACTORS_STORAGE.with_borrow(|storage| f.debug_map().entries(storage.iter()).finish())
+        storage().with_borrow(|storage| f.debug_map().entries(storage.iter()).finish())
     }
 }
 
@@ -200,6 +206,48 @@ impl TestActor {
     ) -> Option<(ExecutableActorData, InstrumentedCode)> {
         self.genuine_program()
             .map(GenuineProgram::executable_actor_data)
+    }
+
+    pub(crate) fn is_mock_actor(&self) -> bool {
+        matches!(self, TestActor::Initialized(Program::Mock(_)))
+            || matches!(self, TestActor::Uninitialized(_, Some(Program::Mock(_))))
+    }
+}
+
+impl TestActor {
+    /// Clones actors.
+    /// 
+    /// If the actor is a mock program, takes the value, leaving `None` in its place.
+    /// This is an intended impl, aimed to be used when overlay mode is enabled. So,
+    /// overlay storage clones/takes values from the original storage.
+    /// 
+    /// # Warning
+    /// The latter is a reason for marking function as `unsafe`. Caller must be cautious about
+    /// consequences of such custom cloning. The cloned/taken values must be returned back.
+    pub(crate) unsafe fn clone_exhausting(&mut self) -> Self {
+        let clone_exhausting_program = |program: &mut Program| {
+            match program {
+                Program::Genuine(genuine_program) => {
+                    Program::Genuine(genuine_program.clone())
+                }
+                Program::Mock(mock) => Program::Mock(mock.take()),
+            }
+        };
+
+        match self {
+            TestActor::Initialized(program) => TestActor::Initialized(clone_exhausting_program(program)),
+            TestActor::Uninitialized(message_id, program) => {
+                let program_clone = program
+                    .as_mut()
+                    .map(|program| {
+                    clone_exhausting_program(program)
+                });
+                TestActor::Uninitialized(*message_id, program_clone)
+            }
+            TestActor::FailedInit => TestActor::FailedInit,
+            TestActor::CodeNotExists => TestActor::CodeNotExists,
+            TestActor::Exited(id) => TestActor::Exited(*id),
+        }
     }
 }
 

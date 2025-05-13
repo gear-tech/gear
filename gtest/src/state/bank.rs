@@ -20,39 +20,53 @@
 
 use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
 use gear_common::{Gas, GasMultiplier, ProgramId};
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, thread::LocalKey};
 
-#[derive(Default, Debug)]
-struct BankBalance {
+thread_local! {
+    /// Bank storage.
+    pub(super) static BANK_ACCOUNTS: RefCell<HashMap<ProgramId, BankBalance>> = RefCell::new(Default::default());
+}
+
+fn storage() -> &'static LocalKey<RefCell<HashMap<ProgramId, BankBalance>>> {
+    if super::overlay_enabled() {
+        &super::BANK_ACCOUNTS_OVERLAY
+    } else {
+        &BANK_ACCOUNTS
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub(super) struct BankBalance {
     gas: Value,
     value: Value,
 }
 
 /// `gtest` bank.
 #[derive(Default, Debug)]
-pub(crate) struct Bank {
-    accounts: HashMap<ProgramId, BankBalance>,
-}
+pub(crate) struct Bank;
 
 impl Bank {
     // Create a new bank.
-
     pub(crate) fn deposit_value(&mut self, id: ProgramId, value: Value, keep_alive: bool) {
         Accounts::decrease(id, value, keep_alive);
-        self.accounts
-            .entry(id)
-            .or_insert(BankBalance { gas: 0, value: 0 })
-            .value += value;
+        storage().with_borrow_mut(|accs| {
+            accs
+                .entry(id)
+                .or_insert(BankBalance { gas: 0, value: 0 })
+                .value += value;
+        });
     }
 
     // Deposit gas.
     pub(crate) fn deposit_gas(&mut self, id: ProgramId, gas: Gas, keep_alive: bool) {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas);
         Accounts::decrease(id, gas_value, keep_alive);
-        self.accounts
-            .entry(id)
-            .or_insert(BankBalance { gas: 0, value: 0 })
-            .gas += gas_value;
+        storage().with_borrow_mut(|accs| {
+            accs
+                .entry(id)
+                .or_insert(BankBalance { gas: 0, value: 0 })
+                .gas += gas_value;
+        });
     }
 
     // Withdraw gas.
@@ -63,10 +77,12 @@ impl Bank {
         multiplier: GasMultiplier<Value, Gas>,
     ) {
         let gas_value = multiplier.gas_to_value(gas);
-        self.accounts
-            .get_mut(&id)
-            .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {id:?} not found in bank"))
-            .gas -= gas_value;
+        storage().with_borrow_mut(|accs| {
+            accs
+                .get_mut(&id)
+                .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {id:?} not found in bank"))
+                .gas -= gas_value;
+        });
     }
 
     // Withdraw gas.
@@ -77,10 +93,12 @@ impl Bank {
         multiplier: GasMultiplier<Value, Gas>,
     ) {
         let gas_left_value = multiplier.gas_to_value(gas_left);
-        self.accounts
-            .get_mut(&id)
-            .unwrap_or_else(|| panic!("Bank::withdraw_gas: actor id {id:?} not found in bank"))
-            .gas -= gas_left_value;
+        storage().with_borrow_mut(|accs| {
+            accs
+                .get_mut(&id)
+                .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {id:?} not found in bank"))
+                .gas -= gas_left_value;
+        });
 
         if !Accounts::can_deposit(id, gas_left_value) {
             // Unable to deposit value to account.
@@ -93,10 +111,12 @@ impl Bank {
 
     // Transfer value.
     pub(crate) fn transfer_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
-        self.accounts
-            .get_mut(&from)
-            .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
-            .value -= value;
+        storage().with_borrow_mut(|accs| {
+            accs
+                .get_mut(&from)
+                .unwrap_or_else(|| panic!("Bank::transfer_value: actor id {from:?} not found in bank"))
+                .value -= value;
+        });
 
         if !Accounts::can_deposit(to, value) {
             // Unable to deposit value to account.

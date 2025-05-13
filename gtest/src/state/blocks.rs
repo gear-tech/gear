@@ -22,16 +22,21 @@ use crate::BLOCK_DURATION_IN_MSECS;
 use core_processor::configs::BlockInfo;
 use gear_common::{auxiliary::BlockNumber, storage::GetCallback};
 use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::{SystemTime, UNIX_EPOCH},
+    cell::RefCell, rc::Rc, thread::LocalKey, time::{SystemTime, UNIX_EPOCH}
 };
 
-type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;
-
+pub(super) type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;
 thread_local! {
     /// Definition of the storage value storing block info (timestamp and height).
-    static BLOCK_INFO_STORAGE: BlockInfoStorageInner = Rc::new(RefCell::new(None));
+    pub(super) static BLOCK_INFO_STORAGE: BlockInfoStorageInner = Rc::new(RefCell::new(None));
+}
+
+fn storage() -> &'static LocalKey<BlockInfoStorageInner> {
+    if super::overlay_enabled() {
+        &super::BLOCK_INFO_STORAGE_OVERLAY
+    } else {
+        &BLOCK_INFO_STORAGE
+    }
 }
 
 #[derive(Debug)]
@@ -43,7 +48,7 @@ impl BlocksManager {
     /// Create block info storage manager with a further initialization of the
     /// storage.
     pub(crate) fn new() -> Self {
-        let unused = BLOCK_INFO_STORAGE.with(|bi_rc| {
+        let unused = storage().with(|bi_rc| {
             let mut ref_mut = bi_rc.borrow_mut();
             if ref_mut.is_none() {
                 let info = BlockInfo {
@@ -62,7 +67,7 @@ impl BlocksManager {
 
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        BLOCK_INFO_STORAGE.with(|bi_rc| {
+        storage().with(|bi_rc| {
             bi_rc
                 .borrow()
                 .as_ref()
@@ -78,7 +83,7 @@ impl BlocksManager {
 
     /// Adjusts blocks info by moving blocks by `amount`.
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
-        BLOCK_INFO_STORAGE.with(|bi_rc| {
+        storage().with(|bi_rc| {
             let mut bi_ref_mut = bi_rc.borrow_mut();
             let Some(block_info) = bi_ref_mut.as_mut() else {
                 panic!("instance always initialized");
@@ -100,7 +105,7 @@ impl Default for BlocksManager {
 
 impl Drop for BlocksManager {
     fn drop(&mut self) {
-        BLOCK_INFO_STORAGE.with(|bi_rc| {
+        storage().with(|bi_rc| {
             if Rc::strong_count(bi_rc) == 2 {
                 *bi_rc.borrow_mut() = None;
             }
@@ -149,9 +154,9 @@ mod tests {
 
         second_instance.next_block();
         assert_eq!(second_instance.get().height, 3);
-        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_some());
+        assert!(BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_some()));
 
         drop(second_instance);
-        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_none());
+        assert!(BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.borrow().is_none()));
     }
 }
