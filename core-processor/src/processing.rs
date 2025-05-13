@@ -211,8 +211,6 @@ enum ProcessErrorCase {
     Uninitialized,
     /// Given code id for program creation doesn't exist.
     CodeNotExists,
-    /// Message is executable, but it's execution failed due to code metadata verification.
-    MetadataVerificationFailed,
     /// Message is executable, but its execution failed due to re-instrumentation.
     ReinstrumentationFailed,
     /// Error is considered as an execution failure.
@@ -243,9 +241,6 @@ impl ProcessErrorCase {
             ProcessErrorCase::CodeNotExists => {
                 ErrorReplyReason::UnavailableActor(SimpleUnavailableActorError::ProgramNotCreated)
             }
-            ProcessErrorCase::MetadataVerificationFailed => ErrorReplyReason::UnavailableActor(
-                SimpleUnavailableActorError::MetadataVerificationFailure,
-            ),
             ProcessErrorCase::ReinstrumentationFailed => ErrorReplyReason::UnavailableActor(
                 SimpleUnavailableActorError::ReinstrumentationFailure,
             ),
@@ -366,9 +361,7 @@ fn process_error(
     }
 
     let outcome = match case {
-        ProcessErrorCase::ExecutionFailed { .. }
-        | ProcessErrorCase::ReinstrumentationFailed
-        | ProcessErrorCase::MetadataVerificationFailed => {
+        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
             let err_msg = case.to_string();
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
@@ -508,7 +501,7 @@ pub fn process_code_metadata_error(context: ContextCharged<ForCodeMetadata>) -> 
         destination_id,
         gas_burned,
         system_reservation_ctx,
-        ProcessErrorCase::MetadataVerificationFailed,
+        ProcessErrorCase::ReinstrumentationFailed,
     )
 }
 
