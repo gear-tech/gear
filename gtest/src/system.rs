@@ -24,20 +24,15 @@ use crate::{
     state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
-use gear_common::MessageId;
 use gear_core::{
-    ids::{
-        prelude::{CodeIdExt, MessageIdExt},
-        CodeId, ProgramId,
-    },
-    message::Message,
+    ids::{prelude::CodeIdExt, CodeId, ProgramId},
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use parity_scale_codec::{Decode, DecodeAll};
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, mem, panic, path::Path, thread};
+use std::{borrow::Cow, cell::RefCell, env, fs, mem, panic, path::Path};
 use tracing_subscriber::EnvFilter;
 
 thread_local! {

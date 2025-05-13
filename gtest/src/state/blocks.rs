@@ -22,7 +22,10 @@ use crate::BLOCK_DURATION_IN_MSECS;
 use core_processor::configs::BlockInfo;
 use gear_common::{auxiliary::BlockNumber, storage::GetCallback};
 use std::{
-    cell::RefCell, rc::Rc, thread::LocalKey, time::{SystemTime, UNIX_EPOCH}
+    cell::RefCell,
+    rc::Rc,
+    thread::LocalKey,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub(super) type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;

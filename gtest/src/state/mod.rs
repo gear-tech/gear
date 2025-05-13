@@ -27,17 +27,17 @@ pub(crate) mod mailbox;
 pub(crate) mod task_pool;
 pub(crate) mod waitlist;
 
-use std::{
-    thread_local,
-    cell::{RefCell, Cell},
-    rc::Rc,
-    collections::{HashMap, BTreeMap},
-};
-use gear_common::ProgramId;
 use accounts::{Balance, ACCOUNT_STORAGE};
 use actors::{TestActor, ACTORS_STORAGE};
 use bank::{BankBalance, BANK_ACCOUNTS};
-use blocks::{BLOCK_INFO_STORAGE, BlockInfoStorageInner};
+use blocks::{BlockInfoStorageInner, BLOCK_INFO_STORAGE};
+use gear_common::ProgramId;
+use std::{
+    cell::{Cell, RefCell},
+    collections::{BTreeMap, HashMap},
+    rc::Rc,
+    thread_local,
+};
 
 thread_local! {
     /// Overlay mode enabled flag.
@@ -49,7 +49,7 @@ thread_local! {
 }
 
 /// Enables overlay mode.
-/// 
+///
 /// If overlay is enabled, this function is no-op.
 pub(crate) fn enable_overlay() {
     if overlay_enabled() {
@@ -66,8 +66,8 @@ pub(crate) fn enable_overlay() {
 
     // Enable overlay for actors storage.
     ACTORS_STORAGE_OVERLAY.with(|aso| {
-        let original = ACTORS_STORAGE
-            .with_borrow_mut(|act_s| act_s
+        let original = ACTORS_STORAGE.with_borrow_mut(|act_s| {
+            act_s
                 .iter_mut()
                 .map(|(id, actor)| {
                     // Exhausting cloning is used as intended for the overlay mode.
@@ -75,7 +75,7 @@ pub(crate) fn enable_overlay() {
                     (*id, actor_clone)
                 })
                 .collect()
-            );
+        });
         aso.replace(original);
     });
 
@@ -95,7 +95,7 @@ pub(crate) fn enable_overlay() {
 }
 
 /// Disables overlay mode.
-/// 
+///
 /// If overlay is disabled, this function is no-op.
 pub(crate) fn disable_overlay() {
     if !overlay_enabled() {
@@ -111,8 +111,7 @@ pub(crate) fn disable_overlay() {
 
     // Disable overlay for actors storage.
     ACTORS_STORAGE_OVERLAY.with_borrow_mut(|aso| {
-        aso
-            .iter_mut()
+        aso.iter_mut()
             .filter(|(_, actor)| actor.is_mock_actor())
             .for_each(|(id, actor)| {
                 // Exhausting cloning from overlay to return values back to the original storage.
@@ -141,4 +140,133 @@ pub(crate) fn disable_overlay() {
 
 pub(crate) fn overlay_enabled() -> bool {
     OVERLAY_ENABLED.with(|v| v.get())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        state::{accounts::Accounts, actors::Actors, bank::Bank, blocks::BlocksManager},
+        EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
+    };
+    use gear_core::ids::ProgramId;
+
+    #[test]
+    fn test_overlay_works_for_internal_storages() {
+        assert!(!overlay_enabled());
+
+        // Fill the accounts storage.
+        let predef_acc1 = ProgramId::from(42);
+        let predef_acc2 = ProgramId::from(43);
+        let predef_acc3 = ProgramId::from(44);
+        Accounts::increase(predef_acc1, EXISTENTIAL_DEPOSIT * 1000);
+        Accounts::increase(predef_acc2, EXISTENTIAL_DEPOSIT * 1000);
+        Accounts::increase(predef_acc3, EXISTENTIAL_DEPOSIT * 1000);
+
+        // Fill the actors storage.
+        Actors::insert(predef_acc1, TestActor::Uninitialized(None, None));
+        Actors::insert(predef_acc2, TestActor::Uninitialized(None, None));
+        Actors::insert(predef_acc3, TestActor::Uninitialized(None, None));
+
+        // Fill the bank storage.
+        let bank = Bank::default();
+        bank.deposit_gas(predef_acc1, 1_000, true);
+        bank.deposit_gas(predef_acc2, 1_000 * 2, true);
+        bank.deposit_gas(predef_acc3, 1_000 * 3, true);
+
+        bank.deposit_value(predef_acc1, EXISTENTIAL_DEPOSIT, true);
+        bank.deposit_value(predef_acc2, EXISTENTIAL_DEPOSIT * 2, true);
+        bank.deposit_value(predef_acc3, EXISTENTIAL_DEPOSIT * 3, true);
+
+        let acc1_balance_before_overlaid = Accounts::balance(predef_acc1);
+        let acc2_balance_before_overlaid = Accounts::balance(predef_acc2);
+        let acc3_balance_before_overlaid = Accounts::balance(predef_acc3);
+
+        // Fill the block info storage.
+        let bm = BlocksManager::new();
+        bm.next_block();
+        assert_eq!(bm.get().height, 1);
+
+        // Enable overlay mode.
+        enable_overlay();
+        assert!(overlay_enabled());
+
+        // Adjust accounts storage:
+        // - add a new account
+        // - change existing ones
+        let new_acc = ProgramId::from(45);
+        Accounts::increase(new_acc, EXISTENTIAL_DEPOSIT * 1000);
+        Accounts::decrease(predef_acc1, EXISTENTIAL_DEPOSIT, true);
+        Accounts::decrease(predef_acc2, EXISTENTIAL_DEPOSIT, true);
+
+        let new_acc1_balance_overlaid = Accounts::balance(new_acc);
+        let predef_acc1_balance_overlaid = Accounts::balance(predef_acc1);
+        let predef_acc2_balance_overlaid = Accounts::balance(predef_acc2);
+
+        assert_eq!(
+            predef_acc1_balance_overlaid,
+            acc1_balance_before_overlaid - EXISTENTIAL_DEPOSIT
+        );
+        assert_eq!(
+            predef_acc2_balance_overlaid,
+            acc2_balance_before_overlaid - EXISTENTIAL_DEPOSIT
+        );
+        assert_eq!(new_acc1_balance_overlaid, EXISTENTIAL_DEPOSIT * 1000);
+
+        // Adjust actors storage the same way.
+        let acc2_actor_ty = TestActor::CodeNotExists;
+        let acc3_actor_ty = TestActor::FailedInit;
+        Actors::insert(new_acc, TestActor::Uninitialized(None, None));
+        Actors::modify(predef_acc1, |actor| {
+            *actor.expect("checked") = acc2_actor_ty;
+        });
+        Actors::modify(predef_acc2, |actor| {
+            *actor.expect("checked") = acc3_actor_ty;
+        });
+
+        // Adjust bank storage the same way.
+        bank.deposit_gas(new_acc, 1_000, true);
+        bank.deposit_value(new_acc, EXISTENTIAL_DEPOSIT, true);
+
+        bank.spend_gas(predef_acc1, 200, GAS_MULTIPLIER);
+        bank.transfer_value(predef_acc1, new_acc, EXISTENTIAL_DEPOSIT);
+
+        // Assert balances
+        let new_acc1_balance_overlaid_after_bank = Accounts::balance(new_acc);
+
+        assert_eq!(
+            new_acc1_balance_overlaid_after_bank,
+            new_acc1_balance_overlaid - EXISTENTIAL_DEPOSIT - GAS_MULTIPLIER.gas_to_value(1_000)
+                + EXISTENTIAL_DEPOSIT
+        );
+
+        // Adjust blocks storage
+        bm.move_blocks_by(10);
+        assert_eq!(bm.get().height, 11);
+
+        // Disable overlay mode.
+        disable_overlay();
+
+        // New acc doesn't exist.
+        assert_eq!(Accounts::balance(new_acc), 0);
+        assert!(!Actors::contains_key(new_acc));
+
+        // Balances hasn't changed.
+        assert_eq!(Accounts::balance(predef_acc1), acc1_balance_before_overlaid);
+        assert_eq!(Accounts::balance(predef_acc2), acc2_balance_before_overlaid);
+        assert_eq!(Accounts::balance(predef_acc3), acc3_balance_before_overlaid);
+
+        // Actors haven't changed.
+        let check_actor = |id| {
+            Actors::access(id, |a| {
+                assert!(matches!(a, Some(TestActor::Uninitialized(None, None))));
+            });
+        };
+        check_actor(predef_acc1);
+        check_actor(predef_acc2);
+        check_actor(predef_acc3);
+
+        // Block info storage hasn't changed.
+        assert_eq!(bm.get().height, 1);
+    }
 }

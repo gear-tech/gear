@@ -297,11 +297,11 @@ impl ExtManager {
     /// - actors (internal)
     /// - accounts (internal)
     /// - blocks (internal)
-    /// - bank (internal) 
+    /// - bank (internal)
     pub(crate) fn enable_overlay(&self) {
         overlay::enable_overlay();
         state::enable_overlay();
-    } 
+    }
 
     /// Disables the overlay mode for gear-runtime emulating storages
     /// (auxiliaries and internal ones).
