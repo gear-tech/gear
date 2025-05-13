@@ -102,8 +102,12 @@ impl Request {
 
 #[derive(Debug, Eq, PartialEq)]
 enum ResponseValidationError {
+    /// Request variant differs from response variant
+    RequestResponseTypeMismatch,
     /// Hashed data unequal to its corresponding hash
     DataHashMismatch,
+    /// Requested block mismatches responded one
+    AtBlockMismatch,
 }
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
@@ -182,16 +186,23 @@ impl Response {
     /// Validates response against request.
     ///
     /// Returns `false` if external validation is required.
-    fn validate(&self) -> Result<bool, ResponseValidationError> {
-        match self {
-            Response::Hashes(hashes) => {
+    fn validate(&self, request: &Request) -> Result<bool, ResponseValidationError> {
+        match (request, self) {
+            (Request::Hashes(_), Response::Hashes(hashes)) => {
                 for (hash, data) in hashes {
                     if *hash != ethexe_db::hash(data) {
                         return Err(ResponseValidationError::DataHashMismatch);
                     }
                 }
             }
-            Response::ProgramIdsAt(_, _) => return Ok(false),
+            (Request::ProgramIdsAt(at), Response::ProgramIdsAt(responded_at, _)) => {
+                if *at != *responded_at {
+                    return Err(ResponseValidationError::AtBlockMismatch);
+                }
+
+                return Ok(false);
+            }
+            _ => return Err(ResponseValidationError::RequestResponseTypeMismatch),
         }
 
         Ok(true)
@@ -601,10 +612,20 @@ mod tests {
     fn validate_data_hash_mismatch() {
         let hash1 = ethexe_db::hash(b"1");
 
+        let request = Request::Hashes([hash1].into());
         let response = Response::Hashes([(hash1, b"2".to_vec())].into());
         assert_eq!(
-            response.validate(),
+            response.validate(&request),
             Err(ResponseValidationError::DataHashMismatch)
+        );
+    }
+    #[test]
+    fn validate_at_block_mismatch() {
+        let request = Request::ProgramIdsAt(H256::random());
+        let response = Response::ProgramIdsAt(H256::zero(), None);
+        assert_eq!(
+            response.validate(&request),
+            Err(ResponseValidationError::AtBlockMismatch)
         );
     }
 
@@ -857,6 +878,61 @@ mod tests {
             } if rid == request_id &&  response == Response::Hashes(
                 [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
             )
+        );
+    }
+
+    #[tokio::test]
+    async fn request_response_type_mismatch() {
+        init_logger();
+
+        let alice_config = Config::default().with_max_rounds_per_request(1);
+        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
+            InnerBehaviour::new(
+                [(STREAM_PROTOCOL, ProtocolSupport::Full)],
+                request_response::Config::default(),
+            )
+        });
+        bob.connect(&mut alice).await;
+
+        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(
+            event,
+            Event::NewRequestRound {
+                request_id: rid,
+                peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            } if rid == request_id && peer_id == *bob.local_peer_id()
+        );
+
+        tokio::spawn(async move {
+            while let Some(event) = bob.next().await {
+                if let Ok(request_response::Event::Message {
+                    message:
+                        Message::Request {
+                            channel, request, ..
+                        },
+                    ..
+                }) = event.try_into_behaviour_event()
+                {
+                    assert_eq!(request, Request::Hashes([].into()));
+                    bob.behaviour_mut()
+                        .send_response(channel, Response::ProgramIdsAt(H256::zero(), None))
+                        .unwrap();
+                }
+            }
+        });
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(
+            event,
+            Event::RequestFailed {
+                request,
+                error: RequestFailure::OutOfRounds,
+            } if request.id() == request_id
         );
     }
 
