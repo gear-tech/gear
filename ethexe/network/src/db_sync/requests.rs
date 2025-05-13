@@ -24,14 +24,13 @@ use crate::{
     peer_score::Handle,
     utils::ConnectionMap,
 };
-use futures::{future, future::BoxFuture, FutureExt};
+use futures::{future::BoxFuture, FutureExt};
 use libp2p::{
     request_response::OutboundRequestId,
     swarm::{behaviour::ConnectionEstablished, ConnectionClosed, FromSwarm},
 };
 use rand::prelude::IteratorRandom;
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     task::{Context, Poll, Waker},
     time::Duration,
@@ -40,6 +39,10 @@ use tokio::{
     sync::{oneshot, oneshot::Sender},
     time,
 };
+
+ethexe_service_utils::task_local! {
+    static CONTEXT: OngoingRequestContext;
+}
 
 type OngoingRequestFuture = BoxFuture<'static, Result<Response, (RequestFailure, OngoingRequest)>>;
 
@@ -183,7 +186,7 @@ impl OngoingRequests {
                 response,
             };
 
-            let (ctx, poll) = context::scope(ctx, || fut.poll_unpin(cx));
+            let (ctx, poll) = CONTEXT.scope(ctx, || fut.poll_unpin(cx));
 
             for event in ctx.pending_events {
                 match event {
@@ -265,28 +268,29 @@ impl OngoingRequest {
     async fn choose_next_peer(&mut self) -> (PeerId, Option<NewRequestRoundReason>) {
         let mut event_sent = false;
 
-        let peer = context::poll_fn(|ctx| {
-            log::debug!("connections: {:?}", ctx.peers);
-            let peer = ctx
-                .peers
-                .difference(&self.tried_peers)
-                .choose_stable(&mut rand::thread_rng())
-                .copied();
-            self.tried_peers.extend(peer);
+        let peer = CONTEXT
+            .poll_fn(|_task_cx, ctx| {
+                log::debug!("connections: {:?}", ctx.peers);
+                let peer = ctx
+                    .peers
+                    .difference(&self.tried_peers)
+                    .choose_stable(&mut rand::thread_rng())
+                    .copied();
+                self.tried_peers.extend(peer);
 
-            if let Some(peer) = peer {
-                Poll::Ready(peer)
-            } else {
-                if !event_sent {
-                    ctx.pending_events
-                        .push_back(OngoingRequestEvent::PendingState);
-                    event_sent = true;
+                if let Some(peer) = peer {
+                    Poll::Ready(peer)
+                } else {
+                    if !event_sent {
+                        ctx.pending_events
+                            .push_back(OngoingRequestEvent::PendingState);
+                        event_sent = true;
+                    }
+
+                    Poll::Pending
                 }
-
-                Poll::Pending
-            }
-        })
-        .await;
+            })
+            .await;
 
         let event = Some(NewRequestRoundReason::FromQueue).filter(|_| event_sent);
         (peer, event)
@@ -297,24 +301,24 @@ impl OngoingRequest {
         peer: PeerId,
         reason: NewRequestRoundReason,
     ) -> Result<Response, ()> {
-        context::with(|ctx| {
+        CONTEXT.with_mut(|ctx| {
             ctx.pending_events
                 .push_back(OngoingRequestEvent::SendRequest(
                     peer,
                     self.request.clone(),
                     reason,
                 ));
-        })
-        .await;
+        });
 
-        context::poll_fn(|ctx| {
-            if let Some(res) = ctx.response.take() {
-                Poll::Ready(res)
-            } else {
-                Poll::Pending
-            }
-        })
-        .await
+        CONTEXT
+            .poll_fn(|_task_cx, ctx| {
+                if let Some(res) = ctx.response.take() {
+                    Poll::Ready(res)
+                } else {
+                    Poll::Pending
+                }
+            })
+            .await
     }
 
     fn merge_and_strip(
@@ -361,14 +365,13 @@ impl OngoingRequest {
         };
         if !no_external_validation {
             let (sender, receiver) = oneshot::channel();
-            context::with(|ctx| {
+            CONTEXT.with_mut(|ctx| {
                 ctx.pending_events
                     .push_back(OngoingRequestEvent::ExternalValidationRequired(
                         sender,
                         response.clone(),
                     ));
-            })
-            .await;
+            });
             let is_valid = receiver
                 .await
                 .expect("oneshot receiver must never be dropped");
@@ -434,46 +437,6 @@ struct OngoingRequestContext {
     pending_events: VecDeque<OngoingRequestEvent>,
     peers: HashSet<PeerId>,
     response: Option<Result<Response, ()>>,
-}
-
-mod context {
-    use super::*;
-
-    thread_local! {
-        static CONTEXT: RefCell<Option<OngoingRequestContext>> = const { RefCell::new(None) };
-    }
-
-    pub(crate) fn scope<T>(
-        ctx: OngoingRequestContext,
-        f: impl FnOnce() -> T,
-    ) -> (OngoingRequestContext, T) {
-        CONTEXT.set(Some(ctx));
-        let res = f();
-        let ctx = CONTEXT.take().expect("context is set above");
-        (ctx, res)
-    }
-
-    pub(crate) fn with<T>(
-        f: impl FnOnce(&mut OngoingRequestContext) -> T,
-    ) -> impl Future<Output = T> {
-        future::lazy(|_cx| {
-            CONTEXT.with_borrow_mut(|ctx| {
-                let ctx = ctx.as_mut().expect("context must be set");
-                f(ctx)
-            })
-        })
-    }
-
-    pub(crate) fn poll_fn<T>(
-        mut f: impl FnMut(&mut OngoingRequestContext) -> Poll<T>,
-    ) -> impl Future<Output = T> {
-        future::poll_fn(move |_cx| {
-            CONTEXT.with_borrow_mut(|ctx| {
-                let ctx = ctx.as_mut().expect("context must be set");
-                f(ctx)
-            })
-        })
-    }
 }
 
 #[derive(Debug, Clone)]
