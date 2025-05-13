@@ -4,16 +4,16 @@ version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 
-[package.metadata]
-cargo-fuzz = true
-
 [dependencies]
-libfuzzer-sys.workspace = true
 lazy-pages-fuzzer = { path = ".." }
 gear-utils.workspace = true
+rand.workspace = true
+arbitrary.workspace = true
+log.workspace = true
+hex.workspace = true
 
-[[bin]]
-name = "lazy-pages-fuzzer-fuzz"
-path = "fuzz_targets/main.rs"
-test = false
-doc = false
+scopeguard = "1.2.0"
+clap = { version = "4.5.38", features = ["derive"] }
+
+env_logger = "0.11.8"
+rand_chacha = "0.9.0"

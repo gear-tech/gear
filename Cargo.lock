@@ -890,15 +890,16 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.7"
+version = "0.6.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd2405b3ac1faab2990b74d728624cd9fd115651fcecc7c2d8daf01376275ba"
+checksum = "8acc5369981196006228e28809f761875c0327210a891e941f4c683b3a99529b"
 dependencies = [
  "anstyle",
  "anstyle-parse",
  "anstyle-query",
  "anstyle-wincon",
  "colorchoice",
+ "is_terminal_polyfill",
  "utf8parse",
 ]
 
@@ -928,12 +929,12 @@ dependencies = [
 
 [[package]]
 name = "anstyle-wincon"
-version = "3.0.1"
+version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0699d10d2f4d628a98ee7b57b289abbc98ff3bad977cb3152709d4bf2330628"
+checksum = "2109dbce0e72be3ec00bed26e6a7479ca384ad226efdd66db8fa2e3a38c83125"
 dependencies = [
  "anstyle",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2231,7 +2232,7 @@ dependencies = [
  "anyhow",
  "cargo_metadata 0.19.2",
  "cargo_toml",
- "clap 4.5.23",
+ "clap 4.5.38",
  "colored",
  "etc",
  "gear-wasm-optimizer",
@@ -2522,19 +2523,19 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.23"
+version = "4.5.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3135e7ec2ef7b10c6ed8950f0f792ed96ee093fa088608f1c76e569722700c84"
+checksum = "ed93b9805f8ba930df42c2590f05453d5ec36cbb85d018868a5b24d31f6ac000"
 dependencies = [
  "clap_builder",
- "clap_derive 4.5.18",
+ "clap_derive 4.5.32",
 ]
 
 [[package]]
 name = "clap_builder"
-version = "4.5.23"
+version = "4.5.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30582fc632330df2bd26877bde0c1f4470d57c582bbc070376afcd04d8cb4838"
+checksum = "379026ff283facf611b0ea629334361c4211d1b12ee01024eec1591133b04120"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2558,9 +2559,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.18"
+version = "4.5.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
+checksum = "09176aae279615badda0765c0c0b3f6ed53f4709118af73cf4655d85d1530cd7"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2962,7 +2963,7 @@ dependencies = [
  "anyhow",
  "cargo-http-registry",
  "cargo_metadata 0.19.2",
- "clap 4.5.23",
+ "clap 4.5.38",
  "reqwest",
  "serde",
  "tempfile",
@@ -4582,6 +4583,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_filter"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "186e05a59d4c50738528153b83b0b0194d3a29507dfec16eccd4b342903397d0"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4592,6 +4603,19 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13c863f0904021b108aa8b2f55046443e6b1ebde8fd4a15c399893aae4fa069f"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "jiff",
+ "log",
 ]
 
 [[package]]
@@ -4642,7 +4666,7 @@ name = "ethexe-cli"
 version = "1.8.1"
 dependencies = [
  "anyhow",
- "clap 4.5.23",
+ "clap 4.5.38",
  "directories",
  "ethexe-common",
  "ethexe-ethereum",
@@ -5139,7 +5163,7 @@ version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84f2e425d9790201ba4af4630191feac6dcc98765b118d4d18e91d23c2353866"
 dependencies = [
- "env_logger",
+ "env_logger 0.10.2",
  "log",
 ]
 
@@ -5316,7 +5340,7 @@ dependencies = [
  "Inflector",
  "array-bytes",
  "chrono",
- "clap 4.5.23",
+ "clap 4.5.38",
  "comfy-table",
  "frame-benchmarking",
  "frame-support",
@@ -5963,7 +5987,7 @@ version = "1.8.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "clap 4.5.23",
+ "clap 4.5.38",
  "color-eyre",
  "colored",
  "demo-fungible-token",
@@ -6102,7 +6126,7 @@ dependencies = [
 name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
- "clap 4.5.23",
+ "clap 4.5.38",
  "generate-bags",
  "vara-runtime",
 ]
@@ -6126,7 +6150,7 @@ dependencies = [
 name = "gear-cli"
 version = "1.8.1"
 dependencies = [
- "clap 4.5.23",
+ "clap 4.5.38",
  "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -6344,7 +6368,7 @@ name = "gear-node-loader"
 version = "1.8.1"
 dependencies = [
  "anyhow",
- "clap 4.5.23",
+ "clap 4.5.38",
  "futures",
  "futures-timer",
  "gclient",
@@ -6400,7 +6424,7 @@ dependencies = [
 name = "gear-replay-cli"
 version = "1.0.0"
 dependencies = [
- "clap 4.5.23",
+ "clap 4.5.38",
  "frame-remote-externalities",
  "gear-runtime-interface",
  "gear-runtime-primitives",
@@ -6639,7 +6663,7 @@ name = "gear-validator-checks"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.5.23",
+ "clap 4.5.38",
  "futures",
  "gsdk",
  "log",
@@ -6752,7 +6776,7 @@ name = "gear-weight-diff"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "clap 4.5.23",
+ "clap 4.5.38",
  "frame-support",
  "gear-utils",
  "heck 0.5.0",
@@ -6972,7 +6996,7 @@ version = "1.8.1"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
- "clap 4.5.23",
+ "clap 4.5.38",
  "colored",
  "dirs",
  "gear-ss58",
@@ -7964,6 +7988,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "is_terminal_polyfill"
+version = "1.70.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8032,6 +8062,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7b5e473765060536a660eed127f758cf1a810c73e49063264959c60d1727d9"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "jiff"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f02000660d30638906021176af16b17498bd0d12813dbfe7b276d8bc7f3c0806"
+dependencies = [
+ "jiff-static",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3c30758ddd7188629c6713fc45d1188af4f44c90582311d0c8d8c9907f60c48"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -8512,9 +8566,16 @@ dependencies = [
 name = "lazy-pages-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
+ "arbitrary",
+ "clap 4.5.38",
+ "env_logger 0.11.8",
  "gear-utils",
+ "hex",
  "lazy-pages-fuzzer",
- "libfuzzer-sys",
+ "log",
+ "rand 0.8.5",
+ "rand_chacha 0.9.0",
+ "scopeguard",
 ]
 
 [[package]]
@@ -12460,9 +12521,18 @@ dependencies = [
 
 [[package]]
 name = "portable-atomic"
-version = "1.9.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc9c68a3f6da06753e9335d63e27f6b9754dd1920d941135b7ea8224f141adb2"
+checksum = "350e9b48cbc6b0e028b0473b114454c6316e57336ee184ceab6e53f72c178b3e"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "postcard"
@@ -13418,7 +13488,7 @@ dependencies = [
 name = "regression-analysis"
 version = "0.1.0"
 dependencies = [
- "clap 4.5.23",
+ "clap 4.5.38",
  "frame-support",
  "junit-common",
  "pallet-gear",
@@ -13691,7 +13761,7 @@ name = "runtime-fuzzer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 4.5.23",
+ "clap 4.5.38",
  "frame-support",
  "frame-system",
  "gear-call-gen",
@@ -14150,7 +14220,7 @@ source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot
 dependencies = [
  "array-bytes",
  "chrono",
- "clap 4.5.23",
+ "clap 4.5.38",
  "fdlimit",
  "futures",
  "itertools 0.11.0",
@@ -18814,7 +18884,7 @@ dependencies = [
 name = "wasm-proc"
 version = "1.8.1"
 dependencies = [
- "clap 4.5.23",
+ "clap 4.5.38",
  "gear-wasm-builder",
  "gear-wasm-instrument",
  "log",
