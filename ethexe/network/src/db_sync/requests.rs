@@ -75,6 +75,12 @@ impl OngoingRequests {
         }
     }
 
+    fn wake(&mut self) {
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+    }
+
     /// Tracks all active connections.
     pub(crate) fn on_swarm_event(&mut self, event: FromSwarm) {
         match event {
@@ -85,10 +91,7 @@ impl OngoingRequests {
             }) => {
                 let res = self.connections.add_connection(peer_id, connection_id);
                 debug_assert_eq!(res, Ok(()));
-
-                if let Some(waker) = self.waker.take() {
-                    waker.wake();
-                }
+                self.wake();
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
                 peer_id,
@@ -151,6 +154,7 @@ impl OngoingRequests {
         let request = self.requests.get_mut(&request_id);
         if let Some(_request) = request {
             self.responses.insert(request_id, Ok(response));
+            self.wake();
         } else {
             log::trace!("request {outbound_request_id} has been skipped");
         }
@@ -164,6 +168,7 @@ impl OngoingRequests {
         let request = self.requests.get_mut(&request_id);
         if let Some(_request) = request {
             self.responses.insert(request_id, Err(()));
+            self.wake();
         } else {
             log::trace!("request {outbound_request_id} has been skipped");
         }
@@ -215,7 +220,6 @@ impl OngoingRequests {
                 }
             }
 
-            log::error!("poll: {poll:?}");
             let event = match poll {
                 Poll::Ready(Ok(response)) => Event::RequestSucceed {
                     request_id,
@@ -270,7 +274,6 @@ impl OngoingRequest {
 
         let peer = CONTEXT
             .poll_fn(|_task_cx, ctx| {
-                log::debug!("connections: {:?}", ctx.peers);
                 let peer = ctx
                     .peers
                     .difference(&self.tried_peers)
@@ -402,8 +405,6 @@ impl OngoingRequest {
             let mut reason = NewRequestRoundReason::FromQueue;
 
             loop {
-                log::error!("REASON: {reason:?}");
-
                 if rounds >= max_rounds_per_request {
                     return Err(RequestFailure::OutOfRounds);
                 }
