@@ -157,9 +157,15 @@ impl JournalHandler for ExtManager {
                 gas_limit,
             );
 
-            if dispatch.value() != 0 {
+            // It's necessary to deposit value so the source would have enough
+            // balance locked (in gear-bank) for future value processing.
+            //
+            // In case of error replies, we don't need to do it, since original
+            // message value is already on locked balance in gear-bank.
+            if dispatch.value() != 0 && !dispatch.is_error_reply() {
                 self.bank.deposit_value(source, dispatch.value(), false);
             }
+
             match (gas_limit, reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
@@ -275,14 +281,17 @@ impl JournalHandler for ExtManager {
         .expect("no genuine program was found");
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: Value, locked: bool) {
         if value.is_zero() {
             // Nothing to do
             return;
         }
 
-        let to = to.unwrap_or(from);
-        self.bank.transfer_value(from, to, value);
+        if locked {
+            self.bank.transfer_locked_value(from, to, value);
+        } else {
+            self.bank.transfer_value(from, to, value);
+        }
     }
 
     fn store_new_programs(

@@ -574,7 +574,7 @@ async fn mailbox() {
         .db
         .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
-    assert!(schedule.is_empty(), "{:?}", schedule);
+    assert!(schedule.is_empty(), "{schedule:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1302,7 +1302,7 @@ mod utils {
     use ethexe_rpc::RpcService;
     use ethexe_signer::MemoryKeyStorage;
     use ethexe_tx_pool::TxPoolService;
-    use futures::StreamExt;
+    use futures::{executor::block_on, StreamExt};
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
@@ -1311,7 +1311,6 @@ mod utils {
     };
     use std::{
         pin::Pin,
-        str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::broadcast::{self, Receiver, Sender};
@@ -1384,10 +1383,10 @@ mod utils {
                         anvil = anvil.block_time(block_time.as_secs())
                     }
                     if let Some(slots_in_epoch) = slots_in_epoch {
-                        anvil = anvil.arg(format!("--slots-in-an-epoch={}", slots_in_epoch));
+                        anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                     }
                     if let Some(genesis_timestamp) = genesis_timestamp {
-                        anvil = anvil.arg(format!("--timestamp={}", genesis_timestamp));
+                        anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                     }
 
                     let anvil = anvil.spawn();
@@ -1537,7 +1536,7 @@ mod utils {
                     .instrument(tracing::trace_span!("network-stream")),
                 );
 
-                let bootstrap_address = format!("{address}/p2p/{}", local_peer_id);
+                let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
 
                 (handle, bootstrap_address, nonce)
             });
@@ -1620,18 +1619,19 @@ mod utils {
 
             let listener = self.observer_events_publisher().subscribe().await;
 
-            let pending_builder = self
-                .ethereum
-                .router()
-                .request_code_validation_with_sidecar(code)
-                .await?;
+            // Lock the blob reader to lock any other threads that may use it
+            let mut guard = self.blob_reader.storage_mut();
+
+            let pending_builder = block_on(
+                self.ethereum
+                    .router()
+                    .request_code_validation_with_sidecar(code),
+            )?;
 
             let code_id = pending_builder.code_id();
             let tx_hash = pending_builder.tx_hash();
 
-            self.blob_reader
-                .add_blob_transaction(tx_hash, code.to_vec())
-                .await;
+            guard.insert(tx_hash, code.to_vec());
 
             Ok(WaitForUploadCode { listener, code_id })
         }
@@ -1835,16 +1835,6 @@ mod utils {
                     .collect(),
                 verifiable_secret_sharing_commitment,
             )
-        }
-
-        #[allow(unused)]
-        pub async fn process_already_uploaded_code(&self, code: &[u8], tx_hash: &str) -> CodeId {
-            let code_id = CodeId::generate(code);
-            let tx_hash = H256::from_str(tx_hash).unwrap();
-            self.blob_reader
-                .add_blob_transaction(tx_hash, code.to_vec())
-                .await;
-            code_id
         }
     }
 

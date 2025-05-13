@@ -20,17 +20,7 @@
 //!
 //! Implements `ToDigest` hashing for ethexe common types.
 
-use core::{hash, ops::Not};
-
-use crate::{
-    gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, GearBlock, Message, StateTransition,
-        ValueClaim,
-    },
-    ProducerBlock,
-};
 use alloc::vec::Vec;
-use gear_core::code;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -47,7 +37,6 @@ use sha3::Digest as _;
     Decode,
     derive_more::From,
     derive_more::Into,
-    derive_more::AsRef,
     derive_more::Debug,
     derive_more::Display,
 )]
@@ -106,6 +95,12 @@ impl<T: ToDigest> ToDigest for Vec<T> {
     }
 }
 
+impl<T: ToDigest> ToDigest for Option<T> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.as_ref().map(|item| hasher.update(item.to_digest()));
+    }
+}
+
 impl ToDigest for [u8] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self);
@@ -118,177 +113,8 @@ impl ToDigest for Vec<u8> {
     }
 }
 
-impl ToDigest for CodeCommitment {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Self { id, valid } = self;
-
-        hasher.update(id.as_ref());
-        hasher.update([*valid as u8]);
-    }
-}
-
-impl ToDigest for StateTransition {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Self {
-            actor_id,
-            new_state_hash,
-            inheritor,
-            value_to_receive,
-            value_claims,
-            messages,
-        } = self;
-
-        hasher.update(actor_id.to_address_lossy().as_bytes());
-        hasher.update(new_state_hash.as_bytes());
-        hasher.update(inheritor.to_address_lossy().as_bytes());
-        hasher.update(value_to_receive.to_be_bytes().as_slice());
-
-        let mut value_hasher = sha3::Keccak256::new();
-        for value_claim in value_claims {
-            // To avoid missing incorrect hashing while developing.
-            let ValueClaim {
-                message_id,
-                destination,
-                value,
-            } = value_claim;
-
-            value_hasher.update(message_id.as_ref());
-            value_hasher.update(destination.to_address_lossy().as_bytes());
-            value_hasher.update(value.to_be_bytes().as_slice());
-        }
-        hasher.update(value_hasher.finalize().as_slice());
-
-        hasher.update(messages.to_digest().as_ref());
-    }
-}
-
-impl ToDigest for Message {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Self {
-            id,
-            destination,
-            payload,
-            value,
-            reply_details,
-        } = self;
-
-        let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
-
-        hasher.update(id.as_ref());
-        hasher.update(destination.to_address_lossy().as_bytes());
-        hasher.update(payload.as_slice());
-        hasher.update(value.to_be_bytes().as_slice());
-        hasher.update(reply_details_to.as_ref());
-        hasher.update(reply_details_code.to_bytes().as_slice());
-    }
-}
-
-impl ToDigest for GearBlock {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self {
-            block_hash,
-            off_chain_transaction_hash,
-            gas_allowance,
-        } = &self;
-
-        hasher.update(block_hash.as_bytes());
-        hasher.update(off_chain_transaction_hash.as_bytes());
-        hasher.update(gas_allowance.to_be_bytes().as_slice());
-    }
-}
-
-impl ToDigest for ChainCommitment {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Self {
-            transitions,
-            gear_blocks,
-        } = self;
-
-        hasher.update(transitions.to_digest().as_ref());
-        hasher.update(gear_blocks.to_digest().as_ref());
-    }
-}
-
-impl ToDigest for BatchCommitment {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Self {
-            block_hash,
-            timestamp,
-            previous_committed_block_hash,
-            chain_commitments,
-            code_commitments,
-            validators_commitment,
-            rewards_commitment: _,
-        } = self;
-
-        hasher.update(block_hash.as_bytes());
-        hasher.update(timestamp.to_be_bytes().as_slice());
-        hasher.update(previous_committed_block_hash.as_bytes());
-        chain_commitments.map(|c| hasher.update(c.to_digest().as_ref()));
-        code_commitments
-            .is_empty()
-            .not()
-            .then(|| hasher.update(code_commitments.to_digest().as_ref()));
-        validators_commitment.map(|c| hasher.update(c.to_digest().as_ref()));
-
-        // Placeholder for the rewards commitment
-        hasher.update([0u8; 0].to_digest().as_ref());
-    }
-}
-
-impl ToDigest for ProducerBlock {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.block_hash.as_bytes());
-        hasher.update(self.gas_allowance.encode().as_slice());
-        hasher.update(self.off_chain_transactions.encode().as_slice());
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use gprimitives::{ActorId, CodeId, MessageId, H256};
-    use std::vec;
-
-    #[test]
-    fn as_digest() {
-        let _digest = CodeCommitment {
-            id: CodeId::from(0),
-            timestamp: 0,
-            valid: true,
-        }
-        .to_digest();
-
-        let state_transition = StateTransition {
-            actor_id: ActorId::from(0),
-            new_state_hash: H256::from([1; 32]),
-            inheritor: ActorId::from(0),
-            value_to_receive: 0,
-            value_claims: vec![],
-            messages: vec![Message {
-                id: MessageId::from(0),
-                destination: ActorId::from(0),
-                payload: b"Hello, World!".to_vec(),
-                value: 0,
-                reply_details: None,
-            }],
-        };
-        let _digest = state_transition.to_digest();
-
-        let transitions = vec![state_transition.clone(), state_transition];
-
-        let block_commitment = BlockCommitment {
-            hash: H256::from([0; 32]),
-            timestamp: 0,
-            previous_committed_block: H256::from([2; 32]),
-            predecessor_block: H256::from([1; 32]),
-            transitions: transitions.clone(),
-        };
-        let _digest = block_commitment.to_digest();
+impl AsRef<[u8]> for Digest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }

@@ -69,7 +69,7 @@ impl Debug for PageSets {
             } else {
                 self.sets[set_no].clone()
             };
-            f.write_str(&format!("{set_no:?} {:?}", set))?;
+            f.write_str(&format!("{set_no:?} {set:?}"))?;
         }
         Ok(())
     }

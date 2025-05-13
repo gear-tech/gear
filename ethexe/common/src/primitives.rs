@@ -1,4 +1,4 @@
-use crate::events::BlockEvent;
+use crate::{events::BlockEvent, ToDigest};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -6,6 +6,7 @@ use alloc::{
 use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
+use sha3::Digest as _;
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
@@ -55,6 +56,14 @@ pub struct ProducerBlock {
     pub block_hash: H256,
     pub gas_allowance: Option<u64>,
     pub off_chain_transactions: Vec<H256>,
+}
+
+impl ToDigest for ProducerBlock {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.block_hash.as_bytes());
+        hasher.update(self.gas_allowance.encode().as_slice());
+        hasher.update(self.off_chain_transactions.encode().as_slice());
+    }
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
