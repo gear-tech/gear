@@ -130,25 +130,87 @@ async fn collect_program_code_ids(
     network: &mut NetworkService,
     latest_committed_block: H256,
 ) -> Result<BTreeMap<ActorId, CodeId>> {
-    let result = net_fetch(
-        network,
-        db_sync::Request::ProgramIdsAt(latest_committed_block),
-    )
-    .await;
-    let program_ids = match result {
-        Ok(db_sync::Response::ProgramIdsAt(block, program_ids)) => {
-            debug_assert_eq!(block, latest_committed_block);
-            program_ids.unwrap_or_default()
-        }
-        Ok(db_sync::Response::Hashes(_)) => unreachable!(),
-        Err(e) => todo!("{e}"),
-    };
-
     let router_query = observer.router_query();
-    let code_ids = router_query
-        .programs_code_ids(program_ids.iter().copied())
+    let programs_count = router_query
+        .programs_count_at(latest_committed_block)
         .await?;
 
+    let request_id = network
+        .db_sync()
+        .request(db_sync::Request::ProgramIdsAt(latest_committed_block));
+    let mut code_ids = Vec::new();
+
+    let response = loop {
+        let event = network
+            .next()
+            .await
+            .expect("network service stream is infinite");
+
+        match event {
+            NetworkEvent::DbResponse {
+                request_id: rid,
+                result,
+            } => {
+                debug_assert_eq!(rid, request_id, "unknown request id");
+                match result {
+                    Ok(response) => break response,
+                    Err((request, err)) => {
+                        log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
+                        network.db_sync().retry(request);
+                        continue;
+                    }
+                }
+            }
+            NetworkEvent::DbExternalValidation {
+                request_id: rid,
+                response,
+                sender,
+            } => {
+                debug_assert_eq!(rid, request_id, "unknown request id");
+
+                let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
+                    unreachable!("unexpected network response: {response:?}");
+                };
+                debug_assert_eq!(at, latest_committed_block);
+
+                let is_valid = 'a: {
+                    let is_equal = if let Some(program_ids) = &program_ids {
+                        program_ids.len() as u64 == programs_count
+                    } else {
+                        0 == programs_count
+                    };
+                    if !is_equal {
+                        break 'a false;
+                    }
+
+                    if let Some(program_ids) = program_ids {
+                        let new_code_ids = router_query
+                            .programs_code_ids_at(program_ids, latest_committed_block)
+                            .await?;
+                        if new_code_ids.iter().any(|code_id| code_id.is_zero()) {
+                            break 'a false;
+                        }
+                        code_ids = new_code_ids;
+                    }
+
+                    true
+                };
+
+                sender
+                    .send(is_valid)
+                    .expect("`db-sync` never drops its receiver");
+            }
+            _ => continue,
+        }
+    };
+
+    let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
+        unreachable!("unexpected network response: {response:?}");
+    };
+    debug_assert_eq!(at, latest_committed_block);
+    let program_ids = program_ids.unwrap_or_default();
+
+    debug_assert_eq!(program_ids.len(), code_ids.len());
     let program_code_ids = iter::zip(program_ids, code_ids).collect();
     Ok(program_code_ids)
 }
