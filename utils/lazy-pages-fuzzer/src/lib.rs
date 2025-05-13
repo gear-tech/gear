@@ -47,7 +47,7 @@ trait Runner {
 
 /// Runs all the fuzz testing internal machinery.
 pub fn run(generated_module: GeneratedModule) -> Result<()> {
-    let module = generated_module.enhance()?.module();
+    let module = generated_module.module();
 
     let unwrap_error_chain = |res| {
         match res {
