@@ -452,6 +452,17 @@ impl NetworkService {
                     result: Err((request, error)),
                 });
             }
+            BehaviourEvent::DbSync(db_sync::Event::ExternalValidationRequired {
+                request_id,
+                response,
+                sender,
+            }) => {
+                return Some(NetworkEvent::DbExternalValidation {
+                    request_id,
+                    response,
+                    sender,
+                });
+            }
             BehaviourEvent::DbSync(_) => {}
         }
 
@@ -635,6 +646,7 @@ mod tests {
     use crate::utils::tests::init_logger;
     use assert_matches::assert_matches;
     use ethexe_db::MemDb;
+    use gprimitives::H256;
     use ethexe_signer::{FSKeyStorage, Signer};
     use tokio::time::{timeout, Duration};
 
@@ -716,5 +728,52 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_matches!(event, NetworkEvent::PeerBlocked(peer) if peer == service2_peer_id);
+    }
+
+    #[tokio::test]
+    async fn external_validation() {
+        init_logger();
+
+        let (_tmp_dir, mut service1) = new_service();
+        let (_tmp_dir, mut service2) = new_service();
+
+        service1.connect(&mut service2).await;
+        tokio::spawn(service2.loop_on_next());
+
+        let request_id = service1
+            .db_sync()
+            .request(db_sync::Request::ProgramIdsAt(H256::zero()));
+
+        let event = timeout(Duration::from_secs(5), service1.next())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        if let NetworkEvent::DbExternalValidation {
+            request_id: rid,
+            response,
+            sender,
+        } = event
+        {
+            assert_eq!(rid, request_id);
+            assert_eq!(
+                response,
+                db_sync::Response::ProgramIdsAt(H256::zero(), None)
+            );
+            sender.send(true).unwrap();
+        } else {
+            unreachable!("{event:?}");
+        }
+
+        let event = timeout(Duration::from_secs(5), service1.next())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        assert_matches!(
+            event,
+            NetworkEvent::DbResponse {
+                request_id: rid,
+                result: Ok(response)
+            } if rid == request_id && response == db_sync::Response::ProgramIdsAt(H256::zero(), None)
+        );
     }
 }
