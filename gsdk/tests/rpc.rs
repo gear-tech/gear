@@ -234,7 +234,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
                     Cow::from("unknown")
                 }
                 Err(err) => {
-                    println!("cargo:warning=Failed to execute git command: {}", err);
+                    println!("cargo:warning=Failed to execute git command: {err}");
                     Cow::from("unknown")
                 }
             }
@@ -253,9 +253,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let wasm_blob_version_1 = api.runtime_wasm_blob_version(None).await?;
     assert!(
         wasm_blob_version_1.ends_with(git_commit_hash.as_ref()),
-        "The WASM blob version {} does not end with the git commit hash {}",
-        wasm_blob_version_1,
-        git_commit_hash
+        "The WASM blob version {wasm_blob_version_1} does not end with the git commit hash {git_commit_hash}",
     );
 
     let block_hash_1 = finalized_blocks.next_events().await?.unwrap().block_hash();

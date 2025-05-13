@@ -643,7 +643,7 @@ impl GearApi {
             .map(|(page, data)| {
                 MemoryPageDump::new(
                     GearPage::try_from(page)
-                        .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {}", page)),
+                        .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {page}")),
                     PageBuf::decode(&mut &*data).expect("Couldn't decode PageBuf"),
                 )
             })

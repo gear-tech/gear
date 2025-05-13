@@ -241,7 +241,7 @@ impl ProgramBuilder {
             "File must have `.wasm` extension"
         );
 
-        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {path:?}"));
 
         Self {
             code,
@@ -747,7 +747,7 @@ mod tests {
         res.assert_panicked_with(msg_id, panic_message);
         let log = Log::builder().payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
-        assert!(value.is_ok(), "not okay: {:?}", value);
+        assert!(value.is_ok(), "not okay: {value:?}");
     }
 
     #[test]

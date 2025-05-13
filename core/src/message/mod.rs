@@ -323,18 +323,18 @@ mod tests {
     #[test]
     fn panic_buffer_debug() {
         let buf = panic_buf(b"Hello, world!");
-        assert_eq!(format!("{:?}", buf), r#""Hello, world!""#);
+        assert_eq!(format!("{buf:?}"), r#""Hello, world!""#);
 
         let buf = panic_buf(b"\xE0\x80\x80");
-        assert_eq!(format!("{:?}", buf), "0xe08080");
+        assert_eq!(format!("{buf:?}"), "0xe08080");
     }
 
     #[test]
     fn panic_buffer_display() {
         let buf = panic_buf(b"Hello, world!");
-        assert_eq!(format!("{}", buf), "Hello, world!");
+        assert_eq!(format!("{buf}"), "Hello, world!");
 
         let buf = panic_buf(b"\xE0\x80\x80");
-        assert_eq!(format!("{}", buf), "0xe08080");
+        assert_eq!(format!("{buf}"), "0xe08080");
     }
 }
