@@ -147,7 +147,7 @@ impl Producer {
                 BatchCommitment {
                     block_commitments,
                     code_commitments,
-                    rewards_commitments,
+                    rewards_commitment: rewards_commitments,
                 },
             ),
         )

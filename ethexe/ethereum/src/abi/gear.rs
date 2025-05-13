@@ -124,7 +124,7 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
                 .collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
             rewardCommitments: value
-                .rewards_commitments
+                .rewards_commitment
                 .into_iter()
                 .map(Into::into)
                 .collect(),

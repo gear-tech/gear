@@ -222,7 +222,7 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
-            rewards_commitments: vec![],
+            rewards_commitment: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
@@ -241,7 +241,7 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
-            rewards_commitments: vec![],
+            rewards_commitment: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
@@ -278,7 +278,7 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
-            rewards_commitments: vec![],
+            rewards_commitment: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
@@ -305,7 +305,7 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
-            rewards_commitments: vec![],
+            rewards_commitment: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
@@ -345,7 +345,7 @@ mod tests {
                 timestamp: 123,
                 valid: false,
             }],
-            rewards_commitments: vec![],
+            rewards_commitment: vec![],
         };
         let batch_validation_request = BatchCommitmentValidationRequest::new(&batch);
         assert_eq!(batch.to_digest(), batch_validation_request.to_digest());
