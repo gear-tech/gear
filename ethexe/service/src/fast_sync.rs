@@ -138,7 +138,7 @@ async fn collect_program_code_ids(
     let program_ids = match result {
         Ok(db_sync::Response::ProgramIdsAt(block, program_ids)) => {
             debug_assert_eq!(block, latest_committed_block);
-            program_ids
+            program_ids.unwrap_or_default()
         }
         Ok(db_sync::Response::Hashes(_)) => unreachable!(),
         Err(e) => todo!("{e}"),

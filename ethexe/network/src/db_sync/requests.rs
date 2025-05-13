@@ -251,7 +251,7 @@ impl OngoingRequests {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct OngoingRequest {
     request: Request,
     partial_response: Option<Response>,
@@ -440,7 +440,7 @@ struct OngoingRequestContext {
     response: Option<Result<Response, ()>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct RetriableRequest {
     request_id: RequestId,
     request: OngoingRequest,
