@@ -152,7 +152,7 @@ mod tests {
     use gear_core::ids::ProgramId;
 
     #[test]
-    fn test_overlay_works_for_internal_storages() {
+    fn overlay_works() {
         assert!(!overlay_enabled());
 
         // Fill the accounts storage.
