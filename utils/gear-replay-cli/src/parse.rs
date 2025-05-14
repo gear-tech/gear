@@ -54,7 +54,7 @@ pub(crate) fn block(block_hash_or_number: &str) -> Result<BlockHashOrNumber<Bloc
         let block_hash_bytes =
             hex::decode(block_hash_or_number.trim_start_matches("0x")).map_err(|e| match e {
                 FromHexError::InvalidHexCharacter { c, index } => {
-                    format!("invalid hex character '{}' at position {}", c, index)
+                    format!("invalid hex character '{c}' at position {index}")
                 }
                 FromHexError::OddLength => "hex string has an odd number of characters".to_string(),
                 _ => {
