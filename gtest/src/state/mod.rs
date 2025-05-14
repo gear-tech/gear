@@ -24,17 +24,22 @@ pub(crate) mod bank;
 pub(crate) mod blocks;
 pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
+pub(crate) mod nonce;
+pub(crate) mod queue;
 pub(crate) mod task_pool;
 pub(crate) mod waitlist;
 
 use accounts::{Balance, ACCOUNT_STORAGE};
 use actors::{TestActor, ACTORS_STORAGE};
 use bank::{BankBalance, BANK_ACCOUNTS};
-use blocks::{BlockInfoStorageInner, BLOCK_INFO_STORAGE};
+use blocks::{BlockInfoStorageInner, BLOCK_INFO_STORAGE, CURRENT_EPOCH_RANDOM};
 use gear_common::ProgramId;
+use gear_core::message::StoredDispatch;
+use nonce::{ID_NONCE, MSG_NONCE};
+use queue::DISPATCHES_QUEUE;
 use std::{
     cell::{Cell, RefCell},
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, VecDeque},
     rc::Rc,
     thread_local,
 };
@@ -46,6 +51,10 @@ thread_local! {
     static ACTORS_STORAGE_OVERLAY: RefCell<BTreeMap<ProgramId, TestActor>> = RefCell::new(Default::default());
     static BANK_ACCOUNTS_OVERLAY: RefCell<HashMap<ProgramId, BankBalance>> = RefCell::new(Default::default());
     static BLOCK_INFO_STORAGE_OVERLAY: BlockInfoStorageInner = Rc::new(RefCell::new(None));
+    static MSG_NONCE_OVERLAY: Cell<u64> = Cell::new(0);
+    static ID_NONCE_OVERLAY: Cell<u64> = Cell::new(0);
+    static DISPATCHES_QUEUE_OVERLAY: RefCell<VecDeque<StoredDispatch>> = RefCell::new(VecDeque::new());
+    static CURRENT_EPOCH_RANDOM_OVERLAY: RefCell<Vec<u8>> = RefCell::new(Vec::new());
 }
 
 /// Enables overlay mode.
@@ -92,6 +101,30 @@ pub(crate) fn enable_overlay() {
 
         biso.replace(original);
     });
+
+    // Enable overlay for message nonce storage.
+    MSG_NONCE_OVERLAY.with(|msg_nonce| {
+        let original = MSG_NONCE.with(|mn| mn.get());
+        msg_nonce.set(original);
+    });
+
+    // Enable overlay for id nonce storage.
+    ID_NONCE_OVERLAY.with(|id_nonce| {
+        let original = ID_NONCE.with(|idn| idn.get());
+        id_nonce.set(original);
+    });
+
+    // Enable overlay for dispatches queue storage.
+    DISPATCHES_QUEUE_OVERLAY.with(|dq| {
+        let original = DISPATCHES_QUEUE.with_borrow(|dqs| dqs.clone());
+        dq.replace(original);
+    });
+
+    // Enable overlay for current epoch random storage.
+    CURRENT_EPOCH_RANDOM_OVERLAY.with(|cer| {
+        let original = CURRENT_EPOCH_RANDOM.with_borrow(|cer| cer.clone());
+        cer.replace(original);
+    });
 }
 
 /// Disables overlay mode.
@@ -136,6 +169,26 @@ pub(crate) fn disable_overlay() {
     BLOCK_INFO_STORAGE_OVERLAY.with(|biso| {
         biso.borrow_mut().take();
     });
+
+    // Disable overlay for message nonce storage.
+    MSG_NONCE_OVERLAY.with(|msg_nonce| {
+        msg_nonce.set(0);
+    });
+
+    // Disable overlay for id nonce storage.
+    ID_NONCE_OVERLAY.with(|id_nonce| {
+        id_nonce.set(0);
+    });
+
+    // Disable overlay for dispatches queue storage.
+    DISPATCHES_QUEUE_OVERLAY.with_borrow_mut(|dq| {
+        dq.clear();
+    });
+
+    // Disable overlay for current epoch random storage.
+    CURRENT_EPOCH_RANDOM_OVERLAY.with_borrow_mut(|cer| {
+        cer.clear();
+    });
 }
 
 pub(crate) fn overlay_enabled() -> bool {
@@ -146,10 +199,13 @@ pub(crate) fn overlay_enabled() -> bool {
 mod tests {
     use super::*;
     use crate::{
-        state::{accounts::Accounts, actors::Actors, bank::Bank, blocks::BlocksManager},
+        state::{
+            accounts::Accounts, actors::Actors, bank::Bank, blocks::BlocksManager,
+            nonce::NonceManager, queue::QueueManager,
+        },
         EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
-    use gear_core::ids::ProgramId;
+    use gear_core::{ids::ProgramId, message::DispatchKind};
 
     #[test]
     fn overlay_works() {
@@ -186,6 +242,24 @@ mod tests {
         let bm = BlocksManager::new();
         bm.next_block();
         assert_eq!(bm.get().height, 1);
+
+        // Fill the message nonce storage.
+        let nm = NonceManager;
+        nm.fetch_inc_message_nonce();
+        let message_nonce_before_overlay = nm.fetch_inc_message_nonce();
+
+        nm.inc_id_nonce();
+        nm.inc_id_nonce();
+        let id_nonce_before_overlay = nm.id_nonce();
+
+        // Fill the dispatches queue storage.
+        let qm = QueueManager;
+        let dispatch = StoredDispatch::new(DispatchKind::Init, Default::default(), None);
+        qm.push_back(dispatch.clone());
+        qm.push_back(dispatch.clone());
+        qm.push_back(dispatch.clone());
+
+        let epoch_random_before_overlay = blocks::current_epoch_random();
 
         // Enable overlay mode.
         enable_overlay();
@@ -244,6 +318,31 @@ mod tests {
         bm.move_blocks_by(10);
         assert_eq!(bm.get().height, 11);
 
+        // Adjust nonces
+        nm.fetch_inc_message_nonce();
+        let latest_message_nonce = nm.fetch_inc_message_nonce();
+
+        nm.inc_id_nonce();
+        nm.inc_id_nonce();
+        let latest_id_nonce = nm.id_nonce();
+
+        assert_eq!(latest_message_nonce, message_nonce_before_overlay + 2);
+        assert_eq!(latest_id_nonce, id_nonce_before_overlay + 2);
+
+        // Adjust dispatches queue storage
+        qm.pop_front();
+        qm.pop_front();
+        qm.push_front(StoredDispatch::new(
+            DispatchKind::Handle,
+            Default::default(),
+            None,
+        ));
+
+        // Adjust current epoch random storage
+        blocks::update_epoch_random(42424242);
+        let overlaid_random = blocks::current_epoch_random();
+        assert_ne!(overlaid_random, epoch_random_before_overlay);
+
         // Disable overlay mode.
         disable_overlay();
 
@@ -268,5 +367,19 @@ mod tests {
 
         // Block info storage hasn't changed.
         assert_eq!(bm.get().height, 1);
+
+        // Nonces haven't changed.
+        assert_eq!(
+            nm.fetch_inc_message_nonce(),
+            message_nonce_before_overlay + 1
+        );
+        assert_eq!(nm.id_nonce(), id_nonce_before_overlay);
+
+        // Dispatches queue storage hasn't changed.
+        assert_eq!(qm.len(), 3);
+        assert_eq!(qm.pop_front().expect("len checked"), dispatch);
+
+        // Current epoch random storage hasn't changed.
+        assert_eq!(blocks::current_epoch_random(), epoch_random_before_overlay);
     }
 }

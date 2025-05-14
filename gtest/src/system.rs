@@ -225,8 +225,6 @@ impl System {
 
         (block_height..block_height + amount)
             .map(|_| {
-                manager.check_epoch();
-
                 let block_info = manager.blocks_manager.next_block();
                 let next_block_number = block_info.height;
                 manager.process_tasks(next_block_number);

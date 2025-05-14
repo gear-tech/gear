@@ -18,6 +18,7 @@
 
 use core_processor::SuccessfulDispatchResultKind;
 use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
+use state::blocks;
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -465,7 +466,10 @@ impl ExtManager {
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
             (context, instrumented_code, balance).into(),
-            self.random_data.clone(),
+            (
+                blocks::current_epoch_random(),
+                block_config.block_info.height,
+            ),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }

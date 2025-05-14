@@ -29,12 +29,13 @@ use crate::{
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
         mailbox::MailboxManager,
+        nonce::NonceManager,
+        queue::QueueManager,
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
-    VALUE_PER_GAS,
+    Result, TestError, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED,
+    MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
     common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
@@ -64,9 +65,8 @@ use gear_core::{
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap},
     convert::TryInto,
     fmt::Debug,
     mem,
@@ -87,27 +87,24 @@ const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
-    // State metadata
+    // State with possible overlay
     pub(crate) blocks_manager: BlocksManager,
-    pub(crate) random_data: (Vec<u8>, u32),
-
-    // Messaging and programs meta
-    pub(crate) msg_nonce: u64,
-    pub(crate) id_nonce: u64,
-
-    // State
+    pub(crate) nonce_manager: NonceManager,
     pub(crate) bank: Bank,
-    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
-    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
-    pub(crate) dispatches: VecDeque<StoredDispatch>,
+    pub(crate) dispatches: QueueManager,
     pub(crate) mailbox: MailboxManager,
     pub(crate) task_pool: TaskPoolManager,
     pub(crate) waitlist: WaitlistManager,
     pub(crate) gas_tree: GasTreeManager,
     pub(crate) gas_allowance: Gas,
     pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
+
+    // State with no overlay
+    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
+
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
     pub(crate) failed: BTreeSet<MessageId>,
@@ -119,20 +116,8 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     pub(crate) fn new() -> Self {
         Self {
-            msg_nonce: 1,
-            id_nonce: 1,
             blocks_manager: BlocksManager::new(),
             messages_processing_enabled: true,
-            random_data: (
-                {
-                    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
-                    let mut random = [0u8; 32];
-                    rng.fill_bytes(&mut random);
-
-                    random.to_vec()
-                },
-                0,
-            ),
             ..Default::default()
         }
     }
@@ -159,31 +144,17 @@ impl ExtManager {
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
-        let nonce = self.msg_nonce;
-        self.msg_nonce += 1;
-        nonce
+        self.nonce_manager.fetch_inc_message_nonce()
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while Actors::contains_key(self.id_nonce.into()) {
-            self.id_nonce += 1;
+        let mut id_nonce = self.nonce_manager.id_nonce();
+        while Actors::contains_key(id_nonce.into()) {
+            self.nonce_manager.inc_id_nonce();
+            id_nonce = self.nonce_manager.id_nonce();
         }
-        self.id_nonce
-    }
 
-    /// Check if the current block number should trigger new epoch and reset
-    /// the provided random data.
-    pub(crate) fn check_epoch(&mut self) {
-        let block_height = self.block_height();
-        if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
-            let mut rng = StdRng::seed_from_u64(
-                INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64,
-            );
-            let mut random = [0u8; 32];
-            rng.fill_bytes(&mut random);
-
-            self.random_data = (random.to_vec(), block_height + 1);
-        }
+        id_nonce
     }
 
     pub(crate) fn update_storage_pages(

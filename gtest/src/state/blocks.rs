@@ -18,9 +18,10 @@
 
 //! Block timestamp and height management.
 
-use crate::BLOCK_DURATION_IN_MSECS;
+use crate::{BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS, INITIAL_RANDOM_SEED};
 use core_processor::configs::BlockInfo;
 use gear_common::{auxiliary::BlockNumber, storage::GetCallback};
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -32,13 +33,22 @@ pub(super) type BlockInfoStorageInner = Rc<RefCell<Option<BlockInfo>>>;
 thread_local! {
     /// Definition of the storage value storing block info (timestamp and height).
     pub(super) static BLOCK_INFO_STORAGE: BlockInfoStorageInner = Rc::new(RefCell::new(None));
+    pub(super) static CURRENT_EPOCH_RANDOM: RefCell<Vec<u8>> = RefCell::new(epoch_random(INITIAL_RANDOM_SEED));
 }
 
-fn storage() -> &'static LocalKey<BlockInfoStorageInner> {
+fn block_info_storage() -> &'static LocalKey<BlockInfoStorageInner> {
     if super::overlay_enabled() {
         &super::BLOCK_INFO_STORAGE_OVERLAY
     } else {
         &BLOCK_INFO_STORAGE
+    }
+}
+
+fn current_epoch_random_storage() -> &'static LocalKey<RefCell<Vec<u8>>> {
+    if super::overlay_enabled() {
+        &super::CURRENT_EPOCH_RANDOM_OVERLAY
+    } else {
+        &CURRENT_EPOCH_RANDOM
     }
 }
 
@@ -51,7 +61,7 @@ impl BlocksManager {
     /// Create block info storage manager with a further initialization of the
     /// storage.
     pub(crate) fn new() -> Self {
-        let unused = storage().with(|bi_rc| {
+        let unused = block_info_storage().with(|bi_rc| {
             let mut ref_mut = bi_rc.borrow_mut();
             if ref_mut.is_none() {
                 let info = BlockInfo {
@@ -70,7 +80,7 @@ impl BlocksManager {
 
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        storage().with(|bi_rc| {
+        block_info_storage().with(|bi_rc| {
             bi_rc
                 .borrow()
                 .as_ref()
@@ -81,12 +91,20 @@ impl BlocksManager {
 
     /// Move blocks by one.
     pub(crate) fn next_block(&self) -> BlockInfo {
-        self.move_blocks_by(1)
+        let bi = self.move_blocks_by(1);
+
+        let block_height = self.get().height;
+        if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
+            let seed = INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64;
+            update_epoch_random(seed);
+        }
+
+        bi
     }
 
     /// Adjusts blocks info by moving blocks by `amount`.
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
-        storage().with(|bi_rc| {
+        block_info_storage().with(|bi_rc| {
             let mut bi_ref_mut = bi_rc.borrow_mut();
             let Some(block_info) = bi_ref_mut.as_mut() else {
                 panic!("instance always initialized");
@@ -108,7 +126,7 @@ impl Default for BlocksManager {
 
 impl Drop for BlocksManager {
     fn drop(&mut self) {
-        storage().with(|bi_rc| {
+        block_info_storage().with(|bi_rc| {
             if Rc::strong_count(bi_rc) == 2 {
                 *bi_rc.borrow_mut() = None;
             }
@@ -133,6 +151,24 @@ impl GetCallback<BlockNumber> for GetBlockNumberImpl {
     fn call() -> BlockNumber {
         BlocksManager::new().get().height
     }
+}
+
+pub(crate) fn current_epoch_random() -> Vec<u8> {
+    current_epoch_random_storage().with_borrow(|random| random.clone())
+}
+
+pub(super) fn update_epoch_random(seed: u64) {
+    current_epoch_random_storage().with_borrow_mut(|random| {
+        *random = epoch_random(seed);
+    });
+}
+
+fn epoch_random(seed: u64) -> Vec<u8> {
+    let mut rng = StdRng::seed_from_u64(seed);
+    let mut random = [0u8; 32];
+    rng.fill_bytes(&mut random);
+
+    random.to_vec()
 }
 
 #[cfg(test)]
