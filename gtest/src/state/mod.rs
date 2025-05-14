@@ -26,6 +26,7 @@ pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
 pub(crate) mod nonce;
 pub(crate) mod queue;
+pub(crate) mod stash;
 pub(crate) mod task_pool;
 pub(crate) mod waitlist;
 
@@ -37,6 +38,7 @@ use gear_common::ProgramId;
 use gear_core::message::StoredDispatch;
 use nonce::{ID_NONCE, MSG_NONCE};
 use queue::DISPATCHES_QUEUE;
+use stash::{DispatchStashType, DISPATCHES_STASH};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, HashMap, VecDeque},
@@ -55,6 +57,7 @@ thread_local! {
     static ID_NONCE_OVERLAY: Cell<u64> = Cell::new(0);
     static DISPATCHES_QUEUE_OVERLAY: RefCell<VecDeque<StoredDispatch>> = RefCell::new(VecDeque::new());
     static CURRENT_EPOCH_RANDOM_OVERLAY: RefCell<Vec<u8>> = RefCell::new(Vec::new());
+    static DISPATCHES_STASH_OVERLAY: DispatchStashType = RefCell::new(HashMap::new());
 }
 
 /// Enables overlay mode.
@@ -121,9 +124,15 @@ pub(crate) fn enable_overlay() {
     });
 
     // Enable overlay for current epoch random storage.
-    CURRENT_EPOCH_RANDOM_OVERLAY.with(|cer| {
+    CURRENT_EPOCH_RANDOM_OVERLAY.with(|cero| {
         let original = CURRENT_EPOCH_RANDOM.with_borrow(|cer| cer.clone());
-        cer.replace(original);
+        cero.replace(original);
+    });
+
+    // Enable overlay for dispatches stash storage.
+    DISPATCHES_STASH_OVERLAY.with(|dso| {
+        let original = DISPATCHES_STASH.with_borrow(|ds| ds.clone());
+        dso.replace(original);
     });
 }
 
@@ -171,23 +180,27 @@ pub(crate) fn disable_overlay() {
     });
 
     // Disable overlay for message nonce storage.
-    MSG_NONCE_OVERLAY.with(|msg_nonce| {
-        msg_nonce.set(0);
+    MSG_NONCE_OVERLAY.with(|mno| {
+        mno.set(0);
     });
 
     // Disable overlay for id nonce storage.
-    ID_NONCE_OVERLAY.with(|id_nonce| {
-        id_nonce.set(0);
+    ID_NONCE_OVERLAY.with(|ido| {
+        ido.set(0);
     });
 
     // Disable overlay for dispatches queue storage.
-    DISPATCHES_QUEUE_OVERLAY.with_borrow_mut(|dq| {
-        dq.clear();
+    DISPATCHES_QUEUE_OVERLAY.with_borrow_mut(|dqo| {
+        dqo.clear();
     });
 
     // Disable overlay for current epoch random storage.
-    CURRENT_EPOCH_RANDOM_OVERLAY.with_borrow_mut(|cer| {
-        cer.clear();
+    CURRENT_EPOCH_RANDOM_OVERLAY.with_borrow_mut(|cero| {
+        cero.clear();
+    });
+
+    DISPATCHES_STASH_OVERLAY.with_borrow_mut(|dso| {
+        dso.clear();
     });
 }
 
@@ -201,11 +214,15 @@ mod tests {
     use crate::{
         state::{
             accounts::Accounts, actors::Actors, bank::Bank, blocks::BlocksManager,
-            nonce::NonceManager, queue::QueueManager,
+            nonce::NonceManager, queue::QueueManager, stash::DispatchStashManager,
         },
         EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
-    use gear_core::{ids::ProgramId, message::DispatchKind};
+    use gear_common::storage::Interval;
+    use gear_core::{
+        ids::{MessageId, ProgramId},
+        message::{DispatchKind, StoredDelayedDispatch},
+    };
 
     #[test]
     fn overlay_works() {
@@ -260,6 +277,20 @@ mod tests {
         qm.push_back(dispatch.clone());
 
         let epoch_random_before_overlay = blocks::current_epoch_random();
+
+        // Fill the dispatch stash storage.
+        let dsm = DispatchStashManager;
+        let mid1 = MessageId::from(52);
+        let mid2 = MessageId::from(53);
+        let stash_value = (
+            StoredDelayedDispatch::new(DispatchKind::Init, Default::default()),
+            Interval {
+                start: 0,
+                finish: 10,
+            },
+        );
+        dsm.insert(mid1, stash_value.clone());
+        dsm.insert(mid2, stash_value.clone());
 
         // Enable overlay mode.
         enable_overlay();
@@ -343,6 +374,11 @@ mod tests {
         let overlaid_random = blocks::current_epoch_random();
         assert_ne!(overlaid_random, epoch_random_before_overlay);
 
+        // Adjust dispatches stash storage
+        let mid3 = MessageId::from(54);
+        dsm.insert(mid3, stash_value.clone());
+        assert!(dsm.remove(&mid1).is_some());
+
         // Disable overlay mode.
         disable_overlay();
 
@@ -381,5 +417,9 @@ mod tests {
 
         // Current epoch random storage hasn't changed.
         assert_eq!(blocks::current_epoch_random(), epoch_random_before_overlay);
+
+        // Dispatches stash storage hasn't changed.
+        assert!(dsm.contains_key(&mid1));
+        assert!(!dsm.contains_key(&mid3));
     }
 }

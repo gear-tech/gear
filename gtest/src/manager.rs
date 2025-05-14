@@ -31,11 +31,12 @@ use crate::{
         mailbox::MailboxManager,
         nonce::NonceManager,
         queue::QueueManager,
+        stash::DispatchStashManager,
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED,
-    MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS,
+    Result, TestError, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS,
+    MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{
     common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
@@ -57,8 +58,8 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
-        StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
+        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
+        UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
     tasks::ScheduledTask,
@@ -66,7 +67,7 @@ use gear_core::{
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     convert::TryInto,
     fmt::Debug,
     mem,
@@ -97,7 +98,7 @@ pub(crate) struct ExtManager {
     pub(crate) waitlist: WaitlistManager,
     pub(crate) gas_tree: GasTreeManager,
     pub(crate) gas_allowance: Gas,
-    pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
+    pub(crate) dispatches_stash: DispatchStashManager,
 
     // State with no overlay
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
@@ -260,15 +261,7 @@ impl ExtManager {
     }
 
     /// Enables the overlay mode for gear-runtime emulating storages
-    /// (auxiliaries and internal ones), like:
-    /// - gas tree
-    /// - mailbox
-    /// - task pool
-    /// - waitlist
-    /// - actors (internal)
-    /// - accounts (internal)
-    /// - blocks (internal)
-    /// - bank (internal)
+    /// (auxiliaries and internal ones).
     pub(crate) fn enable_overlay(&self) {
         overlay::enable_overlay();
         state::enable_overlay();
