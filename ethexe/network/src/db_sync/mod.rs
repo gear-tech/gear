@@ -101,6 +101,7 @@ impl Request {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 enum ResponseValidationError {
     /// Request variant differs from response variant
     RequestResponseTypeMismatch,

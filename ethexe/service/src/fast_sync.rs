@@ -47,12 +47,11 @@ use std::{
 };
 
 struct EventData {
+    program_states: BTreeMap<ActorId, H256>,
     /// Latest committed on the chain and not computed local block
     latest_committed_block: H256,
     /// Previous committed block
     previous_committed_block: Option<H256>,
-    /// Events between the latest and previous blocks (inclusively) from top to bottom
-    events_in_between: Vec<BlockEvent>,
 }
 
 impl EventData {
@@ -61,12 +60,12 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
+        let mut program_states = BTreeMap::new();
         let mut previous_committed_block = None;
         let mut latest_committed_block = None;
-        let mut events_in_between = Vec::new();
 
         let mut block = highest_block;
-        while !db.block_computed(block) {
+        'computed: while !db.block_computed(block) {
             let (header, events) = match db.block_events(block) {
                 Some(events) => {
                     let header = db
@@ -81,22 +80,29 @@ impl EventData {
             };
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
-            for event in events.iter().rev() {
-                if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
-                    if latest_committed_block.is_none() {
-                        latest_committed_block = Some(*hash);
-                    } else {
-                        previous_committed_block = Some(*hash);
+            for event in events.into_iter().rev() {
+                if latest_committed_block.is_none() {
+                    if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
+                        latest_committed_block = Some(hash);
                     }
+                    // we don't collect any further info until the latest committed block is known
+                    continue;
                 }
-            }
 
-            if latest_committed_block.is_some() || previous_committed_block.is_some() {
-                events_in_between.extend(events.into_iter().rev());
-            }
-
-            if previous_committed_block.is_some() {
-                break;
+                match event {
+                    BlockEvent::Mirror {
+                        actor_id,
+                        event: MirrorEvent::StateChanged { state_hash },
+                    } => {
+                        program_states.entry(actor_id).or_insert(state_hash);
+                    }
+                    BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                        previous_committed_block = Some(hash);
+                        // we don't want event data of the previous committed block
+                        break 'computed;
+                    }
+                    _ => {}
+                }
             }
 
             let parent = header.parent_hash;
@@ -118,9 +124,9 @@ impl EventData {
         // }
 
         Ok(Some(Self {
+            program_states,
             latest_committed_block,
             previous_committed_block,
-            events_in_between,
         }))
     }
 }
@@ -218,8 +224,8 @@ async fn collect_program_code_ids(
 async fn collect_program_states(
     observer: &mut ObserverService,
     latest_committed_block: H256,
+    event_program_states: BTreeMap<ActorId, H256>,
     program_code_ids: &BTreeMap<ActorId, CodeId>,
-    events_in_between: Vec<BlockEvent>,
 ) -> Result<BTreeMap<ActorId, H256>> {
     let mut program_states = BTreeMap::new();
     let mut uninitialized_mirrors = Vec::new();
@@ -245,18 +251,9 @@ async fn collect_program_states(
         program_states.insert(actor_id, state_hash);
     }
 
-    // NOTE: iteration goes from bottom to top
-    for event in events_in_between.into_iter().rev() {
-        if let BlockEvent::Mirror {
-            actor_id,
-            event: MirrorEvent::StateChanged { state_hash },
-        } = event
-        {
-            // the latest committed block and its `BlockCommitted` event can be a few blocks apart,
-            // so some mirror state changes must be obtained from Ethereum events
-            program_states.insert(actor_id, state_hash);
-        }
-    }
+    // the latest committed block and its `BlockCommitted` event can be a few blocks apart,
+    // so some mirror state changes must be recovered from Ethereum events
+    program_states.extend(event_program_states);
 
     for actor_id in uninitialized_mirrors {
         ensure!(
@@ -676,9 +673,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let finalized_block = H256(finalized_block.header.hash.0);
 
     let Some(EventData {
+        program_states,
         latest_committed_block,
         previous_committed_block,
-        events_in_between,
     }) = EventData::collect(observer, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
@@ -691,8 +688,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let program_states = collect_program_states(
         observer,
         latest_committed_block,
+        program_states,
         &program_code_ids,
-        events_in_between,
     )
     .await?;
 
