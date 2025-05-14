@@ -22,6 +22,7 @@ use std::{
     mem,
     ops::Range,
     ptr,
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use gear_lazy_pages::{
@@ -34,7 +35,7 @@ use crate::{globals::InstanceAccessGlobal, OS_PAGE_SIZE};
 
 pub type HostPageAddr = usize;
 
-const OS_PAGE_MASK: usize = !(OS_PAGE_SIZE-1);
+const OS_PAGE_MASK: usize = !(OS_PAGE_SIZE - 1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TouchedPage {
@@ -131,10 +132,21 @@ impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
     }
 }
 
+static SIGNAL_HANDLER_ENTRY_CNT: AtomicUsize = AtomicUsize::new(0);
+
 fn user_signal_handler_internal(
     ctx: &mut FuzzerLazyPagesContext,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
+    let cnt = SIGNAL_HANDLER_ENTRY_CNT.fetch_add(1, Ordering::SeqCst);
+    if cnt != 0 {
+        std::process::exit(1337);
+    }
+
+    let _guard = scopeguard::guard((), |_| {
+        let _ = SIGNAL_HANDLER_ENTRY_CNT.fetch_sub(1, Ordering::SeqCst);
+    });
+
     let native_addr = info.fault_addr as usize;
     let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
     let wasm_mem_range = &ctx.memory_range;
@@ -218,7 +230,9 @@ unsafe fn mprotect_interval(
 
     let aligned_addr = addr & OS_PAGE_MASK;
     unsafe { region::protect(aligned_addr as *mut (), size, mask)? };
-    log::trace!("mprotect interval: {addr:#x}, aligned {aligned_addr:#x}, size: {size:#x}, mask: {mask}");
+    log::trace!(
+        "mprotect interval: {addr:#x}, aligned {aligned_addr:#x}, size: {size:#x}, mask: {mask}"
+    );
     Ok(())
 }
 
