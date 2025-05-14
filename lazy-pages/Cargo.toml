@@ -23,6 +23,8 @@ gear-sandbox-host.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 
+scopeguard = "1.2.0"
+
 [target."cfg(target_vendor = \"apple\")".dependencies.mach]
 version = "0.3.2"
 

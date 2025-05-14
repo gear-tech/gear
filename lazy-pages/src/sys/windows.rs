@@ -22,7 +22,10 @@ use crate::{
     common::Error,
     signal::{ExceptionInfo, UserSignalHandler},
 };
-use std::io;
+use std::{
+    io,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use winapi::{
     shared::ntdef::LONG,
     um::{
@@ -32,10 +35,21 @@ use winapi::{
     vc::excpt::{EXCEPTION_CONTINUE_EXECUTION, EXCEPTION_CONTINUE_SEARCH},
 };
 
+static SIGNAL_HANDLER_ENTRY_CNT: AtomicUsize = AtomicUsize::new(0);
+
 unsafe extern "system" fn exception_handler<H>(exception_info: *mut EXCEPTION_POINTERS) -> LONG
 where
     H: UserSignalHandler,
 {
+    let cnt = SIGNAL_HANDLER_ENTRY_CNT.fetch_add(1, Ordering::SeqCst);
+    if cnt != 0 {
+        std::process::exit(1337);
+    }
+
+    let _guard = scopeguard::guard((), |_| {
+        let _ = SIGNAL_HANDLER_ENTRY_CNT.fetch_sub(1, Ordering::SeqCst);
+    });
+
     let exception_record = (*exception_info).ExceptionRecord;
 
     let is_access_violation = (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION;

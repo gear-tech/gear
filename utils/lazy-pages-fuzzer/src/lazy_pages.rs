@@ -22,7 +22,6 @@ use std::{
     mem,
     ops::Range,
     ptr,
-    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use gear_lazy_pages::{
@@ -132,21 +131,10 @@ impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
     }
 }
 
-static SIGNAL_HANDLER_ENTRY_CNT: AtomicUsize = AtomicUsize::new(0);
-
 fn user_signal_handler_internal(
     ctx: &mut FuzzerLazyPagesContext,
     info: ExceptionInfo,
 ) -> Result<(), Error> {
-    let cnt = SIGNAL_HANDLER_ENTRY_CNT.fetch_add(1, Ordering::SeqCst);
-    if cnt != 0 {
-        std::process::exit(1337);
-    }
-
-    let _guard = scopeguard::guard((), |_| {
-        let _ = SIGNAL_HANDLER_ENTRY_CNT.fetch_sub(1, Ordering::SeqCst);
-    });
-
     let native_addr = info.fault_addr as usize;
     let is_write = info.is_write.ok_or(Error::ReadOrWriteIsUnknown)?;
     let wasm_mem_range = &ctx.memory_range;
