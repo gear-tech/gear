@@ -179,7 +179,7 @@ impl Signer {
     pub fn tmp() -> Self {
         let temp_dir = tempfile::tempdir().expect("Cannot create temp dir for keys");
         Self {
-            key_store: temp_dir.into_path(),
+            key_store: temp_dir.keep(),
         }
     }
 
@@ -338,7 +338,7 @@ pub(crate) fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::primitives::{keccak256, PrimitiveSignature as AlloySignature};
+    use alloy::primitives::{keccak256, Signature as AlloySignature};
     use gprimitives::ActorId;
     use std::env::temp_dir;
 
