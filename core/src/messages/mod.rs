@@ -389,7 +389,17 @@ impl<P> WrapWithSource for BlankMessage<P> {}
 ///
 /// Each kind differs by its handler and overall semantics, purpose, and behavior.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, MaxEncodedLen, TypeInfo, derive_more::Display,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    MaxEncodedLen,
+    TypeInfo,
+    derive_more::Display,
+    derive_more::IsVariant,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageKind {
