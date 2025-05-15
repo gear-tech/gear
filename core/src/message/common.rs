@@ -25,6 +25,7 @@ use crate::{
 };
 use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};
+use parity_scale_codec::MaxEncodedLen;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -227,7 +228,19 @@ impl MessageDetails {
 /// Part of [`ReplyMessage`](crate::message::ReplyMessage) logic, containing data about on which message id
 /// this replies and its status code.
 #[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    Clone,
+    Copy,
+    Default,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    MaxEncodedLen,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyDetails {
@@ -261,7 +274,19 @@ impl ReplyDetails {
 
 /// Signal details data.
 #[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    Clone,
+    Copy,
+    Default,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    MaxEncodedLen,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct SignalDetails {

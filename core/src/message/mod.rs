@@ -36,6 +36,7 @@ pub use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
+use parity_scale_codec::{Compact, MaxEncodedLen};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;
 pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
@@ -84,6 +85,12 @@ impl Payload {
     pub fn len_u32(&self) -> u32 {
         // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
         self.inner().len() as u32
+    }
+}
+
+impl MaxEncodedLen for Payload {
+    fn max_encoded_len() -> usize {
+        Compact::<u32>::max_encoded_len() + MAX_PAYLOAD_SIZE
     }
 }
 

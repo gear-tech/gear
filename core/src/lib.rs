@@ -37,6 +37,7 @@ pub mod gas_metering;
 pub mod ids;
 pub mod memory;
 pub mod message;
+pub mod messages;
 pub mod pages;
 pub mod percent;
 pub mod program;

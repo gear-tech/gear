@@ -166,4 +166,32 @@ pub mod prelude {
             hash_of_array([SALT, msg_id.as_ref(), &nonce.to_le_bytes()]).into()
         }
     }
+
+    /// External actor messaging data structure for message ID creation.
+    #[derive(Debug)]
+    pub struct ExternalActorMessagingData {
+        /// The ID of the external actor (user).
+        pub actor_id: ActorId,
+        /// The block number at which the message will be sent (current).
+        pub block_number: u32,
+        /// The nonce for the message, used to ensure uniqueness.
+        pub nonce: u128,
+    }
+
+    impl ExternalActorMessagingData {
+        /// Creates a new instance of `ExternalActorMessagingData` with the given parameters.
+        pub fn new(actor_id: ActorId, block_number: u32, nonce: u128) -> Self {
+            Self {
+                actor_id,
+                block_number,
+                nonce,
+            }
+        }
+
+        /// Consumes the `ExternalActorMessagingData` and returns a new `MessageId`
+        /// based on its parameters.
+        pub fn generate_message_id(&self) -> MessageId {
+            MessageId::generate_from_user(self.block_number, self.actor_id, self.nonce)
+        }
+    }
 }

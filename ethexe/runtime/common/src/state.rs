@@ -722,6 +722,7 @@ impl MessageQueue {
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
+    // TODO (breathx): sparse map sharding by id.
     #[as_ref]
     inner: BTreeMap<MessageId, Expiring<Dispatch>>,
     #[into(ignore)]
