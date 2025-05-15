@@ -24,7 +24,7 @@ use crate::{
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::BlockId,
-    primitives::{fixed_bytes, Address, Bytes, B256, U256},
+    primitives::{fixed_bytes, Address, Bytes, B256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
 };
@@ -334,7 +334,11 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn codes_states(&self, code_ids: Vec<CodeId>) -> Result<Vec<CodeState>> {
+    pub async fn codes_states_at(
+        &self,
+        code_ids: impl IntoIterator<Item = CodeId>,
+        block: H256,
+    ) -> Result<Vec<CodeState>> {
         self.instance
             .codesStates(
                 code_ids
@@ -343,7 +347,9 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
+            // TODO: test case if code state does not exist
             .map(|res| res._0.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
@@ -390,8 +396,15 @@ impl RouterQuery {
         Ok(count)
     }
 
-    pub async fn validated_codes_count(&self) -> Result<U256> {
-        let count = self.instance.validatedCodesCount().call().await?;
-        Ok(count._0)
+    pub async fn validated_codes_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .validatedCodesCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count._0.try_into().expect("infallible");
+        Ok(count)
     }
 }
