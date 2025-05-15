@@ -453,7 +453,7 @@ impl<'a> Program<'a> {
 }
 
 /// Program messaging related impl.
-impl<'a> Program<'a> {
+impl Program<'_> {
     /// Send message to the program.
     pub fn send<ID, C>(&self, from: ID, payload: C) -> MessageId
     where
@@ -569,7 +569,7 @@ impl<'a> Program<'a> {
 }
 
 /// Program misc ops impl.
-impl<'a> Program<'a> {
+impl Program<'_> {
     /// Get program id.
     pub fn id(&self) -> ProgramId {
         self.id

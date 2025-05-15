@@ -22,9 +22,9 @@ use std::{cell::Cell, thread::LocalKey};
 
 thread_local! {
     /// Definition of the storage value storing message nonce.
-    pub(super) static MSG_NONCE: Cell<u64> = Cell::new(1);
+    pub(super) static MSG_NONCE: Cell<u64> = const { Cell::new(1) };
     /// Definition of the storage value storing id nonce.
-    pub(super) static ID_NONCE: Cell<u64> = Cell::new(1);
+    pub(super) static ID_NONCE: Cell<u64> = const { Cell::new(1) };
 }
 
 fn msg_nonce_storage() -> &'static LocalKey<Cell<u64>> {

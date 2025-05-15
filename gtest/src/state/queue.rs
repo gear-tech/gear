@@ -23,7 +23,7 @@ use std::{cell::RefCell, collections::VecDeque, thread::LocalKey};
 
 thread_local! {
     /// Definition of the storage value storing dispatches queue.
-    pub(super) static DISPATCHES_QUEUE: RefCell<VecDeque<StoredDispatch>> = RefCell::new(VecDeque::new());
+    pub(super) static DISPATCHES_QUEUE: RefCell<VecDeque<StoredDispatch>> = const { RefCell::new(VecDeque::new()) };
 }
 
 fn storage() -> &'static LocalKey<RefCell<VecDeque<StoredDispatch>>> {
@@ -51,6 +51,11 @@ impl QueueManager {
     /// Pop dispatch from the queue head.
     pub(crate) fn pop_front(&self) -> Option<StoredDispatch> {
         storage().with_borrow_mut(|queue| queue.pop_front())
+    }
+
+    /// Clears the queue.
+    pub(crate) fn clear(&self) {
+        storage().with_borrow_mut(|queue| queue.clear())
     }
 
     #[cfg(test)]

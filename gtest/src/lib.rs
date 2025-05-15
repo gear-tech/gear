@@ -495,7 +495,6 @@
 mod error;
 mod log;
 mod manager;
-mod overlay;
 mod program;
 mod state;
 mod system;

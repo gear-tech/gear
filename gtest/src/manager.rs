@@ -97,10 +97,10 @@ pub(crate) struct ExtManager {
     pub(crate) task_pool: TaskPoolManager,
     pub(crate) waitlist: WaitlistManager,
     pub(crate) gas_tree: GasTreeManager,
-    pub(crate) gas_allowance: Gas,
     pub(crate) dispatches_stash: DispatchStashManager,
 
     // State with no overlay
+    pub(crate) gas_allowance: Gas,
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) messages_processing_enabled: bool,

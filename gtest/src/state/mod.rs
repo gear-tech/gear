@@ -53,10 +53,10 @@ thread_local! {
     static ACTORS_STORAGE_OVERLAY: RefCell<BTreeMap<ProgramId, TestActor>> = RefCell::new(Default::default());
     static BANK_ACCOUNTS_OVERLAY: RefCell<HashMap<ProgramId, BankBalance>> = RefCell::new(Default::default());
     static BLOCK_INFO_STORAGE_OVERLAY: BlockInfoStorageInner = Rc::new(RefCell::new(None));
-    static MSG_NONCE_OVERLAY: Cell<u64> = Cell::new(0);
-    static ID_NONCE_OVERLAY: Cell<u64> = Cell::new(0);
-    static DISPATCHES_QUEUE_OVERLAY: RefCell<VecDeque<StoredDispatch>> = RefCell::new(VecDeque::new());
-    static CURRENT_EPOCH_RANDOM_OVERLAY: RefCell<Vec<u8>> = RefCell::new(Vec::new());
+    static MSG_NONCE_OVERLAY: Cell<u64> = const { Cell::new(0) };
+    static ID_NONCE_OVERLAY: Cell<u64> = const { Cell::new(0) };
+    static DISPATCHES_QUEUE_OVERLAY: RefCell<VecDeque<StoredDispatch>> = const { RefCell::new(VecDeque::new()) };
+    static CURRENT_EPOCH_RANDOM_OVERLAY: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static DISPATCHES_STASH_OVERLAY: DispatchStashType = RefCell::new(HashMap::new());
 }
 
@@ -99,7 +99,7 @@ pub(crate) fn enable_overlay() {
 
     // Enable overlay for block info storage.
     BLOCK_INFO_STORAGE_OVERLAY.with(|biso| {
-        let original = BLOCK_INFO_STORAGE.with(|bis| bis.borrow().clone());
+        let original = BLOCK_INFO_STORAGE.with(|bis| *bis.borrow());
         assert!(original.is_some(), "Block info storage must be initialized");
 
         biso.replace(original);
@@ -156,9 +156,10 @@ pub(crate) fn disable_overlay() {
         aso.iter_mut()
             .filter(|(_, actor)| actor.is_mock_actor())
             .for_each(|(id, actor)| {
-                // Exhausting cloning from overlay to return values back to the original storage.
-                // Only mock values are handled, because by the `clone_exhausting` impl these are
-                // the only ones that are taken from the original storage.
+                // Exhausting cloning from overlay to return values back to the original
+                // storage. Only mock values are handled, because by the
+                // `clone_exhausting` impl these are the only ones that are
+                // taken from the original storage.
                 let actor_clone = unsafe { actor.clone_exhausting() };
                 ACTORS_STORAGE.with_borrow_mut(|act_s| {
                     let v = act_s.insert(*id, actor_clone);
@@ -242,7 +243,7 @@ mod tests {
         Actors::insert(predef_acc3, TestActor::Uninitialized(None, None));
 
         // Fill the bank storage.
-        let bank = Bank::default();
+        let bank = Bank;
         bank.deposit_gas(predef_acc1, 1_000, true);
         bank.deposit_gas(predef_acc2, 1_000 * 2, true);
         bank.deposit_gas(predef_acc3, 1_000 * 3, true);
