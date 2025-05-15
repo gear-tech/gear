@@ -697,6 +697,29 @@ pub mod pallet {
             Ok(())
         }
 
+        pub fn transfer_locked_value(
+            account_id: &AccountIdOf<T>,
+            destination: &AccountIdOf<T>,
+            value: BalanceOf<T>,
+        ) -> Result<(), Error<T>> {
+            if value.is_zero() {
+                return Ok(());
+            }
+
+            Self::withdraw_value_no_transfer(account_id, value)?;
+
+            Bank::<T>::mutate(destination, |details| {
+                let details = details.get_or_insert_with(Default::default);
+                // There is no reason to return any errors on overflow, because
+                // total value issuance is always lower than numeric MAX.
+                //
+                // Using saturating addition for code consistency.
+                details.value = details.value.saturating_add(value);
+            });
+
+            Ok(())
+        }
+
         /// Getter for [`Bank<T>`](Bank)
         pub fn account<K: EncodeLike<AccountIdOf<T>>>(
             account_id: K,

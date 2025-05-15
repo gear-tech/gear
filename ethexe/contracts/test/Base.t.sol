@@ -207,7 +207,7 @@ contract Base is POCBaseTest {
                 rewardCommitments: new Gear.RewardsCommitment[](0)
             }),
             Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(_codesBytes), keccak256(""), keccak256("")))
+            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_codesBytes), keccak256("")))
         );
     }
 
@@ -232,7 +232,7 @@ contract Base is POCBaseTest {
                 rewardCommitments: new Gear.RewardsCommitment[](0)
             }),
             Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_message), keccak256("")))
+            signBytes(_privateKeys, abi.encodePacked(keccak256(_message), keccak256(""), keccak256("")))
         );
     }
 

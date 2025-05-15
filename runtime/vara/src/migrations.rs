@@ -22,11 +22,10 @@ use crate::*;
 pub type Migrations = (
     BagsListMigrate<Runtime>,
     pallet_gear_bank::migrations::MigrateToV1<Runtime>,
+    pallet_gear_builtin::migration::MigrateToV1<Runtime, TreasuryAccount>,
 );
 
-pub struct BagsListMigrate<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>(
-    core::marker::PhantomData<T>,
-);
+pub struct BagsListMigrate<T>(core::marker::PhantomData<T>);
 
 impl<T: pallet_bags_list::Config<pallet_bags_list::Instance1>>
     frame_support::traits::OnRuntimeUpgrade for BagsListMigrate<T>

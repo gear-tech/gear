@@ -36,6 +36,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod migration;
 pub mod proxy;
 pub mod staking;
 pub mod weights;
@@ -59,7 +60,7 @@ use core_processor::{
     process_allowance_exceed, process_execution_error, process_success,
     SuccessfulDispatchResultKind, SystemReservationContext,
 };
-use frame_support::dispatch::extract_actual_weight;
+use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ProgramId,
@@ -222,6 +223,9 @@ impl BuiltinCollection for Tuple {
     }
 }
 
+/// The current storage version.
+pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -234,11 +238,6 @@ pub mod pallet {
     use sp_runtime::traits::Dispatchable;
 
     pub(crate) const SEED: [u8; 8] = *b"built/in";
-
-    // This pallet doesn't define a storage version because it doesn't use any storage
-    #[pallet::pallet]
-    #[pallet::without_storage_info]
-    pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -257,10 +256,29 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
+    /// The pallet's storage version.
+    #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
+    pub struct Pallet<T>(_);
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     impl<T: Config> Pallet<T> {
+        /// Returns list of known builtins.
+        ///
+        /// This fn has some overhead, therefore it should be called only when necessary.
+        pub fn list_builtins() -> Vec<T::AccountId>
+        where
+            T::AccountId: Origin,
+        {
+            BuiltinRegistry::<T>::new()
+                .list()
+                .into_iter()
+                .map(Origin::cast)
+                .collect()
+        }
+
         /// Generate an `actor_id` given a builtin ID.
         ///
         ///
@@ -324,6 +342,7 @@ pub struct BuiltinRegistry<T: Config> {
     pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
+
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
@@ -333,6 +352,10 @@ impl<T: Config> BuiltinRegistry<T> {
             registry,
             _phantom: Default::default(),
         }
+    }
+
+    pub fn list(&self) -> Vec<ProgramId> {
+        self.registry.keys().copied().collect()
     }
 }
 

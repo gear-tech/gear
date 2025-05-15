@@ -43,6 +43,8 @@ sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
 pallet-staking.workspace = true
 pallet-proxy.workspace = true
+# To be removed after migrations applied.
+pallet-balances.workspace = true
 
 [dev-dependencies]
 demo-waiting-proxy.workspace = true
@@ -96,6 +98,8 @@ std = [
 	"ark-ec?/std",
 	"ark-ff?/std",
 	"ark-std?/std",
+	# To be removed after migrations applied.
+	"pallet-balances/std",
 ]
 runtime-benchmarks = [
 	"common/runtime-benchmarks",
@@ -107,5 +111,11 @@ runtime-benchmarks = [
 	"ark-ec",
 	"ark-ff",
 	"ark-std",
+	# To be removed after migrations applied.
+	"pallet-balances/runtime-benchmarks",
 ]
-try-runtime = ["frame-support/try-runtime"]
+try-runtime = [
+	"frame-support/try-runtime",
+	# To be removed after migrations applied.
+	"pallet-balances/try-runtime",
+]

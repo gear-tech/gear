@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1800,
+    spec_version: 1810,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -196,7 +196,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1800,
+    spec_version: 1810,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -1215,6 +1215,9 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 /// Builtin actors arranged in a tuple.
+///
+/// # Security
+/// Make sure to mint ED for each new builtin actor added to the tuple.
 #[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
@@ -1227,6 +1230,9 @@ pub type BuiltinActors = (
 const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
 /// Builtin actors arranged in a tuple.
+///
+/// # Security
+/// Make sure to mint ED for each new builtin actor added to the tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,

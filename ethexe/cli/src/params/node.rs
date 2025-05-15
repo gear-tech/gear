@@ -46,10 +46,6 @@ pub struct NodeParams {
     #[serde(default)]
     pub dev: bool,
 
-    /// Public key of the sequencer, if node should act as one.
-    #[arg(long)]
-    pub sequencer: Option<String>,
-
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
@@ -73,6 +69,11 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(rename = "virtual-threads")]
     pub virtual_threads: Option<NonZero<u8>>,
+
+    /// Do P2P database synchronization before the main loop
+    #[arg(long, default_value = "false")]
+    #[serde(default, rename = "fast-sync")]
+    pub fast_sync: bool,
 }
 
 impl NodeParams {
@@ -92,8 +93,6 @@ impl NodeParams {
         Ok(NodeConfig {
             database_path: self.db_dir(),
             key_path: self.keys_dir(),
-            sequencer: ConfigPublicKey::new(&self.sequencer)
-                .with_context(|| "invalid `sequencer` key")?,
             validator: ConfigPublicKey::new(&self.validator)
                 .with_context(|| "invalid `validator` key")?,
             validator_session: ConfigPublicKey::new(&self.validator_session)
@@ -105,6 +104,7 @@ impl NodeParams {
                 .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)
                 .get() as usize,
             dev: self.dev,
+            fast_sync: self.fast_sync,
         })
     }
 
@@ -163,7 +163,6 @@ impl MergeParams for NodeParams {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
             dev: self.dev || with.dev,
-            sequencer: self.sequencer.or(with.sequencer),
 
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
@@ -172,6 +171,8 @@ impl MergeParams for NodeParams {
 
             physical_threads: self.physical_threads.or(with.physical_threads),
             virtual_threads: self.virtual_threads.or(with.virtual_threads),
+
+            fast_sync: self.fast_sync || with.fast_sync,
         }
     }
 }

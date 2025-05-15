@@ -54,13 +54,13 @@ impl Config {
 pub struct NodeConfig {
     pub database_path: PathBuf,
     pub key_path: PathBuf,
-    pub sequencer: ConfigPublicKey,
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,
     pub worker_threads_override: Option<usize>,
     pub virtual_threads: usize,
     pub dev: bool,
+    pub fast_sync: bool,
 }
 
 impl NodeConfig {

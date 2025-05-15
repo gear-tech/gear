@@ -26,14 +26,16 @@
 //! machinery used is wrapped in the crate's types.
 
 mod address;
+mod contract;
 mod digest;
 mod signature;
 
 // Exports
 pub use address::Address;
+pub use contract::{ContractSignature, ContractSigner};
 pub use digest::{Digest, ToDigest};
 pub use sha3;
-pub use signature::Signature;
+pub use signature::{Signature, SignedData};
 
 use anyhow::{anyhow, bail, Error, Result};
 use parity_scale_codec::{Decode, Encode};
@@ -181,6 +183,10 @@ impl Signer {
         }
     }
 
+    pub fn contract_signer(&self, contract_address: Address) -> ContractSigner {
+        ContractSigner::new(self.clone(), contract_address)
+    }
+
     /// Create a ECDSA recoverable signature with `Electrum` notation for the `v` value.
     ///
     /// For more info about `v` value read [`RawSignature`] docs.
@@ -201,6 +207,15 @@ impl Signer {
     /// Create a ECDSA recoverable signature for the raw bytes data.
     pub fn sign(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
         self.sign_digest(public_key, data.to_digest())
+    }
+
+    pub fn create_signed_data<T: ToDigest + Sized>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+    ) -> Result<SignedData<T>> {
+        self.sign_digest(public_key, data.to_digest())
+            .map(|signature| SignedData::new(data, signature))
     }
 
     /// Create a ECDSA recoverable signature for the raw bytes data with
@@ -362,7 +377,7 @@ mod tests {
 
         // Verify the recovered address matches the expected address
         assert_eq!(
-            format!("{:?}", recovered_address),
+            format!("{recovered_address:?}"),
             format!("{}", public_key.to_address())
         );
 
@@ -400,7 +415,7 @@ mod tests {
 
         // Verify the recovered address matches the expected address
         assert_eq!(
-            format!("{:?}", recovered_address),
+            format!("{recovered_address:?}"),
             format!("{}", public_key.to_address())
         );
 
@@ -443,5 +458,21 @@ mod tests {
             .expect("Failed to recover public key");
 
         assert_eq!(recovered_public_key, public_key);
+    }
+
+    #[test]
+    fn signed_data() {
+        let signer = Signer::tmp();
+
+        let public_key = signer.generate_key().unwrap();
+
+        let signed_data = signer
+            .create_signed_data(public_key, b"hello world".as_slice())
+            .expect("Failed to create signed data");
+
+        signed_data.verify(public_key).unwrap();
+        signed_data.verify_address(public_key.to_address()).unwrap();
+        assert_eq!(signed_data.recover().unwrap(), public_key);
+        signed_data.verify_with_public_key_recover().unwrap();
     }
 }

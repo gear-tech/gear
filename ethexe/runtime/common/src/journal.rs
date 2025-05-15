@@ -42,7 +42,7 @@ impl<S: Storage> Handler<'_, S> {
                     );
 
                     state.stash_hash.modify_stash(storage, |stash| {
-                        stash.add_to_program(dispatch.id, dispatch, expiry);
+                        stash.add_to_program(dispatch, expiry);
                     })
                 } else {
                     state
@@ -85,7 +85,7 @@ impl<S: Storage> Handler<'_, S> {
                     let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
 
                     state.stash_hash.modify_stash(storage, |stash| {
-                        stash.add_to_user(dispatch.id, dispatch, expiry, user_id);
+                        stash.add_to_user(dispatch, expiry, user_id);
                     });
                 } else {
                     let expiry = transitions.schedule_task(
@@ -283,7 +283,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 });
 
                 state.waitlist_hash.modify_waitlist(storage, |waitlist| {
-                    waitlist.wait(dispatch.id, dispatch, expiry);
+                    waitlist.wait(dispatch, expiry);
                 });
             });
     }
@@ -385,20 +385,17 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .expect("failed to update state");
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, _locked: bool) {
         // TODO (breathx): implement rest of cases.
-        if let Some(to) = to {
-            if self.controller.transitions.state_of(&from).is_some() {
-                return;
-            }
-
-            self.controller.update_state(to, |state, _, transitions| {
-                state.balance += value;
-
-                transitions
-                    .modify_transition(to, |transition| transition.value_to_receive += value);
-            });
+        if self.controller.transitions.state_of(&from).is_some() {
+            return;
         }
+
+        self.controller.update_state(to, |state, _, transitions| {
+            state.balance += value;
+
+            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
+        });
     }
 
     fn store_new_programs(
