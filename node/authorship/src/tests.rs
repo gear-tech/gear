@@ -515,7 +515,7 @@ fn test_block_max_gas_works() {
     let best_hash = block.hash();
 
     let api = client.runtime_api();
-    let gear_core::gas::GasInfo { min_limit, .. } = api
+    let gear_core::rpc::GasInfo { min_limit, .. } = api
         .calculate_gas_info(
             best_hash,
             sp_core::H256::from(alice().as_ref()),
