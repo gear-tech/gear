@@ -25,7 +25,6 @@ use super::{
 use crate::{
     buffer::Payload,
     ids::prelude::{ActorIdExt, ExternalActorMessagingData, MessageIdExt},
-    message::ReplyDetails,
 };
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId};
@@ -153,7 +152,7 @@ impl OutgoingMessage {
     ) -> Self {
         let message_id = MessageId::generate_reply(to);
         let base = WithDestination::new(BaseMessage::new(message_id, payload, value), destination);
-        let details = OutgoingMessageDetails::Reply(ReplyDetails::new(to, code));
+        let details = OutgoingMessageDetails::Reply { to, code };
 
         Self { base, gas, details }
     }
@@ -253,16 +252,20 @@ pub enum OutgoingMessageDetails {
         /// Delay for the message to be sent.
         delay: u32,
     },
-    /// Handle message details: no additional data is required.
+    /// Handle message details.
     Handle {
         // TODO (breathx/refactor(gear-core)): deprecate JournalNote::StoreNewPrograms.
         // force_queue: bool, // OR to_program: bool,
         /// Delay for the message to be sent.
         delay: u32,
     },
-    /// Reply message details: provides the message ID being replied to,
-    /// as well as the reply code.
-    Reply(ReplyDetails),
+    /// Reply message details.
+    Reply {
+        /// Message ID being replied to.
+        to: MessageId,
+        /// Reply code.
+        code: ReplyCode,
+    },
 }
 
 impl OutgoingMessageDetails {
@@ -271,7 +274,7 @@ impl OutgoingMessageDetails {
         match self {
             Self::Init { .. } => MessageKind::Init,
             Self::Handle { .. } => MessageKind::Handle,
-            Self::Reply(_) => MessageKind::Reply,
+            Self::Reply { .. } => MessageKind::Reply,
         }
     }
 
@@ -283,15 +286,7 @@ impl OutgoingMessageDetails {
         match self {
             Self::Init { delay, .. } => *delay,
             Self::Handle { delay, .. } => *delay,
-            Self::Reply(_) => 0,
-        }
-    }
-
-    /// Returns the reply details if this is a reply message.
-    pub fn reply(&self) -> Option<ReplyDetails> {
-        match self {
-            Self::Reply(details) => Some(*details),
-            _ => None,
+            Self::Reply { .. } => 0,
         }
     }
 }

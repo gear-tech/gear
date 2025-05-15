@@ -25,7 +25,6 @@ use super::{
 use crate::{
     buffer::Payload,
     ids::prelude::{ActorIdExt, MessageIdExt},
-    message::SignalDetails,
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SignalCode, SuccessReplyReason};
 use gprimitives::{ActorId, MessageId};
@@ -155,7 +154,7 @@ impl<P> BaseQueueMessage<P> {
         P: Default,
     {
         let blank = WithSource::new(BlankMessage::default(), ActorId::SYSTEM);
-        let details = ExecutableMessageDetails::Signal(SignalDetails::new(to, code));
+        let details = ExecutableMessageDetails::Signal { to, code };
         let history = None;
 
         let message_id = MessageId::generate_signal(to);

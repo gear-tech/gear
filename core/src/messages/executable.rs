@@ -22,12 +22,9 @@ use super::{
     stored::{BaseQueueMessage, BaseWaitlistMessage},
     IncrementNonce, MessageKind, OutgoingMessage, OutgoingMessageDetails, WithId,
 };
-use crate::{
-    buffer::Payload,
-    message::{ReplyDetails, SignalDetails},
-};
+use crate::buffer::Payload;
 use gear_core_errors::{
-    ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
+    ErrorReplyReason, ReplyCode, SignalCode, SimpleExecutionError, SimpleUnavailableActorError,
     SuccessReplyReason,
 };
 use gprimitives::{ActorId, MessageId};
@@ -183,15 +180,23 @@ pub enum ExecutableMessageDetails {
     #[display("handle")]
     Handle,
 
-    /// Reply message details: provides the message ID being replied to,
-    /// as well as the reply code.
-    #[display("reply {{ to: {}, code: {} }}", _0.to_message_id(), _0.to_reply_code())]
-    Reply(ReplyDetails),
+    /// Reply message details.
+    #[display("reply {{ to: {to}, code: {code} }}")]
+    Reply {
+        /// The message ID the reply is sent to.
+        to: MessageId,
+        /// The reply code.
+        code: ReplyCode,
+    },
 
-    /// Signal message details: provides the message ID the signal is sent to,
-    /// as well as the signal code.
-    #[display("signal {{ to: {}, code: {} }}", _0.to_message_id(), _0.to_signal_code())]
-    Signal(SignalDetails),
+    /// Signal message details.
+    #[display("signal {{ to: {to}, code: {code} }}")]
+    Signal {
+        /// The message ID the signal is sent to.
+        to: MessageId,
+        /// The signal code.
+        code: SignalCode,
+    },
 }
 
 impl ExecutableMessageDetails {
@@ -200,23 +205,23 @@ impl ExecutableMessageDetails {
         match self {
             Self::Init => MessageKind::Init,
             Self::Handle => MessageKind::Handle,
-            Self::Reply(_) => MessageKind::Reply,
-            Self::Signal(_) => MessageKind::Signal,
+            Self::Reply { .. } => MessageKind::Reply,
+            Self::Signal { .. } => MessageKind::Signal,
         }
     }
 
-    /// Returns the reply details if this is a reply message.
-    pub fn reply(&self) -> Option<ReplyDetails> {
+    /// If the message is a reply, returns the message ID this replies to and the reply code.
+    pub fn reply_details(&self) -> Option<(MessageId, ReplyCode)> {
         match self {
-            Self::Reply(details) => Some(*details),
+            Self::Reply { to, code } => Some((*to, *code)),
             _ => None,
         }
     }
 
-    /// Returns the signal details if this is a signal message.
-    pub fn signal(&self) -> Option<SignalDetails> {
+    /// If the message is a signal, returns the message ID this signals to and the signal code.
+    pub fn signal_details(&self) -> Option<(MessageId, SignalCode)> {
         match self {
-            Self::Signal(details) => Some(*details),
+            Self::Signal { to, code } => Some((*to, *code)),
             _ => None,
         }
     }
@@ -227,7 +232,7 @@ impl From<OutgoingMessageDetails> for ExecutableMessageDetails {
         match value {
             OutgoingMessageDetails::Init { .. } => Self::Init,
             OutgoingMessageDetails::Handle { .. } => Self::Handle,
-            OutgoingMessageDetails::Reply(details) => Self::Reply(details),
+            OutgoingMessageDetails::Reply { to, code } => Self::Reply { to, code },
         }
     }
 }
