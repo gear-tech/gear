@@ -38,10 +38,10 @@ use core::marker::PhantomData;
 use gear_core::{
     buffer::{Payload, PayloadSizeError, RuntimeBuffer, RuntimeBufferSizeError},
     costs::CostToken,
-    env::DropPayloadLockBound,
+    env::{DropPayloadLockBound, MessageWaitedType},
     gas::CounterType,
     ids::{MessageId, ProgramId},
-    message::{HandlePacket, InitPacket, MessageWaitedType, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};

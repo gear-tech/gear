@@ -88,6 +88,7 @@ use frame_system::{
 use gear_core::{
     buffer::*,
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
+    env::MessageWaitedType,
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,

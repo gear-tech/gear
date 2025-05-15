@@ -41,7 +41,6 @@ pub use signal::SignalMessage;
 pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
 
-use alloc::string::String;
 use core::fmt::Debug;
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
@@ -58,21 +57,6 @@ pub type Value = u128;
 /// Salt type for init message.
 pub type Salt = crate::buffer::Payload;
 
-/// Composite wait type for messages waiting.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
-pub enum MessageWaitedType {
-    /// Program called `gr_wait` while executing message.
-    Wait,
-    /// Program called `gr_wait_for` while executing message.
-    WaitFor,
-    /// Program called `gr_wait_up_to` with insufficient gas for full
-    /// duration while executing message.
-    WaitUpTo,
-    /// Program called `gr_wait_up_to` with enough gas for full duration
-    /// storing while executing message.
-    WaitUpToFull,
-}
-
 /// Entry point for dispatch processing.
 #[derive(
     Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
@@ -88,53 +72,6 @@ pub enum DispatchKind {
     Reply,
     /// System signal.
     Signal,
-}
-
-/// Trait defining type could be used as entry point for a wasm module.
-pub trait WasmEntryPoint: Sized {
-    /// Converting self into entry point name.
-    fn as_entry(&self) -> &str;
-
-    /// Converting entry point name into self object, if possible.
-    fn try_from_entry(entry: &str) -> Option<Self>;
-
-    /// Tries to convert self into `DispatchKind`.
-    fn try_into_kind(&self) -> Option<DispatchKind> {
-        <DispatchKind as WasmEntryPoint>::try_from_entry(self.as_entry())
-    }
-}
-
-impl WasmEntryPoint for String {
-    fn as_entry(&self) -> &str {
-        self
-    }
-
-    fn try_from_entry(entry: &str) -> Option<Self> {
-        Some(entry.into())
-    }
-}
-
-impl WasmEntryPoint for DispatchKind {
-    fn as_entry(&self) -> &str {
-        match self {
-            Self::Init => "init",
-            Self::Handle => "handle",
-            Self::Reply => "handle_reply",
-            Self::Signal => "handle_signal",
-        }
-    }
-
-    fn try_from_entry(entry: &str) -> Option<Self> {
-        let kind = match entry {
-            "init" => Self::Init,
-            "handle" => Self::Handle,
-            "handle_reply" => Self::Reply,
-            "handle_signal" => Self::Signal,
-            _ => return None,
-        };
-
-        Some(kind)
-    }
 }
 
 impl DispatchKind {
