@@ -74,6 +74,7 @@ pub trait CodesStorage: Send + Sync {
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
+    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 pub trait OnChainStorage: Send + Sync {

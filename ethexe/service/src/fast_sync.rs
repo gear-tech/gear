@@ -22,7 +22,7 @@ use anyhow::{ensure, Context, Result};
 use ethexe_common::{
     db::{BlockHeader, BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::CodeCommitment,
+    gear::{CodeCommitment, CodeState},
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -42,7 +42,7 @@ use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     iter,
 };
 
@@ -219,6 +219,83 @@ async fn collect_program_code_ids(
     debug_assert_eq!(program_ids.len(), code_ids.len());
     let program_code_ids = iter::zip(program_ids, code_ids).collect();
     Ok(program_code_ids)
+}
+
+async fn collect_code_ids(
+    observer: &mut ObserverService,
+    network: &mut NetworkService,
+    latest_committed_block: H256,
+) -> Result<BTreeSet<CodeId>> {
+    let router_query = observer.router_query();
+    let codes_count = router_query
+        .validated_codes_count_at(latest_committed_block)
+        .await?;
+
+    let request_id = network.db_sync().request(db_sync::Request::ValidCodes);
+
+    let response = loop {
+        let event = network
+            .next()
+            .await
+            .expect("network service stream is infinite");
+
+        match event {
+            NetworkEvent::DbResponse {
+                request_id: rid,
+                result,
+            } => {
+                debug_assert_eq!(rid, request_id, "unknown request id");
+                match result {
+                    Ok(response) => break response,
+                    Err((request, err)) => {
+                        log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
+                        network.db_sync().retry(request);
+                        continue;
+                    }
+                }
+            }
+            NetworkEvent::DbExternalValidation {
+                request_id: rid,
+                response,
+                sender,
+            } => {
+                debug_assert_eq!(rid, request_id, "unknown request id");
+
+                let db_sync::Response::ValidCodes(code_ids) = response else {
+                    unreachable!("unexpected network response: {response:?}");
+                };
+
+                let is_valid = 'a: {
+                    if (code_ids.len() as u64) < codes_count {
+                        break 'a false;
+                    }
+
+                    let code_states = router_query
+                        .codes_states_at(code_ids.iter().copied(), latest_committed_block)
+                        .await?;
+                    if code_states
+                        .into_iter()
+                        .any(|state| state.into() != CodeState::Validated as u8)
+                    {
+                        break 'a false;
+                    }
+
+                    true
+                };
+
+                sender
+                    .send(is_valid)
+                    .expect("`db-sync` never drops its receiver");
+            }
+            _ => continue,
+        }
+    };
+
+    let db_sync::Response::ValidCodes(code_ids) = response else {
+        unreachable!("unexpected network response: {response:?}");
+    };
+
+    Ok(code_ids)
 }
 
 async fn collect_program_states(
@@ -608,14 +685,13 @@ async fn sync_from_network(
 async fn instrument_codes(
     db: &Database,
     compute: &mut ComputeService,
-    program_code_ids: &BTreeMap<ActorId, CodeId>,
+    mut code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
     /// codes we instrument had already been processed by gear.exe,
     /// so generated code commitments are never going to be submitted,
     /// so we just pass placeholder value for their timestamp
     const TIMESTAMP: u64 = u64::MAX;
 
-    let mut code_ids: HashSet<CodeId> = program_code_ids.values().copied().collect();
     if code_ids.is_empty() {
         log::info!("No codes to instrument. Skipping...");
         return Ok(());
@@ -682,9 +758,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
+    let code_ids = collect_code_ids(observer, network, latest_committed_block).await?;
     let program_code_ids =
         collect_program_code_ids(observer, network, latest_committed_block).await?;
-
     let program_states = collect_program_states(
         observer,
         latest_committed_block,
@@ -695,7 +771,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     sync_from_network(network, db, &program_code_ids, &program_states).await;
 
-    instrument_codes(db, compute, &program_code_ids).await?;
+    instrument_codes(db, compute, code_ids).await?;
 
     let latest_block_header = observer
         .provider()

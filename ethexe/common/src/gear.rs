@@ -205,7 +205,7 @@ pub struct ValidatorsCommitment {
     pub era_index: u64,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,

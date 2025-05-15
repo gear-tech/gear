@@ -27,8 +27,8 @@ pub(crate) use crate::{
 };
 
 use crate::db_sync::requests::OngoingRequests;
-use ethexe_db::{BlockMetaStorage, Database};
-use gprimitives::{ActorId, H256};
+use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
     core::{transport::PortUse, Endpoint},
     request_response,
@@ -61,6 +61,7 @@ pub struct ResponseId(u64);
 pub enum Request {
     Hashes(BTreeSet<H256>),
     ProgramIdsAt(H256),
+    ValidCodes,
 }
 
 impl fmt::Debug for Request {
@@ -76,6 +77,7 @@ impl fmt::Debug for Request {
                 }
             }
             Request::ProgramIdsAt(block) => f.debug_tuple("ProgramIdsAt").field(block).finish(),
+            Request::ValidCodes => f.debug_tuple("CodeIdsAt").finish(),
         }
     }
 }
@@ -95,6 +97,7 @@ impl Request {
                 }
             }
             (Self::ProgramIdsAt(_), Response::ProgramIdsAt(_, _)) => None,
+            (Self::ValidCodes, Response::ValidCodes(_)) => None,
             _ => unreachable!(),
         }
     }
@@ -115,6 +118,7 @@ enum ResponseValidationError {
 pub enum Response {
     Hashes(BTreeMap<H256, Vec<u8>>),
     ProgramIdsAt(H256, Option<BTreeSet<ActorId>>),
+    ValidCodes(BTreeSet<CodeId>),
 }
 
 impl fmt::Debug for Response {
@@ -142,6 +146,7 @@ impl fmt::Debug for Response {
                 }
                 d.finish()
             }
+            Response::ValidCodes(code_ids) => f.debug_tuple("CodeIds").field(code_ids).finish(),
         }
     }
 }
@@ -160,6 +165,7 @@ impl Response {
                 db.block_program_states(block)
                     .map(|states| states.into_keys().collect()),
             ),
+            Request::ValidCodes => Self::ValidCodes(db.valid_codes()),
         }
     }
 
@@ -203,6 +209,9 @@ impl Response {
 
                 return Ok(false);
             }
+            (Request::ValidCodes, Response::ValidCodes(_codes)) => {
+                return Ok(false);
+            }
             _ => return Err(ResponseValidationError::RequestResponseTypeMismatch),
         }
 
@@ -225,13 +234,12 @@ impl Response {
         true
     }
 
+    // TODO: maybe external strip required
     fn strip(&mut self, request: &Request) -> bool {
         match (request, self) {
             (Request::Hashes(req), Self::Hashes(resp)) => Self::strip_btree(req, resp),
-            (Request::ProgramIdsAt(_), Self::ProgramIdsAt(_, _resp)) => {
-                // TODO: maybe external strip required
-                false
-            }
+            (Request::ProgramIdsAt(_), Self::ProgramIdsAt(_, _resp)) => false,
+            (Request::ValidCodes, Self::ValidCodes(_)) => false,
             _ => unreachable!(),
         }
     }
