@@ -179,7 +179,7 @@ impl Signer {
     pub fn tmp() -> Self {
         let temp_dir = tempfile::tempdir().expect("Cannot create temp dir for keys");
         Self {
-            key_store: temp_dir.into_path(),
+            key_store: temp_dir.keep(),
         }
     }
 
