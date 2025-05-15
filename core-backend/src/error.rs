@@ -18,9 +18,10 @@
 
 use actor_system_error::actor_system_error;
 use gear_core::{
+    buffer::PanicBuffer,
     gas::{ChargeError, CounterType},
     ids::ProgramId,
-    message::{MessageWaitedType, PanicBuffer},
+    message::MessageWaitedType,
 };
 use gear_core_errors::ExtError as FallibleExtError;
 use parity_scale_codec::{Decode, Encode};

@@ -23,8 +23,9 @@ use super::{
     MessageKind, OutgoingMessage, WithId, WrapWithDestination, WrapWithId, WrapWithSource,
 };
 use crate::{
+    buffer::Payload,
     ids::prelude::{ActorIdExt, MessageIdExt},
-    message::{Payload, SignalDetails},
+    message::SignalDetails,
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SignalCode, SuccessReplyReason};
 use gprimitives::{ActorId, MessageId};

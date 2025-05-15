@@ -23,8 +23,9 @@ use super::{
     BaseMessage, IncrementNonce, MessageKind, WithDestination, WithSource,
 };
 use crate::{
+    buffer::Payload,
     ids::prelude::{ActorIdExt, ExternalActorMessagingData, MessageIdExt},
-    message::{Payload, ReplyDetails},
+    message::ReplyDetails,
 };
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId};

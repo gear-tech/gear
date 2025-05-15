@@ -86,6 +86,7 @@ use frame_system::{
     Pallet as System, RawOrigin,
 };
 use gear_core::{
+    buffer::*,
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,

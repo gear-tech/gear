@@ -22,7 +22,10 @@ use super::{
     stored::{BaseQueueMessage, BaseWaitlistMessage},
     IncrementNonce, MessageKind, OutgoingMessage, OutgoingMessageDetails, WithId,
 };
-use crate::message::{Payload, ReplyDetails, SignalDetails};
+use crate::{
+    buffer::Payload,
+    message::{ReplyDetails, SignalDetails},
+};
 use gear_core_errors::{
     ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
     SuccessReplyReason,
