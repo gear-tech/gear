@@ -214,6 +214,7 @@ impl OverlaidProcessor {
                 source,
                 payload,
                 value,
+                call_reply: false,
             },
         )?;
 

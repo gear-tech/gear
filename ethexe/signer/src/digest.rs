@@ -153,6 +153,7 @@ impl ToDigest for StateTransition {
         let Self {
             actor_id,
             new_state_hash,
+            exited,
             inheritor,
             value_to_receive,
             value_claims,
@@ -161,6 +162,7 @@ impl ToDigest for StateTransition {
 
         hasher.update(actor_id.to_address_lossy().as_bytes());
         hasher.update(new_state_hash.as_bytes());
+        hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy().as_bytes());
         hasher.update(value_to_receive.to_be_bytes().as_slice());
 
@@ -192,6 +194,7 @@ impl ToDigest for Message {
             payload,
             value,
             reply_details,
+            call,
         } = self;
 
         let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
@@ -202,6 +205,7 @@ impl ToDigest for Message {
         hasher.update(value.to_be_bytes().as_slice());
         hasher.update(reply_details_to.as_ref());
         hasher.update(reply_details_code.to_bytes().as_slice());
+        hasher.update([*call as u8]);
     }
 }
 
@@ -309,6 +313,7 @@ mod tests {
         let state_transition = StateTransition {
             actor_id: ActorId::from(0),
             new_state_hash: H256::from([1; 32]),
+            exited: false,
             inheritor: ActorId::from(0),
             value_to_receive: 0,
             value_claims: vec![],
@@ -318,6 +323,7 @@ mod tests {
                 payload: b"Hello, World!".to_vec(),
                 value: 0,
                 reply_details: None,
+                call: false,
             }],
         };
         let _digest = state_transition.to_digest();

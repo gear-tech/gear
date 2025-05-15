@@ -32,14 +32,25 @@ pub enum Event {
         payload: Vec<u8>,
         value: u128,
     },
+    MessageCallFailed {
+        id: MessageId,
+        destination: ActorId,
+        value: u128,
+    },
     MessageQueueingRequested {
         id: MessageId,
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
+        call_reply: bool,
     },
     Reply {
         payload: Vec<u8>,
+        value: u128,
+        reply_to: MessageId,
+        reply_code: ReplyCode,
+    },
+    ReplyCallFailed {
         value: u128,
         reply_to: MessageId,
         reply_code: ReplyCode,
@@ -74,11 +85,13 @@ impl Event {
                 source,
                 payload,
                 value,
+                call_reply,
             } => RequestEvent::MessageQueueingRequested {
                 id,
                 source,
                 payload,
                 value,
+                call_reply,
             },
             Self::ReplyQueueingRequested {
                 replied_to,
@@ -97,7 +110,9 @@ impl Event {
             Self::StateChanged { .. }
             | Self::ValueClaimed { .. }
             | Self::Message { .. }
-            | Self::Reply { .. } => return None,
+            | Self::MessageCallFailed { .. }
+            | Self::Reply { .. }
+            | Self::ReplyCallFailed { .. } => return None,
         })
     }
 }
@@ -113,6 +128,7 @@ pub enum RequestEvent {
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
+        call_reply: bool,
     },
     ReplyQueueingRequested {
         replied_to: MessageId,
