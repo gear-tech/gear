@@ -610,11 +610,7 @@ where
                 dispatch.id(),
                 dispatch.source(),
                 dispatch.destination(),
-                dispatch
-                    .payload_bytes()
-                    .to_vec()
-                    .try_into()
-                    .expect("Infallible"),
+                dispatch.payload(),
                 Some(gas_limit),
                 dispatch.value(),
                 dispatch.details(),

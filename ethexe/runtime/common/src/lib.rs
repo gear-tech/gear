@@ -40,6 +40,7 @@ use gsys::{GasMultiplier, Percent};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
+use gear_core::message::SharedPayload;
 pub use journal::Handler as JournalHandler;
 pub use schedule::Handler as ScheduleHandler;
 pub use transitions::{InBlockTransitions, NonFinalTransition};
@@ -210,8 +211,14 @@ where
         .value_to_gas(program_state.executable_balance)
         .min(BLOCK_GAS_LIMIT);
 
-    let incoming_message =
-        IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
+    let incoming_message = IncomingMessage::new(
+        dispatch_id,
+        source,
+        SharedPayload::new(payload),
+        gas_limit,
+        value,
+        details,
+    );
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 

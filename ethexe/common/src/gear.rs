@@ -118,7 +118,7 @@ impl From<StoredMessage> for Message {
         Self {
             id,
             destination,
-            payload: payload.into_vec(),
+            payload: payload.into_inner().into_vec(),
             value,
             reply_details: details.and_then(|v| v.to_reply_details()),
         }

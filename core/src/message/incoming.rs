@@ -19,8 +19,8 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, Payload, StoredDispatch,
-        StoredMessage, Value,
+        common::MessageDetails, ContextStore, DispatchKind, GasLimit, SharedPayload,
+        StoredDispatch, StoredMessage, Value,
     },
 };
 use core::ops::Deref;
@@ -39,7 +39,7 @@ pub struct IncomingMessage {
     /// Message source.
     source: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
@@ -53,7 +53,7 @@ impl IncomingMessage {
     pub fn new(
         id: MessageId,
         source: ProgramId,
-        payload: Payload,
+        payload: SharedPayload,
         gas_limit: GasLimit,
         value: Value,
         details: Option<MessageDetails>,
@@ -95,9 +95,9 @@ impl IncomingMessage {
         self.payload.inner()
     }
 
-    /// Mutable reference to message payload.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        &mut self.payload
+    /// Reference to message payload wrapper.
+    pub fn payload(&self) -> SharedPayload {
+        self.payload.clone()
     }
 
     /// Message gas limit.

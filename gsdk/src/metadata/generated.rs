@@ -815,10 +815,7 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
-                            ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
-                        >,
+                        pub payload: runtime_types::gear_core::message::SharedPayload,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
                         pub details: ::core::option::Option<
@@ -835,10 +832,7 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
-                            ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
-                        >,
+                        pub payload: runtime_types::gear_core::message::SharedPayload,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
                         pub details: ::core::option::Option<
@@ -852,10 +846,7 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
-                            ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
-                        >,
+                        pub payload: runtime_types::gear_core::message::SharedPayload,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
                     }
@@ -873,6 +864,13 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PayloadSizeError;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct SharedPayload(
+                    pub  runtime_types::gear_core::buffer::LimitedVec<
+                        ::core::primitive::u8,
+                        runtime_types::gear_core::message::PayloadSizeError,
+                    >,
+                );
             }
             pub mod pages {
                 use super::runtime_types;

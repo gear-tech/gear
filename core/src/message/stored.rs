@@ -20,7 +20,7 @@ use crate::{
     ids::{MessageId, ProgramId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, Value,
+        IncomingMessage, ReplyDetails, SharedPayload, Value,
     },
 };
 use core::ops::Deref;
@@ -42,7 +42,7 @@ pub struct StoredMessage {
     /// Message destination.
     pub(super) destination: ProgramId,
     /// Message payload.
-    pub(super) payload: Payload,
+    pub(super) payload: SharedPayload,
     /// Message value.
     #[codec(compact)]
     pub(super) value: Value,
@@ -56,7 +56,7 @@ impl StoredMessage {
         id: MessageId,
         source: ProgramId,
         destination: ProgramId,
-        payload: Payload,
+        payload: SharedPayload,
         value: Value,
         details: Option<MessageDetails>,
     ) -> Self {
@@ -77,7 +77,7 @@ impl StoredMessage {
         MessageId,
         ProgramId,
         ProgramId,
-        Payload,
+        SharedPayload,
         Value,
         Option<MessageDetails>,
     ) {
@@ -116,6 +116,11 @@ impl StoredMessage {
     /// Message destination.
     pub fn destination(&self) -> ProgramId {
         self.destination
+    }
+
+    /// Message payload.
+    pub fn payload(&self) -> SharedPayload {
+        self.payload.clone()
     }
 
     /// Message payload bytes.

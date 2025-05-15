@@ -45,7 +45,7 @@ pub mod pallet {
     use gear_core::{
         ids::ProgramId,
         memory::PageBuf,
-        message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
+        message::{SharedPayload, StoredDelayedDispatch, StoredDispatch, StoredMessage},
         pages::{GearPage, WasmPagesAmount},
         program::Program,
     };
@@ -192,7 +192,7 @@ pub mod pallet {
             msg.id(),
             source.cast(),
             destination.cast(),
-            (*msg.payload_bytes()).to_vec().try_into().unwrap(),
+            SharedPayload::try_new((*msg.payload_bytes()).to_vec()).unwrap(),
             msg.value(),
             msg.details(),
         );

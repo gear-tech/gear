@@ -19,8 +19,8 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
-        Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, SharedPayload, StoredDispatch,
+        StoredMessage, Value,
     },
 };
 use scale_info::{
@@ -37,7 +37,7 @@ pub struct HandleMessage {
     /// Message destination.
     destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Message value.
@@ -118,7 +118,7 @@ pub struct HandlePacket {
     /// Packet destination.
     destination: ProgramId,
     /// Packet payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Packet optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Packet value.
@@ -130,7 +130,7 @@ impl HandlePacket {
     pub fn new(destination: ProgramId, payload: Payload, value: Value) -> Self {
         Self {
             destination,
-            payload,
+            payload: SharedPayload::new(payload),
             gas_limit: None,
             value,
         }
@@ -145,7 +145,7 @@ impl HandlePacket {
     ) -> Self {
         Self {
             destination,
-            payload,
+            payload: SharedPayload::new(payload),
             gas_limit: Some(gas_limit),
             value,
         }
@@ -169,7 +169,7 @@ impl HandlePacket {
         if data.try_extend_from_slice(self.payload_bytes()).is_err() {
             Err(data)
         } else {
-            self.payload = data;
+            self.payload = SharedPayload::new(data);
             Ok(())
         }
     }

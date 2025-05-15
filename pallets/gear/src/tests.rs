@@ -52,7 +52,7 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        ReplyInfo, StoredDispatch, UserStoredMessage,
+        ReplyInfo, SharedPayload, StoredDispatch, UserStoredMessage,
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
@@ -15093,8 +15093,14 @@ fn incorrect_store_context() {
         QueueOf::<Test>::dequeue().unwrap().unwrap();
 
         // Start creating dispatch with outgoing messages total bytes limit exceeded
-        let payload = Vec::new().try_into().unwrap();
-        let message = IncomingMessage::new(mid, USER_1.cast(), payload, gas_limit, 0, None);
+        let message = IncomingMessage::new(
+            mid,
+            USER_1.cast(),
+            SharedPayload::try_new(Vec::new()).unwrap(),
+            gas_limit,
+            0,
+            None,
+        );
 
         // Get overloaded `StoreContext` using `MessageContext`
         let limit = <Test as Config>::OutgoingBytesLimit::get();

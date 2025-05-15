@@ -33,7 +33,7 @@ use gear_core::{
     memory::AllocationsContext,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
-        WasmEntryPoint,
+        SharedPayload, WasmEntryPoint,
     },
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::MemoryInfix,
@@ -286,8 +286,7 @@ where
             IncomingMessage::new(
                 Default::default(),
                 Default::default(),
-                payload
-                    .try_into()
+                SharedPayload::try_new(payload)
                     .map_err(|e| format!("Failed to create payload: {e:?}"))?,
                 gas_limit,
                 Default::default(),

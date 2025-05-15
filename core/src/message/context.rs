@@ -34,7 +34,7 @@ use scale_info::{
     TypeInfo,
 };
 
-use super::{DispatchKind, IncomingDispatch, Packet};
+use super::{DispatchKind, IncomingDispatch, Packet, SharedPayload};
 
 /// Context settings.
 #[derive(Copy, Clone, Debug, Default)]
@@ -571,9 +571,9 @@ impl MessageContext {
         &self.current
     }
 
-    /// Mutable reference to currently processed incoming message.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        self.current.payload_mut()
+    /// Current payload of the incoming message.
+    pub fn payload(&self) -> SharedPayload {
+        self.current.payload()
     }
 
     /// Current program's id.
@@ -603,6 +603,7 @@ impl CheckedRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::SharedPayload;
     use alloc::vec;
     use core::convert::TryInto;
 
@@ -761,7 +762,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2, 3, 4, 5].try_into().unwrap(),
+            SharedPayload::try_new(vec![1, 2, 3, 4, 5]).unwrap(),
             0,
             0,
             None,
@@ -920,7 +921,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2].try_into().unwrap(),
+            SharedPayload::try_new(vec![1, 2]).unwrap(),
             0,
             0,
             None,
@@ -1061,7 +1062,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2].try_into().unwrap(),
+            SharedPayload::try_new(vec![1, 2]).unwrap(),
             0,
             0,
             None,
@@ -1088,7 +1089,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2].try_into().unwrap(),
+            SharedPayload::try_new(vec![1, 2]).unwrap(),
             0,
             0,
             None,
@@ -1122,7 +1123,7 @@ mod tests {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
             ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            vec![1, 2].try_into().unwrap(),
+            SharedPayload::try_new(vec![1, 2]).unwrap(),
             0,
             0,
             None,
