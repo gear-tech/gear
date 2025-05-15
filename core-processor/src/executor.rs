@@ -27,14 +27,11 @@ use crate::{
 use alloc::{format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
-    env::Externalities,
+    env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ProgramId,
     memory::AllocationsContext,
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
-        WasmEntryPoint,
-    },
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::MemoryInfix,
     reservation::GasReserver,

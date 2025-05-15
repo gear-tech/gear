@@ -27,12 +27,11 @@ use alloc::{
 };
 use gear_core::{
     code::InstrumentedCode,
+    env::MessageWaitedType,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
-    message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
-    },
+    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},

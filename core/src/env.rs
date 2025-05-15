@@ -23,13 +23,15 @@ use crate::{
     env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
-    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
+    message::{DispatchKind, HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, string::String};
 use core::{fmt::Display, mem};
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SyscallName;
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Lock for the payload of the incoming/currently executing message.
 ///
@@ -395,4 +397,66 @@ pub trait Externalities {
 
     /// Return the current message context.
     fn msg_ctx(&self) -> &MessageContext;
+}
+
+/// Composite wait type for messages waiting.
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+pub enum MessageWaitedType {
+    /// Program called `gr_wait` while executing message.
+    Wait,
+    /// Program called `gr_wait_for` while executing message.
+    WaitFor,
+    /// Program called `gr_wait_up_to` with insufficient gas for full
+    /// duration while executing message.
+    WaitUpTo,
+    /// Program called `gr_wait_up_to` with enough gas for full duration
+    /// storing while executing message.
+    WaitUpToFull,
+}
+
+/// Trait defining type could be used as entry point for a wasm module.
+pub trait WasmEntryPoint: Sized {
+    /// Converting self into entry point name.
+    fn as_entry(&self) -> &str;
+
+    /// Converting entry point name into self object, if possible.
+    fn try_from_entry(entry: &str) -> Option<Self>;
+
+    /// Tries to convert self into `DispatchKind`.
+    fn try_into_kind(&self) -> Option<DispatchKind> {
+        <DispatchKind as WasmEntryPoint>::try_from_entry(self.as_entry())
+    }
+}
+
+impl WasmEntryPoint for String {
+    fn as_entry(&self) -> &str {
+        self
+    }
+
+    fn try_from_entry(entry: &str) -> Option<Self> {
+        Some(entry.into())
+    }
+}
+
+impl WasmEntryPoint for DispatchKind {
+    fn as_entry(&self) -> &str {
+        match self {
+            Self::Init => "init",
+            Self::Handle => "handle",
+            Self::Reply => "handle_reply",
+            Self::Signal => "handle_signal",
+        }
+    }
+
+    fn try_from_entry(entry: &str) -> Option<Self> {
+        let kind = match entry {
+            "init" => Self::Init,
+            "handle" => Self::Handle,
+            "handle_reply" => Self::Reply,
+            "handle_signal" => Self::Signal,
+            _ => return None,
+        };
+
+        Some(kind)
+    }
 }
