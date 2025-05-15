@@ -48,7 +48,7 @@ use self::{
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
-        MultisignedBatchCommitment,
+        MultisignedBatchCommitment, SignedProducerBlock, SignedValidationRequest,
     },
     ConsensusEvent, ConsensusService,
 };
@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{
     ecdsa::{PublicKey, SignedData},
-    Address, ProducerBlock, SimpleBlockData,
+    Address, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
@@ -184,7 +184,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_computed_block(computed_block))
     }
 
-    fn receive_block_from_producer(&mut self, signed: SignedData<ProducerBlock>) -> Result<()> {
+    fn receive_block_from_producer(&mut self, signed: SignedProducerBlock) -> Result<()> {
         self.update_inner(|inner| inner.process_block_from_producer(signed))
     }
 
@@ -229,9 +229,9 @@ impl FusedStream for ValidatorService {
 #[derive(Clone, Debug, From, PartialEq, Eq)]
 enum PendingEvent {
     /// A block from the producer
-    ProducerBlock(SignedData<ProducerBlock>),
+    ProducerBlock(SignedProducerBlock),
     /// A validation request
-    ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
+    ValidationRequest(SignedValidationRequest),
 }
 
 /// Trait defining the interface for validator inner state and events handler.
@@ -261,7 +261,7 @@ trait StateHandler: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
 
     fn process_block_from_producer(
         self: Box<Self>,
-        block: SignedData<ProducerBlock>,
+        block: SignedProducerBlock,
     ) -> Result<Box<dyn StateHandler>> {
         DefaultProcessing::block_from_producer(self.into_dyn(), block)
     }
@@ -321,7 +321,7 @@ impl DefaultProcessing {
 
     fn block_from_producer(
         mut s: Box<dyn StateHandler>,
-        block: SignedData<ProducerBlock>,
+        block: SignedProducerBlock,
     ) -> Result<Box<dyn StateHandler>> {
         s.warning(format!(
             "unexpected block from producer: {block:?}, saved for later."

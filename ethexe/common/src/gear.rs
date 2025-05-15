@@ -54,7 +54,7 @@ pub struct AddressBook {
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct GearBlock {
-    pub block_hash: H256,
+    pub hash: H256,
     pub off_chain_transactions_hash: H256,
     pub gas_allowance: u64,
 }
@@ -62,12 +62,12 @@ pub struct GearBlock {
 impl ToDigest for GearBlock {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
-            block_hash,
+            hash,
             off_chain_transactions_hash,
             gas_allowance,
         } = &self;
 
-        hasher.update(block_hash.as_bytes());
+        hasher.update(hash.as_bytes());
         hasher.update(off_chain_transactions_hash.as_bytes());
         hasher.update(gas_allowance.to_be_bytes().as_slice());
     }
@@ -76,6 +76,7 @@ impl ToDigest for GearBlock {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
+    // +_+_+ change to vec1
     pub gear_blocks: Vec<GearBlock>,
 }
 
@@ -192,7 +193,7 @@ pub struct BatchCommitment {
 
     pub previous_committed_block_hash: H256,
 
-    pub chain_commitments: Option<ChainCommitment>,
+    pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
     pub validators_commitment: Option<ValidatorsCommitment>,
     pub rewards_commitment: Option<RewardsCommitment>,
@@ -205,7 +206,7 @@ impl ToDigest for BatchCommitment {
             block_hash,
             timestamp,
             previous_committed_block_hash,
-            chain_commitments: chain_commitment,
+            chain_commitment,
             code_commitments,
             validators_commitment,
             rewards_commitment,

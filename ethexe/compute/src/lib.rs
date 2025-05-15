@@ -101,15 +101,11 @@ impl ComputeService {
         }
     }
 
-    pub fn receive_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
+    pub fn receive_code(&mut self, code_id: CodeId, code: Vec<u8>) {
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-            Ok(CodeCommitment {
-                id: code_id,
-                timestamp,
-                valid,
-            })
+            Ok(CodeCommitment { id: code_id, valid })
         });
     }
 
@@ -235,11 +231,15 @@ impl ChainHeadProcessContext {
         let mut committed_blocks_in_current = BTreeSet::new();
         let mut validated_codes_in_current = BTreeSet::new();
         let mut requested_codes_in_current = Vec::new();
+        let mut last_committed_block = db
+            .last_committed_block(parent)
+            .ok_or_else(|| anyhow!("last committed block not found for computed block {block}"))?;
 
         for event in events {
             match event {
                 BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
                     committed_blocks_in_current.insert(*hash);
+                    last_committed_block = *hash;
                 }
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
                     validated_codes_in_current.insert(*code_id);
@@ -250,6 +250,9 @@ impl ChainHeadProcessContext {
                 _ => {}
             }
         }
+
+        // Set last committed block
+        db.set_last_committed_block(block, last_committed_block);
 
         // Propagate `wait for commitment` blocks queue
         let mut blocks_queue = db

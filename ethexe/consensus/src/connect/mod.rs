@@ -21,11 +21,13 @@
 //! Simple "connect-node" consensus service implementation.
 
 use crate::{
-    utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    utils::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
+    },
     ConsensusEvent, ConsensusService,
 };
 use anyhow::Result;
-use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
+use ethexe_common::{ecdsa::SignedData, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
@@ -86,10 +88,7 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_block_from_producer(
-        &mut self,
-        _block_hash: SignedData<ProducerBlock>,
-    ) -> Result<()> {
+    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
         Ok(())
     }
 

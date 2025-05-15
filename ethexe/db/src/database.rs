@@ -271,6 +271,7 @@ struct BlockSmallData {
     block_synced: bool,
     block_computed: bool,
     prev_not_empty_block: Option<H256>,
+    last_committed_block: Option<H256>,
     commitment_queue: Option<VecDeque<H256>>,
     codes_queue: Option<VecDeque<CodeId>>,
 }
@@ -312,6 +313,17 @@ impl BlockMetaStorage for Database {
         log::trace!("For block {block_hash} set prev commitment: {prev_not_empty_block_hash}");
         self.mutate_small_data(block_hash, |data| {
             data.prev_not_empty_block = Some(prev_not_empty_block_hash)
+        });
+    }
+
+    fn last_committed_block(&self, block_hash: H256) -> Option<H256> {
+        self.with_small_data(block_hash, |data| data.last_committed_block)?
+    }
+
+    fn set_last_committed_block(&self, block_hash: H256, last_committed_block_hash: H256) {
+        log::trace!("For block {block_hash} set last committed: {last_committed_block_hash}");
+        self.mutate_small_data(block_hash, |data| {
+            data.last_committed_block = Some(last_committed_block_hash)
         });
     }
 

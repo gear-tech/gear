@@ -45,6 +45,12 @@ use sha3::Digest as _;
 #[display("0x{}", hex::encode(self.0))]
 pub struct Digest([u8; 32]);
 
+impl<'a> From<&'a Digest> for Digest {
+    fn from(digest: &'a Digest) -> Self {
+        *digest
+    }
+}
+
 impl<T> FromIterator<T> for Digest
 where
     Digest: From<T>,

@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{utils::*, Gear};
+use alloy::primitives::Uint;
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 
@@ -33,24 +34,12 @@ impl From<AggregatedPublicKey> for Gear::AggregatedPublicKey {
     }
 }
 
-impl From<BlockCommitment> for Gear::BlockCommitment {
-    fn from(value: BlockCommitment) -> Self {
-        Self {
-            hash: h256_to_bytes32(value.hash),
-            timestamp: u64_to_uint48_lossy(value.timestamp),
-            previousCommittedBlock: h256_to_bytes32(value.previous_committed_block),
-            predecessorBlock: h256_to_bytes32(value.predecessor_block),
-            transitions: value.transitions.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
 impl From<CodeCommitment> for Gear::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
             id: code_id_to_bytes32(value.id),
-            timestamp: u64_to_uint48_lossy(value.timestamp),
             valid: value.valid,
+            timestamp: Uint::ZERO, // +_+_+
         }
     }
 }
@@ -88,7 +77,7 @@ impl From<OperatorRewardsCommitment> for Gear::OperatorRewardsCommitment {
 impl From<StakerRewards> for Gear::StakerRewards {
     fn from(value: StakerRewards) -> Self {
         Self {
-            vault: value.vault.into(),
+            vault: value.vault.0.into(),
             amount: u256_to_uint256(value.amount),
         }
     }
@@ -99,7 +88,7 @@ impl From<StakerRewardsCommitment> for Gear::StakerRewardsCommitment {
         Self {
             distribution: value.distribution.into_iter().map(Into::into).collect(),
             totalAmount: u256_to_uint256(value.total_amount),
-            token: value.token.into(),
+            token: value.token.0.into(),
         }
     }
 }
@@ -116,12 +105,9 @@ impl From<RewardsCommitment> for Gear::RewardsCommitment {
 
 impl From<BatchCommitment> for Gear::BatchCommitment {
     fn from(value: BatchCommitment) -> Self {
+        // +_+_+
         Self {
-            blockCommitments: value
-                .block_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            blockCommitments: Default::default(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
             rewardCommitments: value
                 .rewards_commitment

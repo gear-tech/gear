@@ -44,6 +44,9 @@ pub trait BlockMetaStorage: Send + Sync {
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
 
+    fn last_committed_block(&self, block_hash: H256) -> Option<H256>;
+    fn set_last_committed_block(&self, block_hash: H256, last_committed: H256);
+
     fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
 

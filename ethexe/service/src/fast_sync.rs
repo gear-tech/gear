@@ -496,13 +496,10 @@ async fn instrument_codes(
     log::info!("Instrument {} codes", code_ids.len());
 
     for &code_id in &code_ids {
-        let code_info = db
-            .code_blob_info(code_id)
-            .expect("observer must fulfill database");
         let original_code = db
             .original_code(code_id)
             .expect("observer must fulfill database");
-        compute.receive_code(code_id, code_info.timestamp, original_code);
+        compute.receive_code(code_id, original_code);
     }
 
     while let Some(event) = compute.next().await {

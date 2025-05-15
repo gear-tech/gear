@@ -18,14 +18,11 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
-use ethexe_common::{
-    ecdsa::{PublicKey, SignedData},
-    ProducerBlock,
-};
+use ethexe_common::ecdsa::PublicKey;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
@@ -89,8 +86,8 @@ pub struct Service {
 // TODO #4176: consider to move this to another module
 #[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
-    ProducerBlock(SignedData<ProducerBlock>),
-    RequestBatchValidation(SignedData<BatchCommitmentValidationRequest>),
+    ProducerBlock(SignedProducerBlock),
+    RequestBatchValidation(SignedValidationRequest),
     ApproveBatch(BatchCommitmentValidationReply),
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
@@ -367,7 +364,7 @@ impl Service {
                 Event::Observer(event) => match event {
                     ObserverEvent::Blob(BlobData {
                         code_id,
-                        timestamp,
+                        timestamp: _,
                         code,
                     }) => {
                         log::info!(
@@ -375,7 +372,7 @@ impl Service {
                             code.len()
                         );
 
-                        compute.receive_code(code_id, timestamp, code)
+                        compute.receive_code(code_id, code)
                     }
                     ObserverEvent::Block(block_data) => {
                         log::info!(

@@ -21,96 +21,87 @@
 //! This module provides utility functions and data structures for handling batch commitments,
 //! validation requests, and multi-signature operations in the Ethexe system.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethexe_common::{
-    ecdsa::{ContractSignature, PublicKey},
-    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    db::{BlockMetaStorage, CodesStorage},
+    ecdsa::{ContractSignature, PublicKey, SignedData},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock},
     sha3::{self, digest::Update},
-    Address, Digest, ToDigest,
+    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
 };
 use ethexe_signer::Signer;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashSet},
+    hash::Hash,
+};
 
-/// Represents a request for validating a batch of block commitments.
-/// This structure is used to verify the integrity and validity of multiple block commitments
-/// and their associated code commitments.
+pub type SignedProducerBlock = SignedData<ProducerBlock>;
+pub type SignedValidationRequest = SignedData<BatchCommitmentValidationRequest>;
+
+/// Represents a request for validating a batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitmentValidationRequest {
-    /// List of block commitment validation requests
-    pub blocks: Vec<BlockCommitmentValidationRequest>,
-    /// List of code commitments to be validated
-    pub codes: Vec<CodeCommitment>,
+    // Digest of batch commitment to validate
+    pub digest: Digest,
+    /// List of blocks to validate
+    pub blocks: Vec<H256>,
+    /// List of codes which are part of the batch
+    pub codes: Vec<CodeId>,
 }
 
 impl BatchCommitmentValidationRequest {
     pub fn new(batch: &BatchCommitment) -> Self {
+        let blocks = batch
+            .chain_commitment
+            .iter()
+            .flat_map(|commitment| {
+                commitment.gear_blocks.iter().map(
+                    |GearBlock {
+                         hash: block_hash, ..
+                     }| *block_hash,
+                )
+            })
+            .collect();
+
+        let codes = batch
+            .code_commitments
+            .iter()
+            .map(|commitment| commitment.id)
+            .collect();
+
         BatchCommitmentValidationRequest {
-            blocks: batch
-                .block_commitments
-                .iter()
-                .map(BlockCommitmentValidationRequest::new)
-                .collect(),
-            codes: batch.code_commitments.clone(),
+            digest: batch.to_digest(),
+            blocks,
+            codes,
         }
     }
 }
 
 impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.blocks.to_digest().as_ref());
-        hasher.update(self.codes.to_digest().as_ref());
-        hasher.update([0u8; 0].to_digest().as_ref());
-    }
-}
-
-/// A request for validating a single block commitment.
-/// Contains all necessary information to verify the integrity of a block's commitment.
-///
-/// NOTE: [`BlockCommitmentValidationRequest`] digest is always equal to the corresponding
-/// [`BlockCommitment`] digest.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct BlockCommitmentValidationRequest {
-    /// Hash of the block being validated
-    pub block_hash: H256,
-    /// Timestamp of the block
-    pub block_timestamp: u64,
-    /// Hash of the previous non-empty block
-    pub previous_non_empty_block: H256,
-    /// Hash of the predecessor block
-    pub predecessor_block: H256,
-    /// Digest of the block's state transitions
-    pub transitions_digest: Digest,
-}
-
-impl BlockCommitmentValidationRequest {
-    pub fn new(commitment: &BlockCommitment) -> Self {
-        BlockCommitmentValidationRequest {
-            block_hash: commitment.hash,
-            block_timestamp: commitment.timestamp,
-            previous_non_empty_block: commitment.previous_committed_block,
-            predecessor_block: commitment.predecessor_block,
-            transitions_digest: commitment.transitions.to_digest(),
-        }
-    }
-}
-
-impl ToDigest for BlockCommitmentValidationRequest {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
-            block_hash,
-            block_timestamp,
-            previous_non_empty_block,
-            predecessor_block,
-            transitions_digest,
+            digest,
+            blocks,
+            codes,
         } = self;
 
-        hasher.update(block_hash.as_bytes());
-        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
-        hasher.update(previous_non_empty_block.as_bytes());
-        hasher.update(predecessor_block.as_bytes());
-        hasher.update(transitions_digest.as_ref());
+        hasher.update(digest.as_ref());
+        hasher.update(
+            blocks
+                .iter()
+                .flat_map(|h| h.to_fixed_bytes())
+                .collect::<Vec<u8>>()
+                .as_ref(),
+        );
+        hasher.update(
+            codes
+                .iter()
+                .flat_map(|h| h.into_bytes())
+                .collect::<Vec<u8>>()
+                .as_ref(),
+        );
     }
 }
 
@@ -210,6 +201,122 @@ impl MultisignedBatchCommitment {
     }
 }
 
+pub fn aggregate_code_commitments<DB: CodesStorage>(
+    db: &DB,
+    codes: impl IntoIterator<Item = CodeId>,
+    fail_if_not_found: bool,
+) -> Result<Vec<CodeCommitment>> {
+    let mut commitments = Vec::new();
+
+    for id in codes {
+        match db.code_valid(id) {
+            Some(valid) => commitments.push(CodeCommitment { id, valid }),
+            None if fail_if_not_found => {
+                return Err(anyhow::anyhow!("Code status not found in db: {id}"))
+            }
+            None => {}
+        }
+    }
+
+    Ok(commitments)
+}
+
+pub fn aggregate_chain_commitment<DB: BlockMetaStorage>(
+    db: &DB,
+    blocks: impl IntoIterator<Item = H256>,
+    fail_if_not_computed: bool,
+) -> Result<Option<ChainCommitment>> {
+    let mut chain_commitments = Vec::new();
+
+    for block in blocks {
+        if !db.block_computed(block) {
+            // This can happen when validator syncs from p2p network and skips some old blocks.
+            if fail_if_not_computed {
+                return Err(anyhow!("Block {block} is not computed"));
+            } else {
+                return Ok(None);
+            }
+        }
+
+        let transitions = db
+            .block_outcome(block)
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
+
+        let gear_blocks = vec![GearBlock {
+            hash: block,
+            off_chain_transactions_hash: H256::zero(),
+            gas_allowance: 0,
+        }];
+
+        chain_commitments.push(ChainCommitment {
+            transitions,
+            gear_blocks,
+        });
+    }
+
+    Ok(squash_chain_commitments(chain_commitments))
+}
+
+pub fn create_batch_commitment<DB: BlockMetaStorage>(
+    db: &DB,
+    block: &SimpleBlockData,
+    chain_commitment: Option<ChainCommitment>,
+    code_commitments: Vec<CodeCommitment>,
+) -> Result<Option<BatchCommitment>> {
+    if chain_commitment.is_none() && code_commitments.is_empty() {
+        return Ok(None);
+    }
+
+    let last_committed = db.last_committed_block(block.hash).ok_or_else(|| {
+        anyhow!(
+            "Cannot get from db last committed block for block {}",
+            block.hash
+        )
+    })?;
+
+    Ok(Some(BatchCommitment {
+        block_hash: block.hash,
+        timestamp: block.header.timestamp,
+        previous_committed_block_hash: last_committed,
+        chain_commitment,
+        code_commitments,
+        validators_commitment: None,
+        rewards_commitment: None,
+    }))
+}
+
+// TODO +_+_+: improve squashing removing redundant state transitions
+pub fn squash_chain_commitments(
+    chain_commitments: Vec<ChainCommitment>,
+) -> Option<ChainCommitment> {
+    if chain_commitments.is_empty() {
+        return None;
+    }
+
+    let mut transitions = Vec::new();
+    let mut gear_blocks = Vec::new();
+
+    for commitment in chain_commitments {
+        transitions.extend(commitment.transitions);
+        gear_blocks.extend(commitment.gear_blocks);
+    }
+
+    Some(ChainCommitment {
+        transitions,
+        gear_blocks,
+    })
+}
+
+pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
+    let mut seen = HashSet::new();
+    for item in data {
+        if !seen.insert(item) {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,13 +324,11 @@ mod tests {
 
     const ADDRESS: Address = Address([42; 20]);
 
+    // TODO +_+_+: test aggregate_code_commitments, aggregate_chain_commitment, squash_chain_commitments, has_duplicates
+
     #[test]
     fn multisigned_batch_commitment_creation() {
-        let batch = BatchCommitment {
-            block_commitments: vec![],
-            code_commitments: vec![],
-            rewards_commitment: vec![],
-        };
+        let batch = BatchCommitment::mock(());
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
         let pub_key = public_keys[0];
@@ -238,11 +343,7 @@ mod tests {
 
     #[test]
     fn accept_batch_commitment_validation_reply() {
-        let batch = BatchCommitment {
-            block_commitments: vec![],
-            code_commitments: vec![],
-            rewards_commitment: vec![],
-        };
+        let batch = BatchCommitment::mock(());
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
         let pub_key = public_keys[0];
@@ -275,11 +376,7 @@ mod tests {
 
     #[test]
     fn reject_validation_reply_with_incorrect_digest() {
-        let batch = BatchCommitment {
-            block_commitments: vec![],
-            code_commitments: vec![],
-            rewards_commitment: vec![],
-        };
+        let batch = BatchCommitment::mock(());
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
         let pub_key = public_keys[0];
@@ -302,11 +399,7 @@ mod tests {
 
     #[test]
     fn check_origin_closure_behavior() {
-        let batch = BatchCommitment {
-            block_commitments: vec![],
-            code_commitments: vec![],
-            rewards_commitment: vec![],
-        };
+        let batch = BatchCommitment::mock(());
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
         let pub_key = public_keys[0];
@@ -334,39 +427,5 @@ mod tests {
         });
         assert!(result.is_err());
         assert_eq!(multisigned_batch.signatures.len(), 2);
-    }
-
-    #[test]
-    fn signature_compatibility_between_validation_request_and_batch_commitment() {
-        let batch = BatchCommitment {
-            block_commitments: vec![],
-            code_commitments: vec![CodeCommitment {
-                id: H256::random().into(),
-                timestamp: 123,
-                valid: false,
-            }],
-            rewards_commitment: vec![],
-        };
-        let batch_validation_request = BatchCommitmentValidationRequest::new(&batch);
-        assert_eq!(batch.to_digest(), batch_validation_request.to_digest());
-
-        let (signer, _, public_keys) = init_signer_with_keys(1);
-        let public_key = public_keys[0];
-
-        let batch_signature = signer
-            .sign_for_contract(ADDRESS, public_key, &batch)
-            .unwrap();
-        let validation_request_signature = signer
-            .sign_for_contract(ADDRESS, public_key, &batch_validation_request)
-            .unwrap();
-        assert_eq!(batch_signature, validation_request_signature);
-
-        let pk1 = batch_signature
-            .validate(ADDRESS, batch.to_digest())
-            .unwrap();
-        let pk2 = validation_request_signature
-            .validate(ADDRESS, batch_validation_request.to_digest())
-            .unwrap();
-        assert_eq!(pk1, pk2);
     }
 }
