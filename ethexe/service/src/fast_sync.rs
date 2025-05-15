@@ -45,6 +45,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     iter,
 };
+use tokio::sync::oneshot;
 
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
@@ -131,22 +132,17 @@ impl EventData {
     }
 }
 
-async fn collect_program_code_ids(
-    observer: &mut ObserverService,
+async fn net_fetch<F, R>(
     network: &mut NetworkService,
-    latest_committed_block: H256,
-) -> Result<BTreeMap<ActorId, CodeId>> {
-    let router_query = observer.router_query();
-    let programs_count = router_query
-        .programs_count_at(latest_committed_block)
-        .await?;
-
-    let request_id = network
-        .db_sync()
-        .request(db_sync::Request::ProgramIdsAt(latest_committed_block));
-    let mut code_ids = Vec::new();
-
-    let response = loop {
+    request: db_sync::Request,
+    mut external_validation: F,
+) -> Result<db_sync::Response>
+where
+    F: FnMut(db_sync::Response, oneshot::Sender<bool>) -> R,
+    R: Future<Output = Result<()>>,
+{
+    let request_id = network.db_sync().request(request);
+    loop {
         let event = network
             .next()
             .await
@@ -159,7 +155,7 @@ async fn collect_program_code_ids(
             } => {
                 debug_assert_eq!(rid, request_id, "unknown request id");
                 match result {
-                    Ok(response) => break response,
+                    Ok(response) => break Ok(response),
                     Err((request, err)) => {
                         log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
                         network.db_sync().retry(request);
@@ -173,48 +169,72 @@ async fn collect_program_code_ids(
                 sender,
             } => {
                 debug_assert_eq!(rid, request_id, "unknown request id");
-
-                let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
-                    unreachable!("unexpected network response: {response:?}");
-                };
-                debug_assert_eq!(at, latest_committed_block);
-
-                let is_valid = 'a: {
-                    let is_equal = if let Some(program_ids) = &program_ids {
-                        program_ids.len() as u64 == programs_count
-                    } else {
-                        0 == programs_count
-                    };
-                    if !is_equal {
-                        break 'a false;
-                    }
-
-                    if let Some(program_ids) = program_ids {
-                        let new_code_ids = router_query
-                            .programs_code_ids_at(program_ids, latest_committed_block)
-                            .await?;
-                        if new_code_ids.iter().any(|code_id| code_id.is_zero()) {
-                            break 'a false;
-                        }
-                        code_ids = new_code_ids;
-                    }
-
-                    true
-                };
-
-                sender
-                    .send(is_valid)
-                    .expect("`db-sync` never drops its receiver");
+                external_validation(response, sender).await?;
             }
             _ => continue,
         }
-    };
+    }
+}
+
+async fn collect_program_code_ids(
+    observer: &mut ObserverService,
+    network: &mut NetworkService,
+    latest_committed_block: H256,
+) -> Result<BTreeMap<ActorId, CodeId>> {
+    let router_query = observer.router_query();
+    let programs_count = router_query
+        .programs_count_at(latest_committed_block)
+        .await?;
+
+    let response = net_fetch(
+        network,
+        db_sync::Request::ProgramIdsAt(latest_committed_block),
+        |response, sender| async {
+            let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
+                unreachable!("unexpected network response: {response:?}");
+            };
+            debug_assert_eq!(at, latest_committed_block);
+
+            let is_valid = 'a: {
+                let is_equal = if let Some(program_ids) = &program_ids {
+                    program_ids.len() as u64 == programs_count
+                } else {
+                    0 == programs_count
+                };
+                if !is_equal {
+                    break 'a false;
+                }
+
+                if let Some(program_ids) = program_ids {
+                    let new_code_ids = router_query
+                        .programs_code_ids_at(program_ids, latest_committed_block)
+                        .await?;
+                    if new_code_ids.iter().any(|code_id| code_id.is_zero()) {
+                        break 'a false;
+                    }
+                }
+
+                true
+            };
+
+            sender
+                .send(is_valid)
+                .expect("`db-sync` never drops its receiver");
+
+            Ok(())
+        },
+    )
+    .await?;
 
     let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
         unreachable!("unexpected network response: {response:?}");
     };
     debug_assert_eq!(at, latest_committed_block);
     let program_ids = program_ids.unwrap_or_default();
+
+    let code_ids = router_query
+        .programs_code_ids_at(program_ids.iter().copied(), latest_committed_block)
+        .await?;
 
     debug_assert_eq!(program_ids.len(), code_ids.len());
     let program_code_ids = iter::zip(program_ids, code_ids).collect();
@@ -231,65 +251,39 @@ async fn collect_code_ids(
         .validated_codes_count_at(latest_committed_block)
         .await?;
 
-    let request_id = network.db_sync().request(db_sync::Request::ValidCodes);
+    let response = net_fetch(
+        network,
+        db_sync::Request::ValidCodes,
+        |response, sender| async {
+            let db_sync::Response::ValidCodes(code_ids) = response else {
+                unreachable!("unexpected network response: {response:?}");
+            };
 
-    let response = loop {
-        let event = network
-            .next()
-            .await
-            .expect("network service stream is infinite");
-
-        match event {
-            NetworkEvent::DbResponse {
-                request_id: rid,
-                result,
-            } => {
-                debug_assert_eq!(rid, request_id, "unknown request id");
-                match result {
-                    Ok(response) => break response,
-                    Err((request, err)) => {
-                        log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
-                        network.db_sync().retry(request);
-                        continue;
-                    }
+            let is_valid = 'a: {
+                if (code_ids.len() as u64) < codes_count {
+                    break 'a false;
                 }
-            }
-            NetworkEvent::DbExternalValidation {
-                request_id: rid,
-                response,
-                sender,
-            } => {
-                debug_assert_eq!(rid, request_id, "unknown request id");
 
-                let db_sync::Response::ValidCodes(code_ids) = response else {
-                    unreachable!("unexpected network response: {response:?}");
-                };
+                let code_states = router_query
+                    .codes_states_at(code_ids.iter().copied(), latest_committed_block)
+                    .await?;
+                if code_states
+                    .into_iter()
+                    .any(|state| state.into() != CodeState::Validated as u8)
+                {
+                    break 'a false;
+                }
 
-                let is_valid = 'a: {
-                    if (code_ids.len() as u64) < codes_count {
-                        break 'a false;
-                    }
+                true
+            };
 
-                    let code_states = router_query
-                        .codes_states_at(code_ids.iter().copied(), latest_committed_block)
-                        .await?;
-                    if code_states
-                        .into_iter()
-                        .any(|state| state.into() != CodeState::Validated as u8)
-                    {
-                        break 'a false;
-                    }
-
-                    true
-                };
-
-                sender
-                    .send(is_valid)
-                    .expect("`db-sync` never drops its receiver");
-            }
-            _ => continue,
-        }
-    };
+            sender
+                .send(is_valid)
+                .expect("`db-sync` never drops its receiver");
+            Ok(())
+        },
+    )
+    .await?;
 
     let db_sync::Response::ValidCodes(code_ids) = response else {
         unreachable!("unexpected network response: {response:?}");
@@ -340,37 +334,6 @@ async fn collect_program_states(
     }
 
     Ok(program_states)
-}
-
-async fn net_fetch(
-    network: &mut NetworkService,
-    request: db_sync::Request,
-) -> Result<db_sync::Response, db_sync::RequestFailure> {
-    let request_id = network.db_sync().request(request);
-
-    let result = loop {
-        let event = network
-            .next()
-            .await
-            .expect("network service stream is infinite");
-
-        if let NetworkEvent::DbResponse {
-            request_id: rid,
-            result,
-        } = event
-        {
-            debug_assert_eq!(rid, request_id, "unknown request id");
-            break result;
-        }
-    };
-
-    match result {
-        Ok(response) => Ok(response),
-        Err((request, err)) => {
-            network.db_sync().retry(request);
-            Err(err)
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -435,18 +398,13 @@ impl RequestManager {
 
         if !pending_network_requests.is_empty() {
             let request = pending_network_requests.keys().copied().collect();
-            let result = net_fetch(network, db_sync::Request::Hashes(request)).await;
+            let response = net_fetch(network, db_sync::Request::Hashes(request), |_, _| async {
+                unreachable!()
+            })
+            .await
+            .expect("no external validation required");
 
-            match result {
-                Ok(response) => {
-                    self.handle_response(pending_network_requests, response, db);
-                }
-                Err(err) => {
-                    self.pending_requests.extend(pending_network_requests);
-                    // TODO: print request ID
-                    log::warn!("Request failed: {err}. Retrying...");
-                }
-            }
+            self.handle_response(pending_network_requests, response, db);
         }
 
         let continue_processing = !(self.pending_requests.is_empty() && self.responses.is_empty());
