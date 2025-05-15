@@ -19,10 +19,11 @@
 //! Environment for running a module.
 
 use crate::{
+    buffer::Payload,
     env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
-    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
 use alloc::collections::BTreeSet;

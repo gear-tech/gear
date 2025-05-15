@@ -26,10 +26,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::{
-    ids::ProgramId,
-    message::{Payload, StoredDispatch},
-};
+use gear_core::{buffer::Payload, ids::ProgramId, message::StoredDispatch};
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},

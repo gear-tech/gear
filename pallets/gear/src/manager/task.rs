@@ -31,8 +31,9 @@ use common::{
 };
 use core::cmp;
 use gear_core::{
+    buffer::Payload,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::{DispatchKind, Payload, ReplyMessage},
+    message::{DispatchKind, ReplyMessage},
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
