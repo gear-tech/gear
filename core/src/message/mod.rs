@@ -43,7 +43,7 @@ pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
 use crate::str::LimitedStr;
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use core::fmt::{Debug, Display};
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
@@ -296,19 +296,6 @@ pub trait Packet {
 
     /// A dispatch kind the will be generated from the packet.
     fn kind() -> DispatchKind;
-}
-
-/// The struct contains results of read only send message RPC call.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct ReplyInfo {
-    /// Payload of the reply.
-    #[cfg_attr(feature = "std", serde(with = "impl_serde::serialize"))]
-    pub payload: Vec<u8>,
-    /// Value sent with reply.
-    pub value: u128,
-    /// Reply code of the reply.
-    pub code: ReplyCode,
 }
 
 #[cfg(test)]

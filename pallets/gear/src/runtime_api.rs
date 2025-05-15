@@ -22,9 +22,9 @@ use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::TryNewCodeConfig,
-    message::ReplyInfo,
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::{ActiveProgram, MemoryInfix},
+    rpc::ReplyInfo,
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};

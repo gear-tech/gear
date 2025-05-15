@@ -23,7 +23,7 @@ use ethexe_runtime_common::state::{
     DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
     Waitlist,
 };
-use gear_core::message::ReplyInfo;
+use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},

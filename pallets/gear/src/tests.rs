@@ -52,13 +52,14 @@ use gear_core::{
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        ReplyInfo, StoredDispatch, UserStoredMessage,
+        StoredDispatch, UserStoredMessage,
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
         WasmPage,
     },
     program::ActiveProgram,
+    rpc::ReplyInfo,
     tasks::ScheduledTask,
 };
 use gear_core_backend::error::TrapExplanation;
