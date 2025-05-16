@@ -167,7 +167,7 @@ impl GasCounter {
 ///
 /// `Copy` trait isn't implemented for the type (however could be)
 /// in order to make the data only moveable, preventing implicit/explicit copying.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct GasAmount {
     left: u64,
     burned: u64,
