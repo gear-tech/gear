@@ -283,7 +283,7 @@ where
         syscall_name: SyscallName,
     ) -> Result<(Gas, ()), HostError> {
         let Self { token, f, .. } = self;
-        let FallibleSyscallContext { res_ptr, .. } = context;
+        let FallibleSyscallContext { res_ptr } = context;
         caller.check_func_forbiddenness(syscall_name)?;
         caller.run_fallible::<T, _, E>(res_ptr, token, f)
     }
@@ -599,15 +599,13 @@ where
         )
     }
 
-    pub fn size(size_write: WriteAs<[u8; 4]>) -> impl Syscall<Caller> {
+    pub fn size(size_write: WriteAs<u32>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Size,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let size = ctx.caller_wrap.ext_mut().size()? as u32;
 
-                size_write
-                    .write(ctx, size.to_le_bytes())
-                    .map_err(Into::into)
+                size_write.write(ctx, size).map_err(Into::into)
             },
         )
     }
@@ -742,28 +740,24 @@ where
         )
     }
 
-    pub fn block_height(height_write: WriteAs<[u8; 4]>) -> impl Syscall<Caller> {
+    pub fn block_height(height_write: WriteAs<u32>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::BlockHeight,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let height = ctx.caller_wrap.ext_mut().block_height()?;
 
-                height_write
-                    .write(ctx, height.to_le_bytes())
-                    .map_err(Into::into)
+                height_write.write(ctx, height).map_err(Into::into)
             },
         )
     }
 
-    pub fn block_timestamp(timestamp_write: WriteAs<[u8; 8]>) -> impl Syscall<Caller> {
+    pub fn block_timestamp(timestamp_write: WriteAs<u64>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::BlockTimestamp,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let timestamp = ctx.caller_wrap.ext_mut().block_timestamp()?;
 
-                timestamp_write
-                    .write(ctx, timestamp.to_le_bytes())
-                    .map_err(Into::into)
+                timestamp_write.write(ctx, timestamp).map_err(Into::into)
             },
         )
     }
@@ -1171,79 +1165,68 @@ where
         )
     }
 
-    pub fn gas_available(gas: WriteAs<[u8; 8]>) -> impl Syscall<Caller> {
+    pub fn gas_available(gas: WriteAs<u64>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::GasAvailable,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let gas_available = ctx.caller_wrap.ext_mut().gas_available()?;
 
-                gas.write(ctx, gas_available.to_le_bytes())
-                    .map_err(Into::into)
+                gas.write(ctx, gas_available).map_err(Into::into)
             },
         )
     }
 
-    pub fn message_id(message_id_write: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
+    pub fn message_id(message_id_write: WriteAs<MessageId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::MsgId,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let message_id = ctx.caller_wrap.ext_mut().message_id()?;
 
-                message_id_write
-                    .write(ctx, message_id.into_bytes())
-                    .map_err(Into::into)
+                message_id_write.write(ctx, message_id).map_err(Into::into)
             },
         )
     }
 
-    pub fn program_id(program_id_write: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
+    pub fn program_id(program_id_write: WriteAs<ProgramId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::ProgramId,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let program_id = ctx.caller_wrap.ext_mut().program_id()?;
 
-                program_id_write
-                    .write(ctx, program_id.into_bytes())
-                    .map_err(Into::into)
+                program_id_write.write(ctx, program_id).map_err(Into::into)
             },
         )
     }
 
-    pub fn source(source_write: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
+    pub fn source(source_write: WriteAs<ProgramId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Source,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let source = ctx.caller_wrap.ext_mut().source()?;
 
-                source_write
-                    .write(ctx, source.into_bytes())
-                    .map_err(Into::into)
+                source_write.write(ctx, source).map_err(Into::into)
             },
         )
     }
 
-    pub fn value(value_write: WriteAs<[u8; 16]>) -> impl Syscall<Caller> {
+    pub fn value(value_write: WriteAs<u128>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Value,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let value = ctx.caller_wrap.ext_mut().value()?;
 
-                value_write
-                    .write(ctx, value.to_le_bytes())
-                    .map_err(Into::into)
+                value_write.write(ctx, value).map_err(Into::into)
             },
         )
     }
 
-    pub fn value_available(value_write: WriteAs<[u8; 16]>) -> impl Syscall<Caller> {
+    pub fn value_available(value_write: WriteAs<u128>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::ValueAvailable,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let value_available = ctx.caller_wrap.ext_mut().value_available()?;
 
-                value_write
-                    .write(ctx, value_available.to_le_bytes())
-                    .map_err(Into::into)
+                value_write.write(ctx, value_available).map_err(Into::into)
             },
         )
     }
