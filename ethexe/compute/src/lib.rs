@@ -164,8 +164,10 @@ impl ChainHeadProcessContext {
                     .db
                     .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
                 {
-                    let code = CodesStorage::original_code(&self.db, *code_id)
-                        .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
+                    let code = self
+                        .db
+                        .original_code(*code_id)
+                        .ok_or(anyhow!("code not found for validated code {code_id}"))?;
                     self.processor.process_upload_code(*code_id, &code)?;
                 }
             }

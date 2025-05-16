@@ -19,7 +19,7 @@
 use crate::{Event, Service};
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
-use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
+use ethexe_blob_loader::BlobLoaderService;
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -312,7 +312,7 @@ impl Drop for RequestManager {
 
 async fn sync_finalized_head(
     observer: &mut ObserverService,
-    blob_loader: &mut BlobLoaderService,
+    blobs_loader: &mut Box<dyn BlobLoaderService>,
 ) -> Result<H256> {
     let highest_block = observer
         .provider()
@@ -328,23 +328,36 @@ async fn sync_finalized_head(
     log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
+        log::info!("💀 FAST SYNC event: {event:?}");
         match event? {
-            ObserverEvent::Blob(_blob) => {}
+            // ObserverEvent::Blob(_blob) => {}
             ObserverEvent::Block(_) => {}
-            ObserverEvent::BlockSynced(data) => {
-                debug_assert_eq!(highest_block, data.block_hash);
-                break;
-            }
-            ObserverEvent::RequestLoadBlobs(codes) => {
-                blob_loader.load_codes(codes.clone(), None)?;
-                for _code in codes {
-                    if let Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))) =
-                        blob_loader.next().await
-                    {
-                        observer.receive_loaded_blob(blob_data)?;
-                    }
+            ObserverEvent::BlockSynced {
+                synced_block,
+                codes_load_now: _,
+                codes_load_later,
+            } => {
+                debug_assert_eq!(highest_block, synced_block.block_hash);
+                let mut cnt = codes_load_later.len();
+                blobs_loader.load_codes(codes_load_later.clone(), None)?;
+
+                while cnt > 0 {
+                    let event = blobs_loader.next().await;
+                    log::info!("😱 blob loader event {event:?}");
+                    cnt -= 1;
                 }
-            }
+
+                break;
+            } // ObserverEvent::RequestLoadBlobs(codes) => {
+              //     blob_loader.load_codes(codes.clone(), None)?;
+              //     for _code in codes {
+              //         if let Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))) =
+              //             blob_loader.next().await
+              //         {
+              //             observer.receive_loaded_blob(blob_data)?;
+              //         }
+              //     }
+              // }
         }
     }
 
@@ -508,9 +521,15 @@ async fn instrument_codes(
     log::info!("Instrument {} codes", code_ids.len());
 
     for &code_id in &code_ids {
+        log::info!(
+            "Instrumenting code {code_id}, {:?}, {:?}",
+            db.code_blob_info(code_id),
+            db.original_code(code_id)
+        );
         let code_info = db
             .code_blob_info(code_id)
             .expect("observer must fulfill database");
+
         let original_code = db
             .original_code(code_id)
             .expect("observer must fulfill database");

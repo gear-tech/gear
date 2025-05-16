@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{blobs::BlobData, BlobLoaderEvent, BlobLoaderService};
+use crate::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use anyhow::{anyhow, Result};
-use ethexe_common::db::{CodeInfo, CodesStorage, OnChainStorage};
+use ethexe_common::db::{CodesStorage, OnChainStorage};
 use ethexe_db::Database;
-use futures::{future::BoxFuture, FutureExt, Stream};
-use gprimitives::{CodeId, H256};
+use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
+use gprimitives::CodeId;
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
@@ -29,70 +29,85 @@ use std::{
 };
 use tokio::sync::RwLock;
 
-struct StorageData {
-    pub codes_map: HashMap<CodeId, Vec<u8>>,
-    pub codes_queue: VecDeque<CodeId>,
-}
-
 #[derive(Clone)]
 pub struct LocalBlobStorage {
-    inner: Arc<RwLock<StorageData>>,
+    inner: Arc<RwLock<HashMap<CodeId, Vec<u8>>>>,
     db: Database,
 }
 
 impl LocalBlobStorage {
     pub fn new(db: Database) -> Self {
         Self {
-            inner: Arc::new(RwLock::new(StorageData {
-                codes_map: HashMap::new(),
-                codes_queue: VecDeque::new(),
-            })),
+            inner: Arc::new(RwLock::new(HashMap::new())),
             db,
         }
     }
-
-    pub async fn add_code(&mut self, code_id: CodeId, code: Vec<u8>) {
-        let mut storage_data = self.inner.write().await;
-        if storage_data.codes_map.contains_key(&code_id) {
+    pub async fn add_code(&self, code_id: CodeId, code: Vec<u8>) {
+        let mut storage = self.inner.write().await;
+        if storage.contains_key(&code_id) {
             return;
         }
 
-        storage_data.codes_map.insert(code_id, code);
-        storage_data.codes_queue.push_front(code_id);
+        // storage.push_front(code_id);
+        storage.insert(code_id, code);
     }
 
-    pub async fn next_code(&mut self, attempts: Option<u8>) -> Result<Option<BlobData>> {
-        let mut storage_data = self.inner.write().await;
-        let code_id = match storage_data.codes_queue.pop_back() {
-            Some(code_id) => code_id,
-            None => Ok(None),
+    pub async fn get_code(self, code_id: CodeId) -> Result<BlobData> {
+        let storage = self.inner.read().await;
+
+        let code = match storage.get(&code_id) {
+            Some(code) => code.clone(),
+            None => self.db.original_code(code_id).ok_or({
+                log::error!("local storage: {storage:?}");
+                anyhow!("expect code for {code_id} exists in db")
+            })?,
         };
 
         let code_info = self
             .db
             .code_blob_info(code_id)
-            .ok_or(anyhow!("not found in db code info for {code_id}"))?;
-        let code = storage_data
-            .codes_map
-            .remove(&code_id)
-            .ok_or(anyhow!("nof found code in local storage for {code_id}"))?;
+            .ok_or(anyhow!("expect code info for {code_id} exists in db"))?;
 
-        return Ok(Some(BlobData {
+        Ok(BlobData {
             code_id,
             timestamp: code_info.timestamp,
             code,
-        }));
+        })
+    }
+
+    pub fn change_db(&mut self, db: Database) {
+        self.db = db;
+    }
+}
+
+impl FusedStream for LocalBlobLoader {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 
 pub struct LocalBlobLoader {
     storage: LocalBlobStorage,
-    future: BoxFuture<'static, Result<Option<BlobData>>>,
+    codes_queue: VecDeque<CodeId>,
+    future: Option<BoxFuture<'static, Result<BlobData>>>,
 }
 
 impl BlobLoaderService for LocalBlobLoader {
-    fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
-        // In local implementation we just add codes to local storage directly
+    fn into_box(self) -> Box<dyn BlobLoaderService> {
+        Box::new(self)
+    }
+
+    fn load_codes(&mut self, codes: Vec<CodeId>, _attempts: Option<u8>) -> Result<()> {
+        log::info!("🙈🙈 request load codes: {codes:?}");
+        // NOTE: This function is not used the local blob loader, because of we add codes
+        // directly from test environment.
+
+        for code_id in codes {
+            // if !self.db.original_code_exists(code_id) {
+            self.codes_queue.push_front(code_id);
+            // }
+        }
+
         Ok(())
     }
 }
@@ -104,25 +119,50 @@ impl Stream for LocalBlobLoader {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        match self.future.poll_unpin(cx) {
-            Poll::Ready(result) => match result {
-                Ok(Some(blob_data)) => {
-                    self.future = self.storage.next_code(None);
-                    return Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))));
+        if self.future.is_none() {
+            let Some(code_id) = self.codes_queue.pop_back() else {
+                return Poll::Pending;
+            };
+            self.future = Some(self.storage.clone().get_code(code_id).boxed());
+        }
+
+        match self.future.as_mut().unwrap().poll_unpin(cx) {
+            Poll::Ready(res) => {
+                self.future = None;
+                match res {
+                    Ok(blob_data) => {
+                        self.storage.db.set_original_code(blob_data.code.as_slice());
+                        log::info!("22222 I am calling");
+                        // self.db.set_code_blob_info(blob_data.code_id, );
+                        Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
+                    }
+                    Err(e) => Poll::Ready(Some(Err(e))),
                 }
-                Ok(None) => Poll::Pending,
-                Err(err) => Poll::Ready(Some(Err(err))),
-            },
-            _ => Poll::Pending,
+            }
+            Poll::Pending => Poll::Pending,
         }
     }
 }
 
 impl LocalBlobLoader {
-    fn new(storage: LocalBlobStorage) -> Self {
+    pub fn new(db: Database) -> Self {
+        Self {
+            storage: LocalBlobStorage::new(db.clone()),
+            codes_queue: VecDeque::new(),
+            future: None,
+        }
+    }
+
+    pub fn from_storage(storage: LocalBlobStorage) -> Self {
         Self {
             storage,
-            future: storage.next_code(None),
+            codes_queue: VecDeque::new(),
+            future: None,
         }
+    }
+
+    #[allow(unused)]
+    fn storage(&self) -> LocalBlobStorage {
+        self.storage.clone()
     }
 }

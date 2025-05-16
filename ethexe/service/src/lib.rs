@@ -19,8 +19,8 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
 use ethexe_blob_loader::{
-    blobs::{BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader},
-    BlobLoaderEvent, BlobLoaderService,
+    local::{LocalBlobLoader, LocalBlobStorage},
+    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
 use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
@@ -70,7 +70,7 @@ pub enum Event {
 pub struct Service {
     db: Database,
     observer: ObserverService,
-    blob_loader: BlobLoaderService,
+    blob_loader: Box<dyn BlobLoaderService>,
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
@@ -100,21 +100,6 @@ pub enum NetworkMessage {
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let (blob_reader, mock_blob_reader_for_rpc): (Box<dyn BlobReader>, Option<MockBlobReader>) =
-            if config.node.dev {
-                let reader = MockBlobReader::new();
-                (Box::new(reader.clone()), Some(reader))
-            } else {
-                let reader = ConsensusLayerBlobReader::new(
-                    &config.ethereum.rpc,
-                    &config.ethereum.beacon_rpc,
-                    config.ethereum.block_time,
-                )
-                .await
-                .context("failed to create consensus layer blob reader")?;
-                (Box::new(reader), None)
-            };
-
         let rocks_db = RocksDatabase::open(
             config
                 .node
@@ -123,16 +108,31 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let observer = ObserverService::new(
-            &config.ethereum,
-            config.node.eth_max_sync_depth,
-            db.clone(),
-            blob_reader.clone(),
-        )
-        .await
-        .context("failed to create observer service")?;
+        let (blob_loader, local_blob_storage_for_rpc): (
+            Box<dyn BlobLoaderService>,
+            Option<LocalBlobStorage>,
+        ) = if config.node.dev {
+            let storage = LocalBlobStorage::new(db.clone());
+            let blob_loader = LocalBlobLoader::from_storage(storage.clone());
 
-        let blob_loader = BlobLoaderService::new(blob_reader, db.clone());
+            (blob_loader.into_box(), Some(storage))
+        } else {
+            let consensus_config = ConsensusLayerConfig {
+                ethereum_rpc: config.ethereum.rpc.clone(),
+                ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
+                beacon_block_time: config.ethereum.block_time,
+            };
+            let blob_loader = BlobLoader::new(db.clone(), consensus_config)
+                .await
+                .context("failed to create blob loader")?;
+
+            (blob_loader.into_box(), None)
+        };
+
+        let observer =
+            ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
+                .await
+                .context("failed to create observer service")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -231,7 +231,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader_for_rpc));
+            .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
 
         let tx_pool = TxPoolService::new(db.clone());
 
@@ -268,7 +268,7 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
-        blob_loader: BlobLoaderService,
+        blob_loader: Box<dyn BlobLoaderService>,
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
@@ -375,16 +375,6 @@ impl Service {
                     unreachable!("never handled here")
                 }
                 Event::Observer(event) => match event {
-                    ObserverEvent::Blob(BlobData {
-                        code_id,
-                        timestamp: _,
-                        code,
-                    }) => {
-                        log::info!(
-                            "🔢 receive a code blob, code_id {code_id}, code size {}",
-                            code.len()
-                        );
-                    }
                     ObserverEvent::Block(block_data) => {
                         log::info!(
                             "📦 receive a chain head, height {}, hash {}, parent hash {}",
@@ -395,24 +385,27 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(data) => {
+                    ObserverEvent::BlockSynced {
+                        synced_block,
+                        codes_load_now: _,
+                        codes_load_later,
+                    } => {
                         // NOTE: Observer guarantees that, if this event is emitted,
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
-                        // 2) all approved(at least) codes are loaded and available in database.
 
-                        consensus.receive_synced_block(data)?
-                    }
-                    ObserverEvent::RequestLoadBlobs(codes) => {
-                        blob_loader.load_codes(codes, None).unwrap();
-                    }
+                        consensus.receive_synced_block(synced_block)?;
+                        blob_loader.load_codes(codes_load_later, None)?;
+                    } // ObserverEvent::RequestLoadBlobs(codes) => {
+                      //     blob_loader.load_codes(codes, None).unwrap();
+                      // }
                 },
                 Event::BlobLoader(event) => match event {
                     BlobLoaderEvent::BlobLoaded(blob_data) => {
-                        if let Err(e) = observer.receive_loaded_blob(blob_data.clone()) {
-                            // TODO
-                            log::error!("Error in receiving loaded blob: {e:?}");
-                        };
+                        // if let Err(e) = observer.receive_loaded_blob(blob_data.clone()) {
+                        //     // TODO
+                        //     log::error!("Error in receiving loaded blob: {e:?}");
+                        // };
 
                         compute.receive_code(
                             blob_data.code_id,

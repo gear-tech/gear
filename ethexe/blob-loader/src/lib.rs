@@ -16,7 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::blobs::{BlobData, BlobReader};
+// use crate::blobs::{BlobData, BlobReader};
+use alloy::{
+    consensus::{SidecarCoder, SimpleCoder, Transaction},
+    eips::eip4844::kzg_to_versioned_hash,
+    providers::{Provider, ProviderBuilder, RootProvider},
+    rpc::types::beacon::sidecar::BeaconBlobBundle,
+};
 use anyhow::{anyhow, Result};
 use ethexe_common::db::{CodesStorage, OnChainStorage};
 use ethexe_db::Database;
@@ -25,10 +31,11 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Stream, StreamExt,
 };
-use gprimitives::CodeId;
-use std::{collections::HashSet, fmt, pin::Pin, task::Poll};
-
-use utils::*;
+use gear_core::ids::prelude::CodeIdExt;
+use gprimitives::{CodeId, H256};
+use reqwest::Client;
+use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
+use tokio::time::{self, Duration};
 
 pub mod local;
 pub mod utils;
@@ -55,8 +62,12 @@ pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
 }
 
-pub trait BlobLoaderService {
+pub trait BlobLoaderService:
+    Stream<Item = Result<BlobLoaderEvent>> + FusedStream + Send + Unpin
+{
     fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()>;
+
+    fn into_box(self) -> Box<dyn BlobLoaderService>;
 }
 
 impl fmt::Debug for BlobLoaderEvent {
@@ -67,62 +78,43 @@ impl fmt::Debug for BlobLoaderEvent {
     }
 }
 
-pub struct BlobLoader {
-    futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
-    codes_loading: HashSet<CodeId>,
-
-    blob_reader: Box<dyn BlobReader>,
-    db: Database,
+#[derive(Clone)]
+pub struct ConsensusLayerConfig {
+    pub ethereum_rpc: String,
+    pub ethereum_beacon_rpc: String,
+    pub beacon_block_time: Duration,
 }
 
-impl Stream for BlobLoader {
-    type Item = Result<BlobLoaderEvent>;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        let future = self.futures.poll_next_unpin(cx);
-        match future {
-            Poll::Ready(Some(result)) => match result {
-                Ok(blob_data) => {
-                    let code_id = &blob_data.code_id;
-                    self.codes_loading.remove(code_id);
-                    self.db.set_original_code(blob_data.code.as_slice());
-                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            _ => Poll::Pending,
-        }
-    }
+#[derive(Clone)]
+struct ConsensusLayerBlobReader {
+    pub provider: RootProvider,
+    pub http_client: Client,
+    pub config: ConsensusLayerConfig,
 }
 
-impl FusedStream for BlobLoader {
-    fn is_terminated(&self) -> bool {
-        false
+impl ConsensusLayerBlobReader {
+    async fn read_code_from_tx_hash(
+        self,
+        expected_code_id: CodeId,
+        timestamp: u64,
+        tx_hash: H256,
+        attempts: Option<u8>,
+    ) -> Result<BlobData> {
+        let code = self
+            .read_blob_from_tx_hash(tx_hash, attempts)
+            .await
+            .map_err(|err| anyhow!("failed to read blob: {err}"))?;
+
+        (CodeId::generate(&code) == expected_code_id)
+            .then_some(())
+            .ok_or_else(|| anyhow!("unexpected code id"))?;
+
+        Ok(BlobData {
+            code_id: expected_code_id,
+            timestamp,
+            code,
+        })
     }
-}
-
-// #[derive(Clone)]
-// pub struct ConsensusLayerBlobReader {
-//     provider: RootProvider,
-//     http_client: Client,
-//     ethereum_beacon_rpc: String,
-//     beacon_block_time: Duration,
-// }
-
-impl BlobLoader {
-    pub fn new(db: Database) -> Self {
-        Self {
-            futures: FuturesUnordered::new(),
-            codes_loading: HashSet::new(),
-            blob_reader,
-            db,
-        }
-    }
-
-    async fn read_code_from_tx_hash(&mut self) -> Result<BlobData> {}
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
@@ -133,6 +125,7 @@ impl BlobLoader {
             .get_transaction_by_hash(tx_hash.0.into())
             .await?
             .ok_or_else(|| anyhow!("failed to get transaction"))?;
+
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
             .ok_or_else(|| anyhow!("failed to get versioned hashes"))?;
@@ -145,8 +138,8 @@ impl BlobLoader {
             .get_block_by_hash(block_hash)
             .await?
             .ok_or_else(|| anyhow!("failed to get block"))?;
-        let slot =
-            (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME) / self.beacon_block_time.as_secs();
+        let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
+            / self.config.beacon_block_time.as_secs();
         let blob_bundle_result = match attempts {
             Some(attempts) => {
                 let mut count = 0;
@@ -156,7 +149,7 @@ impl BlobLoader {
                     if blob_bundle_result.is_ok() || count >= attempts {
                         break blob_bundle_result;
                     } else {
-                        time::sleep(self.beacon_block_time).await;
+                        time::sleep(self.config.beacon_block_time).await;
                         count += 1;
                     }
                 }
@@ -183,7 +176,7 @@ impl BlobLoader {
     }
 
     async fn read_blob_bundle(&self, slot: u64) -> reqwest::Result<BeaconBlobBundle> {
-        let ethereum_beacon_rpc = &self.ethereum_beacon_rpc;
+        let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
         self.http_client
             .get(format!(
                 "{ethereum_beacon_rpc}/eth/v1/beacon/blob_sidecars/{slot}"
@@ -195,9 +188,71 @@ impl BlobLoader {
     }
 }
 
+pub struct BlobLoader {
+    futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
+    codes_loading: HashSet<CodeId>,
+
+    consensus_loader: ConsensusLayerBlobReader,
+    db: Database,
+}
+
+impl Stream for BlobLoader {
+    type Item = Result<BlobLoaderEvent>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        log::info!("🤢 blob loader polling");
+        let future = self.futures.poll_next_unpin(cx);
+        match future {
+            Poll::Ready(Some(result)) => match result {
+                Ok(blob_data) => {
+                    let code_id = &blob_data.code_id;
+                    self.codes_loading.remove(code_id);
+                    log::info!("I am calling");
+                    self.db.set_original_code(blob_data.code.as_slice());
+                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
+                }
+                Err(e) => Poll::Ready(Some(Err(e))),
+            },
+            _ => Poll::Pending,
+        }
+    }
+}
+
+impl FusedStream for BlobLoader {
+    fn is_terminated(&self) -> bool {
+        false
+    }
+}
+
+impl BlobLoader {
+    pub async fn new(db: Database, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
+        Ok(Self {
+            futures: FuturesUnordered::new(),
+            codes_loading: HashSet::new(),
+
+            consensus_loader: ConsensusLayerBlobReader {
+                provider: ProviderBuilder::default()
+                    .connect(&consensus_cfg.ethereum_rpc)
+                    .await?,
+                http_client: Client::new(),
+                config: consensus_cfg,
+            },
+            db,
+        })
+    }
+}
+
 impl BlobLoaderService for BlobLoader {
+    fn into_box(self) -> Box<dyn BlobLoaderService> {
+        Box::new(self)
+    }
+
     fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
-        log::info!("Request load codes: {codes:?}");
+        log::trace!("request load codes: {codes:?}");
+
         for code_id in codes {
             if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {
                 continue;
@@ -206,18 +261,19 @@ impl BlobLoaderService for BlobLoader {
             let code_info = self
                 .db
                 .code_blob_info(code_id)
-                .ok_or_else(|| anyhow!("Not found {code_id} in db"))?;
+                .ok_or(anyhow!("Not found code info for {code_id} in db"))?;
 
             self.codes_loading.insert(code_id);
+            let consensus_loader = self.consensus_loader.clone();
             self.futures.push(
-                crate::read_code_from_tx_hash(
-                    self.blob_reader.clone(),
-                    code_id,
-                    code_info.timestamp,
-                    code_info.tx_hash,
-                    attempts,
-                )
-                .boxed(),
+                consensus_loader
+                    .read_code_from_tx_hash(
+                        code_id,
+                        code_info.timestamp,
+                        code_info.tx_hash,
+                        attempts,
+                    )
+                    .boxed(),
             );
         }
 

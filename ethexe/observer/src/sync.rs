@@ -19,7 +19,7 @@
 //! Implementation of the on-chain data synchronization.
 
 use crate::{BlockSyncedData, RuntimeConfig};
-use alloy::{primitives::Address, providers::RootProvider, rpc::types::eth::Header};
+use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
 use ethexe_blob_loader::utils::{load_block_data, load_blocks_data_batched};
 use ethexe_common::{
@@ -29,39 +29,20 @@ use ethexe_common::{
 };
 use ethexe_db::{BlockHeader, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
-use futures::{future::BoxFuture, FutureExt};
 use gprimitives::{CodeId, H256};
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    task::Poll,
-};
-use tokio::sync::mpsc::UnboundedSender;
-
+use std::collections::{HashMap, HashSet};
+// TODO #4552: make tests for ChainSync
 #[derive(Clone)]
-pub(crate) enum ChainSyncState {
-    WaitingForBlock,
-    LoadingChain,
-    WaitingForCodes,
-    Finalize,
-}
-
-struct ChainFinalizer {
-    pub router_address: Address,
+pub(crate) struct ChainSync {
     pub db: Database,
-    pub provider: RootProvider,
-}
-
-struct ChainLoader {
     pub config: RuntimeConfig,
-    pub db: Database,
     pub provider: RootProvider,
 }
 
-impl ChainLoader {
-    pub async fn load(
-        self,
-        chain_head: Header,
-    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)> {
+type ChainSyncOutput = (BlockSyncedData, HashSet<CodeId>, Vec<CodeId>);
+
+impl ChainSync {
+    pub async fn sync(self, chain_head: Header) -> Result<ChainSyncOutput> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -70,7 +51,22 @@ impl ChainLoader {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        self.load_chain(block, header, blocks_data).await
+        let (chain, codes_load_now, codes_load_later) =
+            self.load_chain(block, header, blocks_data).await?;
+
+        self.mark_chain_as_synced(chain.into_iter().rev());
+
+        let validators =
+            RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
+                .validators_at(block)
+                .await?;
+
+        let synced_data = BlockSyncedData {
+            block_hash: block,
+            validators,
+        };
+
+        Ok((synced_data, codes_load_now, codes_load_later))
     }
 
     async fn load_chain(
@@ -81,7 +77,6 @@ impl ChainLoader {
     ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)> {
         let mut chain = Vec::new();
 
-        // let mut codes_to_load = Vec::new();
         let mut codes_to_load_now = HashSet::new();
         let mut codes_to_load_later = HashSet::new();
 
@@ -119,12 +114,12 @@ impl ChainLoader {
                             timestamp: *timestamp,
                             tx_hash: *tx_hash,
                         };
+                        log::info!("🤔 set_code_blob_info for {code_id}");
                         self.db.set_code_blob_info(*code_id, code_info.clone());
 
                         if !self.db.original_code_exists(*code_id)
                             && !codes_to_load_now.contains(code_id)
                         {
-                            // codes_to_load_later.insert(*code_id, code_info);
                             codes_to_load_later.insert(*code_id);
                         }
                     }
@@ -151,7 +146,6 @@ impl ChainLoader {
             self.db.set_block_events(hash, &block_data.events);
 
             chain.push(hash);
-
             hash = parent_hash;
         }
 
@@ -205,22 +199,6 @@ impl ChainLoader {
         )
         .await
     }
-}
-
-impl ChainFinalizer {
-    pub async fn finalize(self, chain: Vec<H256>, block_hash: H256) -> Result<BlockSyncedData> {
-        // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
-        self.mark_chain_as_synced(chain.into_iter().rev());
-
-        let validators = RouterQuery::from_provider(self.router_address, self.provider.clone())
-            .validators_at(block_hash)
-            .await?;
-
-        Ok(BlockSyncedData {
-            block_hash,
-            validators,
-        })
-    }
 
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
         for hash in chain {
@@ -233,121 +211,5 @@ impl ChainFinalizer {
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
-    }
-}
-
-type LoadChainFuture =
-    Option<BoxFuture<'static, Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)>>>;
-// TODO #4552: make tests for ChainSync
-pub(crate) struct ChainSync {
-    // pub blobs_reader: Box<dyn BlobReader>,
-    pub db: Database,
-    pub config: RuntimeConfig,
-    pub provider: RootProvider,
-
-    pub codes_sender: UnboundedSender<Vec<CodeId>>,
-
-    pub load_chain_fut: LoadChainFuture,
-    pub finalize_sync_fut: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
-    pub codes_to_wait: Option<HashSet<CodeId>>,
-    pub chain: Option<Vec<H256>>,
-
-    pub state: ChainSyncState,
-    pub loaded_codes: HashSet<CodeId>,
-    pub pending_blocks: VecDeque<Header>,
-}
-
-impl Future for ChainSync {
-    type Output = Result<BlockSyncedData>;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        match self.state.clone() {
-            ChainSyncState::WaitingForBlock => {
-                if let Some(header) = self.pending_blocks.back() {
-                    let chain_loader = ChainLoader {
-                        config: self.config.clone(),
-                        db: self.db.clone(),
-                        provider: self.provider.clone(),
-                    };
-                    self.as_mut().load_chain_fut =
-                        Some(Box::pin(chain_loader.load(header.clone())));
-                    self.as_mut().state = ChainSyncState::LoadingChain;
-                    cx.waker().wake_by_ref();
-                }
-                Poll::Pending
-            }
-            ChainSyncState::LoadingChain => {
-                let result = self.load_chain_fut.as_mut().unwrap().poll_unpin(cx);
-                match result {
-                    Poll::Pending => Poll::Pending,
-                    Poll::Ready(result) => match result {
-                        Ok((chain, codes_load_now, codes_to_load)) => {
-                            if let Err(e) = self.codes_sender.send(codes_to_load) {
-                                return Poll::Ready(Err(e.into()));
-                            }
-                            self.codes_to_wait = Some(codes_load_now);
-                            self.chain = Some(chain);
-                            self.load_chain_fut = None;
-                            self.state = ChainSyncState::WaitingForCodes;
-                            cx.waker().wake_by_ref();
-                            Poll::Pending
-                        }
-                        Err(e) => Poll::Ready(Err(e)),
-                    },
-                }
-            }
-            ChainSyncState::WaitingForCodes => {
-                for code in self.loaded_codes.clone().into_iter() {
-                    if self.codes_to_wait.as_ref().unwrap().contains(&code) {
-                        self.codes_to_wait.as_mut().unwrap().remove(&code);
-                        self.loaded_codes.remove(&code);
-                    }
-                }
-
-                if self.codes_to_wait.as_ref().unwrap().is_empty() {
-                    // TODO: remove unwrap
-                    let chain_head = self.pending_blocks.pop_back().unwrap();
-                    self.state = ChainSyncState::Finalize;
-
-                    let chain_finalizer = ChainFinalizer {
-                        router_address: self.config.router_address.0.into(),
-                        db: self.db.clone(),
-                        provider: self.provider.clone(),
-                    };
-
-                    self.finalize_sync_fut = Some(Box::pin(
-                        chain_finalizer
-                            .finalize(self.chain.clone().unwrap(), (*chain_head.hash).into()),
-                    ));
-                    cx.waker().wake_by_ref();
-                }
-
-                Poll::Pending
-            }
-
-            ChainSyncState::Finalize => {
-                if let Poll::Ready(result) = self.finalize_sync_fut.as_mut().unwrap().poll_unpin(cx)
-                {
-                    self.finalize_sync_fut = None;
-                    self.as_mut().state = ChainSyncState::WaitingForBlock;
-                    return Poll::Ready(result);
-                }
-
-                Poll::Pending
-            }
-        }
-    }
-}
-
-impl ChainSync {
-    pub fn receive_loaded_code(&mut self, code_id: CodeId) {
-        self.loaded_codes.insert(code_id);
-    }
-
-    pub fn sync_chain_header(&mut self, header: Header) {
-        self.pending_blocks.push_front(header);
     }
 }

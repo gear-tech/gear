@@ -21,7 +21,8 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
 };
-use ethexe_blob_loader::blobs::MockBlobReader;
+// use ethexe_blob_loader::blobs::MockBlobReader;
+use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
 use futures::{stream::FusedStream, FutureExt, Stream};
@@ -73,15 +74,15 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blob_reader: Option<MockBlobReader>,
+    blobs_storage: Option<LocalBlobStorage>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<MockBlobReader>) -> Self {
+    pub fn new(config: RpcConfig, db: Database, blobs_storage: Option<LocalBlobStorage>) -> Self {
         Self {
             config,
             db,
-            blob_reader,
+            blobs_storage,
         }
     }
 
@@ -112,7 +113,7 @@ impl RpcService {
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(
-                self.blob_reader.unwrap().clone(),
+                self.blobs_storage.unwrap().clone(),
             )))?;
         }
 
