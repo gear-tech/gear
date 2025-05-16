@@ -28,9 +28,10 @@ use alloc::vec::Vec;
 use gear_core::{
     code::{InstantiatedSectionSizes, SectionName},
     costs::{BytesAmount, ProcessCosts},
+    env::MessageWaitedType,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
     ids::ProgramId,
-    message::{IncomingDispatch, MessageWaitedType},
+    message::IncomingDispatch,
 };
 
 /// Operation related to gas charging.

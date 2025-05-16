@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    buffer::Payload,
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
     message::{
-        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
+        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
         ReplyMessage, ReplyPacket,
     },
     reservation::{GasReserver, ReservationNonce},

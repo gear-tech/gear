@@ -20,7 +20,7 @@
 
 use gear_core::{
     ids::{prelude::*, CodeId, ProgramId},
-    message::ReplyInfo,
+    rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Result};

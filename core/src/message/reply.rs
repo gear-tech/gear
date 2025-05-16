@@ -18,10 +18,10 @@
 
 use super::common::ReplyDetails;
 use crate::{
+    buffer::Payload,
     ids::{prelude::*, MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
-        Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};

@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    buffer::Payload,
     ids::{MessageId, ProgramId},
     message::{
-        DispatchKind, GasLimit, Payload, StoredDelayedDispatch, StoredDispatch, StoredMessage,
-        Value,
+        DispatchKind, GasLimit, StoredDelayedDispatch, StoredDispatch, StoredMessage, Value,
     },
 };
 use core::ops::Deref;

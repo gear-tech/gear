@@ -1431,8 +1431,9 @@ mod tests {
     use super::*;
     use alloc::vec;
     use gear_core::{
+        buffer::{Payload, MAX_PAYLOAD_SIZE},
         costs::{CostOf, RentCosts, SyscallCosts},
-        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+        message::{ContextSettings, IncomingDispatch},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 

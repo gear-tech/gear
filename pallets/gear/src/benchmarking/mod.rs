@@ -1167,7 +1167,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32 / 1024;
+        let n in 0 .. gear_core::buffer::MAX_PAYLOAD_SIZE as u32 / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {

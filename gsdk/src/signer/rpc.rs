@@ -21,7 +21,7 @@
 use crate::{result::Result, signer::Inner, GasInfo};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::ReplyInfo,
+    rpc::ReplyInfo,
 };
 use sp_core::H256;
 use std::sync::Arc;

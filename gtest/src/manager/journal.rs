@@ -31,9 +31,10 @@ use gear_common::{
     scheduler::StorageType,
 };
 use gear_core::{
+    env::MessageWaitedType,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
+    message::{Dispatch, SignalMessage, StoredDispatch},
     pages::{
         num_traits::Zero,
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},

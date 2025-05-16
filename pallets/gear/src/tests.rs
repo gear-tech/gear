@@ -44,6 +44,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
+    buffer::Payload,
     code::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
@@ -51,14 +52,15 @@ use gear_core::{
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        ReplyInfo, StoredDispatch, UserStoredMessage,
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        StoredDispatch, UserStoredMessage,
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
         WasmPage,
     },
     program::ActiveProgram,
+    rpc::ReplyInfo,
     tasks::ScheduledTask,
 };
 use gear_core_backend::error::TrapExplanation;
@@ -15729,8 +15731,9 @@ pub(crate) mod utils {
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
+        buffer::Payload,
         ids::{prelude::*, CodeId, MessageId, ProgramId},
-        message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
+        message::{Message, ReplyDetails, UserMessage, UserStoredMessage},
         program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };

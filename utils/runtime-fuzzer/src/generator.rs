@@ -44,7 +44,7 @@ const MAX_CODE_SIZE: usize = 25 * 1024;
 ///
 /// TODO: #3442
 const MAX_PAYLOAD_SIZE: usize = 1024;
-const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::buffer::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
 ///
@@ -52,7 +52,7 @@ const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 /// for one run. Also small salt will make overall size of the
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
-const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_SALT_SIZE <= gear_core::buffer::MAX_PAYLOAD_SIZE);
 
 const ID_SIZE: usize = size_of::<ProgramId>();
 const GAS_SIZE: usize = size_of::<u64>();

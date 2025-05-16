@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    buffer::Payload,
     ids::{MessageId, ProgramId},
-    message::{Payload, ReplyDetails, Value},
+    message::{ReplyDetails, Value},
 };
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;

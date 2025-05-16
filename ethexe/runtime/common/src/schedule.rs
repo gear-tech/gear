@@ -308,7 +308,7 @@ mod tests {
     use super::*;
     use crate::state::{Mailbox, MemStorage};
     use ethexe_common::gear::Origin;
-    use gear_core::message::Payload;
+    use gear_core::buffer::Payload;
     use std::collections::{BTreeMap, BTreeSet};
 
     #[test]

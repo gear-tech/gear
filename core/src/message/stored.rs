@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    buffer::Payload,
     ids::{MessageId, ProgramId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, Value,
+        IncomingMessage, ReplyDetails, Value,
     },
 };
 use core::ops::Deref;

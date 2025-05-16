@@ -30,12 +30,10 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
+    buffer::{Payload, PayloadSizeError},
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
-        StoredDispatch,
-    },
+    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{

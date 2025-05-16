@@ -62,11 +62,10 @@ use core_processor::{
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
+    buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ProgramId,
-    message::{
-        ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
-    },
+    message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     str::LimitedStr,
     utils::hash,
 };
