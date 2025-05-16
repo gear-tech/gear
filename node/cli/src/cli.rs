@@ -36,7 +36,7 @@ impl FromStr for SandboxBackend {
         match s.to_lowercase().as_str() {
             "wasmer" => Ok(SandboxBackend::Wasmer),
             "wasmi" => Ok(SandboxBackend::Wasmi),
-            _ => Err(format!("Unknown sandbox executor: {}", s)),
+            _ => Err(format!("Unknown sandbox executor: {s}")),
         }
     }
 }

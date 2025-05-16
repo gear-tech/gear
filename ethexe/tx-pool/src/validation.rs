@@ -94,7 +94,7 @@ impl TxValidator {
         let tx_digest = self.transaction.encode().to_digest();
         let signature = crate::tx_signature(&self.transaction)?;
 
-        signature.verify_with_public_key_recover(tx_digest)
+        signature.validate(tx_digest).map(|_| ())
     }
 
     /// Validates transaction mortality.

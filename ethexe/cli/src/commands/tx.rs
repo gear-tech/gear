@@ -78,7 +78,7 @@ impl TxCommand {
     pub async fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::new(key_store).with_context(|| "failed to create signer")?;
+        let signer = Signer::fs(key_store);
 
         let rpc = self
             .ethereum_rpc

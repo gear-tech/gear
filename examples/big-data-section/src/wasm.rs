@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::data_access::DataAccess;
-use gstd::{msg, prelude::*};
+use gstd::msg;
 
 #[unsafe(no_mangle)]
 extern "C" fn init() {

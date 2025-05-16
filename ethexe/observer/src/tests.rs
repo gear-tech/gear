@@ -48,9 +48,10 @@ async fn test_deployment() -> Result<()> {
 
     let ethereum_rpc = anvil.ws_endpoint();
 
-    let signer = Signer::tmp();
+    let signer = Signer::memory();
 
     let sender_public_key = signer
+        .storage_mut()
         .add_key("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
@@ -112,9 +113,7 @@ async fn test_deployment() -> Result<()> {
         let request_code_id = pending_builder.code_id();
         let request_tx_hash = pending_builder.tx_hash();
 
-        blobs_reader
-            .add_blob_transaction(request_tx_hash, wasm)
-            .await;
+        blobs_reader.storage_mut().insert(request_tx_hash, wasm);
 
         request_code_id
     };

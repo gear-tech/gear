@@ -65,7 +65,7 @@ impl StateHandler for Participant {
         self: Box<Self>,
         request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<Box<dyn StateHandler>> {
-        if request.verify_address(self.producer).is_ok() {
+        if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
             DefaultProcessing::validation_request(self, request)
@@ -82,8 +82,7 @@ impl Participant {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
-                if earlier_validation_request.is_none()
-                    && signed_data.verify_address(producer).is_ok() =>
+                if earlier_validation_request.is_none() && signed_data.address() == producer =>
             {
                 earlier_validation_request = Some(signed_data.data().clone());
 
@@ -142,8 +141,7 @@ impl Participant {
 
         self.ctx
             .signer
-            .contract_signer(self.ctx.router_address)
-            .sign_digest(self.ctx.pub_key, digest)
+            .sign_for_contract(self.ctx.router_address, self.ctx.pub_key, digest)
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
     }
 

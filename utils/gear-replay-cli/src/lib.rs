@@ -72,7 +72,7 @@ impl<B: BlockT> fmt::Display for BlockHashOrNumber<B> {
                 write!(f, "{}", hex::encode(hash.as_ref()))
             }
             BlockHashOrNumber::Number(number) => {
-                write!(f, "{}", number)
+                write!(f, "{number}")
             }
         }
     }

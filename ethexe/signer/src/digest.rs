@@ -20,13 +20,14 @@
 //!
 //! Implements `ToDigest` hashing for ethexe common types.
 
-use core::fmt;
 use ethexe_common::{
     gear::{
-        BatchCommitment, BlockCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+        BatchCommitment, BlockCommitment, CodeCommitment, Message, OperatorRewardsCommitment,
+        RewardsCommitment, StakerRewards, StakerRewardsCommitment, StateTransition, ValueClaim,
     },
     ProducerBlock,
 };
+use gprimitives::U256;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -44,36 +45,22 @@ use sha3::Digest as _;
     derive_more::From,
     derive_more::Into,
     derive_more::AsRef,
+    derive_more::Debug,
+    derive_more::Display,
 )]
+#[repr(transparent)]
+#[debug("0x{}", hex::encode(self.0))]
+#[display("0x{}", hex::encode(self.0))]
 pub struct Digest(pub(crate) [u8; 32]);
 
-impl fmt::Debug for Digest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
-    }
-}
-
-impl fmt::Display for Digest {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
-    }
-}
-
-impl<'a> FromIterator<&'a Digest> for Digest {
-    fn from_iter<I: IntoIterator<Item = &'a Digest>>(iter: I) -> Self {
+impl<T> FromIterator<T> for Digest
+where
+    Digest: From<T>,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut hasher = sha3::Keccak256::new();
-        for digest in iter {
-            hasher.update(digest.as_ref());
-        }
-        Digest(hasher.finalize().into())
-    }
-}
-
-impl FromIterator<Digest> for Digest {
-    fn from_iter<I: IntoIterator<Item = Digest>>(iter: I) -> Self {
-        let mut hasher = sha3::Keccak256::new();
-        for digest in iter {
-            hasher.update(digest.as_ref());
+        for item in iter {
+            hasher.update(Digest::from(item).as_ref());
         }
         Digest(hasher.finalize().into())
     }
@@ -90,9 +77,15 @@ pub trait ToDigest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256);
 }
 
-impl<'a, T: ToDigest> FromIterator<&'a T> for Digest {
-    fn from_iter<I: IntoIterator<Item = &'a T>>(iter: I) -> Self {
-        iter.into_iter().map(|item| item.to_digest()).collect()
+impl<T: ToDigest + ?Sized> ToDigest for &T {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        (*self).update_hasher(hasher);
+    }
+}
+
+impl<T: ToDigest> From<T> for Digest {
+    fn from(item: T) -> Self {
+        item.to_digest()
     }
 }
 
@@ -116,9 +109,17 @@ impl ToDigest for [u8] {
     }
 }
 
-impl<T: ToDigest + ?Sized> ToDigest for &T {
+impl ToDigest for Vec<u8> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        (*self).update_hasher(hasher);
+        hasher.update(self.as_slice());
+    }
+}
+
+impl ToDigest for U256 {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        for part in self.0.iter() {
+            hasher.update(part.to_be_bytes().as_ref());
+        }
     }
 }
 
@@ -214,17 +215,62 @@ impl ToDigest for BlockCommitment {
     }
 }
 
+impl ToDigest for OperatorRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self { amount, root } = self;
+        hasher.update(amount.to_digest().as_ref());
+        hasher.update(root.as_bytes());
+    }
+}
+
+impl ToDigest for StakerRewards {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self { vault, amount } = self;
+        hasher.update(vault);
+        hasher.update(amount.to_digest().as_ref());
+    }
+}
+
+impl ToDigest for StakerRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            distribution,
+            total_amount,
+            token,
+        } = self;
+
+        hasher.update(distribution.to_digest().as_ref());
+        hasher.update(total_amount.to_digest().as_ref());
+        hasher.update(token);
+    }
+}
+
+impl ToDigest for RewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            operators,
+            stakers,
+            timestamp,
+        } = self;
+
+        hasher.update(operators.to_digest().as_ref());
+        hasher.update(stakers.to_digest().as_ref());
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+    }
+}
+
 impl ToDigest for BatchCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
         let Self {
             code_commitments,
             block_commitments,
+            rewards_commitments,
         } = self;
 
         hasher.update(block_commitments.to_digest().as_ref());
         hasher.update(code_commitments.to_digest().as_ref());
-        hasher.update([0u8; 0].to_digest().as_ref()); // Placeholder for the rewards commitment
+        hasher.update(rewards_commitments.to_digest().as_ref());
     }
 }
 

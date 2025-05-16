@@ -385,20 +385,17 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .expect("failed to update state");
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, _locked: bool) {
         // TODO (breathx): implement rest of cases.
-        if let Some(to) = to {
-            if self.controller.transitions.state_of(&from).is_some() {
-                return;
-            }
-
-            self.controller.update_state(to, |state, _, transitions| {
-                state.balance += value;
-
-                transitions
-                    .modify_transition(to, |transition| transition.value_to_receive += value);
-            });
+        if self.controller.transitions.state_of(&from).is_some() {
+            return;
         }
+
+        self.controller.update_state(to, |state, _, transitions| {
+            state.balance += value;
+
+            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
+        });
     }
 
     fn store_new_programs(

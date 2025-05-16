@@ -170,7 +170,7 @@ where
                     unreachable!("{err_msg}");
                 });
 
-            let trap_reply = ReplyMessage::system(message_id, err_payload, err);
+            let trap_reply = ReplyMessage::system(message_id, err_payload, 0, err);
 
             // Generate trap reply.
             if self.check_program_id(&waitlisted.source()) {

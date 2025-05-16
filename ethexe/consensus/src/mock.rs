@@ -27,11 +27,12 @@ use gprimitives::H256;
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
-    let signer = Signer::tmp();
-    let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey([i + 1; 32])).collect();
+    let signer = Signer::memory();
+
+    let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey::from([i + 1; 32])).collect();
     let public_keys = private_keys
         .iter()
-        .map(|&key| signer.add_key(key).unwrap())
+        .map(|&key| signer.storage_mut().add_key(key).unwrap())
         .collect();
     (signer, private_keys, public_keys)
 }
@@ -60,7 +61,7 @@ pub fn mock_producer_block(
         off_chain_transactions: vec![],
     };
 
-    let signed_pb = signer.create_signed_data(producer, pb.clone()).unwrap();
+    let signed_pb = signer.signed_data(producer, pb.clone()).unwrap();
 
     (pb, signed_pb)
 }
@@ -76,9 +77,7 @@ pub fn mock_validation_request(
         blocks: vec![],
         codes: vec![mock_code_commitment(), mock_code_commitment()],
     };
-    let signed = signer
-        .create_signed_data(public_key, request.clone())
-        .unwrap();
+    let signed = signer.signed_data(public_key, request.clone()).unwrap();
     (request, signed)
 }
 
@@ -91,8 +90,7 @@ pub fn mock_validation_reply(
     BatchCommitmentValidationReply {
         digest,
         signature: signer
-            .contract_signer(contract_address)
-            .sign_digest(public_key, digest)
+            .sign_for_contract(contract_address, public_key, digest)
             .unwrap(),
     }
 }

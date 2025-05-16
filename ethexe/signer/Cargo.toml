@@ -18,10 +18,9 @@ hex = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 derive_more.workspace = true
 tempfile.workspace = true
-log.workspace = true
 
-secp256k1 = { version = "0.30", features = ["rand", "global-context", "hashes", "recovery"] }
 sha3 = { version = "0.10", default-features = false }
+k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["k256"] }

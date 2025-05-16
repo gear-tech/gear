@@ -141,11 +141,15 @@ impl Producer {
         let block_commitments = Self::aggregate_block_commitments_for_block(ctx, block_hash)?;
         let code_commitments = Self::aggregate_code_commitments_for_block(ctx, block_hash)?;
 
+        // TODO: add the appropriate functionality
+        let rewards_commitments = vec![];
+
         Ok(
             (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(
                 BatchCommitment {
                     block_commitments,
                     code_commitments,
+                    rewards_commitments,
                 },
             ),
         )
@@ -234,10 +238,7 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let signed_pb = self
-            .ctx
-            .signer
-            .create_signed_data(self.ctx.pub_key, pb.clone())?;
+        let signed_pb = self.ctx.signer.signed_data(self.ctx.pub_key, pb.clone())?;
 
         self.state = State::WaitingBlockComputed(self.block.hash);
         self.output(ConsensusEvent::PublishProducerBlock(signed_pb));
