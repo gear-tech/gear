@@ -34,12 +34,12 @@ use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
     ids::{prelude::*, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails, SharedPayload, SignalDetails},
     pages::WasmPagesAmount,
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{convert::TryInto, prelude::*};
+use sp_std::prelude::*;
 
 const DEFAULT_BLOCK_NUMBER: u32 = 0;
 const DEFAULT_INTERVAL: u32 = 1_000;
@@ -116,7 +116,7 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    SharedPayload::try_new(payload)?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -142,7 +142,7 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    SharedPayload::try_new(payload)?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -155,7 +155,7 @@ where
                 root_message_id,
                 source.cast(),
                 dest,
-                payload.try_into()?,
+                SharedPayload::try_new(payload)?,
                 Some(u64::MAX),
                 config.value,
                 None,
@@ -170,7 +170,7 @@ where
                     root_message_id,
                     source.cast(),
                     msg.source(),
-                    payload.try_into()?,
+                    SharedPayload::try_new(payload)?,
                     Some(u64::MAX),
                     config.value,
                     Some(ReplyDetails::new(msg.id(), exit_code).into()),
@@ -186,7 +186,7 @@ where
                     root_message_id,
                     source.cast(),
                     msg.source(),
-                    payload.try_into()?,
+                    SharedPayload::try_new(payload)?,
                     Some(u64::MAX),
                     config.value,
                     Some(SignalDetails::new(msg.id(), status_code).into()),

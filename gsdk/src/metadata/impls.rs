@@ -19,10 +19,7 @@
 use super::{
     runtime_types::{
         frame_system::pallet::Call as SystemCall,
-        gear_common::{
-            event::*,
-            gas_provider::node::{GasNodeId, NodeLock},
-        },
+        gear_common::{event::*, gas_provider::node::GasNodeId},
         gear_core::message as generated_message,
         gear_core_errors as generated_core_errors, gprimitives as generated_ids,
         pallet_balances::pallet::Call as BalancesCall,
@@ -30,10 +27,9 @@ use super::{
         pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
         pallet_sudo::pallet::Call as SudoCall,
     },
-    vara_runtime::{RuntimeCall, RuntimeEvent},
+    vara_runtime::RuntimeCall,
 };
-use core::ops::{Index, IndexMut};
-use gear_core::{ids, message, message::UserMessage};
+use gear_core::{ids, message, message::SharedPayload};
 use parity_scale_codec::{Decode, Encode};
 use subxt::{dynamic::Value, utils::MultiAddress};
 
@@ -100,7 +96,7 @@ impl From<generated_message::user::UserMessage> for message::UserMessage {
             other.source.into(),
             other.destination.into(),
             // converting data from the same type
-            other.payload.0.try_into().expect("Infallible"),
+            SharedPayload::try_new(other.payload.0 .0).expect("Infallible"),
             other.value,
             other.details.map(Into::into),
         )
@@ -114,7 +110,7 @@ impl From<generated_message::user::UserStoredMessage> for message::UserStoredMes
             other.source.into(),
             other.destination.into(),
             // converting data from the same type
-            other.payload.0.try_into().expect("Infallible"),
+            SharedPayload::try_new(other.payload.0 .0).expect("Infallible"),
             other.value,
         )
     }

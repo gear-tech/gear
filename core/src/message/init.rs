@@ -19,8 +19,8 @@
 use crate::{
     ids::{prelude::*, CodeId, MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
-        StoredMessage, Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, SharedPayload,
+        StoredDispatch, StoredMessage, Value,
     },
 };
 use scale_info::{
@@ -37,7 +37,7 @@ pub struct InitMessage {
     /// Message destination.
     destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Message value.
@@ -123,7 +123,7 @@ pub struct InitPacket {
     /// Salt.
     salt: Salt,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Message value.
@@ -143,7 +143,7 @@ impl InitPacket {
             program_id: ProgramId::generate_from_user(code_id, salt.inner()),
             code_id,
             salt,
-            payload,
+            payload: SharedPayload::new(payload),
             gas_limit: Some(gas_limit),
             value,
         }
@@ -162,7 +162,7 @@ impl InitPacket {
             program_id: ProgramId::generate_from_program(message_id, code_id, salt.inner()),
             code_id,
             salt,
-            payload,
+            payload: SharedPayload::new(payload),
             gas_limit,
             value,
         }

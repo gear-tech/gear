@@ -20,8 +20,8 @@ use super::common::ReplyDetails;
 use crate::{
     ids::{prelude::*, MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
-        Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, SharedPayload, StoredDispatch,
+        StoredMessage, Value,
     },
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
@@ -37,7 +37,7 @@ pub struct ReplyMessage {
     /// Message id.
     id: MessageId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Message value.
@@ -164,7 +164,7 @@ impl ReplyMessage {
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct ReplyPacket {
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Message value.
@@ -177,7 +177,7 @@ impl ReplyPacket {
     /// Create new manual ReplyPacket without gas.
     pub fn new(payload: Payload, value: Value) -> Self {
         Self {
-            payload,
+            payload: SharedPayload::new(payload),
             gas_limit: None,
             value,
             code: ReplyCode::Success(SuccessReplyReason::Manual),
@@ -187,7 +187,7 @@ impl ReplyPacket {
     /// Create new manual ReplyPacket with gas.
     pub fn new_with_gas(payload: Payload, gas_limit: GasLimit, value: Value) -> Self {
         Self {
-            payload,
+            payload: SharedPayload::new(payload),
             gas_limit: Some(gas_limit),
             value,
             code: ReplyCode::Success(SuccessReplyReason::Manual),
@@ -207,7 +207,7 @@ impl ReplyPacket {
     /// Create new system generated ReplyPacket.
     pub fn system(payload: Payload, value: Value, err: impl Into<ErrorReplyReason>) -> Self {
         Self {
-            payload,
+            payload: SharedPayload::new(payload),
             value,
             code: ReplyCode::error(err),
             ..Default::default()
@@ -228,7 +228,7 @@ impl ReplyPacket {
         if data.try_extend_from_slice(self.payload_bytes()).is_err() {
             Err(data)
         } else {
-            self.payload = data;
+            self.payload = SharedPayload::new(data);
             Ok(())
         }
     }

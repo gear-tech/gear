@@ -28,14 +28,13 @@ use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
     ids::{prelude::*, CodeId, MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, Message, SharedPayload},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
 use path_clean::PathClean;
 use std::{
     cell::RefCell,
-    convert::TryInto,
     env,
     ffi::OsStr,
     fmt::Debug,
@@ -544,7 +543,7 @@ impl<'a> Program<'a> {
             ),
             source,
             self.id,
-            payload.into().try_into().unwrap(),
+            SharedPayload::try_new(payload.into()).unwrap(),
             Some(gas_limit),
             value,
             None,

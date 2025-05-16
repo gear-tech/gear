@@ -18,7 +18,7 @@
 
 use crate::{
     ids::{MessageId, ProgramId},
-    message::{Payload, ReplyDetails, Value},
+    message::{ReplyDetails, Value},
 };
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;
@@ -27,7 +27,7 @@ use scale_info::{
     TypeInfo,
 };
 
-use super::{MessageDetails, StoredMessage};
+use super::{MessageDetails, SharedPayload, StoredMessage};
 
 /// Message sent to user and deposited as event.
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
@@ -39,7 +39,7 @@ pub struct UserMessage {
     /// Message destination.
     destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message value.
     #[codec(compact)]
     value: Value,
@@ -53,7 +53,7 @@ impl UserMessage {
         id: MessageId,
         source: ProgramId,
         destination: ProgramId,
-        payload: Payload,
+        payload: SharedPayload,
         value: Value,
         details: Option<ReplyDetails>,
     ) -> Self {
@@ -156,7 +156,7 @@ pub struct UserStoredMessage {
     /// Message destination.
     destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message value.
     #[codec(compact)]
     value: Value,
@@ -168,7 +168,7 @@ impl UserStoredMessage {
         id: MessageId,
         source: ProgramId,
         destination: ProgramId,
-        payload: Payload,
+        payload: SharedPayload,
         value: Value,
     ) -> Self {
         Self {

@@ -32,7 +32,7 @@ use frame_support::{
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::UserStoredMessage,
+    message::{SharedPayload, UserStoredMessage},
 };
 use primitive_types::H256;
 use sp_core::ConstU8;
@@ -119,7 +119,7 @@ impl Mailbox for MailboxMock {
                 MAILBOXED_MESSAGE,
                 MAILBOXED_PROGRAM,
                 (*key1).cast(),
-                vec![].try_into().unwrap(),
+                SharedPayload::try_new(vec![]).unwrap(),
                 0,
             )
         })

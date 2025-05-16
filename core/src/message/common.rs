@@ -19,8 +19,8 @@
 use crate::{
     ids::{MessageId, ProgramId},
     message::{
-        DispatchKind, GasLimit, Payload, StoredDelayedDispatch, StoredDispatch, StoredMessage,
-        Value,
+        DispatchKind, GasLimit, SharedPayload, StoredDelayedDispatch, StoredDispatch,
+        StoredMessage, Value,
     },
 };
 use core::ops::Deref;
@@ -41,7 +41,7 @@ pub struct Message {
     /// Message destination.
     destination: ProgramId,
     /// Message payload.
-    payload: Payload,
+    payload: SharedPayload,
     /// Message optional gas limit.
     gas_limit: Option<GasLimit>,
     /// Message value.
@@ -69,7 +69,7 @@ impl Message {
         id: MessageId,
         source: ProgramId,
         destination: ProgramId,
-        payload: Payload,
+        payload: SharedPayload,
         gas_limit: Option<GasLimit>,
         value: Value,
         details: Option<MessageDetails>,
@@ -92,7 +92,7 @@ impl Message {
         MessageId,
         ProgramId,
         ProgramId,
-        Payload,
+        SharedPayload,
         Option<GasLimit>,
         Value,
         Option<MessageDetails>,

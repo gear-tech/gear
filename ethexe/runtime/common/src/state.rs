@@ -640,7 +640,7 @@ impl Dispatch {
         let (id, source, _destination, payload, value, details) = message.into_parts();
 
         let payload = storage
-            .write_payload_raw(payload.into_vec())
+            .write_payload_raw(payload.into_inner().into_vec())
             .expect("infallible due to recasts (only panics on len)");
 
         Self {

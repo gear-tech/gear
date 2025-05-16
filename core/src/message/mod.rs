@@ -43,8 +43,11 @@ pub use user::{UserMessage, UserStoredMessage};
 
 use super::buffer::LimitedVec;
 use crate::str::LimitedStr;
-use alloc::{string::String, vec::Vec};
-use core::fmt::{Debug, Display};
+use alloc::{string::String, sync::Arc, vec::Vec};
+use core::{
+    fmt::{Debug, Display},
+    ops::Deref,
+};
 use gear_wasm_instrument::syscalls::SyscallName;
 use scale_info::{
     scale::{Decode, Encode},
@@ -84,6 +87,36 @@ impl Payload {
     pub fn len_u32(&self) -> u32 {
         // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
         self.inner().len() as u32
+    }
+}
+
+/// Payload wrapper.
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Encode, Decode, TypeInfo)]
+pub struct SharedPayload(Arc<Payload>);
+
+impl Deref for SharedPayload {
+    type Target = Payload;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl SharedPayload {
+    /// Create new payload wrapper from payload.
+    pub fn new(payload: Payload) -> Self {
+        Self(Arc::new(payload))
+    }
+
+    /// Try to create new payload wrapper from slice.
+    pub fn try_new(v: Vec<u8>) -> Result<Self, PayloadSizeError> {
+        let payload = Payload::try_from(v)?;
+        Ok(Self(Arc::new(payload)))
+    }
+
+    /// Deconstruct payload wrapper into inner payload. It will be free if strong reference count is 1.
+    pub fn into_inner(self) -> Payload {
+        Arc::unwrap_or_clone(self.0)
     }
 }
 
