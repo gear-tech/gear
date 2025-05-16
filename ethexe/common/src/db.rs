@@ -26,7 +26,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId, ProgramId},
 };
 use gprimitives::{MessageId, H256};
@@ -113,6 +113,9 @@ pub trait CodesStorage: Send + Sync {
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
+
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
 
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
