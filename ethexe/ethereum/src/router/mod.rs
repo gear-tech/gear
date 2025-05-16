@@ -25,7 +25,7 @@ use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     primitives::{fixed_bytes, Address, Bytes, B256, U256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{eth::state::AccountOverride, Filter},
+    rpc::types::{eth::state::AccountOverride, Filter, Log},
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
@@ -117,26 +117,44 @@ impl Router {
 
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
         let filter = Filter::new().address(*self.instance.address());
-        let mut router_events = self
-            .instance
-            .provider()
-            .subscribe_logs(&filter)
-            .await?
-            .into_stream();
+        let provider = self.instance.provider();
 
-        let code_id = code_id.into_bytes();
+        match provider.client().pubsub_frontend() {
+            Some(_) => {
+                let mut router_events = provider.subscribe_logs(&filter).await?.into_stream();
 
-        while let Some(log) = router_events.next().await {
-            if let Some(signatures::CODE_GOT_VALIDATED) = log.topic0().cloned() {
-                let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
-
-                if event.codeId == code_id {
-                    return Ok(event.valid);
+                while let Some(log) = router_events.next().await {
+                    if Self::is_validated_code(log, code_id)? {
+                        return Ok(true);
+                    }
                 }
+            }
+            None => loop {
+                let mut router_events = provider.watch_logs(&filter).await?.into_stream();
+
+                while let Some(logs) = router_events.next().await {
+                    for log in logs {
+                        if Self::is_validated_code(log, code_id)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+            },
+        };
+
+        Err(anyhow!("Failed to define if code is validated"))
+    }
+
+    fn is_validated_code(log: Log, code_id: CodeId) -> Result<bool> {
+        if let Some(signatures::CODE_GOT_VALIDATED) = log.topic0().cloned() {
+            let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
+
+            if event.codeId == code_id.into_bytes() {
+                return Ok(event.valid);
             }
         }
 
-        Err(anyhow!("Failed to define if code is validated"))
+        Ok(false)
     }
 
     pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
