@@ -24,12 +24,12 @@ use ethexe_common::{
     Address, BlockHeader, CodeInfo, Digest, ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_signer::{MemoryKeyStorage, Signer};
+use ethexe_signer::Signer;
 use gprimitives::H256;
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
-    let signer = Signer::empty::<MemoryKeyStorage>();
+    let signer = Signer::memory();
 
     let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey::from([i + 1; 32])).collect();
     let public_keys = private_keys

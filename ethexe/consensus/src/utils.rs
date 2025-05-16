@@ -248,7 +248,7 @@ mod tests {
         let pub_key = public_keys[0];
 
         let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, Address([42; 20]), pub_key).unwrap();
+            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
         let reply = BatchCommitmentValidationReply {

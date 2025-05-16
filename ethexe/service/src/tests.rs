@@ -1300,7 +1300,6 @@ mod utils {
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
-    use ethexe_signer::MemoryKeyStorage;
     use ethexe_tx_pool::TxPoolService;
     use futures::{executor::block_on, StreamExt};
     use gear_core::message::ReplyCode;
@@ -1396,7 +1395,7 @@ mod utils {
                 }
             };
 
-            let signer = Signer::empty::<MemoryKeyStorage>();
+            let signer = Signer::memory();
 
             let mut wallets = if let Some(wallets) = wallets {
                 Wallets::custom(&signer, wallets)

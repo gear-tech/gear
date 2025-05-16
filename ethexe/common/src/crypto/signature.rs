@@ -44,7 +44,7 @@ pub struct Signature {
 
 type SignatureBytes = [u8; 65];
 const SIGNATURE_SIZE: usize = size_of::<SignatureBytes>();
-const SIGNATURE_LAST_BYTE: usize = SIGNATURE_SIZE - 1;
+const SIGNATURE_LAST_BYTE_IDX: usize = SIGNATURE_SIZE - 1;
 
 impl Signature {
     /// Create a recoverable signature for the provided digest using the private key.
@@ -98,12 +98,12 @@ impl Signature {
     /// Creates a signature from the bytes in the pre-EIP-155 format.
     /// See also: https://shorturl.at/ckQ3y
     pub fn from_pre_eip155_bytes(bytes: SignatureBytes) -> Option<Self> {
-        let v = bytes[SIGNATURE_LAST_BYTE];
+        let v = bytes[SIGNATURE_LAST_BYTE_IDX];
 
         let recovery_byte = v.checked_sub(27).and_then(|v| (v <= 1).then_some(v))?;
 
         Some(Self {
-            inner: ecdsa::Signature::from_slice(&bytes[..SIGNATURE_LAST_BYTE]).ok()?,
+            inner: ecdsa::Signature::from_slice(&bytes[..SIGNATURE_LAST_BYTE_IDX]).ok()?,
             recovery_id: RecoveryId::from_byte(recovery_byte).expect("UNREACHABLE: v is 27 or 28"),
         })
     }
@@ -111,11 +111,11 @@ impl Signature {
     pub fn into_pre_eip155_bytes(self) -> SignatureBytes {
         let mut bytes = [0u8; SIGNATURE_SIZE];
 
-        bytes[..SIGNATURE_LAST_BYTE].copy_from_slice(self.inner.to_bytes().as_ref());
+        bytes[..SIGNATURE_LAST_BYTE_IDX].copy_from_slice(self.inner.to_bytes().as_ref());
 
         let v = self.recovery_id.to_byte();
         assert!(v == 0 || v == 1, "Invalid v value: {v}");
-        bytes[SIGNATURE_LAST_BYTE] = v + 27;
+        bytes[SIGNATURE_LAST_BYTE_IDX] = v + 27;
 
         bytes
     }
@@ -296,7 +296,7 @@ mod tests {
         let recovered_signature = Signature::from_pre_eip155_bytes(bytes).unwrap();
         assert_eq!(signature, recovered_signature);
 
-        assert!(bytes[SIGNATURE_LAST_BYTE] == 27 || bytes[SIGNATURE_LAST_BYTE] == 28);
+        assert!(bytes[SIGNATURE_LAST_BYTE_IDX] == 27 || bytes[SIGNATURE_LAST_BYTE_IDX] == 28);
     }
 
     #[test]
