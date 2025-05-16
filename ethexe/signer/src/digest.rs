@@ -110,16 +110,16 @@ impl ToDigest for [u8] {
 }
 
 impl ToDigest for Vec<u8> {
-// impl ToDigest for U256 {
-//     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-//         for part in self.0.iter() {
-//             hasher.update(part.to_be_bytes().as_ref());
-//         }
-//     }
-// }
-
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.as_slice());
+    }
+}
+
+impl ToDigest for U256 {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        for part in self.0.iter() {
+            hasher.update(part.to_be_bytes().as_ref());
+        }
     }
 }
 
