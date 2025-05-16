@@ -21,7 +21,7 @@
 use super::keys::PublicKey;
 use alloc::string::String;
 use core::str::FromStr;
-use derive_more::{Debug, Display, From};
+use derive_more::{Debug, Display, Error, From};
 use gprimitives::{ActorId, H160};
 use hex::FromHexError;
 use parity_scale_codec::{Decode, Encode};
@@ -66,15 +66,10 @@ impl FromStr for Address {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, Error)]
 #[display("{:?}", self)]
-pub enum FromActorIdError {
-    #[debug("First 12 bytes are not 0, it is not ethereum address")]
-    NotEthereumAddress,
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FromActorIdError {}
+#[debug("First 12 bytes are not 0, it is not ethereum address")]
+pub struct FromActorIdError;
 
 /// Tries to convert `ActorId`` into `Address`.
 ///
@@ -88,7 +83,7 @@ impl TryFrom<ActorId> for Address {
             .take(12)
             .all(|&byte| byte == 0)
             .then_some(Address(id.to_address_lossy().0))
-            .ok_or(FromActorIdError::NotEthereumAddress)
+            .ok_or(FromActorIdError)
     }
 }
 

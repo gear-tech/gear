@@ -18,14 +18,13 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
+use crate::ToDigest;
 use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
 use sha3::Digest as _;
-
-use crate::ToDigest;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
