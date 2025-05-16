@@ -79,7 +79,16 @@ contract Base is POCBaseTest {
         SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
         super.setUp();
 
-        middleware = new Middleware(_defaultMiddlewareInitParams());
+        vm.startPrank(admin, admin);
+        {
+            IMiddleware.InitParams memory initParams = _defaultMiddlewareInitParams();
+            middleware = Middleware(
+                Upgrades.deployTransparentProxy(
+                    "Middleware.sol", admin, abi.encodeCall(Middleware.initialize, (initParams))
+                )
+            );
+        }
+        vm.stopPrank();
     }
 
     function setUpRouter(Gear.AggregatedPublicKey memory _aggregatedPublicKey, address[] memory _validators) internal {
@@ -135,7 +144,12 @@ contract Base is POCBaseTest {
 
         vm.startPrank(admin, admin);
         {
-            middleware = new Middleware(_defaultMiddlewareInitParams());
+            IMiddleware.InitParams memory initParams = _defaultMiddlewareInitParams();
+            middleware = Middleware(
+                Upgrades.deployTransparentProxy(
+                    "Middleware.sol", admin, abi.encodeCall(Middleware.initialize, (initParams))
+                )
+            );
         }
         vm.stopPrank();
 
@@ -175,7 +189,7 @@ contract Base is POCBaseTest {
             middleware.registerVault(_vault, _rewards);
             operatorVaultOptInService.optIn(_vault);
             IOperatorSpecificDelegator(IVault(_vault).delegator()).setNetworkLimit(
-                middleware.SUBNETWORK(), type(uint256).max
+                middleware.subnetwork(), type(uint256).max
             );
         }
         vm.stopPrank();
@@ -393,29 +407,34 @@ contract Base is POCBaseTest {
         address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
         defaultOperatorRewardsFactory = new DefaultOperatorRewardsFactory(defaultOperatorRewards_);
 
+        Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+            vaultRegistry: address(vaultFactory),
+            operatorRegistry: address(operatorRegistry),
+            networkRegistry: address(networkRegistry),
+            middlewareService: address(networkMiddlewareService),
+            networkOptIn: address(operatorNetworkOptInService),
+            stakerRewardsFactory: address(defaultStakerRewardsFactory)
+        });
+
         params = IMiddleware.InitParams({
+            owner: admin,
             eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,
             vaultGracePeriod: eraDuration * 2,
             minVetoDuration: eraDuration / 3,
             minSlashExecutionDelay: eraDuration / 3,
-            maxResolverSetEpochsDelay: type(uint256).max,
-            router: address(router),
-            vaultRegistry: address(vaultFactory),
             allowedVaultImplVersion: 1,
             vetoSlasherImplType: 1,
-            operatorRegistry: address(operatorRegistry),
-            networkRegistry: address(networkRegistry),
-            networkOptIn: address(operatorNetworkOptInService),
-            middlewareService: address(networkMiddlewareService),
+            maxResolverSetEpochsDelay: type(uint256).max,
             collateral: address(wrappedVara),
+            maxAdminFee: 10000,
+            operatorRewards: defaultOperatorRewardsFactory.create(),
+            router: address(router),
             roleSlashRequester: admin,
             roleSlashExecutor: admin,
             vetoResolver: admin,
-            operatorRewards: defaultOperatorRewardsFactory.create(),
-            operatorRewardsFactory: address(defaultOperatorRewardsFactory),
-            stakerRewardsFactory: address(defaultStakerRewardsFactory)
+            registries: registries
         });
     }
 }
