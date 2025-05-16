@@ -344,7 +344,7 @@ async fn sync_finalized_head(
 
                 for _ in 0..amount_to_load {
                     let Some(event) = blobs_loader.next().await else {
-                        todo!()
+                        return Err(anyhow!("blob loader returns None instead of event"));
                     };
 
                     let BlobLoaderEvent::BlobLoaded(blob_data) = event?;

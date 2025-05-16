@@ -41,6 +41,7 @@ use std::{
 use sync::ChainSync;
 
 mod sync;
+mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -65,6 +66,7 @@ pub struct BlockSyncedData {
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
+    // NOTE: `validated_codes` is a part of the `codes_to_load`
     BlockSynced {
         synced_block: BlockSyncedData,
         validated_codes: HashSet<CodeId>,

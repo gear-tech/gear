@@ -18,10 +18,12 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlockSyncedData, RuntimeConfig};
+use crate::{
+    utils::{load_block_data, load_blocks_data_batched},
+    BlockSyncedData, RuntimeConfig,
+};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
-use ethexe_blob_loader::utils::{load_block_data, load_blocks_data_batched};
 use ethexe_common::{
     db::OnChainStorage,
     events::{BlockEvent, RouterEvent},
@@ -31,6 +33,7 @@ use ethexe_db::{BlockHeader, CodeInfo, CodesStorage, Database};
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::{CodeId, H256};
 use std::collections::{HashMap, HashSet};
+
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
 pub(crate) struct ChainSync {
@@ -51,7 +54,7 @@ impl ChainSync {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        let (chain, codes_load_now, codes_load_later) =
+        let (chain, validated_codes, codes_to_load) =
             self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
@@ -66,7 +69,7 @@ impl ChainSync {
             validators,
         };
 
-        Ok((synced_data, codes_load_now, codes_load_later))
+        Ok((synced_data, validated_codes, codes_to_load))
     }
 
     async fn load_chain(

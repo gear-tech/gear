@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// use crate::blobs::{BlobData, BlobReader};
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
     eips::eip4844::kzg_to_versioned_hash,
@@ -38,7 +37,6 @@ use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
 use tokio::time::{self, Duration};
 
 pub mod local;
-pub mod utils;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct BlobData {
@@ -62,6 +60,7 @@ pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
 }
 
+// TODO: write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
     Stream<Item = Result<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {

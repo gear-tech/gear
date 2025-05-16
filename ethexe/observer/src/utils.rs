@@ -108,7 +108,7 @@ pub(crate) fn block_response_to_data(response: Option<Block>) -> Result<(H256, B
     Ok((block_hash, header))
 }
 
-pub async fn load_block_data(
+pub(crate) async fn load_block_data(
     provider: RootProvider,
     block: H256,
     router_address: Address,
@@ -160,7 +160,7 @@ pub async fn load_block_data(
     })
 }
 
-pub async fn load_blocks_data_batched(
+pub(crate) async fn load_blocks_data_batched(
     provider: RootProvider,
     from_block: u64,
     to_block: u64,
