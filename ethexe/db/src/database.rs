@@ -24,10 +24,11 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, OnChainStorage, Schedule},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
+    BlockHeader, CodeInfo, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -660,23 +661,27 @@ impl OnChainStorage for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage};
+    use ethexe_common::{
+        ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
+    };
     use gear_core::code::InstantiatedSectionSizes;
 
     #[test]
     fn test_offchain_transaction() {
         let db = Database::memory();
 
-        let tx = SignedOffchainTransaction {
-            signature: Default::default(),
-            transaction: OffchainTransaction {
+        let private_key = PrivateKey::from([1; 32]);
+        let tx = SignedOffchainTransaction::create(
+            private_key,
+            OffchainTransaction {
                 raw: SendMessage {
                     program_id: H256::random().into(),
                     payload: H256::random().as_bytes().to_vec(),
                 },
                 reference_block: H256::random(),
             },
-        };
+        )
+        .unwrap();
         let tx_hash = tx.tx_hash();
         db.set_offchain_transaction(tx.clone());
         assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));

@@ -22,11 +22,10 @@ use crate::{BlobData, BlobReader, BlockSyncedData, RuntimeConfig};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Ok, Result};
 use ethexe_common::{
-    db::OnChainStorage,
+    db::{CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
-    BlockData,
+    BlockData, BlockHeader, CodeInfo,
 };
-use ethexe_db::{BlockHeader, CodeInfo, CodesStorage};
 use ethexe_ethereum::router::RouterQuery;
 use futures::{
     future::{self},

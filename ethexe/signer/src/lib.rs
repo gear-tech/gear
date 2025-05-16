@@ -25,34 +25,8 @@
 //! using [k256](https://crates.io/crates/k256) crate, but all the
 //! machinery used is wrapped in the crate's types.
 
-mod address;
-mod digest;
-mod keys;
-mod signature;
 mod signer;
 mod storage;
 
-// Exports
-pub use address::Address;
-pub use digest::{Digest, ToDigest};
-pub use keys::{PrivateKey, PublicKey};
-pub use sha3;
-pub use signature::{ContractSignature, Signature, SignedData};
 pub use signer::Signer;
 pub use storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
-
-use anyhow::{anyhow, Result};
-
-/// Decodes hexed string to a byte array.
-fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N]> {
-    let mut buf = [0; N];
-
-    // Strip the "0x" prefix if it exists.
-    let stripped = s.strip_prefix("0x").unwrap_or(s);
-
-    // Decode
-    hex::decode_to_slice(stripped, &mut buf)
-        .map_err(|_| anyhow!("invalid hex format for {stripped:?}"))?;
-
-    Ok(buf)
-}

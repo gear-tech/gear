@@ -18,9 +18,9 @@
 
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
-use crate::Database;
 use core::fmt;
-use ethexe_db::OnChainStorage;
+use ethexe_common::db::OnChainStorage;
+use ethexe_db::Database;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, HashOf, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,

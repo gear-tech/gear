@@ -7,10 +7,7 @@ use crate::{
 };
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
-use ethexe_common::{
-    db::{Rfm, Schedule, ScheduledTask, Sd, Sum},
-    gear::ValueClaim,
-};
+use ethexe_common::{gear::ValueClaim, Rfm, Schedule, ScheduledTask, Sd, Sum};
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};

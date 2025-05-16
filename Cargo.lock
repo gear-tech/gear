@@ -4586,6 +4586,7 @@ dependencies = [
  "anyhow",
  "clap 4.5.23",
  "directories",
+ "ethexe-common",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
@@ -4608,12 +4609,15 @@ dependencies = [
 name = "ethexe-common"
 version = "1.8.1"
 dependencies = [
+ "derive_more 2.0.1",
  "gear-core",
  "gprimitives",
  "hex",
+ "k256",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
+ "sha3",
 ]
 
 [[package]]
@@ -4695,6 +4699,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
+ "ethexe-common",
  "ethexe-db",
  "ethexe-service-utils",
  "ethexe-signer",
@@ -4893,11 +4898,7 @@ dependencies = [
  "anyhow",
  "derive_more 2.0.1",
  "ethexe-common",
- "gprimitives",
- "hex",
- "k256",
  "parity-scale-codec",
- "sha3",
  "tempfile",
 ]
 
@@ -4908,7 +4909,6 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
- "ethexe-signer",
  "gear-utils",
  "gprimitives",
  "parity-scale-codec",

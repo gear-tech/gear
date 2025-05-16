@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::errors;
-use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
-    BlockHeader,
-};
-use gprimitives::H256;
-use jsonrpsee::core::RpcResult;
+/// Decodes hexed string to a byte array.
+pub fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N], hex::FromHexError> {
+    // Strip the "0x" prefix if it exists.
+    let stripped = s.strip_prefix("0x").unwrap_or(s);
 
-pub fn block_header_at_or_latest<DB: BlockMetaStorage + OnChainStorage>(
-    db: &DB,
-    at: impl Into<Option<H256>>,
-) -> RpcResult<(H256, BlockHeader)> {
-    if let Some(hash) = at.into() {
-        db.block_header(hash)
-            .map(|header| (hash, header))
-            .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
-    } else {
-        db.latest_computed_block()
-            .ok_or_else(|| errors::db("Latest block header wasn't found"))
-    }
+    // Decode
+    let mut buf = [0u8; N];
+    hex::decode_to_slice(stripped, &mut buf)?;
+
+    Ok(buf)
+}
+
+/// Converts u64 to a 48-bit unsigned integer, represented as a byte array in big-endian order.
+pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
+    let [_, _, b1, b2, b3, b4, b5, b6] = val.to_be_bytes();
+
+    [b1, b2, b3, b4, b5, b6]
 }
