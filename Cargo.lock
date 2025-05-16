@@ -4896,7 +4896,6 @@ dependencies = [
  "gprimitives",
  "hex",
  "k256",
- "log",
  "parity-scale-codec",
  "sha3",
  "tempfile",
