@@ -20,9 +20,10 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{ensure, Context, Result};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{CodeCommitment, CodeState},
+    BlockData,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -50,12 +51,31 @@ use tokio::sync::oneshot;
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
     /// Latest committed on the chain and not computed local block
-    latest_committed_block: H256,
+    latest_committed_block: BlockData,
     /// Previous committed block
     previous_committed_block: Option<H256>,
 }
 
 impl EventData {
+    async fn get_block_data(
+        observer: &mut ObserverService,
+        db: &Database,
+        block: H256,
+    ) -> Result<BlockData> {
+        if let (Some(header), Some(events)) = (db.block_header(block), db.block_events(block)) {
+            Ok(BlockData {
+                hash: block,
+                header,
+                events,
+            })
+        } else {
+            let data = observer.load_block_data(block).await?;
+            db.set_block_header(block, data.header.clone());
+            db.set_block_events(block, &data.events);
+            Ok(data)
+        }
+    }
+
     async fn collect(
         observer: &mut ObserverService,
         db: &Database,
@@ -67,21 +87,10 @@ impl EventData {
 
         let mut block = highest_block;
         'computed: while !db.block_computed(block) {
-            let (header, events) = match db.block_events(block) {
-                Some(events) => {
-                    let header = db
-                        .block_header(block)
-                        .expect("observer must fulfill database");
-                    (header, events)
-                }
-                None => {
-                    let data = observer.load_block_data(block).await?;
-                    (data.header, data.events)
-                }
-            };
+            let block_data = Self::get_block_data(observer, db, block).await?;
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
-            for event in events.into_iter().rev() {
+            for event in block_data.events.into_iter().rev() {
                 if latest_committed_block.is_none() {
                     if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
                         latest_committed_block = Some(hash);
@@ -106,7 +115,7 @@ impl EventData {
                 }
             }
 
-            let parent = header.parent_hash;
+            let parent = block_data.header.parent_hash;
             block = parent;
         }
 
@@ -114,15 +123,16 @@ impl EventData {
             return Ok(None);
         };
 
-        // TODO: uncomment
-        // #[cfg(debug_assertions)]
-        // if let Some(previous_committed_block) = previous_committed_block {
-        //     let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
-        //         .expect("observer must fulfill database");
-        //     let previous_block_header = OnChainStorage::block_header(db, previous_committed_block)
-        //         .expect("observer must fulfill database");
-        //     assert!(previous_block_header.height < latest_block_header.height);
-        // }
+        let latest_committed_block =
+            Self::get_block_data(observer, db, latest_committed_block).await?;
+
+        if let Some(previous_committed_block) = previous_committed_block {
+            let previous_committed_block =
+                Self::get_block_data(observer, db, previous_committed_block).await?;
+            debug_assert!(
+                previous_committed_block.header.height < latest_committed_block.header.height
+            );
+        }
 
         Ok(Some(Self {
             program_states,
@@ -708,7 +718,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let Some(EventData {
         program_states,
-        latest_committed_block,
+        latest_committed_block:
+            BlockData {
+                hash: latest_committed_block,
+                header: latest_block_header,
+                events: _,
+            },
         previous_committed_block,
     }) = EventData::collect(observer, db, finalized_block).await?
     else {
@@ -730,20 +745,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     sync_from_network(network, db, &program_code_ids, &program_states).await;
 
     instrument_codes(db, compute, code_ids).await?;
-
-    let latest_block_header = observer
-        .provider()
-        .get_block_by_hash(latest_committed_block.0.into())
-        .await
-        .context("failed to get commited block info from Ethereum")?
-        .with_context(|| {
-            format!("Latest commited block not found by hash: {latest_committed_block}")
-        })?;
-    let latest_block_header = BlockHeader {
-        height: latest_block_header.header.number as u32,
-        timestamp: latest_block_header.header.timestamp,
-        parent_hash: H256(latest_block_header.header.parent_hash.0),
-    };
 
     let schedule =
         ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
