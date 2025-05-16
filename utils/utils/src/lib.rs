@@ -139,7 +139,7 @@ impl ProgramMemoryDump {
         let data =
             serde_json::to_string(&self).expect("Failed to serialize ProgramMemoryDump to JSON");
 
-        fs::write(&path, data).unwrap_or_else(|_| panic!("Failed to write file {:?}", path));
+        fs::write(&path, data).unwrap_or_else(|_| panic!("Failed to write file {path:?}"));
     }
 
     pub fn load_from_file(path: impl AsRef<Path>) -> ProgramMemoryDump {
@@ -149,9 +149,9 @@ impl ProgramMemoryDump {
             .clean();
 
         let json =
-            fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+            fs::read_to_string(&path).unwrap_or_else(|_| panic!("Failed to read file {path:?}"));
 
         serde_json::from_str(&json)
-            .unwrap_or_else(|_| panic!("Failed to deserialize {:?} as ProgramMemoryDump", path))
+            .unwrap_or_else(|_| panic!("Failed to deserialize {path:?} as ProgramMemoryDump"))
     }
 }

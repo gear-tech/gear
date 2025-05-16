@@ -1,4 +1,4 @@
-#!/usr/bin/env run-cargo-script
+#!/usr/bin/env rust-script
 
 //! ```cargo
 //! [dependencies]

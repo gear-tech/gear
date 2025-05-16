@@ -29,7 +29,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
+use ethexe_signer::{Address as LocalAddress, ContractSignature};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
@@ -140,9 +140,11 @@ impl Router {
     }
 
     pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
-        let builder = self
-            .instance
-            .createProgram(code_id.into_bytes().into(), salt.to_fixed_bytes().into());
+        let builder = self.instance.createProgram(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            Address::ZERO,
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
@@ -166,7 +168,7 @@ impl Router {
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
-        signatures: Vec<LocalSignature>,
+        signatures: Vec<ContractSignature>,
     ) -> Result<H256> {
         let builder = self.instance.commitBatch(
             commitment.into(),

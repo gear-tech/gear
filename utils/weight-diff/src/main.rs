@@ -186,7 +186,7 @@ fn format_weight(weight: u64) -> String {
             Fixed::saturating_from_rational(weight, 1_000).to_float(),
         )
     } else {
-        format!("{} ps", weight)
+        format!("{weight} ps")
     }
 }
 

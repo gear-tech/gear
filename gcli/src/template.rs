@@ -66,11 +66,11 @@ pub async fn list() -> Result<Vec<String>> {
 
 /// Download example
 pub async fn download(example: &str, path: &str) -> Result<()> {
-    let url = format!("{}{}.git", GEAR_DAPP_ORG, example);
+    let url = format!("{GEAR_DAPP_ORG}{example}.git");
     Command::new("git")
         .args(["clone", &url, path, "--depth=1"])
         .status()
-        .map_err(|e| anyhow!("Failed to download example: {}", e))?;
+        .map_err(|e| anyhow!("Failed to download example: {e}"))?;
 
     let repo = Etc::new(path)?;
     repo.rm(".git")?;
@@ -79,7 +79,7 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
     Command::new("git")
         .args(["init", path])
         .status()
-        .map_err(|e| anyhow!("Failed to init git: {}", e))?;
+        .map_err(|e| anyhow!("Failed to init git: {e}"))?;
 
     // Find all manifests
     let mut manifests = Vec::new();

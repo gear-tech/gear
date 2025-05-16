@@ -193,7 +193,7 @@ impl fmt::Display for ActorId {
 
             let p1 = &address_str[..e1];
             let p2 = &address_str[s2..];
-            let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+            let sep = if e1.ne(&s2) { ".." } else { Default::default() };
 
             write!(f, "{p1}{sep}{p2}")?;
         } else {

@@ -20,33 +20,34 @@ use crate::{
     db_sync::{Config, InnerBehaviour, Request, RequestId, Response, ResponseId},
     export::PeerId,
     peer_score::Handle,
+    utils::ConnectionMap,
 };
-use ethexe_db::{CodesStorage, Database};
+use ethexe_db::Database;
+use ethexe_service_utils::Timer;
+use futures::FutureExt;
 use libp2p::{
     request_response,
     request_response::OutboundRequestId,
-    swarm::{behaviour::ConnectionEstablished, ConnectionClosed, ConnectionId, FromSwarm},
+    swarm::{behaviour::ConnectionEstablished, ConnectionClosed, FromSwarm},
 };
 use rand::seq::IteratorRandom;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    future::Future,
-    pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::{task::JoinSet, time, time::Sleep};
+use tokio::task::JoinSet;
 
 #[derive(Debug)]
-pub(crate) struct SendRequestError {
+pub(crate) struct SendNextRequest {
+    pub(crate) peer_id: PeerId,
     pub(crate) request_id: RequestId,
-    pub(crate) kind: SendRequestErrorKind,
 }
 
 #[derive(Debug)]
-pub(crate) enum SendRequestErrorKind {
-    OutOfRounds,
-    NoPeers,
+pub(crate) enum SendRequestError {
+    OutOfRounds(OngoingRequest),
+    NoPeers(RequestId),
 }
 
 #[derive(Debug)]
@@ -59,66 +60,23 @@ pub(crate) enum PeerResponse {
         peer_id: PeerId,
         request_id: RequestId,
     },
-    ExternalValidation(ValidatingResponse),
 }
 
 #[derive(Debug)]
-pub(crate) enum ExternalValidation {
-    Success {
-        request_id: RequestId,
-        response: Response,
-    },
-    NewRound {
-        peer_id: PeerId,
-        request_id: RequestId,
-    },
+pub(crate) struct PeerFailed {
+    pub(crate) peer_id: PeerId,
+    pub(crate) request_id: RequestId,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ValidatingResponse {
-    ongoing_request: OngoingRequest,
-    peer_id: PeerId,
-    response: Response,
-}
-
-impl ValidatingResponse {
-    pub fn request(&self) -> &Request {
-        &self.ongoing_request.request
-    }
-
-    pub fn response(&self) -> &Response {
-        &self.response
-    }
-
-    #[cfg(test)]
-    pub(crate) fn peer_id(&self) -> PeerId {
-        self.peer_id
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct OngoingRequest {
+#[derive(Debug, Clone)]
+pub struct OngoingRequest {
     request_id: RequestId,
     original_request: Request,
     request: Request,
     response: Option<Response>,
     tried_peers: HashSet<PeerId>,
-    timeout: Pin<Box<Sleep>>,
+    timer: Timer,
     peer_score_handle: Handle,
-}
-
-impl Clone for OngoingRequest {
-    fn clone(&self) -> Self {
-        Self {
-            request_id: self.request_id,
-            original_request: self.original_request.clone(),
-            request: self.request.clone(),
-            response: self.response.clone(),
-            tried_peers: self.tried_peers.clone(),
-            timeout: Box::pin(time::sleep_until(self.timeout.deadline())),
-            peer_score_handle: self.peer_score_handle.clone(),
-        }
-    }
 }
 
 impl PartialEq for OngoingRequest {
@@ -142,9 +100,13 @@ impl OngoingRequest {
             request,
             response: None,
             tried_peers: HashSet::new(),
-            timeout: Box::pin(time::sleep(timeout)),
+            timer: Timer::new("ongoing-request", timeout),
             peer_score_handle,
         }
+    }
+
+    pub(crate) fn id(&self) -> RequestId {
+        self.request_id
     }
 
     fn merge_and_strip(&mut self, peer: PeerId, new_response: Response) -> Response {
@@ -192,21 +154,13 @@ impl OngoingRequest {
 
         let request_id = self.request_id;
 
-        match response.validate(&self.request) {
-            Ok(true) => self
+        match response.validate() {
+            Ok(()) => self
                 .inner_complete(peer, response)
                 .map(|(request_id, response)| PeerResponse::Success {
                     request_id,
                     response,
                 }),
-            Ok(false) => {
-                let validating_response = ValidatingResponse {
-                    ongoing_request: self,
-                    peer_id: peer,
-                    response,
-                };
-                Ok(PeerResponse::ExternalValidation(validating_response))
-            }
             Err(error) => {
                 log::trace!(
                     "response validation failed for request {request_id:?} from {peer}: {error:?}",
@@ -224,33 +178,33 @@ impl OngoingRequest {
         self
     }
 
+    #[allow(clippy::result_large_err)]
     fn choose_next_peer(
-        &mut self,
-        peers: &HashMap<PeerId, HashSet<ConnectionId>>,
+        self,
+        map: &ConnectionMap,
         max_rounds_per_request: u32,
-    ) -> Result<Option<PeerId>, SendRequestError> {
+    ) -> Result<(Self, Option<PeerId>), SendRequestError> {
         if self.tried_peers.len() >= max_rounds_per_request as usize {
-            return Err(SendRequestError {
-                request_id: self.request_id,
-                kind: SendRequestErrorKind::OutOfRounds,
-            });
+            return Err(SendRequestError::OutOfRounds(self));
         }
 
-        let peers: HashSet<PeerId> = peers.keys().copied().collect();
+        let peers: HashSet<PeerId> = map.peers().collect();
         let peer = peers
             .difference(&self.tried_peers)
             .choose_stable(&mut rand::thread_rng())
             .copied();
-        Ok(peer)
+        Ok((self, peer))
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct OngoingRequests {
-    connections: HashMap<PeerId, HashSet<ConnectionId>>,
+    connections: ConnectionMap,
     request_id_counter: u64,
     pending_requests: VecDeque<OngoingRequest>,
     active_requests: HashMap<OutboundRequestId, OngoingRequest>,
+    /// Requests that have been removed before `InnerBehaviour` returned event
+    beforehand_removed_requests: HashSet<OutboundRequestId>,
     max_rounds_per_request: u32,
     request_timeout: Duration,
     peer_score_handle: Handle,
@@ -263,6 +217,7 @@ impl OngoingRequests {
             request_id_counter: 0,
             pending_requests: Default::default(),
             active_requests: Default::default(),
+            beforehand_removed_requests: Default::default(),
             max_rounds_per_request: config.max_rounds_per_request,
             request_timeout: config.request_timeout,
             peer_score_handle,
@@ -277,28 +232,35 @@ impl OngoingRequests {
                 connection_id,
                 ..
             }) => {
-                self.connections
-                    .entry(peer_id)
-                    .or_default()
-                    .insert(connection_id);
+                let res = self.connections.add_connection(peer_id, connection_id);
+                debug_assert_eq!(res, Ok(()));
             }
             FromSwarm::ConnectionClosed(ConnectionClosed {
                 peer_id,
                 connection_id,
                 ..
             }) => {
-                self.connections
-                    .entry(peer_id)
-                    .or_default()
-                    .remove(&connection_id);
+                self.connections.remove_connection(peer_id, connection_id);
             }
             _ => {}
         }
     }
 
     fn next_request_id(&mut self) -> RequestId {
+        let id = self.request_id_counter;
         self.request_id_counter += 1;
-        RequestId(self.request_id_counter)
+        RequestId(id)
+    }
+
+    fn remove_active_request(&mut self, request_id: OutboundRequestId) -> Option<OngoingRequest> {
+        let ongoing_request = self.active_requests.remove(&request_id);
+        if ongoing_request.is_none() {
+            assert!(
+                self.beforehand_removed_requests.remove(&request_id),
+                "unknown request: {request_id:?}"
+            );
+        }
+        ongoing_request
     }
 
     pub(crate) fn push_pending_request(&mut self, request: Request) -> RequestId {
@@ -313,12 +275,16 @@ impl OngoingRequests {
         request_id
     }
 
-    pub(crate) fn remove_if_timeout(&mut self, cx: &mut Context<'_>) -> Option<RequestId> {
+    pub(crate) fn retry(&mut self, ongoing_request: OngoingRequest) {
+        self.pending_requests.push_front(ongoing_request);
+    }
+
+    pub(crate) fn remove_if_timeout(&mut self, cx: &mut Context<'_>) -> Option<OngoingRequest> {
         let outbound_request_id =
             self.active_requests
                 .iter_mut()
                 .find_map(|(&request_id, active_request)| {
-                    if active_request.timeout.as_mut().poll(cx).is_ready() {
+                    if active_request.timer.poll_unpin(cx).is_ready() {
                         Some(request_id)
                     } else {
                         None
@@ -329,15 +295,18 @@ impl OngoingRequests {
             .active_requests
             .remove(&outbound_request_id)
             .expect("infallible");
-        Some(outgoing_request.request_id)
+        self.beforehand_removed_requests.insert(outbound_request_id);
+
+        Some(outgoing_request)
     }
 
+    #[allow(clippy::result_large_err)]
     fn send_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
-        mut ongoing_request: OngoingRequest,
+        ongoing_request: OngoingRequest,
     ) -> Result<PeerId, SendRequestError> {
-        let peer_id =
+        let (ongoing_request, peer_id) =
             ongoing_request.choose_next_peer(&self.connections, self.max_rounds_per_request)?;
         if let Some(peer_id) = peer_id {
             let outbound_request_id =
@@ -350,103 +319,70 @@ impl OngoingRequests {
         } else {
             let request_id = ongoing_request.request_id;
             self.pending_requests.push_back(ongoing_request);
-            Err(SendRequestError {
-                request_id,
-                kind: SendRequestErrorKind::NoPeers,
-            })
+            Err(SendRequestError::NoPeers(request_id))
         }
     }
 
-    pub(crate) fn send_pending_request(
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn send_next_request(
         &mut self,
         behaviour: &mut InnerBehaviour,
-    ) -> Result<Option<(PeerId, RequestId)>, SendRequestError> {
-        let Some(ongoing_request) = self.pending_requests.pop_back() else {
+    ) -> Result<Option<SendNextRequest>, SendRequestError> {
+        let Some(mut ongoing_request) = self.pending_requests.pop_back() else {
             return Ok(None);
         };
+        ongoing_request.timer.start(());
 
         let request_id = ongoing_request.request_id;
         let peer_id = self.send_request(behaviour, ongoing_request)?;
-        Ok(Some((peer_id, request_id)))
+        Ok(Some(SendNextRequest {
+            request_id,
+            peer_id,
+        }))
     }
 
+    #[allow(clippy::result_large_err)]
     pub(crate) fn on_peer_response(
         &mut self,
         behaviour: &mut InnerBehaviour,
         peer: PeerId,
         request_id: OutboundRequestId,
         response: Response,
-    ) -> Result<PeerResponse, SendRequestError> {
-        let ongoing_request = self
-            .active_requests
-            .remove(&request_id)
-            .expect("unknown response");
+    ) -> Result<Option<PeerResponse>, SendRequestError> {
+        let Some(ongoing_request) = self.remove_active_request(request_id) else {
+            return Ok(None);
+        };
         let request_id = ongoing_request.request_id;
 
         let new_ongoing_request = match ongoing_request.try_complete(peer, response) {
-            Ok(peer_response) => return Ok(peer_response),
+            Ok(peer_response) => return Ok(Some(peer_response)),
             Err(new_ongoing_request) => new_ongoing_request,
         };
 
         let peer_id = self.send_request(behaviour, new_ongoing_request)?;
-        Ok(PeerResponse::NewRound {
+        Ok(Some(PeerResponse::NewRound {
             peer_id,
             request_id,
-        })
+        }))
     }
 
-    pub(crate) fn on_external_validation(
-        &mut self,
-        res: Result<ValidatingResponse, ValidatingResponse>,
-        behaviour: &mut InnerBehaviour,
-    ) -> Result<ExternalValidation, SendRequestError> {
-        let new_ongoing_request = match res {
-            Ok(validating_response) => {
-                let ValidatingResponse {
-                    ongoing_request,
-                    peer_id,
-                    response,
-                } = validating_response;
-
-                match ongoing_request.inner_complete(peer_id, response) {
-                    Ok((request_id, response)) => {
-                        return Ok(ExternalValidation::Success {
-                            request_id,
-                            response,
-                        });
-                    }
-                    Err(new_ongoing_request) => new_ongoing_request,
-                }
-            }
-            Err(validating_response) => {
-                self.peer_score_handle
-                    .invalid_data(validating_response.peer_id);
-                validating_response.ongoing_request
-            }
-        };
-
-        let request_id = new_ongoing_request.request_id;
-        let peer_id = self.send_request(behaviour, new_ongoing_request)?;
-        Ok(ExternalValidation::NewRound {
-            peer_id,
-            request_id,
-        })
-    }
-
+    #[allow(clippy::result_large_err)]
     pub(crate) fn on_peer_failed(
         &mut self,
         behaviour: &mut InnerBehaviour,
         peer: PeerId,
         request_id: OutboundRequestId,
-    ) -> Result<(PeerId, RequestId), SendRequestError> {
-        let ongoing_request = self
-            .active_requests
-            .remove(&request_id)
-            .expect("unknown response");
+    ) -> Result<Option<PeerFailed>, SendRequestError> {
+        let Some(ongoing_request) = self.remove_active_request(request_id) else {
+            return Ok(None);
+        };
         let request_id = ongoing_request.request_id;
         let new_ongoing_request = ongoing_request.peer_failed(peer);
         let peer_id = self.send_request(behaviour, new_ongoing_request)?;
-        Ok((peer_id, request_id))
+        Ok(Some(PeerFailed {
+            peer_id,
+            request_id,
+        }))
     }
 }
 
@@ -475,8 +411,9 @@ impl OngoingResponses {
     }
 
     fn next_response_id(&mut self) -> ResponseId {
+        let id = self.response_id_counter;
         self.response_id_counter += 1;
-        ResponseId(self.response_id_counter)
+        ResponseId(id)
     }
 
     pub(crate) fn prepare_response(
@@ -493,16 +430,7 @@ impl OngoingResponses {
 
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
-            let response = match request {
-                Request::DataForHashes(hashes) => Response::DataForHashes(
-                    hashes
-                        .into_iter()
-                        .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                        .collect(),
-                ),
-                Request::ProgramIds => Response::ProgramIds(db.program_ids()),
-            };
-
+            let response = Response::from_db(request, &db);
             OngoingResponse {
                 response_id,
                 peer_id,
@@ -514,7 +442,7 @@ impl OngoingResponses {
         Some(response_id)
     }
 
-    pub(crate) fn poll_send_response(
+    pub(crate) fn poll(
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,

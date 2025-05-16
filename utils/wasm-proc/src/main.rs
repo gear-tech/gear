@@ -152,7 +152,7 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
     let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
 
     let is_dev = module
-        .custom_section
+        .custom_sections
         .as_ref()
         .iter()
         .copied()

@@ -39,7 +39,6 @@ use std::{
     collections::VecDeque,
     fmt,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -121,8 +120,7 @@ struct RuntimeConfig {
 pub struct ObserverService {
     provider: RootProvider,
     db: Database,
-    // TODO #4561: consider to make clone_boxed/clone for BlobRead, in order to avoid redundant Arc usage.
-    blobs_reader: Arc<dyn BlobReader>,
+    blobs_reader: Box<dyn BlobReader>,
 
     config: RuntimeConfig,
     last_block_number: u32,
@@ -226,24 +224,14 @@ impl ObserverService {
         eth_cfg: &EthereumConfig,
         max_sync_depth: u32,
         db: Database,
-        // TODO #4561: blobs reader should be provided by the caller always.
-        blobs_reader: Option<Arc<dyn BlobReader>>,
+        blobs_reader: Box<dyn BlobReader>,
     ) -> Result<Self> {
         let EthereumConfig {
             rpc,
-            beacon_rpc,
             router_address,
             block_time,
+            ..
         } = eth_cfg;
-
-        let blobs_reader = match blobs_reader {
-            Some(reader) => reader,
-            None => Arc::new(
-                ConsensusLayerBlobReader::new(rpc, beacon_rpc, *block_time)
-                    .await
-                    .context("failed to create blob reader")?,
-            ),
-        };
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
 
@@ -345,6 +333,16 @@ impl ObserverService {
 
     pub fn block_time_secs(&self) -> u64 {
         self.config.block_time.as_secs()
+    }
+
+    pub async fn force_sync_block(&mut self, block: H256) -> Result<()> {
+        let block = self
+            .provider
+            .get_block_by_hash(block.0.into())
+            .await?
+            .context("forced block not found")?;
+        self.block_sync_queue.push_back(block.header);
+        Ok(())
     }
 
     fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {

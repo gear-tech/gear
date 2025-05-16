@@ -62,7 +62,7 @@ where
 
         let p1 = hex::encode(&self.0[..e1]);
         let p2 = hex::encode(&self.0[s2..]);
-        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        let sep = if e1.ne(&s2) { ".." } else { Default::default() };
 
         if f.alternate() {
             write!(f, "LimitedVec(0x{p1}{sep}{p2})")
