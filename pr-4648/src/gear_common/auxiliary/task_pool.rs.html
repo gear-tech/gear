@@ -20,13 +20,13 @@
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use super</span>::{<a href="mod.rs.html#152-163">AuxiliaryDoubleStorageWrap</a>, <a href="mod.rs.html#35">BlockNumber</a>, <a href="mod.rs.html#40-42">DoubleBTreeMap</a>};
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><a href="../scheduler.rs.html#167-174"><span class="kw">crate</span>::scheduler::TaskPoolImpl</a>;
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>gear_core::{<a href="../../../gear_common/type.ProgramId.html">ids::ProgramId</a>, tasks::VaraScheduledTask};
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>gear_core::{<a href="../../../gear_common/type.ProgramId.html">ids::ProgramId</a>, <a href="../../../gear_core/tasks/type.VaraScheduledTask.html">tasks::VaraScheduledTask</a>};
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">std::cell::RefCell</a>;
 <a href=#25 id=25 data-nosnippet>25</a>
 <a href=#26 id=26 data-nosnippet>26</a><span class="doccomment">/// Task pool implementation that can be used in a native, non-wasm runtimes.
 <a href=#27 id=27 data-nosnippet>27</a></span><span class="kw">pub type </span><a href="../../../gear_common/auxiliary/task_pool/type.AuxiliaryTaskpool.html">AuxiliaryTaskpool</a>&lt;TaskPoolCallbacks&gt; = <a href="../scheduler.rs.html#167-174">TaskPoolImpl</a>&lt;
 <a href=#28 id=28 data-nosnippet>28</a>    <a href="#40">TaskPoolStorageWrap</a>,
-<a href=#29 id=29 data-nosnippet>29</a>    VaraScheduledTask&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;,
+<a href=#29 id=29 data-nosnippet>29</a>    <a href="../../../gear_core/tasks/type.VaraScheduledTask.html">VaraScheduledTask</a>&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;,
 <a href=#30 id=30 data-nosnippet>30</a>    <a href="#64-69">TaskPoolErrorImpl</a>,
 <a href=#31 id=31 data-nosnippet>31</a>    <a href="#64-69">TaskPoolErrorImpl</a>,
 <a href=#32 id=32 data-nosnippet>32</a>    TaskPoolCallbacks,
@@ -41,7 +41,7 @@
 <a href=#41 id=41 data-nosnippet>41</a>
 <a href=#42 id=42 data-nosnippet>42</a><span class="kw">impl </span><a href="mod.rs.html#152-163">AuxiliaryDoubleStorageWrap</a> <span class="kw">for </span><a href="#40">TaskPoolStorageWrap</a> {
 <a href=#43 id=43 data-nosnippet>43</a>    <span class="kw">type </span>Key1 = <a href="mod.rs.html#35">BlockNumber</a>;
-<a href=#44 id=44 data-nosnippet>44</a>    <span class="kw">type </span>Key2 = VaraScheduledTask&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;;
+<a href=#44 id=44 data-nosnippet>44</a>    <span class="kw">type </span>Key2 = <a href="../../../gear_core/tasks/type.VaraScheduledTask.html">VaraScheduledTask</a>&lt;<a href="../../../gear_common/type.ProgramId.html">ProgramId</a>&gt;;
 <a href=#45 id=45 data-nosnippet>45</a>    <span class="kw">type </span>Value = ();
 <a href=#46 id=46 data-nosnippet>46</a>
 <a href=#47 id=47 data-nosnippet>47</a>    <span class="kw">fn </span>with_storage&lt;F, R&gt;(f: F) -&gt; R
