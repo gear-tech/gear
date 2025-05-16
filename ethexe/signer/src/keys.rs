@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::Address;
 use anyhow::{Error, Result};
 use derive_more::{Debug, Display, From, Into};
 use k256::ecdsa::{SigningKey, VerifyingKey};
 use parity_scale_codec::{Decode, Encode};
 use std::str::FromStr;
-
-use crate::Address;
 
 /// Private key.
 ///

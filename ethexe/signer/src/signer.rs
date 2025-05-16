@@ -19,7 +19,7 @@
 use crate::{
     signature::ContractSignature,
     storage::{FSKeyStorage, KeyStorage},
-    Address, Digest, PrivateKey, PublicKey, Signature, SignedData,
+    Address, Digest, MemoryKeyStorage, PrivateKey, PublicKey, Signature, SignedData,
 };
 
 use anyhow::Result;
@@ -44,16 +44,21 @@ impl Signer {
         }
     }
 
-    /// Create a new signer with an empty key store.
-    pub fn empty<S: KeyStorage + Sized>() -> Self {
-        Self::new(S::empty())
-    }
-
     /// Create a new signer with a key store location.
     pub fn fs(path: PathBuf) -> Self {
         fs::create_dir_all(path.as_path()).expect("Cannot create key store dir");
 
         Self::new(FSKeyStorage::from_path(path))
+    }
+
+    /// Create a new signer with a temporary empty key store in file system.
+    pub fn fs_temporary() -> Self {
+        Self::new(FSKeyStorage::tmp())
+    }
+
+    /// Create a new signer with an empty memory key store.
+    pub fn memory() -> Self {
+        Self::new(MemoryKeyStorage::empty())
     }
 
     /// Create a new signer with keys from the provided sub-set `keys`.
@@ -106,12 +111,6 @@ impl Signer {
 
         let public_key = self.storage_mut().add_key(private_key)?;
 
-        log::debug!(
-            "New private key generated and stored
-            PrivateKey: {private_key}
-            PublicKey: {public_key}"
-        );
-
         Ok(public_key)
     }
 
@@ -129,13 +128,13 @@ impl Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MemoryKeyStorage;
+
     use alloy::primitives::{keccak256, PrimitiveSignature};
     use std::str::FromStr;
 
     #[test]
     fn test_signer_with_known_vectors() {
-        let signer = Signer::empty::<MemoryKeyStorage>();
+        let signer = Signer::memory();
 
         let private_key_hex = "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f";
 
@@ -176,7 +175,7 @@ mod tests {
 
     #[test]
     fn recover_digest() {
-        let signer = Signer::empty::<MemoryKeyStorage>();
+        let signer = Signer::memory();
 
         let private_key_hex = "4c0883a69102937d6231471b5dbb6204fe51296170827936ea5cce4b76994b0f";
         let message = b"hello world";
@@ -202,7 +201,7 @@ mod tests {
 
     #[test]
     fn signed_data() {
-        let signer = Signer::empty::<MemoryKeyStorage>();
+        let signer = Signer::memory();
 
         let public_key = signer.generate_key().unwrap();
 
