@@ -18,7 +18,6 @@
 
 use super::*;
 use alloy::node_bindings::Anvil;
-use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
@@ -100,9 +99,6 @@ async fn test_deployment() -> Result<()> {
     .await
     .expect("failed to create observer");
 
-    let local_blob_storage = LocalBlobStorage::new(database.clone());
-    // let mut blob_loader = LocalBlobLoader::from_storage(local_blob_storage.clone());
-
     let request_wasm_validation = async move |wasm: Vec<u8>| {
         let pending_builder = ethereum
             .router()
@@ -110,11 +106,7 @@ async fn test_deployment() -> Result<()> {
             .await
             .expect("failed to request code validation");
 
-        let request_code_id = pending_builder.code_id();
-
-        local_blob_storage.add_code(request_code_id, wasm).await;
-
-        request_code_id
+        pending_builder.code_id()
     };
 
     let wat = r#"
@@ -125,7 +117,7 @@ async fn test_deployment() -> Result<()> {
         )
     "#;
     let wasm = wat2wasm(wat);
-    let _request_code_id = request_wasm_validation(wasm.clone()).await;
+    let request_code_id = request_wasm_validation(wasm.clone()).await;
 
     let event = observer
         .next()
@@ -133,7 +125,6 @@ async fn test_deployment() -> Result<()> {
         .expect("observer did not receive event")
         .expect("received error instead of event");
 
-    log::info!("1. Event received: {event:?}");
     assert!(matches!(event, ObserverEvent::Block(..)));
 
     let event = observer
@@ -141,36 +132,23 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("observer did not receive event")
         .expect("received error instead of event");
-    log::info!("2. Event received: {event:?}");
 
-    let ObserverEvent::BlockSynced {
-        synced_block: _,
-        codes_load_now: _,
-        codes_load_later: _,
-    } = event
-    else {
+    let ObserverEvent::BlockSynced { codes_to_load, .. } = event else {
         panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
     };
 
-    // blob_loader.load_codes(codes_load_later, None)?;
-    // let event = blob_loader
-    //     .next()
-    //     .await
-    //     .expect("BlobLoader didn't receive event")
-    //     .expect("received error instead ob event");
-    // log::info!("3. Event received: {event:?}");
-    // let BlobLoaderEvent::BlobLoaded(blob_data) = event;
+    assert_eq!(codes_to_load.len(), 1);
+    assert_eq!(codes_to_load[0], request_code_id);
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
-    let _request_code_id = request_wasm_validation(wasm.clone()).await;
+    let request_code_id = request_wasm_validation(wasm.clone()).await;
 
     let event = observer
         .next()
         .await
         .expect("observer did not receive event")
         .expect("received error instead of event");
-    log::info!("5. Event received: {event:?}");
     assert!(matches!(event, ObserverEvent::Block(..)));
 
     let event = observer
@@ -178,36 +156,12 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("observer did not receive event")
         .expect("received error instead of event");
-    log::info!("6. Event received: {event:?}");
-    let ObserverEvent::BlockSynced {
-        synced_block: _,
-        codes_load_now: _,
-        codes_load_later: _,
-    } = event
-    else {
+    let ObserverEvent::BlockSynced { codes_to_load, .. } = event else {
         panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
     };
 
-    // blob_loader.load_codes(codes_load_later, None)?;
-    // let event = blob_loader
-    //     .next()
-    //     .await
-    //     .expect("BlobLoader didn't receive event")
-    //     .expect("received error instead ob event");
-    // log::info!("8. Event received: {event:?}");
-    // let BlobLoaderEvent::BlobLoaded(blob_data) = event;
-
-    // observer.receive_loaded_blob(blob_data).unwrap();
-
-    // let event = observer
-    //     .next()
-    //     .await
-    //     .expect("observer did not receive event")
-    //     .expect("received error instead of event");
-    // log::info!("9. Event received: {event:?}");
-    // assert!(
-    //     matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
-    // );
+    assert_eq!(codes_to_load.len(), 1);
+    assert_eq!(codes_to_load[0], request_code_id);
 
     Ok(())
 }

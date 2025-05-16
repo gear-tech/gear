@@ -19,7 +19,7 @@
 use crate::{Event, Service};
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
-use ethexe_blob_loader::BlobLoaderService;
+use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -328,36 +328,35 @@ async fn sync_finalized_head(
     log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
     while let Some(event) = observer.next().await {
-        log::info!("💀 FAST SYNC event: {event:?}");
         match event? {
-            // ObserverEvent::Blob(_blob) => {}
             ObserverEvent::Block(_) => {}
             ObserverEvent::BlockSynced {
                 synced_block,
-                codes_load_now: _,
-                codes_load_later,
+                validated_codes: _,
+                codes_to_load,
             } => {
                 debug_assert_eq!(highest_block, synced_block.block_hash);
-                let mut cnt = codes_load_later.len();
-                blobs_loader.load_codes(codes_load_later.clone(), None)?;
 
-                while cnt > 0 {
-                    let event = blobs_loader.next().await;
-                    log::info!("😱 blob loader event {event:?}");
-                    cnt -= 1;
+                blobs_loader.load_codes(codes_to_load.clone(), None)?;
+
+                let amount_to_load = codes_to_load.len();
+                let mut expected_codes = codes_to_load.iter().copied().collect::<HashSet<_>>();
+
+                for _ in 0..amount_to_load {
+                    let Some(event) = blobs_loader.next().await else {
+                        todo!()
+                    };
+
+                    let BlobLoaderEvent::BlobLoaded(blob_data) = event?;
+                    let code_id = blob_data.code_id;
+                    debug_assert!(
+                        expected_codes.remove(&code_id),
+                        "blob loader returns unexpected code {code_id:?}"
+                    );
                 }
 
                 break;
-            } // ObserverEvent::RequestLoadBlobs(codes) => {
-              //     blob_loader.load_codes(codes.clone(), None)?;
-              //     for _code in codes {
-              //         if let Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))) =
-              //             blob_loader.next().await
-              //         {
-              //             observer.receive_loaded_blob(blob_data)?;
-              //         }
-              //     }
-              // }
+            }
         }
     }
 

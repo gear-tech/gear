@@ -68,6 +68,8 @@ pub trait BlobLoaderService:
     fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()>;
 
     fn into_box(self) -> Box<dyn BlobLoaderService>;
+
+    fn pending_codes_len(&self) -> usize;
 }
 
 impl fmt::Debug for BlobLoaderEvent {
@@ -248,6 +250,10 @@ impl BlobLoader {
 impl BlobLoaderService for BlobLoader {
     fn into_box(self) -> Box<dyn BlobLoaderService> {
         Box::new(self)
+    }
+
+    fn pending_codes_len(&self) -> usize {
+        self.codes_loading.len()
     }
 
     fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {

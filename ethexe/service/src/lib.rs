@@ -387,26 +387,19 @@ impl Service {
                     }
                     ObserverEvent::BlockSynced {
                         synced_block,
-                        codes_load_now: _,
-                        codes_load_later,
+                        validated_codes: _,
+                        codes_to_load,
                     } => {
                         // NOTE: Observer guarantees that, if this event is emitted,
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
                         consensus.receive_synced_block(synced_block)?;
-                        blob_loader.load_codes(codes_load_later, None)?;
-                    } // ObserverEvent::RequestLoadBlobs(codes) => {
-                      //     blob_loader.load_codes(codes, None).unwrap();
-                      // }
+                        blob_loader.load_codes(codes_to_load, None)?;
+                    }
                 },
                 Event::BlobLoader(event) => match event {
                     BlobLoaderEvent::BlobLoaded(blob_data) => {
-                        // if let Err(e) = observer.receive_loaded_blob(blob_data.clone()) {
-                        //     // TODO
-                        //     log::error!("Error in receiving loaded blob: {e:?}");
-                        // };
-
                         compute.receive_code(
                             blob_data.code_id,
                             blob_data.timestamp,
@@ -472,9 +465,10 @@ impl Service {
 
                     match event {
                         PrometheusEvent::CollectMetrics => {
-                            let status = observer.status();
+                            let last_block = observer.last_block_number();
+                            let pending_codes = blob_loader.pending_codes_len();
 
-                            p.update_observer_metrics(status.eth_best_height, status.pending_codes);
+                            p.update_observer_metrics(last_block, pending_codes);
 
                             // TODO #4643: support metrics for consensus service
                         }

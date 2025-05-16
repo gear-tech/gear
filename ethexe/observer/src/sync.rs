@@ -77,8 +77,8 @@ impl ChainSync {
     ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)> {
         let mut chain = Vec::new();
 
-        let mut codes_to_load_now = HashSet::new();
-        let mut codes_to_load_later = HashSet::new();
+        let mut validated_codes = HashSet::new();
+        let mut requested_codes = HashSet::new();
 
         let mut hash = block;
         while !self.db.block_is_synced(hash) {
@@ -114,26 +114,21 @@ impl ChainSync {
                             timestamp: *timestamp,
                             tx_hash: *tx_hash,
                         };
-                        log::info!("🤔 set_code_blob_info for {code_id}");
                         self.db.set_code_blob_info(*code_id, code_info.clone());
 
                         if !self.db.original_code_exists(*code_id)
-                            && !codes_to_load_now.contains(code_id)
+                            && !validated_codes.contains(code_id)
                         {
-                            codes_to_load_later.insert(*code_id);
+                            requested_codes.insert(*code_id);
                         }
                     }
                     BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                        log::info!(
-                            "🥶🥶🥶 Code got validated: {code_id:?}, block hash: {:?}",
-                            block_data.hash
-                        );
-                        if codes_to_load_later.contains(code_id) {
+                        if requested_codes.contains(code_id) {
                             return Err(anyhow!("Code {code_id} is validated before requested"));
                         };
 
                         if !self.db.original_code_exists(*code_id) {
-                            codes_to_load_now.insert(*code_id);
+                            validated_codes.insert(*code_id);
                         }
                     }
                     _ => {}
@@ -149,14 +144,10 @@ impl ChainSync {
             hash = parent_hash;
         }
 
-        codes_to_load_later.extend(codes_to_load_now.clone().into_iter());
+        requested_codes.extend(validated_codes.clone().into_iter());
+        let codes_to_load = requested_codes.into_iter().collect();
 
-        Ok((
-            chain,
-            codes_to_load_now,
-            // codes_to_load_later.into_iter().collect(),
-            codes_to_load_later.into_iter().collect(),
-        ))
+        Ok((chain, validated_codes, codes_to_load))
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {

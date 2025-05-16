@@ -67,8 +67,8 @@ pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced {
         synced_block: BlockSyncedData,
-        codes_load_now: HashSet<CodeId>,
-        codes_load_later: Vec<CodeId>,
+        validated_codes: HashSet<CodeId>,
+        codes_to_load: Vec<CodeId>,
     },
 }
 
@@ -78,13 +78,13 @@ impl fmt::Debug for ObserverEvent {
             ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
             ObserverEvent::BlockSynced {
                 synced_block,
-                codes_load_now,
-                codes_load_later,
+                validated_codes,
+                codes_to_load,
             } => f
                 .debug_struct("BlockSynced")
                 .field("synced_block", synced_block)
-                .field("codes_load_now", codes_load_now)
-                .field("codes_load_later", codes_load_later)
+                .field("validated_codes", validated_codes)
+                .field("codes_to_load", codes_to_load)
                 .finish(),
         }
     }
@@ -156,7 +156,6 @@ impl Stream for ObserverService {
             log::trace!("Received a new block: {data:?}");
             self.block_sync_queue.push_front(header);
 
-            log::info!("🇺🇸 OBSERVER BLOCK: {}", data.hash);
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
@@ -171,11 +170,11 @@ impl Stream for ObserverService {
             if let Poll::Ready(result) = fut.poll_unpin(cx) {
                 self.sync_future = None;
 
-                let maybe_event = result.map(|(synced_block, codes_load_now, codes_load_later)| {
+                let maybe_event = result.map(|(synced_block, validated_codes, codes_to_load)| {
                     ObserverEvent::BlockSynced {
                         synced_block,
-                        codes_load_now,
-                        codes_load_later,
+                        validated_codes,
+                        codes_to_load,
                     }
                 });
                 return Poll::Ready(Some(maybe_event));
@@ -300,12 +299,8 @@ impl ObserverService {
         &self.provider
     }
 
-    pub fn status(&self) -> ObserverStatus {
-        ObserverStatus {
-            eth_best_height: self.last_block_number,
-            // TODO: remove `pending_codes` from ObserverStatus
-            pending_codes: 0usize,
-        }
+    pub fn last_block_number(&self) -> u32 {
+        self.last_block_number
     }
 
     pub fn block_time_secs(&self) -> u64 {
@@ -320,14 +315,6 @@ impl ObserverService {
             .context("forced block not found")?;
 
         self.block_sync_queue.push_back(block.header);
-        // let cloned_chain_sync = self.chain_sync.clone();
-        // cloned_chain_sync.sync(block.header).await?;
         Ok(())
     }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ObserverStatus {
-    pub eth_best_height: u32,
-    pub pending_codes: usize,
 }

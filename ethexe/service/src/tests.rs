@@ -137,7 +137,6 @@ async fn ping() {
         .await
         .unwrap();
     // assert_eq!(res.code, demo_ping::WASM_BINARY);
-    log::info!("❤️ code uploaded");
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -370,7 +369,6 @@ async fn mailbox() {
 
     let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
-    log::info!("Service started");
 
     let res = env
         .upload_code(demo_async::WASM_BINARY)
@@ -379,7 +377,6 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
-    log::info!("👾 code uploaded");
 
     assert!(res.valid);
 
@@ -392,7 +389,6 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
-    log::info!("👾 program created");
 
     let init_res = env
         .send_message(res.program_id, &env.sender_id.encode(), 0)
@@ -401,7 +397,6 @@ async fn mailbox() {
         .wait_for()
         .await
         .unwrap();
-    log::info!("sended message");
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
     let pid = res.program_id;
@@ -704,7 +699,6 @@ async fn ping_reorg() {
         .await
         .unwrap();
     assert!(res.valid);
-    log::info!("❤️ code uploaded");
 
     let code_id = res.code_id;
 
@@ -776,7 +770,6 @@ async fn ping_reorg() {
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
-    log::info!("💕 message sent");
 
     // Skip some blocks to simulate long time without service
     env.skip_blocks(10).await;
@@ -1224,8 +1217,6 @@ async fn fast_sync() {
     let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync());
 
     bob.start_service().await;
-
-    log::info!("Sending messages to programs");
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
@@ -1920,12 +1911,7 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::BlockSynced {
-                    synced_block,
-                    codes_load_now: _,
-                    codes_load_later: _,
-                } = event
-                else {
+                let ObserverEvent::BlockSynced { synced_block, .. } = event else {
                     continue;
                 };
 
@@ -2343,44 +2329,17 @@ mod utils {
         pub async fn wait_for(mut self) -> Result<UploadCodeInfo> {
             log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-            // let mut code = None;
             let mut valid_info = None;
 
-            // self.blob_loader_listener
-            //     .apply_until(|event| {
-            //         log::info!("🐼 blob loader event: {event:?}");
-            //         match event {
-            //             BlobLoaderEvent::BlobLoaded(blob_data)
-            //                 if blob_data.code_id == self.code_id =>
-            //             {
-            //                 code = Some(blob_data.code);
-            //                 Ok(Some(()))
-            //             }
-            //             // ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
-            //             //     code_info = Some(blob.code);
-            //             //     Ok(Some(()))
-            //             // }
-            //             _ => Ok(None),
-            //         }
-            //     })
-            //     .await?;
-
             self.listener
-                .apply_until_block_event(|event| {
-                    log::info!(
-                        "👅 event in observer_listener: {event:?}, self.code_id = {}",
-                        self.code_id
-                    );
-                    match event {
-                        BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
-                            if code_id == self.code_id =>
-                        {
-                            valid_info = Some(valid);
-                            log::info!("🐼 code_id: {code_id}, valid: {valid}");
-                            Ok(Some(()))
-                        }
-                        _ => Ok(None),
+                .apply_until_block_event(|event| match event {
+                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
+                        if code_id == self.code_id =>
+                    {
+                        valid_info = Some(valid);
+                        Ok(Some(()))
                     }
+                    _ => Ok(None),
                 })
                 .await?;
 

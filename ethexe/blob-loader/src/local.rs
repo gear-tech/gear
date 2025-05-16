@@ -48,7 +48,6 @@ impl LocalBlobStorage {
             return;
         }
 
-        // storage.push_front(code_id);
         storage.insert(code_id, code);
     }
 
@@ -97,15 +96,16 @@ impl BlobLoaderService for LocalBlobLoader {
         Box::new(self)
     }
 
+    fn pending_codes_len(&self) -> usize {
+        self.codes_queue.len()
+    }
+
     fn load_codes(&mut self, codes: Vec<CodeId>, _attempts: Option<u8>) -> Result<()> {
-        log::info!("🙈🙈 request load codes: {codes:?}");
-        // NOTE: This function is not used the local blob loader, because of we add codes
-        // directly from test environment.
+        // NOTE: This function only adds codes to the queue because of in `TestEnv` we add blob's code directly
+        // to the storage using `add_code` method.
 
         for code_id in codes {
-            // if !self.db.original_code_exists(code_id) {
             self.codes_queue.push_front(code_id);
-            // }
         }
 
         Ok(())
@@ -132,8 +132,6 @@ impl Stream for LocalBlobLoader {
                 match res {
                     Ok(blob_data) => {
                         self.storage.db.set_original_code(blob_data.code.as_slice());
-                        log::info!("22222 I am calling");
-                        // self.db.set_code_blob_info(blob_data.code_id, );
                         Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
                     }
                     Err(e) => Poll::Ready(Some(Err(e))),
