@@ -46,7 +46,6 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     iter,
 };
-use tokio::sync::oneshot;
 
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
@@ -148,8 +147,8 @@ async fn net_fetch<F, R>(
     mut external_validation: F,
 ) -> Result<db_sync::Response>
 where
-    F: FnMut(db_sync::Response, oneshot::Sender<bool>) -> R,
-    R: Future<Output = Result<()>>,
+    F: FnMut(db_sync::Response) -> R,
+    R: Future<Output = Result<bool>>,
 {
     let request_id = network.db_sync().request(request);
     loop {
@@ -179,7 +178,10 @@ where
                 sender,
             } => {
                 debug_assert_eq!(rid, request_id, "unknown request id");
-                external_validation(response, sender).await?;
+                let is_valid = external_validation(response).await?;
+                sender
+                    .send(is_valid)
+                    .expect("`db-sync` never drops its receiver");
             }
             _ => continue,
         }
@@ -199,46 +201,31 @@ async fn collect_program_code_ids(
     let response = net_fetch(
         network,
         db_sync::Request::ProgramIdsAt(latest_committed_block),
-        |response, sender| async {
-            let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
-                unreachable!("unexpected network response: {response:?}");
-            };
+        |response| async {
+            let (at, program_ids) = response.unwrap_program_ids_at();
             debug_assert_eq!(at, latest_committed_block);
 
-            let is_valid = 'a: {
-                let is_equal = if let Some(program_ids) = &program_ids {
-                    program_ids.len() as u64 == programs_count
-                } else {
-                    0 == programs_count
-                };
-                if !is_equal {
-                    break 'a false;
-                }
-
-                if let Some(program_ids) = program_ids {
-                    let new_code_ids = router_query
-                        .programs_code_ids_at(program_ids, latest_committed_block)
-                        .await?;
-                    if new_code_ids.iter().any(|code_id| code_id.is_zero()) {
-                        break 'a false;
-                    }
-                }
-
-                true
+            let Some(program_ids) = program_ids else {
+                return Ok(programs_count == 0);
             };
 
-            sender
-                .send(is_valid)
-                .expect("`db-sync` never drops its receiver");
+            if program_ids.len() as u64 != programs_count {
+                return Ok(false);
+            }
 
-            Ok(())
+            let new_code_ids = router_query
+                .programs_code_ids_at(program_ids, latest_committed_block)
+                .await?;
+            if new_code_ids.iter().any(|code_id| code_id.is_zero()) {
+                return Ok(false);
+            }
+
+            Ok(true)
         },
     )
     .await?;
 
-    let db_sync::Response::ProgramIdsAt(at, program_ids) = response else {
-        unreachable!("unexpected network response: {response:?}");
-    };
+    let (at, program_ids) = response.unwrap_program_ids_at();
     debug_assert_eq!(at, latest_committed_block);
     let program_ids = program_ids.unwrap_or_default();
 
@@ -261,44 +248,28 @@ async fn collect_code_ids(
         .validated_codes_count_at(latest_committed_block)
         .await?;
 
-    let response = net_fetch(
-        network,
-        db_sync::Request::ValidCodes,
-        |response, sender| async {
-            let db_sync::Response::ValidCodes(code_ids) = response else {
-                unreachable!("unexpected network response: {response:?}");
-            };
+    let response = net_fetch(network, db_sync::Request::ValidCodes, |response| async {
+        let code_ids = response.unwrap_valid_codes();
 
-            let is_valid = 'a: {
-                if (code_ids.len() as u64) < codes_count {
-                    break 'a false;
-                }
+        if (code_ids.len() as u64) < codes_count {
+            return Ok(false);
+        }
 
-                let code_states = router_query
-                    .codes_states_at(code_ids.iter().copied(), latest_committed_block)
-                    .await?;
-                if code_states
-                    .into_iter()
-                    .any(|state| state.into() != CodeState::Validated as u8)
-                {
-                    break 'a false;
-                }
+        let code_states = router_query
+            .codes_states_at(code_ids.iter().copied(), latest_committed_block)
+            .await?;
+        if code_states
+            .into_iter()
+            .any(|state| state.into() != CodeState::Validated as u8)
+        {
+            return Ok(false);
+        }
 
-                true
-            };
-
-            sender
-                .send(is_valid)
-                .expect("`db-sync` never drops its receiver");
-            Ok(())
-        },
-    )
+        Ok(true)
+    })
     .await?;
 
-    let db_sync::Response::ValidCodes(code_ids) = response else {
-        unreachable!("unexpected network response: {response:?}");
-    };
-
+    let code_ids = response.unwrap_valid_codes();
     Ok(code_ids)
 }
 
@@ -408,7 +379,7 @@ impl RequestManager {
 
         if !pending_network_requests.is_empty() {
             let request = pending_network_requests.keys().copied().collect();
-            let response = net_fetch(network, db_sync::Request::Hashes(request), |_, _| async {
+            let response = net_fetch(network, db_sync::Request::Hashes(request), |_| async {
                 unreachable!()
             })
             .await
@@ -452,10 +423,7 @@ impl RequestManager {
         response: db_sync::Response,
         db: &Database,
     ) {
-        let db_sync::Response::Hashes(data) = response else {
-            unreachable!("`db-sync` must return `Hashes` response");
-        };
-
+        let data = response.unwrap_hashes();
         for (hash, data) in data {
             let metadata = pending_network_requests
                 .remove(&hash)
@@ -503,7 +471,7 @@ impl Drop for RequestManager {
 async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
-    program_code_ids: &BTreeMap<ActorId, CodeId>,
+    code_ids: &BTreeSet<CodeId>,
     program_states: &BTreeMap<ActorId, H256>,
 ) {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
@@ -519,7 +487,7 @@ async fn sync_from_network(
         manager.add(state, RequestMetadata::ProgramState);
     }
 
-    for &code_id in program_code_ids.values() {
+    for &code_id in code_ids {
         manager.add(code_id.into(), RequestMetadata::Data);
     }
 
@@ -742,7 +710,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     )
     .await?;
 
-    sync_from_network(network, db, &program_code_ids, &program_states).await;
+    sync_from_network(network, db, &code_ids, &program_states).await;
 
     instrument_codes(db, compute, code_ids).await?;
 

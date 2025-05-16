@@ -114,7 +114,7 @@ enum ResponseValidationError {
     AtBlockMismatch,
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, derive_more::Unwrap)]
 pub enum Response {
     Hashes(BTreeMap<H256, Vec<u8>>),
     ProgramIdsAt(H256, Option<BTreeSet<ActorId>>),
