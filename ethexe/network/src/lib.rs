@@ -646,8 +646,8 @@ mod tests {
     use crate::utils::tests::init_logger;
     use assert_matches::assert_matches;
     use ethexe_db::MemDb;
-    use gprimitives::H256;
     use ethexe_signer::{FSKeyStorage, Signer};
+    use gprimitives::H256;
     use tokio::time::{timeout, Duration};
 
     fn new_service_with_db(db: Database) -> NetworkService {
@@ -734,8 +734,8 @@ mod tests {
     async fn external_validation() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service1 = new_service();
+        let mut service2 = new_service();
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
