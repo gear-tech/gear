@@ -40,11 +40,6 @@
 //! * [`Submitter`] switches to [`Initial`] after submitting the batch commitment to the blockchain.
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
-#[cfg(doc)]
-use self::{
-    coordinator::Coordinator, participant::Participant, producer::Producer, submitter::Submitter,
-    subordinate::Subordinate,
-};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
