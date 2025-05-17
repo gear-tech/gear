@@ -20,7 +20,6 @@
 
 use crate::PublicKey;
 use anyhow::{anyhow, Error, Result};
-use derive_more::{Debug, Display, From};
 use gprimitives::{ActorId, H160};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -31,7 +30,19 @@ use std::str::FromStr;
 /// Basically a 20 bytes buffer, which is obtained from the least significant 20 bytes
 /// of the hashed with keccak256 public key.
 #[derive(
-    Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, From, Debug, Display,
+    Encode,
+    Decode,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::From,
+    derive_more::Debug,
+    derive_more::Display,
 )]
 #[from([u8; 20], H160)]
 #[display("0x{}", self.to_hex())]

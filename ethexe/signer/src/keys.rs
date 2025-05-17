@@ -18,7 +18,6 @@
 
 use crate::Address;
 use anyhow::{Error, Result};
-use derive_more::{Debug, Display, From, Into};
 use k256::ecdsa::{SigningKey, VerifyingKey};
 use parity_scale_codec::{Decode, Encode};
 use std::str::FromStr;
@@ -27,7 +26,20 @@ use std::str::FromStr;
 ///
 /// Private key type used for elliptic curves maths for secp256k1 standard
 /// is a 256 bits unsigned integer, which the type stores as a 32 bytes array.
-#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, Hash, Debug, Display, From, Into)]
+#[derive(
+    Encode,
+    Decode,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Debug,
+    derive_more::Display,
+    derive_more::From,
+    derive_more::Into,
+)]
 #[debug("0x{}", hex::encode(_0))]
 #[display("0x{}", hex::encode(_0))]
 pub struct PrivateKey([u8; 32]);
@@ -62,7 +74,18 @@ impl FromStr for PrivateKey {
 /// As the secp256k1 elliptic curve is symmetric, the y can be either positive or
 /// negative. To stress the exact position of the `y` the prefix byte is used, so
 /// the public key becomes 33 bytes, not 32.
-#[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Debug, Display, From, Into)]
+#[derive(
+    Clone,
+    Copy,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    derive_more::Debug,
+    derive_more::Display,
+    derive_more::From,
+    derive_more::Into,
+)]
 #[debug("0x{}", self.to_hex())]
 #[display("0x{}", self.to_hex())]
 pub struct PublicKey(pub [u8; 33]);
