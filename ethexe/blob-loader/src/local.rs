@@ -23,7 +23,7 @@ use ethexe_db::Database;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::CodeId;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::Arc,
     task::Poll,
 };
@@ -100,7 +100,7 @@ impl BlobLoaderService for LocalBlobLoader {
         self.codes_queue.len()
     }
 
-    fn load_codes(&mut self, codes: Vec<CodeId>, _attempts: Option<u8>) -> Result<()> {
+    fn load_codes(&mut self, codes: HashSet<CodeId>, _attempts: Option<u8>) -> Result<()> {
         // NOTE: This function only adds codes to the queue because of in `TestEnv` we add blob's code directly
         // to the storage using `add_code` method.
 

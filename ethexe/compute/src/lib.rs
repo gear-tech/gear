@@ -16,19 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Chain, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
 };
-use ethexe_db::Database;
+use ethexe_db::{Database, CodeInfo};
 use ethexe_processor::{BlockProcessingResult, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeSet, HashSet, VecDeque},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -41,8 +41,18 @@ pub struct BlockProcessed {
 
 #[derive(Debug, Clone)]
 pub enum ComputeEvent {
+    RequestLoadCodes(HashSet<CodeId>),
     BlockProcessed(BlockProcessed),
     CodeProcessed(CodeCommitment),
+}
+
+enum ComputationState {
+    NotStarted,
+    WaitForCodes {
+        block: H256,
+        waiting_codes: HashSet<CodeId>,
+    },
+    Processing(BoxFuture<'static, Result<BlockProcessed>>),
 }
 
 // TODO #4548: add state monitoring in prometheus
@@ -51,7 +61,9 @@ pub struct ComputeService {
     db: Database,
     processor: Processor,
     blocks_queue: VecDeque<H256>,
-    process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
+    loaded_codes: HashSet<CodeId>,
+    // process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
+    state: ComputationState,
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
 
@@ -59,27 +71,59 @@ impl Stream for ComputeService {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(Poll::Ready(res)) = self.process_block.as_mut().map(|f| f.poll_unpin(cx)) {
-            self.process_block = self.blocks_queue.pop_front().map(|block| {
-                ChainHeadProcessContext {
-                    db: self.db.clone(),
-                    processor: self.processor.clone(),
+        /// NOTE: here not a matching, because of preventing the errors with borrowing
+        let (maybe_state, maybe_event) = if let ComputationState::NotStarted = &self.state {
+            match self.blocks_queue.pop_back() {
+                Some(block) => {
+                    let (validated_codes, codes_to_load) = self.collect_block_codes(block)?;
+
+                    let new_state = ComputationState::WaitForCodes {
+                        block: block,
+                        waiting_codes: validated_codes,
+                    };
+                    let event = Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load)));
+                    (Some(new_state), event)
                 }
-                .process(block)
-                .boxed()
-            });
+                None => (None, None),
+            }
+        } else if let ComputationState::WaitForCodes {
+            block,
+            waiting_codes,
+        } = &self.state
+        {
+            let new_state = waiting_codes
+                .is_empty()
+                .then_some(ComputationState::Processing(
+                    ChainHeadProcessContext {
+                        db: self.db.clone(),
+                        processor: self.processor.clone(),
+                    }
+                    .process(block.clone())
+                    .boxed(),
+                ));
+            (new_state, None)
+        } else if let ComputationState::Processing(fut) = &mut self.state {
+            match fut.as_mut().poll_unpin(cx) {
+                Poll::Ready(res) => {
+                    let maybe_event = res.map(ComputeEvent::BlockProcessed);
+                    (Some(ComputationState::NotStarted), Some(maybe_event))
+                }
+                Poll::Pending => (None, None),
+            }
+        } else {
+            unreachable!()
+        };
 
-            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
+        if let Some(state) = maybe_state {
+            self.state = state;
+            cx.waker().wake_by_ref();
         }
 
-        if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
-            return Poll::Ready(Some(
-                res.map_err(Into::into)
-                    .and_then(|res| res.map(ComputeEvent::CodeProcessed)),
-            ));
+        if let Some(event) = maybe_event {
+            return Poll::Ready(Some(event));
         }
 
-        Poll::Pending
+        return Poll::Pending;
     }
 }
 
@@ -96,12 +140,14 @@ impl ComputeService {
             db,
             processor,
             blocks_queue: VecDeque::new(),
-            process_block: Default::default(),
+            state: ComputationState::NotStarted,
+            loaded_codes: HashSet::new(),
+            // process_block: Default::default(),
             process_codes: Default::default(),
         }
     }
 
-    pub fn receive_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
+    pub fn process_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
@@ -111,19 +157,75 @@ impl ComputeService {
                 valid,
             })
         });
+
+        if let ComputationState::WaitForCodes { waiting_codes, .. } = &mut self.state {
+            if waiting_codes.contains(&code_id) {
+                waiting_codes.remove(&code_id);
+            }
+        }
     }
 
-    pub fn receive_synced_head(&mut self, block: H256) {
-        if self.process_block.is_none() {
-            let context = ChainHeadProcessContext {
-                db: self.db.clone(),
-                processor: self.processor.clone(),
-            };
+    pub fn process_block(&mut self, block: H256) {
+        // if self.process_block.is_none() {
 
-            self.process_block = Some(Box::pin(context.process(block)));
-        } else {
-            self.blocks_queue.push_back(block);
+        // if self.process_block_state.is_none() {
+        //     let context = ChainHeadProcessContext {
+        //         db: self.db.clone(),
+        //         processor: self.processor.clone(),
+        //     };
+
+        //     self.process_block = Some(context.process(block).boxed());
+        //     self.process_block_state = Some(ProcessBlockState::WaitForCodes())
+        // } else {
+
+        self.blocks_queue.push_back(block);
+
+        // }
+    }
+
+    fn collect_block_codes(&self, block: H256) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
+        let events = self
+            .db
+            .block_events(block)
+            .ok_or(anyhow!("observer must set block events"))?;
+
+        let mut validated_codes = HashSet::new();
+        let mut requested_codes = HashSet::new();
+
+        for event in &events {
+            match event {
+                BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    timestamp,
+                    tx_hash,
+                }) => {
+                    let code_info = CodeInfo {
+                        timestamp: *timestamp,
+                        tx_hash: *tx_hash,
+                    };
+                    self.db.set_code_blob_info(*code_id, code_info.clone());
+
+                    if !self.db.original_code_exists(*code_id) && !validated_codes.contains(code_id)
+                    {
+                        requested_codes.insert(*code_id);
+                    }
+                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                    if requested_codes.contains(code_id) {
+                        return Err(anyhow!("Code {code_id} is validated before requested"));
+                    };
+
+                    if !self.db.original_code_exists(*code_id) {
+                        validated_codes.insert(*code_id);
+                    }
+                }
+                _ => {}
+            }
         }
+
+        // Return validated codes and all codes to load
+        requested_codes.extend(validated_codes.iter());
+        Ok((validated_codes, requested_codes))
     }
 }
 

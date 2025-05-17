@@ -20,7 +20,7 @@ use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
 use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
-    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
+    BlobData, BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
 use ethexe_common::ProducerBlock;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
@@ -385,29 +385,27 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced {
-                        synced_block,
-                        validated_codes: _,
-                        codes_to_load,
-                    } => {
+                    ObserverEvent::BlockSynced(synced_block) => {
                         // NOTE: Observer guarantees that, if this event is emitted,
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
                         consensus.receive_synced_block(synced_block)?;
-                        blob_loader.load_codes(codes_to_load, None)?;
                     }
                 },
                 Event::BlobLoader(event) => match event {
-                    BlobLoaderEvent::BlobLoaded(blob_data) => {
-                        compute.receive_code(
-                            blob_data.code_id,
-                            blob_data.timestamp,
-                            blob_data.code,
-                        );
+                    BlobLoaderEvent::BlobLoaded(BlobData {
+                        code_id,
+                        timestamp,
+                        code,
+                    }) => {
+                        compute.process_code(code_id, timestamp, code);
                     }
                 },
                 Event::Compute(event) => match event {
+                    ComputeEvent::RequestLoadCodes(codes) => {
+                        blob_loader.load_codes(codes, None);
+                    }
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         consensus.receive_computed_block(block_hash)?
                     }
@@ -503,7 +501,7 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.receive_synced_head(block),
+                    ConsensusEvent::ComputeBlock(block) => compute.process_block(block),
                     ConsensusEvent::ComputeProducerBlock(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
@@ -511,7 +509,8 @@ impl Service {
                             todo!("#4638 #4639 off-chain transactions and gas allowance are not supported yet");
                         }
 
-                        compute.receive_synced_head(producer_block.block_hash);
+                        // compute.receive_synced_head(producer_block.block_hash);
+                        compute.process_block(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {

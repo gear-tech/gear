@@ -33,7 +33,13 @@ use futures::{
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
+use std::{
+    collections::{HashSet, VecDeque},
+    fmt,
+    hash::RandomState,
+    pin::Pin,
+    task::Poll,
+};
 use tokio::time::{self, Duration};
 
 pub mod local;
@@ -64,7 +70,7 @@ pub enum BlobLoaderEvent {
 pub trait BlobLoaderService:
     Stream<Item = Result<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
-    fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()>;
+    fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()>;
 
     fn into_box(self) -> Box<dyn BlobLoaderService>;
 
@@ -255,8 +261,8 @@ impl BlobLoaderService for BlobLoader {
         self.codes_loading.len()
     }
 
-    fn load_codes(&mut self, codes: Vec<CodeId>, attempts: Option<u8>) -> Result<()> {
-        log::trace!("request load codes: {codes:?}");
+    fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()> {
+        // log::trace!("request load codes: {codes:?}");
 
         for code_id in codes {
             if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {

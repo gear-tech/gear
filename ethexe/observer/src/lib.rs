@@ -67,27 +67,16 @@ pub struct BlockSyncedData {
 pub enum ObserverEvent {
     Block(SimpleBlockData),
     // NOTE: `validated_codes` is a part of the `codes_to_load`
-    BlockSynced {
-        synced_block: BlockSyncedData,
-        validated_codes: HashSet<CodeId>,
-        codes_to_load: Vec<CodeId>,
-    },
+    BlockSynced(BlockSyncedData),
 }
 
 impl fmt::Debug for ObserverEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
-            ObserverEvent::BlockSynced {
-                synced_block,
-                validated_codes,
-                codes_to_load,
-            } => f
-                .debug_struct("BlockSynced")
-                .field("synced_block", synced_block)
-                .field("validated_codes", validated_codes)
-                .field("codes_to_load", codes_to_load)
-                .finish(),
+            ObserverEvent::BlockSynced(synced_block) => {
+                f.debug_tuple("BlockSynced").field(synced_block).finish()
+            }
         }
     }
 }
@@ -101,8 +90,6 @@ struct RuntimeConfig {
     block_time: Duration,
 }
 
-type SyncFut = BoxFuture<'static, Result<(BlockSyncedData, HashSet<CodeId>, Vec<CodeId>)>>;
-
 // TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
@@ -113,7 +100,7 @@ pub struct ObserverService {
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<SyncFut>,
+    sync_future: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -172,13 +159,7 @@ impl Stream for ObserverService {
             if let Poll::Ready(result) = fut.poll_unpin(cx) {
                 self.sync_future = None;
 
-                let maybe_event = result.map(|(synced_block, validated_codes, codes_to_load)| {
-                    ObserverEvent::BlockSynced {
-                        synced_block,
-                        validated_codes,
-                        codes_to_load,
-                    }
-                });
+                let maybe_event = result.map(ObserverEvent::BlockSynced);
                 return Poll::Ready(Some(maybe_event));
             }
         }

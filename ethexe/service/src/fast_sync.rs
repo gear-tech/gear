@@ -327,33 +327,31 @@ async fn sync_finalized_head(
 
     log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
+
+    // TODO: fast sync must load codes from the network instead of the observer
     while let Some(event) = observer.next().await {
         match event? {
             ObserverEvent::Block(_) => {}
-            ObserverEvent::BlockSynced {
-                synced_block,
-                validated_codes: _,
-                codes_to_load,
-            } => {
+            ObserverEvent::BlockSynced(synced_block) => {
                 debug_assert_eq!(highest_block, synced_block.block_hash);
 
-                blobs_loader.load_codes(codes_to_load.clone(), None)?;
+                // blobs_loader.load_codes(requested_codes.clone(), None)?;
 
-                let amount_to_load = codes_to_load.len();
-                let mut expected_codes = codes_to_load.iter().copied().collect::<HashSet<_>>();
+                // let amount_to_load = requested_codes.len();
+                // let mut expected_codes = requested_codes.clone();
 
-                for _ in 0..amount_to_load {
-                    let Some(event) = blobs_loader.next().await else {
-                        return Err(anyhow!("blob loader returns None instead of event"));
-                    };
+                // for _ in 0..amount_to_load {
+                //     let Some(event) = blobs_loader.next().await else {
+                //         return Err(anyhow!("blob loader returns None instead of event"));
+                //     };
 
-                    let BlobLoaderEvent::BlobLoaded(blob_data) = event?;
-                    let code_id = blob_data.code_id;
-                    debug_assert!(
-                        expected_codes.remove(&code_id),
-                        "blob loader returns unexpected code {code_id:?}"
-                    );
-                }
+                //     let BlobLoaderEvent::BlobLoaded(blob_data) = event?;
+                //     let code_id = blob_data.code_id;
+                //     debug_assert!(
+                //         expected_codes.remove(&code_id),
+                //         "blob loader returns unexpected code {code_id:?}"
+                //     );
+                // }
 
                 break;
             }
@@ -532,7 +530,7 @@ async fn instrument_codes(
         let original_code = db
             .original_code(code_id)
             .expect("observer must fulfill database");
-        compute.receive_code(code_id, code_info.timestamp, original_code);
+        compute.process_code(code_id, code_info.timestamp, original_code);
     }
 
     while let Some(event) = compute.next().await {

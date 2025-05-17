@@ -42,10 +42,8 @@ pub(crate) struct ChainSync {
     pub provider: RootProvider,
 }
 
-type ChainSyncOutput = (BlockSyncedData, HashSet<CodeId>, Vec<CodeId>);
-
 impl ChainSync {
-    pub async fn sync(self, chain_head: Header) -> Result<ChainSyncOutput> {
+    pub async fn sync(self, chain_head: Header) -> Result<BlockSyncedData> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -54,8 +52,7 @@ impl ChainSync {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        let (chain, validated_codes, codes_to_load) =
-            self.load_chain(block, header, blocks_data).await?;
+        let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
 
@@ -69,7 +66,7 @@ impl ChainSync {
             validators,
         };
 
-        Ok((synced_data, validated_codes, codes_to_load))
+        Ok(synced_data)
     }
 
     async fn load_chain(
@@ -77,11 +74,8 @@ impl ChainSync {
         block: H256,
         header: BlockHeader,
         mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<CodeId>)> {
+    ) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
-
-        let mut validated_codes = HashSet::new();
-        let mut requested_codes = HashSet::new();
 
         let mut hash = block;
         while !self.db.block_is_synced(hash) {
@@ -106,38 +100,6 @@ impl ChainSync {
                 );
             }
 
-            for event in &block_data.events {
-                match event {
-                    BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                        code_id,
-                        timestamp,
-                        tx_hash,
-                    }) => {
-                        let code_info = CodeInfo {
-                            timestamp: *timestamp,
-                            tx_hash: *tx_hash,
-                        };
-                        self.db.set_code_blob_info(*code_id, code_info.clone());
-
-                        if !self.db.original_code_exists(*code_id)
-                            && !validated_codes.contains(code_id)
-                        {
-                            requested_codes.insert(*code_id);
-                        }
-                    }
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                        if requested_codes.contains(code_id) {
-                            return Err(anyhow!("Code {code_id} is validated before requested"));
-                        };
-
-                        if !self.db.original_code_exists(*code_id) {
-                            validated_codes.insert(*code_id);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
             let parent_hash = block_data.header.parent_hash;
 
             self.db.set_block_header(hash, block_data.header);
@@ -147,10 +109,7 @@ impl ChainSync {
             hash = parent_hash;
         }
 
-        requested_codes.extend(validated_codes.clone().into_iter());
-        let codes_to_load = requested_codes.into_iter().collect();
-
-        Ok((chain, validated_codes, codes_to_load))
+        Ok(chain)
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {

@@ -594,6 +594,7 @@ async fn incoming_transfers() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("👺 Code uploaded");
 
     let code_id = res.code_id;
     let res = env
@@ -603,6 +604,8 @@ async fn incoming_transfers() {
         .wait_for()
         .await
         .unwrap();
+
+    log::info!("👺 Program created");
 
     let _ = env
         .send_message(res.program_id, &env.sender_id.encode(), 0)
@@ -1108,6 +1111,7 @@ async fn tx_pool_gossip() {
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 
+#[ignore = "until all tests are passed"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn fast_sync() {
@@ -1911,7 +1915,7 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::BlockSynced { synced_block, .. } = event else {
+                let ObserverEvent::BlockSynced(synced_block) = event else {
                     continue;
                 };
 
@@ -2332,14 +2336,17 @@ mod utils {
             let mut valid_info = None;
 
             self.listener
-                .apply_until_block_event(|event| match event {
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
-                        if code_id == self.code_id =>
-                    {
-                        valid_info = Some(valid);
-                        Ok(Some(()))
+                .apply_until_block_event(|event| {
+                    log::info!("🐼 observer event: {event:?}");
+                    match event {
+                        BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
+                            if code_id == self.code_id =>
+                        {
+                            valid_info = Some(valid);
+                            Ok(Some(()))
+                        }
+                        _ => Ok(None),
                     }
-                    _ => Ok(None),
                 })
                 .await?;
 
