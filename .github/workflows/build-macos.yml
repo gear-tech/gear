@@ -25,11 +25,11 @@ jobs:
         profiles: ${{ fromJson(inputs.profiles) }}
         arch:
           - name: aarch64
-            image: macos-latest
+            target: aarch64-apple-darwin
           - name: x86
-            image: macos-13
+            target: x86_64-apple-darwin
       fail-fast: false
-    runs-on: ${{ matrix.arch.image }}
+    runs-on: macos-latest
     name: macos-${{ matrix.arch.name }} (${{ matrix.profiles.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
@@ -43,15 +43,10 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: LLD"
-        # aarch64 has 'ld_new' optimized linker
-        if: ${{ matrix.arch.image == 'x86' }}
+      - name: "Install: Target"
         run: |
-          brew install lld
-          echo "CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=rust-lld" >> $GITHUB_ENV
-          echo "CC_X86_64_APPLE_DARWIN=-fuse-ld=lld" >> $GITHUB_ENV
-          echo "CXX_X86_64_APPLE_DARWIN=-fuse-ld=lld" >> $GITHUB_ENV
-          echo "AR_X86_64_APPLE_DARWIN=-fuse-ld=lld" >> $GITHUB_ENV
+          rustup target add ${{ matrix.arch.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.arch.target }}" >> $GITHUB_ENV
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
