@@ -64,7 +64,7 @@ jobs:
     name: linux (${{ matrix.profiles.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: mold
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-Clink-arg=-fuse-ld=mold"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
