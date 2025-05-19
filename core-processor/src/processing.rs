@@ -336,11 +336,7 @@ fn process_error(
         let err = case.to_reason();
         let err_payload = case.to_payload();
 
-        let value = if dispatch.context().is_none() {
-            value
-        } else {
-            0
-        };
+        let value = if !dispatch.context_exists() { value } else { 0 };
 
         // # Safety
         //
@@ -601,7 +597,7 @@ pub fn process_success(
     // it's existence shows that we have processed message after
     // being waken, so the value were already transferred in
     // execution, where `gr_wait` was called.
-    if dispatch.context().is_none() && value != 0 {
+    if !dispatch.context().is_none() && value != 0 {
         // Send value further
         journal.push(JournalNote::SendValue {
             from: origin,
