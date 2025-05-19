@@ -30,7 +30,8 @@ use gprimitives::{H160, H256};
 use parity_scale_codec::Encode;
 
 pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOffchainTransaction {
-    let signer = Signer::tmp();
+    let signer = Signer::memory();
+
     let public_key = signer.generate_key().expect("failed to generate key");
 
     let transaction = OffchainTransaction {
@@ -41,7 +42,7 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOff
         reference_block: reference_block_hash,
     };
     let signature = signer
-        .sign_digest(public_key, transaction.encode().to_digest())
+        .sign(public_key, transaction.encode().to_digest())
         .expect("signing failed");
 
     SignedOffchainTransaction {
@@ -133,6 +134,6 @@ async fn test_add_transaction() {
     let res = tx_pool.validate(invalid_tx.clone());
     assert!(res.is_err());
     let err_string = format!("{:?}", res.expect_err("checked"));
-    println!("{}", err_string);
+    println!("{err_string}");
     assert!(err_string.contains("Transaction reference block hash is out of recent blocks window"));
 }

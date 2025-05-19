@@ -96,13 +96,11 @@ where
     //
     // In case of second execution (between waits) - message value already
     // included in free balance or wasted.
-    let value_available = balance.saturating_add(
-        dispatch
-            .context()
-            .is_none()
-            .then(|| dispatch.value())
-            .unwrap_or_default(),
-    );
+    let value_available = balance.saturating_add(if dispatch.context().is_none() {
+        dispatch.value()
+    } else {
+        Default::default()
+    });
     let value_counter = ValueCounter::new(value_available);
 
     // Creating message context.

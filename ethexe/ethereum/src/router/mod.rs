@@ -29,7 +29,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
+use ethexe_signer::{Address as LocalAddress, ContractSignature};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
@@ -168,14 +168,14 @@ impl Router {
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
-        signatures: Vec<LocalSignature>,
+        signatures: Vec<ContractSignature>,
     ) -> Result<H256> {
         let builder = self.instance.commitBatch(
             commitment.into(),
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .map(|signature| Bytes::from(signature.into_pre_eip155_bytes()))
                 .collect(),
         );
 

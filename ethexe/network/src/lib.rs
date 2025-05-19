@@ -32,7 +32,7 @@ use futures::{future::Either, ready, stream::FusedStream, Stream};
 use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     connection_limits,
-    core::{muxing::StreamMuxerBox, upgrade},
+    core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
@@ -68,8 +68,10 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum NetworkEvent {
-    DbResponse(Result<db_sync::Response, db_sync::RequestFailure>),
-    ExternalValidation(db_sync::ValidatingResponse),
+    DbResponse {
+        request_id: db_sync::RequestId,
+        result: Result<db_sync::Response, (db_sync::OngoingRequest, db_sync::RequestFailure)>,
+    },
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,
@@ -81,10 +83,11 @@ pub enum NetworkEvent {
 impl fmt::Debug for NetworkEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkEvent::DbResponse(res) => f.debug_tuple("DbResponse").field(res).finish(),
-            NetworkEvent::ExternalValidation(resp) => {
-                f.debug_tuple("ExternalValidation").field(resp).finish()
-            }
+            NetworkEvent::DbResponse { request_id, result } => f
+                .debug_struct("DbResponse")
+                .field("request_id", request_id)
+                .field("result", result)
+                .finish(),
             NetworkEvent::Message { data, source } => f
                 .debug_struct("Message")
                 .field(
@@ -150,6 +153,8 @@ impl NetworkConfig {
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
+    // `MemoryTransport` doesn't unregister its ports on drop so we do it
+    listeners: Vec<ListenerId>,
 }
 
 impl Stream for NetworkService {
@@ -194,8 +199,10 @@ impl NetworkService {
             swarm.add_external_address(multiaddr);
         }
 
+        let mut listeners = Vec::new();
         for multiaddr in config.listen_addresses {
-            swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+            let id = swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
+            listeners.push(id);
         }
 
         for multiaddr in config.bootstrap_addresses {
@@ -213,7 +220,7 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        Ok(Self { swarm })
+        Ok(Self { swarm, listeners })
     }
 
     fn generate_keypair(
@@ -240,8 +247,8 @@ impl NetworkService {
             }
         };
 
-        let mut key = signer.get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key.0)
+        let key = signer.storage().get_private_key(key)?;
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
@@ -413,20 +420,23 @@ impl NetworkService {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(db_sync::Event::ExternalValidation(validating_response)) => {
-                return Some(NetworkEvent::ExternalValidation(validating_response));
-            }
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id: _,
+                request_id,
                 response,
             }) => {
-                return Some(NetworkEvent::DbResponse(Ok(response)));
+                return Some(NetworkEvent::DbResponse {
+                    request_id,
+                    result: Ok(response),
+                });
             }
             BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
-                request_id: _,
+                ongoing_request,
                 error,
             }) => {
-                return Some(NetworkEvent::DbResponse(Err(error)));
+                return Some(NetworkEvent::DbResponse {
+                    request_id: ongoing_request.id(),
+                    result: Err((ongoing_request, error)),
+                });
             }
             BehaviourEvent::DbSync(_) => {}
         }
@@ -464,15 +474,16 @@ impl NetworkService {
         }
     }
 
-    pub fn request_db_data(&mut self, request: db_sync::Request) {
-        self.swarm.behaviour_mut().db_sync.request(request);
+    pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
+        &mut self.swarm.behaviour_mut().db_sync
     }
+}
 
-    pub fn request_validated(
-        &mut self,
-        res: Result<db_sync::ValidatingResponse, db_sync::ValidatingResponse>,
-    ) {
-        self.swarm.behaviour_mut().db_sync.request_validated(res);
+impl Drop for NetworkService {
+    fn drop(&mut self) {
+        for id in self.listeners.drain(..) {
+            self.swarm.remove_listener(id);
+        }
     }
 }
 
@@ -609,18 +620,17 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
-    use tempfile::TempDir;
+    use ethexe_signer::{FSKeyStorage, Signer};
     use tokio::time::{timeout, Duration};
 
-    fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let config = NetworkConfig::new_test(tmp_dir.path().to_path_buf());
-        let signer = ethexe_signer::Signer::new(tmp_dir.path().join("key")).unwrap();
-        let service = NetworkService::new(config.clone(), &signer, db).unwrap();
-        (tmp_dir, service)
+    fn new_service_with_db(db: Database) -> NetworkService {
+        let key_storage = FSKeyStorage::tmp();
+        let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
+        let signer = Signer::new(key_storage);
+        NetworkService::new(config.clone(), &signer, db).unwrap()
     }
 
-    fn new_service() -> (TempDir, NetworkService) {
+    fn new_service() -> NetworkService {
         new_service_with_db(Database::from_one(&MemDb::default()))
     }
 
@@ -628,8 +638,8 @@ mod tests {
     async fn test_memory_transport() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service1 = new_service();
+        let mut service2 = new_service();
 
         service1.connect(&mut service2).await;
     }
@@ -638,20 +648,22 @@ mod tests {
     async fn request_db_data() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
+        let mut service1 = new_service();
 
         // second service
         let db = Database::from_one(&MemDb::default());
 
-        let hello = db.write(b"hello");
-        let world = db.write(b"world");
+        let hello = db.write_hash(b"hello");
+        let world = db.write_hash(b"world");
 
-        let (_tmp_dir, mut service2) = new_service_with_db(db);
+        let mut service2 = new_service_with_db(db);
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        service1.request_db_data(db_sync::Request::DataForHashes([hello, world].into()));
+        let request_id = service1
+            .db_sync()
+            .request(db_sync::Request([hello, world].into()));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -659,9 +671,12 @@ mod tests {
             .unwrap();
         assert_eq!(
             event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::DataForHashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            )))
+            NetworkEvent::DbResponse {
+                request_id,
+                result: Ok(db_sync::Response(
+                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+                ))
+            }
         );
     }
 
@@ -669,11 +684,11 @@ mod tests {
     async fn peer_blocked_by_score() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
+        let mut service1 = new_service();
         let peer_score_handle = service1.score_handle();
 
         // second service
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service2 = new_service();
         let service2_peer_id = service2.local_peer_id();
 
         service1.connect(&mut service2).await;
@@ -686,37 +701,5 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
-    }
-
-    #[tokio::test]
-    async fn external_validation() {
-        init_logger();
-
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
-
-        service1.connect(&mut service2).await;
-        tokio::spawn(service2.loop_on_next());
-
-        service1.request_db_data(db_sync::Request::ProgramIds);
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        if let NetworkEvent::ExternalValidation(validating_response) = event {
-            service1.request_validated(Ok(validating_response));
-        } else {
-            unreachable!("{event:?}");
-        }
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse(Ok(db_sync::Response::ProgramIds([].into())))
-        );
     }
 }

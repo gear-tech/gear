@@ -193,7 +193,7 @@ fn generate_calls(metadata: &Metadata) -> ItemMod {
             })
             .collect::<Vec<Variant>>();
 
-        let doc = format!("Calls of pallet `{}`.", pallet);
+        let doc = format!("Calls of pallet `{pallet}`.");
         ie.push(parse_quote! {
             #[doc = #doc]
             pub enum #pallet_ident {
@@ -270,7 +270,7 @@ fn generate_storage(metadata: &Metadata) -> ItemMod {
             })
             .collect::<Vec<Variant>>();
 
-        let doc = format!("Storage of pallet `{}`.", pallet);
+        let doc = format!("Storage of pallet `{pallet}`.");
         ie.push(parse_quote! {
             #[doc = #doc]
             pub enum #pallet_ident {
