@@ -26,11 +26,11 @@ use crate::{
 use alloc::sync::Arc;
 use core::ops::Deref;
 
-/// Incoming message info.
+/// Incoming message.
 ///
-/// Used for easy copying.
-#[derive(Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct IncomingMessageInfo {
+/// Used for program execution.
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct IncomingMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
@@ -41,13 +41,16 @@ pub struct IncomingMessageInfo {
     value: Value,
     /// Message details like reply message ID, status code, etc.
     details: Option<MessageDetails>,
+    /// Message payload.
+    payload: Arc<Payload>,
 }
 
-impl IncomingMessageInfo {
-    /// Create new IncomingMessageInfo.
+impl IncomingMessage {
+    /// Create new IncomingMessage.
     pub fn new(
         id: MessageId,
         source: ProgramId,
+        payload: Payload,
         gas_limit: GasLimit,
         value: Value,
         details: Option<MessageDetails>,
@@ -58,7 +61,25 @@ impl IncomingMessageInfo {
             gas_limit,
             value,
             details,
+            payload: Arc::new(payload),
         }
+    }
+
+    /// Convert IncomingMessage into gasless StoredMessage.
+    pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
+        StoredMessage::new(
+            self.id,
+            self.source,
+            destination,
+            Arc::unwrap_or_clone(self.payload),
+            self.value,
+            self.details,
+        )
+    }
+
+    /// Message payload.
+    pub fn payload(&self) -> Arc<Payload> {
+        self.payload.clone()
     }
 
     /// Message id.
@@ -94,64 +115,6 @@ impl IncomingMessageInfo {
     /// Returns bool defining if message is reply.
     pub fn is_reply(&self) -> bool {
         self.details.map(|d| d.is_reply_details()).unwrap_or(false)
-    }
-}
-
-/// Incoming message.
-///
-/// Used for program execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct IncomingMessage {
-    /// Message info
-    info: IncomingMessageInfo,
-    /// Message payload.
-    payload: Arc<Payload>,
-}
-
-impl IncomingMessage {
-    /// Create new IncomingMessage.
-    pub fn new(
-        id: MessageId,
-        source: ProgramId,
-        payload: Payload,
-        gas_limit: GasLimit,
-        value: Value,
-        details: Option<MessageDetails>,
-    ) -> Self {
-        Self {
-            info: IncomingMessageInfo::new(id, source, gas_limit, value, details),
-            payload: Arc::new(payload),
-        }
-    }
-
-    /// Convert IncomingMessage into gasless StoredMessage.
-    pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
-        StoredMessage::new(
-            self.info.id,
-            self.info.source,
-            destination,
-            Arc::unwrap_or_clone(self.payload),
-            self.info.value,
-            self.info.details,
-        )
-    }
-
-    /// Message info.
-    pub fn info(&self) -> IncomingMessageInfo {
-        self.info
-    }
-
-    /// Message payload.
-    pub fn payload(&self) -> Arc<Payload> {
-        self.payload.clone()
-    }
-}
-
-impl Deref for IncomingMessage {
-    type Target = IncomingMessageInfo;
-
-    fn deref(&self) -> &Self::Target {
-        &self.info
     }
 }
 
@@ -223,52 +186,6 @@ impl IncomingDispatch {
 
 impl Deref for IncomingDispatch {
     type Target = IncomingMessage;
-
-    fn deref(&self) -> &Self::Target {
-        self.message()
-    }
-}
-
-/// Incoming dispatch info.
-///
-/// Used for easy copying.
-pub struct IncomingDispatchInfo {
-    /// Entry point.
-    kind: DispatchKind,
-    /// Incoming message.
-    message: IncomingMessageInfo,
-    /// Is previous execution context exists.
-    context_exists: bool,
-}
-
-impl IncomingDispatchInfo {
-    /// Create new IncomingDispatchInfo.
-    pub fn from_dispatch(incoming_dispatch: &IncomingDispatch) -> Self {
-        Self {
-            kind: incoming_dispatch.kind(),
-            message: incoming_dispatch.info(),
-            context_exists: incoming_dispatch.context().is_some(),
-        }
-    }
-
-    /// Entry point for the message.
-    pub fn kind(&self) -> DispatchKind {
-        self.kind
-    }
-
-    /// Message info.
-    pub fn message(&self) -> &IncomingMessageInfo {
-        &self.message
-    }
-
-    /// Is previous execution context exists.
-    pub fn context_exists(&self) -> bool {
-        self.context_exists
-    }
-}
-
-impl Deref for IncomingDispatchInfo {
-    type Target = IncomingMessageInfo;
 
     fn deref(&self) -> &Self::Target {
         self.message()
