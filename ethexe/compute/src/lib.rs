@@ -70,10 +70,18 @@ impl Stream for ComputeService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
-            return Poll::Ready(Some(
-                res.map_err(Into::into)
-                    .and_then(|res| res.map(ComputeEvent::CodeProcessed)),
-            ));
+            match res {
+                Ok(Ok(commitment)) => {
+                    if let ComputationState::WaitForCodes { waiting_codes, .. } = &mut self.state {
+                        if waiting_codes.contains(&commitment.id) {
+                            waiting_codes.remove(&commitment.id);
+                        }
+                    }
+                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(commitment))));
+                }
+                Ok(Err(e)) => return Poll::Ready(Some(Err(anyhow!("process code error: {e}")))),
+                Err(e) => return Poll::Ready(Some(Err(anyhow!("process codes join error: {e}")))),
+            }
         }
 
         // NOTE: here not a matching, because of preventing the errors with borrowing
@@ -160,12 +168,6 @@ impl ComputeService {
                 valid,
             })
         });
-
-        if let ComputationState::WaitForCodes { waiting_codes, .. } = &mut self.state {
-            if waiting_codes.contains(&code_id) {
-                waiting_codes.remove(&code_id);
-            }
-        }
     }
 
     pub fn process_block(&mut self, block: H256) {
@@ -241,7 +243,7 @@ struct ChainHeadProcessContext {
 
 impl ChainHeadProcessContext {
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
         // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
