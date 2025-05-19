@@ -210,7 +210,7 @@ pub fn precharge_for_program(
             let gas_burned = gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             Err(process_execution_error(
-                dispatch,
+                &dispatch,
                 destination_id,
                 gas_burned,
                 system_reservation_ctx,
@@ -256,7 +256,7 @@ pub fn precharge_for_allocations(
             let gas_burned = context.gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&context.dispatch);
             Err(process_execution_error(
-                context.dispatch,
+                &context.dispatch,
                 context.destination_id,
                 gas_burned,
                 system_reservation_ctx,
@@ -316,7 +316,7 @@ pub fn precharge_for_code_length(
         Err(PrechargeError::GasExceeded(op)) => {
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
             Err(process_execution_error(
-                dispatch,
+                &dispatch,
                 destination_id,
                 gas_counter.burned(),
                 system_reservation_ctx,
@@ -349,7 +349,7 @@ pub fn precharge_for_code(
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
             Err(process_execution_error(
-                context.data.dispatch,
+                &context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
@@ -382,7 +382,7 @@ pub fn precharge_for_instrumentation(
             let system_reservation_ctx =
                 SystemReservationContext::from_dispatch(&context.data.dispatch);
             Err(process_execution_error(
-                context.data.dispatch,
+                &context.data.dispatch,
                 context.data.destination_id,
                 context.data.gas_counter.burned(),
                 system_reservation_ctx,
@@ -469,7 +469,7 @@ pub fn precharge_for_module_instantiation(
                     let system_reservation_ctx =
                         SystemReservationContext::from_dispatch(&context.data.dispatch);
                     Err(process_execution_error(
-                        context.data.dispatch,
+                        &context.data.dispatch,
                         context.data.destination_id,
                         context.data.gas_counter.burned(),
                         system_reservation_ctx,
