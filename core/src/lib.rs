@@ -27,6 +27,9 @@
 
 extern crate alloc;
 
+// This allows all casts from u32 into usize be safe.
+const _: () = assert!(size_of::<u32>() <= size_of::<usize>());
+
 pub mod buffer;
 pub mod code;
 pub mod costs;
@@ -50,20 +53,20 @@ pub mod utils {
     use blake2::{digest::typenum::U32, Blake2b, Digest};
 
     /// BLAKE2b-256 hasher state.
-    type Blake2b256 = Blake2b<U32>;
+    pub type Blake2b256 = Blake2b<U32>;
 
-    /// Creates a unique identifier by passing given argument to blake2b hash-function.
+    /// Hashes a given bytes into a 32-byte array using the BLAKE2b-256 hash function.
     ///
-    /// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
+    /// # SAFETY
+    /// Do not adjust the hash function, as the IDs generation is sensitive to it.
     pub fn hash(data: &[u8]) -> [u8; 32] {
-        let mut ctx = Blake2b256::new();
-        ctx.update(data);
-        ctx.finalize().into()
+        hash_of_array([data])
     }
 
-    /// Creates a unique identifier by passing given argument to blake2b hash-function.
+    /// Concatenates and hashes a given bytes into a 32-byte array using the BLAKE2b-256 hash function.
     ///
-    /// # SAFETY: DO NOT ADJUST HASH FUNCTION, BECAUSE MESSAGE ID IS SENSITIVE FOR IT.
+    /// # SAFETY
+    /// Do not adjust the hash function, as the IDs generation is sensitive to it.
     pub fn hash_of_array<T: AsRef<[u8]>, const N: usize>(array: [T; N]) -> [u8; 32] {
         let mut ctx = Blake2b256::new();
         for data in array {
@@ -72,6 +75,3 @@ pub mod utils {
         ctx.finalize().into()
     }
 }
-
-// This allows all casts from u32 into usize be safe.
-const _: () = assert!(size_of::<u32>() <= size_of::<usize>());
