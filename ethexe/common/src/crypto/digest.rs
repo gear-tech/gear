@@ -25,6 +25,8 @@ use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
 /// Common digest type for the ethexe.
+/// Presently, it is represented as 32-byte Keccak256 hash.
+/// The `ToDigest` trait is implemented for various types to facilitate hashing and signing.
 #[derive(
     Clone,
     Copy,
