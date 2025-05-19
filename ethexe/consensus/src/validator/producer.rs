@@ -339,6 +339,7 @@ mod tests {
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
+        ctx.db.set_last_committed_block(block.hash, H256::random());
 
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await

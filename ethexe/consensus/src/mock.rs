@@ -124,8 +124,8 @@ impl Mock for ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
             gear_blocks: vec![GearBlock {
                 hash: block_hash,
-                gas_allowance: 100,
-                off_chain_transactions_hash: H256::random(),
+                gas_allowance: 0,
+                off_chain_transactions_hash: H256::zero(),
             }],
         }
     }
@@ -179,6 +179,10 @@ impl Prepare for SimpleBlockData {
 
     fn prepare(self, db: &Database, _args: ()) -> Self {
         db.set_block_header(self.hash, self.header.clone());
+        db.set_block_computed(self.hash);
+        db.set_block_outcome(self.hash, Default::default());
+        db.set_block_codes_queue(self.hash, Default::default());
+        db.set_block_commitment_queue(self.hash, Default::default());
         self
     }
 }
@@ -205,13 +209,8 @@ impl Prepare for ChainCommitment {
 
         let block = gear_blocks.into_iter().next().unwrap();
 
-        db.set_block_computed(block.hash);
         db.set_block_outcome(block.hash, transitions.clone());
         db.set_previous_not_empty_block(block.hash, previous_not_empty_block);
-        db.set_last_committed_block(block.hash, H256::random());
-        db.set_block_codes_queue(block.hash, Default::default());
-        db.set_block_commitment_queue(block.hash, Default::default());
-        db.set_block_outcome(block.hash, Default::default());
 
         Self {
             transitions,
@@ -231,6 +230,7 @@ pub fn prepared_mock_batch_commitment(
     let chain_commitment1 = ChainCommitment::mock(block1.hash).prepare(db, block2.hash);
     let chain_commitment2 = ChainCommitment::mock(block2.hash).prepare(db, block3_hash);
     db.set_block_commitment_queue(chain_head.hash, From::from([block2.hash, block1.hash]));
+    db.set_last_committed_block(chain_head.hash, block3_hash);
 
     let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
     let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
@@ -244,8 +244,8 @@ pub fn prepared_mock_batch_commitment(
         timestamp: chain_head.header.timestamp,
         previous_committed_block_hash: block3_hash,
         chain_commitment: utils::squash_chain_commitments(vec![
-            chain_commitment1,
             chain_commitment2,
+            chain_commitment1,
         ]),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,

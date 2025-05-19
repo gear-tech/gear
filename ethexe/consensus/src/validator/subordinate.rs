@@ -288,16 +288,15 @@ mod tests {
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
-        assert_eq!(s.context().output.len(), 1);
         assert_eq!(
-            s.context().output[0],
-            ConsensusEvent::ComputeBlock(block.header.parent_hash)
+            s.context().output,
+            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
         );
 
         let s = s.process_block_from_producer(pb.clone()).unwrap();
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
         assert_eq!(s.context().output.len(), 2);
-        assert_eq!(s.context().output[1], pb.into());
+        assert_eq!(s.context().output[1], pb.data().clone().into());
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
         assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
