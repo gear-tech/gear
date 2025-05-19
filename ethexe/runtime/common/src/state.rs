@@ -504,7 +504,7 @@ impl Program {
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue with it cached size, see [`MessageQueueHashWithSize`].
+    /// Hash of incoming message queue with its cached size, see [`MessageQueueHashWithSize`].
     pub queue: MessageQueueHashWithSize,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
@@ -712,6 +712,15 @@ impl<T> From<(T, u32)> for Expiring<T> {
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
+
+impl IntoIterator for MessageQueue {
+    type Item = Dispatch;
+    type IntoIter = <VecDeque<Dispatch> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
 
 impl MessageQueue {
     pub fn is_empty(&self) -> bool {

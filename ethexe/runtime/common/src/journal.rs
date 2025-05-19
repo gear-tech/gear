@@ -381,7 +381,6 @@ where
         let filtered: Vec<_> = journal
             .into_iter()
             .filter_map(|note| {
-                let mut not_processed = None;
                 notes_cnt += 1;
 
                 match note {
@@ -409,10 +408,10 @@ where
                     // * SendDispatch to self
                     // * SendValue to self
                     // * GasBurned
-                    note => not_processed = Some(note),
+                    note => return Some(note),
                 }
 
-                not_processed
+                None
             })
             .collect();
 
@@ -508,14 +507,14 @@ where
             panic!("an attempt to update allocations of inactive program");
         };
 
-        allocations_hash.modify_allocations(self.storage, |allocations| {
-            let removed_pages = allocations.update(new_allocations);
-
-            if !removed_pages.is_empty() {
-                pages_hash.modify_pages(self.storage, |pages| {
-                    pages.remove_and_store_regions(self.storage, &removed_pages);
-                })
-            }
+        let removed_pages = allocations_hash.modify_allocations(self.storage, |allocations| {
+            allocations.update(new_allocations)
         });
+
+        if !removed_pages.is_empty() {
+            pages_hash.modify_pages(self.storage, |pages| {
+                pages.remove_and_store_regions(self.storage, &removed_pages);
+            })
+        }
     }
 }

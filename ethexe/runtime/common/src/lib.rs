@@ -123,7 +123,7 @@ where
         return Vec::new();
     }
 
-    let mut queue = program_state
+    let queue = program_state
         .queue
         .hash
         .map(|hash| {
@@ -179,8 +179,7 @@ where
 
     ri.init_lazy_pages();
 
-    for _ in 0..queue.len() {
-        let dispatch = queue.dequeue().expect("Should be non-empty");
+    for dispatch in queue {
         let origin = dispatch.origin;
 
         let journal = process_dispatch(

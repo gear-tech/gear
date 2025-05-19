@@ -104,14 +104,13 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use std::iter;
-
-use ethexe_db::{CodesStorage, Database};
+use ethexe_db::{CodesStorage, Database, StateHashWithQueueSize};
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
+use tokio::task::JoinSet;
 
 use crate::host::{InstanceCreator, InstanceWrapper};
 
@@ -121,32 +120,33 @@ pub async fn run(
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
 ) {
-    let mut join_set = tokio::task::JoinSet::new();
+    let mut join_set = JoinSet::new();
     let chunk_size = chunk_processing_threads;
 
     loop {
-        let chunks = split_to_chunks(
-            chunk_size,
-            &in_block_transitions
-                .states_iter()
-                .filter_map(|(actor_id, state)| {
-                    if state.cached_queue_size == 0 {
-                        return None;
-                    }
+        let states: Vec<_> = in_block_transitions
+            .states_iter()
+            .filter_map(|(&actor_id, state)| {
+                if state.cached_queue_size == 0 {
+                    return None;
+                }
 
-                    Some((*actor_id, state.hash, state.cached_queue_size as usize))
-                })
-                .collect::<Vec<_>>(),
-        );
+                Some((actor_id, state.clone()))
+            })
+            .collect();
 
-        for chunk in chunks.iter() {
-            for (program_id, state_hash, _) in chunk.iter() {
+        let chunks = split_to_chunks(chunk_size, states);
+
+        if chunks.is_empty() {
+            break;
+        }
+
+        for chunk in chunks {
+            for (program_id, state_hash, _) in chunk {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
                     .expect("Failed to instantiate executor");
-                let program_id = *program_id;
-                let state_hash = *state_hash;
 
                 let _ = join_set.spawn_blocking(move || {
                     let (jn, new_state_hash) =
@@ -171,24 +171,22 @@ pub async fn run(
                     state.hash = new_state_hash;
                 });
 
-                if !program_journals.is_empty() {
-                    for (journal, dispatch_origin) in program_journals {
-                        let mut journal_handler = JournalHandler {
-                            program_id,
-                            dispatch_origin,
-                            controller: TransitionController {
-                                transitions: in_block_transitions,
-                                storage: &db,
-                            },
-                        };
-                        core_processor::handle_journal(journal, &mut journal_handler);
-                    }
+                if program_journals.is_empty() {
+                    continue;
+                }
+
+                for (journal, dispatch_origin) in program_journals {
+                    let mut journal_handler = JournalHandler {
+                        program_id,
+                        dispatch_origin,
+                        controller: TransitionController {
+                            transitions: in_block_transitions,
+                            storage: &db,
+                        },
+                    };
+                    core_processor::handle_journal(journal, &mut journal_handler);
                 }
             }
-        }
-
-        if chunks.is_empty() {
-            break;
         }
     }
 }
@@ -197,26 +195,40 @@ pub async fn run(
 // but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
 fn split_to_chunks(
     chunk_size: usize,
-    states: &[(ActorId, H256, usize)],
+    states: Vec<(ActorId, StateHashWithQueueSize)>,
 ) -> Vec<Vec<(ActorId, H256, usize)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
-        queue_size.clamp(1, number_of_chunks) - 1
+        debug_assert_ne!(queue_size, 0);
+        queue_size.min(number_of_chunks) - 1
     }
+
+    //Some((*actor_id, state.hash, state.cached_queue_size as usize))
 
     let number_of_chunks = states.len().div_ceil(chunk_size);
+    let mut chunks = vec![vec![]; number_of_chunks];
 
-    let mut chunks = Vec::from_iter(iter::repeat_n(Vec::new(), number_of_chunks));
-
-    for (actor_id, state_hash, queue_size) in states {
-        let chunk_idx = chunk_idx(*queue_size, number_of_chunks);
-        chunks[chunk_idx].push((*actor_id, *state_hash, *queue_size));
+    for (
+        actor_id,
+        StateHashWithQueueSize {
+            hash,
+            cached_queue_size,
+        },
+    ) in states
+    {
+        let queue_size = cached_queue_size as usize;
+        let chunk_idx = chunk_idx(queue_size, number_of_chunks);
+        chunks[chunk_idx].push((actor_id, hash, queue_size));
     }
 
-    // Merge uneven chunks in reverse order
-    let chunks = chunks.into_iter().flatten().rev().chunks(chunk_size);
-    // Repartition chunks to ensure all chunks have an equal number of elements
     chunks
+        .into_iter()
+        // Merge uneven chunks
+        .flatten()
+        // Repartition chunks in reverse order to ensure all chunks have an equal number of elements
+        .rev()
+        .chunks(chunk_size)
+        // Convert into vector of vectors
         .into_iter()
         .map(|c| c.into_iter().collect())
         .collect()
@@ -246,21 +258,23 @@ mod tests {
     #[test]
     fn chunk_partitioning() {
         const STATE_SIZE: usize = 1_000;
-        const VIRT_THREADS_NUM: usize = 16;
+        const CHUNK_PROCESSING_THREADS: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
 
         let states = Vec::from_iter(
             std::iter::repeat_with(|| {
                 (
                     ActorId::from(0),
-                    H256::zero(),
-                    (rand::random::<u8>() % MAX_QUEUE_SIZE + 1) as usize,
+                    StateHashWithQueueSize {
+                        hash: H256::zero(),
+                        cached_queue_size: (rand::random::<u8>() % MAX_QUEUE_SIZE + 1),
+                    },
                 )
             })
             .take(STATE_SIZE),
         );
 
-        let chunks = split_to_chunks(VIRT_THREADS_NUM, &states);
+        let chunks = split_to_chunks(CHUNK_PROCESSING_THREADS, states);
 
         // Checking chunks partitioning
         let accum_chunks = chunks
