@@ -67,6 +67,8 @@ pub enum ConversionError {
     Ss58Encode,
 }
 
+impl core::error::Error for ConversionError {}
+
 /// Message handle.
 ///
 /// Gear allows users and programs to interact with other users and programs via
