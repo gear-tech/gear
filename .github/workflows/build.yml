@@ -63,8 +63,8 @@ jobs:
       fail-fast: false
     name: linux (${{ matrix.profiles.name }})
     env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: mold
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -74,6 +74,9 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Mold"
+        uses: rui314/setup-mold@v1
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
