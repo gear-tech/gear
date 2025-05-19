@@ -11,7 +11,6 @@ repository.workspace = true
 ethexe-common.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-blob-loader.workspace = true
 ethexe-db.workspace = true
 gprimitives.workspace = true
 
