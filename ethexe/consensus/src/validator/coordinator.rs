@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{submitter::Submitter, StateHandler, ValidatorContext};
+use super::{submitter::Submitter, StateHandler, ValidatorContext, ValidatorState};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     BatchCommitmentValidationReply, ConsensusEvent,
@@ -38,10 +38,6 @@ pub struct Coordinator {
 }
 
 impl StateHandler for Coordinator {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -50,14 +46,14 @@ impl StateHandler for Coordinator {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
     fn process_validation_reply(
-        mut self: Box<Self>,
+        mut self,
         reply: BatchCommitmentValidationReply,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         if let Err(err) = self
             .multisigned_batch
             .accept_batch_commitment_validation_reply(reply, |addr| {
@@ -73,7 +69,7 @@ impl StateHandler for Coordinator {
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.signatures_threshold {
             Submitter::create(self.ctx, self.multisigned_batch)
         } else {
-            Ok(self)
+            Ok(self.into())
         }
     }
 }
@@ -83,7 +79,7 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         validators: Vec<Address>,
         batch: BatchCommitment,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         ensure!(
             validators.len() as u64 >= ctx.signatures_threshold,
             "Number of validators is less than threshold"
@@ -108,11 +104,12 @@ impl Coordinator {
 
         ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));
 
-        Ok(Box::new(Self {
+        Ok(Self {
             ctx,
             validators: validators.into_iter().collect(),
             multisigned_batch,
-        }))
+        }
+        .into())
     }
 }
 
@@ -122,7 +119,6 @@ mod tests {
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::ToDigest;
     use gprimitives::H256;
-    use std::any::TypeId;
 
     #[test]
     fn coordinator_create_success() {
@@ -132,7 +128,7 @@ mod tests {
         let batch = BatchCommitment::default();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(coordinator.is_coordinator());
         assert!(matches!(
             coordinator.context().output[0],
             ConsensusEvent::PublishValidationRequest(_)
@@ -185,19 +181,19 @@ mod tests {
         let reply4 = mock_validation_reply(&ctx.signer, keys[2], ctx.router_address, digest);
 
         let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(coordinator.is_coordinator());
         assert!(matches!(
             coordinator.context().output[0],
             ConsensusEvent::PublishValidationRequest(_)
         ));
 
         coordinator = coordinator.process_validation_reply(reply1).unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(coordinator.is_coordinator());
 
         coordinator = coordinator
             .process_validation_reply(reply2_invalid)
             .unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(coordinator.is_coordinator());
         assert!(matches!(
             coordinator.context().output[1],
             ConsensusEvent::Warning(_)
@@ -206,14 +202,14 @@ mod tests {
         coordinator = coordinator
             .process_validation_reply(reply3_invalid)
             .unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Coordinator>());
+        assert!(coordinator.is_coordinator());
         assert!(matches!(
             coordinator.context().output[2],
             ConsensusEvent::Warning(_)
         ));
 
         coordinator = coordinator.process_validation_reply(reply4).unwrap();
-        assert_eq!(coordinator.type_id(), TypeId::of::<Submitter>());
+        assert!(coordinator.is_submitter());
         assert_eq!(coordinator.context().output.len(), 3);
     }
 }
