@@ -16,24 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::errors;
-use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
-    BlockHeader,
-};
-use gprimitives::H256;
-use jsonrpsee::core::RpcResult;
+//! Ethexe common types and traits for hashes, addresses, and signature primitives.
+//! Presently, it contains only ECDSA keys and signatures.
 
-pub fn block_header_at_or_latest<DB: BlockMetaStorage + OnChainStorage>(
-    db: &DB,
-    at: impl Into<Option<H256>>,
-) -> RpcResult<(H256, BlockHeader)> {
-    if let Some(hash) = at.into() {
-        db.block_header(hash)
-            .map(|header| (hash, header))
-            .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
-    } else {
-        db.latest_computed_block()
-            .ok_or_else(|| errors::db("Latest block header wasn't found"))
-    }
+mod address;
+mod digest;
+mod keys;
+mod signature;
+
+pub use address::*;
+pub use digest::*;
+pub mod ecdsa {
+    pub use super::{keys::*, signature::*};
 }

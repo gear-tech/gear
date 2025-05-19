@@ -18,13 +18,14 @@
 
 //! Ethereum address.
 
-use crate::PublicKey;
-use anyhow::{anyhow, Error, Result};
-use derive_more::{Debug, Display, From};
+use super::keys::PublicKey;
+use alloc::string::String;
+use core::str::FromStr;
+use derive_more::{Debug, Display, Error, From};
 use gprimitives::{ActorId, H160};
+use hex::FromHexError;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
-use std::str::FromStr;
 
 /// Ethereum address type.
 ///
@@ -58,26 +59,31 @@ impl From<PublicKey> for Address {
 }
 
 impl FromStr for Address {
-    type Err = Error;
+    type Err = FromHexError;
 
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(Self(crate::decode_to_array(s)?))
+    fn from_str(s: &str) -> Result<Self, FromHexError> {
+        crate::decode_to_array(s).map(Self)
     }
 }
+
+#[derive(Debug, Display, Error)]
+#[display("{:?}", self)]
+#[debug("First 12 bytes are not 0, it is not ethereum address")]
+pub struct FromActorIdError;
 
 /// Tries to convert `ActorId`` into `Address`.
 ///
 /// Succeeds if first 12 bytes are 0.
 impl TryFrom<ActorId> for Address {
-    type Error = Error;
+    type Error = FromActorIdError;
 
-    fn try_from(id: ActorId) -> Result<Self> {
+    fn try_from(id: ActorId) -> Result<Self, Self::Error> {
         id.as_ref()
             .iter()
             .take(12)
             .all(|&byte| byte == 0)
             .then_some(Address(id.to_address_lossy().0))
-            .ok_or_else(|| anyhow!("First 12 bytes are not 0, it is not ethereum address"))
+            .ok_or(FromActorIdError)
     }
 }
 

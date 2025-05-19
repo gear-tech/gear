@@ -22,9 +22,8 @@ use super::{
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::SimpleBlockData;
+use ethexe_common::{Address, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::Address;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.

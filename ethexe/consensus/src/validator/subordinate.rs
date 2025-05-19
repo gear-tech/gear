@@ -23,8 +23,7 @@ use super::{
 use crate::{validator::participant::Participant, ConsensusEvent};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{ProducerBlock, SimpleBlockData};
-use ethexe_signer::{Address, SignedData};
+use ethexe_common::{ecdsa::SignedData, Address, ProducerBlock, SimpleBlockData};
 use gprimitives::H256;
 use std::mem;
 

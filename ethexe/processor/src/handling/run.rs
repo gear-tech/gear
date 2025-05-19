@@ -21,8 +21,8 @@ use crate::{
     ProcessorConfig,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::gear::Origin;
-use ethexe_db::{CodesStorage, Database};
+use ethexe_common::{db::CodesStorage, gear::Origin};
+use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
 use gear_core::ids::ProgramId;
 use gprimitives::H256;

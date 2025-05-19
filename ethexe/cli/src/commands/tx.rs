@@ -20,8 +20,9 @@ use super::utils;
 use crate::params::Params;
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use clap::{Parser, Subcommand};
+use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
-use ethexe_signer::{Address, Signer};
+use ethexe_signer::Signer;
 use gprimitives::H256;
 use std::{fs, path::PathBuf};
 
