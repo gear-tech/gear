@@ -20,8 +20,8 @@ use super::{DispatchKind, IncomingDispatch, Packet};
 use crate::{
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
     message::{
-        incoming::SharedIncomingDispatch, Dispatch, HandleMessage, HandlePacket, IncomingMessage,
-        InitMessage, InitPacket, Payload, ReplyMessage, ReplyPacket,
+        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
+        ReplyMessage, ReplyPacket,
     },
     reservation::{GasReserver, ReservationNonce},
 };
@@ -210,7 +210,7 @@ impl ContextStore {
 /// Context of currently processing incoming message.
 #[derive(Debug)]
 pub struct MessageContext {
-    dispatch: SharedIncomingDispatch,
+    dispatch: IncomingDispatch,
     outcome: ContextOutcome,
     store: ContextStore,
     outgoing_payloads: OutgoingPayloads,
@@ -233,14 +233,14 @@ impl MessageContext {
             ),
             store: dispatch.context().as_ref().cloned().unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
-            dispatch: SharedIncomingDispatch::new(dispatch),
+            dispatch,
             settings,
         }
     }
 
     /// Getter for inner dispatch.
-    pub fn dispatch(&self) -> SharedIncomingDispatch {
-        self.dispatch.clone()
+    pub fn dispatch(&self) -> &IncomingDispatch {
+        &self.dispatch
     }
 
     /// Getter for inner settings.
@@ -422,8 +422,10 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.dispatch.message().payload_bytes()[offset..excluded_end])
-            .map_err(|_| Error::MaxMessageSizeExceed)?;
+        data.try_extend_from_slice(
+            &self.dispatch.message().payload().inner()[offset..excluded_end],
+        )
+        .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
 
@@ -435,17 +437,17 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input = self.dispatch.message().payload_bytes();
+        let input_len = self.dispatch.message().payload().inner().len();
         let offset = offset as usize;
         let len = len as usize;
 
         // Check `offset` is not out of bounds.
-        if offset >= input.len() {
+        if offset >= input_len {
             return Err(Error::OutOfBoundsInputSliceOffset);
         }
 
         // Check `len` for the current `offset` doesn't refer to the slice out of input bounds.
-        let available_len = input.len() - offset;
+        let available_len = input_len - offset;
         if len > available_len {
             return Err(Error::OutOfBoundsInputSliceLength);
         }
@@ -525,7 +527,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.dispatch.message().payload_bytes()[offset..excluded_end])
+            .try_extend_from_slice(&self.dispatch.message().payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -584,7 +586,7 @@ impl MessageContext {
     }
 
     /// Destructs context after execution and returns provided outcome and store.
-    pub fn drain(self) -> (SharedIncomingDispatch, ContextOutcome, ContextStore) {
+    pub fn drain(self) -> (IncomingDispatch, ContextOutcome, ContextStore) {
         let Self {
             dispatch,
             outcome,

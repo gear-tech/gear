@@ -34,10 +34,7 @@ pub use context::{
 };
 pub use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 pub use handle::{HandleMessage, HandlePacket};
-pub use incoming::{
-    IncomingDispatch, IncomingDispatchInfo, IncomingMessage, IncomingMessageInfo,
-    SharedIncomingDispatch,
-};
+pub use incoming::{IncomingDispatch, IncomingDispatchInfo, IncomingMessage, IncomingMessageInfo};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
 pub use signal::SignalMessage;

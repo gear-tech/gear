@@ -25,17 +25,11 @@ use crate::{
 };
 use alloc::sync::Arc;
 use core::ops::Deref;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Incoming message info.
 ///
 /// Used for easy copying.
-#[derive(
-    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
+#[derive(Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct IncomingMessageInfo {
     /// Message id.
     id: MessageId,
@@ -106,12 +100,12 @@ impl IncomingMessageInfo {
 /// Incoming message.
 ///
 /// Used for program execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct IncomingMessage {
     /// Message info
     info: IncomingMessageInfo,
     /// Message payload.
-    payload: Payload,
+    payload: Arc<Payload>,
 }
 
 impl IncomingMessage {
@@ -126,7 +120,7 @@ impl IncomingMessage {
     ) -> Self {
         Self {
             info: IncomingMessageInfo::new(id, source, gas_limit, value, details),
-            payload,
+            payload: Arc::new(payload),
         }
     }
 
@@ -136,7 +130,7 @@ impl IncomingMessage {
             self.info.id,
             self.info.source,
             destination,
-            self.payload,
+            Arc::unwrap_or_clone(self.payload),
             self.info.value,
             self.info.details,
         )
@@ -148,13 +142,8 @@ impl IncomingMessage {
     }
 
     /// Message payload.
-    pub fn payload(&self) -> &Payload {
-        &self.payload
-    }
-
-    /// Message payload bytes.
-    pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
+    pub fn payload(&self) -> Arc<Payload> {
+        self.payload.clone()
     }
 }
 
@@ -167,7 +156,7 @@ impl Deref for IncomingMessage {
 }
 
 /// Incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,
@@ -237,30 +226,6 @@ impl Deref for IncomingDispatch {
 
     fn deref(&self) -> &Self::Target {
         self.message()
-    }
-}
-
-/// Shared incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Debug)]
-pub struct SharedIncomingDispatch(Arc<IncomingDispatch>);
-
-impl Deref for SharedIncomingDispatch {
-    type Target = IncomingDispatch;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl SharedIncomingDispatch {
-    /// Create new SharedIncomingDispatch.
-    pub fn new(incoming_dispatch: IncomingDispatch) -> Self {
-        Self(Arc::new(incoming_dispatch))
-    }
-
-    /// Decompose SharedIncomingDispatch into inner IncomingDispatch.
-    pub fn into_inner(self) -> IncomingDispatch {
-        Arc::unwrap_or_clone(self.0)
     }
 }
 

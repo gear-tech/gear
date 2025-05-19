@@ -613,7 +613,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         }
 
         let info = ExtInfo {
-            dispatch: dispatch.into_inner(),
+            dispatch,
             gas_amount: gas_counter.to_amount(),
             gas_reserver,
             system_reservation_context,
@@ -1158,13 +1158,23 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                     .cost_for(len.into()),
             )?;
 
-            PayloadSlice::try_new(at, end, mutator.context.message_context.dispatch())
-                .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
+            PayloadSlice::try_new(
+                at,
+                end,
+                mutator.context.message_context.dispatch().payload(),
+            )
+            .ok_or_else(|| FallibleExecutionError::ReadWrongRange.into())
         })
     }
 
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
-        Ok(self.context.message_context.current().payload_bytes().len())
+        Ok(self
+            .context
+            .message_context
+            .current()
+            .payload()
+            .inner()
+            .len())
     }
 
     fn reserve_gas(
