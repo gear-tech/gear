@@ -24,15 +24,11 @@ use crate::{
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
-use ethexe_common::{
-    db::OnChainStorage,
-    events::{BlockEvent, RouterEvent},
-    BlockData,
-};
-use ethexe_db::{BlockHeader, CodeInfo, CodesStorage, Database};
+use ethexe_common::{db::OnChainStorage, BlockData};
+use ethexe_db::{BlockHeader, Database};
 use ethexe_ethereum::router::RouterQuery;
-use gprimitives::{CodeId, H256};
-use std::collections::{HashMap, HashSet};
+use gprimitives::H256;
+use std::collections::HashMap;
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]

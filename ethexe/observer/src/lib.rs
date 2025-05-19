@@ -30,9 +30,9 @@ use ethexe_db::{BlockHeader, Database};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_signer::Address;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
-use gprimitives::{CodeId, H256};
+use gprimitives::H256;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::VecDeque,
     fmt,
     pin::Pin,
     task::{Context, Poll},

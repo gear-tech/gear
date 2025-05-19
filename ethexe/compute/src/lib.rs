@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Chain, Result};
+use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
 };
-use ethexe_db::{Database, CodeInfo};
+use ethexe_db::{CodeInfo, Database};
 use ethexe_processor::{BlockProcessingResult, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
@@ -61,8 +61,6 @@ pub struct ComputeService {
     db: Database,
     processor: Processor,
     blocks_queue: VecDeque<H256>,
-    loaded_codes: HashSet<CodeId>,
-    // process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
     state: ComputationState,
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
@@ -71,14 +69,21 @@ impl Stream for ComputeService {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        /// NOTE: here not a matching, because of preventing the errors with borrowing
+        if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
+            return Poll::Ready(Some(
+                res.map_err(Into::into)
+                    .and_then(|res| res.map(ComputeEvent::CodeProcessed)),
+            ));
+        }
+
+        // NOTE: here not a matching, because of preventing the errors with borrowing
         let (maybe_state, maybe_event) = if let ComputationState::NotStarted = &self.state {
             match self.blocks_queue.pop_back() {
                 Some(block) => {
-                    let (validated_codes, codes_to_load) = self.collect_block_codes(block)?;
+                    let (validated_codes, codes_to_load) = self.collect_chain_codes(block)?;
 
                     let new_state = ComputationState::WaitForCodes {
-                        block: block,
+                        block,
                         waiting_codes: validated_codes,
                     };
                     let event = Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load)));
@@ -98,7 +103,7 @@ impl Stream for ComputeService {
                         db: self.db.clone(),
                         processor: self.processor.clone(),
                     }
-                    .process(block.clone())
+                    .process(*block)
                     .boxed(),
                 ));
             (new_state, None)
@@ -123,7 +128,7 @@ impl Stream for ComputeService {
             return Poll::Ready(Some(event));
         }
 
-        return Poll::Pending;
+        Poll::Pending
     }
 }
 
@@ -141,8 +146,6 @@ impl ComputeService {
             processor,
             blocks_queue: VecDeque::new(),
             state: ComputationState::NotStarted,
-            loaded_codes: HashSet::new(),
-            // process_block: Default::default(),
             process_codes: Default::default(),
         }
     }
@@ -166,21 +169,23 @@ impl ComputeService {
     }
 
     pub fn process_block(&mut self, block: H256) {
-        // if self.process_block.is_none() {
-
-        // if self.process_block_state.is_none() {
-        //     let context = ChainHeadProcessContext {
-        //         db: self.db.clone(),
-        //         processor: self.processor.clone(),
-        //     };
-
-        //     self.process_block = Some(context.process(block).boxed());
-        //     self.process_block_state = Some(ProcessBlockState::WaitForCodes())
-        // } else {
-
         self.blocks_queue.push_back(block);
+    }
 
-        // }
+    fn collect_chain_codes(&self, block: H256) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
+        let chain = ChainHeadProcessContext::collect_not_computed_blocks_chain(&self.db, block)?;
+
+        let mut validated_codes = HashSet::new();
+        let mut codes_to_load = HashSet::new();
+        for block in chain {
+            let (block_validated_coded, block_codes_to_load) =
+                self.collect_block_codes(block.hash)?;
+
+            validated_codes.extend(block_validated_coded.into_iter());
+            codes_to_load.extend(block_codes_to_load.into_iter());
+        }
+
+        Ok((validated_codes, codes_to_load))
     }
 
     fn collect_block_codes(&self, block: H256) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
@@ -236,13 +241,13 @@ struct ChainHeadProcessContext {
 
 impl ChainHeadProcessContext {
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
         // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
         for block_data in chain.into_iter().rev() {
             self.process_one_block(block_data).await?;
         }
-
         Ok(BlockProcessed { block_hash: head })
     }
 

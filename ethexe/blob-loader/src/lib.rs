@@ -33,13 +33,7 @@ use futures::{
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{
-    collections::{HashSet, VecDeque},
-    fmt,
-    hash::RandomState,
-    pin::Pin,
-    task::Poll,
-};
+use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
 use tokio::time::{self, Duration};
 
 pub mod local;

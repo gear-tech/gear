@@ -130,10 +130,7 @@ impl Stream for LocalBlobLoader {
             Poll::Ready(res) => {
                 self.future = None;
                 match res {
-                    Ok(blob_data) => {
-                        self.storage.db.set_original_code(blob_data.code.as_slice());
-                        Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
-                    }
+                    Ok(blob_data) => Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data)))),
                     Err(e) => Poll::Ready(Some(Err(e))),
                 }
             }

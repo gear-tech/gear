@@ -117,7 +117,7 @@ async fn test_deployment() -> Result<()> {
         )
     "#;
     let wasm = wat2wasm(wat);
-    let request_code_id = request_wasm_validation(wasm.clone()).await;
+    let _request_code_id = request_wasm_validation(wasm.clone()).await;
 
     let event = observer
         .next()
@@ -136,13 +136,10 @@ async fn test_deployment() -> Result<()> {
     let ObserverEvent::BlockSynced(_) = event else {
         panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
     };
-
-    // assert_eq!(codes_to_load.len(), 1);
-    // assert_eq!(codes_to_load[0], request_code_id);
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
-    let request_code_id = request_wasm_validation(wasm.clone()).await;
+    let _request_code_id = request_wasm_validation(wasm.clone()).await;
 
     let event = observer
         .next()
@@ -159,9 +156,6 @@ async fn test_deployment() -> Result<()> {
     let ObserverEvent::BlockSynced(_) = event else {
         panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
     };
-
-    // assert_eq!(codes_to_load.len(), 1);
-    // assert_eq!(codes_to_load[0], request_code_id);
 
     Ok(())
 }

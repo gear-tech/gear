@@ -19,7 +19,7 @@
 use crate::{Event, Service};
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
-use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
+use ethexe_blob_loader::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -310,10 +310,7 @@ impl Drop for RequestManager {
     }
 }
 
-async fn sync_finalized_head(
-    observer: &mut ObserverService,
-    blobs_loader: &mut Box<dyn BlobLoaderService>,
-) -> Result<H256> {
+async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
     let highest_block = observer
         .provider()
         // we get finalized block to avoid block reorganization
@@ -334,25 +331,6 @@ async fn sync_finalized_head(
             ObserverEvent::Block(_) => {}
             ObserverEvent::BlockSynced(synced_block) => {
                 debug_assert_eq!(highest_block, synced_block.block_hash);
-
-                // blobs_loader.load_codes(requested_codes.clone(), None)?;
-
-                // let amount_to_load = requested_codes.len();
-                // let mut expected_codes = requested_codes.clone();
-
-                // for _ in 0..amount_to_load {
-                //     let Some(event) = blobs_loader.next().await else {
-                //         return Err(anyhow!("blob loader returns None instead of event"));
-                //     };
-
-                //     let BlobLoaderEvent::BlobLoaded(blob_data) = event?;
-                //     let code_id = blob_data.code_id;
-                //     debug_assert!(
-                //         expected_codes.remove(&code_id),
-                //         "blob loader returns unexpected code {code_id:?}"
-                //     );
-                // }
-
                 break;
             }
         }
@@ -506,8 +484,9 @@ async fn sync_from_network(
 }
 
 async fn instrument_codes(
-    db: &Database,
     compute: &mut ComputeService,
+    blobs_loader: &mut Box<dyn BlobLoaderService>,
+    synced_block: H256,
     mut code_ids: HashSet<CodeId>,
 ) -> Result<()> {
     if code_ids.is_empty() {
@@ -515,22 +494,38 @@ async fn instrument_codes(
         return Ok(());
     }
 
+    compute.process_block(synced_block);
+    match compute.next().await {
+        Some(Ok(ComputeEvent::RequestLoadCodes(codes))) => blobs_loader.load_codes(codes, None)?,
+        Some(Ok(event)) => {
+            return Err(anyhow!(
+                "expect codes to load, but got another event: {event:?}"
+            ))
+        }
+        Some(Err(e)) => return Err(anyhow!("expect codes to load, but got err: {e:?}")),
+        None => return Err(anyhow!("expect codes to load, but got None")),
+    };
+
     log::info!("Instrument {} codes", code_ids.len());
 
-    for &code_id in &code_ids {
-        log::info!(
-            "Instrumenting code {code_id}, {:?}, {:?}",
-            db.code_blob_info(code_id),
-            db.original_code(code_id)
-        );
-        let code_info = db
-            .code_blob_info(code_id)
-            .expect("observer must fulfill database");
-
-        let original_code = db
-            .original_code(code_id)
-            .expect("observer must fulfill database");
-        compute.process_code(code_id, code_info.timestamp, original_code);
+    let mut wait_load_codes = code_ids.clone();
+    while !wait_load_codes.is_empty() {
+        match blobs_loader.next().await {
+            Some(Ok(BlobLoaderEvent::BlobLoaded(BlobData {
+                code_id,
+                timestamp,
+                code,
+            }))) => {
+                wait_load_codes.remove(&code_id);
+                compute.process_code(code_id, timestamp, code);
+            }
+            Some(Err(e)) => {
+                return Err(anyhow!("expect BlobLoaded, but got err: {e:?}"));
+            }
+            None => {
+                return Err(anyhow!("expect BlobLoaded, but got None"));
+            }
+        }
     }
 
     while let Some(event) = compute.next().await {
@@ -563,7 +558,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     log::info!("Fast synchronization is in progress...");
 
-    let finalized_block = sync_finalized_head(observer, blob_loader).await?;
+    let finalized_block = sync_finalized_head(observer).await?;
     let Some(EventData {
         program_states,
         program_code_ids,
@@ -576,7 +571,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
-    instrument_codes(db, compute, needs_instrumentation_codes).await?;
+    instrument_codes(
+        compute,
+        blob_loader,
+        finalized_block,
+        needs_instrumentation_codes,
+    )
+    .await?;
 
     let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
         .expect("observer must fulfill database");

@@ -360,7 +360,6 @@ impl Service {
             };
 
             log::trace!("Primary service produced event, start handling: {event:?}");
-            log::info!("❓❓❓ Service event: {event:?}");
 
             // Broadcast event.
             // Never supposed to be Some in production.
@@ -404,7 +403,7 @@ impl Service {
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::RequestLoadCodes(codes) => {
-                        blob_loader.load_codes(codes, None);
+                        blob_loader.load_codes(codes, None)?;
                     }
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         consensus.receive_computed_block(block_hash)?
