@@ -13,6 +13,7 @@ repository.workspace = true
 ethexe-signer.workspace = true
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
+ethexe-common.workspace = true
 
 gprimitives = { workspace = true, features = ["codec"] }
 

@@ -16,12 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Address;
-use anyhow::{Error, Result};
+use super::address::Address;
+use alloc::string::String;
+use core::str::FromStr;
 use derive_more::{Debug, Display, From, Into};
-use k256::ecdsa::{SigningKey, VerifyingKey};
+use hex::FromHexError;
+use k256::{
+    ecdsa::{SigningKey, VerifyingKey},
+    elliptic_curve::rand_core,
+};
 use parity_scale_codec::{Decode, Encode};
-use std::str::FromStr;
 
 /// Private key.
 ///
@@ -46,10 +50,17 @@ impl From<PrivateKey> for SigningKey {
 }
 
 impl FromStr for PrivateKey {
-    type Err = Error;
+    type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(crate::decode_to_array(s)?))
+        crate::decode_to_array(s).map(Self)
+    }
+}
+
+#[cfg(feature = "std")]
+impl PrivateKey {
+    pub fn random() -> Self {
+        SigningKey::random(&mut rand_core::OsRng).into()
     }
 }
 
@@ -76,12 +87,6 @@ impl PublicKey {
         let verifying_key = VerifyingKey::from(&signing_key);
 
         verifying_key.into()
-    }
-
-    pub fn try_from_slice(slice: &[u8]) -> Result<Self> {
-        let bytes = <[u8; 33]>::try_from(slice)?;
-
-        Ok(Self::from_bytes(bytes))
     }
 
     /// Create public key from compressed public key bytes.
@@ -131,17 +136,9 @@ impl From<PublicKey> for VerifyingKey {
 }
 
 impl FromStr for PublicKey {
-    type Err = Error;
+    type Err = FromHexError;
 
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(Self(crate::decode_to_array(s)?))
-    }
-}
-
-impl TryFrom<&[u8]> for PublicKey {
-    type Error = Error;
-
-    fn try_from(data: &[u8]) -> Result<Self> {
-        Self::try_from_slice(data)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        crate::decode_to_array(s).map(Self)
     }
 }
