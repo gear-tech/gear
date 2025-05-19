@@ -95,17 +95,14 @@ impl Coordinator {
             "Threshold should be greater than 0"
         );
 
-        let multisigned_batch = MultisignedBatchCommitment::new(
-            batch,
-            &ctx.signer.contract_signer(ctx.router_address),
-            ctx.pub_key,
-        )?;
+        let multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)?;
 
         if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        let validation_request = ctx.signer.create_signed_data(
+        let validation_request = ctx.signer.signed_data(
             ctx.pub_key,
             BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
         )?;

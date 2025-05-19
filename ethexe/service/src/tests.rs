@@ -1067,7 +1067,7 @@ async fn tx_pool_gossip() {
         };
         let signature = env
             .signer
-            .sign(sender_pub_key, ethexe_tx.encode().as_ref())
+            .sign(sender_pub_key, ethexe_tx.encode().as_slice())
             .expect("failed signing tx");
         SignedOffchainTransaction {
             signature: signature.encode(),
@@ -1110,7 +1110,7 @@ async fn tx_pool_gossip() {
 
 // #[ignore = "until all tests are passed"]
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn fast_sync() {
     utils::init_logger();
 
@@ -1307,7 +1307,7 @@ mod utils {
     use ethexe_rpc::RpcService;
     use ethexe_signer::{PrivateKey, PublicKey};
     use ethexe_tx_pool::TxPoolService;
-    use futures::StreamExt;
+    use futures::{executor::block_on, StreamExt};
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
@@ -1316,14 +1316,13 @@ mod utils {
     };
     use std::{
         pin::Pin,
-        str::FromStr,
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::broadcast::{self, Receiver, Sender};
     use tracing::Instrument;
     use tracing_subscriber::EnvFilter;
 
-    /// Max network services which can be created in one test environment.
+    /// Max network services which can be created by one test environment.
     const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 
     pub fn init_logger() {
@@ -1403,7 +1402,7 @@ mod utils {
                 }
             };
 
-            let signer = Signer::new(tempfile::tempdir()?.into_path())?;
+            let signer = Signer::memory();
 
             let mut wallets = if let Some(wallets) = wallets {
                 Wallets::custom(&signer, wallets)
@@ -1419,7 +1418,7 @@ mod utils {
                     .iter()
                     .map(|k| {
                         let private_key = k.parse().unwrap();
-                        signer.add_key(private_key).unwrap()
+                        signer.storage_mut().add_key(private_key).unwrap()
                     })
                     .collect(),
             };
@@ -1520,7 +1519,7 @@ mod utils {
             let bootstrap_network = network_address.map(|maybe_address| {
                 static NONCE: AtomicUsize = AtomicUsize::new(1);
 
-                // * MAX_NETWORK_PEERS_ONE_TEST to avoid address collision between different test-threads
+                // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
                 let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
                 let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
@@ -1628,11 +1627,13 @@ mod utils {
 
             let listener = self.observer_events_publisher().subscribe().await;
 
-            let pending_builder = self
-                .ethereum
-                .router()
-                .request_code_validation_with_sidecar(code)
-                .await?;
+            // Lock the blob reader to lock any other threads that may use it
+
+            let pending_builder = block_on(
+                self.ethereum
+                    .router()
+                    .request_code_validation_with_sidecar(code),
+            )?;
 
             let code_id = pending_builder.code_id();
             self.blobs_storage.add_code(code_id, code.to_vec()).await;
@@ -1828,24 +1829,17 @@ mod utils {
                     .zip(validator_identifiers.iter())
                     .map(|(public_key, id)| {
                         let signing_share = *secret_shares[id].signing_share();
-                        let private_key = PrivateKey(signing_share.serialize().try_into().unwrap());
+                        let private_key = PrivateKey::from(
+                            <[u8; 32]>::try_from(signing_share.serialize()).unwrap(),
+                        );
                         ValidatorConfig {
                             public_key,
-                            session_public_key: signer.add_key(private_key).unwrap(),
+                            session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
                         }
                     })
                     .collect(),
                 verifiable_secret_sharing_commitment,
             )
-        }
-
-        #[allow(unused)]
-        pub async fn process_already_uploaded_code(&self, code: &[u8], tx_hash: &str) -> CodeId {
-            let code_id = CodeId::generate(code);
-            let tx_hash = H256::from_str(tx_hash).unwrap();
-            self.blobs_storage.add_code(code_id, code.to_vec()).await;
-
-            code_id
         }
     }
 
@@ -2089,7 +2083,12 @@ mod utils {
             Self {
                 wallets: accounts
                     .into_iter()
-                    .map(|s| signer.add_key(s.as_ref().parse().unwrap()).unwrap())
+                    .map(|s| {
+                        signer
+                            .storage_mut()
+                            .add_key(s.as_ref().parse().unwrap())
+                            .unwrap()
+                    })
                     .collect(),
                 next_wallet: 0,
             }

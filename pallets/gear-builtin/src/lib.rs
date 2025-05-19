@@ -256,7 +256,7 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
-    // This pallet doesn't define a storage version because it doesn't use any storage
+    /// The pallet's storage version.
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
     pub struct Pallet<T>(_);

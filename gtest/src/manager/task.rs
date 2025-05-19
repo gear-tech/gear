@@ -120,7 +120,7 @@ impl TaskHandler<ProgramId, MessageId, bool> for ExtManager {
                 .try_into()
                 .expect("internal error: error reply reason bytes size is too big");
 
-            let trap_reply = ReplyMessage::system(message_id, err_payload, err);
+            let trap_reply = ReplyMessage::system(message_id, err_payload, 0, err);
 
             if Actors::is_program(waitlisted.source()) {
                 let trap_dispatch =

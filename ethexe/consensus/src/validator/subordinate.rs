@@ -74,7 +74,7 @@ impl StateHandler for Subordinate {
         block: SignedData<ProducerBlock>,
     ) -> Result<Box<dyn StateHandler>> {
         if self.state == State::WaitingForProducerBlock
-            && block.verify_address(self.producer).is_ok()
+            && block.address() == self.producer
             && block.data().block_hash == self.block.hash
         {
             let pb = block.into_parts().0;
@@ -94,7 +94,7 @@ impl StateHandler for Subordinate {
         mut self: Box<Self>,
         request: SignedData<crate::BatchCommitmentValidationRequest>,
     ) -> Result<Box<dyn StateHandler>> {
-        if request.verify_address(self.producer).is_ok() {
+        if request.address() == self.producer {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
             self.ctx.pending(request);
 
@@ -146,7 +146,7 @@ impl Subordinate {
                 PendingEvent::ProducerBlock(signed_pb)
                     if earlier_producer_block.is_none()
                         && (signed_pb.data().block_hash == block.hash)
-                        && signed_pb.verify_address(producer).is_ok() =>
+                        && signed_pb.address() == producer =>
                 {
                     earlier_producer_block = Some(signed_pb.into_parts().0);
                 }

@@ -47,8 +47,8 @@ impl DevApi {
 impl DevServer for DevApi {
     async fn set_blob(&self, _tx_hash: H256, blob: Bytes) -> RpcResult<CodeId> {
         let code_id = CodeId::generate(&blob);
-
         self.blobs_storage.add_code(code_id, blob.0).await;
+
         Ok(code_id)
     }
 }

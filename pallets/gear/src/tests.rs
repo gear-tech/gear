@@ -69,6 +69,7 @@ use gstd::{
     errors::{CoreError, Error as GstdError},
 };
 use pallet_gear_voucher::PrepaidCall;
+use sp_core::H256;
 use sp_runtime::{
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
@@ -80,6 +81,158 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[test]
+fn err_reply_comes_with_value() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const VALUE: u128 = 10_000_000_000_000;
+
+        let (_init_mid, pid) = init_constructor(Scheme::empty());
+
+        // Case #1.
+        // If reply-able message quits with error, value is attached to the reply.
+        let user_balance = Balances::free_balance(USER_1);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            0,
+            VALUE,
+            false,
+        ));
+        assert_balance(USER_1, user_balance - VALUE, VALUE);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        run_to_next_block(None);
+
+        assert_balance(USER_1, user_balance, 0u8);
+        assert_eq!(Balances::free_balance(pid.cast::<AccountId>()), get_ed());
+
+        let err_reply = maybe_last_message(USER_1).expect("Message should be");
+
+        assert_eq!(
+            err_reply.reply_code().expect("must be"),
+            ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::RanOutOfGas
+            ))
+        );
+
+        assert_eq!(err_reply.value(), VALUE);
+
+        // Cases #2-3.
+        // If non-reply-able message quits with error, value is kept by program.
+        //
+        // Case #2: success reply quits with error.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            Calls::builder()
+                .send(USER_1.into_origin().0, b"Hello, world!".to_vec())
+                .encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let mail = get_last_mail(USER_1);
+
+        assert_ok!(Gear::send_reply(
+            RuntimeOrigin::signed(USER_1),
+            mail.id(),
+            vec![],
+            0,
+            VALUE,
+            false,
+        ));
+
+        assert_balance(USER_1, user_balance - VALUE, VALUE);
+
+        run_to_next_block(None);
+
+        let pid_balance = Balances::free_balance(pid.cast::<AccountId>());
+        assert_eq!(pid_balance, get_ed() + VALUE);
+
+        assert_balance(USER_1, user_balance - VALUE, 0u8);
+        assert_balance(pid, pid_balance, 0u8);
+
+        // Case #3: error reply quits with error.
+        const VALUE_2: u128 = 15_000_000_000_000;
+
+        let scheme = Scheme::predefined(
+            Calls::builder().noop(),
+            Calls::builder().send_value(
+                pid.into_bytes(),
+                Calls::builder().panic(None).encode(),
+                VALUE_2,
+            ),
+            Calls::builder().panic(None),
+            Calls::builder().noop(),
+        );
+
+        let (_, pid2) =
+            submit_constructor_with_args(USER_1, H256::random().as_bytes(), scheme, VALUE_2);
+
+        run_to_next_block(None);
+        assert!(is_active(pid2));
+
+        let pid2_balance = Balances::free_balance(pid2.cast::<AccountId>());
+        assert_eq!(pid2_balance, get_ed() + VALUE_2);
+
+        assert_balance(pid, pid_balance, 0u8);
+        assert_balance(pid2, pid2_balance, 0u8);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid2,
+            vec![],
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        assert_last_dequeued(3);
+
+        assert_balance(pid, pid_balance, 0u8);
+        assert_balance(pid2, pid2_balance, 0u8);
+
+        // Case #4.
+        // Exited program returns value as well.
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_2),
+            pid,
+            Calls::builder().exit(USER_2.into_origin().0).encode(),
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let user_balance = Balances::free_balance(USER_1);
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(USER_1),
+            pid,
+            vec![],
+            0,
+            1,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let mail = maybe_last_message(USER_1).expect("Message should be");
+        assert_eq!(mail.value(), 1);
+
+        assert_balance(USER_1, user_balance, 0u8);
+        assert_balance(pid, 0u8, 0u8);
+    })
+}
 
 #[test]
 fn auto_reply_on_exit_exists() {
