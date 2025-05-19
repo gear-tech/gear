@@ -39,9 +39,6 @@ pub mod prelude {
 
     /// Program (actor) identifier extension.
     pub trait ActorIdExt: private::Sealed {
-        /// System program identifier.
-        const SYSTEM: Self;
-
         /// Generates `ActorId` from given `CodeId` and `salt`.
         fn generate_from_user(code_id: CodeId, salt: &[u8]) -> Self;
 
@@ -50,8 +47,6 @@ pub mod prelude {
     }
 
     impl ActorIdExt for ActorId {
-        const SYSTEM: Self = Self::new(*b"geargeargeargeargeargeargeargear");
-
         fn generate_from_user(code_id: CodeId, salt: &[u8]) -> Self {
             const SALT: &[u8] = b"program_from_user";
             hash_of_array([SALT, code_id.as_ref(), salt]).into()

@@ -3755,7 +3755,6 @@ name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
  "gcore",
- "gear-core",
  "gear-wasm-builder",
  "gstd",
  "gtest",

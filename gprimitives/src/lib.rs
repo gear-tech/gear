@@ -96,6 +96,11 @@ pub struct ActorId([u8; 32]);
 macros::impl_primitive!(new zero into_bytes from_h256 into_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
+    /// System actor ID.
+    ///
+    /// The source of signal messages. Communication with this ID is forbidden.
+    pub const SYSTEM: Self = Self::new(*b"geargeargeargeargeargeargeargear");
+
     /// Returns the ss58-check address with default ss58 version.
     pub fn to_ss58check(&self) -> Result<Ss58Address, ConversionError> {
         RawSs58Address::from(self.0)

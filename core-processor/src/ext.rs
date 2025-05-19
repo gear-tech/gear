@@ -31,7 +31,7 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -1433,6 +1433,7 @@ mod tests {
     use gear_core::{
         buffer::{Payload, MAX_PAYLOAD_SIZE},
         costs::{CostOf, RentCosts, SyscallCosts},
+        ids::prelude::ReservationIdExt,
         message::{ContextSettings, IncomingDispatch},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
