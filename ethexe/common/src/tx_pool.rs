@@ -21,7 +21,7 @@
 use crate::{ecdsa::SignedData, ToDigest};
 use alloc::vec::Vec;
 use derive_more::{Debug, Display};
-use gprimitives::{H160, H256};
+use gprimitives::{hashing, H160, H256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -30,7 +30,7 @@ pub type SignedOffchainTransaction = SignedData<OffchainTransaction>;
 impl SignedOffchainTransaction {
     /// Ethexe transaction blake2b256 hash.
     pub fn tx_hash(&self) -> H256 {
-        gear_core::hashing::hash(&self.encode()).into()
+        hashing::hash(&self.encode()).into()
     }
 
     /// Ethexe transaction reference block hash

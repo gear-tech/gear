@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{CASDatabase, KVDatabase, MemDb};
-use gear_core::hashing;
-use gprimitives::H256;
+use gprimitives::{hashing, H256};
 use std::collections::HashSet;
 
 pub struct CASOverlay {

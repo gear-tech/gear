@@ -64,9 +64,9 @@ use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    hashing::hash,
     ids::ActorId,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
+    primitives::hashing,
     str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;
@@ -284,7 +284,7 @@ pub mod pallet {
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
         pub fn generate_actor_id(builtin_id: u64) -> ActorId {
-            hash((SEED, builtin_id).encode().as_slice()).into()
+            hashing::hash((SEED, builtin_id).encode().as_slice()).into()
         }
 
         pub(crate) fn dispatch_call(

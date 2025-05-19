@@ -44,7 +44,7 @@ use gear_core::{
     program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gprimitives::{ActorId, MessageId, H256};
+use gprimitives::{hashing, ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
@@ -1290,7 +1290,7 @@ impl MemStorage {
 
     fn write<T: Encode>(&self, value: T) -> H256 {
         let value = value.encode();
-        let hash = gear_core::hashing::hash(&value);
+        let hash = hashing::hash(&value);
         let hash = H256(hash);
         self.inner.borrow_mut().insert(hash, value);
         hash
