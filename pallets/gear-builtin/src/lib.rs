@@ -70,11 +70,10 @@ use gear_core::{
     utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
+pub use pallet::*;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
-
-pub use pallet::*;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
@@ -412,7 +411,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
-                    let (outcome, context_store) = message_context.drain();
+                    let (_, outcome, context_store) = message_context.drain();
 
                     dispatch_result.context_store = context_store;
                     let ContextOutcomeDrain {

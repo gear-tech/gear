@@ -15111,7 +15111,7 @@ fn incorrect_store_context() {
                 .unwrap();
             counter += len;
         }
-        let (_, context_store) = message_context.drain();
+        let (_, _, context_store) = message_context.drain();
 
         // Enqueue dispatch with corrupted context
         let message = message.into_stored(pid);

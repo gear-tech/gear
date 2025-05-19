@@ -38,7 +38,6 @@ use core::marker::PhantomData;
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
     costs::CostToken,
-    env::DropPayloadLockBound,
     gas::CounterType,
     ids::{MessageId, ProgramId},
     message::{
@@ -618,22 +617,12 @@ where
 
     pub fn read(at: u32, len: u32, buffer_ptr: u32) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(CostToken::Read, move |ctx: &mut CallerWrap<Caller>| {
-            let payload_lock = ctx.ext_mut().lock_payload(at, len)?;
-            payload_lock
-                .drop_with::<MemoryAccessError, _>(|payload_access| {
-                    let mut f = || {
-                        let mut registry = MemoryAccessRegistry::default();
-                        let write_buffer = registry.register_write(buffer_ptr, len);
-                        let mut io = registry.pre_process(ctx)?;
-                        io.write(ctx, write_buffer, payload_access.as_slice())?;
-                        Ok(())
-                    };
-                    let res = f();
-                    let unlock_bound = ctx.ext_mut().unlock_payload(payload_access.into_lock());
+            let payload = ctx.ext_mut().payload_slice(at, len)?;
 
-                    DropPayloadLockBound::from((unlock_bound, res))
-                })
-                .into_inner()
+            let mut registry = MemoryAccessRegistry::default();
+            let write_buffer = registry.register_write(buffer_ptr, len);
+            let mut io = registry.pre_process(ctx)?;
+            io.write(ctx, write_buffer, payload.slice())
                 .map_err(Into::into)
         })
     }

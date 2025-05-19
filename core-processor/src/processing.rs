@@ -33,8 +33,8 @@ use gear_core::{
     env::Externalities,
     ids::{prelude::*, MessageId, ProgramId},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
-        StoredDispatch,
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingDispatchInfo, Payload,
+        PayloadSizeError, ReplyMessage, StoredDispatch,
     },
     reservation::GasReservationState,
 };
@@ -128,9 +128,12 @@ where
     // Get system reservation context in order to use it if actor execution error occurs.
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
+    // Create dispatch info
+    let dispatch_info = IncomingDispatchInfo::from_dispatch(&dispatch);
+
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
-        dispatch.clone(),
+        dispatch,
         execution_context,
         execution_settings,
         msg_ctx_settings,
@@ -183,12 +186,12 @@ where
                     process_success(Exit(value_destination), res)
                 }
                 DispatchResultKind::GasAllowanceExceed => {
-                    process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
+                    process_allowance_exceed(res.dispatch, program_id, res.gas_amount.burned())
                 }
             })
         }
-        Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
-            dispatch,
+        Err(ExecutionError::Actor(e)) => Ok(process_execution_error_with_dispatch_info(
+            dispatch_info,
             program_id,
             e.gas_amount.burned(),
             system_reservation_ctx,
@@ -269,7 +272,7 @@ impl ProcessErrorCase {
 }
 
 fn process_error(
-    dispatch: IncomingDispatch,
+    dispatch: IncomingDispatchInfo,
     program_id: ProgramId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
@@ -293,7 +296,7 @@ fn process_error(
     // it's existence shows that we have processed message after
     // being waken, so the value were already transferred in
     // execution, where `gr_wait` was called.
-    if dispatch.context().is_none() && value != 0 {
+    if !dispatch.context_exists() && value != 0 {
         // Send back value
         journal.push(JournalNote::SendValue {
             from: origin,
@@ -380,6 +383,23 @@ fn process_error(
 }
 
 /// Helper function for journal creation in trap/error case.
+pub fn process_execution_error_with_dispatch_info(
+    dispatch: IncomingDispatchInfo,
+    program_id: ProgramId,
+    gas_burned: u64,
+    system_reservation_ctx: SystemReservationContext,
+    err: impl Into<ActorExecutionErrorReplyReason>,
+) -> Vec<JournalNote> {
+    process_error(
+        dispatch,
+        program_id,
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::ExecutionFailed(err.into()),
+    )
+}
+
+/// Helper function for journal creation in trap/error case.
 pub fn process_execution_error(
     dispatch: IncomingDispatch,
     program_id: ProgramId,
@@ -388,7 +408,7 @@ pub fn process_execution_error(
     err: impl Into<ActorExecutionErrorReplyReason>,
 ) -> Vec<JournalNote> {
     process_error(
-        dispatch,
+        IncomingDispatchInfo::from_dispatch(&dispatch),
         program_id,
         gas_burned,
         system_reservation_ctx,
@@ -411,7 +431,7 @@ pub fn process_program_exited(
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        dispatch,
+        IncomingDispatchInfo::from_dispatch(&dispatch),
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -431,7 +451,7 @@ pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        dispatch,
+        IncomingDispatchInfo::from_dispatch(&dispatch),
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -451,7 +471,7 @@ pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNo
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        dispatch,
+        IncomingDispatchInfo::from_dispatch(&dispatch),
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -471,7 +491,7 @@ pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<Journal
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        dispatch,
+        IncomingDispatchInfo::from_dispatch(&dispatch),
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -489,7 +509,7 @@ pub fn process_reinstrumentation_error(
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        dispatch,
+        IncomingDispatchInfo::from_dispatch(&dispatch),
         program_id,
         gas_burned,
         system_reservation_ctx,
