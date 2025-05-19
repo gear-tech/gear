@@ -55,11 +55,14 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{
+    ecdsa::{PublicKey, SignedData},
+    Address, ProducerBlock, SimpleBlockData,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::{Address, PublicKey, SignedData, Signer};
+use ethexe_signer::Signer;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 use initial::Initial;
