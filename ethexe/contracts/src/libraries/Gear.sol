@@ -47,16 +47,23 @@ library Gear {
 
     struct CodeCommitment {
         bytes32 id;
-        uint48 timestamp;
         bool valid;
     }
 
-    struct BlockCommitment {
+    struct GearBlock {
+        /// @dev Hash of corresponding ethereum block.
         bytes32 hash;
-        uint48 timestamp;
-        bytes32 previousCommittedBlock;
-        bytes32 predecessorBlock;
+        /// @dev Gas allowance for programs execution.
+        uint64 gas_allowance;
+        /// @dev Hash (keccak256) of off-chain transactions list.
+        bytes32 offchain_transaction_hash;
+    }
+
+    struct ChainCommitment {
+        /// @dev Transitions of program states, value and messages.
         StateTransition[] transitions;
+        /// @dev List of blocks in chain.
+        GearBlock[] blocks;
     }
 
     struct ValidatorsCommitment {
@@ -67,9 +74,23 @@ library Gear {
     }
 
     struct BatchCommitment {
+        /// @dev Hash of ethereum block for which this batch is created.
+        bytes32 block_hash;
+
+        /// @dev Timestamp of ethereum block for which this batch is created.
+        uint48 timestamp;
+
+        /// @dev Hash of previous committed block.
+        bytes32 previousCommittedBlock;
+
+        /// @dev Chain commitment (contains one or zero commitments)
+        ChainCommitment[] ChainCommitment;
+        /// @dev Code commitments
         CodeCommitment[] codeCommitments;
-        BlockCommitment[] blockCommitments;
-        RewardsCommitment[] rewardCommitments;
+        /// @dev Rewards commitment (contains one or zero commitments)
+        RewardsCommitment[] rewardCommitment;
+        /// @dev Validators commitment (contains one or zero commitments)
+        ValidatorsCommitment[] validatorsCommitment;
     }
 
     struct RewardsCommitment {
@@ -209,7 +230,7 @@ library Gear {
     }
 
     function codeCommitmentHash(CodeCommitment memory codeCommitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.timestamp, codeCommitment.valid));
+        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
