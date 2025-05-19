@@ -24,7 +24,7 @@ use crate::common::{
     Args, Result,
 };
 use demo_fungible_token::InitConfig;
-use gear_core::ids::{prelude::*, CodeId};
+use gear_core::ids::CodeId;
 use gsdk::Api;
 use scale_info::scale::Encode;
 

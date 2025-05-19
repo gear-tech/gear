@@ -27,6 +27,8 @@
 
 extern crate alloc;
 
+pub use gprimitives::hashing;
+
 // This allows all casts from u32 into usize be safe.
 const _: () = assert!(size_of::<u32>() <= size_of::<usize>());
 
@@ -47,31 +49,3 @@ pub mod reservation;
 pub mod rpc;
 pub mod str;
 pub mod tasks;
-pub mod utils {
-    //! Utility functions.
-
-    use blake2::{digest::typenum::U32, Blake2b, Digest};
-
-    /// BLAKE2b-256 hasher state.
-    pub type Blake2b256 = Blake2b<U32>;
-
-    /// Hashes a given bytes into a 32-byte array using the BLAKE2b-256 hash function.
-    ///
-    /// # SAFETY
-    /// Do not adjust the hash function, as the IDs generation is sensitive to it.
-    pub fn hash(data: &[u8]) -> [u8; 32] {
-        hash_of_array([data])
-    }
-
-    /// Concatenates and hashes a given bytes into a 32-byte array using the BLAKE2b-256 hash function.
-    ///
-    /// # SAFETY
-    /// Do not adjust the hash function, as the IDs generation is sensitive to it.
-    pub fn hash_of_array<T: AsRef<[u8]>, const N: usize>(array: [T; N]) -> [u8; 32] {
-        let mut ctx = Blake2b256::new();
-        for data in array {
-            ctx.update(data);
-        }
-        ctx.finalize().into()
-    }
-}

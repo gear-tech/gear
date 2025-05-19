@@ -30,7 +30,7 @@ pub type SignedOffchainTransaction = SignedData<OffchainTransaction>;
 impl SignedOffchainTransaction {
     /// Ethexe transaction blake2b256 hash.
     pub fn tx_hash(&self) -> H256 {
-        gear_core::utils::hash(&self.encode()).into()
+        gear_core::hashing::hash(&self.encode()).into()
     }
 
     /// Ethexe transaction reference block hash

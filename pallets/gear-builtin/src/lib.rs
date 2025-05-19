@@ -64,10 +64,10 @@ use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
+    hashing::hash,
     ids::ActorId,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     str::LimitedStr,
-    utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};

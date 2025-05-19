@@ -35,7 +35,6 @@ use ethexe_common::{
 };
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::HashMap;
 

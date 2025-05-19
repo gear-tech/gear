@@ -1290,7 +1290,7 @@ impl MemStorage {
 
     fn write<T: Encode>(&self, value: T) -> H256 {
         let value = value.encode();
-        let hash = gear_core::utils::hash(&value);
+        let hash = gear_core::hashing::hash(&value);
         let hash = H256(hash);
         self.inner.borrow_mut().insert(hash, value);
         hash

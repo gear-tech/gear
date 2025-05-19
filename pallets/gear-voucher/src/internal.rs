@@ -161,7 +161,7 @@ impl VoucherId {
         CounterImpl::<u64, IssuedWrap<T>>::increase();
         let nonce = CounterImpl::<u64, IssuedWrap<T>>::get();
 
-        gear_core::utils::hash_of_array([SALT, &nonce.to_le_bytes()]).into()
+        gear_core::hashing::hash_array([SALT, &nonce.to_le_bytes()]).into()
     }
 }
 

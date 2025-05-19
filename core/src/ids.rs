@@ -18,9 +18,10 @@
 
 //! Base identifiers for messaging primitives.
 
-pub use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
-
-use super::utils::{hash, hash_of_array};
+pub use gprimitives::{
+    hashing::{hash, hash_array as hash_of_array},
+    ActorId, CodeId, MessageId, ReservationId,
+};
 
 pub mod prelude {
     //! The purpose of this module is to make it easier to import `gprimitives` extensions.
@@ -101,18 +102,6 @@ pub mod prelude {
         fn generate_signal(origin_msg_id: MessageId) -> MessageId {
             const SALT: &[u8] = b"signal";
             hash_of_array([SALT, origin_msg_id.as_ref()]).into()
-        }
-    }
-
-    /// Code identifier extension.
-    pub trait CodeIdExt: private::Sealed {
-        /// Generates `CodeId` from given code.
-        fn generate(code: &[u8]) -> Self;
-    }
-
-    impl CodeIdExt for CodeId {
-        fn generate(code: &[u8]) -> Self {
-            hash(code).into()
         }
     }
 

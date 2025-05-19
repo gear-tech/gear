@@ -20,7 +20,7 @@
 
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
-    ids::{prelude::*, CodeId},
+    ids::CodeId,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };

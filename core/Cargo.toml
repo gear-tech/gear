@@ -16,7 +16,6 @@ rust-version.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gprimitives = { workspace = true, features = ["codec"] }
 gsys.workspace = true
-blake2.workspace = true
 parity-scale-codec = { workspace = true, features = [
     "derive",
     "max-encoded-len",

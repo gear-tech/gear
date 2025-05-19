@@ -27,7 +27,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
-use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
+use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
