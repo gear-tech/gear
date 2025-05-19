@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
+use super::{
+    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
+    ValidatorState,
+};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
@@ -48,10 +51,6 @@ pub struct Participant {
 }
 
 impl StateHandler for Participant {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -60,14 +59,14 @@ impl StateHandler for Participant {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
     fn process_validation_request(
-        self: Box<Self>,
+        self,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
@@ -81,7 +80,7 @@ impl Participant {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
@@ -97,23 +96,23 @@ impl Participant {
             }
         });
 
-        let participant = Box::new(Self {
+        let participant = Self {
             ctx,
             block,
             producer,
-        });
+        };
 
         let Some(validation_request) = earlier_validation_request else {
-            return Ok(participant);
+            return Ok(participant.into());
         };
 
         participant.process_validation_request(validation_request)
     }
 
     fn process_validation_request(
-        mut self: Box<Self>,
+        mut self,
         request: BatchCommitmentValidationRequest,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         match self.process_validation_request_inner(request) {
             Ok(reply) => self.output(ConsensusEvent::PublishValidationReply(reply)),
             Err(err) => self.warning(format!("reject validation request: {err}")),
@@ -281,7 +280,6 @@ mod tests {
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{db::OnChainStorage, BlockHeader};
     use ethexe_db::Database;
-    use std::any::TypeId;
 
     #[test]
     fn create() {
@@ -291,7 +289,7 @@ mod tests {
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
-        assert_eq!(participant.type_id(), TypeId::of::<Participant>());
+        assert!(participant.is_participant());
         assert_eq!(participant.context().pending_events.len(), 0);
     }
 
@@ -315,7 +313,7 @@ mod tests {
         ctx.pending(mock_producer_block(&ctx.signer, alice, H256::random()).1);
 
         let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
 
         let ctx = initial.into_context();
         assert_eq!(ctx.pending_events.len(), 3);
@@ -352,7 +350,7 @@ mod tests {
             .process_validation_request(signed_request)
             .unwrap();
 
-        assert_eq!(participant.type_id(), TypeId::of::<Initial>());
+        assert!(participant.is_initial());
         assert_eq!(participant.context().output.len(), 1);
         assert!(matches!(
             participant.context().output[0],
@@ -372,7 +370,7 @@ mod tests {
             .process_validation_request(signed_request)
             .unwrap();
 
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
         assert_eq!(initial.context().output.len(), 1);
         assert!(matches!(
             initial.context().output[0],
