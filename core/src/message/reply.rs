@@ -19,10 +19,11 @@
 use super::common::ReplyDetails;
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, MessageId},
+    ids::prelude::*,
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
+    primitives::{ActorId, MessageId},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use scale_info::{

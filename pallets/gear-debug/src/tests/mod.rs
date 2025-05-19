@@ -21,10 +21,11 @@ use crate::mock::*;
 use common::{self, event::MessageEntry, CodeStorage, Origin};
 use frame_support::assert_ok;
 use gear_core::{
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::prelude::*,
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
     pages::{GearPage, WasmPage},
+    primitives::{ActorId, CodeId, MessageId},
 };
 use gear_wasm_instrument::STACK_END_EXPORT_NAME;
 use pallet_gear::{DebugInfo, Event, Pallet as PalletGear};

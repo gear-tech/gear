@@ -68,9 +68,9 @@ use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::{ActiveProgram, Program, ProgramState},
     reservation::GasReservationSlot,
     tasks::ScheduledTask,

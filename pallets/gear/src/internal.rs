@@ -40,11 +40,12 @@ use core::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{prelude::*, ActorId, MessageId, ReservationId},
+    ids::prelude::*,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
     },
+    primitives::{ActorId, MessageId, ReservationId},
     tasks::ScheduledTask,
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};

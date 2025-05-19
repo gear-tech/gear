@@ -92,7 +92,7 @@ impl TaskPoolCallbacks for TaskPoolCallbacksImpl {
 #[cfg(test)]
 mod tests {
     use super::TaskPoolManager;
-    use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
+    use gear_core::{primitives::ActorId, tasks::VaraScheduledTask};
 
     #[test]
     fn test_taskpool() {

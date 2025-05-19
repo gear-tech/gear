@@ -18,8 +18,8 @@
 
 use crate::{
     buffer::Payload,
-    ids::{ActorId, MessageId},
     message::{ReplyDetails, Value},
+    primitives::{ActorId, MessageId},
 };
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;

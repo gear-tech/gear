@@ -20,7 +20,7 @@
 
 use crate::{result::Result, signer::Inner, GasInfo};
 use gear_core::{
-    ids::{ActorId, CodeId, MessageId},
+    primitives::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
 use sp_core::H256;

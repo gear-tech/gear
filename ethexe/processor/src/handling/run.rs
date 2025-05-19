@@ -24,7 +24,7 @@ use core_processor::common::JournalNote;
 use ethexe_common::{db::CodesStorage, gear::Origin};
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};

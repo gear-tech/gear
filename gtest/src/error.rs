@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::{ids::ActorId, pages::WasmPage};
+use gear_core::{pages::WasmPage, primitives::ActorId};
 use gear_core_errors::ExtError;
 use parity_scale_codec::Error as CodecError;
 

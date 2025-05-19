@@ -25,8 +25,8 @@ use crate::{
     Gas, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
-    ids::{ActorId, CodeId},
     pages::GearPage,
+    primitives::{ActorId, CodeId},
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;

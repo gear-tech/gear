@@ -21,7 +21,7 @@ use gear_core::{
     buffer::PanicBuffer,
     env::MessageWaitedType,
     gas::{ChargeError, CounterType},
-    ids::ActorId,
+    primitives::ActorId,
 };
 use gear_core_errors::ExtError as FallibleExtError;
 use parity_scale_codec::{Decode, Encode};

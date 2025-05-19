@@ -29,8 +29,8 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
-    ids::CodeId,
     pages::{WasmPage, WasmPagesAmount},
+    primitives::CodeId,
 };
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory, Store},

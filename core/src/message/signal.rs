@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, ActorId, MessageId},
+    ids::prelude::*,
     message::{Dispatch, DispatchKind, Message, SignalDetails},
+    primitives::{ActorId, MessageId},
 };
 use gear_core_errors::SignalCode;
 use scale_info::{

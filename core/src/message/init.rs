@@ -18,11 +18,12 @@
 
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::prelude::*,
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Salt, StoredDispatch, StoredMessage,
         Value,
     },
+    primitives::{ActorId, CodeId, MessageId},
 };
 use scale_info::{
     scale::{Decode, Encode},

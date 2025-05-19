@@ -20,7 +20,7 @@
 
 use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
 use crate::scheduler::TaskPoolImpl;
-use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
+use gear_core::{primitives::ActorId, tasks::VaraScheduledTask};
 use std::cell::RefCell;
 
 /// Task pool implementation that can be used in a native, non-wasm runtimes.

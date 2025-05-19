@@ -22,7 +22,7 @@ use crate::{
     impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
     Seed,
 };
-use gear_core::ids::CodeId;
+use gear_core::primitives::CodeId;
 use gear_utils::{NonEmpty, RingGet};
 
 // code id, salt, payload, gas limit, value

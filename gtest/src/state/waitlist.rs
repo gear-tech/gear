@@ -26,8 +26,8 @@ use gear_common::{
     storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
 };
 use gear_core::{
-    ids::{ActorId, MessageId},
     message::StoredDispatch,
+    primitives::{ActorId, MessageId},
 };
 
 /// Waitlist manager which operates under the hood over

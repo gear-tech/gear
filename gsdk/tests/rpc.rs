@@ -19,7 +19,8 @@
 //! Requires node to be built in release mode
 
 use gear_core::{
-    ids::{prelude::*, ActorId, CodeId},
+    ids::prelude::*,
+    primitives::{ActorId, CodeId},
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};

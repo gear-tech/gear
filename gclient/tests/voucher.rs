@@ -20,7 +20,7 @@
 
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use parity_scale_codec::Encode;
 
 #[tokio::test]

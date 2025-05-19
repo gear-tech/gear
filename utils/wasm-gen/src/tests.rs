@@ -22,12 +22,13 @@ use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, ActorId, CodeId},
+    ids::prelude::*,
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
+    primitives::{ActorId, CodeId},
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},

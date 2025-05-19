@@ -29,9 +29,9 @@ use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_core::{
     costs::LazyPagesCosts,
-    ids::ActorId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
+    primitives::ActorId,
     program::MemoryInfix,
 };
 use gear_lazy_pages_common::{

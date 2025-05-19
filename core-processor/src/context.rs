@@ -22,9 +22,9 @@ use crate::common::{ExecutableActorData, Program};
 use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
-    ids::ActorId,
     message::IncomingDispatch,
     pages::WasmPagesAmount,
+    primitives::ActorId,
     program::MemoryInfix,
     reservation::GasReserver,
 };

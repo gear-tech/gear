@@ -29,10 +29,10 @@ use gear_core::{
     env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
-    ids::{ActorId, MessageId, ReservationId},
     memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
+    primitives::{ActorId, MessageId, ReservationId},
 };
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;

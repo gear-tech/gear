@@ -1,7 +1,7 @@
 use super::context::ContextUpdate;
 use crate::utils;
 use anyhow::Error;
-use gear_core::ids::{ActorId, CodeId, MessageId};
+use gear_core::primitives::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]

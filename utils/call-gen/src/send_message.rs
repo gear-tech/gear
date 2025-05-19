@@ -22,7 +22,7 @@ use crate::{
     impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
     Seed,
 };
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use gear_utils::{NonEmpty, RingGet};
 
 // destination, payload, gas, value

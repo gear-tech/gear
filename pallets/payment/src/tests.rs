@@ -1295,7 +1295,7 @@ fn voucher_call_decline_payer_expired_err() {
 mod utils {
     use super::*;
     use crate::BalanceOf;
-    use gear_core::ids::{ActorId, MessageId};
+    use gear_core::primitives::{ActorId, MessageId};
     use pallet_gear_voucher::{PrepaidCall, VoucherId};
 
     const DEFAULT_PAYLOAD: &[u8] = &[];

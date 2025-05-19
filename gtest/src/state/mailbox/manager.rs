@@ -23,7 +23,7 @@ use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::{Interval, IterableByKeyMap, Mailbox, MailboxCallbacks},
 };
-use gear_core::ids::{ActorId, MessageId};
+use gear_core::primitives::{ActorId, MessageId};
 
 /// Mailbox manager which operates under the hood over
 /// [`gear_common::auxiliary::mailbox::AuxiliaryMailbox`].

@@ -54,9 +54,9 @@ use frame_support::{
     traits::Get,
 };
 pub use gear_core::{
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     pages::GearPage,
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::{ActiveProgram, MemoryInfix, Program},
 };
 use primitive_types::H256;

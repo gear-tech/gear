@@ -21,7 +21,10 @@ use super::{
     VALUE_SIZE,
 };
 use gear_call_gen::{GearCall, UploadProgramArgs};
-use gear_core::ids::{prelude::*, ActorId, CodeId};
+use gear_core::{
+    ids::prelude::*,
+    primitives::{ActorId, CodeId},
+};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     wasm_gen_arbitrary::{Result, Unstructured},

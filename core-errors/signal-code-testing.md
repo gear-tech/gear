@@ -401,7 +401,7 @@ There are two cases of fails when this signal code is sent:
         ```rust
         #![no_std]
 
-        use gear_core::ids::ActorId;
+        use gear_core::primitives::ActorId;
         use gstd::{
             ActorId,
             errors::{SignalCode, SimpleExecutionError},

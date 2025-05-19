@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::{ActorId, CodeId, MessageId};
+use gear_core::primitives::{ActorId, CodeId, MessageId};
 use gsdk::{
     metadata::runtime_types::pallet_gear_voucher::internal::VoucherId, Api, Event, Result,
     TxInBlock,

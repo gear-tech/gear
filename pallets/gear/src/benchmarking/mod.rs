@@ -77,10 +77,11 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::prelude::*,
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
+    primitives::{ActorId, CodeId, MessageId},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},
 };

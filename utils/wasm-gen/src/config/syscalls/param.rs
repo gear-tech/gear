@@ -22,7 +22,7 @@
 
 use crate::DEFAULT_INITIAL_SIZE;
 use arbitrary::{Result, Unstructured};
-use gear_core::ids::CodeId;
+use gear_core::primitives::CodeId;
 use gear_utils::NonEmpty;
 use gsys::Hash;
 use std::{collections::HashMap, ops::RangeInclusive};

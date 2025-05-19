@@ -21,10 +21,10 @@
 use crate::{
     buffer::Payload,
     env_vars::EnvVars,
-    ids::{ActorId, MessageId, ReservationId},
     memory::Memory,
     message::{DispatchKind, HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
+    primitives::{ActorId, MessageId, ReservationId},
 };
 use alloc::{collections::BTreeSet, string::String};
 use core::{fmt::Display, mem};

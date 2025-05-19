@@ -18,10 +18,10 @@
 
 use crate::{
     buffer::Payload,
-    ids::{ActorId, MessageId},
     message::{
         DispatchKind, GasLimit, StoredDelayedDispatch, StoredDispatch, StoredMessage, Value,
     },
+    primitives::{ActorId, MessageId},
 };
 use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};

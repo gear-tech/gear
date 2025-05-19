@@ -22,8 +22,8 @@ use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
 use crate::storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen};
 use core::cell::RefCell;
 use gear_core::{
-    ids::{ActorId, MessageId},
     message::StoredDispatch,
+    primitives::{ActorId, MessageId},
 };
 
 /// Waitlist implementation that can be used in a native, non-wasm runtimes.

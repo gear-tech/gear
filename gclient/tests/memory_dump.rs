@@ -20,7 +20,7 @@ use std::{collections::BTreeSet, ops::Deref};
 
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
-use gear_core::{ids::ActorId, pages::GearPage};
+use gear_core::{pages::GearPage, primitives::ActorId};
 use parity_scale_codec::Encode;
 
 async fn charge_10(

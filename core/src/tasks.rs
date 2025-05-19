@@ -18,7 +18,7 @@
 
 //! The module provides primitives for all available regular or time-dependent tasks.
 
-use crate::ids::{ActorId, CodeId, MessageId, ReservationId};
+use crate::primitives::{ActorId, CodeId, MessageId, ReservationId};
 use gsys::Gas;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;

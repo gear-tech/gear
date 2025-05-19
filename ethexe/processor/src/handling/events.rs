@@ -25,7 +25,7 @@ use ethexe_common::{
     ScheduledTask,
 };
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
-use gear_core::{ids::ActorId, message::SuccessReplyReason};
+use gear_core::{message::SuccessReplyReason, primitives::ActorId};
 
 impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {

@@ -52,13 +52,14 @@ use gear_common::{
 use gear_core::{
     code::InstrumentedCode,
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::prelude::*,
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
         StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;

@@ -28,7 +28,7 @@ use ethexe_runtime_common::{
     },
     BlockInfo,
 };
-use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
+use gear_core::{memory::PageBuf, pages::GearPage, primitives::ActorId};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};

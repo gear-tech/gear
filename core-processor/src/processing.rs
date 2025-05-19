@@ -32,8 +32,9 @@ use core::{fmt, fmt::Formatter};
 use gear_core::{
     buffer::{Payload, PayloadSizeError},
     env::Externalities,
-    ids::{prelude::*, ActorId, MessageId},
+    ids::prelude::*,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    primitives::{ActorId, MessageId},
     reservation::GasReservationState,
 };
 use gear_core_backend::{

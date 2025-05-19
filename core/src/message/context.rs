@@ -18,11 +18,12 @@
 
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, MessageId, ReservationId},
+    ids::prelude::*,
     message::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
         ReplyMessage, ReplyPacket,
     },
+    primitives::{ActorId, MessageId, ReservationId},
     reservation::{GasReserver, ReservationNonce},
 };
 use alloc::{

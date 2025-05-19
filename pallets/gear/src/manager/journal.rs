@@ -37,10 +37,10 @@ use frame_support::{
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     env::MessageWaitedType,
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::{Program, ProgramState},
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},

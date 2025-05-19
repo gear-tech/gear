@@ -14,7 +14,7 @@
 // GNU General Public License for more details.
 
 use super::*;
-use gear_core::ids::ReservationId;
+use gear_core::primitives::ReservationId;
 
 #[track_caller]
 fn send_user_message_prepare<T>(delay: u32)

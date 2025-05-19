@@ -31,7 +31,6 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -43,6 +42,7 @@ use gear_core::{
         numerated::{interval::Interval, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount,
     },
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::MemoryInfix,
     reservation::GasReserver,
 };

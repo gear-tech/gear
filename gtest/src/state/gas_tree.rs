@@ -24,7 +24,7 @@ use gear_common::{
     gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
     Gas, GasMultiplier, LockId, Origin,
 };
-use gear_core::ids::{ActorId, MessageId, ReservationId};
+use gear_core::primitives::{ActorId, MessageId, ReservationId};
 
 pub(crate) type PositiveImbalance = <GasTree as Tree>::PositiveImbalance;
 pub(crate) type NegativeImbalance = <GasTree as Tree>::NegativeImbalance;

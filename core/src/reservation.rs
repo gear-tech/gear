@@ -19,8 +19,9 @@
 //! Gas reservation structures.
 
 use crate::{
-    ids::{prelude::*, MessageId, ReservationId},
+    ids::prelude::*,
     message::IncomingDispatch,
+    primitives::{MessageId, ReservationId},
 };
 use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;

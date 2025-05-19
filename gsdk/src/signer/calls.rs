@@ -31,7 +31,7 @@ use crate::{
     signer::utils::EventsResult,
     Result, TxInBlock,
 };
-use gear_core::ids::*;
+use gear_core::primitives::*;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use subxt::dynamic::Value;

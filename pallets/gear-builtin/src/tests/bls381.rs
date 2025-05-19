@@ -31,7 +31,7 @@ use ark_std::{ops::Mul, UniformRand};
 use common::Origin;
 use frame_support::assert_ok;
 use gbuiltin_bls381::*;
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use gear_runtime_interface::DST_G2;
 use pallet_gear::GasInfo;

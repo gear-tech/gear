@@ -3,7 +3,7 @@ use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::Seed;
-use gear_core::ids::{ActorId, MessageId};
+use gear_core::primitives::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,

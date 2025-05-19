@@ -89,9 +89,10 @@ use gear_core::{
     buffer::*,
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     env::MessageWaitedType,
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::prelude::*,
     message::*,
     percent::Percent,
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     tasks::VaraScheduledTask,
 };
 use gear_lazy_pages_common::LazyPagesInterface;

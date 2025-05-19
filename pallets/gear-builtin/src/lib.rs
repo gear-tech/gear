@@ -64,9 +64,8 @@ use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::ActorId,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
-    primitives::hashing,
+    primitives::{hashing, ActorId},
     str::LimitedStr,
 };
 use impl_trait_for_tuples::impl_for_tuples;

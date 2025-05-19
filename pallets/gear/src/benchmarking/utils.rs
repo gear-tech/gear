@@ -33,9 +33,10 @@ use core_processor::{
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::prelude::*,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
+    primitives::{ActorId, CodeId, MessageId},
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;

@@ -50,7 +50,7 @@ use gear_core::{
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::prelude::*,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         StoredDispatch, UserStoredMessage,
@@ -59,6 +59,7 @@ use gear_core::{
         numerated::{self, tree::IntervalsTree},
         WasmPage,
     },
+    primitives::{ActorId, CodeId, MessageId},
     program::ActiveProgram,
     rpc::ReplyInfo,
     tasks::ScheduledTask,
@@ -15731,8 +15732,9 @@ pub(crate) mod utils {
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
         buffer::Payload,
-        ids::{prelude::*, ActorId, CodeId, MessageId},
+        ids::prelude::*,
         message::{Message, ReplyDetails, UserMessage, UserStoredMessage},
+        primitives::{ActorId, CodeId, MessageId},
         program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };

@@ -20,9 +20,9 @@
 
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
-    ids::CodeId,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
+    primitives::CodeId,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_wasm_instrument::{InstrumentationBuilder, Module, GEAR_SUPPORTED_FEATURES};

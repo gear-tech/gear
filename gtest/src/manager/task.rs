@@ -24,8 +24,8 @@ use core_processor::common::JournalHandler;
 use gear_common::{scheduler::StorageType, Gas as GearCommonGas};
 use gear_core::{
     gas_metering::TaskWeights,
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     message::{DispatchKind, ReplyMessage},
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};

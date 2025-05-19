@@ -18,14 +18,11 @@
 
 //! Base identifiers for messaging primitives.
 
-pub use gprimitives::{
-    hashing::{hash, hash_array as hash_of_array},
-    ActorId, CodeId, MessageId, ReservationId,
-};
-
 pub mod prelude {
     //! The purpose of this module is to make it easier to import `gprimitives` extensions.
-    use super::*;
+    use gprimitives::{
+        hashing::hash_array as hash_of_array, ActorId, CodeId, MessageId, ReservationId,
+    };
 
     mod private {
         use super::*;
@@ -33,7 +30,6 @@ pub mod prelude {
         pub trait Sealed {}
 
         impl Sealed for ActorId {}
-        impl Sealed for CodeId {}
         impl Sealed for MessageId {}
         impl Sealed for ReservationId {}
     }

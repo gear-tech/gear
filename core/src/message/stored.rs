@@ -18,11 +18,11 @@
 
 use crate::{
     buffer::Payload,
-    ids::{ActorId, MessageId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
         IncomingMessage, ReplyDetails, Value,
     },
+    primitives::{ActorId, MessageId},
 };
 use core::ops::Deref;
 use gear_core_errors::ReplyCode;

@@ -19,7 +19,7 @@
 use super::{GearApi, Result};
 use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
 use anyhow::anyhow;
-use gear_core::{gas::LockId, ids::*, memory::PageBuf, pages::GearPage};
+use gear_core::{gas::LockId, memory::PageBuf, pages::GearPage, primitives::*};
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
     config::GearConfig,

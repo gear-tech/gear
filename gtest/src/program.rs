@@ -27,8 +27,9 @@ use crate::{
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::prelude::*,
     message::{Dispatch, DispatchKind, Message},
+    primitives::{ActorId, CodeId, MessageId},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
@@ -708,7 +709,7 @@ mod tests {
     use super::Program;
     use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
-    use gear_core::ids::ActorId;
+    use gear_core::primitives::ActorId;
     use gear_core_errors::{
         ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
     };

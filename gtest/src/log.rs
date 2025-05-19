@@ -24,8 +24,8 @@ use crate::{
 use core_processor::configs::BlockInfo;
 use gear_core::{
     buffer::Payload,
-    ids::{ActorId, MessageId},
     message::{StoredMessage, UserStoredMessage},
+    primitives::{ActorId, MessageId},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use parity_scale_codec::{Codec, Encode};

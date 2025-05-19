@@ -34,7 +34,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
+use gear_core::{buffer::Payload, message::StoredDispatch, primitives::ActorId};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{

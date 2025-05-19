@@ -158,9 +158,9 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
-        ids::{ActorId, CodeId},
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+        primitives::{ActorId, CodeId},
         program::{MemoryInfix, Program},
         tasks::VaraScheduledTask,
     };

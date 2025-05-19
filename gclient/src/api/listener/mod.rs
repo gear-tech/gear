@@ -24,7 +24,7 @@ pub use iterator::*;
 
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gear_core::ids::MessageId;
+use gear_core::primitives::MessageId;
 use gear_core_errors::ReplyCode;
 use gsdk::metadata::runtime_types::{
     gear_common::event::DispatchStatus as GenDispatchStatus,

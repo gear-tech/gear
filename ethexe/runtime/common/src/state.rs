@@ -37,7 +37,7 @@ use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     buffer::Payload,
-    ids::prelude::MessageIdExt as _,
+    ids::prelude::*,
     memory::PageBuf,
     message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},

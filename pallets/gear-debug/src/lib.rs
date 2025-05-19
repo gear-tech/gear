@@ -43,10 +43,10 @@ pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        ids::ActorId,
         memory::PageBuf,
         message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
         pages::{GearPage, WasmPagesAmount},
+        primitives::ActorId,
         program::Program,
     };
     use primitive_types::H256;

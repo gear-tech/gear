@@ -32,7 +32,6 @@ use gear_common::{
 };
 use gear_core::{
     env::MessageWaitedType,
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, SignalMessage, StoredDispatch},
     pages::{
@@ -40,6 +39,7 @@ use gear_core::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},
 };
