@@ -45,10 +45,7 @@ use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
-use gear_core::{
-    ids::prelude::*,
-    message::{ReplyCode, SuccessReplyReason},
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use parity_scale_codec::Encode;
@@ -409,8 +406,8 @@ async fn mailbox() {
         .unwrap();
 
     let original_mid = res.message_id;
-    let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
-    let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
+    let mid_expected_message = gear_core::utils::generate_mid_outgoing(original_mid, 0);
+    let ping_expected_message = gear_core::utils::generate_mid_outgoing(original_mid, 1);
 
     let mut listener = env.observer_events_publisher().subscribe().await;
     let block_data = listener

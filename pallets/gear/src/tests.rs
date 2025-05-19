@@ -50,7 +50,6 @@ use gear_core::{
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::prelude::*,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         StoredDispatch, UserStoredMessage,
@@ -523,8 +522,8 @@ fn test_failing_delayed_reservation_send() {
         assert_failed(mid, AssertFailedError::Panic(error_text));
 
         // Possibly sent message from reservation with a 1 block delay duration.
-        let outgoing = MessageId::generate_outgoing(mid, 0);
-        let err_reply = MessageId::generate_reply(mid);
+        let outgoing = gear_core::utils::generate_mid_outgoing(mid, 0);
+        let err_reply = gear_core::utils::generate_mid_reply(mid);
 
         assert!(!DispatchStashOf::<Test>::contains_key(&outgoing));
 
@@ -603,8 +602,8 @@ fn cascading_delayed_gasless_send_work() {
 
         let mid = get_last_message_id();
 
-        let first_outgoing = MessageId::generate_outgoing(mid, 0);
-        let second_outgoing = MessageId::generate_outgoing(mid, 1);
+        let first_outgoing = gear_core::utils::generate_mid_outgoing(mid, 0);
+        let second_outgoing = gear_core::utils::generate_mid_outgoing(mid, 1);
 
         run_to_next_block(None);
 
@@ -1498,7 +1497,7 @@ fn reply_deposit_to_user_reply() {
 
         let value = 12_345u128;
 
-        let reply_id = MessageId::generate_reply(mail.id());
+        let reply_id = gear_core::utils::generate_mid_reply(mail.id());
 
         assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
         assert_eq!(
@@ -1573,7 +1572,7 @@ fn reply_deposit_to_user_claim() {
         let user_2_balance = Balances::total_balance(&USER_2);
         assert_balance(USER_2, user_2_balance, 0u128);
 
-        let reply_id = MessageId::generate_reply(mail.id());
+        let reply_id = gear_core::utils::generate_mid_reply(mail.id());
 
         assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
         assert_eq!(
@@ -1643,7 +1642,7 @@ fn reply_deposit_to_user_out_of_rent() {
         let user_2_balance = Balances::total_balance(&USER_2);
         assert_balance(USER_2, user_2_balance, 0u128);
 
-        let reply_id = MessageId::generate_reply(mail.id());
+        let reply_id = gear_core::utils::generate_mid_reply(mail.id());
 
         assert!(GasHandlerOf::<Test>::exists_and_deposit(reply_id));
         assert_eq!(
@@ -2098,7 +2097,7 @@ fn delayed_user_replacement() {
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address =
-            ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+            gear_core::utils::generate_pid_from_user(CodeId::generate(&code), DEFAULT_SALT);
 
         let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
             future_program_address.into(),
@@ -2115,7 +2114,7 @@ fn delayed_user_replacement() {
         ));
 
         let message_id = utils::get_last_message_id();
-        let delayed_id = MessageId::generate_outgoing(message_id, 0);
+        let delayed_id = gear_core::utils::generate_mid_outgoing(message_id, 0);
 
         run_to_block(3, None);
 
@@ -2233,7 +2232,7 @@ fn delayed_send_user_message_payment() {
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
 
-        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+        let delayed_id = gear_core::utils::generate_mid_outgoing(proxy_msg_id, 0);
 
         // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
@@ -2344,7 +2343,7 @@ fn delayed_send_user_message_with_reservation() {
         // Run blocks before sending message.
         run_to_block(delay + 2, None);
 
-        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+        let delayed_id = gear_core::utils::generate_mid_outgoing(proxy_msg_id, 0);
 
         // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
@@ -2443,7 +2442,7 @@ fn delayed_send_program_message_payment() {
         // Run blocks to release message.
         run_to_block(delay + 2, None);
 
-        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+        let delayed_id = gear_core::utils::generate_mid_outgoing(proxy_msg_id, 0);
 
         // Check that delayed task was created.
         assert!(TaskPoolOf::<Test>::contains(
@@ -2541,7 +2540,7 @@ fn delayed_send_program_message_with_reservation() {
                 .saturating_mul(CostsPerBlockOf::<Test>::reservation()),
         );
 
-        let delayed_id = MessageId::generate_outgoing(proxy_msg_id, 0);
+        let delayed_id = gear_core::utils::generate_mid_outgoing(proxy_msg_id, 0);
 
         // Check that delayed task was created
         assert!(TaskPoolOf::<Test>::contains(
@@ -2635,7 +2634,7 @@ fn delayed_program_creation_no_code() {
         assert!(Gear::is_initialized(creator));
 
         // Message sending delayed.
-        let delayed_id = MessageId::generate_outgoing(init_msg_id, 0);
+        let delayed_id = gear_core::utils::generate_mid_outgoing(init_msg_id, 0);
         assert!(TaskPoolOf::<Test>::contains(
             &3,
             &ScheduledTask::SendDispatch(delayed_id)
@@ -7654,7 +7653,7 @@ fn locking_gas_for_waitlist() {
         calculate_handle_and_send_with_extra(USER_1, sender, calls.encode(), None, 0);
         let origin_msg_id = get_last_message_id();
 
-        let message_to_be_waited = MessageId::generate_outgoing(origin_msg_id, 1);
+        let message_to_be_waited = gear_core::utils::generate_mid_outgoing(origin_msg_id, 1);
 
         run_to_block(3, None);
 
@@ -8154,9 +8153,9 @@ fn test_create_program_with_value_lt_ed() {
         // 2 programs deployed by the user and 1 program created by a program
         assert_init_success(3);
 
-        let origin_msg_id = MessageId::generate_from_user(1, USER_1.cast(), 1);
-        let msg1_mailbox = MessageId::generate_outgoing(origin_msg_id, 0);
-        let msg2_mailbox = MessageId::generate_outgoing(origin_msg_id, 1);
+        let origin_msg_id = gear_core::utils::generate_mid_from_user(1, USER_1.cast(), 1);
+        let msg1_mailbox = gear_core::utils::generate_mid_outgoing(origin_msg_id, 0);
+        let msg2_mailbox = gear_core::utils::generate_mid_outgoing(origin_msg_id, 1);
         assert!(MailboxOf::<Test>::contains(&msg_receiver_1, &msg1_mailbox));
         assert!(MailboxOf::<Test>::contains(&msg_receiver_2, &msg2_mailbox));
 
@@ -8275,7 +8274,7 @@ fn demo_constructor_works() {
 
         run_to_next_block(None);
 
-        let message_id = MessageId::generate_outgoing(message_id, 0);
+        let message_id = gear_core::utils::generate_mid_outgoing(message_id, 0);
 
         let last_mail = maybe_any_last_message().expect("Element should be");
         assert_eq!(last_mail.payload_bytes(), message_id.as_ref());
@@ -8309,7 +8308,7 @@ fn demo_constructor_works() {
         assert_failed(message_id, AssertFailedError::Panic(error_text));
 
         let reply = maybe_any_last_message().expect("Should be");
-        assert_eq!(reply.id(), MessageId::generate_reply(message_id));
+        assert_eq!(reply.id(), gear_core::utils::generate_mid_reply(message_id));
         assert_eq!(
             reply.reply_code().expect("Should be"),
             ReplyCode::error(SimpleExecutionError::UserspacePanic)
@@ -8445,7 +8444,7 @@ fn test_reply_to_terminated_program() {
         let (original_message_id, _program_id) =
             submit_constructor_with_args(USER_1, DEFAULT_SALT, demo_exit_init::scheme(true), 0);
 
-        let mail_id = MessageId::generate_outgoing(original_message_id, 0);
+        let mail_id = gear_core::utils::generate_mid_outgoing(original_message_id, 0);
 
         run_to_block(2, None);
 
@@ -9974,7 +9973,8 @@ fn program_generator_works() {
 
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
-        let expected_child_id = ActorId::generate_from_program(message_id, code_id, &expected_salt);
+        let expected_child_id =
+            gear_core::utils::generate_pid_from_program(message_id, code_id, &expected_salt);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -10732,7 +10732,7 @@ fn signal_recursion_not_occurs() {
 
         // check signal dispatch panicked
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = gear_core::utils::generate_mid_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
 
@@ -12093,7 +12093,7 @@ fn dispatch_kind_forbidden_function() {
 
         // check signal dispatch panicked
         assert!(MailboxOf::<Test>::is_empty(&USER_1));
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = gear_core::utils::generate_mid_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
 
@@ -12711,7 +12711,7 @@ fn futures_unordered() {
 
         let to_assert = vec![
             Assertion::Payload(b"PONG".to_vec()),
-            Assertion::Payload(MessageId::generate_outgoing(ids[0], 0).encode()),
+            Assertion::Payload(gear_core::utils::generate_mid_outgoing(ids[0], 0).encode()),
             Assertion::Payload(ids[0].encode()),
         ];
         assert_responses_to_user(USER_1, to_assert);
@@ -12740,7 +12740,7 @@ fn futures_unordered() {
         let ids = send_payloads(USER_1, demo, to_send);
         run_to_next_block(None);
 
-        let mut res = MessageId::generate_outgoing(ids[0], 0).encode();
+        let mut res = gear_core::utils::generate_mid_outgoing(ids[0], 0).encode();
         res.append(&mut b"PONG".to_vec());
 
         let to_assert = vec![Assertion::Payload(res), Assertion::Payload(ids[0].encode())];
@@ -14617,7 +14617,7 @@ fn test_handle_signal_wait() {
 
         run_to_next_block(None);
 
-        let signal_mid = MessageId::generate_signal(mid);
+        let signal_mid = gear_core::utils::generate_mid_signal(mid);
         assert!(WaitlistOf::<Test>::contains(&pid, &signal_mid));
 
         let (mid, block) = get_last_message_waited();
@@ -14991,7 +14991,7 @@ fn critical_hook_in_handle_signal() {
         run_to_block(4, None);
 
         assert_eq!(MailboxOf::<Test>::iter_key(USER_1).last(), None);
-        let signal_msg_id = MessageId::generate_signal(mid);
+        let signal_msg_id = gear_core::utils::generate_mid_signal(mid);
         let status = dispatch_status(signal_msg_id);
         assert_eq!(status, Some(DispatchStatus::Failed));
     });
@@ -15732,7 +15732,6 @@ pub(crate) mod utils {
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
         buffer::Payload,
-        ids::prelude::*,
         message::{Message, ReplyDetails, UserMessage, UserStoredMessage},
         primitives::{ActorId, CodeId, MessageId},
         program::{ActiveProgram, Program},
@@ -16023,7 +16022,7 @@ pub(crate) mod utils {
             );
         }
 
-        MessageId::generate_outgoing(message_id, 0)
+        gear_core::utils::generate_mid_outgoing(message_id, 0)
     }
 
     #[track_caller]
@@ -16087,7 +16086,7 @@ pub(crate) mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ActorId {
-        ActorId::generate_from_user(CodeId::generate(code), salt)
+        gear_core::utils::generate_pid_from_user(CodeId::generate(code), salt)
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {

@@ -500,7 +500,7 @@ impl ExtManager {
                 let (generated_dispatches, reply_sent) = reply
                     .map(|payload| {
                         let reply_message = ReplyMessage::from_packet(
-                            MessageId::generate_reply(dispatch.id()),
+                            gear_core::utils::generate_mid_reply(dispatch.id()),
                             ReplyPacket::new(payload.try_into().expect("too big payload"), 0),
                         );
                         let dispatch = reply_message.into_dispatch(

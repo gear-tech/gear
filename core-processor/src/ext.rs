@@ -1433,8 +1433,8 @@ mod tests {
     use gear_core::{
         buffer::{Payload, MAX_PAYLOAD_SIZE},
         costs::{CostOf, RentCosts, SyscallCosts},
-        ids::prelude::ReservationIdExt,
         message::{ContextSettings, IncomingDispatch},
+        primitives::H256,
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
@@ -2269,7 +2269,7 @@ mod tests {
         // Create "pre-reservation".
         let (id, gas_reservation_map) = {
             let mut m = BTreeMap::new();
-            let id = ReservationId::generate(MessageId::new([5; 32]), 10);
+            let id = H256::random().0.into();
 
             m.insert(
                 id,

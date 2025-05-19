@@ -27,7 +27,6 @@ use crate::{
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
-    ids::prelude::*,
     message::{Dispatch, DispatchKind, Message},
     primitives::{ActorId, CodeId, MessageId},
 };
@@ -534,7 +533,7 @@ impl<'a> Program<'a> {
         // that will be executed, i.e. block with number curr + 1.
         let block_number = system.block_height() + 1;
         let message = Message::new(
-            MessageId::generate_from_user(
+            gear_core::utils::generate_mid_from_user(
                 block_number,
                 source,
                 system.fetch_inc_message_nonce() as u128,
@@ -628,9 +627,9 @@ impl<'a> Program<'a> {
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ActorId {
     if let Some(id) = id {
-        ActorId::generate_from_program(id, code_id, salt)
+        gear_core::utils::generate_pid_from_program(id, code_id, salt)
     } else {
-        ActorId::generate_from_user(code_id, salt)
+        gear_core::utils::generate_pid_from_user(code_id, salt)
     }
 }
 

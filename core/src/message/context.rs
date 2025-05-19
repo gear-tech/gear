@@ -18,13 +18,13 @@
 
 use crate::{
     buffer::Payload,
-    ids::prelude::*,
     message::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
         ReplyMessage, ReplyPacket,
     },
     primitives::{ActorId, MessageId, ReservationId},
     reservation::{GasReserver, ReservationNonce},
+    utils,
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -288,7 +288,7 @@ impl MessageContext {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
         }
 
-        let message_id = MessageId::generate_outgoing(self.current.id(), last);
+        let message_id = utils::generate_mid_outgoing(self.current.id(), last);
         let message = InitMessage::from_packet(message_id, packet);
         self.store.local_nonce += 1;
         self.outgoing_payloads.handles.insert(last, None);
@@ -329,7 +329,7 @@ impl MessageContext {
                 .try_prepend(data)
                 .map_err(|data| (Error::MaxMessageSizeExceed, data))?;
 
-            let message_id = MessageId::generate_outgoing(self.current.id(), handle);
+            let message_id = utils::generate_mid_outgoing(self.current.id(), handle);
             let message = HandleMessage::from_packet(message_id, packet);
 
             self.outcome.handle.push((message, delay, reservation));
@@ -470,7 +470,7 @@ impl MessageContext {
             return Err(Error::MaxMessageSizeExceed.into());
         }
 
-        let message_id = MessageId::generate_reply(self.current.id());
+        let message_id = utils::generate_mid_reply(self.current.id());
         let message = ReplyMessage::from_packet(message_id, packet);
 
         self.outcome.reply = Some((message, reservation));

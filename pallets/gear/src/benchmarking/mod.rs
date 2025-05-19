@@ -58,8 +58,8 @@ use crate::{
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
-    TaskPoolOf,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramChangeKind, ProgramStorageOf,
+    QueueOf, Schedule, TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
@@ -77,11 +77,10 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::prelude::*,
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
-    primitives::{ActorId, CodeId, MessageId},
+    primitives::{ActorId, MessageId},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},
 };
@@ -217,6 +216,17 @@ where
         .find_map(mapping_filter)
 }
 
+pub fn find_latest_actor_id_created<T: Config>() -> ActorId {
+    find_latest_event::<T, _, _>(|event| match event {
+        Event::ProgramChanged {
+            id,
+            change: ProgramChangeKind::Active { .. },
+        } => Some(id),
+        _ => None,
+    })
+    .expect("program should be created")
+}
+
 /// An instantiated and deployed program.
 #[derive(Clone)]
 struct Program<T: Config> {
@@ -261,7 +271,6 @@ where
             .saturating_mul((API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE).into());
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ActorId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -271,6 +280,8 @@ where
             250_000_000_000,
             value,
         )?;
+
+        let addr = find_latest_actor_id_created::<T>().into_origin();
 
         process_queue::<T>();
 

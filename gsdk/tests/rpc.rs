@@ -19,7 +19,6 @@
 //! Requires node to be built in release mode
 
 use gear_core::{
-    ids::prelude::*,
     primitives::{ActorId, CodeId},
     rpc::ReplyInfo,
 };
@@ -115,24 +114,23 @@ async fn test_calculate_create_gas() -> Result<()> {
 async fn test_calculate_handle_gas() -> Result<()> {
     let node = dev_node();
 
-    let salt = vec![];
-    let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
-
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
 
-    signer
+    let tx = signer
         .calls
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
-            salt,
+            vec![],
             vec![],
             100_000_000_000,
             0,
         )
         .await?;
+
+    let pid = signer.api().capture_actor_id_created(&tx).await?;
 
     assert!(
         signer.api().gprog(pid).await.is_ok(),
@@ -158,26 +156,25 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let node = dev_node();
 
     let alice: [u8; 32] = *alice_account_id().as_ref();
-
-    let salt = vec![];
-
-    let pid = ActorId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
     let payload = demo_waiter::Command::SendUpTo(alice, 10);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
-    signer
+
+    let tx = signer
         .calls
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
-            salt,
+            vec![],
             vec![],
             100_000_000_000,
             0,
         )
         .await?;
+
+    let pid = signer.api().capture_actor_id_created(&tx).await?;
 
     assert!(
         signer.api().gprog(pid).await.is_ok(),
@@ -304,23 +301,22 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
 async fn test_original_code_storage() -> Result<()> {
     let node = dev_node();
 
-    let salt = vec![];
-    let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
-
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
 
-    signer
+    let tx = signer
         .calls
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
-            salt,
+            vec![],
             vec![],
             100_000_000_000,
             0,
         )
         .await?;
+
+    let pid = signer.api().capture_actor_id_created(&tx).await?;
 
     let program = signer.api().gprog(pid).await?;
     let rpc = signer.api().backend();
@@ -365,9 +361,6 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
     let node = dev_node();
 
-    let salt = vec![];
-    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
-
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
         .await?
@@ -375,10 +368,12 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
     let payload = InitConfig::test_sequence().encode();
 
-    signer
+    let tx = signer
         .calls
-        .upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
+        .upload_program(WASM_BINARY.to_vec(), vec![], payload, 100_000_000_000, 0)
         .await?;
+
+    let pid = signer.api().capture_actor_id_created(&tx).await?;
 
     assert!(
         signer.api().gprog(pid).await.is_ok(),
@@ -412,24 +407,23 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     let node = dev_node();
 
-    let salt = vec![];
-    let pid = ActorId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
-
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
         .await?
         .signer("//Alice", None)?;
 
-    signer
+    let tx = signer
         .calls
         .upload_program(
             demo_vec::WASM_BINARY.to_vec(),
-            salt,
+            vec![],
             vec![],
             100_000_000_000,
             0,
         )
         .await?;
+
+    let pid = signer.api().capture_actor_id_created(&tx).await?;
 
     assert!(
         signer.api().gprog(pid).await.is_ok(),

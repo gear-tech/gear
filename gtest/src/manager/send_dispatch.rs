@@ -115,7 +115,7 @@ impl ExtManager {
                     .split_with_value(
                         true,
                         origin_msg,
-                        MessageId::generate_reply(dispatch.id()),
+                        gear_core::utils::generate_mid_reply(dispatch.id()),
                         0,
                     )
                     .expect("failed to split with value gas node");

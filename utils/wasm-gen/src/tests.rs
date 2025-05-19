@@ -22,13 +22,12 @@ use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::prelude::*,
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         ReplyPacket,
     },
-    primitives::{ActorId, CodeId},
+    primitives::{ActorId, CodeId, H256},
 };
 use gear_core_backend::{
     env::{BackendReport, Environment},
@@ -1024,8 +1023,7 @@ fn execute_wasm_with_custom_configs(
     )
     .expect("Failed to create Code");
 
-    let code_id = CodeId::generate(code.original_code());
-    let program_id = ActorId::generate_from_user(code_id, b"");
+    let program_id = H256::random().0.into();
 
     let incoming_message = IncomingMessage::new(
         message_id.into(),

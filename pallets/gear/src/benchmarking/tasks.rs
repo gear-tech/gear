@@ -61,7 +61,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
         WASM_BINARY.to_vec(),
@@ -72,6 +72,8 @@ where
         false,
     )
     .expect("submit program failed");
+
+    let program_id = super::find_latest_actor_id_created::<T>();
 
     let (builtins, _) = T::BuiltinDispatcherFactory::create();
     Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
@@ -130,7 +132,6 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -141,6 +142,8 @@ where
         false,
     )
     .expect("submit program failed");
+
+    let program_id = super::find_latest_actor_id_created::<T>();
 
     let delay = 1u32;
     let calls = Calls::builder().add_call(Call::Send(
@@ -188,7 +191,6 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -199,6 +201,8 @@ where
         false,
     )
     .expect("submit program failed");
+
+    let program_id = super::find_latest_actor_id_created::<T>();
 
     let delay = 10u32;
     Gear::<T>::send_message(
@@ -240,7 +244,6 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -251,6 +254,8 @@ where
         false,
     )
     .expect("submit program failed");
+
+    let program_id = super::find_latest_actor_id_created::<T>();
 
     Gear::<T>::send_message(
         RawOrigin::Signed(caller).into(),

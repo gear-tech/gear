@@ -19,9 +19,9 @@
 //! Gas reservation structures.
 
 use crate::{
-    ids::prelude::*,
     message::IncomingDispatch,
     primitives::{MessageId, ReservationId},
+    utils,
 };
 use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
@@ -178,7 +178,7 @@ impl GasReserver {
     ) -> Result<ReservationId, ReservationError> {
         self.check_execution_limit()?;
 
-        let id = ReservationId::generate(self.message_id, self.nonce.fetch_inc());
+        let id = utils::generate_rid(self.message_id, self.nonce.fetch_inc());
 
         let maybe_reservation = self.states.insert(
             id,

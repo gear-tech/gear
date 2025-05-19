@@ -31,10 +31,7 @@ use super::*;
 use crate::{BlockGasLimitOf, CurrencyOf, Event, String, WaitlistOf};
 use common::event::DispatchStatus;
 use frame_support::traits::Randomness;
-use gear_core::{
-    ids::prelude::*,
-    primitives::{CodeId, ReservationId},
-};
+use gear_core::primitives::CodeId;
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gear_wasm_instrument::{syscalls::SyscallName, BlockType, Function, Instruction, MemArg};
 use pallet_timestamp::Pallet as TimestampPallet;
@@ -70,7 +67,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = super::find_latest_actor_id_created::<T>();
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);
@@ -165,7 +162,7 @@ where
         false,
     ));
 
-    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = super::find_latest_actor_id_created::<T>();
     utils::run_to_next_block::<T>(None);
 
     // Ensure that program is uploaded and initialized correctly
@@ -316,8 +313,8 @@ where
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
 
-        let outgoing_mid = MessageId::generate_outgoing(next_user_mid, 0);
-        let future_reply_id = MessageId::generate_reply(outgoing_mid);
+        let outgoing_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 0);
+        let future_reply_id = gear_core::utils::generate_mid_reply(outgoing_mid);
 
         let post_check = move || {
             assert!(
@@ -345,7 +342,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 0);
 
         let mp = vec![Kind::ReservationSend(expected_mid.into())]
             .encode()
@@ -365,7 +362,7 @@ where
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
         // Program increases local nonce by sending one message before `send_init`.
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 1);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 1);
 
         let post_test = move || {
             assert!(
@@ -394,7 +391,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid);
+        let expected_mid = gear_core::utils::generate_mid_reply(next_user_mid);
 
         let mp = vec![Kind::ReservationReply(expected_mid.into())]
             .encode()
@@ -413,7 +410,7 @@ where
         let payload = b"HI_RRC!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid);
+        let expected_mid = gear_core::utils::generate_mid_reply(next_user_mid);
 
         let post_test = move || {
             let source = default_sender.cast();
@@ -463,7 +460,7 @@ where
     )
     .expect("failed to upload test program");
 
-    let pid = ActorId::generate_from_user(wasm_module.hash, b"alloc-free-test");
+    let pid = super::find_latest_actor_id_created::<T>();
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
@@ -594,9 +591,9 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 0);
         let salt = 10u64;
-        let expected_pid = ActorId::generate_from_program(
+        let expected_pid = gear_core::utils::generate_pid_from_program(
             next_user_mid,
             simplest_gear_wasm::<T>().hash,
             &salt.to_le_bytes(),
@@ -625,7 +622,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 0);
 
         let payload = vec![Kind::Send(gas, expected_mid.into())].encode();
         log::debug!("payload = {payload:?}");
@@ -647,7 +644,7 @@ where
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
         // Program increases local nonce by sending messages twice before `send_init`.
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 2);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 2);
 
         let post_test = move || {
             assert!(
@@ -674,7 +671,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_outgoing(next_message_id, 0);
+        let expected_message_id = gear_core::utils::generate_mid_outgoing(next_message_id, 0);
 
         let payload = vec![Kind::SendInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
@@ -702,7 +699,7 @@ where
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
         // Program increases local nonce by sending messages twice before `send_init`.
-        let expected_message_id = MessageId::generate_outgoing(next_message_id, 2);
+        let expected_message_id = gear_core::utils::generate_mid_outgoing(next_message_id, 2);
 
         let payload = vec![Kind::SendPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
@@ -728,7 +725,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
-        let expected_mid = MessageId::generate_reply(next_user_mid);
+        let expected_mid = gear_core::utils::generate_mid_reply(next_user_mid);
 
         let mp = vec![Kind::Reply(gas, expected_mid.into())].encode().into();
 
@@ -746,7 +743,7 @@ where
         let payload = b"HI_RR!!";
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_reply(next_user_mid);
+        let expected_mid = gear_core::utils::generate_mid_reply(next_user_mid);
 
         let post_test = move || {
             let source = default_sender.cast();
@@ -774,7 +771,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id);
+        let expected_message_id = gear_core::utils::generate_mid_reply(next_message_id);
 
         let payload = vec![Kind::ReplyInput(gas, expected_message_id.into())].encode();
         let message = payload.clone().into();
@@ -801,7 +798,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|_, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_message_id = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_message_id = MessageId::generate_reply(next_message_id);
+        let expected_message_id = gear_core::utils::generate_mid_reply(next_message_id);
 
         let payload = vec![Kind::ReplyPushInput(expected_message_id.into())].encode();
         let message = payload.clone().into();
@@ -828,7 +825,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 0);
 
         let reply_code = ReplyCode::Success(SuccessReplyReason::Manual).to_bytes();
 
@@ -870,7 +867,7 @@ where
     run_tester::<T, _, _, T::AccountId>(|tester_pid, _| {
         let default_sender = utils::default_account::<T::AccountId>();
         let next_user_mid = utils::get_next_message_id::<T>(default_sender.clone());
-        let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
+        let expected_mid = gear_core::utils::generate_mid_outgoing(next_user_mid, 0);
 
         // setup signal details
         Gear::<T>::send_message(
@@ -971,7 +968,7 @@ where
         let next_user_mid =
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         // Nonce in program is set to 2 due to 3 times reservation is called.
-        let expected_reservation_id = ReservationId::generate(next_user_mid, 2).encode();
+        let expected_reservation_id = gear_core::utils::generate_rid(next_user_mid, 2).encode();
         let mp = vec![Kind::Reserve(expected_reservation_id)].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
@@ -1060,9 +1057,6 @@ where
     let child_wasm = simplest_gear_wasm::<T>();
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
-    let child_pid = ActorId::generate_from_user(child_code_hash, b"");
-
-    let tester_pid = ActorId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);
@@ -1081,6 +1075,8 @@ where
     )
     .expect("child program deploy failed");
 
+    let child_pid = super::find_latest_actor_id_created::<T>();
+
     // Set default code-hash for create program calls
     let default_account = utils::default_account();
     let _ = CurrencyOf::<T>::deposit_creating(
@@ -1097,6 +1093,8 @@ where
         false,
     )
     .expect("syscall check program deploy failed");
+
+    let tester_pid = super::find_latest_actor_id_created::<T>();
 
     utils::run_to_next_block::<T>(None);
 

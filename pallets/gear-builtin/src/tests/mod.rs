@@ -18,8 +18,26 @@
 
 //! Builtin actor pallet tests.
 
+use gear_core::primitives::ActorId;
+
 mod bad_builtin_ids;
 mod basic;
 mod bls381;
 mod proxy;
 mod staking;
+
+pub(crate) fn get_last_program_id() -> ActorId {
+    use super::mock::{RuntimeEvent, System};
+
+    System::events()
+        .iter()
+        .rev()
+        .find_map(|e| {
+            if let RuntimeEvent::Gear(pallet_gear::Event::ProgramChanged { id, .. }) = e.event {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .expect("can't find program creation event")
+}

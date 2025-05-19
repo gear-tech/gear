@@ -42,8 +42,6 @@ pub enum State {
 #[cfg(test)]
 mod tests {
     use crate::State;
-    use gear_core::ids::prelude::MessageIdExt;
-    use gstd::MessageId;
     use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
     #[test]
@@ -85,7 +83,7 @@ mod tests {
         assert!(res.succeed.contains(&assertive_handle_id));
         assert_eq!(res.not_executed.len(), 1);
         let not_executed = res.not_executed.pop_first().unwrap();
-        let reply_msg_id = MessageId::generate_reply(not_executed);
+        let reply_msg_id = gear_core::utils::generate_mid_reply(not_executed);
         assert!(res.succeed.contains(&reply_msg_id));
     }
 }

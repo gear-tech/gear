@@ -27,11 +27,9 @@ fn bonding_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
         // This pours the ED onto the contract's account
-        deploy_broker_contract();
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         let signer_current_balance_at_blk_1 = Balances::free_balance(SIGNER);
@@ -135,10 +133,9 @@ fn unbonding_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         send_bond_message(contract_id, 100 * UNITS, None);
@@ -186,9 +183,8 @@ fn payload_size_matters() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
         run_to_next_block();
 
         // Prepare large payload
@@ -227,10 +223,9 @@ fn nominating_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         let targets: Vec<ActorId> = vec![VAL_1_STASH, VAL_2_STASH]
@@ -294,10 +289,9 @@ fn withdraw_unbonded_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         send_bond_message(contract_id, 500 * UNITS, None);
@@ -368,10 +362,9 @@ fn set_payee_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         // Bond funds with the `payee`` set to contract's stash (default)
@@ -414,10 +407,9 @@ fn rebond_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         send_bond_message(contract_id, 500 * UNITS, None);
@@ -515,10 +507,9 @@ fn payout_stakers_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
-        deploy_broker_contract();
+        // This pours the ED onto the contract's account
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         // Only nominating one target
@@ -593,11 +584,9 @@ fn gas_allowance_respected() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
-        let contract_account_id = AccountId::from_origin(contract_id.into_origin());
-
         // This pours the ED onto the contract's account
-        deploy_broker_contract();
+        let contract_id = deploy_broker_contract();
+        let contract_account_id = contract_id.cast::<AccountId>();
         run_to_next_block();
 
         // Asserting success with ample remaining gas in the block
@@ -668,10 +657,7 @@ mod util {
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
-    pub(super) use gear_core::{
-        ids::prelude::*,
-        primitives::{ActorId, CodeId},
-    };
+    pub(super) use gear_core::primitives::ActorId;
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
     use pallet_session::historical::{self as pallet_session_historical};
     pub(super) use parity_scale_codec::Encode;
@@ -1005,7 +991,7 @@ mod util {
         let _ = tracing_subscriber::fmt::try_init();
     }
 
-    pub(super) fn deploy_broker_contract() {
+    pub(super) fn deploy_broker_contract() -> ActorId {
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(SIGNER),
             WASM_BINARY.to_vec(),
@@ -1015,6 +1001,8 @@ mod util {
             0,
             false,
         ));
+
+        crate::tests::get_last_program_id()
     }
 
     pub(super) fn send_bond_message(

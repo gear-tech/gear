@@ -33,10 +33,8 @@ use core_processor::{
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::prelude::*,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
-    primitives::{ActorId, CodeId, MessageId},
 };
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -83,11 +81,11 @@ where
     let (builtins, _) = T::BuiltinDispatcherFactory::create();
     let ext_manager = ExtManager::<T>::new(builtins);
     let bn: u64 = Gear::<T>::block_number().unique_saturated_into();
-    let root_message_id = MessageId::from(bn);
+    let root_message_id = bn.into();
 
     let dispatch = match kind {
         HandleKind::Init(ref code) => {
-            let program_id = ActorId::generate_from_user(CodeId::generate(code), b"bench_salt");
+            let program_id = 42.into();
 
             let schedule = T::Schedule::get();
             let code = Code::try_new(
@@ -125,7 +123,7 @@ where
             )
         }
         HandleKind::InitByHash(code_id) => {
-            let program_id = ActorId::generate_from_user(code_id, b"bench_salt");
+            let program_id = 42.into();
 
             let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
             let code_info = CodeInfo::from_code(&code_id, &code);

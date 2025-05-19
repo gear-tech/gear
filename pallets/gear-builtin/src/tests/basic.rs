@@ -24,10 +24,7 @@ use crate::mock::*;
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_core::{
-    ids::prelude::*,
-    primitives::{ActorId, CodeId},
-};
+use gear_core::primitives::ActorId;
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
 use primitive_types::H256;
@@ -43,7 +40,7 @@ const ERROR_ACTOR_ID: [u8; 32] =
 const HONEST_ACTOR_ID: [u8; 32] =
     hex_literal::hex!("7eb026f54b3ee698d933fbbbb0b22665acd4b435a7272ead5dc9152c97cbf032");
 
-fn deploy_contract(init_payload: Vec<u8>) {
+fn deploy_contract(init_payload: Vec<u8>) -> ActorId {
     assert_ok!(Gear::upload_program(
         RuntimeOrigin::signed(SIGNER),
         WASM_BINARY.to_vec(),
@@ -53,6 +50,8 @@ fn deploy_contract(init_payload: Vec<u8>) {
         EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
         false,
     ));
+
+    crate::tests::get_last_program_id()
 }
 
 fn send_message(contract_id: ActorId, payload: Vec<u8>) {
@@ -112,11 +111,9 @@ fn invoking_builtin_from_program_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"salt");
-
         assert_eq!(current_stack(), vec![]);
 
-        deploy_contract((HONEST_ACTOR_ID, 0u64).encode());
+        let contract_id = deploy_contract((HONEST_ACTOR_ID, 0u64).encode());
         run_to_next_block();
 
         let signer_current_balance_at_blk_1 = Balances::free_balance(SIGNER);

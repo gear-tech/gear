@@ -21,10 +21,7 @@ use super::{
     VALUE_SIZE,
 };
 use gear_call_gen::{GearCall, UploadProgramArgs};
-use gear_core::{
-    ids::prelude::*,
-    primitives::{ActorId, CodeId},
-};
+use gear_core::primitives::{ActorId, CodeId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     wasm_gen_arbitrary::{Result, Unstructured},
@@ -90,9 +87,6 @@ pub(crate) fn generate(
     log::trace!("Random data after value generation {}", unstructured.len());
     log::trace!("Sending value (upload_program) - {value}");
     log::trace!("Current balance (upload_program - {current_balance}");
-
-    let program_id = ActorId::generate_from_user(CodeId::generate(&code), &salt);
-    log::trace!("Generated code for program id - {program_id}");
 
     Ok(UploadProgramArgs((code, salt, payload, gas, value)).into())
 }

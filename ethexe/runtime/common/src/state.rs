@@ -37,7 +37,6 @@ use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     buffer::Payload,
-    ids::prelude::*,
     memory::PageBuf,
     message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
@@ -619,7 +618,7 @@ impl Dispatch {
         origin: Origin,
     ) -> Self {
         Self {
-            id: MessageId::generate_reply(reply_to),
+            id: gear_core::utils::generate_mid_reply(reply_to),
             kind: DispatchKind::Reply,
             source,
             payload,

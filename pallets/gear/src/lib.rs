@@ -89,7 +89,6 @@ use gear_core::{
     buffer::*,
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
     env::MessageWaitedType,
-    ids::prelude::*,
     message::*,
     percent::Percent,
     primitives::{ActorId, CodeId, MessageId, ReservationId},
@@ -926,7 +925,7 @@ pub mod pallet {
             SentOf::<T>::increase();
             let block_number = System::<T>::block_number().unique_saturated_into();
 
-            MessageId::generate_from_user(block_number, user_id.cast(), nonce.into())
+            gear_core::utils::generate_mid_from_user(block_number, user_id.cast(), nonce.into())
         }
 
         /// Delayed tasks processing.
@@ -1909,7 +1908,7 @@ pub mod pallet {
                 Error::<T>::InactiveProgram
             );
 
-            let reply_id = MessageId::generate_reply(mailboxed.id());
+            let reply_id = gear_core::utils::generate_mid_reply(mailboxed.id());
 
             // Set zero gas limit if reply deposit exists.
             let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {

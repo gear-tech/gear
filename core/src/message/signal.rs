@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::prelude::*,
     message::{Dispatch, DispatchKind, Message, SignalDetails},
     primitives::{ActorId, MessageId},
+    utils,
 };
 use gear_core_errors::SignalCode;
 use scale_info::{
@@ -39,7 +39,7 @@ pub struct SignalMessage {
 impl SignalMessage {
     /// Creates a new [`SignalMessage`].
     pub fn new(origin_msg_id: MessageId, code: SignalCode) -> Self {
-        let id = MessageId::generate_signal(origin_msg_id);
+        let id = utils::generate_mid_signal(origin_msg_id);
 
         Self { id, code }
     }

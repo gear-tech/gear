@@ -19,11 +19,11 @@
 use super::common::ReplyDetails;
 use crate::{
     buffer::Payload,
-    ids::prelude::*,
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
     primitives::{ActorId, MessageId},
+    utils,
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
 use scale_info::{
@@ -66,7 +66,7 @@ impl ReplyMessage {
         value: Value,
         err: impl Into<ErrorReplyReason>,
     ) -> Self {
-        let id = MessageId::generate_reply(origin_msg_id);
+        let id = utils::generate_mid_reply(origin_msg_id);
         let packet = ReplyPacket::system(payload, value, err);
 
         Self::from_packet(id, packet)
@@ -74,7 +74,7 @@ impl ReplyMessage {
 
     /// Create new auto-generated ReplyMessage.
     pub fn auto(origin_msg_id: MessageId) -> Self {
-        let id = MessageId::generate_reply(origin_msg_id);
+        let id = utils::generate_mid_reply(origin_msg_id);
         let packet = ReplyPacket::auto();
 
         Self::from_packet(id, packet)

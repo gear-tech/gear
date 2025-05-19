@@ -24,10 +24,7 @@ use common::Origin;
 use demo_proxy_broker::WASM_BINARY;
 use frame_support::{assert_err, assert_ok, dispatch::GetDispatchInfo};
 use gbuiltin_proxy::{ProxyType, Request};
-use gear_core::{
-    ids::prelude::*,
-    primitives::{ActorId, CodeId},
-};
+use gear_core::primitives::ActorId;
 use pallet_balances::Call as BalancesCall;
 use pallet_proxy::{Error as ProxyError, Event as ProxyEvent};
 use parity_scale_codec::Encode;
@@ -195,18 +192,17 @@ mod utils {
     use super::*;
 
     pub(super) fn upload_and_initialize_broker() -> ActorId {
-        let code = WASM_BINARY;
-        let salt = b"proxy_broker";
-        let pid = ActorId::generate_from_user(CodeId::generate(code), salt);
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(SIGNER),
-            code.to_vec(),
-            salt.to_vec(),
+            WASM_BINARY.to_vec(),
+            b"proxy_broker".to_vec(),
             Default::default(),
             10_000_000_000,
             0,
             false,
         ));
+        let pid = crate::tests::get_last_program_id();
+
         run_to_next_block();
 
         // Top-up balance of the proxy so it can pay adding proxy deposit

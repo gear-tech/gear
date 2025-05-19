@@ -52,7 +52,6 @@ use gear_common::{
 use gear_core::{
     code::InstrumentedCode,
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::prelude::*,
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,

@@ -39,7 +39,6 @@ pub mod env;
 pub mod env_vars;
 pub mod gas;
 pub mod gas_metering;
-pub mod ids;
 pub mod memory;
 pub mod message;
 pub mod pages;
@@ -49,3 +48,65 @@ pub mod reservation;
 pub mod rpc;
 pub mod str;
 pub mod tasks;
+pub mod utils {
+    //! The purpose of this module is to make it easier to import `gprimitives` extensions.
+    use gprimitives::{
+        hashing::hash_array as hash_of_array, ActorId, CodeId, MessageId, ReservationId,
+    };
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_pid_from_user(code_id: CodeId, salt: &[u8]) -> ActorId {
+        const SALT: &[u8] = b"program_from_user";
+        hash_of_array([SALT, code_id.as_ref(), salt]).into()
+    }
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_pid_from_program(
+        message_id: MessageId,
+        code_id: CodeId,
+        salt: &[u8],
+    ) -> ActorId {
+        const SALT: &[u8] = b"program_from_wasm";
+        hash_of_array([SALT, message_id.as_ref(), code_id.as_ref(), salt]).into()
+    }
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_mid_from_user(
+        block_number: u32,
+        user_id: ActorId,
+        local_nonce: u128,
+    ) -> MessageId {
+        const SALT: &[u8] = b"external";
+        hash_of_array([
+            SALT,
+            &block_number.to_le_bytes(),
+            user_id.as_ref(),
+            &local_nonce.to_le_bytes(),
+        ])
+        .into()
+    }
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_mid_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId {
+        const SALT: &[u8] = b"outgoing";
+        hash_of_array([SALT, origin_msg_id.as_ref(), &local_nonce.to_le_bytes()]).into()
+    }
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_mid_reply(origin_msg_id: MessageId) -> MessageId {
+        const SALT: &[u8] = b"reply";
+        hash_of_array([SALT, origin_msg_id.as_ref()]).into()
+    }
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_mid_signal(origin_msg_id: MessageId) -> MessageId {
+        const SALT: &[u8] = b"signal";
+        hash_of_array([SALT, origin_msg_id.as_ref()]).into()
+    }
+
+    /// TO BE REFACTORED IN THE NEXT COMMIT.
+    pub fn generate_rid(msg_id: MessageId, nonce: u64) -> ReservationId {
+        const SALT: &[u8] = b"reservation";
+        hash_of_array([SALT, msg_id.as_ref(), &nonce.to_le_bytes()]).into()
+    }
+}

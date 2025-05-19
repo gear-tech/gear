@@ -27,7 +27,6 @@ use gear_common::{
     storage::Interval,
 };
 use gear_core::{
-    ids::prelude::*,
     message::{ReplyMessage, ReplyPacket},
     primitives::{ActorId, MessageId},
 };
@@ -86,7 +85,7 @@ impl<'a> ActorMailbox<'a> {
             .read_mailbox_message(self.user_id, reply_to_id)?;
 
         let destination = mailboxed.source();
-        let reply_id = MessageId::generate_reply(mailboxed.id());
+        let reply_id = gear_core::utils::generate_mid_reply(mailboxed.id());
 
         // Set zero gas limit if reply deposit exists.
         let gas_limit = if self
