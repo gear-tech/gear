@@ -21,7 +21,7 @@
 use crate::{
     buffer::Payload,
     env_vars::EnvVars,
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId},
     memory::Memory,
     message::{DispatchKind, HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
@@ -297,7 +297,7 @@ pub trait Externalities {
     fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError>;
 
     /// Get the source of the message currently being handled.
-    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError>;
+    fn source(&self) -> Result<ActorId, Self::UnrecoverableError>;
 
     /// Get the reply code if the message being processed.
     fn reply_code(&self) -> Result<ReplyCode, Self::FallibleError>;
@@ -309,7 +309,7 @@ pub trait Externalities {
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError>;
 
     /// Get the id of program itself
-    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError>;
+    fn program_id(&self) -> Result<ActorId, Self::UnrecoverableError>;
 
     /// Send debug message.
     ///
@@ -383,7 +383,7 @@ pub trait Externalities {
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::FallibleError>;
+    ) -> Result<(MessageId, ActorId), Self::FallibleError>;
 
     /// Create deposit to handle reply on given message.
     fn reply_deposit(

@@ -27,7 +27,7 @@ use alloc::{
 };
 use gear_core::{
     code::InstrumentedCode,
-    ids::{ActorId, CodeId, ProgramId},
+    ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
 
@@ -64,9 +64,9 @@ pub trait CodesStorage: Send + Sync {
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
     fn set_original_code(&self, code: &[u8]) -> CodeId;
 
-    fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId>;
-    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
-    fn program_ids(&self) -> BTreeSet<ProgramId>;
+    fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
+    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
+    fn program_ids(&self) -> BTreeSet<ActorId>;
 
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;

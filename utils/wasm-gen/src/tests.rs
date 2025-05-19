@@ -22,7 +22,7 @@ use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, CodeId, ProgramId},
+    ids::{prelude::*, ActorId, CodeId},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -430,7 +430,7 @@ fn test_existing_address_as_address_param() {
 
     assert_eq!(
         dispatch.destination(),
-        ProgramId::try_from(some_address.as_ref()).unwrap()
+        ActorId::try_from(some_address.as_ref()).unwrap()
     );
 }
 
@@ -563,7 +563,7 @@ fn test_msg_value_ptr_dest() {
                     ActorKind::ExistingAddresses(_) => {
                         assert_eq!(
                             destination,
-                            ProgramId::try_from(some_address.as_ref()).unwrap()
+                            ActorId::try_from(some_address.as_ref()).unwrap()
                         )
                     }
                     ActorKind::Random => {}
@@ -1024,7 +1024,7 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
-    let program_id = ProgramId::generate_from_user(code_id, b"");
+    let program_id = ActorId::generate_from_user(code_id, b"");
 
     let incoming_message = IncomingMessage::new(
         message_id.into(),
@@ -1088,7 +1088,7 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to execute WASM module")
 }
 
-fn message_sender() -> ProgramId {
+fn message_sender() -> ActorId {
     let bytes = [1, 2, 3, 4].repeat(8);
-    ProgramId::try_from(bytes.as_ref()).unwrap()
+    ActorId::try_from(bytes.as_ref()).unwrap()
 }

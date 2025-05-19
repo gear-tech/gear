@@ -74,7 +74,7 @@ impl GearApi {
     /// `at_block_hash`.
     pub async fn program_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         at_block_hash: Option<H256>,
     ) -> Result<ActiveProgram<u32>> {
         self.0
@@ -91,7 +91,7 @@ impl GearApi {
     /// extrinsic.
     ///
     /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_keep_alive(&self, destination: ProgramId, value: u128) -> Result<H256> {
+    pub async fn transfer_keep_alive(&self, destination: ActorId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
         let tx = self.0.calls.transfer_keep_alive(destination, value).await?;
@@ -119,7 +119,7 @@ impl GearApi {
     /// extrinsic.
     ///
     /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_allow_death(&self, destination: ProgramId, value: u128) -> Result<H256> {
+    pub async fn transfer_allow_death(&self, destination: ActorId, value: u128) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
         let tx = self
@@ -151,7 +151,7 @@ impl GearApi {
     /// extrinsic.
     ///
     /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_all(&self, destination: ProgramId, keep_alive: bool) -> Result<H256> {
+    pub async fn transfer_all(&self, destination: ActorId, keep_alive: bool) -> Result<H256> {
         let destination: [u8; 32] = destination.into();
 
         let tx = self.0.calls.transfer_all(destination, keep_alive).await?;
@@ -210,7 +210,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, H256)> {
+    ) -> Result<(MessageId, ActorId, H256)> {
         let salt = salt.as_ref().to_vec();
         let payload = payload.as_ref().to_vec();
 
@@ -244,7 +244,7 @@ impl GearApi {
     pub async fn create_program_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (CodeId, impl AsRef<[u8]>, impl AsRef<[u8]>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
+    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
             .map(|(code_id, salt, payload, gas_limit, value)| {
@@ -302,7 +302,7 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, H256)> {
+    ) -> Result<(MessageId, ActorId, H256)> {
         self.create_program_bytes(code_id, salt, payload.encode(), gas_limit, value)
             .await
     }
@@ -313,10 +313,10 @@ impl GearApi {
     /// `src_block_hash` if it is specified or the most recent one.
     pub async fn migrate_program(
         &self,
-        src_program_id: ProgramId,
+        src_program_id: ActorId,
         src_block_hash: Option<H256>,
         dest_node_api: &GearApi,
-    ) -> Result<ProgramId> {
+    ) -> Result<ActorId> {
         if dest_node_api.0.api().gprog(src_program_id).await.is_ok() {
             return Err(Error::ProgramAlreadyExists(
                 src_program_id.as_ref().encode_hex(),
@@ -580,7 +580,7 @@ impl GearApi {
     /// Get all pages with their data for program at specified block.
     pub async fn get_program_pages_data_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         block_hash: Option<H256>,
     ) -> Result<BTreeMap<GearPage, PageBuf>> {
         let pages_data = self.0.api().gpages_at(program_id, None, block_hash).await?;
@@ -599,7 +599,7 @@ impl GearApi {
     /// Get specified pages with their data for program at specified block.
     pub async fn get_program_specified_pages_data_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         pages: impl Iterator<Item = GearPage>,
         block_hash: Option<H256>,
     ) -> Result<BTreeMap<GearPage, PageBuf>> {
@@ -628,7 +628,7 @@ impl GearApi {
     /// time of `block_hash` if presented or the most recent block.
     pub async fn save_program_memory_dump_at<P: AsRef<Path>>(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         block_hash: Option<H256>,
         file_path: P,
     ) -> Result {
@@ -681,7 +681,7 @@ impl GearApi {
     /// Replace entire program memory with one saved earlier in gclient/gtest
     pub async fn replace_program_memory<P: AsRef<Path>>(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         file_path: P,
     ) -> Result {
         let memory_dump = ProgramMemoryDump::load_from_file(file_path);
@@ -819,7 +819,7 @@ impl GearApi {
     ///   sends a batch of messages.
     pub async fn send_message_bytes(
         &self,
-        destination: ProgramId,
+        destination: ActorId,
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
@@ -855,8 +855,8 @@ impl GearApi {
     /// to one program.
     pub async fn send_message_bytes_batch(
         &self,
-        args: impl IntoIterator<Item = (ProgramId, impl AsRef<[u8]>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
+        args: impl IntoIterator<Item = (ActorId, impl AsRef<[u8]>, u64, u128)>,
+    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
             .map(|(destination, payload, gas_limit, value)| {
@@ -901,7 +901,7 @@ impl GearApi {
     /// message with encoded `payload`.
     pub async fn send_message(
         &self,
-        destination: ProgramId,
+        destination: ActorId,
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
@@ -977,7 +977,7 @@ impl GearApi {
     pub async fn send_reply_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (MessageId, impl AsRef<[u8]>, u64, u128)> + Clone,
-    ) -> Result<(Vec<Result<(MessageId, ProgramId, u128)>>, H256)> {
+    ) -> Result<(Vec<Result<(MessageId, ActorId, u128)>>, H256)> {
         let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
 
         let messages = futures::future::try_join_all(
@@ -1176,7 +1176,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, H256)> {
+    ) -> Result<(MessageId, ActorId, H256)> {
         let code = code.as_ref().to_vec();
         let salt = salt.as_ref().to_vec();
         let payload = payload.as_ref().to_vec();
@@ -1219,7 +1219,7 @@ impl GearApi {
                 u128,
             ),
         >,
-    ) -> Result<(Vec<Result<(MessageId, ProgramId)>>, H256)> {
+    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
         let calls: Vec<_> = args
             .into_iter()
             .map(|(code, salt, payload, gas_limit, value)| {
@@ -1276,7 +1276,7 @@ impl GearApi {
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, H256)> {
+    ) -> Result<(MessageId, ActorId, H256)> {
         let code = utils::code_from_os(path)?;
         self.upload_program_bytes(code, salt, payload, gas_limit, value)
             .await
@@ -1298,7 +1298,7 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, H256)> {
+    ) -> Result<(MessageId, ActorId, H256)> {
         self.upload_program_bytes(code, salt, payload.encode(), gas_limit, value)
             .await
     }
@@ -1318,7 +1318,7 @@ impl GearApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ProgramId, H256)> {
+    ) -> Result<(MessageId, ActorId, H256)> {
         let code = utils::code_from_os(path)?;
         self.upload_program(code, salt, payload, gas_limit, value)
             .await
@@ -1462,7 +1462,7 @@ impl GearApi {
     pub async fn send_message_bytes_with_voucher(
         &self,
         voucher_id: VoucherId,
-        destination: ProgramId,
+        destination: ActorId,
         payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
@@ -1502,7 +1502,7 @@ impl GearApi {
     pub async fn send_message_with_voucher(
         &self,
         voucher_id: VoucherId,
-        destination: ProgramId,
+        destination: ActorId,
         payload: impl Encode,
         gas_limit: u64,
         value: u128,

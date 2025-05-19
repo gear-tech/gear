@@ -8,7 +8,7 @@ use crate::{
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
 use ethexe_common::{gear::ValueClaim, Rfm, Schedule, ScheduledTask, Sd, Sum};
-use gear_core::{ids::ProgramId, tasks::TaskHandler};
+use gear_core::tasks::TaskHandler;
 use gear_core_errors::SuccessReplyReason;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 
@@ -19,7 +19,7 @@ pub struct Handler<'a, S: Storage> {
 impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn remove_from_mailbox(
         &mut self,
-        (program_id, user_id): (ProgramId, ActorId),
+        (program_id, user_id): (ActorId, ActorId),
         message_id: MessageId,
     ) -> u64 {
         self.controller
@@ -58,7 +58,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         0
     }
 
-    fn send_dispatch(&mut self, (program_id, message_id): (ProgramId, MessageId)) -> u64 {
+    fn send_dispatch(&mut self, (program_id, message_id): (ActorId, MessageId)) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, _| {
                 state.queue_hash.modify_queue(storage, |queue| {
@@ -73,7 +73,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         0
     }
 
-    fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ProgramId) -> u64 {
+    fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ActorId) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let (dispatch, user_id) = state
@@ -106,7 +106,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     }
 
     // TODO (breathx): consider deprecation of delayed wakes + non-concrete waits.
-    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> u64 {
+    fn wake_message(&mut self, program_id: ActorId, message_id: MessageId) -> u64 {
         log::trace!("Running scheduled task wake message {message_id} to {program_id}");
 
         self.controller
@@ -128,19 +128,19 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     }
 
     /* Deprecated APIs */
-    fn remove_from_waitlist(&mut self, _program_id: ProgramId, _message_id: MessageId) -> u64 {
+    fn remove_from_waitlist(&mut self, _program_id: ActorId, _message_id: MessageId) -> u64 {
         unreachable!("considering deprecation of it; use `wake_message` instead")
     }
-    fn pause_program(&mut self, _: ProgramId) -> u64 {
+    fn pause_program(&mut self, _: ActorId) -> u64 {
         unreachable!("deprecated")
     }
     fn remove_code(&mut self, _: CodeId) -> u64 {
         unreachable!("deprecated")
     }
-    fn remove_gas_reservation(&mut self, _: ProgramId, _: ReservationId) -> u64 {
+    fn remove_gas_reservation(&mut self, _: ActorId, _: ReservationId) -> u64 {
         unreachable!("deprecated")
     }
-    fn remove_paused_program(&mut self, _: ProgramId) -> u64 {
+    fn remove_paused_program(&mut self, _: ActorId) -> u64 {
         unreachable!("deprecated")
     }
     fn remove_resume_session(&mut self, _: u32) -> u64 {
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn restorer_waitlist() {
-        let program_id = ProgramId::from(1);
+        let program_id = ActorId::from(1);
 
         let dispatch = Dispatch::reply(
             MessageId::from(456),
@@ -343,7 +343,7 @@ mod tests {
     fn restorer_mailbox() {
         let storage = MemStorage::default();
 
-        let program_id = ProgramId::from(1);
+        let program_id = ActorId::from(1);
         let user_id = ActorId::from(2);
         let message_id = MessageId::from(3);
         let message = MailboxMessage::new(
@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn restorer_stash() {
-        let program_id = ProgramId::from(1);
+        let program_id = ActorId::from(1);
         let program_dispatch = Dispatch::reply(
             MessageId::from(456),
             ActorId::from(789),

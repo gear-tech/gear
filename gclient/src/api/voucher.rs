@@ -18,7 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use gsdk::{
     ext::sp_core::H256,
     metadata::{
@@ -45,9 +45,9 @@ impl GearApi {
     ///   current bn (extrinsic exec bn) + duration + 1.
     pub async fn issue_voucher(
         &self,
-        spender: ProgramId,
+        spender: ActorId,
         balance: u128,
-        programs: Option<Vec<ProgramId>>,
+        programs: Option<Vec<ActorId>>,
         code_uploading: bool,
         duration: u32,
     ) -> Result<(VoucherId, H256)> {
@@ -96,11 +96,11 @@ impl GearApi {
     #[allow(clippy::too_many_arguments)]
     pub async fn update_voucher(
         &self,
-        spender: ProgramId,
+        spender: ActorId,
         voucher_id: VoucherId,
-        move_ownership: Option<ProgramId>,
+        move_ownership: Option<ActorId>,
         balance_top_up: Option<u128>,
-        append_programs: Option<Option<Vec<ProgramId>>>,
+        append_programs: Option<Option<Vec<ActorId>>>,
         code_uploading: Option<bool>,
         prolong_duration: u32,
     ) -> Result<(VoucherId, H256)> {
@@ -147,7 +147,7 @@ impl GearApi {
     /// * voucher_id: voucher id to be revoked.
     pub async fn revoke_voucher(
         &self,
-        spender: ProgramId,
+        spender: ActorId,
         voucher_id: VoucherId,
     ) -> Result<(VoucherId, H256)> {
         let spender: [u8; 32] = spender.into();
