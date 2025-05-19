@@ -8,8 +8,7 @@ use crate::{
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
 use ethexe_common::{
-    db::{Rfm, Schedule, ScheduledTask, Sd, StateHashWithQueueSize, Sum},
-    gear::ValueClaim,
+    gear::ValueClaim, Rfm, Schedule, ScheduledTask, Sd, StateHashWithQueueSize, Sum,
 };
 use gear_core::{ids::ProgramId, tasks::TaskHandler};
 use gear_core_errors::SuccessReplyReason;

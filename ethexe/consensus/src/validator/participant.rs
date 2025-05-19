@@ -26,9 +26,12 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
-use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
-use ethexe_signer::{Address, Digest, SignedData, ToDigest};
+use ethexe_common::{
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    ecdsa::SignedData,
+    gear::CodeCommitment,
+    Address, Digest, SimpleBlockData, ToDigest,
+};
 use gprimitives::H256;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -65,7 +68,7 @@ impl StateHandler for Participant {
         self: Box<Self>,
         request: SignedData<BatchCommitmentValidationRequest>,
     ) -> Result<Box<dyn StateHandler>> {
-        if request.verify_address(self.producer).is_ok() {
+        if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
             DefaultProcessing::validation_request(self, request)
@@ -82,8 +85,7 @@ impl Participant {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
-                if earlier_validation_request.is_none()
-                    && signed_data.verify_address(producer).is_ok() =>
+                if earlier_validation_request.is_none() && signed_data.address() == producer =>
             {
                 earlier_validation_request = Some(signed_data.data().clone());
 
@@ -142,8 +144,7 @@ impl Participant {
 
         self.ctx
             .signer
-            .contract_signer(self.ctx.router_address)
-            .sign_digest(self.ctx.pub_key, digest)
+            .sign_for_contract(self.ctx.router_address, self.ctx.pub_key, digest)
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
     }
 
@@ -278,7 +279,8 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_db::{BlockHeader, Database, OnChainStorage};
+    use ethexe_common::{db::OnChainStorage, BlockHeader};
+    use ethexe_db::Database;
     use std::any::TypeId;
 
     #[test]

@@ -23,8 +23,7 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::gear::BatchCommitment;
-use ethexe_signer::Address;
+use ethexe_common::{gear::BatchCommitment, Address};
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -95,17 +94,14 @@ impl Coordinator {
             "Threshold should be greater than 0"
         );
 
-        let multisigned_batch = MultisignedBatchCommitment::new(
-            batch,
-            &ctx.signer.contract_signer(ctx.router_address),
-            ctx.pub_key,
-        )?;
+        let multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)?;
 
         if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        let validation_request = ctx.signer.create_signed_data(
+        let validation_request = ctx.signer.signed_data(
             ctx.pub_key,
             BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
         )?;
@@ -124,7 +120,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_signer::ToDigest;
+    use ethexe_common::ToDigest;
     use gprimitives::H256;
     use std::any::TypeId;
 

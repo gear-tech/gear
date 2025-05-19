@@ -23,9 +23,10 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
+    StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
-use ethexe_db::{Database, StateHashWithQueueSize};
+use ethexe_db::Database;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_runtime_common::{
@@ -434,11 +435,7 @@ async fn sync_from_network(
                     let pages_region: MemoryPagesRegion =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
 
-                    for page_buf_hash in pages_region
-                        .as_inner()
-                        .iter()
-                        .map(|(_page, hash)| hash.hash())
-                    {
+                    for page_buf_hash in pages_region.as_inner().values().map(|hash| hash.hash()) {
                         manager.add(page_buf_hash, RequestMetadata::Data);
                     }
                 }

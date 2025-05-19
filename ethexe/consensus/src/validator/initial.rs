@@ -21,9 +21,8 @@ use super::{
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::SimpleBlockData;
+use ethexe_common::{Address, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::Address;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -73,8 +72,7 @@ impl StateHandler for Initial {
                     Producer::create(self.ctx, block.clone(), data.validators)
                 } else {
                     // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-                    let is_validator_for_current_block =
-                        data.validators.iter().any(|v| *v == my_address);
+                    let is_validator_for_current_block = data.validators.contains(&my_address);
 
                     log::info!(
                         "👷 Start to work as a subordinate for block: {}, producer is {producer}, \

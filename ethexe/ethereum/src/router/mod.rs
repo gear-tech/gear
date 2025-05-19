@@ -28,8 +28,11 @@ use alloy::{
     rpc::types::{eth::state::AccountOverride, Filter},
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, ContractSignature};
+use ethexe_common::{
+    ecdsa::ContractSignature,
+    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
+    Address as LocalAddress,
+};
 use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
@@ -175,7 +178,7 @@ impl Router {
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .map(|signature| Bytes::from(signature.into_pre_eip155_bytes()))
                 .collect(),
         );
 

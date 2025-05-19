@@ -8,7 +8,7 @@ use crate::{
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
-use ethexe_common::{db::ScheduledTask, gear::Origin};
+use ethexe_common::{gear::Origin, ScheduledTask};
 use gear_core::{
     ids::ProgramId,
     memory::PageBuf,
@@ -298,20 +298,17 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         unreachable!("Handled inside runtime by `RuntimeJournalHandler`")
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, _locked: bool) {
         // TODO (breathx): implement rest of cases.
-        if let Some(to) = to {
-            if self.controller.transitions.state_of(&from).is_some() {
-                return;
-            }
-
-            self.controller.update_state(to, |state, _, transitions| {
-                state.balance += value;
-
-                transitions
-                    .modify_transition(to, |transition| transition.value_to_receive += value);
-            });
+        if self.controller.transitions.state_of(&from).is_some() {
+            return;
         }
+
+        self.controller.update_state(to, |state, _, transitions| {
+            state.balance += value;
+
+            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
+        });
     }
 
     fn store_new_programs(

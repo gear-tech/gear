@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.8.0"
+version = "1.8.1"
 authors = ["Gear Technologies"]
 edition = "2024"
 license = "GPL-3.0"
@@ -188,7 +188,7 @@ wasmer-vm = "4.3.4"
 wasmer-compiler = "4.3.4"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
-wasmparser = { version = "0.225", default-features = false, features = ["validate", "features"] }
+wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
@@ -530,7 +530,7 @@ tower = "0.4.13"                                             # ethexe/rpc
 tower-http = "0.5.2"                                         # ethexe/rpc
 tracing-appender = "0.2"                                     # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
-wasmprinter = "0.225"                                        # utils/wasm-gen
+wasmprinter = "0.230"                                        # utils/wasm-gen
 whoami = "1.5.1"                                             # gcli
 fail = "0.5"                                                 # gear-common
 scale-value = "^0.16"                                        # gsdk
@@ -545,8 +545,8 @@ smallvec = "1.13.2"                                          # utils/node-wrappe
 fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
-wasm-smith = { version = "0.225", features = ["wasmparser"] } # utils/wasm-gen
-wasm-encoder = { version = "0.225", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
+wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
+wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
@@ -602,4 +602,4 @@ wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasm
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
-wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }
+wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }

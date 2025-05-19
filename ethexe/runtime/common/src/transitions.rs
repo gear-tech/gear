@@ -23,8 +23,8 @@ use alloc::{
 use anyhow::{anyhow, Result};
 use core::num::NonZero;
 use ethexe_common::{
-    db::{BlockHeader, Schedule, ScheduledTask, StateHashWithQueueSize},
     gear::{Message, StateTransition, ValueClaim},
+    BlockHeader, Schedule, ScheduledTask, StateHashWithQueueSize,
 };
 use gprimitives::{ActorId, H256};
 

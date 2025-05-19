@@ -118,14 +118,12 @@ mod tests {
             block_commitments: vec![
                 mock_block_commitment(H256::random(), H256::random(), H256::random()).1,
             ],
+            rewards_commitments: vec![],
         };
 
-        let multisigned_batch = MultisignedBatchCommitment::new(
-            batch,
-            &ctx.signer.contract_signer(ctx.router_address),
-            ctx.pub_key,
-        )
-        .unwrap();
+        let multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)
+                .unwrap();
 
         let submitter = Submitter::create(ctx, multisigned_batch.clone()).unwrap();
         assert_eq!(submitter.type_id(), TypeId::of::<Submitter>());
