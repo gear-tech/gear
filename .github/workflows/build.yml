@@ -103,7 +103,7 @@ jobs:
 
       - name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profiles.flags == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
