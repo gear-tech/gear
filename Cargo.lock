@@ -18756,8 +18756,7 @@ dependencies = [
 [[package]]
 name = "wasmer"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3a6e0f73e5ae361fe64db607eaf4ab2381d88ad2c1b0bb8cf254cf35d894687"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -18784,8 +18783,7 @@ dependencies = [
 [[package]]
 name = "wasmer-cache"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79fd0889f8844b7c70b8ee8fbf1d1f6ccff99399c6f3d3627048cde04b1ac493"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "blake3",
  "hex",
@@ -18796,8 +18794,7 @@ dependencies = [
 [[package]]
 name = "wasmer-compiler"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb1e7c79507f5d55f1afd99984717e8380440cd98e13d542e4d00661f986f2d4"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "backtrace",
  "bytes",
@@ -18825,8 +18822,7 @@ dependencies = [
 [[package]]
 name = "wasmer-compiler-singlepass"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc490f011e855eb5e31475ff3e9efa83840cc0ed2f8322dfaca18627df0a9f3c"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "byteorder",
  "dynasm",
@@ -18866,8 +18862,7 @@ dependencies = [
 [[package]]
 name = "wasmer-derive"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6b0b0580cfa1fc7ad58cca3626a742f2b2e5ccd51cfc5de43e8edb0d1daa4c"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -18878,8 +18873,7 @@ dependencies = [
 [[package]]
 name = "wasmer-types"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "576442cc3d302ca215fd40aa7826a078571dca7eaa773d8cdedca14a2ec7c9a1"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "bytecheck",
  "enum-iterator 0.7.0",
@@ -18899,8 +18893,7 @@ dependencies = [
 [[package]]
 name = "wasmer-vm"
 version = "4.3.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6483035d1df84a978cd6c6a35878e913dc8ec6311f8712548a922a75e87957ba"
+source = "git+https://github.com/ByteNacked/wasmer.git?branch=rmasl-fix-windows-ub-no-reuse-coro-stack#0c27e1d875750cff94dd720c847b7bf2cc603a37"
 dependencies = [
  "backtrace",
  "cc",

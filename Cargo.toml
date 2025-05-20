@@ -563,9 +563,6 @@ ignored = [
     "sha-1"
 ]
 
-[profile.dev.package.corosensei]
-opt-level = 3
-
 [profile.release]
 panic = "unwind"
 
@@ -603,3 +600,11 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }
+#wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
+
+# Attempt to fix UB on windows by disabling corosensei stack reuse in wasmer
+wasmer-vm = { git = "https://github.com/ByteNacked/wasmer.git", branch = "rmasl-fix-windows-ub-no-reuse-coro-stack" }
+wasmer = { git = "https://github.com/ByteNacked/wasmer.git", branch = "rmasl-fix-windows-ub-no-reuse-coro-stack" }
+wasmer-cache = { git = "https://github.com/ByteNacked/wasmer.git", branch = "rmasl-fix-windows-ub-no-reuse-coro-stack" }
+wasmer-types = { git = "https://github.com/ByteNacked/wasmer.git", branch = "rmasl-fix-windows-ub-no-reuse-coro-stack" }
+wasmer-compiler = { git = "https://github.com/ByteNacked/wasmer.git", branch = "rmasl-fix-windows-ub-no-reuse-coro-stack" }
