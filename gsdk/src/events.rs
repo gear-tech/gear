@@ -20,7 +20,7 @@
 use crate::{
     config::GearConfig,
     metadata::{
-        gear::Event as GearEvent, runtime_types::gear_common::event::ProgramChangeKind,
+        gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry,
         system::Event as SystemEvent, Event,
     },
     result::{Error, Result},
@@ -43,15 +43,14 @@ impl Api {
         &self,
         tx: &TxInBlock<GearConfig, OnlineClient<GearConfig>>,
     ) -> Result<ActorId> {
-        let events = tx.fetch_events().await?;
-
-        for event in events.iter() {
-            if let Event::Gear(GearEvent::ProgramChanged {
-                id,
-                change: ProgramChangeKind::Active { .. },
-            }) = event?.as_root_event()?
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageQueued {
+                destination,
+                entry: MessageEntry::Init,
+                ..
+            }) = event?.as_root_event::<Event>()?
             {
-                return Ok(id.into());
+                return Ok(destination.into());
             }
         }
 
