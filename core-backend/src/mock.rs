@@ -30,7 +30,7 @@ use gear_core::{
     env::Externalities,
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId},
     memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
@@ -180,8 +180,8 @@ impl Externalities for MockExt {
     ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
-        Ok(ProgramId::from(0))
+    fn source(&self) -> Result<ActorId, Self::UnrecoverableError> {
+        Ok(ActorId::from(0))
     }
     fn reply_code(&self) -> Result<ReplyCode, Self::UnrecoverableError> {
         Ok(Default::default())
@@ -192,7 +192,7 @@ impl Externalities for MockExt {
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())
     }
-    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
+    fn program_id(&self) -> Result<ActorId, Self::UnrecoverableError> {
         Ok(0.into())
     }
     fn debug(&self, _data: &str) -> Result<(), Self::UnrecoverableError> {
@@ -229,7 +229,7 @@ impl Externalities for MockExt {
         &mut self,
         _packet: InitPacket,
         _delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::UnrecoverableError> {
+    ) -> Result<(MessageId, ActorId), Self::UnrecoverableError> {
         Ok((Default::default(), Default::default()))
     }
     fn reply_deposit(

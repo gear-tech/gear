@@ -28,7 +28,7 @@ use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{ops::Mul, UniformRand};
 use common::Origin;
 use frame_benchmarking::benchmarks;
-use gear_core::message::MAX_PAYLOAD_SIZE;
+use gear_core::buffer::MAX_PAYLOAD_SIZE;
 use parity_scale_codec::{Compact, Encode, Input};
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;

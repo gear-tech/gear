@@ -40,7 +40,7 @@ use core::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{prelude::*, MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, ActorId, MessageId, ReservationId},
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
@@ -202,7 +202,7 @@ where
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum InheritorForError {
-    Cyclic { holders: BTreeSet<ProgramId> },
+    Cyclic { holders: BTreeSet<ActorId> },
     NotFound,
 }
 
@@ -531,7 +531,7 @@ where
     /// Wakes dispatch from waitlist, permanently charged for hold with
     /// appropriate event depositing, if found.
     pub(crate) fn wake_dispatch(
-        program_id: ProgramId,
+        program_id: ActorId,
         message_id: MessageId,
         reason: MessageWokenReason,
     ) -> Result<StoredDispatch, WaitlistError<T>> {
@@ -1288,7 +1288,7 @@ where
     }
 
     pub(crate) fn remove_gas_reservation_with_task(
-        program_id: ProgramId,
+        program_id: ActorId,
         reservation_id: ReservationId,
     ) {
         let slot = ExtManager::<T>::remove_gas_reservation_impl(program_id, reservation_id);
@@ -1300,9 +1300,9 @@ where
     }
 
     pub(crate) fn inheritor_for(
-        program_id: ProgramId,
+        program_id: ActorId,
         max_depth: NonZero<usize>,
-    ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
+    ) -> Result<(ActorId, BTreeSet<ActorId>), InheritorForError> {
         let max_depth = max_depth.get();
 
         let mut inheritor = program_id;

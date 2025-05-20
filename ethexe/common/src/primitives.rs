@@ -21,7 +21,6 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gear_core::ids::ProgramId;
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -91,13 +90,13 @@ pub struct CodeInfo {
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
-pub type Rfm = (ProgramId, ActorId);
+pub type Rfm = (ActorId, ActorId);
 
 /// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
-pub type Sd = (ProgramId, MessageId);
+pub type Sd = (ActorId, MessageId);
 
 /// SendUserMessage key; (msgs sources program (mailbox and stash provider))
-pub type Sum = ProgramId;
+pub type Sum = ActorId;
 
 /// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
 pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
