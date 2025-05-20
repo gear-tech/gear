@@ -420,7 +420,7 @@ fn test_existing_address_as_address_param() {
     );
 
     let dispatch = {
-        let (_, context_outcome, _) = backend_report.ext.context.message_context.drain();
+        let (context_outcome, _) = backend_report.ext.context.message_context.drain();
 
         let mut dispatches = context_outcome.drain().outgoing_dispatches;
         assert_eq!(dispatches.len(), 1);
@@ -549,8 +549,7 @@ fn test_msg_value_ptr_dest() {
 
             if !dest_var.is_random() {
                 let dispatch = {
-                    let (_, context_outcome, _) =
-                        backend_report.ext.context.message_context.drain();
+                    let (context_outcome, _) = backend_report.ext.context.message_context.drain();
 
                     let mut dispatches = context_outcome.drain().outgoing_dispatches;
                     assert_eq!(dispatches.len(), 1);

@@ -24,7 +24,8 @@ use core::{
     marker::PhantomData,
 };
 
-use alloc::{vec, vec::Vec};
+use crate::message::Payload;
+use alloc::{sync::Arc, vec, vec::Vec};
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -217,6 +218,37 @@ impl Display for RuntimeBufferSizeError {
 
 /// Buffer which size cannot be bigger then max allowed allocation size in runtime.
 pub type RuntimeBuffer = LimitedVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
+
+/// Wrapper for payload slice.
+pub struct PayloadSlice {
+    /// Start of the slice.
+    start: usize,
+    /// End of the slice.
+    end: usize,
+    /// Payload
+    payload: Arc<Payload>,
+}
+
+impl PayloadSlice {
+    /// Try to create a new PayloadSlice.
+    pub fn try_new(start: u32, end: u32, payload: Arc<Payload>) -> Option<Self> {
+        // Check if start and end are within the bounds of the payload
+        if start >= end || end > payload.len_u32() {
+            return None;
+        }
+
+        Some(Self {
+            start: start as usize,
+            end: end as usize,
+            payload,
+        })
+    }
+
+    /// Get slice of the payload.
+    pub fn slice(&self) -> &[u8] {
+        &self.payload.inner()[self.start..self.end]
+    }
+}
 
 #[cfg(test)]
 mod test {

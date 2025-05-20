@@ -25,8 +25,9 @@ use crate::{
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
+    buffer::PayloadSlice,
     costs::CostToken,
-    env::{Externalities, PayloadSlice},
+    env::Externalities,
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{MessageId, ProgramId, ReservationId},

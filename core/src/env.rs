@@ -19,46 +19,17 @@
 //! Environment for running a module.
 
 use crate::{
+    buffer::PayloadSlice,
     env_vars::EnvVars,
     ids::{MessageId, ProgramId, ReservationId},
     memory::Memory,
-    message::{HandlePacket, InitPacket, MessageContext, Payload, ReplyPacket},
+    message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
-use alloc::{collections::BTreeSet, sync::Arc};
+use alloc::collections::BTreeSet;
 use core::fmt::Display;
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SyscallName;
-
-/// Wrapper for payload slice.
-pub struct PayloadSlice {
-    /// Start of the slice.
-    start: usize,
-    /// End of the slice.
-    end: usize,
-    /// Payload
-    payload: Arc<Payload>,
-}
-
-impl PayloadSlice {
-    /// Try to create a new PayloadSlice.
-    pub fn try_new(start: u32, end: u32, payload: Arc<Payload>) -> Option<Self> {
-        if end > payload.len_u32() {
-            return None;
-        }
-
-        Some(Self {
-            start: start as usize,
-            end: end as usize,
-            payload,
-        })
-    }
-
-    /// Get slice of the payload.
-    pub fn slice(&self) -> &[u8] {
-        &self.payload.inner()[self.start..self.end]
-    }
-}
 
 /// External api and data for managing memory and messages,
 /// use by an executing program to trigger state transition

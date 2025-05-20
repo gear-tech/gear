@@ -35,14 +35,14 @@ pub struct IncomingMessage {
     id: MessageId,
     /// Message source.
     source: ProgramId,
+    /// Message payload.
+    payload: Arc<Payload>,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
     value: Value,
     /// Message details like reply message ID, status code, etc.
     details: Option<MessageDetails>,
-    /// Message payload.
-    payload: Arc<Payload>,
 }
 
 impl IncomingMessage {

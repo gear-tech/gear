@@ -130,7 +130,6 @@ where
 
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
-        // dispatch clone is cheap because is uses `Arc` for payload
         &dispatch,
         execution_context,
         execution_settings,
@@ -169,7 +168,7 @@ where
             }
             Ok(match res.kind {
                 DispatchResultKind::Trap(reason) => process_execution_error(
-                    &res.dispatch,
+                    &dispatch,
                     program_id,
                     res.gas_amount.burned(),
                     res.system_reservation_context,

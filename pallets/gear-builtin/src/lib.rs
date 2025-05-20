@@ -434,7 +434,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
-                    let (_, outcome, context_store) = message_context.drain();
+                    let (outcome, context_store) = message_context.drain();
 
                     dispatch_result.context_store = context_store;
                     let ContextOutcomeDrain {

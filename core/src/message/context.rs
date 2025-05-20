@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{DispatchKind, IncomingDispatch, Packet};
 use crate::{
     ids::{prelude::*, MessageId, ProgramId, ReservationId},
     message::{
@@ -34,6 +33,8 @@ use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
 };
+
+use super::{DispatchKind, IncomingDispatch, Packet};
 
 /// Context settings.
 #[derive(Copy, Clone, Debug, Default)]
@@ -210,7 +211,8 @@ impl ContextStore {
 /// Context of currently processing incoming message.
 #[derive(Debug)]
 pub struct MessageContext {
-    dispatch: IncomingDispatch,
+    kind: DispatchKind,
+    current: IncomingMessage,
     outcome: ContextOutcome,
     store: ContextStore,
     outgoing_payloads: OutgoingPayloads,
@@ -225,22 +227,16 @@ impl MessageContext {
         program_id: ProgramId,
         settings: ContextSettings,
     ) -> Self {
+        let (kind, message, store) = dispatch.into_parts();
+
         Self {
-            outcome: ContextOutcome::new(
-                program_id,
-                dispatch.message().source(),
-                dispatch.message().id(),
-            ),
-            store: dispatch.context().as_ref().cloned().unwrap_or_default(),
+            kind,
+            outcome: ContextOutcome::new(program_id, message.source(), message.id()),
+            current: message,
+            store: store.unwrap_or_default(),
             outgoing_payloads: OutgoingPayloads::default(),
-            dispatch,
             settings,
         }
-    }
-
-    /// Getter for inner dispatch.
-    pub fn dispatch(&self) -> &IncomingDispatch {
-        &self.dispatch
     }
 
     /// Getter for inner settings.
@@ -250,14 +246,11 @@ impl MessageContext {
 
     /// Getter for inner dispatch kind
     pub fn kind(&self) -> DispatchKind {
-        self.dispatch.kind()
+        self.kind
     }
 
     fn check_reply_availability(&self) -> Result<(), ExecutionError> {
-        if !matches!(
-            self.dispatch.kind(),
-            DispatchKind::Init | DispatchKind::Handle
-        ) {
+        if !matches!(self.kind, DispatchKind::Init | DispatchKind::Handle) {
             return Err(ExecutionError::IncorrectEntryForReply);
         }
 
@@ -297,7 +290,7 @@ impl MessageContext {
             return Err(Error::OutgoingMessagesAmountLimitExceeded);
         }
 
-        let message_id = MessageId::generate_outgoing(self.dispatch.message().id(), last);
+        let message_id = MessageId::generate_outgoing(self.current.id(), last);
         let message = InitMessage::from_packet(message_id, packet);
         self.store.local_nonce += 1;
         self.outgoing_payloads.handles.insert(last, None);
@@ -338,7 +331,7 @@ impl MessageContext {
                 .try_prepend(data)
                 .map_err(|data| (Error::MaxMessageSizeExceed, data))?;
 
-            let message_id = MessageId::generate_outgoing(self.dispatch.message().id(), handle);
+            let message_id = MessageId::generate_outgoing(self.current.id(), handle);
             let message = HandleMessage::from_packet(message_id, packet);
 
             self.outcome.handle.push((message, delay, reservation));
@@ -422,10 +415,8 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(
-            &self.dispatch.message().payload().inner()[offset..excluded_end],
-        )
-        .map_err(|_| Error::MaxMessageSizeExceed)?;
+        data.try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
+            .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
 
@@ -437,7 +428,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input_len = self.dispatch.message().payload().inner().len();
+        let input_len = self.current.payload().inner().len();
         let offset = offset as usize;
         let len = len as usize;
 
@@ -481,7 +472,7 @@ impl MessageContext {
             return Err(Error::MaxMessageSizeExceed.into());
         }
 
-        let message_id = MessageId::generate_reply(self.dispatch.message().id());
+        let message_id = MessageId::generate_reply(self.current.id());
         let message = ReplyMessage::from_packet(message_id, packet);
 
         self.outcome.reply = Some((message, reservation));
@@ -527,7 +518,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.dispatch.message().payload().inner()[offset..excluded_end])
+            .try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -577,7 +568,7 @@ impl MessageContext {
 
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
-        self.dispatch.message()
+        &self.current
     }
 
     /// Current program's id.
@@ -586,15 +577,10 @@ impl MessageContext {
     }
 
     /// Destructs context after execution and returns provided outcome and store.
-    pub fn drain(self) -> (IncomingDispatch, ContextOutcome, ContextStore) {
-        let Self {
-            dispatch,
-            outcome,
-            store,
-            ..
-        } = self;
+    pub fn drain(self) -> (ContextOutcome, ContextStore) {
+        let Self { outcome, store, .. } = self;
 
-        (dispatch, outcome, store)
+        (outcome, store)
     }
 }
 
@@ -719,7 +705,7 @@ mod tests {
             None,
         ));
 
-        let messages = message_context.drain().1.drain().outgoing_dispatches;
+        let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             messages[0].0.payload_bytes(),
             [1, 2, 3, 4, 5, 1, 2, 3, 4, 5]
@@ -758,7 +744,7 @@ mod tests {
             None,
         ));
 
-        let messages = message_context.drain().1.drain().outgoing_dispatches;
+        let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             Payload::try_from(messages[0].0.payload_bytes().to_vec()).unwrap(),
             Payload::filled_with(1)
@@ -915,7 +901,7 @@ mod tests {
         let payload = Payload::try_from(vec![1; Payload::max_len() - 1]).unwrap();
         assert_ok!(message_context.reply_commit(ReplyPacket::new(payload, 0), None));
 
-        let messages = message_context.drain().1.drain().outgoing_dispatches;
+        let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             Payload::try_from(messages[0].0.payload_bytes().to_vec()).unwrap(),
             Payload::filled_with(1)
@@ -1060,7 +1046,7 @@ mod tests {
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
-        let (_, expected_result, _) = context.drain();
+        let (expected_result, _) = context.drain();
         assert_eq!(expected_result.handle.len(), 1);
         assert_eq!(expected_result.handle[0].0.payload_bytes(), vec![5, 7, 9]);
     }
