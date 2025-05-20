@@ -4727,7 +4727,6 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gear-utils",
  "gprimitives",
  "log",
