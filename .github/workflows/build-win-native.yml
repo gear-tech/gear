@@ -31,8 +31,15 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
+      - name: "ACTIONS: Setup Dev Drive"
+        uses: samypr100/setup-dev-drive@v3
+        with:
+          mount-path: ${{ github.workspace }}
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: "Install: Setup MSYS2 environment"
         uses: msys2/setup-msys2@v2
