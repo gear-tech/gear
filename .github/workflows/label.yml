@@ -28,8 +28,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           workflow_id: ".github/workflows/build.yml"
           prefix: "build"
-          # TODO: replace with `jobs: '["linux", "win-cross"]'` after #4615
-          jobs: '["linux"]'
+          jobs: '["linux", "win-cross"]'
           useMulti: true
           inputs: '{
             "title": "${{ github.event.pull_request.title }}",
