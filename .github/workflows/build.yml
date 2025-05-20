@@ -201,8 +201,6 @@ jobs:
   win-cross:
     runs-on: [kuberunner, github-runner-03]
     needs: dynamic-profiles
-    # TODO: this job is temporary disabled, enable after fixing #4615
-    if: false
     strategy:
       matrix:
         profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
