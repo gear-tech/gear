@@ -28,7 +28,7 @@ use ethexe_runtime_common::{
     },
     BlockInfo,
 };
-use gear_core::{ids::ProgramId, memory::PageBuf, pages::GearPage};
+use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
@@ -94,7 +94,7 @@ impl ThreadParams {
 #[derive(Decode)]
 struct PageKey {
     _page_storage_prefix: [u8; 32],
-    _program_id: ProgramId,
+    _program_id: ActorId,
     _memory_infix: u32,
     page: GearPage,
 }

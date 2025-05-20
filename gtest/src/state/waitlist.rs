@@ -26,7 +26,7 @@ use gear_common::{
     storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
 };
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::StoredDispatch,
 };
 
@@ -38,7 +38,7 @@ pub(crate) struct WaitlistManager;
 impl WaitlistManager {
     /// Check if message with `message_id` to a program with `program_id` is in
     /// the waitlist.
-    pub(crate) fn contains(&self, program_id: ProgramId, message_id: MessageId) -> bool {
+    pub(crate) fn contains(&self, program_id: ActorId, message_id: MessageId) -> bool {
         <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::contains(&program_id, &message_id)
     }
 
@@ -54,7 +54,7 @@ impl WaitlistManager {
     /// Remove message from the waitlist.
     pub(crate) fn remove(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         message_id: MessageId,
     ) -> Result<(WaitlistedMessage, Interval<BlockNumber>), WaitlistErrorImpl> {
         <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::remove(program_id, message_id)
@@ -71,7 +71,7 @@ impl WaitlistManager {
 
     pub(crate) fn drain_key(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
     ) -> impl Iterator<Item = (StoredDispatch, Interval<BlockNumber>)> + use<> {
         <AuxiliaryWaitlist<WaitlistCallbacksImpl> as IterableByKeyMap<(
             StoredDispatch,

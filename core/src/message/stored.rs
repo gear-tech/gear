@@ -18,7 +18,7 @@
 
 use crate::{
     buffer::Payload,
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
         IncomingMessage, ReplyDetails, Value,
@@ -39,9 +39,9 @@ pub struct StoredMessage {
     /// Message id.
     pub(super) id: MessageId,
     /// Message source.
-    pub(super) source: ProgramId,
+    pub(super) source: ActorId,
     /// Message destination.
-    pub(super) destination: ProgramId,
+    pub(super) destination: ActorId,
     /// Message payload.
     pub(super) payload: Payload,
     /// Message value.
@@ -55,8 +55,8 @@ impl StoredMessage {
     /// Create new StoredMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         value: Value,
         details: Option<MessageDetails>,
@@ -76,8 +76,8 @@ impl StoredMessage {
         self,
     ) -> (
         MessageId,
-        ProgramId,
-        ProgramId,
+        ActorId,
+        ActorId,
         Payload,
         Value,
         Option<MessageDetails>,
@@ -110,12 +110,12 @@ impl StoredMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 

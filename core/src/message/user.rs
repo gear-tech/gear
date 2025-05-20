@@ -18,7 +18,7 @@
 
 use crate::{
     buffer::Payload,
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::{ReplyDetails, Value},
 };
 use core::convert::TryFrom;
@@ -36,9 +36,9 @@ pub struct UserMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message value.
@@ -52,8 +52,8 @@ impl UserMessage {
     /// Create new UserMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         value: Value,
         details: Option<ReplyDetails>,
@@ -74,12 +74,12 @@ impl UserMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -153,9 +153,9 @@ pub struct UserStoredMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message value.
@@ -167,8 +167,8 @@ impl UserStoredMessage {
     /// Create new UserStoredMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         value: Value,
     ) -> Self {
@@ -187,12 +187,12 @@ impl UserStoredMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 

@@ -21,7 +21,7 @@ use gear_core::{
     buffer::PanicBuffer,
     env::MessageWaitedType,
     gas::{ChargeError, CounterType},
-    ids::ProgramId,
+    ids::ActorId,
 };
 use gear_core_errors::ExtError as FallibleExtError;
 use parity_scale_codec::{Decode, Encode};
@@ -77,7 +77,7 @@ impl<E: BackendSyscallError> From<E> for UndefinedTerminationReason {
 
 #[derive(Decode, Encode, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, derive_more::From)]
 pub enum ActorTerminationReason {
-    Exit(ProgramId),
+    Exit(ActorId),
     Leave,
     Success,
     Wait(Option<u32>, MessageWaitedType),

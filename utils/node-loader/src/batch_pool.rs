@@ -8,7 +8,7 @@ use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{ActorId, MessageId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use gsdk::metadata::{gear::Event as GearEvent, Event};
 use primitive_types::H256;
@@ -256,7 +256,7 @@ fn process_ex_results<Key: Ord, Value>(
 /// Waiting for the new events since provided `block_hash`.
 async fn process_events(
     api: GearApi,
-    mut messages: BTreeMap<MessageId, (ProgramId, usize)>,
+    mut messages: BTreeMap<MessageId, (ActorId, usize)>,
     block_hash: H256,
     mut rx: EventsReceiver,
 ) -> Result<Report> {
@@ -419,7 +419,7 @@ async fn create_renew_balance_task(
                 })?;
             root_api
                 .transfer_keep_alive(
-                    ProgramId::new(user_address.clone().into()),
+                    ActorId::new(user_address.clone().into()),
                     user_balance_demand,
                 )
                 .await

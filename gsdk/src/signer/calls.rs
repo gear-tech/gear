@@ -130,7 +130,7 @@ impl SignerCalls {
     /// `pallet_gear::send_message`
     pub async fn send_message(
         &self,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -243,7 +243,7 @@ impl SignerCalls {
         &self,
         spender: impl Into<AccountId32>,
         balance: u128,
-        programs: Option<Vec<ProgramId>>,
+        programs: Option<Vec<ActorId>>,
         code_uploading: bool,
         duration: u32,
     ) -> Result<TxInBlock> {
@@ -275,7 +275,7 @@ impl SignerCalls {
         voucher_id: VoucherId,
         move_ownership: Option<impl Into<AccountId32>>,
         balance_top_up: Option<u128>,
-        append_programs: Option<Option<Vec<ProgramId>>>,
+        append_programs: Option<Option<Vec<ActorId>>>,
         code_uploading: Option<bool>,
         prolong_duration: u32,
     ) -> Result<TxInBlock> {
@@ -355,7 +355,7 @@ impl SignerCalls {
     pub async fn send_message_with_voucher(
         &self,
         voucher_id: VoucherId,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
