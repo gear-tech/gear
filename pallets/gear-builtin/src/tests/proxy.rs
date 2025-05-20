@@ -201,7 +201,7 @@ mod utils {
             0,
             false,
         ));
-        let pid = crate::tests::get_last_program_id();
+        let pid = crate::tests::get_last_program_id::<Test>();
 
         run_to_next_block();
 

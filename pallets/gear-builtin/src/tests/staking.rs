@@ -1002,7 +1002,7 @@ mod util {
             false,
         ));
 
-        crate::tests::get_last_program_id()
+        crate::tests::get_last_program_id::<Test>()
     }
 
     pub(super) fn send_bond_message(

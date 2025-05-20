@@ -26,18 +26,26 @@ mod bls381;
 mod proxy;
 mod staking;
 
-pub(crate) fn get_last_program_id() -> ActorId {
-    use super::mock::{RuntimeEvent, System};
-
-    System::events()
+pub(crate) fn get_last_program_id<T: frame_system::Config + pallet_gear::Config>() -> ActorId
+where
+    <T as frame_system::Config>::RuntimeEvent: TryInto<pallet_gear::Event<T>>,
+{
+    frame_system::Pallet::<T>::events()
         .iter()
         .rev()
         .find_map(|e| {
-            if let RuntimeEvent::Gear(pallet_gear::Event::ProgramChanged { id, .. }) = e.event {
-                Some(id)
-            } else {
-                None
-            }
+            e.event
+                .clone()
+                .try_into()
+                .map(|e| {
+                    if let pallet_gear::Event::<T>::ProgramChanged { id, .. } = e {
+                        Some(id)
+                    } else {
+                        None
+                    }
+                })
+                .ok()
+                .flatten()
         })
         .expect("can't find program creation event")
 }

@@ -51,7 +51,7 @@ fn deploy_contract(init_payload: Vec<u8>) -> ActorId {
         false,
     ));
 
-    crate::tests::get_last_program_id()
+    crate::tests::get_last_program_id::<Test>()
 }
 
 fn send_message(contract_id: ActorId, payload: Vec<u8>) {
