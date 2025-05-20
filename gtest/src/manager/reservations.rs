@@ -19,13 +19,13 @@
 //! Various reservation related methods for ExtManager
 
 use super::ExtManager;
-use gear_common::{scheduler::StorageType, storage::Interval, ProgramId, ReservationId};
+use gear_common::{scheduler::StorageType, storage::Interval, ActorId, ReservationId};
 use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
 
 impl ExtManager {
     pub(crate) fn remove_gas_reservation_impl(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         reservation: ReservationId,
     ) -> GasReservationSlot {
         let slot = self.update_genuine_program(program_id, |p| {
@@ -46,7 +46,7 @@ impl ExtManager {
 
     pub(crate) fn remove_gas_reservation_with_task(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         reservation: ReservationId,
     ) {
         let slot = self.remove_gas_reservation_impl(program_id, reservation);

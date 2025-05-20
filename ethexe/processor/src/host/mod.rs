@@ -21,7 +21,7 @@ use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::unpack_i64_to_u32;
-use gear_core::{code::InstrumentedCode, ids::ProgramId};
+use gear_core::{code::InstrumentedCode, ids::ActorId};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
@@ -129,7 +129,7 @@ impl InstanceWrapper {
     pub fn run(
         &mut self,
         db: Database,
-        program_id: ProgramId,
+        program_id: ActorId,
         original_code_id: CodeId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,

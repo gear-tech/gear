@@ -25,7 +25,7 @@ use gear_common::{
     },
     scheduler::{TaskPool, TaskPoolCallbacks},
     storage::KeyIterableByKeyMap,
-    ProgramId,
+    ActorId,
 };
 use gear_core::tasks::VaraScheduledTask;
 
@@ -42,7 +42,7 @@ impl TaskPoolManager {
     pub(crate) fn add(
         &self,
         block_number: BlockNumber,
-        task: VaraScheduledTask<ProgramId>,
+        task: VaraScheduledTask<ActorId>,
     ) -> Result<(), TaskPoolErrorImpl> {
         <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::add(block_number, task)
     }
@@ -57,7 +57,7 @@ impl TaskPoolManager {
     pub(crate) fn contains(
         &self,
         block_number: &BlockNumber,
-        task: &VaraScheduledTask<ProgramId>,
+        task: &VaraScheduledTask<ActorId>,
     ) -> bool {
         <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::contains(block_number, task)
     }
@@ -66,7 +66,7 @@ impl TaskPoolManager {
     pub(crate) fn delete(
         &self,
         block_number: BlockNumber,
-        task: VaraScheduledTask<ProgramId>,
+        task: VaraScheduledTask<ActorId>,
     ) -> Result<(), TaskPoolErrorImpl> {
         <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::delete(block_number, task)
     }
@@ -92,22 +92,22 @@ impl TaskPoolCallbacks for TaskPoolCallbacksImpl {
 #[cfg(test)]
 mod tests {
     use super::TaskPoolManager;
-    use gear_core::{ids::ProgramId, tasks::VaraScheduledTask};
+    use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
 
     #[test]
     fn test_taskpool() {
         let manager = TaskPoolManager;
 
         let block_1_tasks = [
-            VaraScheduledTask::<ProgramId>::SendDispatch(42.into()),
-            VaraScheduledTask::<ProgramId>::SendUserMessage {
+            VaraScheduledTask::<ActorId>::SendDispatch(42.into()),
+            VaraScheduledTask::<ActorId>::SendUserMessage {
                 message_id: 422.into(),
                 to_mailbox: true,
             },
         ];
         let block_2_tasks = [
-            VaraScheduledTask::<ProgramId>::RemoveGasReservation(922.into(), 1.into()),
-            VaraScheduledTask::<ProgramId>::RemoveFromWaitlist(42.into(), 44.into()),
+            VaraScheduledTask::<ActorId>::RemoveGasReservation(922.into(), 1.into()),
+            VaraScheduledTask::<ActorId>::RemoveFromWaitlist(42.into(), 44.into()),
         ];
 
         block_1_tasks
@@ -148,7 +148,7 @@ mod tests {
             assert!(!manager.contains(&2, task));
         }
 
-        let task = VaraScheduledTask::<ProgramId>::RemoveFromMailbox(422.into(), 16.into());
+        let task = VaraScheduledTask::<ActorId>::RemoveFromMailbox(422.into(), 16.into());
         manager.add(3, task.clone()).unwrap();
         manager.add(4, task.clone()).unwrap();
         manager.delete(4, task.clone()).unwrap();

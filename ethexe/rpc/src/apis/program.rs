@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_db::{CodesStorage, Database};
+use ethexe_common::db::CodesStorage;
+use ethexe_db::Database;
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
     DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
     Waitlist,
 };
-use gear_core::message::ReplyInfo;
+use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},

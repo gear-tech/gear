@@ -28,7 +28,7 @@ pub use crate::{
     signer::PairSigner,
     subscription::{Blocks, Events},
 };
-pub use gear_core::gas::GasInfo;
+pub use gear_core::rpc::GasInfo;
 pub use subxt::dynamic::Value;
 
 use crate::metadata::runtime_types::{

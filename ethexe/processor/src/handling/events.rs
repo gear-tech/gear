@@ -19,12 +19,13 @@
 use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
+    db::CodesStorage,
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
+    ScheduledTask,
 };
-use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
-use gear_core::{ids::ProgramId, message::SuccessReplyReason};
+use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
@@ -57,7 +58,7 @@ impl ProcessingHandler {
 
     pub(crate) fn handle_mirror_event(
         &mut self,
-        actor_id: ProgramId,
+        actor_id: ActorId,
         event: MirrorRequestEvent,
     ) -> Result<()> {
         if !self.transitions.is_program(&actor_id) {

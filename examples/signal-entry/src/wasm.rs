@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
-use gear_core::ids::{prelude::*, ProgramId};
+use gear_core::ids::prelude::*;
 use gstd::{
     debug,
     errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
@@ -161,7 +161,7 @@ extern "C" fn handle() {
         HandleAction::ForbiddenAction => {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0)
+            msg::send(ActorId::new(ActorId::SYSTEM.into()), "hello", 0)
                 .expect("cannot send message");
         }
         HandleAction::SaveSignal(signal_received) => {

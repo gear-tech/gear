@@ -28,9 +28,10 @@ use alloc::vec::Vec;
 use gear_core::{
     code::{InstantiatedSectionSizes, SectionName},
     costs::{BytesAmount, ProcessCosts},
+    env::MessageWaitedType,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
-    ids::ProgramId,
-    message::{IncomingDispatch, MessageWaitedType},
+    ids::ActorId,
+    message::IncomingDispatch,
 };
 
 /// Operation related to gas charging.
@@ -168,7 +169,7 @@ impl<'a> GasPrecharger<'a> {
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub enum SuccessfulDispatchResultKind {
-    Exit(ProgramId),
+    Exit(ActorId),
     Wait(Option<u32>, MessageWaitedType),
     Success,
 }
@@ -181,7 +182,7 @@ pub fn precharge_for_program(
     block_config: &BlockConfig,
     gas_allowance: u64,
     dispatch: IncomingDispatch,
-    destination_id: ProgramId,
+    destination_id: ActorId,
 ) -> PrechargeResult<ContextChargedForProgram> {
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
     let mut gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);

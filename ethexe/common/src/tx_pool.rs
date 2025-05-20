@@ -18,18 +18,14 @@
 
 //! ethexe tx pool types
 
+use crate::{ecdsa::SignedData, ToDigest};
 use alloc::vec::Vec;
-use core::fmt;
+use derive_more::{Debug, Display};
 use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
+use sha3::Digest as _;
 
-/// Ethexe transaction with a signature.
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct SignedOffchainTransaction {
-    pub signature: Vec<u8>,
-    pub transaction: OffchainTransaction,
-}
+pub type SignedOffchainTransaction = SignedData<OffchainTransaction>;
 
 impl SignedOffchainTransaction {
     /// Ethexe transaction blake2b256 hash.
@@ -41,33 +37,14 @@ impl SignedOffchainTransaction {
     ///
     /// Reference block hash is used for a transaction mortality check.
     pub fn reference_block(&self) -> H256 {
-        self.transaction.reference_block
-    }
-}
-
-impl fmt::Debug for SignedOffchainTransaction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SignedOffchainTransaction")
-            .field("signature", &hex::encode(&self.signature))
-            .field("transaction", &self.transaction)
-            .finish()
-    }
-}
-
-impl fmt::Display for SignedOffchainTransaction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "SignedOffchainTransaction {{ signature: 0x{}, transaction: {} }}",
-            hex::encode(&self.signature),
-            self.transaction
-        )
+        self.data().reference_block
     }
 }
 
 /// Ethexe offchain transaction with a reference block for mortality.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug, Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[display("OffchainTransaction {{ raw: {raw}, reference_block: {reference_block} }}")]
 pub struct OffchainTransaction {
     pub raw: RawOffchainTransaction,
     pub reference_block: H256,
@@ -83,22 +60,22 @@ impl OffchainTransaction {
     pub const BLOCK_HASHES_WINDOW_SIZE: u32 = 32;
 }
 
-impl fmt::Display for OffchainTransaction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "OffchainTransaction {{ raw: {}, reference_block: {} }}",
-            self.raw, self.reference_block
-        )
+impl ToDigest for OffchainTransaction {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.encode());
     }
 }
 
 /// Raw ethexe offchain transaction.
 ///
 /// A particular job to be processed without external specifics.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug, Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RawOffchainTransaction {
+    #[display(
+        "SendMessage {{ program_id: {program_id}, payload: {} }}",
+        hex::encode(payload)
+    )]
     SendMessage { program_id: H160, payload: Vec<u8> },
 }
 
@@ -114,21 +91,6 @@ impl RawOffchainTransaction {
     pub fn payload(&self) -> &[u8] {
         match self {
             RawOffchainTransaction::SendMessage { payload, .. } => payload,
-        }
-    }
-}
-
-impl fmt::Display for RawOffchainTransaction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RawOffchainTransaction::SendMessage {
-                program_id,
-                payload,
-            } => f
-                .debug_struct("SendMessage")
-                .field("program_id", program_id)
-                .field("payload", &hex::encode(payload))
-                .finish(),
         }
     }
 }

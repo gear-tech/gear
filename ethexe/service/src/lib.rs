@@ -18,7 +18,10 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
-use ethexe_common::ProducerBlock;
+use ethexe_common::{
+    ecdsa::{PublicKey, SignedData},
+    ProducerBlock,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
@@ -34,7 +37,7 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::{PublicKey, SignedData, Signer};
+use ethexe_signer::Signer;
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use futures::StreamExt;
 use gprimitives::H256;
@@ -177,8 +180,7 @@ impl Service {
             processor.config().virtual_threads
         );
 
-        let signer =
-            Signer::new(config.node.key_path.clone()).with_context(|| "failed to create signer")?;
+        let signer = Signer::fs(config.node.key_path.clone());
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;

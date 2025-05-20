@@ -68,7 +68,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);
@@ -163,7 +163,7 @@ where
         false,
     ));
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), salt);
     utils::run_to_next_block::<T>(None);
 
     // Ensure that program is uploaded and initialized correctly
@@ -461,7 +461,7 @@ where
     )
     .expect("failed to upload test program");
 
-    let pid = ProgramId::generate_from_user(wasm_module.hash, b"alloc-free-test");
+    let pid = ActorId::generate_from_user(wasm_module.hash, b"alloc-free-test");
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
@@ -524,7 +524,7 @@ where
     T::AccountId: Origin,
 {
     run_tester::<T, _, _, T::AccountId>(|id, _| {
-        let mp = vec![Kind::ProgramId(id.into())].encode().into();
+        let mp = vec![Kind::ActorId(id.into())].encode().into();
 
         (TestCall::send_message(mp), None::<DefaultPostCheck>)
     })
@@ -594,7 +594,7 @@ where
             utils::get_next_message_id::<T>(utils::default_account::<T::AccountId>());
         let expected_mid = MessageId::generate_outgoing(next_user_mid, 0);
         let salt = 10u64;
-        let expected_pid = ProgramId::generate_from_program(
+        let expected_pid = ActorId::generate_from_program(
             next_user_mid,
             simplest_gear_wasm::<T>().hash,
             &salt.to_le_bytes(),
@@ -1050,7 +1050,7 @@ where
     // Post check
     P: FnOnce(),
     // Get syscall and post check
-    S: FnOnce(ProgramId, CodeId) -> (TestCall<Id>, Option<P>),
+    S: FnOnce(ActorId, CodeId) -> (TestCall<Id>, Option<P>),
 {
     #[cfg(feature = "std")]
     utils::init_logger();
@@ -1058,10 +1058,9 @@ where
     let child_wasm = simplest_gear_wasm::<T>();
     let child_code = child_wasm.code;
     let child_code_hash = child_wasm.hash;
-    let child_pid = ProgramId::generate_from_user(child_code_hash, b"");
+    let child_pid = ActorId::generate_from_user(child_code_hash, b"");
 
-    let tester_pid =
-        ProgramId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
+    let tester_pid = ActorId::generate_from_user(CodeId::generate(SYSCALLS_TEST_WASM_BINARY), b"");
 
     // Deploy program with valid code hash
     let child_deployer = benchmarking::account::<T::AccountId>("child_deployer", 0, 0);

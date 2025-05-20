@@ -22,52 +22,18 @@
 
 extern crate alloc;
 
+mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
+mod primitives;
 pub mod tx_pool;
+mod utils;
 
+pub use crypto::*;
 pub use gear_core;
 pub use gprimitives;
-
-use alloc::vec::Vec;
-use db::BlockHeader;
-use events::BlockEvent;
-use gprimitives::H256;
-use parity_scale_codec::{Decode, Encode};
-
-pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
-    let [_, _, b1, b2, b3, b4, b5, b6] = val.to_be_bytes();
-
-    [b1, b2, b3, b4, b5, b6]
-}
-
-// TODO #4547: move to submodule.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
-    pub events: Vec<BlockEvent>,
-}
-
-impl BlockData {
-    pub fn to_simple(&self) -> SimpleBlockData {
-        SimpleBlockData {
-            hash: self.hash,
-            header: self.header.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SimpleBlockData {
-    pub hash: H256,
-    pub header: BlockHeader,
-}
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-pub struct ProducerBlock {
-    pub block_hash: H256,
-    pub gas_allowance: Option<u64>,
-    pub off_chain_transactions: Vec<H256>,
-}
+pub use k256;
+pub use primitives::*;
+pub use sha3;
+pub use utils::*;

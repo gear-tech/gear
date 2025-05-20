@@ -22,10 +22,13 @@
 //! validation requests, and multi-signature operations in the Ethexe system.
 
 use anyhow::Result;
-use ethexe_common::gear::{BatchCommitment, BlockCommitment, CodeCommitment};
-use ethexe_signer::{
-    sha3::digest::Update, Address, ContractSignature, ContractSigner, Digest, PublicKey, ToDigest,
+use ethexe_common::{
+    ecdsa::{ContractSignature, PublicKey},
+    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    sha3::{self, digest::Update},
+    Address, Digest, ToDigest,
 };
+use ethexe_signer::Signer;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
@@ -55,7 +58,7 @@ impl BatchCommitmentValidationRequest {
 }
 
 impl ToDigest for BatchCommitmentValidationRequest {
-    fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.blocks.to_digest().as_ref());
         hasher.update(self.codes.to_digest().as_ref());
         hasher.update([0u8; 0].to_digest().as_ref());
@@ -94,7 +97,7 @@ impl BlockCommitmentValidationRequest {
 }
 
 impl ToDigest for BlockCommitmentValidationRequest {
-    fn update_hasher(&self, hasher: &mut ethexe_signer::sha3::Keccak256) {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             block_hash,
             block_timestamp,
@@ -144,17 +147,18 @@ impl MultisignedBatchCommitment {
     /// A new `MultisignedBatchCommitment` instance with the initial signature
     pub fn new(
         batch: BatchCommitment,
-        signer: &ContractSigner,
+        signer: &Signer,
+        router_address: Address,
         pub_key: PublicKey,
     ) -> Result<Self> {
         let batch_digest = batch.to_digest();
-        let signature = signer.sign_digest(pub_key, batch_digest)?;
+        let signature = signer.sign_for_contract(router_address, pub_key, batch_digest)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
         Ok(Self {
             batch,
             batch_digest,
-            router_address: signer.contract_address(),
+            router_address,
             signatures,
         })
     }
@@ -176,7 +180,9 @@ impl MultisignedBatchCommitment {
 
         anyhow::ensure!(digest == self.batch_digest, "Invalid reply digest");
 
-        let origin = signature.recover(self.router_address, digest)?.to_address();
+        let origin = signature
+            .validate(self.router_address, digest)?
+            .to_address();
 
         check_origin(origin)?;
 
@@ -209,19 +215,22 @@ mod tests {
     use super::*;
     use crate::mock::*;
 
+    const ADDRESS: Address = Address([42; 20]);
+
     #[test]
     fn multisigned_batch_commitment_creation() {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
+            rewards_commitments: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
-        let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
-        let multisigned_batch = MultisignedBatchCommitment::new(batch.clone(), &signer, pub_key)
-            .expect("Failed to create multisigned batch commitment");
+        let multisigned_batch =
+            MultisignedBatchCommitment::new(batch.clone(), &signer, ADDRESS, pub_key)
+                .expect("Failed to create multisigned batch commitment");
 
         assert_eq!(multisigned_batch.batch, batch);
         assert_eq!(multisigned_batch.signatures.len(), 1);
@@ -232,20 +241,20 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
+            rewards_commitments: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
-        let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
         let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, pub_key).unwrap();
+            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_digest(other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
                 .unwrap(),
         };
 
@@ -269,19 +278,21 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
+            rewards_commitments: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
-        let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
         let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, pub_key).unwrap();
+            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let incorrect_digest = [1, 2, 3].as_slice().to_digest();
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
-            signature: signer.sign_digest(pub_key, incorrect_digest).unwrap(),
+            signature: signer
+                .sign_for_contract(ADDRESS, pub_key, incorrect_digest)
+                .unwrap(),
         };
 
         let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
@@ -294,20 +305,20 @@ mod tests {
         let batch = BatchCommitment {
             block_commitments: vec![],
             code_commitments: vec![],
+            rewards_commitments: vec![],
         };
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
-        let signer = signer.contract_signer(Address([42; 20]));
         let pub_key = public_keys[0];
 
         let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, pub_key).unwrap();
+            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_digest(other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
                 .unwrap(),
         };
 
@@ -334,26 +345,27 @@ mod tests {
                 timestamp: 123,
                 valid: false,
             }],
+            rewards_commitments: vec![],
         };
         let batch_validation_request = BatchCommitmentValidationRequest::new(&batch);
         assert_eq!(batch.to_digest(), batch_validation_request.to_digest());
 
-        let contract_address = Address([42; 20]);
         let (signer, _, public_keys) = init_signer_with_keys(1);
-        let signer = signer.contract_signer(contract_address);
         let public_key = public_keys[0];
 
-        let batch_signature = signer.sign_data(public_key, &batch).unwrap();
+        let batch_signature = signer
+            .sign_for_contract(ADDRESS, public_key, &batch)
+            .unwrap();
         let validation_request_signature = signer
-            .sign_data(public_key, &batch_validation_request)
+            .sign_for_contract(ADDRESS, public_key, &batch_validation_request)
             .unwrap();
         assert_eq!(batch_signature, validation_request_signature);
 
         let pk1 = batch_signature
-            .recover(contract_address, batch.to_digest())
+            .validate(ADDRESS, batch.to_digest())
             .unwrap();
         let pk2 = validation_request_signature
-            .recover(contract_address, batch_validation_request.to_digest())
+            .validate(ADDRESS, batch_validation_request.to_digest())
             .unwrap();
         assert_eq!(pk1, pk2);
     }

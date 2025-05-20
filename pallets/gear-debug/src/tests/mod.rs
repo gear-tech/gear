@@ -21,7 +21,7 @@ use crate::mock::*;
 use common::{self, event::MessageEntry, CodeStorage, Origin};
 use frame_support::assert_ok;
 use gear_core::{
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{prelude::*, ActorId, CodeId, MessageId},
     memory::PageBuf,
     message::{DispatchKind, StoredDispatch, StoredMessage, UserMessage},
     pages::{GearPage, WasmPage},
@@ -138,8 +138,8 @@ fn debug_mode_works() {
         let code_1 = utils::parse_wat(wat_1);
         let code_2 = utils::parse_wat(wat_2);
 
-        let program_id_1 = ProgramId::generate_from_user(CodeId::generate(&code_1), DEFAULT_SALT);
-        let program_id_2 = ProgramId::generate_from_user(CodeId::generate(&code_2), DEFAULT_SALT);
+        let program_id_1 = ActorId::generate_from_user(CodeId::generate(&code_1), DEFAULT_SALT);
+        let program_id_2 = ActorId::generate_from_user(CodeId::generate(&code_2), DEFAULT_SALT);
 
         PalletGear::<Test>::upload_program(
             RuntimeOrigin::signed(1),
@@ -343,7 +343,7 @@ fn get_last_message_id() -> MessageId {
 }
 
 #[track_caller]
-fn get_last_program_id() -> ProgramId {
+fn get_last_program_id() -> ActorId {
     let event = match System::events().last().map(|r| r.event.clone()) {
         Some(super::mock::RuntimeEvent::Gear(e)) => e,
         _ => unreachable!("Should be one Gear event"),
@@ -515,7 +515,7 @@ fn check_not_allocated_pages() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(
@@ -737,7 +737,7 @@ fn check_changed_pages_in_storage() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
@@ -878,7 +878,7 @@ fn check_gear_stack_end() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = utils::parse_wat(wat.as_str());
-        let program_id = ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
         let origin = RuntimeOrigin::signed(1);
 
         assert_ok!(PalletGear::<Test>::upload_program(

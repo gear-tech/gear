@@ -18,10 +18,10 @@
 
 use super::common::ReplyDetails;
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId},
+    buffer::Payload,
+    ids::{prelude::*, ActorId, MessageId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
-        Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
@@ -62,10 +62,11 @@ impl ReplyMessage {
     pub fn system(
         origin_msg_id: MessageId,
         payload: Payload,
+        value: Value,
         err: impl Into<ErrorReplyReason>,
     ) -> Self {
         let id = MessageId::generate_reply(origin_msg_id);
-        let packet = ReplyPacket::system(payload, err);
+        let packet = ReplyPacket::system(payload, value, err);
 
         Self::from_packet(id, packet)
     }
@@ -81,8 +82,8 @@ impl ReplyMessage {
     /// Convert ReplyMessage into Message.
     pub fn into_message(
         self,
-        program_id: ProgramId,
-        destination: ProgramId,
+        program_id: ActorId,
+        destination: ActorId,
         origin_msg_id: MessageId,
     ) -> Message {
         Message::new(
@@ -99,8 +100,8 @@ impl ReplyMessage {
     /// Convert ReplyMessage into StoredMessage.
     pub fn into_stored(
         self,
-        program_id: ProgramId,
-        destination: ProgramId,
+        program_id: ActorId,
+        destination: ActorId,
         origin_msg_id: MessageId,
     ) -> StoredMessage {
         self.into_message(program_id, destination, origin_msg_id)
@@ -110,8 +111,8 @@ impl ReplyMessage {
     /// Convert ReplyMessage into Dispatch.
     pub fn into_dispatch(
         self,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         origin_msg_id: MessageId,
     ) -> Dispatch {
         Dispatch::new(
@@ -123,8 +124,8 @@ impl ReplyMessage {
     /// Convert ReplyMessage into StoredDispatch.
     pub fn into_stored_dispatch(
         self,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         origin_msg_id: MessageId,
     ) -> StoredDispatch {
         self.into_dispatch(source, destination, origin_msg_id)
@@ -204,9 +205,10 @@ impl ReplyPacket {
     // TODO: consider using here `impl CoreError` and/or provide `AsStatusCode`
     // trait or append such functionality to `CoreError` (issue #1083).
     /// Create new system generated ReplyPacket.
-    pub fn system(payload: Payload, err: impl Into<ErrorReplyReason>) -> Self {
+    pub fn system(payload: Payload, value: Value, err: impl Into<ErrorReplyReason>) -> Self {
         Self {
             payload,
+            value,
             code: ReplyCode::error(err),
             ..Default::default()
         }

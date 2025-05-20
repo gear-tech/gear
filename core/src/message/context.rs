@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId, ReservationId},
+    buffer::Payload,
+    ids::{prelude::*, ActorId, MessageId, ReservationId},
     message::{
-        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
+        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
         ReplyMessage, ReplyPacket,
     },
     reservation::{GasReserver, ReservationNonce},
@@ -96,14 +97,14 @@ pub struct ContextOutcome {
     // TODO: add Option<ReservationId> after #1828
     reply_deposits: Vec<(MessageId, u64)>,
     // Additional information section.
-    program_id: ProgramId,
-    source: ProgramId,
+    program_id: ActorId,
+    source: ActorId,
     origin_msg_id: MessageId,
 }
 
 impl ContextOutcome {
     /// Create new ContextOutcome.
-    fn new(program_id: ProgramId, source: ProgramId, origin_msg_id: MessageId) -> Self {
+    fn new(program_id: ActorId, source: ActorId, origin_msg_id: MessageId) -> Self {
         Self {
             program_id,
             source,
@@ -153,7 +154,7 @@ pub struct OutgoingPayloads {
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
-    initialized: BTreeSet<ProgramId>,
+    initialized: BTreeSet<ActorId>,
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
     /// Used to prevent creating messages with the same ID in DB. Before this was achieved by using `outgoing.len()`
@@ -166,7 +167,7 @@ impl ContextStore {
     // TODO: Remove, only used in migrations (#issue 3721)
     /// Create a new context store with the provided parameters.
     pub fn new(
-        initialized: BTreeSet<ProgramId>,
+        initialized: BTreeSet<ActorId>,
         reservation_nonce: ReservationNonce,
         system_reservation: Option<u64>,
         local_nonce: u32,
@@ -222,11 +223,7 @@ pub struct MessageContext {
 impl MessageContext {
     /// Create new message context.
     /// Returns `None` if outgoing messages bytes limit exceeded.
-    pub fn new(
-        dispatch: IncomingDispatch,
-        program_id: ProgramId,
-        settings: ContextSettings,
-    ) -> Self {
+    pub fn new(dispatch: IncomingDispatch, program_id: ActorId, settings: ContextSettings) -> Self {
         let (kind, message, store) = dispatch.into_parts();
 
         Self {
@@ -277,7 +274,7 @@ impl MessageContext {
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), Error> {
+    ) -> Result<(MessageId, ActorId), Error> {
         let program_id = packet.destination();
 
         if self.store.initialized.contains(&program_id) {
@@ -497,7 +494,7 @@ impl MessageContext {
     }
 
     /// Return reply destination.
-    pub fn reply_destination(&self) -> ProgramId {
+    pub fn reply_destination(&self) -> ActorId {
         self.outcome.source
     }
 
@@ -577,7 +574,7 @@ impl MessageContext {
     }
 
     /// Current program's id.
-    pub fn program_id(&self) -> ProgramId {
+    pub fn program_id(&self) -> ActorId {
         self.outcome.program_id
     }
 
@@ -637,10 +634,10 @@ mod tests {
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
-        // first init to default ProgramId.
+        // first init to default ActorId.
         assert_ok!(message_context.init_program(Default::default(), 0));
 
-        // second init to same default ProgramId should get error.
+        // second init to same default ActorId should get error.
         assert_err!(
             message_context.init_program(Default::default(), 0),
             Error::DuplicateInit,
@@ -760,7 +757,7 @@ mod tests {
     fn send_push_input_bytes_exceeded() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2, 3, 4, 5].try_into().unwrap(),
             0,
             0,
@@ -919,7 +916,7 @@ mod tests {
         // Creating an incoming message around which the runner builds the `MessageContext`
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,
@@ -1060,7 +1057,7 @@ mod tests {
     fn duplicate_waking() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,
@@ -1087,7 +1084,7 @@ mod tests {
     fn duplicate_reply_deposit() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,
@@ -1121,7 +1118,7 @@ mod tests {
     fn inexistent_reply_deposit() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,

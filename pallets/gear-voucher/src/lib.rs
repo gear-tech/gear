@@ -56,7 +56,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{ActorId, MessageId};
 pub use primitive_types::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
@@ -250,7 +250,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
-            programs: Option<BTreeSet<ProgramId>>,
+            programs: Option<BTreeSet<ActorId>>,
             code_uploading: bool,
             duration: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
@@ -436,7 +436,7 @@ pub mod pallet {
             voucher_id: VoucherId,
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
-            append_programs: Option<Option<BTreeSet<ProgramId>>>,
+            append_programs: Option<Option<BTreeSet<ActorId>>>,
             code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {

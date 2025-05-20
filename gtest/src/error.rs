@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::{ids::ProgramId, pages::WasmPage};
+use gear_core::{ids::ActorId, pages::WasmPage};
 use gear_core_errors::ExtError;
 use parity_scale_codec::Error as CodecError;
 
@@ -38,12 +38,12 @@ pub enum TestError {
     /// Actor not found.
     #[from(ignore)]
     #[display("Actor not found: `{_0}`")]
-    ActorNotFound(ProgramId),
+    ActorNotFound(ActorId),
 
     /// Actor is not executable.
     #[from(ignore)]
     #[display("Actor is not executable: `{_0}`")]
-    ActorIsNotExecutable(ProgramId),
+    ActorIsNotExecutable(ActorId),
 
     /// Meta WASM binary hasn't been provided.
     #[display("Meta WASM binary hasn't been provided")]
