@@ -599,8 +599,7 @@ wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasm
 wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
-wasm-smith = { version = "0.225", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.225" }
-#wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
+wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
 
 # Attempt to fix UB on windows by disabling corosensei stack reuse in wasmer
 wasmer-vm = { git = "https://github.com/ByteNacked/wasmer.git", branch = "rmasl-fix-windows-ub-no-reuse-coro-stack" }
