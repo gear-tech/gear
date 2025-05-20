@@ -48,11 +48,8 @@ pub enum ComputeEvent {
 
 enum ComputationState {
     NotStarted,
-    WaitForCodes {
-        block: H256,
-        waiting_codes: HashSet<CodeId>,
-    },
-    Processing(BoxFuture<'static, Result<BlockProcessed>>),
+    WaitForCodes(HashSet<CodeId>),
+    Processing(Option<BoxFuture<'static, Result<BlockProcessed>>>),
 }
 
 // TODO #4548: add state monitoring in prometheus
@@ -60,7 +57,10 @@ enum ComputationState {
 pub struct ComputeService {
     db: Database,
     processor: Processor,
+
     blocks_queue: VecDeque<H256>,
+    blocks_consensus_queue: VecDeque<H256>,
+
     state: ComputationState,
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
@@ -72,7 +72,7 @@ impl Stream for ComputeService {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(Ok(commitment)) => {
-                    if let ComputationState::WaitForCodes { waiting_codes, .. } = &mut self.state {
+                    if let ComputationState::WaitForCodes(waiting_codes) = &mut self.state {
                         if waiting_codes.contains(&commitment.id) {
                             waiting_codes.remove(&commitment.id);
                         }
@@ -84,44 +84,46 @@ impl Stream for ComputeService {
             }
         }
 
+        if let ComputationState::Processing(None) = self.state {
+            if let Some(block) = self.blocks_consensus_queue.pop_back() {
+                let fut = ChainHeadProcessContext {
+                    db: self.db.clone(),
+                    processor: self.processor.clone(),
+                }
+                .process(block)
+                .boxed();
+
+                self.state = ComputationState::Processing(Some(fut));
+            }
+        }
+
         // NOTE: here not a matching, because of preventing the errors with borrowing
         let (maybe_state, maybe_event) = if let ComputationState::NotStarted = &self.state {
             match self.blocks_queue.pop_back() {
                 Some(block) => {
                     let (validated_codes, codes_to_load) = self.collect_chain_codes(block)?;
 
-                    let new_state = ComputationState::WaitForCodes {
-                        block,
-                        waiting_codes: validated_codes,
-                    };
+                    let new_state = ComputationState::WaitForCodes(validated_codes);
                     let event = Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load)));
                     (Some(new_state), event)
                 }
                 None => (None, None),
             }
-        } else if let ComputationState::WaitForCodes {
-            block,
-            waiting_codes,
-        } = &self.state
-        {
-            let new_state = waiting_codes
+        } else if let ComputationState::WaitForCodes(waiting_codes) = &self.state {
+            let maybe_new_state = waiting_codes
                 .is_empty()
-                .then_some(ComputationState::Processing(
-                    ChainHeadProcessContext {
-                        db: self.db.clone(),
-                        processor: self.processor.clone(),
+                .then_some(ComputationState::Processing(None));
+            (maybe_new_state, None)
+        } else if let ComputationState::Processing(maybe_fut) = &mut self.state {
+            match maybe_fut {
+                Some(fut) => match fut.as_mut().poll_unpin(cx) {
+                    Poll::Ready(res) => {
+                        let maybe_event = res.map(ComputeEvent::BlockProcessed);
+                        (Some(ComputationState::NotStarted), Some(maybe_event))
                     }
-                    .process(*block)
-                    .boxed(),
-                ));
-            (new_state, None)
-        } else if let ComputationState::Processing(fut) = &mut self.state {
-            match fut.as_mut().poll_unpin(cx) {
-                Poll::Ready(res) => {
-                    let maybe_event = res.map(ComputeEvent::BlockProcessed);
-                    (Some(ComputationState::NotStarted), Some(maybe_event))
-                }
-                Poll::Pending => (None, None),
+                    Poll::Pending => (None, None),
+                },
+                None => (None, None),
             }
         } else {
             unreachable!()
@@ -153,6 +155,7 @@ impl ComputeService {
             db,
             processor,
             blocks_queue: VecDeque::new(),
+            blocks_consensus_queue: VecDeque::new(),
             state: ComputationState::NotStarted,
             process_codes: Default::default(),
         }
@@ -172,6 +175,10 @@ impl ComputeService {
 
     pub fn process_block(&mut self, block: H256) {
         self.blocks_queue.push_back(block);
+    }
+
+    pub fn process_consensus_block(&mut self, block: H256) {
+        self.blocks_consensus_queue.push_back(block);
     }
 
     fn collect_chain_codes(&self, block: H256) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {

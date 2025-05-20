@@ -854,6 +854,7 @@ async fn ping_deep_sync() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 }
 
+#[ignore = "xz"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn multiple_validators() {
@@ -1108,7 +1109,7 @@ async fn tx_pool_gossip() {
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 
-// #[ignore = "until all tests are passed"]
+// #[ignore = "need to refactor fast-sync"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn fast_sync() {

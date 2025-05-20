@@ -388,6 +388,7 @@ impl Service {
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
+                        compute.process_block(synced_block.block_hash);
                         consensus.receive_synced_block(synced_block)?;
                     }
                 },
@@ -508,7 +509,7 @@ impl Service {
                         }
 
                         // compute.receive_synced_head(producer_block.block_hash);
-                        compute.process_block(producer_block.block_hash);
+                        compute.process_consensus_block(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {
