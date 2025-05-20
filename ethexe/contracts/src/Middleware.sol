@@ -282,7 +282,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             revert UnknownCollateral();
         }
 
-        bytes memory rewardsHashes;
+        bytes memory distributionBytes;
         for (uint256 i = 0; i < _commitment.distribution.length; ++i) {
             Gear.StakerRewards memory rewards = _commitment.distribution[i];
 
@@ -295,12 +295,10 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             bytes memory data = abi.encode(timestamp, $.maxAdminFee, bytes(""), bytes(""));
             IDefaultStakerRewards(rewardsAddress).distributeRewards($.router, _commitment.token, rewards.amount, data);
 
-            bytes32 rewardsHash =
-                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, timestamp));
-            rewardsHashes = bytes.concat(rewardsHashes, rewardsHash);
+            distributionBytes = bytes.concat(distributionBytes, abi.encodePacked(rewards.vault, rewards.amount));
         }
 
-        return keccak256(rewardsHashes);
+        return keccak256(bytes.concat(distributionBytes, abi.encodePacked(_commitment.totalAmount, _commitment.token)));
     }
 
     function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {

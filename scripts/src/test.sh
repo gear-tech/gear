@@ -74,7 +74,7 @@ client_tests() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gclient --no-fail-fast "$@"
   else
-    cargo nextest run -p gclient --no-fail-fast "$@"
+    cargo nextest run -p gclient --profile ci --no-fail-fast "$@"
   fi
 }
 

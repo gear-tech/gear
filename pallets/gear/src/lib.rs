@@ -52,7 +52,7 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo};
+pub use gear_core::rpc::{GasInfo, ReplyInfo};
 pub use weights::WeightInfo;
 
 use crate::internal::InheritorForError;
@@ -86,8 +86,10 @@ use frame_system::{
     Pallet as System, RawOrigin,
 };
 use gear_core::{
+    buffer::*,
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
+    env::MessageWaitedType,
+    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     message::*,
     percent::Percent,
     tasks::VaraScheduledTask,
@@ -234,7 +236,7 @@ pub mod pallet {
             MailboxedMessage = UserStoredMessage,
             QueuedDispatch = StoredDispatch,
             DelayedDispatch = StoredDelayedDispatch,
-            WaitlistFirstKey = ProgramId,
+            WaitlistFirstKey = ActorId,
             WaitlistSecondKey = MessageId,
             WaitlistedMessage = StoredDispatch,
             DispatchStashKey = MessageId,
@@ -311,7 +313,7 @@ pub mod pallet {
             /// Account id of the source of the message.
             source: T::AccountId,
             /// Program id, who is the message's destination.
-            destination: ProgramId,
+            destination: ActorId,
             /// Entry point for processing of the message.
             /// On the sending stage, the processing function
             /// of the program is always known.
@@ -353,7 +355,7 @@ pub mod pallet {
             /// by `Event::MessageQueued` (sent from user to program).
             statuses: BTreeMap<MessageId, DispatchStatus>,
             /// Ids of programs, which state changed during queue processing.
-            state_changes: BTreeSet<ProgramId>,
+            state_changes: BTreeSet<ActorId>,
         },
 
         /// Messages execution delayed (waited) and successfully
@@ -402,7 +404,7 @@ pub mod pallet {
         /// Any data related to programs changed.
         ProgramChanged {
             /// Id of the program affected.
-            id: ProgramId,
+            id: ActorId,
             /// Change applied on program with current id.
             ///
             /// NOTE: See more docs about change kinds at `gear_common::event`.
@@ -838,7 +840,7 @@ pub mod pallet {
         #[cfg(test)]
         pub fn calculate_reply_for_handle(
             origin: AccountIdOf<T>,
-            destination: ProgramId,
+            destination: ActorId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
@@ -873,14 +875,14 @@ pub mod pallet {
         }
 
         /// Returns true if a program has been successfully initialized
-        pub fn is_initialized(program_id: ProgramId) -> bool {
+        pub fn is_initialized(program_id: ActorId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
-        pub fn is_active(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+        pub fn is_active(builtins: &impl BuiltinDispatcher, program_id: ActorId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
@@ -888,14 +890,14 @@ pub mod pallet {
         }
 
         /// Returns true if id is a program and the program has terminated status.
-        pub fn is_terminated(program_id: ProgramId) -> bool {
+        pub fn is_terminated(program_id: ActorId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
-        pub fn is_exited(program_id: ProgramId) -> bool {
+        pub fn is_exited(program_id: ActorId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.is_exited())
                 .unwrap_or_default()
@@ -903,13 +905,13 @@ pub mod pallet {
 
         /// Returns true if there is a program with the specified `program_id`` (it may be paused)
         /// or this `program_id` belongs to the built-in actor.
-        pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+        pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ActorId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::program_exists(program_id)
         }
 
         /// Returns inheritor of an exited/terminated program.
-        pub fn first_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+        pub fn first_inheritor_of(program_id: ActorId) -> Option<ActorId> {
             ProgramStorageOf::<T>::get_program(program_id).and_then(|program| match program {
                 Program::Active(_) => None,
                 Program::Exited(id) => Some(id),
@@ -1344,8 +1346,8 @@ pub mod pallet {
         /// could be more than remaining block gas limit. Therefore, the message processing will be postponed
         /// until the next block.
         ///
-        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
-        /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
+        /// `ActorId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
+        /// Such `ActorId` must not exist in the Program Storage at the time of this call.
         ///
         /// There is the same guarantee here as in `upload_code`. That is, future program's
         /// `code` and metadata are stored before message was added to the queue and processed.
@@ -1504,7 +1506,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
-            destination: ProgramId,
+            destination: ActorId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1710,7 +1712,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::claim_value_to_inheritor(depth.get()))]
         pub fn claim_value_to_inheritor(
             origin: OriginFor<T>,
-            program_id: ProgramId,
+            program_id: ActorId,
             depth: NonZero<u32>,
         ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
@@ -1770,7 +1772,7 @@ pub mod pallet {
         /// Underlying implementation of `GearPallet::send_message`.
         pub fn send_message_impl(
             origin: AccountIdOf<T>,
-            destination: ProgramId,
+            destination: ActorId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1835,7 +1837,7 @@ pub mod pallet {
             } else {
                 // Take data for the error log
                 let message_id = message.id();
-                let source = origin.cast::<ProgramId>();
+                let source = origin.cast::<ActorId>();
                 let destination = message.destination();
 
                 let message = message.into_stored(source);

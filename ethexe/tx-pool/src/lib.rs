@@ -28,9 +28,7 @@ pub use ethexe_common::tx_pool::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction,
 };
 use ethexe_db::Database;
-use ethexe_signer::{Address, Signature, ToDigest};
 use gprimitives::{ActorId, H160};
-use parity_scale_codec::Encode;
 use validation::TxValidator;
 
 /// Transaction pool service.
@@ -59,13 +57,6 @@ impl TxPoolService {
 }
 
 /// Gets source of the `SendMessage` transaction recovering it from the signature.
-pub fn tx_send_message_source(tx: &SignedOffchainTransaction) -> Result<ActorId> {
-    Signature::try_from(tx.signature.as_ref())
-        .and_then(|signature| signature.recover_from_digest(tx.transaction.encode().to_digest()))
-        .map(|public_key| H160::from(Address::from(public_key).0).into())
-}
-
-/// Ethexe transaction signature.
-fn tx_signature(tx: &SignedOffchainTransaction) -> Result<Signature> {
-    Signature::try_from(tx.signature.as_ref())
+pub fn tx_send_message_source(tx: &SignedOffchainTransaction) -> ActorId {
+    H160(tx.public_key().to_address().0).into()
 }

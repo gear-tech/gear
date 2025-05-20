@@ -24,20 +24,21 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use ethexe_common::{
-    db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, OnChainStorage, Schedule},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
+    BlockHeader, CodeInfo, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{
+    buffer::Payload,
     code::InstrumentedCode,
-    ids::{ActorId, CodeId, ProgramId},
+    ids::{ActorId, CodeId},
     memory::PageBuf,
-    message::Payload,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -51,7 +52,7 @@ enum Key {
     BlockOutcome(H256) = 3,
     BlockSchedule(H256) = 4,
 
-    ProgramToCodeId(ProgramId) = 5,
+    ProgramToCodeId(ActorId) = 5,
     InstrumentedCode(u32, CodeId) = 6,
     CodeUploadInfo(CodeId) = 7,
     CodeValid(CodeId) = 8,
@@ -402,7 +403,7 @@ impl CodesStorage for Database {
         self.cas.write(code).into()
     }
 
-    fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId> {
+    fn program_code_id(&self, program_id: ActorId) -> Option<CodeId> {
         self.kv
             .get(&Key::ProgramToCodeId(program_id).to_bytes())
             .map(|data| {
@@ -410,7 +411,7 @@ impl CodesStorage for Database {
             })
     }
 
-    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId) {
+    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId) {
         self.kv.put(
             &Key::ProgramToCodeId(program_id).to_bytes(),
             code_id.into_bytes().to_vec(),
@@ -418,7 +419,7 @@ impl CodesStorage for Database {
     }
 
     // TODO (gsobol): consider to move to another place
-    fn program_ids(&self) -> BTreeSet<ProgramId> {
+    fn program_ids(&self) -> BTreeSet<ActorId> {
         let key_prefix = Key::ProgramToCodeId(Default::default()).prefix();
         self.kv
             .iter_prefix(&key_prefix)
@@ -426,7 +427,7 @@ impl CodesStorage for Database {
                 let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let program_id =
-                    ProgramId::try_from(program_id).expect("Failed to decode key into `ProgramId`");
+                    ActorId::try_from(program_id).expect("Failed to decode key into `ActorId`");
 
                 #[cfg(debug_assertions)]
                 CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
@@ -660,23 +661,27 @@ impl OnChainStorage for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage};
+    use ethexe_common::{
+        ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
+    };
     use gear_core::code::InstantiatedSectionSizes;
 
     #[test]
     fn test_offchain_transaction() {
         let db = Database::memory();
 
-        let tx = SignedOffchainTransaction {
-            signature: Default::default(),
-            transaction: OffchainTransaction {
+        let private_key = PrivateKey::from([1; 32]);
+        let tx = SignedOffchainTransaction::create(
+            private_key,
+            OffchainTransaction {
                 raw: SendMessage {
                     program_id: H256::random().into(),
                     payload: H256::random().as_bytes().to_vec(),
                 },
                 reference_block: H256::random(),
             },
-        };
+        )
+        .unwrap();
         let tx_hash = tx.tx_hash();
         db.set_offchain_transaction(tx.clone());
         assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
@@ -988,7 +993,7 @@ mod tests {
     fn test_program_code_id() {
         let db = Database::memory();
 
-        let program_id = ProgramId::default();
+        let program_id = ActorId::default();
         let code_id = CodeId::default();
         db.set_program_code_id(program_id, code_id);
         assert_eq!(db.program_code_id(program_id), Some(code_id));
@@ -998,9 +1003,9 @@ mod tests {
     fn test_program_ids() {
         let db = Database::memory();
 
-        let program_id_1 = ProgramId::from(H256::random());
-        let program_id_2 = ProgramId::from(H256::random());
-        let program_id_3 = ProgramId::from(H256::random());
+        let program_id_1 = ActorId::from(H256::random());
+        let program_id_2 = ActorId::from(H256::random());
+        let program_id_3 = ActorId::from(H256::random());
 
         let code_id_1 = CodeId::from(H256::random());
         let code_id_2 = CodeId::from(H256::random());
