@@ -10,9 +10,10 @@ use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use ethexe_common::{gear::Origin, ScheduledTask};
 use gear_core::{
+    env::MessageWaitedType,
     ids::ProgramId,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch as CoreDispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };

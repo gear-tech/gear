@@ -700,6 +700,8 @@ pub mod runtime_types {
                     pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
                     #[codec(skip)] pub ::core::marker::PhantomData<_1>,
                 );
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct PayloadSizeError;
             }
             pub mod code {
                 use super::runtime_types;
@@ -817,7 +819,7 @@ pub mod runtime_types {
                         pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
+                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -837,7 +839,7 @@ pub mod runtime_types {
                         pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
+                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -854,7 +856,7 @@ pub mod runtime_types {
                         pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
+                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -871,8 +873,6 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     Signal,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct PayloadSizeError;
             }
             pub mod pages {
                 use super::runtime_types;

@@ -20,7 +20,7 @@
 use crate::{api::Result, GearApi};
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
-    message::ReplyInfo,
+    rpc::ReplyInfo,
 };
 use gsdk::{ext::sp_core::H256, GasInfo};
 use parity_scale_codec::Decode;

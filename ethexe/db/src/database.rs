@@ -35,10 +35,10 @@ use ethexe_runtime_common::state::{
     ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{
+    buffer::Payload,
     code::InstrumentedCode,
     ids::{ActorId, CodeId, ProgramId},
     memory::PageBuf,
-    message::Payload,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};

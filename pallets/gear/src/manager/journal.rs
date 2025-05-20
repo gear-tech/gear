@@ -36,9 +36,10 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
+    env::MessageWaitedType,
     ids::{CodeId, MessageId, ProgramId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::{Program, ProgramState},
     reservation::GasReserver,

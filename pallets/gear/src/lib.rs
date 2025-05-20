@@ -52,7 +52,7 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo};
+pub use gear_core::rpc::{GasInfo, ReplyInfo};
 pub use weights::WeightInfo;
 
 use crate::internal::InheritorForError;
@@ -86,7 +86,9 @@ use frame_system::{
     Pallet as System, RawOrigin,
 };
 use gear_core::{
+    buffer::*,
     code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
+    env::MessageWaitedType,
     ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
     message::*,
     percent::Percent,

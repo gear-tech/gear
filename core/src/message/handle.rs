@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    buffer::Payload,
     ids::{MessageId, ProgramId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
-        Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
 };
 use scale_info::{
