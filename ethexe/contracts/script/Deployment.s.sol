@@ -61,45 +61,48 @@ contract DeploymentScript is Script {
                 )
             )
         );
+
         mirror = new Mirror(address(router));
 
-        address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
+        if (vm.envBool("DEV_MODE") == false) {
+            address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
-        Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
-            vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
-            operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
-            networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
-            middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
-            networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
-            stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
-        });
+            Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+                vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
+                operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
+                networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
+                middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
+                networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
+                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
+            });
 
-        IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
-            owner: deployerAddress,
-            eraDuration: 1 days,
-            minVaultEpochDuration: 2 hours,
-            operatorGracePeriod: 5 minutes,
-            vaultGracePeriod: 5 minutes,
-            minVetoDuration: 2 hours,
-            minSlashExecutionDelay: 5 minutes,
-            allowedVaultImplVersion: 1,
-            vetoSlasherImplType: 1,
-            maxResolverSetEpochsDelay: 5 minutes,
-            collateral: address(wrappedVara),
-            maxAdminFee: 10000,
-            operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
-            router: address(router),
-            roleSlashRequester: address(router),
-            roleSlashExecutor: address(router),
-            vetoResolver: address(router),
-            registries: registries
-        });
+            IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
+                owner: deployerAddress,
+                eraDuration: 1 days,
+                minVaultEpochDuration: 2 hours,
+                operatorGracePeriod: 5 minutes,
+                vaultGracePeriod: 5 minutes,
+                minVetoDuration: 2 hours,
+                minSlashExecutionDelay: 5 minutes,
+                allowedVaultImplVersion: 1,
+                vetoSlasherImplType: 1,
+                maxResolverSetEpochsDelay: 5 minutes,
+                collateral: address(wrappedVara),
+                maxAdminFee: 10000,
+                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
+                router: address(router),
+                roleSlashRequester: address(router),
+                roleSlashExecutor: address(router),
+                vetoResolver: address(router),
+                registries: registries
+            });
 
-        middleware = Middleware(
-            Upgrades.deployTransparentProxy(
-                "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
-            )
-        );
+            middleware = Middleware(
+                Upgrades.deployTransparentProxy(
+                    "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
+                )
+            );
+        }
 
         wrappedVara.approve(address(router), type(uint256).max);
 
