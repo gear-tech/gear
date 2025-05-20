@@ -127,12 +127,12 @@ pub async fn run(
     loop {
         let states: Vec<_> = in_block_transitions
             .states_iter()
-            .filter_map(|(&actor_id, state)| {
+            .filter_map(|(&actor_id, &state)| {
                 if state.cached_queue_size == 0 {
                     return None;
                 }
 
-                Some((actor_id, state.clone()))
+                Some((actor_id, state))
             })
             .collect();
 
@@ -171,10 +171,6 @@ pub async fn run(
                 in_block_transitions.modify(program_id, |state, _| {
                     state.hash = new_state_hash;
                 });
-
-                if program_journals.is_empty() {
-                    continue;
-                }
 
                 for (journal, dispatch_origin) in program_journals {
                     let mut journal_handler = JournalHandler {
@@ -283,7 +279,8 @@ mod tests {
             .map(|chunk| {
                 chunk
                     .into_iter()
-                    .fold(0, |acc, (_, _, queue_size)| acc + queue_size)
+                    .map(|(_, _, queue_size)| queue_size)
+                    .sum::<usize>()
             })
             .collect::<Vec<_>>();
 

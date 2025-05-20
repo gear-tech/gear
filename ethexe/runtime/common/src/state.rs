@@ -708,19 +708,19 @@ impl<T> From<(T, u32)> for Expiring<T> {
 }
 
 #[derive(
-    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    derive_more::Into,
+    derive_more::AsRef,
+    derive_more::IntoIterator,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
-
-impl IntoIterator for MessageQueue {
-    type Item = Dispatch;
-    type IntoIter = <VecDeque<Dispatch> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
 
 impl MessageQueue {
     pub fn is_empty(&self) -> bool {

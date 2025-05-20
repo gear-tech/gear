@@ -84,7 +84,7 @@ impl ToDigest for ProducerBlock {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
