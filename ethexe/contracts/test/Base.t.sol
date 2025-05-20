@@ -98,9 +98,6 @@ contract Base is POCBaseTest {
         require(electionDuration > 0, "Base: electionDuration should be greater than 0");
         require(blockDuration > 0, "Base: blockDuration should be greater than 0");
 
-        SYMBIOTIC_CORE_PROJECT_ROOT = "lib/symbiotic-core/";
-        super.setUp();
-
         address wrappedVaraAddress = address(wrappedVara);
 
         address mirrorAddress = vm.computeCreateAddress(admin, vm.getNonce(admin) + 2);
@@ -139,17 +136,6 @@ contract Base is POCBaseTest {
         vm.startPrank(admin, admin);
         {
             mirror = new Mirror(address(router));
-        }
-        vm.stopPrank();
-
-        vm.startPrank(admin, admin);
-        {
-            IMiddleware.InitParams memory initParams = _defaultMiddlewareInitParams();
-            middleware = Middleware(
-                Upgrades.deployTransparentProxy(
-                    "Middleware.sol", admin, abi.encodeCall(Middleware.initialize, (initParams))
-                )
-            );
         }
         vm.stopPrank();
 
