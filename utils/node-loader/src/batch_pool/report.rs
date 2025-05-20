@@ -1,7 +1,7 @@
 use super::context::ContextUpdate;
 use crate::utils;
 use anyhow::Error;
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
@@ -36,7 +36,7 @@ impl TryFrom<Error> for CrashAlert {
 #[derive(Default)]
 pub struct Report {
     pub codes: BTreeSet<CodeId>,
-    pub program_ids: BTreeSet<ProgramId>,
+    pub program_ids: BTreeSet<ActorId>,
     pub mailbox_data: MailboxReport,
 }
 

@@ -109,7 +109,8 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use gprimitives::{ActorId, H256};
+use gear_core::ids::ActorId;
+use gprimitives::H256;
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
@@ -199,8 +200,6 @@ fn split_to_chunks(
         debug_assert_ne!(queue_size, 0);
         queue_size.min(number_of_chunks) - 1
     }
-
-    //Some((*actor_id, state.hash, state.cached_queue_size as usize))
 
     let number_of_chunks = states.len().div_ceil(chunk_size);
     let mut chunks = vec![vec![]; number_of_chunks];

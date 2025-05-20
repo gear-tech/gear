@@ -35,7 +35,7 @@ use ethexe_common::{
 };
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
+use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::HashMap;
 
@@ -350,7 +350,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn program_code_id(&self, program_id: ProgramId) -> Result<Option<CodeId>> {
+    pub async fn program_code_id(&self, program_id: ActorId) -> Result<Option<CodeId>> {
         let program_id = LocalAddress::try_from(program_id).expect("infallible");
         let program_id = Address::new(program_id.0);
         let code_id = self.instance.programCodeId(program_id).call().await?;
@@ -358,7 +358,7 @@ impl RouterQuery {
         Ok(code_id)
     }
 
-    pub async fn programs_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids(&self, program_ids: Vec<ActorId>) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids

@@ -22,11 +22,11 @@ use crate::wasm::{
 };
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{process_queue, state::Storage, ProgramJournals, RuntimeInterface};
-use gear_core::{code::InstrumentedCode, ids::ProgramId};
-use gprimitives::{CodeId, H256};
+use gear_core::code::InstrumentedCode;
+use gprimitives::{ActorId, CodeId, H256};
 
 pub fn run(
-    program_id: ProgramId,
+    program_id: ActorId,
     original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,

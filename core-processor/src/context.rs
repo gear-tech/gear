@@ -22,7 +22,7 @@ use crate::common::{ExecutableActorData, Program};
 use gear_core::{
     code::InstrumentedCode,
     gas::{GasAllowanceCounter, GasCounter},
-    ids::ProgramId,
+    ids::ActorId,
     message::IncomingDispatch,
     pages::WasmPagesAmount,
     program::MemoryInfix,
@@ -33,7 +33,7 @@ use gear_core::{
 #[derive(Debug)]
 pub struct ContextChargedForProgram {
     pub(crate) dispatch: IncomingDispatch,
-    pub(crate) destination_id: ProgramId,
+    pub(crate) destination_id: ActorId,
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
 }
@@ -41,7 +41,7 @@ pub struct ContextChargedForProgram {
 impl ContextChargedForProgram {
     /// Unwraps into inner data.
     #[cfg(feature = "gtest")]
-    pub fn into_inner(self) -> (IncomingDispatch, ProgramId, GasCounter) {
+    pub fn into_inner(self) -> (IncomingDispatch, ActorId, GasCounter) {
         (self.dispatch, self.destination_id, self.gas_counter)
     }
 }
@@ -52,7 +52,7 @@ pub(crate) struct ContextData {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) dispatch: IncomingDispatch,
-    pub(crate) destination_id: ProgramId,
+    pub(crate) destination_id: ActorId,
     pub(crate) actor_data: ExecutableActorData,
 }
 
@@ -124,7 +124,7 @@ pub struct ProcessExecutionContext {
 
 impl ProcessExecutionContext {
     /// Returns program id.
-    pub fn program_id(&self) -> ProgramId {
+    pub fn program_id(&self) -> ActorId {
         self.program.id
     }
 

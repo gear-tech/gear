@@ -36,9 +36,10 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    env::MessageWaitedType,
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::{Program, ProgramState},
     reservation::GasReserver,
@@ -56,7 +57,7 @@ where
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        source: ProgramId,
+        source: ActorId,
         outcome: CoreDispatchOutcome,
     ) {
         use CoreDispatchOutcome::*;
@@ -160,7 +161,7 @@ where
         Pallet::<T>::spend_burned(message_id, amount)
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId) {
         log::debug!(
             "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
         );
@@ -319,7 +320,7 @@ where
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     ) {
@@ -372,11 +373,7 @@ where
         );
     }
 
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-    ) {
+    fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
         self.state_changes.insert(program_id);
 
         // TODO: pass `memory_infix` as argument #4025
@@ -394,7 +391,7 @@ where
         }
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
         // TODO: pass `memory_infix` as argument #4025
         let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             // Guaranteed to be called on existing active program
@@ -414,7 +411,7 @@ where
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 
-    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, locked: bool) {
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, locked: bool) {
         let from = from.cast();
         let to = to.cast();
         let value = value.unique_saturated_into();
@@ -444,9 +441,9 @@ where
 
     fn store_new_programs(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         code_id: CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
+        candidates: Vec<(MessageId, ActorId)>,
     ) {
         if let Some(code) = T::CodeStorage::get_code(code_id) {
             let code_info = CodeInfo::from_code(&code_id, &code);
@@ -537,7 +534,7 @@ where
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         amount: u64,
         duration: u32,
     ) {
@@ -616,7 +613,7 @@ where
     fn unreserve_gas(
         &mut self,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         expiration: u32,
     ) {
         <Self as TaskHandler<T::AccountId, MessageId, bool>>::remove_gas_reservation(
@@ -631,7 +628,7 @@ where
         );
     }
 
-    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+    fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
@@ -690,7 +687,7 @@ where
         }
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+    fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode) {
         Self::send_signal(self, message_id, destination, code)
     }
 
