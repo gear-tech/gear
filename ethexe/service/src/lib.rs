@@ -22,7 +22,10 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
     BlobData, BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
-use ethexe_common::ProducerBlock;
+use ethexe_common::{
+    ecdsa::{PublicKey, SignedData},
+    ProducerBlock,
+};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
@@ -36,7 +39,7 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::{PublicKey, SignedData, Signer};
+use ethexe_signer::Signer;
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use futures::StreamExt;
 use gprimitives::H256;
@@ -388,7 +391,7 @@ impl Service {
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.process_block(synced_block.block_hash);
+                        compute.prepare_block_to_compute(synced_block.block_hash);
                         consensus.receive_synced_block(synced_block)?;
                     }
                 },
@@ -508,8 +511,7 @@ impl Service {
                             todo!("#4638 #4639 off-chain transactions and gas allowance are not supported yet");
                         }
 
-                        // compute.receive_synced_head(producer_block.block_hash);
-                        compute.process_consensus_block(producer_block.block_hash);
+                        compute.process_block(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {

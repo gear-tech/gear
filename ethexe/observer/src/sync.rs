@@ -23,9 +23,10 @@ use crate::{
     BlockSyncedData, RuntimeConfig,
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
+// use anyhow::{anyhow, Ok, Result};
 use anyhow::{anyhow, Result};
-use ethexe_common::{db::OnChainStorage, BlockData};
-use ethexe_db::{BlockHeader, Database};
+use ethexe_common::{self, db::OnChainStorage, BlockData, BlockHeader};
+use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 use std::collections::HashMap;

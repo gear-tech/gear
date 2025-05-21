@@ -8,11 +8,11 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use anyhow::bail;
 use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler};
-use ethexe_common::{db::ScheduledTask, gear::Origin};
+use ethexe_common::{gear::Origin, ScheduledTask};
 use gear_core::{
-    ids::ProgramId,
+    env::MessageWaitedType,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
+    message::{Dispatch as CoreDispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReserver,
 };
@@ -20,7 +20,7 @@ use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
 
 pub struct Handler<'a, S: Storage> {
-    pub program_id: ProgramId,
+    pub program_id: ActorId,
     pub dispatch_origin: Origin,
     pub controller: TransitionController<'a, S>,
 }
@@ -125,7 +125,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        _source: ProgramId,
+        _source: ActorId,
         outcome: DispatchOutcome,
     ) {
         match outcome {
@@ -182,7 +182,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         // unreachable!("Must not be called here")
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId) {
         // TODO (breathx): handle rest of value cases; exec balance into value_to_receive.
         let balance = self
             .controller
@@ -292,7 +292,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     ) {
@@ -327,11 +327,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             });
     }
 
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-    ) {
+    fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
         if pages_data.is_empty() {
             return;
         }
@@ -356,7 +352,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn update_allocations(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         new_allocations: IntervalsTree<WasmPage>,
     ) {
         self.controller
@@ -385,7 +381,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
             .expect("failed to update state");
     }
 
-    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, _locked: bool) {
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, _locked: bool) {
         // TODO (breathx): implement rest of cases.
         if self.controller.transitions.state_of(&from).is_some() {
             return;
@@ -400,9 +396,9 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn store_new_programs(
         &mut self,
-        _program_id: ProgramId,
+        _program_id: ActorId,
         _code_id: CodeId,
-        _candidates: Vec<(MessageId, ProgramId)>,
+        _candidates: Vec<(MessageId, ActorId)>,
     ) {
         todo!()
     }
@@ -411,15 +407,15 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         todo!()
     }
 
-    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ProgramId, _: u64, _: u32) {
+    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ActorId, _: u64, _: u32) {
         unreachable!("deprecated");
     }
 
-    fn unreserve_gas(&mut self, _: ReservationId, _: ProgramId, _: u32) {
+    fn unreserve_gas(&mut self, _: ReservationId, _: ActorId, _: u32) {
         unreachable!("deprecated");
     }
 
-    fn update_gas_reservation(&mut self, _: ProgramId, _: GasReserver) {
+    fn update_gas_reservation(&mut self, _: ActorId, _: GasReserver) {
         unreachable!("deprecated");
     }
 
@@ -431,7 +427,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         unreachable!("deprecated");
     }
 
-    fn send_signal(&mut self, _: MessageId, _: ProgramId, _: SignalCode) {
+    fn send_signal(&mut self, _: MessageId, _: ActorId, _: SignalCode) {
         unreachable!("deprecated");
     }
 

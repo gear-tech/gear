@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, StoredDispatch, StoredMessage,
-        Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
 };
 use scale_info::{
@@ -35,7 +35,7 @@ pub struct HandleMessage {
     /// Message id.
     id: MessageId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message optional gas limit.
@@ -57,7 +57,7 @@ impl HandleMessage {
     }
 
     /// Convert HandleMessage into Message.
-    pub fn into_message(self, source: ProgramId) -> Message {
+    pub fn into_message(self, source: ActorId) -> Message {
         Message::new(
             self.id,
             source,
@@ -70,17 +70,17 @@ impl HandleMessage {
     }
 
     /// Convert HandleMessage into StoredMessage.
-    pub fn into_stored(self, source: ProgramId) -> StoredMessage {
+    pub fn into_stored(self, source: ActorId) -> StoredMessage {
         self.into_message(source).into()
     }
 
     /// Convert HandleMessage into Dispatch.
-    pub fn into_dispatch(self, source: ProgramId) -> Dispatch {
+    pub fn into_dispatch(self, source: ActorId) -> Dispatch {
         Dispatch::new(DispatchKind::Handle, self.into_message(source))
     }
 
     /// Convert HandleMessage into StoredDispatch.
-    pub fn into_stored_dispatch(self, source: ProgramId) -> StoredDispatch {
+    pub fn into_stored_dispatch(self, source: ActorId) -> StoredDispatch {
         self.into_dispatch(source).into()
     }
 
@@ -90,7 +90,7 @@ impl HandleMessage {
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -116,7 +116,7 @@ impl HandleMessage {
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct HandlePacket {
     /// Packet destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Packet payload.
     payload: Payload,
     /// Packet optional gas limit.
@@ -127,7 +127,7 @@ pub struct HandlePacket {
 
 impl HandlePacket {
     /// Create new packet without gas.
-    pub fn new(destination: ProgramId, payload: Payload, value: Value) -> Self {
+    pub fn new(destination: ActorId, payload: Payload, value: Value) -> Self {
         Self {
             destination,
             payload,
@@ -138,7 +138,7 @@ impl HandlePacket {
 
     /// Create new packet with gas.
     pub fn new_with_gas(
-        destination: ProgramId,
+        destination: ActorId,
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
@@ -153,7 +153,7 @@ impl HandlePacket {
 
     /// Create new packet with optional gas.
     pub fn maybe_with_gas(
-        destination: ProgramId,
+        destination: ActorId,
         payload: Payload,
         gas_limit: Option<GasLimit>,
         value: Value,
@@ -175,7 +175,7 @@ impl HandlePacket {
     }
 
     /// Packet destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 }

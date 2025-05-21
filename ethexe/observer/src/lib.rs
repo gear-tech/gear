@@ -25,10 +25,9 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{db::OnChainStorage, SimpleBlockData};
-use ethexe_db::{BlockHeader, Database};
+use ethexe_common::{db::OnChainStorage, Address, BlockHeader, SimpleBlockData};
+use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_signer::Address;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
 use gprimitives::H256;
 use std::{

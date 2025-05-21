@@ -31,12 +31,13 @@ use alloy::{
 use anyhow::Result;
 use ethexe_blob_loader::local::{LocalBlobLoader, LocalBlobStorage};
 use ethexe_common::{
-    db::{CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    ScheduledTask,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent};
-use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
+use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::EthereumConfig;
 use ethexe_processor::Processor;
@@ -44,7 +45,7 @@ use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
+use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -766,7 +767,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default());
+    node.db = Database::memory();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -854,7 +855,6 @@ async fn ping_deep_sync() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 }
 
-#[ignore = "xz"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn multiple_validators() {
@@ -892,6 +892,7 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
+    log::info!("❤️ code uploaded: {}", res.code_id);
     // assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
@@ -1066,24 +1067,16 @@ async fn tx_pool_gossip() {
             // referring to the latest valid block hash
             reference_block,
         };
-        let signature = env
-            .signer
-            .sign(sender_pub_key, ethexe_tx.encode().as_slice())
-            .expect("failed signing tx");
-        SignedOffchainTransaction {
-            signature: signature.encode(),
-            transaction: ethexe_tx,
-        }
+        env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
     };
+
+    let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
 
     // Send request
     log::info!("Sending tx pool request to node-1");
     let rpc_client = node0.rpc_client().expect("rpc server is set");
     let resp = rpc_client
-        .send_message(
-            signed_ethexe_tx.transaction.clone(),
-            signed_ethexe_tx.signature.clone(),
-        )
+        .send_message(transaction, signature.encode())
         .await
         .expect("failed sending request");
     assert!(resp.status().is_success());
@@ -1300,13 +1293,15 @@ mod utils {
     use crate::Event;
     use alloy::eips::BlockId;
     use ethexe_blob_loader::BlobLoaderService;
-    use ethexe_common::SimpleBlockData;
+    use ethexe_common::{
+        db::OnChainStorage,
+        ecdsa::{PrivateKey, PublicKey},
+        Address, SimpleBlockData,
+    };
     use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
-    use ethexe_db::OnChainStorage;
     use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
-    use ethexe_signer::{PrivateKey, PublicKey};
     use ethexe_tx_pool::TxPoolService;
     use futures::{executor::block_on, StreamExt};
     use gear_core::message::ReplyCode;
@@ -1457,7 +1452,7 @@ mod utils {
             let router_query = router.query();
             let router_address = router.address();
 
-            let db = Database::from_one(&MemDb::default());
+            let db = Database::memory();
 
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
@@ -1585,8 +1580,7 @@ mod utils {
                 fast_sync,
             } = config;
 
-            let db = db.unwrap_or_else(|| Database::from_one(&MemDb::default()));
-            // let db = db.unwrap_or_else(|| self.db.clone());
+            let db = db.unwrap_or_else(Database::memory);
 
             let (network_address, network_bootstrap_address) = self
                 .bootstrap_network
@@ -1685,7 +1679,7 @@ mod utils {
 
             let listener = self.observer_events_publisher().subscribe().await;
 
-            let program_address = ethexe_signer::Address::try_from(target)?;
+            let program_address = Address::try_from(target)?;
             let program = self.ethereum.mirror(program_address);
 
             let (_, message_id) = program.send_message(payload, value).await?;
@@ -1699,7 +1693,7 @@ mod utils {
         pub async fn approve_wvara(&self, program_id: ActorId) {
             log::info!("📗 Approving WVara for {program_id}");
 
-            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let program_address = Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara.approve_all(program_address.0.into()).await.unwrap();
         }
@@ -1707,7 +1701,7 @@ mod utils {
         pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
             log::info!("📗 Transferring {value} WVara to {program_id}");
 
-            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let program_address = Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara
                 .transfer(program_address.0.into(), value)

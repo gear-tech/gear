@@ -98,7 +98,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
 }
 
 pub fn set_program<ProgramStorage, BlockNumber>(
-    program_id: ProgramId,
+    program_id: ActorId,
     code: Vec<u8>,
     static_pages: WasmPagesAmount,
 ) where
