@@ -164,20 +164,15 @@ impl Service {
 
         let processor = Processor::with_config(
             ProcessorConfig {
-                worker_threads_override: config.node.worker_threads_override,
-                virtual_threads: config.node.virtual_threads,
+                chunk_processing_threads: config.node.chunk_processing_threads,
             },
             db.clone(),
         )
         .with_context(|| "failed to create processor")?;
 
-        if let Some(worker_threads) = processor.config().worker_threads_override {
-            log::info!("🔧 Overriding amount of physical threads for runtime: {worker_threads}");
-        }
-
         log::info!(
-            "🔧 Amount of virtual threads for programs processing: {}",
-            processor.config().virtual_threads
+            "🔧 Amount of chunk processing threads for programs processing: {}",
+            processor.config().chunk_processing_threads
         );
 
         let signer = Signer::fs(config.node.key_path.clone());
