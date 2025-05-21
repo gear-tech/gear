@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
-use crate::{validator::participant::Participant, ConsensusEvent, SignedProducerBlock};
+use super::{
+    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
+    ValidatorState,
+};
+use crate::{validator::participant::Participant, ConsensusEvent, SignedProducerBlock, SignedValidationRequest};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{ecdsa::SignedData, Address, SimpleBlockData};
@@ -52,10 +55,6 @@ enum State {
 }
 
 impl StateHandler for Subordinate {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -64,14 +63,32 @@ impl StateHandler for Subordinate {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
+    fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
+        match &self.state {
+            _ if computed_block == self.block.header.parent_hash => {
+                // Earlier we sent a task for parent block computation.
+                // Continue to wait for block from producer.
+                Ok(self.into())
+            }
+            State::WaitingProducerBlockComputed { block_hash } if computed_block == *block_hash => {
+                if self.is_validator {
+                    Participant::create(self.ctx, self.block, self.producer)
+                } else {
+                    Initial::create(self.ctx)
+                }
+            }
+            _ => DefaultProcessing::computed_block(self, computed_block),
+        }
+    }
+
     fn process_block_from_producer(
-        mut self: Box<Self>,
+        mut self,
         block: SignedProducerBlock,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         if self.state == State::WaitingForProducerBlock
             && block.address() == self.producer
             && block.data().block_hash == self.block.hash
@@ -90,9 +107,9 @@ impl StateHandler for Subordinate {
     }
 
     fn process_validation_request(
-        mut self: Box<Self>,
-        request: SignedData<crate::BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn StateHandler>> {
+        mut self,
+        request: SignedValidationRequest,
+    ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
             self.ctx.pending(request);
@@ -100,27 +117,6 @@ impl StateHandler for Subordinate {
             Ok(self)
         } else {
             DefaultProcessing::validation_request(self, request)
-        }
-    }
-
-    fn process_computed_block(
-        self: Box<Self>,
-        computed_block: H256,
-    ) -> Result<Box<dyn StateHandler>> {
-        match &self.state {
-            _ if computed_block == self.block.header.parent_hash => {
-                // Earlier we sent a task for parent block computation.
-                // Continue to wait for block from producer.
-                Ok(self)
-            }
-            State::WaitingProducerBlockComputed { block_hash } if computed_block == *block_hash => {
-                if self.is_validator {
-                    Participant::create(self.ctx, self.block, self.producer)
-                } else {
-                    Initial::create(self.ctx)
-                }
-            }
-            _ => DefaultProcessing::computed_block(self, computed_block),
         }
     }
 }
@@ -131,7 +127,7 @@ impl Subordinate {
         block: SimpleBlockData,
         producer: Address,
         is_validator: bool,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         let mut earlier_producer_block = None;
 
         // Search for already received producer blocks.
@@ -171,13 +167,14 @@ impl Subordinate {
             State::WaitingForProducerBlock
         };
 
-        Ok(Box::new(Self {
+        Ok(Self {
             ctx,
             producer,
             block,
             is_validator,
             state,
-        }))
+        }
+        .into())
     }
 }
 
@@ -186,10 +183,9 @@ mod tests {
     use super::*;
     use crate::{
         mock::*,
-        utils::{SignedProducerBlock, SignedValidationRequest},
-        validator::mock::mock_validator_context,
+        SignedProducerBlock, SignedValidationRequest,
+        validator::mock::*,
     };
-    use std::any::TypeId;
 
     #[test]
     fn create_empty() {
@@ -199,7 +195,7 @@ mod tests {
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
             vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
@@ -220,7 +216,7 @@ mod tests {
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
             vec![ConsensusEvent::ComputeProducerBlock(pb1.data().clone())]
@@ -246,7 +242,7 @@ mod tests {
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
             vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
@@ -274,7 +270,7 @@ mod tests {
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(s.context().output, vec![pb.data().clone().into()]);
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
     }
@@ -287,23 +283,23 @@ mod tests {
         let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
             vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
         );
 
         let s = s.process_block_from_producer(pb.clone()).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(s.context().output[1], pb.data().clone().into());
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 2);
 
         let s = s.process_computed_block(block.hash).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Participant>());
+        assert!(s.is_participant());
         assert_eq!(s.context().output.len(), 2);
     }
 
@@ -315,7 +311,7 @@ mod tests {
         let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 1);
         assert_eq!(
             s.context().output[0],
@@ -323,16 +319,16 @@ mod tests {
         );
 
         let s = s.process_block_from_producer(pb.clone()).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(s.context().output[1], pb.data().clone().into());
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Subordinate>());
+        assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 2);
 
         let s = s.process_computed_block(block.hash).unwrap();
-        assert_eq!(s.type_id(), TypeId::of::<Initial>());
+        assert!(s.is_initial());
     }
 
     #[test]

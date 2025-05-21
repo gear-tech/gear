@@ -1295,7 +1295,7 @@ fn voucher_call_decline_payer_expired_err() {
 mod utils {
     use super::*;
     use crate::BalanceOf;
-    use gear_core::ids::{MessageId, ProgramId};
+    use gear_core::ids::{ActorId, MessageId};
     use pallet_gear_voucher::{PrepaidCall, VoucherId};
 
     const DEFAULT_PAYLOAD: &[u8] = &[];
@@ -1303,7 +1303,7 @@ mod utils {
     const DEFAULT_VALUE: u128 = 0;
     const DEFAULT_KEEP_ALIVE: bool = false;
 
-    pub fn voucher_call_send(voucher_id: VoucherId, destination: ProgramId) -> RuntimeCall {
+    pub fn voucher_call_send(voucher_id: VoucherId, destination: ActorId) -> RuntimeCall {
         RuntimeCall::GearVoucher(VoucherCall::call {
             voucher_id,
             call: prepaid_send(destination),
@@ -1324,7 +1324,7 @@ mod utils {
         })
     }
 
-    pub fn prepaid_send(destination: ProgramId) -> PrepaidCall<BalanceOf<Test>> {
+    pub fn prepaid_send(destination: ActorId) -> PrepaidCall<BalanceOf<Test>> {
         PrepaidCall::SendMessage {
             destination,
             payload: DEFAULT_PAYLOAD.to_vec(),

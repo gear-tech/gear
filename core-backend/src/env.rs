@@ -31,10 +31,10 @@ use crate::{
 use alloc::{collections::BTreeSet, format, string::String};
 use core::{any::Any, fmt::Debug, marker::Send};
 use gear_core::{
-    env::Externalities,
+    env::{Externalities, WasmEntryPoint},
     gas::GasAmount,
     memory::HostPointer,
-    message::{DispatchKind, WasmEntryPoint},
+    message::DispatchKind,
     pages::WasmPagesAmount,
     str::LimitedStr,
 };

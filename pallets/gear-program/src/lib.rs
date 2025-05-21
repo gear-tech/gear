@@ -158,7 +158,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::InstrumentedCode,
-        ids::{CodeId, ProgramId},
+        ids::{ActorId, CodeId},
         memory::PageBuf,
         pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
         program::{MemoryInfix, Program},
@@ -262,24 +262,24 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type AllocationsStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, IntervalsTree<WasmPage>>;
+        StorageMap<_, Identity, ActorId, IntervalsTree<WasmPage>>;
 
     common::wrap_storage_map!(
         storage: AllocationsStorage,
         name: AllocationsStorageWrap,
-        key: ProgramId,
+        key: ActorId,
         value: IntervalsTree<WasmPage>
     );
 
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
+        StorageMap<_, Identity, ActorId, Program<BlockNumberFor<T>>>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
-        key: ProgramId,
+        key: ActorId,
         value: Program<BlockNumberFor<T>>
     );
 
@@ -288,7 +288,7 @@ pub mod pallet {
     pub(crate) type MemoryPages<T: Config> = StorageNMap<
         _,
         (
-            Key<Identity, ProgramId>,
+            Key<Identity, ActorId>,
             Key<Identity, MemoryInfix>,
             Key<Identity, GearPage>,
         ),
@@ -298,7 +298,7 @@ pub mod pallet {
     common::wrap_storage_triple_map!(
         storage: MemoryPages,
         name: MemoryPageStorageWrap,
-        key1: ProgramId,
+        key1: ActorId,
         key2: MemoryInfix,
         key3: GearPage,
         value: PageBuf
@@ -326,9 +326,9 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
-        type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
-        type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
+    impl<T: Config> IterableMap<(ActorId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ActorId, Program<BlockNumberFor<T>>)>;
+        type Iter = PrefixIterator<(ActorId, Program<BlockNumberFor<T>>)>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<T>::drain()

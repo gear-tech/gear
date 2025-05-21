@@ -31,9 +31,10 @@ use gear_common::{
     scheduler::StorageType,
 };
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    env::MessageWaitedType,
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
+    message::{Dispatch, SignalMessage, StoredDispatch},
     pages::{
         num_traits::Zero,
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
@@ -49,7 +50,7 @@ impl JournalHandler for ExtManager {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        _source: ProgramId,
+        _source: ActorId,
         outcome: DispatchOutcome,
     ) {
         match outcome {
@@ -83,7 +84,7 @@ impl JournalHandler for ExtManager {
         self.spend_burned(message_id, amount);
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId) {
         log::debug!(
             "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
         );
@@ -217,7 +218,7 @@ impl JournalHandler for ExtManager {
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     ) {
@@ -258,15 +259,11 @@ impl JournalHandler for ExtManager {
         );
     }
 
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-    ) {
+    fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
         self.update_storage_pages(&program_id, pages_data);
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
         self.update_genuine_program(program_id, |program| {
             program
                 .allocations
@@ -281,7 +278,7 @@ impl JournalHandler for ExtManager {
         .expect("no genuine program was found");
     }
 
-    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: Value, locked: bool) {
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: Value, locked: bool) {
         if value.is_zero() {
             // Nothing to do
             return;
@@ -296,9 +293,9 @@ impl JournalHandler for ExtManager {
 
     fn store_new_programs(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         code_id: CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
+        candidates: Vec<(MessageId, ActorId)>,
     ) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
@@ -347,7 +344,7 @@ impl JournalHandler for ExtManager {
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         amount: u64,
         duration: u32,
     ) {
@@ -414,10 +411,10 @@ impl JournalHandler for ExtManager {
     fn unreserve_gas(
         &mut self,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         expiration: u32,
     ) {
-        <Self as TaskHandler<ProgramId, MessageId, bool>>::remove_gas_reservation(
+        <Self as TaskHandler<ActorId, MessageId, bool>>::remove_gas_reservation(
             self,
             program_id,
             reservation_id,
@@ -434,7 +431,7 @@ impl JournalHandler for ExtManager {
             });
     }
 
-    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+    fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         let block_height = self.block_height();
         self.update_genuine_program(program_id, |program| {
             program.gas_reservation_map =
@@ -466,7 +463,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+    fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode) {
         let reserved = self
             .gas_tree
             .system_unreserve(message_id)

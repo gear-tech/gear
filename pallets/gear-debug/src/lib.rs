@@ -43,7 +43,7 @@ pub mod pallet {
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        ids::ProgramId,
+        ids::ActorId,
         memory::PageBuf,
         message::{StoredDelayedDispatch, StoredDispatch, StoredMessage},
         pages::{GearPage, WasmPagesAmount},
@@ -78,8 +78,7 @@ pub mod pallet {
             DelayedDispatch = StoredDelayedDispatch,
         >;
 
-        type ProgramStorage: ProgramStorage
-            + IterableMap<(ProgramId, Program<BlockNumberFor<Self>>)>;
+        type ProgramStorage: ProgramStorage + IterableMap<(ActorId, Program<BlockNumberFor<Self>>)>;
     }
 
     #[pallet::pallet]
@@ -140,7 +139,7 @@ pub mod pallet {
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo, Debug)]
     pub struct ProgramDetails {
-        pub id: ProgramId,
+        pub id: ActorId,
         pub state: ProgramState,
     }
 

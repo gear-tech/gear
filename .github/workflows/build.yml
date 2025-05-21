@@ -63,8 +63,8 @@ jobs:
       fail-fast: false
     name: linux (${{ matrix.profiles.name }})
     env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-Clink-arg=-fuse-ld=mold"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -74,6 +74,9 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Mold"
+        uses: rui314/setup-mold@v1
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -100,7 +103,7 @@ jobs:
 
       - name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profiles.flags == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
@@ -212,7 +215,7 @@ jobs:
       XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4

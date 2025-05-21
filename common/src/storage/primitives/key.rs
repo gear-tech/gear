@@ -25,7 +25,7 @@
 use crate::Origin;
 use core::marker::PhantomData;
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::{StoredDispatch, UserStoredMessage},
 };
 
@@ -76,9 +76,9 @@ impl KeyFor for QueueKeyGen {
 pub struct WaitlistKeyGen;
 
 // `WaitlistKeyGen` stores `StoredDispatch` under it's destination
-// `ProgramId` and `MessageId` id parameters.
+// `ActorId` and `MessageId` id parameters.
 impl KeyFor for WaitlistKeyGen {
-    type Key = (ProgramId, MessageId);
+    type Key = (ActorId, MessageId);
     type Value = StoredDispatch;
 
     fn key_for(value: &Self::Value) -> Self::Key {

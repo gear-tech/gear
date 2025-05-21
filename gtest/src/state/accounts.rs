@@ -21,9 +21,9 @@
 use std::{cell::RefCell, collections::HashMap, fmt};
 
 use crate::{default_users_list, Value, DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT};
-use gear_common::ProgramId;
+use gear_common::ActorId;
 
-fn init_default_accounts(storage: &mut HashMap<ProgramId, Balance>) {
+fn init_default_accounts(storage: &mut HashMap<ActorId, Balance>) {
     for &id in default_users_list() {
         let id = id.into();
         storage.insert(id, Balance::new(DEFAULT_USERS_INITIAL_BALANCE));
@@ -31,7 +31,7 @@ fn init_default_accounts(storage: &mut HashMap<ProgramId, Balance>) {
 }
 
 thread_local! {
-    static ACCOUNT_STORAGE: RefCell<HashMap<ProgramId, Balance>> = RefCell::new({
+    static ACCOUNT_STORAGE: RefCell<HashMap<ActorId, Balance>> = RefCell::new({
         let mut storage = HashMap::new();
         init_default_accounts(&mut storage);
         storage
@@ -75,12 +75,12 @@ pub(crate) struct Accounts;
 
 impl Accounts {
     // Checks if account by program id exists.
-    pub(crate) fn exists(id: ProgramId) -> bool {
+    pub(crate) fn exists(id: ActorId) -> bool {
         Self::balance(id) != 0
     }
 
     // Returns account balance.
-    pub(crate) fn balance(id: ProgramId) -> Value {
+    pub(crate) fn balance(id: ActorId) -> Value {
         ACCOUNT_STORAGE.with_borrow(|storage| {
             storage
                 .get(&id)
@@ -90,7 +90,7 @@ impl Accounts {
     }
 
     // Returns account reducible balance.
-    pub(crate) fn reducible_balance(id: ProgramId) -> Value {
+    pub(crate) fn reducible_balance(id: ActorId) -> Value {
         ACCOUNT_STORAGE.with_borrow(|storage| {
             storage
                 .get(&id)
@@ -100,7 +100,7 @@ impl Accounts {
     }
 
     // Decreases account balance.
-    pub(crate) fn decrease(id: ProgramId, amount: Value, keep_alive: bool) {
+    pub(crate) fn decrease(id: ActorId, amount: Value, keep_alive: bool) {
         ACCOUNT_STORAGE.with_borrow_mut(|storage| {
             if let Some(balance) = storage.get_mut(&id) {
                 if keep_alive && balance.reducible_balance() < amount {
@@ -131,7 +131,7 @@ impl Accounts {
     }
 
     // Increases account balance.
-    pub(crate) fn increase(id: ProgramId, amount: Value) {
+    pub(crate) fn increase(id: ActorId, amount: Value) {
         ACCOUNT_STORAGE.with_borrow_mut(|storage| {
             let balance = storage.get(&id).map(Balance::balance).unwrap_or_default();
 
@@ -153,13 +153,13 @@ impl Accounts {
     }
 
     // Transfers value between accounts.
-    pub(crate) fn transfer(from: ProgramId, to: ProgramId, amount: Value, keep_alive: bool) {
+    pub(crate) fn transfer(from: ActorId, to: ActorId, amount: Value, keep_alive: bool) {
         Self::decrease(from, amount, keep_alive);
         Self::increase(to, amount);
     }
 
     // Overrides account balance.
-    pub(crate) fn override_balance(id: ProgramId, amount: Value) {
+    pub(crate) fn override_balance(id: ActorId, amount: Value) {
         if amount < EXISTENTIAL_DEPOSIT {
             panic!(
                 "Failed to override balance: the amount {amount} cannot be lower than the existential deposit"
@@ -172,7 +172,7 @@ impl Accounts {
     }
 
     // Checks if value can be deposited to account.
-    pub(crate) fn can_deposit(id: ProgramId, amount: Value) -> bool {
+    pub(crate) fn can_deposit(id: ActorId, amount: Value) -> bool {
         Accounts::balance(id) + amount >= EXISTENTIAL_DEPOSIT
     }
 

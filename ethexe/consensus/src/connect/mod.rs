@@ -88,11 +88,14 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
+    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
         Ok(())
     }
 
-    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
+    fn receive_block_from_producer(
+        &mut self,
+        _block_hash: SignedProducerBlock,
+    ) -> Result<()> {
         Ok(())
     }
 

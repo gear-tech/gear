@@ -68,7 +68,7 @@ use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     code::{CodeAndId, InstrumentedCode},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     message::{DispatchKind, SignalMessage},
     pages::WasmPagesAmount,
     program::{ActiveProgram, Program, ProgramState},
@@ -91,7 +91,7 @@ use sp_std::{
 pub enum HandleKind {
     Init(Vec<u8>),
     InitByHash(CodeId),
-    Handle(ProgramId),
+    Handle(ActorId),
     Reply(MessageId, ReplyCode),
     Signal(MessageId, SignalCode),
 }
@@ -136,13 +136,13 @@ impl CodeInfo {
 /// Journal handler implementation for `pallet_gear`.
 pub struct ExtManager<T: Config> {
     /// Ids checked that they are users.
-    users: BTreeSet<ProgramId>,
+    users: BTreeSet<ActorId>,
     /// Ids checked that they are programs.
-    programs: BTreeSet<ProgramId>,
+    programs: BTreeSet<ActorId>,
     /// Messages dispatches.
     dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
-    state_changes: BTreeSet<ProgramId>,
+    state_changes: BTreeSet<ActorId>,
     /// Builtin programs.
     builtins: <T::BuiltinDispatcherFactory as BuiltinDispatcherFactory>::Output,
     /// Phantom data for generic usage.
@@ -154,7 +154,7 @@ pub struct QueuePostProcessingData {
     /// Message dispatches results.
     pub dispatch_statuses: BTreeMap<MessageId, DispatchStatus>,
     /// Programs, which state changed.
-    pub state_changes: BTreeSet<ProgramId>,
+    pub state_changes: BTreeSet<ActorId>,
 }
 
 impl<T: Config> From<ExtManager<T>> for QueuePostProcessingData {
@@ -188,7 +188,7 @@ where
     }
 
     /// Check if id is program and save result.
-    pub fn check_program_id(&mut self, id: &ProgramId) -> bool {
+    pub fn check_program_id(&mut self, id: &ActorId) -> bool {
         // TODO: research how much need to charge for `program_exists` query.
         if self.programs.contains(id) {
             true
@@ -204,13 +204,13 @@ where
     }
 
     /// Check if id is user and save result.
-    pub fn check_user_id(&mut self, id: &ProgramId) -> bool {
+    pub fn check_user_id(&mut self, id: &ActorId) -> bool {
         !self.check_program_id(id)
     }
 
     pub fn set_program(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         code_info: &CodeInfo,
         message_id: MessageId,
         expiration_block: BlockNumberFor<T>,
@@ -257,7 +257,7 @@ where
     }
 
     pub fn remove_gas_reservation_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         reservation_id: ReservationId,
     ) -> GasReservationSlot {
         let slot = ProgramStorageOf::<T>::update_active_program(program_id, |p| {
@@ -288,7 +288,7 @@ where
     }
 
     fn remove_gas_reservation_map(
-        program_id: ProgramId,
+        program_id: ActorId,
         gas_reservation_map: BTreeMap<ReservationId, GasReservationSlot>,
     ) {
         for (reservation_id, slot) in gas_reservation_map {
@@ -305,7 +305,7 @@ where
         }
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+    fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode) {
         let reserved = GasHandlerOf::<T>::system_unreserve(message_id).unwrap_or_else(|e| {
             let err_msg = format!(
                 "ExtManager::send_signal: failed system unreserve. \
@@ -351,9 +351,9 @@ where
 
     /// Removes reservation map and memory pages of the program
     fn clean_inactive_program(
-        program_id: ProgramId,
+        program_id: ActorId,
         program: &mut ActiveProgram<BlockNumberFor<T>>,
-        value_destination: ProgramId,
+        value_destination: ActorId,
     ) {
         Self::remove_gas_reservation_map(program_id, mem::take(&mut program.gas_reservation_map));
 
@@ -392,7 +392,7 @@ where
     }
 
     /// Removes all messages to `program_id` from the waitlist.
-    fn clean_waitlist(program_id: ProgramId) {
+    fn clean_waitlist(program_id: ActorId) {
         let reason = MessageWokenSystemReason::ProgramGotInitialized.into_reason();
 
         WaitlistOf::<T>::drain_key(program_id).for_each(|entry| {
@@ -403,7 +403,7 @@ where
         });
     }
 
-    fn process_failed_init(program_id: ProgramId, origin: ProgramId) {
+    fn process_failed_init(program_id: ActorId, origin: ActorId) {
         // Some messages addressed to the program could be processed
         // in the queue before init message. For example, that could
         // happen when init message had more gas limit then rest block

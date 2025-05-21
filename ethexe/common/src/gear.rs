@@ -147,12 +147,12 @@ impl ToDigest for StakerRewardsCommitment {
         distribution
             .iter()
             .for_each(|StakerRewards { vault, amount }| {
-                hasher.update(vault.0);
+                hasher.update(vault);
                 hasher.update(<[u8; 32]>::from(*amount));
             });
 
         hasher.update(<[u8; 32]>::from(*total_amount));
-        hasher.update(token.0);
+        hasher.update(token);
     }
 }
 

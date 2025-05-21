@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
     message::{
-        DispatchKind, GasLimit, Payload, StoredDelayedDispatch, StoredDispatch, StoredMessage,
-        Value,
+        DispatchKind, GasLimit, StoredDelayedDispatch, StoredDispatch, StoredMessage, Value,
     },
 };
 use core::ops::Deref;
@@ -37,9 +37,9 @@ pub struct Message {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message optional gas limit.
@@ -67,8 +67,8 @@ impl Message {
     /// Create new message.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         gas_limit: Option<GasLimit>,
         value: Value,
@@ -90,8 +90,8 @@ impl Message {
         self,
     ) -> (
         MessageId,
-        ProgramId,
-        ProgramId,
+        ActorId,
+        ActorId,
         Payload,
         Option<GasLimit>,
         Value,
@@ -119,12 +119,12 @@ impl Message {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 

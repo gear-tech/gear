@@ -24,11 +24,11 @@ use alloc::vec::Vec;
 use core_processor::{common::JournalNote, configs::BlockInfo};
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::{process_next_message, state::Storage, RuntimeInterface};
-use gear_core::{code::InstrumentedCode, ids::ProgramId};
+use gear_core::{code::InstrumentedCode, ids::ActorId};
 use gprimitives::{CodeId, H256};
 
 pub fn run(
-    program_id: ProgramId,
+    program_id: ActorId,
     original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,

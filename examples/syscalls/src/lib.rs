@@ -57,7 +57,7 @@ pub enum Kind {
     // Expected(message id)
     MessageId(MessageId),
     // Expected(program id)
-    ProgramId(ActorId),
+    ActorId(ActorId),
     // Expected(message sender)
     Source(ActorId),
     // Expected(message value)

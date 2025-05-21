@@ -36,11 +36,10 @@ use core::{
 use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, ProgramId},
+    buffer::Payload,
+    ids::prelude::MessageIdExt as _,
     memory::PageBuf,
-    message::{
-        ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, StoredDispatch, Value,
-    },
+    message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
 };
@@ -548,7 +547,7 @@ pub struct Dispatch {
     /// Dispatch kind.
     pub kind: DispatchKind,
     /// Message source.
-    pub source: ProgramId,
+    pub source: ActorId,
     /// Message payload.
     pub payload: PayloadLookup,
     /// Message value.

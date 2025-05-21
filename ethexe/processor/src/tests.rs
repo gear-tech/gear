@@ -23,7 +23,7 @@ use ethexe_common::{
     BlockHeader,
 };
 use ethexe_runtime_common::ScheduleRestorer;
-use gear_core::ids::{prelude::CodeIdExt, ProgramId};
+use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use utils::*;
@@ -234,7 +234,7 @@ fn ping_pong() {
     let ch0 = init_new_block_from_parent(&mut processor, parent);
 
     let user_id = ActorId::from(10);
-    let actor_id = ProgramId::from(0x10000);
+    let actor_id = ActorId::from(0x10000);
 
     let code_id = processor
         .handle_new_code(demo_ping::WASM_BINARY)
@@ -311,8 +311,8 @@ fn async_and_ping() {
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
 
-    let ping_id = ProgramId::from(0x10000000);
-    let async_id = ProgramId::from(0x20000000);
+    let ping_id = ActorId::from(0x10000000);
+    let async_id = ActorId::from(0x20000000);
 
     let ping_code_id = processor
         .handle_new_code(demo_ping::WASM_BINARY)
@@ -457,7 +457,7 @@ fn many_waits() {
 
     let amount = 10000;
     for i in 0..amount {
-        let program_id = ProgramId::from(i);
+        let program_id = ActorId::from(i);
 
         handler
             .handle_router_event(RouterRequestEvent::ProgramCreated {

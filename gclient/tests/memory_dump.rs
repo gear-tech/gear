@@ -20,12 +20,12 @@ use std::{collections::BTreeSet, ops::Deref};
 
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventListener, EventProcessor, GearApi, Result};
-use gear_core::{ids::ProgramId, pages::GearPage};
+use gear_core::{ids::ActorId, pages::GearPage};
 use parity_scale_codec::Encode;
 
 async fn charge_10(
     api: &GearApi,
-    program_id: ProgramId,
+    program_id: ActorId,
     listener: &mut EventListener,
 ) -> Result<String> {
     let payload = b"10".to_vec();

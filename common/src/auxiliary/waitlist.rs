@@ -22,7 +22,7 @@ use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
 use crate::storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen};
 use core::cell::RefCell;
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::StoredDispatch,
 };
 
@@ -41,14 +41,14 @@ pub type WaitlistedMessage = StoredDispatch;
 
 std::thread_local! {
     // Definition of the waitlist (`StorageDoubleMap`) global storage, accessed by the `Waitlist` trait implementor.
-    pub(crate) static WAITLIST_STORAGE: RefCell<DoubleBTreeMap<ProgramId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
+    pub(crate) static WAITLIST_STORAGE: RefCell<DoubleBTreeMap<ActorId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
 }
 
 /// `Waitlist` double storage map manager.
 pub struct WaitlistStorageWrap;
 
 impl AuxiliaryDoubleStorageWrap for WaitlistStorageWrap {
-    type Key1 = ProgramId;
+    type Key1 = ActorId;
     type Key2 = MessageId;
     type Value = (WaitlistedMessage, Interval<BlockNumber>);
 

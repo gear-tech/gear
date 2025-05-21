@@ -44,9 +44,6 @@ pub fn hash_of_array<T: AsRef<[u8]>, const N: usize>(array: [T; N]) -> [u8; 32] 
     ctx.finalize().into()
 }
 
-/// Program identifier.
-pub type ProgramId = ActorId;
-
 pub mod prelude {
     //! The purpose of this module is to make it easier to import `gprimitives` extensions.
     use super::*;
@@ -91,11 +88,7 @@ pub mod prelude {
     /// Message identifier extension.
     pub trait MessageIdExt: private::Sealed {
         /// Generates `MessageId` for non-program outgoing message.
-        fn generate_from_user(
-            block_number: u32,
-            user_id: ProgramId,
-            local_nonce: u128,
-        ) -> MessageId;
+        fn generate_from_user(block_number: u32, user_id: ActorId, local_nonce: u128) -> MessageId;
 
         /// Generates `MessageId` for program outgoing message.
         fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId;
@@ -111,11 +104,7 @@ pub mod prelude {
     }
 
     impl MessageIdExt for MessageId {
-        fn generate_from_user(
-            block_number: u32,
-            user_id: ProgramId,
-            local_nonce: u128,
-        ) -> MessageId {
+        fn generate_from_user(block_number: u32, user_id: ActorId, local_nonce: u128) -> MessageId {
             const SALT: &[u8] = b"external";
             hash_of_array([
                 SALT,

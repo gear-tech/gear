@@ -23,8 +23,9 @@ use crate::{
 };
 use core_processor::configs::BlockInfo;
 use gear_core::{
-    ids::{MessageId, ProgramId},
-    message::{Payload, StoredMessage, UserStoredMessage},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
+    message::{StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use parity_scale_codec::{Codec, Encode};
@@ -39,8 +40,8 @@ use std::{
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
     id: MessageId,
-    source: ProgramId,
-    destination: ProgramId,
+    source: ActorId,
+    destination: ActorId,
     payload: Payload,
     reply_code: Option<ReplyCode>,
     reply_to: Option<MessageId>,
@@ -53,12 +54,12 @@ impl CoreLog {
     }
 
     /// Get the source of the message that emitted this log.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Get the destination of the message that emitted this log.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -102,8 +103,8 @@ impl From<StoredMessage> for CoreLog {
 #[derive(Debug)]
 pub struct DecodedCoreLog<T: Codec + Debug> {
     id: MessageId,
-    source: ProgramId,
-    destination: ProgramId,
+    source: ActorId,
+    destination: ActorId,
     payload: T,
     reply_code: Option<ReplyCode>,
     reply_to: Option<MessageId>,
@@ -127,11 +128,11 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
         self.id
     }
 
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -184,8 +185,8 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {
-    pub(crate) source: Option<ProgramId>,
-    pub(crate) destination: Option<ProgramId>,
+    pub(crate) source: Option<ActorId>,
+    pub(crate) destination: Option<ActorId>,
     pub(crate) payload: Option<Payload>,
     pub(crate) reply_code: Option<ReplyCode>,
     pub(crate) reply_to: Option<MessageId>,

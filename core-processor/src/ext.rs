@@ -31,7 +31,7 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -82,10 +82,10 @@ pub struct ProcessorContext {
     /// Performance multiplier.
     pub performance_multiplier: gsys::Percent,
     /// Current program id
-    pub program_id: ProgramId,
+    pub program_id: ActorId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ActorId)>>,
     /// Functions forbidden to be called.
     pub forbidden_funcs: BTreeSet<SyscallName>,
     /// Reserve for parameter of scheduling.
@@ -156,7 +156,7 @@ pub struct ExtInfo {
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
     pub awakening: Vec<(MessageId, u32)>,
     pub reply_deposits: Vec<(MessageId, u64)>,
-    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ActorId)>>,
     pub context_store: ContextStore,
     pub reply_sent: bool,
 }
@@ -178,7 +178,7 @@ pub trait ProcessorExternalities {
     fn lazy_pages_init_for_program<Context>(
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,
-        prog_id: ProgramId,
+        prog_id: ActorId,
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
@@ -631,7 +631,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
     fn lazy_pages_init_for_program<Context>(
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,
-        prog_id: ProgramId,
+        prog_id: ActorId,
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
@@ -719,8 +719,8 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         Ok(())
     }
 
-    fn check_forbidden_destination(&self, id: ProgramId) -> Result<(), FallibleExtError> {
-        if id == ProgramId::SYSTEM {
+    fn check_forbidden_destination(&self, id: ActorId) -> Result<(), FallibleExtError> {
+        if id == ActorId::SYSTEM {
             Err(FallibleExtError::ForbiddenFunction)
         } else {
             Ok(())
@@ -1102,7 +1102,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         })
     }
 
-    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
+    fn source(&self) -> Result<ActorId, Self::UnrecoverableError> {
         Ok(self.context.message_context.current().source())
     }
 
@@ -1128,7 +1128,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         Ok(self.context.message_context.current().id())
     }
 
-    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
+    fn program_id(&self) -> Result<ActorId, Self::UnrecoverableError> {
         Ok(self.context.program_id)
     }
 
@@ -1361,7 +1361,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::FallibleError> {
+    ) -> Result<(MessageId, ActorId), Self::FallibleError> {
         let ed = self.context.existential_deposit;
         self.with_changes(|mutator| {
             // We don't check for forbidden destination here, since dest is always unique
@@ -1431,14 +1431,15 @@ mod tests {
     use super::*;
     use alloc::vec;
     use gear_core::{
+        buffer::{Payload, MAX_PAYLOAD_SIZE},
         costs::{CostOf, RentCosts, SyscallCosts},
-        message::{ContextSettings, IncomingDispatch, Payload, MAX_PAYLOAD_SIZE},
+        message::{ContextSettings, IncomingDispatch},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
     struct MessageContextBuilder {
         incoming_dispatch: IncomingDispatch,
-        program_id: ProgramId,
+        program_id: ActorId,
         context_settings: ContextSettings,
     }
 
@@ -2218,7 +2219,7 @@ mod tests {
                 .build(),
         );
 
-        let data = HandlePacket::new(ProgramId::default(), Payload::default(), 1000);
+        let data = HandlePacket::new(ActorId::default(), Payload::default(), 1000);
 
         let handle = ext.send_init().expect("No outgoing limit");
 
@@ -2247,7 +2248,7 @@ mod tests {
         let msg = ext.send_commit(handle, data.clone(), 0);
         assert!(msg.is_ok());
 
-        let data = HandlePacket::new(ProgramId::default(), Payload::default(), 100);
+        let data = HandlePacket::new(ActorId::default(), Payload::default(), 100);
         let handle = ext.send_init().expect("No outgoing limit");
         let msg = ext.send_commit(handle, data, 0);
         // Sending value below ED is also fine

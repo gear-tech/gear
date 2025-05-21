@@ -19,7 +19,7 @@
 //! `gtest` bank
 
 use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
-use gear_common::{Gas, GasMultiplier, ProgramId};
+use gear_common::{ActorId, Gas, GasMultiplier};
 use std::collections::HashMap;
 
 #[derive(Default, Debug)]
@@ -31,13 +31,13 @@ struct BankBalance {
 /// `gtest` bank.
 #[derive(Default, Debug)]
 pub(crate) struct Bank {
-    accounts: HashMap<ProgramId, BankBalance>,
+    accounts: HashMap<ActorId, BankBalance>,
 }
 
 impl Bank {
     // Create a new bank.
 
-    pub(crate) fn deposit_value(&mut self, id: ProgramId, value: Value, keep_alive: bool) {
+    pub(crate) fn deposit_value(&mut self, id: ActorId, value: Value, keep_alive: bool) {
         Accounts::decrease(id, value, keep_alive);
         self.accounts
             .entry(id)
@@ -46,7 +46,7 @@ impl Bank {
     }
 
     // Deposit gas.
-    pub(crate) fn deposit_gas(&mut self, id: ProgramId, gas: Gas, keep_alive: bool) {
+    pub(crate) fn deposit_gas(&mut self, id: ActorId, gas: Gas, keep_alive: bool) {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas);
         Accounts::decrease(id, gas_value, keep_alive);
         self.accounts
@@ -58,7 +58,7 @@ impl Bank {
     // Withdraw gas.
     pub(crate) fn spend_gas(
         &mut self,
-        id: ProgramId,
+        id: ActorId,
         gas: Gas,
         multiplier: GasMultiplier<Value, Gas>,
     ) {
@@ -72,7 +72,7 @@ impl Bank {
     // Withdraw gas.
     pub(crate) fn withdraw_gas(
         &mut self,
-        id: ProgramId,
+        id: ActorId,
         gas_left: Gas,
         multiplier: GasMultiplier<Value, Gas>,
     ) {
@@ -92,7 +92,7 @@ impl Bank {
     }
 
     // Transfer value.
-    pub(crate) fn transfer_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
+    pub(crate) fn transfer_value(&mut self, from: ActorId, to: ActorId, value: Value) {
         if value == 0 {
             return;
         }
@@ -112,7 +112,7 @@ impl Bank {
     }
 
     // Transfer locked value.
-    pub(crate) fn transfer_locked_value(&mut self, from: ProgramId, to: ProgramId, value: Value) {
+    pub(crate) fn transfer_locked_value(&mut self, from: ActorId, to: ActorId, value: Value) {
         if value == 0 {
             return;
         }
