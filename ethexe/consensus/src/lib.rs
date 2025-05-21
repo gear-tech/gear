@@ -44,9 +44,8 @@ pub use utils::{
     SignedValidationRequest,
 };
 pub use validator::{ValidatorConfig, ValidatorService};
-
 use anyhow::Result;
-use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
+use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
@@ -70,10 +69,7 @@ pub trait ConsensusService:
     fn receive_block_from_producer(&mut self, block: SignedProducerBlock) -> Result<()>;
 
     /// Process a received validation request
-    fn receive_validation_request(
-        &mut self,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<()>;
+    fn receive_validation_request(&mut self, request: SignedValidationRequest) -> Result<()>;
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;

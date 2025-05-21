@@ -69,7 +69,8 @@ impl StateHandler for Producer {
     }
 
     fn process_computed_block(mut self, computed_block: H256) -> Result<ValidatorState> {
-        if !matches!(&self.state, State::WaitingBlockComputed if self.block.hash == computed_block) {
+        if !matches!(&self.state, State::WaitingBlockComputed if self.block.hash == computed_block)
+        {
             self.warning(format!("unexpected computed block {computed_block}"));
 
             return Ok(self.into());
@@ -217,11 +218,7 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        mock::*,
-        validator::{mock::*, submitter::Submitter},
-        SignedValidationRequest,
-    };
+    use crate::{mock::*, validator::mock::*, SignedValidationRequest};
     use ethexe_common::ToDigest;
     use std::vec;
 

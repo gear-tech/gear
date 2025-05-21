@@ -21,12 +21,12 @@ use super::{
     ValidatorState,
 };
 use crate::{
-    utils::{self, BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ConsensusEvent,
+    utils, BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
+    SignedValidationRequest,
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{db::BlockMetaStorage, ecdsa::SignedData, Address, SimpleBlockData, ToDigest};
+use ethexe_common::{db::BlockMetaStorage, Address, SimpleBlockData, ToDigest};
 use std::collections::HashSet;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -56,7 +56,7 @@ impl StateHandler for Participant {
 
     fn process_validation_request(
         self,
-        request: SignedData<BatchCommitmentValidationRequest>,
+        request: SignedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
@@ -206,7 +206,6 @@ mod tests {
         validator::mock::*,
     };
     use gprimitives::H256;
-    use std::any::TypeId;
 
     #[test]
     fn create() {

@@ -20,10 +20,13 @@ use super::{
     initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
     ValidatorState,
 };
-use crate::{validator::participant::Participant, ConsensusEvent, SignedProducerBlock, SignedValidationRequest};
+use crate::{
+    validator::participant::Participant, ConsensusEvent, SignedProducerBlock,
+    SignedValidationRequest,
+};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{ecdsa::SignedData, Address, SimpleBlockData};
+use ethexe_common::{Address, SimpleBlockData};
 use gprimitives::H256;
 use std::mem;
 
@@ -85,10 +88,7 @@ impl StateHandler for Subordinate {
         }
     }
 
-    fn process_block_from_producer(
-        mut self,
-        block: SignedProducerBlock,
-    ) -> Result<ValidatorState> {
+    fn process_block_from_producer(mut self, block: SignedProducerBlock) -> Result<ValidatorState> {
         if self.state == State::WaitingForProducerBlock
             && block.address() == self.producer
             && block.data().block_hash == self.block.hash
@@ -100,7 +100,7 @@ impl StateHandler for Subordinate {
 
             self.state = State::WaitingProducerBlockComputed { block_hash };
 
-            Ok(self)
+            Ok(self.into())
         } else {
             DefaultProcessing::block_from_producer(self, block)
         }
@@ -114,7 +114,7 @@ impl StateHandler for Subordinate {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
             self.ctx.pending(request);
 
-            Ok(self)
+            Ok(self.into())
         } else {
             DefaultProcessing::validation_request(self, request)
         }
@@ -181,11 +181,7 @@ impl Subordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        mock::*,
-        SignedProducerBlock, SignedValidationRequest,
-        validator::mock::*,
-    };
+    use crate::{mock::*, validator::mock::*, SignedProducerBlock, SignedValidationRequest};
 
     #[test]
     fn create_empty() {

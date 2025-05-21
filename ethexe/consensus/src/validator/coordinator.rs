@@ -18,8 +18,8 @@
 
 use super::{submitter::Submitter, StateHandler, ValidatorContext, ValidatorState};
 use crate::{
-    utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
-    BatchCommitmentValidationReply, ConsensusEvent,
+    utils::MultisignedBatchCommitment, BatchCommitmentValidationReply,
+    BatchCommitmentValidationRequest, ConsensusEvent,
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
