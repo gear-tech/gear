@@ -23,6 +23,7 @@ use crate::{
     signal::{ExceptionInfo, UserSignalHandler},
 };
 use std::io;
+use wasmer_vm::on_host_stack;
 use winapi::{
     shared::ntdef::LONG,
     um::{
@@ -36,49 +37,52 @@ unsafe extern "system" fn exception_handler<H>(exception_info: *mut EXCEPTION_PO
 where
     H: UserSignalHandler,
 {
-    let exception_record = (*exception_info).ExceptionRecord;
+    on_host_stack(|| {
+        let exception_record = unsafe { *exception_info }.ExceptionRecord;
 
-    let is_access_violation = (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION;
-    let num_params = (*exception_record).NumberParameters;
-    if !is_access_violation || num_params != 2 {
-        log::trace!(
-            "Skip exception in handler: is access violation: {}, parameters: {}",
-            is_access_violation,
-            num_params
-        );
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
-
-    let addr = (*exception_record).ExceptionInformation[1];
-    let is_write = match (*exception_record).ExceptionInformation[0] {
-        0 /* read */ => Some(false),
-        1 /* write */ => Some(true),
-        // we work with WASM memory which is handled by WASM executor
-        // (e.g. it reads and writes, but doesn't execute as native code)
-        // that's why the case is impossible
-        8 /* DEP */ => {
-            let err_msg = "exception_handler: data execution prevention.";
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        }
-        // existence of other values is undocumented and I expect they should be treated as reserved
-        _ => None,
-    };
-    let info = ExceptionInfo {
-        fault_addr: addr as *mut _,
-        is_write,
-    };
-
-    if let Err(err) = H::handle(info) {
-        if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet = err {
+        let is_access_violation =
+            unsafe { *exception_record }.ExceptionCode == EXCEPTION_ACCESS_VIOLATION;
+        let num_params = unsafe { *exception_record }.NumberParameters;
+        if !is_access_violation || num_params != 2 {
+            log::trace!(
+                "Skip exception in handler: is access violation: {}, parameters: {}",
+                is_access_violation,
+                num_params
+            );
             return EXCEPTION_CONTINUE_SEARCH;
-        } else {
-            panic!("Signal handler failed: {}", err);
         }
-    }
 
-    EXCEPTION_CONTINUE_EXECUTION
+        let addr = unsafe { *exception_record }.ExceptionInformation[1];
+        let is_write = match unsafe { *exception_record }.ExceptionInformation[0] {
+            0 /* read */ => Some(false),
+            1 /* write */ => Some(true),
+            // we work with WASM memory which is handled by WASM executor
+            // (e.g. it reads and writes, but doesn't execute as native code)
+            // that's why the case is impossible
+            8 /* DEP */ => {
+                let err_msg = "exception_handler: data execution prevention.";
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}")
+            }
+            // existence of other values is undocumented and I expect they should be treated as reserved
+            _ => None,
+        };
+        let info = ExceptionInfo {
+            fault_addr: addr as *mut _,
+            is_write,
+        };
+
+        if let Err(err) = unsafe { H::handle(info) } {
+            if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet = err {
+                return EXCEPTION_CONTINUE_SEARCH;
+            } else {
+                panic!("Signal handler failed: {}", err);
+            }
+        }
+
+        EXCEPTION_CONTINUE_EXECUTION
+    })
 }
 
 pub(crate) unsafe fn init_for_thread() -> Result<(), String> {
@@ -91,7 +95,8 @@ where
 {
     const CALL_FIRST: bool = true;
 
-    let handle = AddVectoredExceptionHandler(CALL_FIRST as _, Some(exception_handler::<H>));
+    let handle =
+        unsafe { AddVectoredExceptionHandler(CALL_FIRST as _, Some(exception_handler::<H>)) };
     if handle.is_null() {
         Err(io::Error::last_os_error())
     } else {
