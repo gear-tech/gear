@@ -100,7 +100,7 @@ pub fn process_next_message<S, RI>(
     instrumented_code: Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
-) -> (Vec<JournalNote>, Option<Origin>)
+) -> (Vec<JournalNote>, Option<Origin>, Option<bool>)
 where
     S: Storage,
     RI: RuntimeInterface<S>,
@@ -117,7 +117,7 @@ where
     });
 
     if queue.is_empty() {
-        return (Vec::new(), None);
+        return (Vec::new(), None, None);
     }
 
     // TODO: must be set by some runtime configuration
@@ -164,6 +164,7 @@ where
 
     let dispatch = queue.dequeue().unwrap();
     let origin = dispatch.origin;
+    let call_reply = dispatch.call;
 
     let journal = process_dispatch(
         dispatch,
@@ -175,7 +176,7 @@ where
         ri,
     );
 
-    (journal, origin.into())
+    (journal, origin.into(), call_reply.into())
 }
 
 fn process_dispatch<S, RI>(

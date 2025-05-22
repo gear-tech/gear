@@ -109,6 +109,7 @@ pub fn mock_state_transition() -> StateTransition {
     StateTransition {
         actor_id: H256::random().into(),
         new_state_hash: H256::random(),
+        exited: true,
         inheritor: H256::random().into(),
         value_to_receive: 123,
         value_claims: vec![],
@@ -118,6 +119,7 @@ pub fn mock_state_transition() -> StateTransition {
             payload: b"Hello, World!".to_vec(),
             value: 0,
             reply_details: None,
+            call: false,
         }],
     }
 }

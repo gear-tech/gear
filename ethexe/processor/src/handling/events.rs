@@ -78,6 +78,7 @@ impl ProcessingHandler {
                 source,
                 payload,
                 value,
+                call_reply,
             } => {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
@@ -90,6 +91,7 @@ impl ProcessingHandler {
                         value,
                         is_init,
                         Origin::Ethereum,
+                        call_reply,
                     )?;
 
                     state
@@ -140,6 +142,7 @@ impl ProcessingHandler {
                         payload,
                         value,
                         Origin::Ethereum,
+                        false,
                     )?;
 
                     state
@@ -185,6 +188,7 @@ impl ProcessingHandler {
                         0,
                         SuccessReplyReason::Auto,
                         Origin::Ethereum,
+                        false,
                     );
 
                     state

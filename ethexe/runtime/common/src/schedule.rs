@@ -48,6 +48,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     0,
                     SuccessReplyReason::Auto,
                     origin,
+                    false,
                 );
 
                 state
@@ -319,6 +320,7 @@ mod tests {
             0xffffff,
             SuccessReplyReason::Auto,
             Origin::Ethereum,
+            false,
         );
 
         let mut waitlist = Waitlist::default();
@@ -392,6 +394,7 @@ mod tests {
             0xffffff,
             SuccessReplyReason::Auto,
             Origin::Ethereum,
+            false,
         );
 
         let user_id = ActorId::from(2);
@@ -402,6 +405,7 @@ mod tests {
             0xbbbbbb,
             SuccessReplyReason::Auto,
             Origin::Ethereum,
+            false,
         );
 
         let mut stash = DispatchStash::default();

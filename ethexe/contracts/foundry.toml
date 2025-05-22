@@ -14,9 +14,14 @@ build_info = true
 extra_output = ["storageLayout"]
 # Some warnings should be omitted
 ignored_warnings_from = [
-    # Warning (3628): This contract has a payable fallback function, but no receive ether function
+    # Warning (3628): This contract has a payable fallback function, but no receive ether function.
     "src/Mirror.sol",
     "src/MirrorProxy.sol",
+    # Warning (5740): Unreachable code.
+    "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol",
+    "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol",
+    # Warning (2018): Function state mutability can be restricted to pure.
+    "lib/symbiotic-core/src/contracts/vault/Vault.sol",
 ]
 # Enable new EVM codegen
 via_ir = true
