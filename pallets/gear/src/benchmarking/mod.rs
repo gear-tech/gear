@@ -58,8 +58,8 @@ use crate::{
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
     BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramChangeKind, ProgramStorageOf,
-    QueueOf, Schedule, TaskPoolOf,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
@@ -216,15 +216,16 @@ where
         .find_map(mapping_filter)
 }
 
-pub fn find_latest_actor_id_created<T: Config>() -> ActorId {
-    find_latest_event::<T, _, _>(|event| match event {
-        Event::ProgramChanged {
-            id,
-            change: ProgramChangeKind::Active { .. },
-        } => Some(id),
-        _ => None,
-    })
-    .expect("program should be created")
+#[track_caller]
+pub fn queue_tail_init_destination<T: Config>() -> ActorId {
+    let tail_message = QueueOf::<T>::iter()
+        .last()
+        .expect("Queue should not be empty")
+        .expect("Queue head should be present");
+
+    assert_eq!(tail_message.kind(), DispatchKind::Init);
+
+    tail_message.destination()
 }
 
 /// An instantiated and deployed program.
@@ -272,16 +273,15 @@ where
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
 
-        Gear::<T>::upload_program_raw(
+        let addr = Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
             module.code,
             salt,
             data,
             250_000_000_000,
             value,
-        )?;
-
-        let addr = find_latest_actor_id_created::<T>().into_origin();
+        )?
+        .into_origin();
 
         process_queue::<T>();
 

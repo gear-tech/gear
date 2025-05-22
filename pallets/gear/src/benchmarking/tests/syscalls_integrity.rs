@@ -67,7 +67,7 @@ where
     )
     .expect("Failed to upload read_big_state binary");
 
-    let pid = super::find_latest_actor_id_created::<T>();
+    let pid = super::queue_tail_init_destination::<T>();
     utils::run_to_next_block::<T>(None);
 
     let string = String::from("hi").repeat(4095);
@@ -162,7 +162,7 @@ where
         false,
     ));
 
-    let pid = super::find_latest_actor_id_created::<T>();
+    let pid = super::queue_tail_init_destination::<T>();
     utils::run_to_next_block::<T>(None);
 
     // Ensure that program is uploaded and initialized correctly
@@ -460,7 +460,7 @@ where
     )
     .expect("failed to upload test program");
 
-    let pid = super::find_latest_actor_id_created::<T>();
+    let pid = super::queue_tail_init_destination::<T>();
     utils::run_to_next_block::<T>(None);
 
     // no errors occurred
@@ -1075,7 +1075,7 @@ where
     )
     .expect("child program deploy failed");
 
-    let child_pid = super::find_latest_actor_id_created::<T>();
+    let child_pid = super::queue_tail_init_destination::<T>();
 
     // Set default code-hash for create program calls
     let default_account = utils::default_account();
@@ -1094,7 +1094,7 @@ where
     )
     .expect("syscall check program deploy failed");
 
-    let tester_pid = super::find_latest_actor_id_created::<T>();
+    let tester_pid = super::queue_tail_init_destination::<T>();
 
     utils::run_to_next_block::<T>(None);
 

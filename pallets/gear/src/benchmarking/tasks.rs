@@ -73,7 +73,7 @@ where
     )
     .expect("submit program failed");
 
-    let program_id = super::find_latest_actor_id_created::<T>();
+    let program_id = super::queue_tail_init_destination::<T>();
 
     let (builtins, _) = T::BuiltinDispatcherFactory::create();
     Gear::<T>::process_queue(ExtManager::<T>::new(builtins));
@@ -143,7 +143,7 @@ where
     )
     .expect("submit program failed");
 
-    let program_id = super::find_latest_actor_id_created::<T>();
+    let program_id = super::queue_tail_init_destination::<T>();
 
     let delay = 1u32;
     let calls = Calls::builder().add_call(Call::Send(
@@ -202,7 +202,7 @@ where
     )
     .expect("submit program failed");
 
-    let program_id = super::find_latest_actor_id_created::<T>();
+    let program_id = super::queue_tail_init_destination::<T>();
 
     let delay = 10u32;
     Gear::<T>::send_message(
@@ -255,7 +255,7 @@ where
     )
     .expect("submit program failed");
 
-    let program_id = super::find_latest_actor_id_created::<T>();
+    let program_id = super::queue_tail_init_destination::<T>();
 
     Gear::<T>::send_message(
         RawOrigin::Signed(caller).into(),

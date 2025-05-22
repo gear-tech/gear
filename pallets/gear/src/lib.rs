@@ -561,7 +561,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
+        ) -> Result<ActorId, sp_runtime::DispatchError> {
             use gear_core::{code::TryNewCodeConfig, gas_metering::CustomConstantCostRules};
 
             let who = ensure_signed(origin)?;
@@ -664,7 +664,7 @@ pub mod pallet {
                 entry: MessageEntry::Init,
             });
 
-            Ok(().into())
+            Ok(program_id)
         }
 
         /// Upload code to the chain without gas and stack limit injection.
