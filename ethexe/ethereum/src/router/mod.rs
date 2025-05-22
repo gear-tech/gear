@@ -28,11 +28,14 @@ use alloy::{
     rpc::types::{eth::state::AccountOverride, Filter},
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, ContractSignature};
+use ethexe_common::{
+    ecdsa::ContractSignature,
+    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
+    Address as LocalAddress,
+};
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
+use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::HashMap;
 
@@ -175,7 +178,7 @@ impl Router {
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .map(|signature| Bytes::from(signature.into_pre_eip155_bytes()))
                 .collect(),
         );
 
@@ -347,7 +350,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn program_code_id(&self, program_id: ProgramId) -> Result<Option<CodeId>> {
+    pub async fn program_code_id(&self, program_id: ActorId) -> Result<Option<CodeId>> {
         let program_id = LocalAddress::try_from(program_id).expect("infallible");
         let program_id = Address::new(program_id.0);
         let code_id = self.instance.programCodeId(program_id).call().await?;
@@ -355,7 +358,7 @@ impl RouterQuery {
         Ok(code_id)
     }
 
-    pub async fn programs_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids(&self, program_ids: Vec<ActorId>) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids

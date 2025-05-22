@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::DispatchKind,
     pages::WasmPagesAmount,
     reservation::GasReservationMap,
@@ -37,9 +37,9 @@ pub enum Program<BlockNumber: Copy> {
     /// Program in active state.
     Active(ActiveProgram<BlockNumber>),
     /// Program has been exited (gr_exit was called)
-    Exited(ProgramId),
+    Exited(ActorId),
     /// Program has been terminated (`init` was failed)
-    Terminated(ProgramId),
+    Terminated(ActorId),
 }
 
 impl<BlockNumber: Copy> Program<BlockNumber> {

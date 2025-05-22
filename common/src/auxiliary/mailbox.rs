@@ -23,7 +23,7 @@ use crate::{
 };
 use core::cell::RefCell;
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::UserStoredMessage,
 };
 
@@ -35,21 +35,21 @@ pub type AuxiliaryMailbox<MailboxCallbacks> = MailboxImpl<
     MailboxErrorImpl,
     MailboxErrorImpl,
     MailboxCallbacks,
-    MailboxKeyGen<ProgramId>,
+    MailboxKeyGen<ActorId>,
 >;
 /// Type represents message stored in the mailbox.
 pub type MailboxedMessage = UserStoredMessage;
 
 std::thread_local! {
     // Definition of the mailbox (`StorageDoubleMap`) global storage, accessed by the `Mailbox` trait implementor.
-    pub(crate) static MAILBOX_STORAGE: RefCell<DoubleBTreeMap<ProgramId, MessageId, (MailboxedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
+    pub(crate) static MAILBOX_STORAGE: RefCell<DoubleBTreeMap<ActorId, MessageId, (MailboxedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
 }
 
 /// `Mailbox` double storage map manager.
 pub struct MailboxStorageWrap;
 
 impl AuxiliaryDoubleStorageWrap for MailboxStorageWrap {
-    type Key1 = ProgramId;
+    type Key1 = ActorId;
     type Key2 = MessageId;
     type Value = (MailboxedMessage, Interval<BlockNumber>);
 

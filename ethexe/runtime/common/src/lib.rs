@@ -31,7 +31,7 @@ use core_processor::{
 use ethexe_common::gear::Origin;
 use gear_core::{
     code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
-    ids::ProgramId,
+    ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
 use gear_lazy_pages_common::LazyPagesInterface;
@@ -71,7 +71,7 @@ pub struct TransitionController<'a, S: Storage> {
 impl<S: Storage> TransitionController<'_, S> {
     pub fn update_state<T>(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
     ) -> T {
         let state_hash = self
@@ -95,7 +95,7 @@ impl<S: Storage> TransitionController<'_, S> {
 }
 
 pub fn process_next_message<S, RI>(
-    program_id: ProgramId,
+    program_id: ActorId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
     code_id: CodeId,
@@ -182,7 +182,7 @@ where
 fn process_dispatch<S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
-    program_id: ProgramId,
+    program_id: ActorId,
     program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
     code_id: CodeId,

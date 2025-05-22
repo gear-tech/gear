@@ -21,17 +21,17 @@ use crate::{
     ProcessorConfig,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::gear::Origin;
-use ethexe_db::{CodesStorage, Database};
+use ethexe_common::{db::CodesStorage, gear::Origin};
+use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
 
 enum Task {
     Run {
-        program_id: ProgramId,
+        program_id: ActorId,
         state_hash: H256,
         result_sender: oneshot::Sender<(Vec<JournalNote>, Option<Origin>, Option<bool>)>,
     },
@@ -172,7 +172,7 @@ async fn one_batch(
     from_index: usize,
     task_senders: &[mpsc::Sender<Task>],
     in_block_transitions: &mut InBlockTransitions,
-) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>, Option<bool>)>> {
+) -> BTreeMap<ActorId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>, Option<bool>)>> {
     let mut result_receivers = BTreeMap::new();
 
     for (sender, (program_id, state_hash)) in task_senders

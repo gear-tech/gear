@@ -168,6 +168,17 @@ library Gear {
         uint128 value;
     }
 
+    struct SymbioticRegistries {
+        address vaultRegistry;
+        address operatorRegistry;
+        address networkRegistry;
+        address middlewareService;
+        address networkOptIn;
+        // address operatorRewards;
+        // address operatorRewardsFactory;
+        address stakerRewardsFactory;
+    }
+
     enum SignatureType {
         FROST,
         ECDSA

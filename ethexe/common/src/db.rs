@@ -20,58 +20,16 @@
 
 // TODO #4547: move types to another module(s)
 
-use crate::{events::BlockEvent, gear::StateTransition};
+use crate::{events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Schedule};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
 };
 use gear_core::{
     code::InstrumentedCode,
-    ids::{ActorId, CodeId, ProgramId},
+    ids::{ActorId, CodeId},
 };
-use gprimitives::{MessageId, H256};
-use parity_scale_codec::{Decode, Encode};
-
-/// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
-pub type Rfm = (ProgramId, ActorId);
-
-/// SendDispatch key; (msgs destinations program (stash and queue provider), message id)
-pub type Sd = (ProgramId, MessageId);
-
-/// SendUserMessage key; (msgs sources program (mailbox and stash provider))
-pub type Sum = ProgramId;
-
-/// NOTE: generic keys differs to Vara and have been chosen dependent on storage organization of ethexe.
-pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
-
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct BlockHeader {
-    pub height: u32,
-    pub timestamp: u64,
-    pub parent_hash: H256,
-}
-
-impl BlockHeader {
-    pub fn dummy(height: u32) -> Self {
-        let mut parent_hash = [0; 32];
-        parent_hash[..4].copy_from_slice(&height.to_le_bytes());
-
-        Self {
-            height,
-            timestamp: height as u64 * 12,
-            parent_hash: parent_hash.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct CodeInfo {
-    pub timestamp: u64,
-    pub tx_hash: H256,
-}
-
-pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
+use gprimitives::H256;
 
 pub trait BlockMetaStorage: Send + Sync {
     fn block_computed(&self, block_hash: H256) -> bool;
@@ -106,9 +64,9 @@ pub trait CodesStorage: Send + Sync {
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
     fn set_original_code(&self, code: &[u8]) -> CodeId;
 
-    fn program_code_id(&self, program_id: ProgramId) -> Option<CodeId>;
-    fn set_program_code_id(&self, program_id: ProgramId, code_id: CodeId);
-    fn program_ids(&self) -> BTreeSet<ProgramId>;
+    fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
+    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
+    fn program_ids(&self) -> BTreeSet<ActorId>;
 
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;

@@ -25,7 +25,7 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
 };
 use anyhow::Result;
-use ethexe_signer::Address as LocalAddress;
+use ethexe_common::Address as LocalAddress;
 use gprimitives::{H256, U256};
 
 pub mod events;

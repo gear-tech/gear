@@ -138,7 +138,7 @@ impl SignerStorage {
     /// Writes `GearPages` into storage at `program_id`
     pub async fn set_gpages(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: u32,
         program_pages: &GearPages,
     ) -> EventsResult {
@@ -163,7 +163,7 @@ impl SignerStorage {
     /// Writes `ActiveProgram` into storage at `program_id`
     pub async fn set_gprog(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         program: ActiveProgram<BlockNumber>,
     ) -> EventsResult {
         let addr = Api::storage(

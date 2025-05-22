@@ -17,10 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
-use ethexe_common::events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent};
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodesStorage, MemDb, OnChainStorage};
+use ethexe_common::{
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
+    BlockHeader,
+};
 use ethexe_runtime_common::ScheduleRestorer;
-use gear_core::ids::{prelude::CodeIdExt, ProgramId};
+use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use utils::*;
@@ -65,9 +68,7 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
 fn process_observer_event() {
     init_logger();
 
-    let db = MemDb::default();
-    let mut processor =
-        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -159,9 +160,7 @@ fn process_observer_event() {
 fn handle_new_code_valid() {
     init_logger();
 
-    let db = MemDb::default();
-    let mut processor =
-        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
 
     init_genesis_block(&mut processor);
 
@@ -203,9 +202,7 @@ fn handle_new_code_valid() {
 fn handle_new_code_invalid() {
     init_logger();
 
-    let db = MemDb::default();
-    let mut processor =
-        Processor::new(Database::from_one(&db)).expect("failed to create processor");
+    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
 
     init_genesis_block(&mut processor);
 
@@ -233,14 +230,13 @@ fn handle_new_code_invalid() {
 fn ping_pong() {
     init_logger();
 
-    let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::memory()).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
 
     let user_id = ActorId::from(10);
-    let actor_id = ProgramId::from(0x10000);
+    let actor_id = ActorId::from(0x10000);
 
     let code_id = processor
         .handle_new_code(demo_ping::WASM_BINARY)
@@ -314,14 +310,13 @@ fn async_and_ping() {
     };
     let user_id = ActorId::from(10);
 
-    let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::memory()).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
 
-    let ping_id = ProgramId::from(0x10000000);
-    let async_id = ProgramId::from(0x20000000);
+    let ping_id = ActorId::from(0x10000000);
+    let async_id = ActorId::from(0x20000000);
 
     let ping_code_id = processor
         .handle_new_code(demo_ping::WASM_BINARY)
@@ -455,8 +450,7 @@ fn many_waits() {
 
     let (_, code) = wat_to_wasm(wat);
 
-    let db = MemDb::default();
-    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+    let mut processor = Processor::new(Database::memory()).unwrap();
 
     let parent = init_genesis_block(&mut processor);
     let ch0 = init_new_block_from_parent(&mut processor, parent);
@@ -470,7 +464,7 @@ fn many_waits() {
 
     let amount = 10000;
     for i in 0..amount {
-        let program_id = ProgramId::from(i);
+        let program_id = ActorId::from(i);
 
         handler
             .handle_router_event(RouterRequestEvent::ProgramCreated {

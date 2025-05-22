@@ -22,7 +22,7 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
 };
 use anyhow::{anyhow, Result};
-use ethexe_signer::Address as LocalAddress;
+use ethexe_common::Address as LocalAddress;
 use events::signatures;
 use gprimitives::{MessageId, H256};
 
