@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["generate_mid_from_user","generate_mid_outgoing","generate_mid_reply","generate_mid_signal","generate_pid_from_program","generate_pid_from_user","generate_rid"]};
