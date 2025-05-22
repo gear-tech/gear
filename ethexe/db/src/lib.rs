@@ -18,7 +18,6 @@
 
 //! Database library for ethexe.
 
-use gear_core::utils;
 use gprimitives::H256;
 
 mod database;
@@ -31,7 +30,7 @@ pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 
 pub fn hash(data: &[u8]) -> H256 {
-    utils::hash(data).into()
+    gprimitives::hashing::hash(data).into()
 }
 
 /// Content-addressable storage database.

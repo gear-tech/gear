@@ -33,8 +33,7 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
-    use gear_core::ids::prelude::MessageIdExt;
-    use gstd::{ActorId, MessageId};
+    use gstd::ActorId;
     use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
     #[test]
@@ -60,7 +59,7 @@ mod tests {
         assert!(res.succeed.contains(&sending_handle_id));
         assert_eq!(res.failed.len(), 1);
         let panicked_msg_id = res.failed.pop_first().unwrap();
-        let reply_msg_id = MessageId::generate_reply(panicked_msg_id);
+        let reply_msg_id = gear_core::utils::generate_mid_reply(panicked_msg_id);
         assert!(res.succeed.contains(&reply_msg_id));
     }
 }

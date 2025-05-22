@@ -23,7 +23,7 @@ use common::{
     GasMultiplier, GasTree as _, LockId, LockableTree as _, Origin,
 };
 use frame_support::{assert_noop, assert_ok};
-use gear_core::ids::MessageId;
+use gear_core::primitives::MessageId;
 use primitive_types::H256;
 use sp_runtime::traits::Zero;
 

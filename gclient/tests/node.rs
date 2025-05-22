@@ -1,5 +1,5 @@
 use gclient::{Error, EventProcessor, GearApi};
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
 

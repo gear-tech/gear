@@ -18,7 +18,7 @@
 
 use super::*;
 use core_processor::common::JournalNote;
-use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
+use gear_core::{buffer::Payload, message::StoredDispatch, primitives::ActorId};
 
 /// Builtin actor `handle` function signature.
 pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<Payload, E>;

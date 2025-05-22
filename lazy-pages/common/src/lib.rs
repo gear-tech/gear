@@ -26,9 +26,9 @@ use alloc::{vec, vec::Vec};
 use core::{any::Any, fmt::Debug};
 use gear_core::{
     costs::LazyPagesCosts,
-    ids::ActorId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
+    primitives::ActorId,
     program::MemoryInfix,
     str::LimitedStr,
 };

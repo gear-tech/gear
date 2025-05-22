@@ -3755,7 +3755,6 @@ name = "demo-signal-entry"
 version = "0.1.0"
 dependencies = [
  "gcore",
- "gear-core",
  "gear-wasm-builder",
  "gstd",
  "gtest",
@@ -4728,7 +4727,6 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-signer",
  "futures",
- "gear-core",
  "gear-utils",
  "gprimitives",
  "log",
@@ -6118,7 +6116,6 @@ dependencies = [
 name = "gear-core"
 version = "1.8.1"
 dependencies = [
- "blake2 0.10.6",
  "byteorder",
  "derive_more 2.0.1",
  "enum-iterator 1.5.0",
@@ -6884,6 +6881,7 @@ version = "1.8.1"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
+ "blake2 0.10.6",
  "derive_more 2.0.1",
  "gear-ss58",
  "hex",

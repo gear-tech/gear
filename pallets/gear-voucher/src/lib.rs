@@ -56,7 +56,7 @@ use frame_support::{
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
     PalletId,
 };
-use gear_core::ids::{ActorId, MessageId};
+use gear_core::primitives::{ActorId, MessageId};
 pub use primitive_types::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;

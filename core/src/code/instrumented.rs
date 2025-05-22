@@ -20,9 +20,9 @@
 
 use crate::{
     code::{Code, CodeAndId},
-    ids::CodeId,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
+    primitives::CodeId,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use scale_info::{

@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_observer::MockBlobReader;
-use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use jsonrpsee::{
     core::{async_trait, RpcResult},

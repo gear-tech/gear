@@ -29,7 +29,7 @@ use crate::{
     SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
-use gear_core::ids::CodeId;
+use gear_core::primitives::CodeId;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
     syscalls::{

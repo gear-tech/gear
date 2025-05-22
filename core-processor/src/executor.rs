@@ -29,10 +29,10 @@ use gear_core::{
     code::InstrumentedCode,
     env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::ActorId,
     memory::AllocationsContext,
     message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
     pages::{numerated::tree::IntervalsTree, WasmPage},
+    primitives::ActorId,
     program::MemoryInfix,
     reservation::GasReserver,
 };

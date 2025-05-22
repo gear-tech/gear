@@ -1,5 +1,5 @@
 use demo_waiter::{Command, LockContinuation, LockStaticAccessSubcommand, MxLockContinuation};
-use gear_core::ids::MessageId;
+use gear_core::primitives::MessageId;
 use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
 
 pub const USER_ID: u64 = DEFAULT_USER_ALICE;

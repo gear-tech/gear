@@ -25,17 +25,6 @@
 
 extern crate alloc;
 
-pub use gear_ss58::Ss58Address;
-pub use nonzero_u256::NonZeroU256;
-pub use primitive_types::{H160, H256, U256};
-
-pub mod utils;
-
-mod macros;
-mod nonzero_u256;
-#[cfg(feature = "ethexe")]
-mod sol_types;
-
 use core::{
     fmt,
     str::{self, FromStr},
@@ -49,6 +38,18 @@ use scale_info::{
 };
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+pub use gear_ss58::Ss58Address;
+pub use nonzero_u256::NonZeroU256;
+pub use primitive_types::{H160, H256, U256};
+
+pub mod hashing;
+pub mod utils;
+
+mod macros;
+mod nonzero_u256;
+#[cfg(feature = "ethexe")]
+mod sol_types;
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
@@ -96,6 +97,11 @@ pub struct ActorId([u8; 32]);
 macros::impl_primitive!(new zero into_bytes from_h256 into_h256 try_from_slice debug, ActorId);
 
 impl ActorId {
+    /// System actor ID.
+    ///
+    /// The source of signal messages. Communication with this ID is forbidden.
+    pub const SYSTEM: Self = Self::new(*b"geargeargeargeargeargeargeargear");
+
     /// Returns the ss58-check address with default ss58 version.
     pub fn to_ss58check(&self) -> Result<Ss58Address, ConversionError> {
         RawSs58Address::from(self.0)
@@ -315,6 +321,13 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 pub struct CodeId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str try_from_slice display debug serde, CodeId);
+
+impl CodeId {
+    /// Creates a new `CodeId` from the given code.
+    pub fn generate(code: &[u8]) -> Self {
+        hashing::hash(code).into()
+    }
+}
 
 /// Reservation identifier.
 ///

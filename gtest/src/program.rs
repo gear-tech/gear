@@ -27,8 +27,8 @@ use crate::{
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
     gas_metering::Schedule,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{Dispatch, DispatchKind, Message},
+    primitives::{ActorId, CodeId, MessageId},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
@@ -533,7 +533,7 @@ impl<'a> Program<'a> {
         // that will be executed, i.e. block with number curr + 1.
         let block_number = system.block_height() + 1;
         let message = Message::new(
-            MessageId::generate_from_user(
+            gear_core::utils::generate_mid_from_user(
                 block_number,
                 source,
                 system.fetch_inc_message_nonce() as u128,
@@ -627,9 +627,9 @@ impl<'a> Program<'a> {
 /// Calculate program id from code id and salt.
 pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ActorId {
     if let Some(id) = id {
-        ActorId::generate_from_program(id, code_id, salt)
+        gear_core::utils::generate_pid_from_program(id, code_id, salt)
     } else {
-        ActorId::generate_from_user(code_id, salt)
+        gear_core::utils::generate_pid_from_user(code_id, salt)
     }
 }
 
@@ -708,7 +708,7 @@ mod tests {
     use super::Program;
     use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
     use demo_constructor::{Arg, Scheme};
-    use gear_core::ids::ActorId;
+    use gear_core::primitives::ActorId;
     use gear_core_errors::{
         ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
     };

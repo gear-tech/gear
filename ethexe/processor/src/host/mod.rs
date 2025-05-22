@@ -21,7 +21,7 @@ use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::unpack_i64_to_u32;
-use gear_core::{code::InstrumentedCode, ids::ActorId};
+use gear_core::{code::InstrumentedCode, primitives::ActorId};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};

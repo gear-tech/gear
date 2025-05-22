@@ -31,8 +31,8 @@ use frame_support::{
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
-    ids::{ActorId, MessageId},
     message::UserStoredMessage,
+    primitives::{ActorId, MessageId},
 };
 use primitive_types::H256;
 use sp_core::ConstU8;

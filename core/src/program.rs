@@ -19,9 +19,9 @@
 //! Module for programs.
 
 use crate::{
-    ids::{ActorId, MessageId},
     message::DispatchKind,
     pages::WasmPagesAmount,
+    primitives::{ActorId, MessageId},
     reservation::GasReservationMap,
 };
 use alloc::collections::BTreeSet;

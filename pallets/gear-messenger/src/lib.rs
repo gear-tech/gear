@@ -161,8 +161,8 @@ pub mod pallet {
     use frame_support::{pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
-        ids::{ActorId, MessageId},
         message::{StoredDelayedDispatch, StoredDispatch, UserStoredMessage},
+        primitives::{ActorId, MessageId},
     };
     use sp_runtime::DispatchError;
     use sp_std::{convert::TryInto, marker::PhantomData};

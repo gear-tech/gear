@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::*;
 use core_processor::SuccessfulDispatchResultKind;
 use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
 use task::get_maximum_task_gas;
-
-use super::*;
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -501,7 +500,7 @@ impl ExtManager {
                 let (generated_dispatches, reply_sent) = reply
                     .map(|payload| {
                         let reply_message = ReplyMessage::from_packet(
-                            MessageId::generate_reply(dispatch.id()),
+                            gear_core::utils::generate_mid_reply(dispatch.id()),
                             ReplyPacket::new(payload.try_into().expect("too big payload"), 0),
                         );
                         let dispatch = reply_message.into_dispatch(

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use gsdk::ext::sp_runtime::AccountId32;
 
 /// A trait for convenient conversion into Substrate's AccountId32.

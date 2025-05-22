@@ -163,7 +163,7 @@ pub mod pallet {
     use super::*;
     use common::gas_provider::{Error as GasError, GasNode, GasNodeId, TreeImpl};
     use frame_system::pallet_prelude::*;
-    use gear_core::ids::{MessageId, ReservationId};
+    use gear_core::primitives::{MessageId, ReservationId};
 
     #[pallet::config]
     pub trait Config: frame_system::Config {

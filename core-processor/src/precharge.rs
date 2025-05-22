@@ -30,8 +30,8 @@ use gear_core::{
     costs::{BytesAmount, ProcessCosts},
     env::MessageWaitedType,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
-    ids::ActorId,
     message::IncomingDispatch,
+    primitives::ActorId,
 };
 
 /// Operation related to gas charging.

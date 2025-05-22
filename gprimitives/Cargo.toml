@@ -13,6 +13,7 @@ rust-version.workspace = true
 [dependencies]
 alloy-primitives = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true, optional = true }
+blake2.workspace = true
 derive_more.workspace = true
 primitive-types = { workspace = true, features = ["scale-info", "rustc-hex"] }
 scale-info = { workspace = true, features = ["derive"], optional = true }
@@ -22,5 +23,5 @@ gear-ss58.workspace = true
 
 [features]
 codec = ["dep:scale-info"]
-serde = ["dep:serde", "primitive-types/serde_no_std"]
 ethexe = ["dep:alloy-primitives", "dep:alloy-sol-types"]
+serde = ["dep:serde", "primitive-types/serde_no_std"]

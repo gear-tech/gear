@@ -30,7 +30,7 @@ use gear_common::{
     event::{CodeChangeKind, ProgramChangeKind},
     Origin,
 };
-use gear_core::ids::{ActorId, CodeId, MessageId};
+use gear_core::primitives::{ActorId, CodeId, MessageId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;

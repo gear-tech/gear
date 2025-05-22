@@ -77,10 +77,10 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{prelude::*, ActorId, CodeId, MessageId},
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
+    primitives::{ActorId, MessageId},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},
 };
@@ -216,6 +216,18 @@ where
         .find_map(mapping_filter)
 }
 
+#[track_caller]
+pub fn queue_tail_init_destination<T: Config>() -> ActorId {
+    let tail_message = QueueOf::<T>::iter()
+        .last()
+        .expect("Queue should not be empty")
+        .expect("Queue head should be present");
+
+    assert_eq!(tail_message.kind(), DispatchKind::Init);
+
+    tail_message.destination()
+}
+
 /// An instantiated and deployed program.
 #[derive(Clone)]
 struct Program<T: Config> {
@@ -260,16 +272,16 @@ where
             .saturating_mul((API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE).into());
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ActorId::generate_from_user(module.hash, &salt).into_origin();
 
-        Gear::<T>::upload_program_raw(
+        let addr = Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
             module.code,
             salt,
             data,
             250_000_000_000,
             value,
-        )?;
+        )?
+        .into_origin();
 
         process_queue::<T>();
 

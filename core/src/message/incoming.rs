@@ -18,11 +18,11 @@
 
 use crate::{
     buffer::Payload,
-    ids::{ActorId, MessageId},
     message::{
         common::MessageDetails, ContextStore, DispatchKind, GasLimit, StoredDispatch,
         StoredMessage, Value,
     },
+    primitives::{ActorId, MessageId},
 };
 use core::ops::Deref;
 use scale_info::{

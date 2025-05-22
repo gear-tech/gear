@@ -27,8 +27,8 @@ use gear_common::{
     storage::Interval,
 };
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, ActorId, MessageId},
     message::{ReplyMessage, ReplyPacket},
+    primitives::{ActorId, MessageId},
 };
 use parity_scale_codec::Encode;
 use std::cell::RefCell;
@@ -85,7 +85,7 @@ impl<'a> ActorMailbox<'a> {
             .read_mailbox_message(self.user_id, reply_to_id)?;
 
         let destination = mailboxed.source();
-        let reply_id = MessageId::generate_reply(mailboxed.id());
+        let reply_id = gear_core::utils::generate_mid_reply(mailboxed.id());
 
         // Set zero gas limit if reply deposit exists.
         let gas_limit = if self
@@ -178,7 +178,7 @@ impl<'a> ActorMailbox<'a> {
 mod tests {
     use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
-    use gear_core::{gas_metering::RentWeights, ids::ActorId};
+    use gear_core::{gas_metering::RentWeights, primitives::ActorId};
     use parity_scale_codec::Encode;
 
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {

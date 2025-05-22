@@ -27,7 +27,7 @@ use alloc::{
 };
 use gear_core::{
     code::InstrumentedCode,
-    ids::{ActorId, CodeId},
+    primitives::{ActorId, CodeId},
 };
 use gprimitives::H256;
 

@@ -32,8 +32,8 @@ use core::{fmt, fmt::Formatter};
 use gear_core::{
     buffer::{Payload, PayloadSizeError},
     env::Externalities,
-    ids::{prelude::*, ActorId, MessageId},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    primitives::ActorId,
     reservation::GasReservationState,
 };
 use gear_core_backend::{
@@ -620,7 +620,7 @@ pub fn process_success(
     for (message_id_sent, amount) in reply_deposits {
         journal.push(JournalNote::ReplyDeposit {
             message_id,
-            future_reply_id: MessageId::generate_reply(message_id_sent),
+            future_reply_id: gear_core::utils::generate_mid_reply(message_id_sent),
             amount,
         });
     }

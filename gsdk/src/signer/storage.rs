@@ -35,8 +35,8 @@ use crate::{
     Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
 };
 use gear_core::{
-    ids::*,
     memory::{PageBuf, PageBufInner},
+    primitives::*,
 };
 use hex::ToHex;
 use parity_scale_codec::Encode;

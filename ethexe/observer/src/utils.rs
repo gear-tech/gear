@@ -34,7 +34,6 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{events::BlockEvent, Address, BlockData, BlockHeader};
 use ethexe_ethereum::{mirror, router, wvara};
 use futures::{future, stream::FuturesUnordered, FutureExt};
-use gear_core::ids::prelude::*;
 use gprimitives::{CodeId, H256};
 use std::{collections::HashMap, future::IntoFuture};
 

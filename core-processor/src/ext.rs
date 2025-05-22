@@ -31,7 +31,6 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -43,6 +42,7 @@ use gear_core::{
         numerated::{interval::Interval, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount,
     },
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::MemoryInfix,
     reservation::GasReserver,
 };
@@ -1434,6 +1434,7 @@ mod tests {
         buffer::{Payload, MAX_PAYLOAD_SIZE},
         costs::{CostOf, RentCosts, SyscallCosts},
         message::{ContextSettings, IncomingDispatch},
+        primitives::H256,
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
@@ -2268,7 +2269,7 @@ mod tests {
         // Create "pre-reservation".
         let (id, gas_reservation_map) = {
             let mut m = BTreeMap::new();
-            let id = ReservationId::generate(MessageId::new([5; 32]), 10);
+            let id = H256::random().0.into();
 
             m.insert(
                 id,

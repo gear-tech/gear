@@ -18,7 +18,7 @@
 
 use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, VALUE_SIZE};
 use gear_call_gen::{GearCall, SendReplyArgs};
-use gear_core::ids::MessageId;
+use gear_core::primitives::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use runtime_primitives::Balance;

@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-
 use gear_core::{
-    ids::prelude::*,
     pages::{WasmPage, WasmPagesAmount},
     program::{MemoryInfix, ProgramState},
     reservation::GasReservationMap,

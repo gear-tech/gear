@@ -40,11 +40,11 @@ use core::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{prelude::*, ActorId, MessageId, ReservationId},
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
     },
+    primitives::{ActorId, MessageId, ReservationId},
     tasks::ScheduledTask,
 };
 use sp_runtime::traits::{Get, One, SaturatedConversion, Saturating, UniqueSaturatedInto, Zero};
@@ -754,7 +754,7 @@ where
             if !to_mailbox {
                 Self::split_with_value(
                     origin_msg,
-                    MessageId::generate_reply(dispatch.id()),
+                    gear_core::utils::generate_mid_reply(dispatch.id()),
                     0,
                     true,
                 );

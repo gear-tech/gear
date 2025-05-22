@@ -19,7 +19,7 @@
 use super::*;
 use core::ops::{Add, Index, IndexMut};
 use enum_iterator::cardinality;
-use gear_core::ids::ReservationId;
+use gear_core::primitives::ReservationId;
 use sp_runtime::{
     codec::{self, MaxEncodedLen},
     scale_info,

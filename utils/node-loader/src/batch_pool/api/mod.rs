@@ -8,7 +8,7 @@ use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
-use gear_core::ids::{ActorId, CodeId, MessageId};
+use gear_core::primitives::{ActorId, CodeId, MessageId};
 use primitive_types::H256;
 
 pub type UploadProgramBatchOutput = StandardBatchOutput;
