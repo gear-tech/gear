@@ -89,26 +89,6 @@ pub struct DispatchResult {
 }
 
 impl DispatchResult {
-    /// Return dispatch message id.
-    pub fn message_id(&self) -> MessageId {
-        self.dispatch.id()
-    }
-
-    /// Return program id.
-    pub fn program_id(&self) -> ActorId {
-        self.program_id
-    }
-
-    /// Return dispatch source program id.
-    pub fn message_source(&self) -> ActorId {
-        self.dispatch.source()
-    }
-
-    /// Return dispatch message value.
-    pub fn message_value(&self) -> u128 {
-        self.dispatch.value()
-    }
-
     /// Create partially initialized instance with the kind
     /// representing Success.
     pub fn success(dispatch: IncomingDispatch, program_id: ActorId, gas_amount: GasAmount) -> Self {

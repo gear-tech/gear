@@ -47,6 +47,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub use pallet::*;
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -73,8 +74,6 @@ use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
-
-pub use pallet::*;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
@@ -463,7 +462,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(
-                    dispatch,
+                    &dispatch,
                     actor_id,
                     gas_amount.burned(),
                     system_reservation_ctx,
