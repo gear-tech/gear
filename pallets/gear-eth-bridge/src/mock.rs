@@ -20,7 +20,7 @@ use crate::{self as pallet_gear_eth_bridge};
 use common::Origin as _;
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
+    traits::{ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
     PalletId,
 };
 use frame_support_test::TestRandomness;

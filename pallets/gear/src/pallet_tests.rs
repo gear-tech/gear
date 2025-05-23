@@ -23,8 +23,7 @@ macro_rules! impl_config {
         type GearConfigDebugInfo = ();
         #[allow(dead_code)]
         type GearConfigVoucher = ();
-        #[allow(dead_code)]
-        type GearConfigProgramRentEnabled = ConstBool<true>;
+
         #[allow(dead_code)]
         type GearConfigSchedule = ();
         #[allow(dead_code)]
@@ -62,12 +61,7 @@ macro_rules! impl_config_inner {
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
             type BuiltinDispatcherFactory = GearConfigBuiltinDispatcherFactory;
-            type ProgramRentFreePeriod = RentFreePeriod;
-            type ProgramResumeMinimalRentPeriod = ResumeMinimalPeriod;
-            type ProgramRentCostPerBlock = RentCostPerBlock;
-            type ProgramResumeSessionDuration = ResumeSessionDuration;
-            type ProgramRentEnabled = GearConfigProgramRentEnabled;
-            type ProgramRentDisabledDelta = RentFreePeriod;
+
             type RentPoolId = GearRentPoolId;
         }
     };
@@ -80,12 +74,6 @@ macro_rules! impl_config_inner {
 
     ($runtime:ty, DebugInfo = $debug_info:ty $(, $( $rest:tt )*)?) => {
         type GearConfigDebugInfo = $debug_info;
-
-        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
-    };
-
-    ($runtime:ty, ProgramRentEnabled = $program_rent_enabled:ty $(, $( $rest:tt )*)?) => {
-        type GearConfigProgramRentEnabled = $program_rent_enabled;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
