@@ -26,7 +26,7 @@ use ethexe_common::{
     ecdsa::{PublicKey, SignedData},
     ProducerBlock,
 };
-use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_compute::{context::BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
     ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
@@ -391,7 +391,7 @@ impl Service {
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block_to_compute(synced_block.block_hash);
+                        compute.precompute_block(synced_block.block_hash);
                         consensus.receive_synced_block(synced_block)?;
                     }
                 },
