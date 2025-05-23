@@ -232,7 +232,7 @@ impl PayloadSlice {
     /// Try to create a new PayloadSlice.
     pub fn try_new(start: u32, end: u32, payload: Arc<Payload>) -> Option<Self> {
         // Check if start and end are within the bounds of the payload
-        if start >= end || end > payload.len_u32() {
+        if start > end || end > payload.len_u32() {
             return None;
         }
 
