@@ -133,7 +133,9 @@ color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
 defer = "0.2.1"
-derive_more = { version = "2.0.1", default-features = false, features = ["full"] }
+derive_more = { version = "2.0.1", default-features = false, features = [
+    "full",
+] }
 dirs = "4.0.0"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.5.0"
@@ -167,7 +169,9 @@ reqwest = { version = "0.12.8", default-features = false }
 roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
 scale-info = { version = "2.11", default-features = false }
 serde = { version = "^1", default-features = false }
-serde_json = { version = "1.0.135", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0.135", default-features = false, features = [
+    "alloc",
+] }
 serde-json-wasm = { version = "1.0.1", default-features = false }
 serde_yaml = "0.8.26"
 sha-1 = "0.10.1"
@@ -181,7 +185,9 @@ tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
 wat = "1.0.71"
-wasmer = { version = "4.3.4", default-features = false, features = ["singlepass"] }
+wasmer = { version = "4.3.4", default-features = false, features = [
+    "singlepass",
+] }
 wasmer-cache = "4.3.4"
 wasmer-types = "4.3.4"
 wasmer-vm = "4.3.4"
@@ -306,6 +312,7 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
 ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
+ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { package = "wasmi", version = "0.38" }
@@ -447,7 +454,7 @@ demo-async-reply-hook = { path = "examples/async-reply-hook" }
 demo-async-recursion = { path = "examples/async-recursion" }
 demo-async-signal-entry = { path = "examples/async-signal-entry" }
 demo-async-tester = { path = "examples/async-tester" }
-demo-big-data-section = {path = "examples/big-data-section"}
+demo-big-data-section = { path = "examples/big-data-section" }
 demo-bls381 = { path = "examples/bls381" }
 demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
@@ -549,7 +556,11 @@ wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
 wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)', 'cfg(fuzz)', 'cfg(substrate_runtime)'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(loom)',
+    'cfg(fuzz)',
+    'cfg(substrate_runtime)',
+] }
 
 [workspace.metadata.cargo-machete]
 ignored = [
@@ -560,7 +571,7 @@ ignored = [
     "scale-info",
     "pallet-authorship",
     # unsupported name by `cargo-machete`
-    "sha-1"
+    "sha-1",
 ]
 
 [profile.dev.package.corosensei]
