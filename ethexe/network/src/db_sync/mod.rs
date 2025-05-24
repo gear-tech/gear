@@ -27,7 +27,8 @@ pub(crate) use crate::{
 };
 
 use crate::db_sync::requests::OngoingRequests;
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database};
+use ethexe_common::db::{BlockMetaStorage, CodesStorage};
+use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
     core::{transport::PortUse, Endpoint},

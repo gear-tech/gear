@@ -21,7 +21,7 @@
 use super::keys::PublicKey;
 use alloc::string::String;
 use core::str::FromStr;
-use derive_more::{Debug, Display, Error, From};
+use derive_more::{Debug, Display, Error};
 use gprimitives::{ActorId, H160};
 use hex::FromHexError;
 use parity_scale_codec::{Decode, Encode};

@@ -23,7 +23,7 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{CodeCommitment, CodeState},
-    BlockData,
+    Address, BlockData,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -38,7 +38,6 @@ use ethexe_runtime_common::{
     },
     ScheduleRestorer,
 };
-use ethexe_signer::Address;
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
