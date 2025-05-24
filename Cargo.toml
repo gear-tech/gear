@@ -563,9 +563,6 @@ ignored = [
     "sha-1"
 ]
 
-[profile.dev.package.corosensei]
-opt-level = 3
-
 [profile.release]
 panic = "unwind"
 
@@ -603,3 +600,5 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
+
+corosensei = { git = "https://github.com/gear-tech/corosensei", branch = "rmasl-update-teb-fields-on-switch-yield" }

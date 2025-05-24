@@ -2786,8 +2786,7 @@ dependencies = [
 [[package]]
 name = "corosensei"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80128832c58ea9cbd041d2a759ec449224487b2c1e400453d99d244eead87a8e"
+source = "git+https://github.com/gear-tech/corosensei?branch=rmasl-update-teb-fields-on-switch-yield#de854ee1b6c8ddbab3d81a3bd31b0ed7d2ef84b7"
 dependencies = [
  "autocfg",
  "cfg-if",

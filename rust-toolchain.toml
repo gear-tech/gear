@@ -2,3 +2,4 @@
 channel = "nightly-2025-05-09"
 components = [ "llvm-tools" ]
 targets = [ "wasm32v1-none" ]
+profile = "default"
