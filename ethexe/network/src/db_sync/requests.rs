@@ -31,6 +31,7 @@ use libp2p::{
 };
 use rand::prelude::IteratorRandom;
 use std::{
+    cell::OnceCell,
     collections::{HashMap, HashSet, VecDeque},
     task::{Context, Poll, Waker},
     time::Duration,
@@ -186,38 +187,44 @@ impl OngoingRequests {
         self.requests.retain(|&request_id, fut| {
             let response = self.responses.remove(&request_id);
             let ctx = OngoingRequestContext {
-                pending_events: VecDeque::new(),
+                state: OnceCell::new(),
                 peers: self.connections.peers().collect(),
                 response,
             };
 
             let (ctx, poll) = CONTEXT.scope(ctx, || fut.poll_unpin(cx));
+            let state = ctx.state.into_inner();
 
-            for event in ctx.pending_events {
-                match event {
-                    OngoingRequestEvent::PendingState => {
-                        self.pending_events
-                            .push_back(Event::PendingStateRequest { request_id });
-                    }
-                    OngoingRequestEvent::SendRequest(peer, request, reason) => {
-                        let outbound_request_id = behaviour.send_request(&peer, request);
-                        self.active_requests.insert(outbound_request_id, request_id);
+            if state.is_some() && poll.is_ready() {
+                unreachable!(
+                    "state machine invariant violated: unexpected ready poll with existing state"
+                );
+            }
 
-                        self.pending_events.push_back(Event::NewRequestRound {
-                            request_id,
-                            peer_id: peer,
-                            reason,
-                        });
-                    }
-                    OngoingRequestEvent::ExternalValidationRequired(sender, response) => {
-                        self.pending_events
-                            .push_back(Event::ExternalValidationRequired {
-                                request_id,
-                                response,
-                                sender,
-                            });
-                    }
+            match state {
+                Some(OngoingRequestState::PendingState) => {
+                    self.pending_events
+                        .push_back(Event::PendingStateRequest { request_id });
                 }
+                Some(OngoingRequestState::SendRequest(peer, request, reason)) => {
+                    let outbound_request_id = behaviour.send_request(&peer, request);
+                    self.active_requests.insert(outbound_request_id, request_id);
+
+                    self.pending_events.push_back(Event::NewRequestRound {
+                        request_id,
+                        peer_id: peer,
+                        reason,
+                    });
+                }
+                Some(OngoingRequestState::ExternalValidationRequired(sender, response)) => {
+                    self.pending_events
+                        .push_back(Event::ExternalValidationRequired {
+                            request_id,
+                            response,
+                            sender,
+                        });
+                }
+                None => {}
             }
 
             let event = match poll {
@@ -285,8 +292,9 @@ impl OngoingRequest {
                     Poll::Ready(peer)
                 } else {
                     if !event_sent {
-                        ctx.pending_events
-                            .push_back(OngoingRequestEvent::PendingState);
+                        ctx.state
+                            .set(OngoingRequestState::PendingState)
+                            .expect("set only once");
                         event_sent = true;
                     }
 
@@ -305,12 +313,13 @@ impl OngoingRequest {
         reason: NewRequestRoundReason,
     ) -> Result<Response, ()> {
         CONTEXT.with_mut(|ctx| {
-            ctx.pending_events
-                .push_back(OngoingRequestEvent::SendRequest(
+            ctx.state
+                .set(OngoingRequestState::SendRequest(
                     peer,
                     self.request.clone(),
                     reason,
-                ));
+                ))
+                .expect("set only once");
         });
 
         CONTEXT
@@ -369,11 +378,12 @@ impl OngoingRequest {
         if !no_external_validation {
             let (sender, receiver) = oneshot::channel();
             CONTEXT.with_mut(|ctx| {
-                ctx.pending_events
-                    .push_back(OngoingRequestEvent::ExternalValidationRequired(
+                ctx.state
+                    .set(OngoingRequestState::ExternalValidationRequired(
                         sender,
                         response.clone(),
-                    ));
+                    ))
+                    .expect("set only once");
             });
             let is_valid = receiver
                 .await
@@ -428,14 +438,14 @@ impl OngoingRequest {
 }
 
 #[derive(Debug)]
-enum OngoingRequestEvent {
+enum OngoingRequestState {
     PendingState,
     SendRequest(PeerId, Request, NewRequestRoundReason),
     ExternalValidationRequired(Sender<bool>, Response),
 }
 
 struct OngoingRequestContext {
-    pending_events: VecDeque<OngoingRequestEvent>,
+    state: OnceCell<OngoingRequestState>,
     peers: HashSet<PeerId>,
     response: Option<Result<Response, ()>>,
 }
