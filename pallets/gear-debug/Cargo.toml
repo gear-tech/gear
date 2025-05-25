@@ -34,46 +34,35 @@ pallet-balances.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]
-tracing-subscriber.workspace = true
 common = { workspace = true, features = ["std"] }
-hex-literal.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
-pallet-timestamp = { workspace = true, features = ["std"] }
-pallet-gear-bank = { workspace = true, features = ["std"] }
-pallet-gear-gas = { workspace = true, features = ["std"] }
-pallet-gear-messenger = { workspace = true, features = ["std"] }
-pallet-gear-scheduler = { workspace = true, features = ["std"] }
-pallet-gear-program = { workspace = true, features = ["std"] }
 gear-wasm-instrument.workspace = true
-demo-vec.workspace = true
 test-syscalls.workspace = true
-wat.workspace = true
-wasmparser.workspace = true
 
 [features]
 default = ['std']
 std = [
-	"parity-scale-codec/std",
-	"common/std",
-	"frame-benchmarking?/std",
-	"frame-support/std",
-	"frame-support-test/std",
-	"frame-system/std",
-	"scale-info/std",
-	"sp-io/std",
-	"sp-std/std",
-	"sp-core/std",
-	"sp-runtime/std",
-	"pallet-balances/std",
-	"pallet-authorship/std",
-	"primitive-types/std",
-	"pallet-gear/std",
-	"test-syscalls/std",
-	"gear-wasm-instrument/std",
+    "parity-scale-codec/std",
+    "common/std",
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-support-test/std",
+    "frame-system/std",
+    "scale-info/std",
+    "sp-io/std",
+    "sp-std/std",
+    "sp-core/std",
+    "sp-runtime/std",
+    "pallet-balances/std",
+    "pallet-authorship/std",
+    "primitive-types/std",
+    "pallet-gear/std",
+    "test-syscalls/std",
+    "gear-wasm-instrument/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
 ]
 try-runtime = ["frame-support/try-runtime"]

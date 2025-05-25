@@ -20,8 +20,6 @@
 macro_rules! impl_config {
     ($( $tokens:tt )*) => {
         #[allow(dead_code)]
-        type GearConfigDebugInfo = ();
-        #[allow(dead_code)]
         type GearConfigVoucher = ();
         #[allow(dead_code)]
         type GearConfigProgramRentEnabled = ConstBool<true>;
@@ -51,7 +49,6 @@ macro_rules! impl_config_inner {
             type OutgoingLimit = OutgoingLimit;
             type OutgoingBytesLimit = OutgoingBytesLimit;
             type PerformanceMultiplier = PerformanceMultiplier;
-            type DebugInfo = GearConfigDebugInfo;
             type CodeStorage = GearProgram;
             type ProgramStorage = GearProgram;
             type MailboxThreshold = ConstU64<3_000>;
@@ -74,12 +71,6 @@ macro_rules! impl_config_inner {
 
     ($runtime:ty, Schedule = $schedule:ty $(, $( $rest:tt )*)?) => {
         type GearConfigSchedule = $schedule;
-
-        $crate::impl_config_inner!($runtime, $($( $rest )*)?);
-    };
-
-    ($runtime:ty, DebugInfo = $debug_info:ty $(, $( $rest:tt )*)?) => {
-        type GearConfigDebugInfo = $debug_info;
 
         $crate::impl_config_inner!($runtime, $($( $rest )*)?);
     };
