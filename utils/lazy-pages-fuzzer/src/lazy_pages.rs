@@ -34,7 +34,7 @@ use crate::{globals::InstanceAccessGlobal, OS_PAGE_SIZE};
 
 pub type HostPageAddr = usize;
 
-const OS_PAGE_MASK: usize = !(OS_PAGE_SIZE-1);
+const OS_PAGE_MASK: usize = !(OS_PAGE_SIZE - 1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TouchedPage {
@@ -218,7 +218,9 @@ unsafe fn mprotect_interval(
 
     let aligned_addr = addr & OS_PAGE_MASK;
     unsafe { region::protect(aligned_addr as *mut (), size, mask)? };
-    log::trace!("mprotect interval: {addr:#x}, aligned {aligned_addr:#x}, size: {size:#x}, mask: {mask}");
+    log::trace!(
+        "mprotect interval: {addr:#x}, aligned {aligned_addr:#x}, size: {size:#x}, mask: {mask}"
+    );
     Ok(())
 }
 
