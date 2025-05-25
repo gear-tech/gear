@@ -193,6 +193,7 @@ impl OngoingRequests {
             };
 
             let (ctx, poll) = CONTEXT.scope(ctx, || fut.poll_unpin(cx));
+            debug_assert_eq!(ctx.response, None);
             let state = ctx.state.into_inner();
 
             if state.is_some() && poll.is_ready() {
@@ -277,7 +278,7 @@ impl OngoingRequest {
     }
 
     async fn choose_next_peer(&mut self) -> (PeerId, Option<NewRequestRoundReason>) {
-        let mut event_sent = false;
+        let mut event_sent = None;
 
         let peer = CONTEXT
             .poll_fn(|_task_cx, ctx| {
@@ -291,20 +292,19 @@ impl OngoingRequest {
                 if let Some(peer) = peer {
                     Poll::Ready(peer)
                 } else {
-                    if !event_sent {
+                    event_sent.get_or_insert_with(|| {
                         ctx.state
                             .set(OngoingRequestState::PendingState)
                             .expect("set only once");
-                        event_sent = true;
-                    }
+                    });
 
                     Poll::Pending
                 }
             })
             .await;
 
-        let event = Some(NewRequestRoundReason::FromQueue).filter(|_| event_sent);
-        (peer, event)
+        let reason = event_sent.map(|()| NewRequestRoundReason::FromQueue);
+        (peer, reason)
     }
 
     async fn send_request(
@@ -359,8 +359,8 @@ impl OngoingRequest {
         mut reason: NewRequestRoundReason,
         peer_score_handle: &Handle,
     ) -> Result<Response, NewRequestRoundReason> {
-        let (peer, event) = self.choose_next_peer().await;
-        reason = event.unwrap_or(reason);
+        let (peer, new_reason) = self.choose_next_peer().await;
+        reason = new_reason.unwrap_or(reason);
 
         let response = self
             .send_request(peer, reason)
