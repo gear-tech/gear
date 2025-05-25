@@ -15,22 +15,16 @@ targets = ["x86_64-unknown-linux-gnu"]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
-log.workspace = true
 
 # Internal deps
 common.workspace = true
 gear-core.workspace = true
-pallet-gear.workspace = true
 
 # Substrate deps
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
-sp-core.workspace = true
 sp-std.workspace = true
-sp-io.workspace = true
-sp-runtime.workspace = true
-pallet-balances.workspace = true
 pallet-authorship.workspace = true
 
 [dev-dependencies]
@@ -49,14 +43,9 @@ std = [
     "frame-support-test/std",
     "frame-system/std",
     "scale-info/std",
-    "sp-io/std",
     "sp-std/std",
-    "sp-core/std",
-    "sp-runtime/std",
-    "pallet-balances/std",
     "pallet-authorship/std",
     "primitive-types/std",
-    "pallet-gear/std",
     "test-syscalls/std",
     "gear-wasm-instrument/std",
 ]
