@@ -75,8 +75,8 @@ use gear_core::{
     reservation::GasReservationSlot,
     tasks::ScheduledTask,
 };
-use primitive_types::H256;
 use scale_info::TypeInfo;
+use sp_core::H256;
 use sp_runtime::{
     codec::{Decode, Encode},
     traits::Zero,
@@ -227,7 +227,7 @@ where
         // An empty program has been just constructed: it contains no mem allocations.
         let program = ActiveProgram {
             allocations_tree_len: 0,
-            code_hash: code_info.id,
+            code_hash: code_info.id.cast(),
             code_exports: code_info.exports.clone(),
             static_pages: code_info.static_pages,
             state: ProgramState::Uninitialized { message_id },

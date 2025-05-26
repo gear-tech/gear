@@ -37,6 +37,7 @@ std = [
 	"frame-system-benchmarking?/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-treasury/std",
 	"pallet-gear/std",
 	"pallet-gear-bank/std",
 	"runtime-primitives/std",

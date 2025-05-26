@@ -28,7 +28,7 @@ use frame_support::{
 use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch, UserStoredMessage};
 use pallet_gear_voucher::{Call as VoucherCall, PrepaidCall};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
-use primitive_types::H256;
+use sp_core::H256;
 use sp_runtime::{codec::Encode, testing::TestXt, traits::SignedExtension, FixedPointNumber};
 use utils::*;
 

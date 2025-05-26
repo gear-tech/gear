@@ -59,8 +59,9 @@ pub use gear_core::{
     pages::GearPage,
     program::{ActiveProgram, MemoryInfix, Program},
 };
-use primitive_types::H256;
+use primitive_types;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating, UniqueSaturatedInto, Unsigned};
+use sp_core::H256;
 use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
@@ -118,6 +119,18 @@ impl Origin for H256 {
 
     fn from_origin(val: H256) -> Self {
         val
+    }
+}
+
+impl Origin for primitive_types::H256 {
+    fn into_origin(self) -> H256 {
+        // H256 here refers to sp_core::H256 due to the import
+        H256(self.0)
+    }
+
+    fn from_origin(val: H256) -> Self {
+        // val is sp_core::H256, Self is primitive_types::H256
+        primitive_types::H256(val.0)
     }
 }
 

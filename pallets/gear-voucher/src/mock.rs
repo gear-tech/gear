@@ -34,8 +34,7 @@ use gear_core::{
     ids::{ActorId, MessageId},
     message::UserStoredMessage,
 };
-use primitive_types::H256;
-use sp_core::ConstU8;
+use sp_core::{ConstU8, H256};
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup, Zero},
     BuildStorage,

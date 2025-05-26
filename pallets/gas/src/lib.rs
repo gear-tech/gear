@@ -133,7 +133,7 @@ use common::{
 };
 use frame_support::{pallet_prelude::*, traits::StorageVersion};
 pub use pallet::*;
-pub use primitive_types::H256;
+pub use sp_core::H256;
 use sp_runtime::DispatchError;
 use sp_std::convert::TryInto;
 

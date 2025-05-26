@@ -20,7 +20,7 @@ use super::*;
 use crate::mock::*;
 use common::Origin;
 use frame_support::{assert_noop, assert_ok, assert_storage_noop};
-use primitive_types::H256;
+use sp_core::H256;
 use sp_runtime::traits::{One, Zero};
 use utils::{DEFAULT_BALANCE, DEFAULT_VALIDITY};
 

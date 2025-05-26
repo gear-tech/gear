@@ -20,9 +20,9 @@
 
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, types::error::ErrorObject};
 use pallet_gear_eth_bridge_rpc_runtime_api::Proof;
-use primitive_types::H256;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
+use sp_core::H256;
 use sp_runtime::traits::Block;
 use std::sync::Arc;
 

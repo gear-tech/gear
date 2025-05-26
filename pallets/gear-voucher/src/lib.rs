@@ -57,7 +57,7 @@ use frame_support::{
     PalletId,
 };
 use gear_core::ids::{ActorId, MessageId};
-pub use primitive_types::H256;
+pub use sp_core::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
 

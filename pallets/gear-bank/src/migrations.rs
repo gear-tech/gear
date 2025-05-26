@@ -145,7 +145,7 @@ mod tests {
         weights::constants::RocksDbWeight,
         PalletId,
     };
-    use primitive_types::H256;
+    use sp_core::H256;
     use sp_runtime::{
         traits::{BlakeTwo256, IdentityLookup},
         AccountId32, BuildStorage,
