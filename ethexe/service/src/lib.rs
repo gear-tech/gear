@@ -26,7 +26,7 @@ use ethexe_common::{
     ecdsa::{PublicKey, SignedData},
     ProducerBlock,
 };
-use ethexe_compute::{context::BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
     ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,

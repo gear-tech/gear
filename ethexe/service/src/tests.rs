@@ -36,7 +36,7 @@ use ethexe_common::{
     gear::Origin,
     ScheduledTask,
 };
-use ethexe_compute::{context::BlockProcessed, ComputeEvent};
+use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::EthereumConfig;
