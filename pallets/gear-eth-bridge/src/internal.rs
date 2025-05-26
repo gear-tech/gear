@@ -18,6 +18,7 @@
 
 use crate::{Config, Error, MessageNonce};
 use binary_merkle_tree::MerkleProof;
+use common::Origin;
 use frame_support::{ensure, traits::Get};
 use gprimitives::{ActorId, H160, H256, U256};
 use parity_scale_codec::{Decode, Encode};
@@ -134,6 +135,6 @@ impl EthMessage {
         ]
         .concat();
 
-        Keccak256::hash(&bytes)
+        Keccak256::hash(&bytes).cast()
     }
 }
