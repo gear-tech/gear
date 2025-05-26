@@ -180,82 +180,84 @@ impl OngoingRequests {
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
     ) -> Poll<Event> {
-        if let Some(event) = self.pending_events.pop_front() {
-            return Poll::Ready(event);
-        }
-
-        self.requests.retain(|&request_id, fut| {
-            let response = self.responses.remove(&request_id);
-            let ctx = OngoingRequestContext {
-                state: OnceCell::new(),
-                peers: self.connections.peers().collect(),
-                response,
-            };
-
-            let (ctx, poll) = CONTEXT.scope(ctx, || fut.poll_unpin(cx));
-            debug_assert_eq!(ctx.response, None);
-            let state = ctx.state.into_inner();
-
-            if state.is_some() && poll.is_ready() {
-                unreachable!(
-                    "state machine invariant violated: unexpected ready poll with existing state"
-                );
+        loop {
+            if let Some(event) = self.pending_events.pop_front() {
+                return Poll::Ready(event);
             }
 
-            match state {
-                Some(OngoingRequestState::PendingState) => {
-                    self.pending_events
-                        .push_back(Event::PendingStateRequest { request_id });
-                }
-                Some(OngoingRequestState::SendRequest(peer, request, reason)) => {
-                    let outbound_request_id = behaviour.send_request(&peer, request);
-                    self.active_requests.insert(outbound_request_id, request_id);
+            let peers: HashSet<PeerId> = self.connections.peers().collect();
 
-                    self.pending_events.push_back(Event::NewRequestRound {
-                        request_id,
-                        peer_id: peer,
-                        reason,
-                    });
+            self.requests.retain(|&request_id, fut| {
+                let response = self.responses.remove(&request_id);
+                let ctx = OngoingRequestContext {
+                    state: OnceCell::new(),
+                    peers: peers.clone(),
+                    response,
+                };
+
+                let (ctx, poll) = CONTEXT.scope(ctx, || fut.poll_unpin(cx));
+                let state = ctx.into_state();
+                if state.is_some() && poll.is_ready() {
+                    unreachable!(
+                        "state machine invariant violated: unexpected ready poll with existing state"
+                    );
                 }
-                Some(OngoingRequestState::ExternalValidationRequired(sender, response)) => {
-                    self.pending_events
-                        .push_back(Event::ExternalValidationRequired {
+
+                if let Some(state) = state {
+                    let event = match state {
+                        OngoingRequestState::PendingState => Event::PendingStateRequest { request_id },
+                        OngoingRequestState::SendRequest(peer, request, reason) => {
+                            let outbound_request_id = behaviour.send_request(&peer, request);
+                            self.active_requests.insert(outbound_request_id, request_id);
+
+                            Event::NewRequestRound {
+                                request_id,
+                                peer_id: peer,
+                                reason,
+                            }
+                        }
+                        OngoingRequestState::ExternalValidationRequired(sender, response) => {
+                            Event::ExternalValidationRequired {
+                                request_id,
+                                response,
+                                sender,
+                            }
+                        }
+                    };
+                    self.pending_events.push_back(event);
+                } else if let Poll::Ready(res) = poll {
+                    let event = match res {
+                        Ok(response) => Event::RequestSucceed {
                             request_id,
                             response,
-                            sender,
-                        });
+                        },
+                        Err((error, request)) => Event::RequestFailed {
+                            request: RetriableRequest {
+                                request_id,
+                                request,
+                            },
+                            error,
+                        }
+                    };
+                    self.pending_events.push_back(event);
+                    return false;
                 }
-                None => {}
+
+                true
+            });
+
+            // it means some futures are pending, so we definitely will wake the task
+            if !self.requests.is_empty() {
+                self.waker = Some(cx.waker().clone());
             }
 
-            let event = match poll {
-                Poll::Ready(Ok(response)) => Event::RequestSucceed {
-                    request_id,
-                    response,
-                },
-                Poll::Ready(Err((error, request))) => Event::RequestFailed {
-                    request: RetriableRequest {
-                        request_id,
-                        request,
-                    },
-                    error,
-                },
-                Poll::Pending => return true,
-            };
-            self.pending_events.push_back(event);
+            if !self.pending_events.is_empty() {
+                // immediately return event instead of task waking
+                continue;
+            }
 
-            false
-        });
-
-        if !self.requests.is_empty() {
-            self.waker = Some(cx.waker().clone());
+            break Poll::Pending;
         }
-
-        if !self.pending_events.is_empty() {
-            cx.waker().wake_by_ref();
-        }
-
-        Poll::Pending
     }
 }
 
@@ -448,6 +450,19 @@ struct OngoingRequestContext {
     state: OnceCell<OngoingRequestState>,
     peers: HashSet<PeerId>,
     response: Option<Result<Response, ()>>,
+}
+
+impl OngoingRequestContext {
+    fn into_state(self) -> Option<OngoingRequestState> {
+        let Self {
+            state,
+            peers: _,
+            response,
+        } = self;
+        let state = state.into_inner();
+        debug_assert_eq!(response, None, "future must take provided response");
+        state
+    }
 }
 
 #[derive(Debug)]
