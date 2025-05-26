@@ -20,20 +20,20 @@
 
 use super::{overlay, AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
 use crate::scheduler::TaskPoolImpl;
-use gear_core::{ids::ProgramId, tasks::VaraScheduledTask};
+use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
 use std::{cell::RefCell, thread::LocalKey};
 
 /// Task pool implementation that can be used in a native, non-wasm runtimes.
 pub type AuxiliaryTaskpool<TaskPoolCallbacks> = TaskPoolImpl<
     TaskPoolStorageWrap,
-    VaraScheduledTask<ProgramId>,
+    VaraScheduledTask<ActorId>,
     TaskPoolErrorImpl,
     TaskPoolErrorImpl,
     TaskPoolCallbacks,
 >;
 
 pub(crate) type TaskPoolStorage =
-    RefCell<DoubleBTreeMap<BlockNumber, VaraScheduledTask<ProgramId>, ()>>;
+    RefCell<DoubleBTreeMap<BlockNumber, VaraScheduledTask<ActorId>, ()>>;
 std::thread_local! {
     pub(crate) static TASKPOOL_STORAGE: TaskPoolStorage = const { RefCell::new(DoubleBTreeMap::new()) };
 }
@@ -51,7 +51,7 @@ pub struct TaskPoolStorageWrap;
 
 impl AuxiliaryDoubleStorageWrap for TaskPoolStorageWrap {
     type Key1 = BlockNumber;
-    type Key2 = VaraScheduledTask<ProgramId>;
+    type Key2 = VaraScheduledTask<ActorId>;
     type Value = ();
 
     fn with_storage<F, R>(f: F) -> R

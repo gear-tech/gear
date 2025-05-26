@@ -20,8 +20,8 @@
 
 use crate::{result::Result, Api, GasInfo};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    message::ReplyInfo,
+    ids::{ActorId, CodeId, MessageId},
+    rpc::ReplyInfo,
 };
 use sp_core::H256;
 use subxt::rpc_params;
@@ -81,7 +81,7 @@ impl Api {
     pub async fn calculate_handle_gas(
         &self,
         origin: H256,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -160,7 +160,7 @@ impl Api {
     pub async fn calculate_reply_for_handle(
         &self,
         origin: H256,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,

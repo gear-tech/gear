@@ -15,10 +15,9 @@ ethexe-network.workspace = true
 ethexe-observer.workspace = true
 ethexe-processor.workspace = true
 ethexe-signer.workspace = true
-ethexe-sequencer.workspace = true
+ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-validator.workspace = true
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime.workspace = true
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true

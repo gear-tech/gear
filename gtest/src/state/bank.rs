@@ -19,7 +19,7 @@
 //! `gtest` bank
 
 use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
-use gear_common::{Gas, GasMultiplier, ProgramId};
+use gear_common::{ActorId, Gas, GasMultiplier};
 use std::{cell::RefCell, collections::HashMap, thread::LocalKey};
 
 thread_local! {
@@ -47,7 +47,7 @@ pub(crate) struct Bank;
 
 impl Bank {
     // Create a new bank.
-    pub(crate) fn deposit_value(&self, id: ProgramId, value: Value, keep_alive: bool) {
+    pub(crate) fn deposit_value(&self, id: ActorId, value: Value, keep_alive: bool) {
         Accounts::decrease(id, value, keep_alive);
         storage().with_borrow_mut(|accs| {
             accs.entry(id)
@@ -57,7 +57,7 @@ impl Bank {
     }
 
     // Deposit gas.
-    pub(crate) fn deposit_gas(&self, id: ProgramId, gas: Gas, keep_alive: bool) {
+    pub(crate) fn deposit_gas(&self, id: ActorId, gas: Gas, keep_alive: bool) {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas);
         Accounts::decrease(id, gas_value, keep_alive);
         storage().with_borrow_mut(|accs| {
@@ -68,7 +68,7 @@ impl Bank {
     }
 
     // Withdraw gas.
-    pub(crate) fn spend_gas(&self, id: ProgramId, gas: Gas, multiplier: GasMultiplier<Value, Gas>) {
+    pub(crate) fn spend_gas(&self, id: ActorId, gas: Gas, multiplier: GasMultiplier<Value, Gas>) {
         let gas_value = multiplier.gas_to_value(gas);
         storage().with_borrow_mut(|accs| {
             accs.get_mut(&id)
@@ -80,7 +80,7 @@ impl Bank {
     // Withdraw gas.
     pub(crate) fn withdraw_gas(
         &self,
-        id: ProgramId,
+        id: ActorId,
         gas_left: Gas,
         multiplier: GasMultiplier<Value, Gas>,
     ) {
@@ -101,7 +101,7 @@ impl Bank {
     }
 
     // Transfer value.
-    pub(crate) fn transfer_value(&self, from: ProgramId, to: ProgramId, value: Value) {
+    pub(crate) fn transfer_value(&self, from: ActorId, to: ActorId, value: Value) {
         storage().with_borrow_mut(|accs| {
             accs.get_mut(&from)
                 .unwrap_or_else(|| {
@@ -117,5 +117,24 @@ impl Bank {
         }
 
         Accounts::increase(to, value);
+    }
+
+    // Transfer locked value.
+    pub(crate) fn transfer_locked_value(&mut self, from: ActorId, to: ActorId, value: Value) {
+        if value == 0 {
+            return;
+        }
+
+        self.accounts
+            .get_mut(&from)
+            .unwrap_or_else(|| {
+                panic!("Bank::transfer_locked_value: actor id {from:?} not found in bank")
+            })
+            .value -= value;
+
+        self.accounts
+            .entry(to)
+            .or_insert(BankBalance { gas: 0, value: 0 })
+            .value += value;
     }
 }

@@ -26,16 +26,17 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ext::AnvilApi, Provider as _, RootProvider},
-    rpc::types::anvil::MineOptions,
+    rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
 use anyhow::Result;
 use ethexe_common::{
-    db::{CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    ScheduledTask,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent};
-use ethexe_db::{BlockMetaStorage, Database, MemDb, ScheduledTask};
+use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
 use ethexe_processor::Processor;
@@ -43,8 +44,7 @@ use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction};
-use ethexe_validator::Validator;
+use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -59,7 +59,7 @@ use std::{
 };
 use tempfile::tempdir;
 use tokio::task::{self, JoinHandle};
-use utils::{NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
+use utils::{EnvNetworkConfig, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig};
 
 #[ignore = "until rpc fixed"]
 #[tokio::test]
@@ -72,7 +72,6 @@ async fn basics() {
     let node_cfg = config::NodeConfig {
         database_path: tmp_dir.join("db"),
         key_path: tmp_dir.join("key"),
-        sequencer: Default::default(),
         validator: Default::default(),
         validator_session: Default::default(),
         eth_max_sync_depth: 1_000,
@@ -127,13 +126,9 @@ async fn ping() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
+
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
@@ -213,12 +208,7 @@ async fn uninitialized_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -277,7 +267,7 @@ async fn uninitialized_program() {
         }
         .encode();
 
-        let mut listener = env.events_publisher().subscribe().await;
+        let mut listener = env.observer_events_publisher().subscribe().await;
 
         let init_res = env
             .create_program(code_id, 500_000_000_000_000)
@@ -335,7 +325,7 @@ async fn uninitialized_program() {
             mirror.send_reply(mid, [], 0).await.unwrap();
         }
 
-        // Success end of initialisation.
+        // Success end of initialization.
         let code = listener
             .apply_until_block_event(|event| match event {
                 BlockEvent::Mirror {
@@ -377,12 +367,7 @@ async fn mailbox() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -427,7 +412,7 @@ async fn mailbox() {
     let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
     let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
 
-    let mut listener = env.events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe().await;
     let block_data = listener
         .apply_until_block_event_with_header(|event, block_data| match event {
             BlockEvent::Mirror { actor_id, event } if actor_id == pid => {
@@ -589,7 +574,7 @@ async fn mailbox() {
         .db
         .block_schedule(block_data.header.parent_hash)
         .expect("must exist");
-    assert!(schedule.is_empty(), "{:?}", schedule);
+    assert!(schedule.is_empty(), "{schedule:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -599,12 +584,7 @@ async fn incoming_transfers() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_public_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_public_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -654,7 +634,7 @@ async fn incoming_transfers() {
     // 1_000 tokens
     const VALUE_SENT: u128 = 1_000_000_000_000_000;
 
-    let mut listener = env.events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe().await;
 
     env.transfer_wvara(ping_id, VALUE_SENT).await;
 
@@ -702,18 +682,13 @@ async fn incoming_transfers() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn ping_reorg() {
     utils::init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_pub_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -791,7 +766,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::from_one(&MemDb::default());
+    node.db = Database::memory();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
@@ -809,7 +784,7 @@ async fn ping_reorg() {
     assert_eq!(res.payload, b"PONG");
 }
 
-// Mine 150 blocks - send message - mine 150 blocks.
+// Stop service - waits 150 blocks - send message - waits 150 blocks - start service.
 // Deep sync must load chain in batch.
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
@@ -818,12 +793,7 @@ async fn ping_deep_sync() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let sequencer_pub_key = env.wallets.next();
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0]),
-    );
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -862,15 +832,20 @@ async fn ping_deep_sync() {
 
     let ping_id = res.program_id;
 
-    // Mine some blocks to check deep sync.
+    node.stop_service().await;
+
     env.skip_blocks(150).await;
 
     env.approve_wvara(ping_id).await;
 
     let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
 
-    // Mine some blocks to check deep sync.
     env.skip_blocks(150).await;
+
+    node.start_service().await;
+
+    // Important: mine one block to sent block event to the started service.
+    env.force_new_block().await;
 
     let res = send_message.wait_for().await.unwrap();
     assert_eq!(res.program_id, ping_id);
@@ -880,48 +855,34 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn multiple_validators() {
     utils::init_logger();
 
     let config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(3),
+        validators: ValidatorsConfig::PreDefined(3),
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("📗 Starting sequencer");
-    let sequencer_pub_key = env.wallets.next();
-    let mut sequencer = env.new_node(
-        NodeConfig::named("sequencer")
-            .sequencer(sequencer_pub_key)
-            .network(None, None),
+    assert_eq!(
+        env.validators.len(),
+        3,
+        "Currently only 3 validators are supported for this test"
     );
-    sequencer.start_service().await;
+    assert!(
+        !env.continuous_block_generation,
+        "Currently continuous block generation is not supported for this test"
+    );
 
-    log::info!("📗 Starting validator 0");
-    let mut validator0 = env.new_node(
-        NodeConfig::named("validator-0")
-            .validator(env.validators[0], env.validator_session_public_keys[0])
-            .network(None, sequencer.multiaddr.clone()),
-    );
-    validator0.start_service().await;
-
-    log::info!("📗 Starting validator 1");
-    let mut validator1 = env.new_node(
-        NodeConfig::named("validator-1")
-            .validator(env.validators[1], env.validator_session_public_keys[1])
-            .network(None, sequencer.multiaddr.clone()),
-    );
-    validator1.start_service().await;
-
-    log::info!("📗 Starting validator 2");
-    let mut validator2 = env.new_node(
-        NodeConfig::named("validator-2")
-            .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network(None, sequencer.multiaddr.clone()),
-    );
-    validator2.start_service().await;
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -1004,8 +965,13 @@ async fn multiple_validators() {
     assert_eq!(res.value, 0);
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 
-    log::info!("📗 Stop validator 2 and check that all is still working");
-    validator2.stop_service().await;
+    log::info!("📗 Stop validator 0 and check, that ethexe is still working");
+    if env.next_block_producer_index().await == 0 {
+        log::info!("📗 Skip one block to be sure validator 0 is not a producer for next block");
+        env.force_new_block().await;
+    }
+    validators[0].stop_service().await;
+
     let res = env
         .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
         .await
@@ -1015,8 +981,12 @@ async fn multiple_validators() {
         .unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
 
-    log::info!("📗 Stop validator 1 and check that it's not working");
-    validator1.stop_service().await;
+    log::info!("📗 Stop validator 1 and check, that ethexe is not working after");
+    if env.next_block_producer_index().await == 1 {
+        log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
+        env.force_new_block().await;
+    }
+    validators[1].stop_service().await;
 
     let wait_for_reply_to = env
         .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
@@ -1027,8 +997,15 @@ async fn multiple_validators() {
         .await
         .expect_err("Timeout expected");
 
-    log::info!("📗 Start validator 2 and check that now is working, validator 1 is still stopped.");
-    validator2.start_service().await;
+    log::info!(
+        "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
+    );
+    validators[0].start_service().await;
+
+    if env.next_block_producer_index().await == 1 {
+        log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
+        env.force_new_block().await;
+    }
 
     // IMPORTANT: mine one block to send a new block event.
     env.force_new_block().await;
@@ -1038,12 +1015,13 @@ async fn multiple_validators() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn tx_pool_gossip() {
     utils::init_logger();
 
     let test_env_config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(2),
+        validators: ValidatorsConfig::PreDefined(2),
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
 
@@ -1053,18 +1031,13 @@ async fn tx_pool_gossip() {
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[0], env.validator_session_public_keys[0])
-            .service_rpc(9505)
-            .network(None, None),
+            .validator(env.validators[0])
+            .service_rpc(9505),
     );
     node0.start_service().await;
 
     log::info!("📗 Starting node 1");
-    let mut node1 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[1], env.validator_session_public_keys[1])
-            .network(None, node0.multiaddr.clone()),
-    );
+    let mut node1 = env.new_node(NodeConfig::default().validator(env.validators[1]));
     node1.start_service().await;
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
@@ -1092,24 +1065,16 @@ async fn tx_pool_gossip() {
             // referring to the latest valid block hash
             reference_block,
         };
-        let signature = env
-            .signer
-            .sign(sender_pub_key, ethexe_tx.encode().as_ref())
-            .expect("failed signing tx");
-        SignedOffchainTransaction {
-            signature: signature.encode(),
-            transaction: ethexe_tx,
-        }
+        env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
     };
+
+    let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
 
     // Send request
     log::info!("Sending tx pool request to node-1");
     let rpc_client = node0.rpc_client().expect("rpc server is set");
     let resp = rpc_client
-        .send_message(
-            signed_ethexe_tx.transaction.clone(),
-            signed_ethexe_tx.signature.clone(),
-        )
+        .send_message(transaction, signature.encode())
         .await
         .expect("failed sending request");
     assert!(resp.status().is_success());
@@ -1136,7 +1101,7 @@ async fn tx_pool_gossip() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn fast_sync() {
     utils::init_logger();
 
@@ -1191,27 +1156,13 @@ async fn fast_sync() {
     };
 
     let config = TestEnvConfig {
-        validators: ValidatorsConfig::Generated(3),
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("Starting sequencer");
-    let sequencer_pub_key = env.wallets.next();
-    let mut sequencer = env.new_node(
-        NodeConfig::named("sequencer")
-            .sequencer(sequencer_pub_key)
-            .validator(env.validators[0], env.validator_session_public_keys[0])
-            .network(None, None),
-    );
-    sequencer.start_service().await;
-
     log::info!("Starting Alice");
-    let mut alice = env.new_node(
-        NodeConfig::named("Alice")
-            .validator(env.validators[1], env.validator_session_public_keys[1])
-            .network(None, sequencer.multiaddr.clone()),
-    );
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
     alice.start_service().await;
 
     log::info!("Creating `demo-autoreply` programs");
@@ -1248,22 +1199,19 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
         .await;
 
     log::info!("Starting Bob (fast-sync)");
-    let mut bob = env.new_node(
-        NodeConfig::named("Bob")
-            .validator(env.validators[2], env.validator_session_public_keys[2])
-            .network(None, sequencer.multiaddr.clone())
-            .fast_sync(),
-    );
+    let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync());
+
     bob.start_service().await;
 
     log::info!("Sending messages to programs");
+
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
             .send_message(program_id, &(i as u64).encode(), 0)
@@ -1278,7 +1226,7 @@ async fn fast_sync() {
         );
     }
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1312,11 +1260,7 @@ async fn fast_sync() {
 
     env.skip_blocks(100).await;
 
-    let latest_block = env.latest_block().await;
-    sequencer
-        .listener()
-        .wait_for_block_processed(latest_block)
-        .await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1328,7 +1272,7 @@ async fn fast_sync() {
     // mine a block so Bob can produce the event we will wait for
     env.skip_blocks(1).await;
 
-    let latest_block = env.latest_block().await;
+    let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
         .wait_for_block_processed(latest_block)
@@ -1347,29 +1291,33 @@ mod utils {
     use super::*;
     use crate::Event;
     use alloy::eips::BlockId;
-    use ethexe_common::SimpleBlockData;
-    use ethexe_db::OnChainStorage;
-    use ethexe_network::{export::Multiaddr, NetworkEvent};
+    use ethexe_common::{
+        db::OnChainStorage,
+        ecdsa::{PrivateKey, PublicKey},
+        Address, SimpleBlockData,
+    };
+    use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
+    use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_rpc::RpcService;
-    use ethexe_sequencer::{SequencerConfig, SequencerService};
-    use ethexe_signer::PrivateKey;
     use ethexe_tx_pool::TxPoolService;
-    use futures::StreamExt;
+    use futures::{executor::block_on, StreamExt};
     use gear_core::message::ReplyCode;
     use rand::{rngs::StdRng, SeedableRng};
     use roast_secp256k1_evm::frost::{
-        keys::{self, IdentifierList, PublicKeyPackage},
+        keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
         Identifier, SigningKey,
     };
     use std::{
-        ops::Mul,
-        str::FromStr,
+        pin::Pin,
         sync::atomic::{AtomicUsize, Ordering},
     };
     use tokio::sync::broadcast::{self, Receiver, Sender};
     use tracing::Instrument;
     use tracing_subscriber::EnvFilter;
+
+    /// Max network services which can be created by one test environment.
+    const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 
     pub fn init_logger() {
         let _ = tracing_subscriber::fmt()
@@ -1380,13 +1328,13 @@ mod utils {
 
     pub struct TestEnv {
         pub eth_cfg: EthereumConfig,
+        #[allow(unused)]
         pub wallets: Wallets,
         pub blob_reader: MockBlobReader,
         pub provider: RootProvider,
         pub ethereum: Ethereum,
         pub signer: Signer,
-        pub validators: Vec<ethexe_signer::PublicKey>,
-        pub validator_session_public_keys: Vec<ethexe_signer::PublicKey>,
+        pub validators: Vec<ValidatorConfig>,
         pub sender_id: ActorId,
         pub threshold: u64,
         pub block_time: Duration,
@@ -1395,6 +1343,9 @@ mod utils {
         /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
         broadcaster: Sender<ObserverEvent>,
         db: Database,
+        /// If network is enabled by test, then we store here:
+        /// network service polling thread, bootstrap address and nonce for new node address generation.
+        bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1404,10 +1355,11 @@ mod utils {
             let TestEnvConfig {
                 validators,
                 block_time,
-                rpc_url,
+                rpc,
                 wallets,
                 router_address,
                 continuous_block_generation,
+                network,
             } = config;
 
             log::info!(
@@ -1415,26 +1367,35 @@ mod utils {
                 continuous_block_generation
             );
 
-            let (rpc_url, anvil) = match rpc_url {
-                Some(rpc_url) => {
+            let (rpc_url, anvil) = match rpc {
+                EnvRpcConfig::ProvidedURL(rpc_url) => {
                     log::info!("📍 Using provided RPC URL: {}", rpc_url);
                     (rpc_url, None)
                 }
-                None => {
-                    let anvil = if continuous_block_generation {
-                        Anvil::new().block_time(block_time.as_secs())
-                    } else {
-                        Anvil::new()
-                    };
-                    // speeds up block finalization, so we don't have to calculate
-                    // when the next finalized block is produced, which is convenient for tests
-                    let anvil = anvil.arg("--slots-in-an-epoch=1").spawn();
+                EnvRpcConfig::CustomAnvil {
+                    slots_in_epoch,
+                    genesis_timestamp,
+                } => {
+                    let mut anvil = Anvil::new();
+
+                    if continuous_block_generation {
+                        anvil = anvil.block_time(block_time.as_secs())
+                    }
+                    if let Some(slots_in_epoch) = slots_in_epoch {
+                        anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
+                    }
+                    if let Some(genesis_timestamp) = genesis_timestamp {
+                        anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
+                    }
+
+                    let anvil = anvil.spawn();
+
                     log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                     (anvil.ws_endpoint(), Some(anvil))
                 }
             };
 
-            let signer = Signer::new(tempfile::tempdir()?.into_path())?;
+            let signer = Signer::memory();
 
             let mut wallets = if let Some(wallets) = wallets {
                 Wallets::custom(&signer, wallets)
@@ -1443,63 +1404,20 @@ mod utils {
             };
 
             let validators: Vec<_> = match validators {
-                ValidatorsConfig::Generated(amount) => (0..amount)
-                    .map(|_| signer.generate_key().unwrap())
-                    .collect(),
+                ValidatorsConfig::PreDefined(amount) => {
+                    (0..amount).map(|_| wallets.next()).collect()
+                }
                 ValidatorsConfig::Custom(keys) => keys
                     .iter()
                     .map(|k| {
                         let private_key = k.parse().unwrap();
-                        signer.add_key(private_key).unwrap()
+                        signer.storage_mut().add_key(private_key).unwrap()
                     })
                     .collect(),
             };
 
-            let max_signers: u16 = validators.len().try_into().expect("conversion failed");
-            let min_signers = max_signers
-                .checked_mul(2)
-                .expect("multiplication failed")
-                .div_ceil(3);
-
-            let maybe_validator_identifiers: Result<Vec<_>, _> = validators
-                .iter()
-                .map(|public_key| {
-                    Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
-                })
-                .collect();
-            let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
-            let identifiers = IdentifierList::Custom(&validator_identifiers);
-
-            let mut rng = StdRng::seed_from_u64(123);
-
-            let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
-
-            let (secret_shares, public_key_package1) =
-                keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
-                    .expect("key split failed");
-
-            let verifiable_secret_sharing_commitment = secret_shares
-                .values()
-                .map(|secret_share| secret_share.commitment().clone())
-                .next()
-                .expect("conversion failed");
-
-            let identifiers = validator_identifiers.clone().into_iter().collect();
-            let public_key_package2 = PublicKeyPackage::from_commitment(
-                &identifiers,
-                &verifiable_secret_sharing_commitment,
-            )
-            .expect("conversion failed");
-            assert_eq!(public_key_package1, public_key_package2);
-
-            let validator_session_public_keys: Vec<_> = validator_identifiers
-                .iter()
-                .map(|id| {
-                    let signing_share = *secret_shares[id].signing_share();
-                    let private_key = PrivateKey(signing_share.serialize().try_into().unwrap());
-                    signer.add_key(private_key).unwrap()
-                })
-                .collect();
+            let (validators, verifiable_secret_sharing_commitment) =
+                Self::define_session_keys(&signer, validators);
 
             let sender_address = wallets.next().to_address();
 
@@ -1516,7 +1434,10 @@ mod utils {
                 log::info!("📗 Deploying new router");
                 Ethereum::deploy(
                     &rpc_url,
-                    validators.iter().map(|k| k.to_address()).collect(),
+                    validators
+                        .iter()
+                        .map(|k| k.public_key.to_address())
+                        .collect(),
                     signer.clone(),
                     sender_address,
                     verifiable_secret_sharing_commitment,
@@ -1530,7 +1451,7 @@ mod utils {
 
             let blob_reader = MockBlobReader::new();
 
-            let db = Database::from_one(&MemDb::default());
+            let db = Database::memory();
 
             let eth_cfg = EthereumConfig {
                 rpc: rpc_url.clone(),
@@ -1579,7 +1500,53 @@ mod utils {
 
                 (sender, handle)
             };
+
             let threshold = router_query.threshold().await?;
+
+            let network_address = match network {
+                EnvNetworkConfig::Disabled => None,
+                EnvNetworkConfig::Enabled => Some(None),
+                EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(Some(address)),
+            };
+
+            let bootstrap_network = network_address.map(|maybe_address| {
+                static NONCE: AtomicUsize = AtomicUsize::new(1);
+
+                // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
+                let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
+                let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
+
+                let config_path = tempfile::tempdir().unwrap().into_path();
+                let multiaddr: Multiaddr = address.parse().unwrap();
+
+                let mut config = NetworkConfig::new_test(config_path);
+                config.listen_addresses = [multiaddr.clone()].into();
+                config.external_addresses = [multiaddr.clone()].into();
+                let mut service = NetworkService::new(config, &signer, db.clone()).unwrap();
+
+                let local_peer_id = service.local_peer_id();
+
+                let handle = task::spawn(
+                    async move {
+                        loop {
+                            let _event = service.select_next_some().await;
+                        }
+                    }
+                    .instrument(tracing::trace_span!("network-stream")),
+                );
+
+                let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
+
+                (handle, bootstrap_address, nonce)
+            });
+
+            // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
+            if anvil.is_some() && !continuous_block_generation {
+                provider
+                    .anvil_set_block_timestamp_interval(block_time.as_secs())
+                    .await
+                    .unwrap();
+            }
 
             Ok(TestEnv {
                 eth_cfg,
@@ -1589,13 +1556,13 @@ mod utils {
                 ethereum,
                 signer,
                 validators,
-                validator_session_public_keys,
                 sender_id: ActorId::from(H160::from(sender_address.0)),
                 threshold,
                 block_time,
                 continuous_block_generation,
                 broadcaster,
                 db,
+                bootstrap_network,
                 _anvil: anvil,
                 _events_stream,
             })
@@ -1604,24 +1571,27 @@ mod utils {
         pub fn new_node(&mut self, config: NodeConfig) -> Node {
             let NodeConfig {
                 name,
-                sequencer_public_key,
-                validator_public_key,
-                validator_session_public_key,
-                network,
+                db,
+                validator_config,
                 rpc: service_rpc_config,
                 fast_sync,
             } = config;
 
-            let db = Database::from_one(&MemDb::default());
+            let db = db.unwrap_or_else(Database::memory);
 
-            let network_address = network.as_ref().map(|network| {
-                network.address.clone().unwrap_or_else(|| {
-                    static NONCE: AtomicUsize = AtomicUsize::new(1);
-                    let nonce = NONCE.fetch_add(1, Ordering::Relaxed);
-                    format!("/memory/{nonce}")
+            let (network_address, network_bootstrap_address) = self
+                .bootstrap_network
+                .as_mut()
+                .map(|(_, bootstrap_address, nonce)| {
+                    *nonce += 1;
+
+                    if *nonce % MAX_NETWORK_SERVICES_PER_TEST == 0 {
+                        panic!("Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}");
+                    }
+
+                    (format!("/memory/{nonce}"), bootstrap_address.clone())
                 })
-            });
-            let network_bootstrap_address = network.and_then(|network| network.bootstrap_address);
+                .unzip();
 
             Node {
                 name,
@@ -1632,13 +1602,10 @@ mod utils {
                 receiver: None,
                 blob_reader: self.blob_reader.clone(),
                 signer: self.signer.clone(),
-                validators: self.validators.iter().map(|k| k.to_address()).collect(),
                 threshold: self.threshold,
                 block_time: self.block_time,
                 running_service_handle: None,
-                sequencer_public_key,
-                validator_public_key,
-                validator_session_public_key,
+                validator_config,
                 network_address,
                 network_bootstrap_address,
                 service_rpc_config,
@@ -1649,20 +1616,21 @@ mod utils {
         pub async fn upload_code(&self, code: &[u8]) -> Result<WaitForUploadCode> {
             log::info!("📗 Upload code, len {}", code.len());
 
-            let listener = self.events_publisher().subscribe().await;
+            let listener = self.observer_events_publisher().subscribe().await;
 
-            let pending_builder = self
-                .ethereum
-                .router()
-                .request_code_validation_with_sidecar(code)
-                .await?;
+            // Lock the blob reader to lock any other threads that may use it
+            let mut guard = self.blob_reader.storage_mut();
+
+            let pending_builder = block_on(
+                self.ethereum
+                    .router()
+                    .request_code_validation_with_sidecar(code),
+            )?;
 
             let code_id = pending_builder.code_id();
             let tx_hash = pending_builder.tx_hash();
 
-            self.blob_reader
-                .add_blob_transaction(tx_hash, code.to_vec())
-                .await;
+            guard.insert(tx_hash, code.to_vec());
 
             Ok(WaitForUploadCode { listener, code_id })
         }
@@ -1674,7 +1642,7 @@ mod utils {
         ) -> Result<WaitForProgramCreation> {
             log::info!("📗 Create program, code_id {code_id}");
 
-            let listener = self.events_publisher().subscribe().await;
+            let listener = self.observer_events_publisher().subscribe().await;
 
             let router = self.ethereum.router();
 
@@ -1708,9 +1676,9 @@ mod utils {
         ) -> Result<WaitForReplyTo> {
             log::info!("📗 Send message to {target}, payload len {}", payload.len());
 
-            let listener = self.events_publisher().subscribe().await;
+            let listener = self.observer_events_publisher().subscribe().await;
 
-            let program_address = ethexe_signer::Address::try_from(target)?;
+            let program_address = Address::try_from(target)?;
             let program = self.ethereum.mirror(program_address);
 
             let (_, message_id) = program.send_message(payload, value).await?;
@@ -1724,7 +1692,7 @@ mod utils {
         pub async fn approve_wvara(&self, program_id: ActorId) {
             log::info!("📗 Approving WVara for {program_id}");
 
-            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let program_address = Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara.approve_all(program_address.0.into()).await.unwrap();
         }
@@ -1732,7 +1700,7 @@ mod utils {
         pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
             log::info!("📗 Transferring {value} WVara to {program_id}");
 
-            let program_address = ethexe_signer::Address::try_from(program_id).unwrap();
+            let program_address = Address::try_from(program_id).unwrap();
             let wvara = self.ethereum.router().wvara();
             wvara
                 .transfer(program_address.0.into(), value)
@@ -1740,13 +1708,17 @@ mod utils {
                 .unwrap();
         }
 
-        pub fn events_publisher(&self) -> ObserverEventsPublisher {
+        pub fn observer_events_publisher(&self) -> ObserverEventsPublisher {
             ObserverEventsPublisher {
                 broadcaster: self.broadcaster.clone(),
                 db: self.db.clone(),
             }
         }
 
+        /// Force new block generation on rpc node.
+        /// The difference between this method and `skip_blocks` is that
+        /// `skip_blocks` will wait for the block event to be generated,
+        /// while this method does not guarantee that.
         pub async fn force_new_block(&self) {
             if self.continuous_block_generation {
                 // nothing to do: new block will be generated automatically
@@ -1755,9 +1727,20 @@ mod utils {
             }
         }
 
+        /// Force new `blocks_amount` blocks generation on rpc node,
+        /// and wait for the block event to be generated.
         pub async fn skip_blocks(&self, blocks_amount: u32) {
             if self.continuous_block_generation {
-                tokio::time::sleep(self.block_time.mul(blocks_amount)).await;
+                let mut blocks_count = 0;
+                self.observer_events_publisher()
+                    .subscribe()
+                    .await
+                    .apply_until_block_event(|_| {
+                        blocks_count += 1;
+                        Ok((blocks_count >= blocks_amount).then_some(()))
+                    })
+                    .await
+                    .unwrap();
             } else {
                 self.provider
                     .evm_mine(Some(MineOptions::Options {
@@ -1769,25 +1752,88 @@ mod utils {
             }
         }
 
-        pub async fn latest_block(&self) -> H256 {
-            let latest_block = self
-                .provider
+        /// Returns the index in validators list of the next block producer.
+        ///
+        /// ## Note
+        /// This function is not completely thread-safe.
+        /// If you have some other threads or processes,
+        /// that can produce blocks for the same rpc node,
+        /// then the return may be outdated.
+        pub async fn next_block_producer_index(&self) -> usize {
+            let timestamp = self.latest_block().await.timestamp;
+            ethexe_consensus::block_producer_index(
+                self.validators.len(),
+                (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
+            )
+        }
+
+        pub async fn latest_block(&self) -> RpcHeader {
+            self.provider
                 .get_block(BlockId::latest())
                 .await
                 .unwrap()
                 .expect("latest block always exist")
-                .header;
-            H256(latest_block.hash.0)
+                .header
         }
 
-        #[allow(unused)]
-        pub async fn process_already_uploaded_code(&self, code: &[u8], tx_hash: &str) -> CodeId {
-            let code_id = CodeId::generate(code);
-            let tx_hash = H256::from_str(tx_hash).unwrap();
-            self.blob_reader
-                .add_blob_transaction(tx_hash, code.to_vec())
-                .await;
-            code_id
+        pub fn define_session_keys(
+            signer: &Signer,
+            validators: Vec<PublicKey>,
+        ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
+            let max_signers: u16 = validators.len().try_into().expect("conversion failed");
+            let min_signers = max_signers
+                .checked_mul(2)
+                .expect("multiplication failed")
+                .div_ceil(3);
+
+            let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+                .iter()
+                .map(|public_key| {
+                    Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
+                })
+                .collect();
+            let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
+            let identifiers = IdentifierList::Custom(&validator_identifiers);
+
+            let mut rng = StdRng::seed_from_u64(123);
+
+            let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
+
+            let (secret_shares, public_key_package1) =
+                keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
+                    .expect("key split failed");
+
+            let verifiable_secret_sharing_commitment = secret_shares
+                .values()
+                .map(|secret_share| secret_share.commitment().clone())
+                .next()
+                .expect("conversion failed");
+
+            let identifiers = validator_identifiers.clone().into_iter().collect();
+            let public_key_package2 = PublicKeyPackage::from_commitment(
+                &identifiers,
+                &verifiable_secret_sharing_commitment,
+            )
+            .expect("conversion failed");
+            assert_eq!(public_key_package1, public_key_package2);
+
+            (
+                validators
+                    .into_iter()
+                    .zip(validator_identifiers.iter())
+                    .map(|(public_key, id)| {
+                        let signing_share = *secret_shares[id].signing_share();
+                        let private_key = PrivateKey::from(
+                            <[u8; 32]>::try_from(signing_share.serialize()).unwrap(),
+                        );
+                        ValidatorConfig {
+                            public_key,
+                            session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
+                        }
+                    })
+                    .collect(),
+                verifiable_secret_sharing_commitment,
+            )
         }
     }
 
@@ -1877,11 +1923,31 @@ mod utils {
     }
 
     pub enum ValidatorsConfig {
-        /// Auto generate validators, amount of validators is provided.
-        Generated(usize),
+        /// Take validator addresses from provided wallet, amount of validators is provided.
+        PreDefined(usize),
         /// Custom validator eth-addresses in hex string format.
         #[allow(unused)]
         Custom(Vec<String>),
+    }
+
+    /// Configuration for the network service.
+    pub enum EnvNetworkConfig {
+        /// Network service is disabled.
+        Disabled,
+        /// Network service is enabled. Network address will be generated.
+        Enabled,
+        #[allow(unused)]
+        /// Network service is enabled. Network address is provided as String.
+        EnabledWithCustomAddress(String),
+    }
+
+    pub enum EnvRpcConfig {
+        #[allow(unused)]
+        ProvidedURL(String),
+        CustomAnvil {
+            slots_in_epoch: Option<u64>,
+            genesis_timestamp: Option<u64>,
+        },
     }
 
     pub struct TestEnvConfig {
@@ -1891,25 +1957,34 @@ mod utils {
         /// By default uses 1 second block time.
         pub block_time: Duration,
         /// By default creates new anvil instance if rpc is not provided.
-        pub rpc_url: Option<String>,
-        /// By default uses anvil hardcoded wallets if wallets are not provided.
+        pub rpc: EnvRpcConfig,
+        /// By default uses anvil hardcoded wallets if custom wallets are not provided.
         pub wallets: Option<Vec<String>>,
         /// If None (by default) new router will be deployed.
         /// In case of Some(_), will connect to existing router contract.
         pub router_address: Option<String>,
-        /// Identify whether networks works (or have to works) in continuous block generation mode.
+        /// Identify whether networks works (or have to works) in continuous block generation mode, false by default.
         pub continuous_block_generation: bool,
+        /// Network service configuration, disabled by default.
+        pub network: EnvNetworkConfig,
     }
 
     impl Default for TestEnvConfig {
         fn default() -> Self {
             Self {
-                validators: ValidatorsConfig::Generated(1),
+                validators: ValidatorsConfig::PreDefined(1),
                 block_time: Duration::from_secs(1),
-                rpc_url: None,
+                rpc: EnvRpcConfig::CustomAnvil {
+                    // speeds up block finalization, so we don't have to calculate
+                    // when the next finalized block is produced, which is convenient for tests
+                    slots_in_epoch: Some(1),
+                    // For deterministic tests we need to set fixed genesis timestamp
+                    genesis_timestamp: Some(1_000_000_000),
+                },
                 wallets: None,
                 router_address: None,
                 continuous_block_generation: false,
+                network: EnvNetworkConfig::Disabled,
             }
         }
     }
@@ -1919,14 +1994,10 @@ mod utils {
     pub struct NodeConfig {
         /// Node name.
         pub name: Option<String>,
-        /// Sequencer public key, if provided then new node starts as sequencer.
-        pub sequencer_public_key: Option<ethexe_signer::PublicKey>,
-        /// Validator public key, if provided then new node starts as validator.
-        pub validator_public_key: Option<ethexe_signer::PublicKey>,
-        /// Validator public key of session, if provided then new node starts as validator.
-        pub validator_session_public_key: Option<ethexe_signer::PublicKey>,
-        /// Network configuration, if provided then new node starts with network.
-        pub network: Option<NodeNetworkConfig>,
+        /// Database, if not provided, will be created with MemDb.
+        pub db: Option<Database>,
+        /// Validator configuration, if provided then new node starts as validator.
+        pub validator_config: Option<ValidatorConfig>,
         /// RPC configuration, if provided then new node starts with RPC service.
         pub rpc: Option<RpcConfig>,
         /// Do P2P database synchronization before the main loop
@@ -1941,30 +2012,14 @@ mod utils {
             }
         }
 
-        pub fn sequencer(mut self, sequencer_public_key: ethexe_signer::PublicKey) -> Self {
-            self.sequencer_public_key = Some(sequencer_public_key);
+        #[allow(unused)]
+        pub fn db(mut self, db: Database) -> Self {
+            self.db = Some(db);
             self
         }
 
-        pub fn validator(
-            mut self,
-            validator_public_key: ethexe_signer::PublicKey,
-            validator_session_public_key: ethexe_signer::PublicKey,
-        ) -> Self {
-            self.validator_public_key = Some(validator_public_key);
-            self.validator_session_public_key = Some(validator_session_public_key);
-            self
-        }
-
-        pub fn network(
-            mut self,
-            address: Option<String>,
-            bootstrap_address: Option<String>,
-        ) -> Self {
-            self.network = Some(NodeNetworkConfig {
-                address,
-                bootstrap_address,
-            });
+        pub fn validator(mut self, config: ValidatorConfig) -> Self {
+            self.validator_config = Some(config);
             self
         }
 
@@ -1985,17 +2040,17 @@ mod utils {
         }
     }
 
-    #[derive(Default)]
-    pub struct NodeNetworkConfig {
-        /// Network address, if not provided, will be generated by test env.
-        pub address: Option<String>,
-        /// Network bootstrap address, if not provided, then no bootstrap address will be used.
-        pub bootstrap_address: Option<String>,
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct ValidatorConfig {
+        /// Validator public key.
+        pub public_key: PublicKey,
+        /// Validator session public key.
+        pub session_public_key: PublicKey,
     }
 
     /// Provides access to hardcoded anvil wallets or custom set wallets.
     pub struct Wallets {
-        wallets: Vec<ethexe_signer::PublicKey>,
+        wallets: Vec<PublicKey>,
         next_wallet: usize,
     }
 
@@ -2021,13 +2076,18 @@ mod utils {
             Self {
                 wallets: accounts
                     .into_iter()
-                    .map(|s| signer.add_key(s.as_ref().parse().unwrap()).unwrap())
+                    .map(|s| {
+                        signer
+                            .storage_mut()
+                            .add_key(s.as_ref().parse().unwrap())
+                            .unwrap()
+                    })
                     .collect(),
                 next_wallet: 0,
             }
         }
 
-        pub fn next(&mut self) -> ethexe_signer::PublicKey {
+        pub fn next(&mut self) -> PublicKey {
             let pub_key = self.wallets.get(self.next_wallet).expect("No more wallets");
             self.next_wallet += 1;
             *pub_key
@@ -2044,13 +2104,10 @@ mod utils {
         receiver: Option<Receiver<Event>>,
         blob_reader: MockBlobReader,
         signer: Signer,
-        validators: Vec<ethexe_signer::Address>,
         threshold: u64,
         block_time: Duration,
-        running_service_handle: Option<JoinHandle<Result<()>>>,
-        sequencer_public_key: Option<ethexe_signer::PublicKey>,
-        validator_public_key: Option<ethexe_signer::PublicKey>,
-        validator_session_public_key: Option<ethexe_signer::PublicKey>,
+        running_service_handle: Option<JoinHandle<()>>,
+        validator_config: Option<ValidatorConfig>,
         network_address: Option<String>,
         network_bootstrap_address: Option<String>,
         service_rpc_config: Option<RpcConfig>,
@@ -2072,54 +2129,39 @@ mod utils {
                 let config_path = tempfile::tempdir().unwrap().into_path();
                 let multiaddr: Multiaddr = addr.parse().unwrap();
 
-                let mut config = ethexe_network::NetworkConfig::new_test(config_path);
+                let mut config = NetworkConfig::new_test(config_path);
                 config.listen_addresses = [multiaddr.clone()].into();
                 config.external_addresses = [multiaddr.clone()].into();
                 if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                     let multiaddr = bootstrap_addr.parse().unwrap();
                     config.bootstrap_addresses = [multiaddr].into();
                 }
-                let network =
-                    ethexe_network::NetworkService::new(config, &self.signer, self.db.clone())
-                        .unwrap();
+                let network = NetworkService::new(config, &self.signer, self.db.clone()).unwrap();
                 self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
                 network
             });
 
-            let sequencer = match self.sequencer_public_key.as_ref() {
-                Some(key) => Some(
-                    SequencerService::new(
-                        &SequencerConfig {
-                            ethereum_rpc: self.eth_cfg.rpc.clone(),
-                            sign_tx_public: *key,
-                            router_address: self.eth_cfg.router_address,
-                            validators: self.validators.clone(),
-                            threshold: self.threshold,
-                            block_time: self.block_time,
-                        },
-                        self.signer.clone(),
-                        Box::new(self.db.clone()),
+            let consensus: Pin<Box<dyn ConsensusService>> =
+                if let Some(config) = self.validator_config.as_ref() {
+                    Box::pin(
+                        ValidatorService::new(
+                            self.signer.clone(),
+                            self.db.clone(),
+                            ethexe_consensus::ValidatorConfig {
+                                ethereum_rpc: self.eth_cfg.rpc.clone(),
+                                pub_key: config.public_key,
+                                router_address: self.eth_cfg.router_address,
+                                signatures_threshold: self.threshold,
+                                slot_duration: self.block_time,
+                            },
+                        )
+                        .await
+                        .unwrap(),
                     )
-                    .await
-                    .unwrap(),
-                ),
-                None => None,
-            };
+                } else {
+                    Box::pin(SimpleConnectService::new())
+                };
 
-            let validator = self
-                .validator_public_key
-                .zip(self.validator_session_public_key)
-                .map(|(pub_key, pub_key_session)| {
-                    Validator::new(
-                        &ethexe_validator::Config {
-                            pub_key,
-                            pub_key_session,
-                            router_address: self.eth_cfg.router_address,
-                        },
-                        self.db.clone(),
-                        self.signer.clone(),
-                    )
-                });
             let (sender, receiver) = broadcast::channel(2048);
 
             let observer = ObserverService::new(
@@ -2145,20 +2187,22 @@ mod utils {
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
+                consensus,
                 network,
-                sequencer,
-                validator,
                 None,
                 rpc,
                 Some(sender),
                 self.fast_sync,
             );
 
-            let handle = task::spawn(
+            let name = self.name.clone();
+            let handle = task::spawn(async move {
                 service
                     .run()
-                    .instrument(tracing::info_span!("node", name = self.name)),
-            );
+                    .instrument(tracing::info_span!("node", name))
+                    .await
+                    .unwrap()
+            });
             self.running_service_handle = Some(handle);
 
             if self.fast_sync {

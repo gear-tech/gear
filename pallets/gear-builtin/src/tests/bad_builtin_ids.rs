@@ -26,10 +26,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::{
-    ids::ProgramId,
-    message::{Payload, StoredDispatch},
-};
+use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -237,7 +234,7 @@ fn queue_processing_panics_on_any_message() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let destination: ProgramId = H256::from(ARBITRARY_ADDRESS).cast();
+        let destination: ActorId = H256::from(ARBITRARY_ADDRESS).cast();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),

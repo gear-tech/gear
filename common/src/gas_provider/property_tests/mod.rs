@@ -314,7 +314,7 @@ proptest! {
                                     assert!(system_reserve_nodes.contains(&consuming.to_node_id().unwrap()));
                                     assertions::assert_not_invariant_error(e);
                                 }
-                                _ => panic!("consumed with unknown error: {:?}", e)
+                                _ => panic!("consumed with unknown error: {e:?}")
                             }
                         }
                     }

@@ -217,7 +217,7 @@ pub(super) fn assert_not_invariant_error(err: GasTreeError) {
         | UnexpectedNodeType
         | ValueIsNotCaught
         | ValueIsBlocked
-        | ValueIsNotBlocked => panic!("Invariant error occurred {:?}", err),
-        _ => log::error!("Non invariant error occurred: {:?}", err),
+        | ValueIsNotBlocked => panic!("Invariant error occurred {err:?}"),
+        _ => log::error!("Non invariant error occurred: {err:?}"),
     }
 }

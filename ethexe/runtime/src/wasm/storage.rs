@@ -26,7 +26,7 @@ use ethexe_runtime_common::{
     },
     RuntimeInterface,
 };
-use gear_core::{memory::PageBuf, message::Payload};
+use gear_core::{buffer::Payload, memory::PageBuf};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 

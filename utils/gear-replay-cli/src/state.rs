@@ -183,8 +183,7 @@ where
                     .map(|p_str| {
                         hex::decode(p_str).map_err(|e| {
                             format!(
-                                "Error decoding `hashed_prefixes` hex string entry '{:?}' to bytes: {:?}",
-                                p_str, e
+                                "Error decoding `hashed_prefixes` hex string entry '{p_str:?}' to bytes: {e:?}",
                             )
                         })
                     })

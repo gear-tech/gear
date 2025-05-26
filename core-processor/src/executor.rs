@@ -27,14 +27,11 @@ use crate::{
 use alloc::{format, string::String, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
-    env::Externalities,
+    env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::ProgramId,
+    ids::ActorId,
     memory::AllocationsContext,
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
-        WasmEntryPoint,
-    },
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::MemoryInfix,
     reservation::GasReserver,
@@ -99,13 +96,11 @@ where
     //
     // In case of second execution (between waits) - message value already
     // included in free balance or wasted.
-    let value_available = balance.saturating_add(
-        dispatch
-            .context()
-            .is_none()
-            .then(|| dispatch.value())
-            .unwrap_or_default(),
-    );
+    let value_available = balance.saturating_add(if dispatch.context().is_none() {
+        dispatch.value()
+    } else {
+        Default::default()
+    });
     let value_counter = ValueCounter::new(value_available);
 
     let context = ProcessorContext {
@@ -253,7 +248,7 @@ pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
     allocations: Option<IntervalsTree<WasmPage>>,
-    program_info: Option<(ProgramId, MemoryInfix)>,
+    program_info: Option<(ActorId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
     block_info: BlockInfo,

@@ -19,11 +19,11 @@
 //! Application config in one place.
 
 use anyhow::Result;
+use ethexe_common::{ecdsa::PublicKey, Address};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
-use ethexe_signer::{Address, PublicKey};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]
@@ -54,7 +54,6 @@ impl Config {
 pub struct NodeConfig {
     pub database_path: PathBuf,
     pub key_path: PathBuf,
-    pub sequencer: ConfigPublicKey,
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,

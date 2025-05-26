@@ -20,7 +20,7 @@
 
 use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::MessageId;
 use gstd::{vec, ActorId, Encode, Vec};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use statrs::statistics::Statistics;
@@ -39,7 +39,7 @@ async fn send_messages_in_parallel(
     api: &GearApi,
     batch_size: usize,
     treads_number: usize,
-    messages: &[(ProgramId, Vec<u8>, u64, u128)],
+    messages: &[(ActorId, Vec<u8>, u64, u128)],
 ) -> Result<Vec<MessageId>> {
     // TODO: currently have problem with transaction priorities from one user.
     // Fix this after loader become a lib #2781
