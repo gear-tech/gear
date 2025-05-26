@@ -37,7 +37,7 @@ thread_local! {
     });
 }
 
-fn storage() -> &'static LocalKey<RefCell<HashMap<ProgramId, Balance>>> {
+fn storage() -> &'static LocalKey<RefCell<HashMap<ActorId, Balance>>> {
     if super::overlay_enabled() {
         &super::ACCOUNT_STORAGE_OVERLAY
     } else {

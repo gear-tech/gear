@@ -33,7 +33,7 @@ thread_local! {
     pub(super) static ACTORS_STORAGE: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
 }
 
-fn storage() -> &'static LocalKey<RefCell<BTreeMap<ProgramId, TestActor>>> {
+fn storage() -> &'static LocalKey<RefCell<BTreeMap<ActorId, TestActor>>> {
     if super::overlay_enabled() {
         &super::ACTORS_STORAGE_OVERLAY
     } else {

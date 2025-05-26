@@ -34,8 +34,7 @@ use accounts::{Balance, ACCOUNT_STORAGE};
 use actors::{TestActor, ACTORS_STORAGE};
 use bank::{BankBalance, BANK_ACCOUNTS};
 use blocks::{BlockInfoStorageInner, BLOCK_INFO_STORAGE, CURRENT_EPOCH_RANDOM};
-use gear_common::ProgramId;
-use gear_core::message::StoredDispatch;
+use gear_core::{ids::ActorId, message::StoredDispatch};
 use nonce::{ID_NONCE, MSG_NONCE};
 use queue::DISPATCHES_QUEUE;
 use stash::{DispatchStashType, DISPATCHES_STASH};
@@ -49,9 +48,9 @@ use std::{
 thread_local! {
     /// Overlay mode enabled flag.
     static OVERLAY_ENABLED: Cell<bool> = const { Cell::new(false) };
-    static ACCOUNT_STORAGE_OVERLAY: RefCell<HashMap<ProgramId, Balance>> = RefCell::new(HashMap::new());
-    static ACTORS_STORAGE_OVERLAY: RefCell<BTreeMap<ProgramId, TestActor>> = RefCell::new(Default::default());
-    static BANK_ACCOUNTS_OVERLAY: RefCell<HashMap<ProgramId, BankBalance>> = RefCell::new(Default::default());
+    static ACCOUNT_STORAGE_OVERLAY: RefCell<HashMap<ActorId, Balance>> = RefCell::new(HashMap::new());
+    static ACTORS_STORAGE_OVERLAY: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
+    static BANK_ACCOUNTS_OVERLAY: RefCell<HashMap<ActorId, BankBalance>> = RefCell::new(Default::default());
     static BLOCK_INFO_STORAGE_OVERLAY: BlockInfoStorageInner = Rc::new(RefCell::new(None));
     static MSG_NONCE_OVERLAY: Cell<u64> = const { Cell::new(0) };
     static ID_NONCE_OVERLAY: Cell<u64> = const { Cell::new(0) };
@@ -221,7 +220,7 @@ mod tests {
     };
     use gear_common::storage::Interval;
     use gear_core::{
-        ids::{MessageId, ProgramId},
+        ids::{ActorId, MessageId},
         message::{DispatchKind, StoredDelayedDispatch},
     };
 
@@ -230,9 +229,9 @@ mod tests {
         assert!(!overlay_enabled());
 
         // Fill the accounts storage.
-        let predef_acc1 = ProgramId::from(42);
-        let predef_acc2 = ProgramId::from(43);
-        let predef_acc3 = ProgramId::from(44);
+        let predef_acc1 = ActorId::from(42);
+        let predef_acc2 = ActorId::from(43);
+        let predef_acc3 = ActorId::from(44);
         Accounts::increase(predef_acc1, EXISTENTIAL_DEPOSIT * 1000);
         Accounts::increase(predef_acc2, EXISTENTIAL_DEPOSIT * 1000);
         Accounts::increase(predef_acc3, EXISTENTIAL_DEPOSIT * 1000);
@@ -300,7 +299,7 @@ mod tests {
         // Adjust accounts storage:
         // - add a new account
         // - change existing ones
-        let new_acc = ProgramId::from(45);
+        let new_acc = ActorId::from(45);
         Accounts::increase(new_acc, EXISTENTIAL_DEPOSIT * 1000);
         Accounts::decrease(predef_acc1, EXISTENTIAL_DEPOSIT, true);
         Accounts::decrease(predef_acc2, EXISTENTIAL_DEPOSIT, true);

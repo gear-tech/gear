@@ -29,10 +29,11 @@ use gear_common::MessageId;
 use gear_core::{
     ids::{
         prelude::{CodeIdExt, MessageIdExt},
-        CodeId, ActorId,
+        ActorId, CodeId,
     },
-    message::{Dispatch, DispatchKind, Message, ReplyDetails, ReplyInfo},
+    message::{Dispatch, DispatchKind, Message, ReplyDetails},
     pages::GearPage,
+    rpc::ReplyInfo,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;

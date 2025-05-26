@@ -24,10 +24,10 @@ use std::{cell::RefCell, collections::HashMap, thread::LocalKey};
 
 thread_local! {
     /// Bank storage.
-    pub(super) static BANK_ACCOUNTS: RefCell<HashMap<ProgramId, BankBalance>> = RefCell::new(Default::default());
+    pub(super) static BANK_ACCOUNTS: RefCell<HashMap<ActorId, BankBalance>> = RefCell::new(Default::default());
 }
 
-fn storage() -> &'static LocalKey<RefCell<HashMap<ProgramId, BankBalance>>> {
+fn storage() -> &'static LocalKey<RefCell<HashMap<ActorId, BankBalance>>> {
     if super::overlay_enabled() {
         &super::BANK_ACCOUNTS_OVERLAY
     } else {
@@ -102,6 +102,10 @@ impl Bank {
 
     // Transfer value.
     pub(crate) fn transfer_value(&self, from: ActorId, to: ActorId, value: Value) {
+        if value == 0 {
+            return;
+        }
+
         storage().with_borrow_mut(|accs| {
             accs.get_mut(&from)
                 .unwrap_or_else(|| {
@@ -125,16 +129,18 @@ impl Bank {
             return;
         }
 
-        self.accounts
-            .get_mut(&from)
-            .unwrap_or_else(|| {
-                panic!("Bank::transfer_locked_value: actor id {from:?} not found in bank")
-            })
-            .value -= value;
+        storage().with_borrow_mut(|accs| {
+            accs.get_mut(&from)
+                .unwrap_or_else(|| {
+                    panic!("Bank::transfer_value: actor id {from:?} not found in bank")
+                })
+                .value -= value;
+        });
 
-        self.accounts
-            .entry(to)
-            .or_insert(BankBalance { gas: 0, value: 0 })
-            .value += value;
+        storage().with_borrow_mut(|accs| {
+            accs.entry(to)
+                .or_insert(BankBalance { gas: 0, value: 0 })
+                .value += value;
+        });
     }
 }
