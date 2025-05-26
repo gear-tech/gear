@@ -40,17 +40,30 @@ pub struct BlockProcessed {
 }
 
 #[derive(Debug, Clone)]
-pub enum ComputeEvent {
-    RequestLoadCodes(HashSet<CodeId>),
-    BlockProcessed(BlockProcessed),
-    CodeProcessed(CodeCommitment),
+pub struct BlockPrepared {
+    pub block_hash: H256,
 }
 
-#[derive(Debug, Default)]
-enum PreComputeState {
+#[derive(Debug, Clone)]
+pub enum ComputeEvent {
+    RequestLoadCodes(HashSet<CodeId>),
+    CodeProcessed(CodeCommitment),
+    BlockPrepared(H256),
+    BlockProcessed(BlockProcessed),
+}
+
+#[derive(Debug, Clone)]
+enum BlockAction {
+    Prepare(H256),
+    Process(H256),
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+enum BlockPreparationState {
     #[default]
     WaitForBlock,
     WaitForCodes {
+        block: H256,
         chain: Vec<SimpleBlockData>,
         waiting_codes: HashSet<CodeId>,
     },
@@ -62,9 +75,8 @@ pub struct ComputeService {
     db: Database,
     processor: Processor,
 
-    blocks_to_process: VecDeque<H256>,
-    blocks_to_precompute: VecDeque<H256>,
-    state: PreComputeState,
+    blocks_queue: VecDeque<BlockAction>,
+    state: BlockPreparationState,
 
     process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
     process_codes: JoinSet<Result<CodeCommitment>>,
@@ -77,7 +89,9 @@ impl Stream for ComputeService {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(Ok(commitment)) => {
-                    if let PreComputeState::WaitForCodes { waiting_codes, .. } = &mut self.state {
+                    if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
+                        &mut self.state
+                    {
                         if waiting_codes.contains(&commitment.id) {
                             waiting_codes.remove(&commitment.id);
                         }
@@ -89,58 +103,60 @@ impl Stream for ComputeService {
             }
         }
 
-        if let Some(fut) = self.process_block.as_mut() {
-            if let Poll::Ready(res) = fut.as_mut().poll_unpin(cx) {
-                self.process_block = None;
-                let maybe_event = res.map(ComputeEvent::BlockProcessed);
-                return Poll::Ready(Some(maybe_event));
-            }
-        }
+        if self.process_block.is_none() && self.state == BlockPreparationState::WaitForBlock {
+            match self.blocks_queue.pop_back() {
+                Some(BlockAction::Prepare(block)) => {
+                    let (chain, validated_codes, codes_to_load) =
+                        self.collect_chain_codes(block)?;
 
-        if let PreComputeState::WaitForBlock = self.state {
-            if let Some(block) = self.blocks_to_precompute.pop_back() {
-                let (chain, validated_codes, codes_to_load) = self.collect_chain_codes(block)?;
-
-                self.state = PreComputeState::WaitForCodes {
-                    chain,
-                    waiting_codes: validated_codes,
-                };
-
-                if !codes_to_load.is_empty() {
+                    self.state = BlockPreparationState::WaitForCodes {
+                        block,
+                        chain,
+                        waiting_codes: validated_codes,
+                    };
                     return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load))));
                 }
+                Some(BlockAction::Process(block)) => {
+                    if !self.db.block_prepared(block) {
+                        return Poll::Ready(Some(Err(anyhow!(
+                            "block {block:?} requested to process, but it's not prepared"
+                        ))));
+                    }
+
+                    let context = ChainHeadProcessContext {
+                        db: self.db.clone(),
+                        processor: self.processor.clone(),
+                    };
+                    self.process_block = Some(context.process(block).boxed());
+                }
+                None => {}
             }
         }
 
-        if let PreComputeState::WaitForCodes {
+        let old_state = std::mem::take(&mut self.state);
+        if let BlockPreparationState::WaitForCodes {
+            block,
             chain,
             waiting_codes,
-        } = &self.state
+        } = &old_state
         {
             if waiting_codes.is_empty() {
                 for block_data in chain {
-                    self.db.set_block_pre_computed(block_data.hash);
+                    self.db.set_block_prepared(block_data.hash);
                 }
 
-                self.state = PreComputeState::WaitForBlock;
-                cx.waker().wake_by_ref();
+                self.state = BlockPreparationState::WaitForBlock;
+                return Poll::Ready(Some(Ok(ComputeEvent::BlockPrepared(*block))));
+            } else {
+                self.state = old_state;
             }
         }
 
-        if let Some(block) = self.blocks_to_process.back().copied() {
-            if self.db.block_pre_computed(block) {
-                let context = ChainHeadProcessContext {
-                    db: self.db.clone(),
-                    processor: self.processor.clone(),
-                };
-                self.process_block = Some(context.process(block).boxed());
-
-                let _ = self.blocks_to_process.pop_back();
-            } else {
-                self.blocks_to_precompute.push_front(block);
+        if let Some(fut) = self.process_block.as_mut() {
+            if let Poll::Ready(res) = fut.poll_unpin(cx) {
+                self.process_block = None;
+                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
             }
-
-            cx.waker().wake_by_ref();
         }
 
         Poll::Pending
@@ -159,11 +175,8 @@ impl ComputeService {
         Self {
             db,
             processor,
-
-            blocks_to_process: Default::default(),
-            blocks_to_precompute: Default::default(),
+            blocks_queue: Default::default(),
             state: Default::default(),
-
             process_block: None,
             process_codes: Default::default(),
         }
@@ -181,12 +194,12 @@ impl ComputeService {
         });
     }
 
-    pub fn precompute_block(&mut self, block: H256) {
-        self.blocks_to_precompute.push_front(block);
+    pub fn prepare_block(&mut self, block: H256) {
+        self.blocks_queue.push_front(BlockAction::Prepare(block));
     }
 
     pub fn process_block(&mut self, block: H256) {
-        self.blocks_to_process.push_front(block);
+        self.blocks_queue.push_front(BlockAction::Process(block));
     }
 
     fn collect_chain_codes(

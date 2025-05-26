@@ -494,7 +494,7 @@ async fn instrument_codes(
         return Ok(());
     }
 
-    compute.precompute_block(synced_block);
+    compute.prepare_block(synced_block);
     match compute.next().await {
         Some(Ok(ComputeEvent::RequestLoadCodes(codes))) => blobs_loader.load_codes(codes, None)?,
         Some(Ok(event)) => {

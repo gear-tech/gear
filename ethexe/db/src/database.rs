@@ -277,12 +277,12 @@ struct BlockSmallData {
 }
 
 impl BlockMetaStorage for Database {
-    fn block_pre_computed(&self, block_hash: H256) -> bool {
+    fn block_prepared(&self, block_hash: H256) -> bool {
         self.with_small_data(block_hash, |data| data.block_pre_computed)
             .unwrap_or(false)
     }
 
-    fn set_block_pre_computed(&self, block_hash: H256) {
+    fn set_block_prepared(&self, block_hash: H256) {
         log::trace!("For block {block_hash} set pre-computed");
         self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
     }

@@ -391,7 +391,7 @@ impl Service {
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.precompute_block(synced_block.block_hash);
+                        compute.prepare_block(synced_block.block_hash);
                         consensus.receive_synced_block(synced_block)?;
                     }
                 },
@@ -414,6 +414,7 @@ impl Service {
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
+                    ComputeEvent::BlockPrepared(_block) => {}
                 },
                 Event::Network(event) => {
                     let Some(_) = network.as_mut() else {
