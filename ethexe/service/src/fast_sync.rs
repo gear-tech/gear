@@ -18,10 +18,10 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
-    events::{BlockEvent, MirrorEvent, RouterEvent},
+    events::{BlockEvent, RouterEvent},
     gear::{CodeCommitment, CodeState},
     Address, BlockData,
 };
@@ -47,7 +47,6 @@ use std::{
 };
 
 struct EventData {
-    program_states: BTreeMap<ActorId, H256>,
     /// Latest committed on the chain and not computed local block
     latest_committed_block: BlockData,
     /// Previous committed block
@@ -79,7 +78,6 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut program_states = BTreeMap::new();
         let mut previous_committed_block = None;
         let mut latest_committed_block = None;
 
@@ -97,19 +95,10 @@ impl EventData {
                     continue;
                 }
 
-                match event {
-                    BlockEvent::Mirror {
-                        actor_id,
-                        event: MirrorEvent::StateChanged { state_hash },
-                    } => {
-                        program_states.entry(actor_id).or_insert(state_hash);
-                    }
-                    BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
-                        previous_committed_block = Some(hash);
-                        // we don't want event data of the previous committed block
-                        break 'computed;
-                    }
-                    _ => {}
+                if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
+                    previous_committed_block = Some(hash);
+                    // we don't want event data of the previous committed block
+                    break 'computed;
                 }
             }
 
@@ -133,7 +122,6 @@ impl EventData {
         }
 
         Ok(Some(Self {
-            program_states,
             latest_committed_block,
             previous_committed_block,
         }))
@@ -274,43 +262,26 @@ async fn collect_code_ids(
 
 async fn collect_program_states(
     observer: &mut ObserverService,
-    latest_committed_block: H256,
-    event_program_states: BTreeMap<ActorId, H256>,
+    at: H256,
     program_code_ids: &BTreeMap<ActorId, CodeId>,
 ) -> Result<BTreeMap<ActorId, H256>> {
     let mut program_states = BTreeMap::new();
-    let mut uninitialized_mirrors = Vec::new();
-
     let provider = observer.provider();
 
     for &actor_id in program_code_ids.keys() {
         let mirror = Address::try_from(actor_id).expect("invalid actor id");
         let mirror = MirrorQuery::new(provider.clone(), mirror);
 
-        let state_hash = mirror
-            .state_hash_at(latest_committed_block)
-            .await
-            .with_context(|| {
-                format!("Failed to get state hash for actor {actor_id} at block {latest_committed_block}",)
-            })?;
+        let state_hash = mirror.state_hash_at(at).await.with_context(|| {
+            format!("Failed to get state hash for actor {actor_id} at block {at}",)
+        })?;
 
-        if state_hash.is_zero() {
-            uninitialized_mirrors.push(actor_id);
-            continue;
-        }
+        anyhow::ensure!(
+            !state_hash.is_zero(),
+            "State hash is zero for actor {actor_id} at block {at}"
+        );
 
         program_states.insert(actor_id, state_hash);
-    }
-
-    // the latest committed block and its `BlockCommitted` event can be a few blocks apart,
-    // so some mirror state changes must be recovered from Ethereum events
-    program_states.extend(event_program_states);
-
-    for actor_id in uninitialized_mirrors {
-        ensure!(
-            program_states.contains_key(&actor_id),
-            "mirror {actor_id} expected to be initialized, but it is not"
-        );
     }
 
     Ok(program_states)
@@ -684,7 +655,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let finalized_block = H256(finalized_block.header.hash.0);
 
     let Some(EventData {
-        program_states,
         latest_committed_block:
             BlockData {
                 hash: latest_committed_block,
@@ -701,13 +671,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let code_ids = collect_code_ids(observer, network, latest_committed_block).await?;
     let program_code_ids =
         collect_program_code_ids(observer, network, latest_committed_block).await?;
-    let program_states = collect_program_states(
-        observer,
-        latest_committed_block,
-        program_states,
-        &program_code_ids,
-    )
-    .await?;
+    // we fetch program states from the finalized block
+    // because actual states are at the same block as we acquired the latest committed block
+    let program_states =
+        collect_program_states(observer, finalized_block, &program_code_ids).await?;
 
     sync_from_network(network, db, &code_ids, &program_states).await;
 
