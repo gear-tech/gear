@@ -17,6 +17,15 @@ pub enum Commands {
         /// 64-char hex string representing [u8; 32]
         instance_seed: String,
     },
+    // Intended for internal use only, not a public command
+    Worker {
+        // Token to identify the worker
+        #[arg(long)]
+        token: String,
+        // Worker time to live in seconds (after which it will exit)
+        #[arg(long)]
+        ttl: u64,
+    },
 }
 
 #[derive(Args)]

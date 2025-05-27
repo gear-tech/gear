@@ -16,28 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{
-    sync::atomic::{AtomicBool, Ordering},
-    time::Instant,
-};
+use std::{process, thread, time::Instant};
 
 use arbitrary::{Arbitrary as _, Unstructured};
 use clap::Parser;
-use cli::{Cli, Commands, RunArgs};
+use cli::{Cli, Commands};
 use lazy_pages_fuzzer::GeneratedModule;
-use seeds::{derivate_seed, generate_instance_seed, generate_seed};
-use uitls::{hex_to_string, string_to_hex};
+use seeds::{derivate_seed, generate_seed};
+use uitls::{cast_slice, hex_to_string, simulate_panic, string_to_hex};
 
 mod cli;
 mod seeds;
 mod uitls;
+mod worker;
 
+const SEED_SIZE_IN_U32: usize = 8192;
 const SEED_PATH: &str = "seed.bin";
 const STATS_PRINT_INTERVAL: u64 = 30;
+const WORKER_TTL_SEC: u64 = 10;
 
 #[derive(Default)]
-struct Stats {
-    instances: u64,
+struct FuzzerStats {
+    instances_fuzzed: u64,
 }
 
 fn init_logger() {
@@ -52,20 +52,25 @@ fn ts() -> u64 {
         .as_millis() as u64
 }
 
-fn generate_seed_if_not_exists() -> Vec<u8> {
+fn generate_or_read_seed(silent: bool) -> Vec<u32> {
     // Check if the seed file exists
-    if !std::path::Path::new(SEED_PATH).exists() {
-        // Generate a random seed with 350000 bytes length
-        let input_seed = generate_seed(ts());
-        // write the seed to a file
-        std::fs::write(SEED_PATH, &input_seed).expect("Failed to write seed to file");
-        log::info!("Input seed written to seed.bin");
-        input_seed
-    } else {
+    if std::path::Path::new(SEED_PATH).exists() {
         // If the seed file exists, read it
         let seed = std::fs::read(SEED_PATH).expect("Failed to read seed from file");
-        log::info!("Seed file already exists, skipping seed creation.");
-        seed
+        if !silent {
+            log::info!("Seed file already exists, skipping seed creation.");
+        }
+        seed.chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes(chunk.try_into().expect("Invalid seed chunk size")))
+            .collect()
+    } else {
+        let input_seed = generate_seed(ts());
+        // write the seed to a file
+        std::fs::write(SEED_PATH, cast_slice(&input_seed)).expect("Failed to write seed to file");
+        if !silent {
+            log::info!("Input seed written to seed.bin");
+        }
+        input_seed
     }
 }
 
@@ -75,62 +80,48 @@ fn main() {
     let cli: Cli = Cli::parse();
 
     match cli.command {
-        Commands::Run(RunArgs {
-            print_module_and_exit,
-        }) => {
-            run(print_module_and_exit);
+        Commands::Run(_) => {
+            run_fuzzer();
         }
         Commands::Reproduce { instance_seed } => {
             let instance_seed = string_to_hex(&instance_seed);
             reproduce(instance_seed);
         }
+        Commands::Worker { token, ttl } => {
+            worker::run(token, ttl);
+        }
     }
 }
 
-fn run(print_module_and_exit: bool) {
+fn run_fuzzer() {
     log::info!("Starting lazy pages fuzzer");
 
-    let input_seed = generate_seed_if_not_exists();
-    let mut status = Stats::default();
+    let _ = generate_or_read_seed(false);
+    let mut status = FuzzerStats::default();
     let mut stats_ts = Instant::now();
 
-    loop {
-        let instance_seed = generate_instance_seed(ts());
+    let mut workers = worker::Workers::spawn(
+        WORKER_TTL_SEC,
+        thread::available_parallelism().unwrap().try_into().unwrap(),
+    );
 
-        let derived_seed = derivate_seed(&input_seed, &instance_seed);
-
-        let mut u = Unstructured::new(&derived_seed);
-        let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
-        // Instrument the module
-        let m = m.enhance().unwrap();
-
-        if print_module_and_exit {
-            log::info!("Generated module: {m:#?}");
-            return;
-        }
-
-        let defuse = AtomicBool::new(false);
-        let _guard = scopeguard::guard(&defuse, |defuse| {
-            if !defuse.load(Ordering::SeqCst) {
-                log::error!("*****Instance seed: {}", hex_to_string(&instance_seed));
-            }
-        });
-
-        match lazy_pages_fuzzer::run(m) {
-            Err(_) => panic!("failed to fuzz"),
-            Ok(_) => (),
-        }
-
-        status.instances += 1;
+    let report = workers.run(|_| {
+        status.instances_fuzzed += 1;
         let elapsed_sec = stats_ts.elapsed().as_secs();
 
         if elapsed_sec > STATS_PRINT_INTERVAL {
-            log::info!("Fuzzed {} instances/s", status.instances / elapsed_sec);
-            status.instances = 0;
+            log::info!(
+                "Fuzzed {} instances/s",
+                status.instances_fuzzed / elapsed_sec
+            );
+            status.instances_fuzzed = 0;
             stats_ts = Instant::now();
         }
+    });
 
-        defuse.store(true, Ordering::SeqCst);
+    if let Some(report) = report {
+        println!("{:#?}", report);
+        process::exit(report.exit_code);
     }
 }
 
@@ -140,19 +131,43 @@ fn reproduce(instance_seed: [u8; 32]) {
         hex_to_string(&instance_seed)
     );
 
-    let input_seed = generate_seed_if_not_exists();
+    let input_seed = generate_or_read_seed(false);
     let derived_seed = derivate_seed(&input_seed, &instance_seed);
+
+    simulate_panic(derived_seed[0], derived_seed[1]);
 
     let mut u = Unstructured::new(&derived_seed);
     let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
     // Instrument the module
     let m = m.enhance().unwrap();
-    log::info!("Generated module: {m:#?}");
+    //log::info!("Generated module: {m:#?}");
 
     match lazy_pages_fuzzer::run(m) {
         Err(_) => panic!("failed to fuzz"),
         Ok(_) => (),
     }
+}
 
-    log::info!("Reproduced successfully");
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn test_generate_or_read_seed() {
+        // Remove the seed file if it exists to start fresh
+        if Path::new(SEED_PATH).exists() {
+            std::fs::remove_file(SEED_PATH).expect("Failed to remove seed file");
+        }
+
+        // Test that the seed is generated and written to a file
+        let seed = generate_or_read_seed(true);
+        assert!(!seed.is_empty());
+        assert!(std::path::Path::new(SEED_PATH).exists());
+
+        // Test that the seed is read from the file if it exists
+        let seed2 = generate_or_read_seed(true);
+        assert_eq!(seed, seed2);
+    }
 }
