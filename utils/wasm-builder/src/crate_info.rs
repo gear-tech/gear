@@ -49,11 +49,10 @@ impl CrateInfo {
         let mut meta_cmd = MetadataCommand::new();
         let metadata = meta_cmd
             .manifest_path(manifest_path)
-            .exec_with_hook(|command| {
-                // As we are being called inside a build-script, this env variable is set.
-                // However, this can lead to cross-compilation errors.
-                command.env_remove("CARGO_ENCODED_RUSTFLAGS");
-            })
+            // As we are being called inside a build-script, this env variable is set.
+            // However, this can lead to cross-compilation errors.
+            .env_remove("CARGO_ENCODED_RUSTFLAGS")
+            .exec()
             .context("unable to invoke `cargo metadata`")?;
 
         let root_package = Self::root_package(&metadata)
