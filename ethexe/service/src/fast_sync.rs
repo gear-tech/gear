@@ -42,7 +42,7 @@ use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap},
     iter,
 };
 
@@ -687,27 +687,32 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    // NOTE: there is no invariant that fast sync should recover queues
-    db.set_block_commitment_queue(latest_committed_block, VecDeque::new());
-    db.set_block_codes_queue(latest_committed_block, VecDeque::new());
+    // TODO #4563: this is a temporary solution.
+    // from `pre_process_genesis_for_db`
+    {
+        db.set_block_header(latest_committed_block, latest_block_header.clone());
+        db.set_block_events(latest_committed_block, &[]);
 
-    db.set_block_program_states(latest_committed_block, program_states);
-    db.set_block_schedule(latest_committed_block, schedule);
-    unsafe {
-        db.set_non_empty_block_outcome(latest_committed_block);
+        db.set_latest_synced_block_height(latest_block_header.height);
+        db.set_block_is_synced(latest_committed_block);
+
+        // NOTE: there is no invariant that fast sync should recover queues
+        db.set_block_commitment_queue(latest_committed_block, Default::default());
+        db.set_block_codes_queue(latest_committed_block, Default::default());
+        db.set_previous_not_empty_block(
+            latest_committed_block,
+            previous_committed_block.unwrap_or_else(H256::zero),
+        );
+        db.set_block_program_states(latest_committed_block, program_states);
+        db.set_block_schedule(latest_committed_block, schedule);
+        unsafe {
+            db.set_non_empty_block_outcome(latest_committed_block);
+        }
+
+        db.set_latest_computed_block(latest_committed_block, latest_block_header);
+
+        db.set_block_computed(latest_committed_block);
     }
-    db.set_previous_not_empty_block(
-        latest_committed_block,
-        previous_committed_block.unwrap_or_else(H256::zero),
-    );
-
-    // set by observer service normally
-    db.set_block_is_synced(latest_committed_block);
-    db.set_latest_synced_block_height(latest_block_header.height);
-
-    // set by compute service normally
-    db.set_block_computed(latest_committed_block);
-    db.set_latest_computed_block(latest_committed_block, latest_block_header);
 
     log::info!("Fast synchronization done");
 
