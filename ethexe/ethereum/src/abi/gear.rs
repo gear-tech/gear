@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{utils::*, Gear};
-use alloy::primitives::Uint;
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 
@@ -34,12 +33,30 @@ impl From<AggregatedPublicKey> for Gear::AggregatedPublicKey {
     }
 }
 
+impl From<ChainCommitment> for Gear::ChainCommitment {
+    fn from(value: ChainCommitment) -> Self {
+        Self {
+            transitions: value.transitions.into_iter().map(Into::into).collect(),
+            blocks: value.gear_blocks.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<GearBlock> for Gear::GearBlock {
+    fn from(value: GearBlock) -> Self {
+        Self {
+            hash: value.hash.0.into(),
+            gasAllowance: value.gas_allowance,
+            offchainTransactionsHash: value.off_chain_transactions_hash.0.into(),
+        }
+    }
+}
+
 impl From<CodeCommitment> for Gear::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
             id: code_id_to_bytes32(value.id),
             valid: value.valid,
-            timestamp: Uint::ZERO, // +_+_+
         }
     }
 }
@@ -105,15 +122,14 @@ impl From<RewardsCommitment> for Gear::RewardsCommitment {
 
 impl From<BatchCommitment> for Gear::BatchCommitment {
     fn from(value: BatchCommitment) -> Self {
-        // +_+_+
         Self {
-            blockCommitments: Default::default(),
+            blockHash: value.block_hash.0.into(),
+            timestamp: u64_to_uint48_lossy(value.timestamp),
+            previousCommittedBlock: value.previous_committed_block_hash.0.into(),
+            chainCommitment: value.chain_commitment.into_iter().map(Into::into).collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
-            rewardCommitments: value
-                .rewards_commitment
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            rewardsCommitment: value.rewards_commitment.into_iter().map(Into::into).collect(),
+            validatorsCommitment: value.validators_commitment.into_iter().map(Into::into).collect(),
         }
     }
 }
