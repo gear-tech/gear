@@ -183,10 +183,10 @@ contract Base is POCBaseTest {
         vm.stopPrank();
     }
 
-    function commitBatch(uint256[] memory _privateKeys, Gear.BatchCommitment memory _batch, bool _expect_revert)
+    function commitBatch(uint256[] memory _privateKeys, Gear.BatchCommitment memory _batch, bool revertExpected)
         internal
     {
-        if (_expect_revert) {
+        if (revertExpected) {
             vm.expectRevert();
         }
         router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
@@ -204,13 +204,12 @@ contract Base is POCBaseTest {
     function commitBlock(
         uint256[] memory _privateKeys,
         Gear.StateTransition[] memory _transactions,
-        bytes32 _block_hash,
+        bytes32 blockHash,
         uint48 _timestamp,
-        bool _expect_revert
+        bool revertExpected
     ) internal {
         Gear.GearBlock[] memory _blocks = new Gear.GearBlock[](1);
-        _blocks[0] =
-            Gear.GearBlock({hash: _block_hash, gas_allowance: 1234, offchain_transaction_hash: keccak256("1234")});
+        _blocks[0] = Gear.GearBlock({hash: blockHash, gasAllowance: 1234, offchainTransactionsHash: keccak256("1234")});
 
         Gear.ChainCommitment memory _chainCommitment =
             Gear.ChainCommitment({transitions: _transactions, blocks: _blocks});
@@ -219,7 +218,7 @@ contract Base is POCBaseTest {
         _chainCommitments[0] = _chainCommitment;
 
         Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
-            blockHash: _block_hash,
+            blockHash: blockHash,
             timestamp: _timestamp,
             previousCommittedBlock: router.latestCommittedBlockHash(),
             chainCommitment: _chainCommitments,
@@ -228,7 +227,7 @@ contract Base is POCBaseTest {
             validatorsCommitment: new Gear.ValidatorsCommitment[](0)
         });
 
-        commitBatch(_privateKeys, _batch, _expect_revert);
+        commitBatch(_privateKeys, _batch, revertExpected);
     }
 
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {
@@ -253,7 +252,7 @@ contract Base is POCBaseTest {
     function commitValidators(
         uint256[] memory _privateKeys,
         Gear.ValidatorsCommitment memory _commitment,
-        bool _expect_revert
+        bool revertExpected
     ) internal {
         Gear.ValidatorsCommitment[] memory _validatorsCommitments = new Gear.ValidatorsCommitment[](1);
         _validatorsCommitments[0] = _commitment;
@@ -270,7 +269,7 @@ contract Base is POCBaseTest {
 
         rollBlocks(1);
 
-        commitBatch(_privateKeys, _batch, _expect_revert);
+        commitBatch(_privateKeys, _batch, revertExpected);
     }
 
     function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {

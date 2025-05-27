@@ -54,9 +54,9 @@ library Gear {
         /// @dev Hash of corresponding ethereum block.
         bytes32 hash;
         /// @dev Gas allowance for programs execution.
-        uint64 gas_allowance;
+        uint64 gasAllowance;
         /// @dev Hash (keccak256) of off-chain transactions list.
-        bytes32 offchain_transaction_hash;
+        bytes32 offchainTransactionsHash;
     }
 
     struct ChainCommitment {
@@ -220,7 +220,7 @@ library Gear {
     }
 
     function gearBlockHash(GearBlock memory gearBlock) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(gearBlock.hash, gearBlock.gas_allowance, gearBlock.offchain_transaction_hash));
+        return keccak256(abi.encodePacked(gearBlock.hash, gearBlock.gasAllowance, gearBlock.offchainTransactionsHash));
     }
 
     function gearBlocksHash(bytes32[] memory gearBlockHashes) internal pure returns (bytes32) {

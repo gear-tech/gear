@@ -211,9 +211,9 @@ contract RouterTest is Base {
 
     /* helper functions */
 
-    function commitValidators(Gear.ValidatorsCommitment memory commitment, bool _expect_revert) private {
+    function commitValidators(Gear.ValidatorsCommitment memory commitment, bool revertExpected) private {
         uint256[] memory _privateKeys = new uint256[](1);
         _privateKeys[0] = signingKey.asScalar();
-        commitValidators(_privateKeys, commitment, _expect_revert);
+        commitValidators(_privateKeys, commitment, revertExpected);
     }
 }
