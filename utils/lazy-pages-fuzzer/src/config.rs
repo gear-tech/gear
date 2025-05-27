@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_wasm_gen::{
-    ConfigsBundle, GearWasmGeneratorConfig, InstructionKind, MemoryPagesConfig, SelectableParams,
+    ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
 };
 use gear_wasm_instrument::{gas_metering::MemoryGrowCost, Instruction, Rules};

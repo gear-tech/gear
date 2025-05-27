@@ -1,0 +1,196 @@
+use std::{
+    collections::HashMap,
+    env,
+    path::{Path, PathBuf},
+    process, thread, time,
+};
+
+use arbitrary::{Arbitrary as _, Unstructured};
+use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
+use lazy_pages_fuzzer::GeneratedModule;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    generate_or_read_seed,
+    seeds::{derivate_seed, generate_instance_seed},
+    ts,
+    uitls::{hex_to_string, simulate_panic},
+};
+
+pub struct Worker {
+    pub process: process::Child,
+    pub receiver: IpcReceiver<WorkerReport>,
+    pub last_report: WorkerReport,
+    pub exit_status: Option<process::ExitStatus>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum WorkerStatus {
+    Started,
+    Update { next_seed_to_fuzz: String },
+}
+
+impl WorkerStatus {
+    pub fn seed(self) -> String {
+        if let WorkerStatus::Update { next_seed_to_fuzz } = self {
+            next_seed_to_fuzz
+        } else {
+            panic!("WorkerStatus is not Update");
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkerReport {
+    pub pid: u32,
+    pub status: WorkerStatus,
+}
+
+// Run a worker process that connects to the IPC server and performs fuzzing
+pub fn run(token: String, ttl_sec: u64) {
+    let pid = process::id();
+    let tx: IpcSender<WorkerReport> =
+        IpcSender::connect(token.to_string()).expect(format!("connect failed, pid {pid}").as_str());
+
+    tx.send(WorkerReport {
+        pid: process::id(),
+        status: WorkerStatus::Started,
+    })
+    .expect(format!("send failed, pid {pid}").as_str());
+
+    let input_seed = generate_or_read_seed(true);
+    let now = time::Instant::now();
+
+    while now.elapsed().as_secs() < ttl_sec {
+        let instance_seed: [u8; 32] = generate_instance_seed(ts() + pid as u64);
+        let derived_seed = derivate_seed(&input_seed, &instance_seed);
+
+        simulate_panic(derived_seed[0], derived_seed[1]);
+
+        if tx
+            .send(WorkerReport {
+                pid,
+                status: WorkerStatus::Update {
+                    next_seed_to_fuzz: hex_to_string(&instance_seed),
+                },
+            })
+            .is_err()
+        {
+            // Main process has exited, worker should stop too
+            break;
+        }
+
+        let mut u = Unstructured::new(&derived_seed);
+        let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
+        let m = m.enhance().expect("cannot fail to enhance module");
+
+        match lazy_pages_fuzzer::run(m) {
+            Err(_) => panic!("failed to fuzz"),
+            Ok(_) => (),
+        }
+    }
+}
+
+pub struct Workers {
+    workers: HashMap<u32, Worker>,
+    woker_ttl_sec: u64,
+    executable_path: PathBuf,
+}
+
+impl Workers {
+    pub fn spawn(ttl_sec: u64, num_workers: usize) -> Self {
+        let executable_path = env::current_exe().expect("Failed to get current executable path");
+        let mut workers = HashMap::new();
+
+        for _ in 0..num_workers {
+            let (pid, worker) = Self::spawn_worker(&executable_path, ttl_sec);
+            workers.insert(pid, worker);
+        }
+
+        Self {
+            workers,
+            woker_ttl_sec: ttl_sec,
+            executable_path,
+        }
+    }
+
+    fn spawn_worker(executable_path: &Path, ttl_sec: u64) -> (u32, Worker) {
+        let (server, token) =
+            IpcOneShotServer::<WorkerReport>::new().expect("Failed to create IPC one-shot server.");
+
+        let mut command = process::Command::new(executable_path);
+        command.args(["worker", "--token", &token, "--ttl", &ttl_sec.to_string()]);
+
+        let process = command.spawn().expect("Failed to start worker process");
+
+        let (rx, msg) = server.accept().expect("accept failed");
+        assert!(
+            matches!(msg.status, WorkerStatus::Started),
+            "Expected worker to start successfully"
+        );
+        let worker_pid = msg.pid;
+
+        let worker = Worker {
+            process,
+            receiver: rx,
+            last_report: msg,
+            exit_status: None,
+        };
+
+        (worker_pid, worker)
+    }
+
+    pub fn run(&mut self, mut udpate_cb: impl FnMut(&Worker)) -> Option<UserReport> {
+        let mut exited_workers = Vec::new();
+
+        loop {
+            for (&pid, worker) in self.workers.iter_mut() {
+                if let Ok(report) = worker.receiver.try_recv() {
+                    worker.last_report = report;
+                    udpate_cb(worker);
+                }
+
+                if let Some(exit_code) = worker.process.try_wait().ok().flatten() {
+                    worker.exit_status = Some(exit_code);
+                    exited_workers.push(pid);
+                }
+            }
+
+            // Remove && clean up workers that have exited
+            for pid in exited_workers.iter() {
+                if let Some(worker) = self.workers.remove(pid) {
+                    let output = worker
+                        .process
+                        .wait_with_output()
+                        .expect("Failed to wait for worker process");
+
+                    if output.status.success() {
+                        // Recreate exited worker
+                        let (new_pid, new_worker) =
+                            Self::spawn_worker(&self.executable_path, self.woker_ttl_sec);
+                        self.workers.insert(new_pid, new_worker);
+                    } else {
+                        return Some(UserReport {
+                            seed: worker.last_report.status.seed(),
+                            pid: worker.last_report.pid,
+                            exit_code: output.status.code().unwrap_or(1),
+                            output,
+                        });
+                    }
+                }
+            }
+
+            exited_workers.clear();
+            thread::sleep(time::Duration::from_millis(300));
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct UserReport {
+    pub seed: String,
+    pub pid: u32,
+    pub exit_code: i32,
+    pub output: process::Output,
+}
