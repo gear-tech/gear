@@ -18,9 +18,11 @@
 
 //! Integration tests.
 
+pub(crate) mod utils;
+
 use crate::{
     config::{self, Config},
-    test_utils::{
+    tests::utils::{
         init_logger, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig,
     },
     Service,

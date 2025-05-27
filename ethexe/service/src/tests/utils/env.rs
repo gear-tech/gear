@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    test_utils::{
+    tests::utils::{
         events::{
             ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
             TestableEventReceiver, TestableNetworkEvent,

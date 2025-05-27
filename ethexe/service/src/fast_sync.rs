@@ -582,7 +582,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     #[cfg(test)]
     sender
-        .send(crate::test_utils::TestableEvent::FastSyncDone(
+        .send(crate::tests::utils::TestableEvent::FastSyncDone(
             latest_committed_block,
         ))
         .expect("failed to broadcast fast sync done event");
