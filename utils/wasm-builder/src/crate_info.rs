@@ -123,7 +123,7 @@ impl CrateInfo {
             .iter()
             .find(|target| {
                 if compatible {
-                    target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
+                    target.name.eq(&*pkg.name) && target.crate_types.iter().any(validated_lib)
                 } else {
                     target.name.eq(&pkg_snake_case_name)
                         && target.crate_types.iter().any(validated_lib)

@@ -106,9 +106,9 @@ jobs:
 
       - name: "Test: Lazy pages"
         run: >-
-          mkdir -p ./target/x86_64-pc-windows-msvc/debug/deps
-          curl -L https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.dll -o ./target/x86_64-pc-windows-msvc/debug/deps/clang_rt.asan_dynamic-x86_64.dll
-          curl -L https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.pdb -o ./target/x86_64-pc-windows-msvc/debug/deps/clang_rt.asan_dynamic-x86_64.pdb
+          mkdir -p ./target/x86_64-pc-windows-msvc/${{ matrix.profiles.name }}/deps
+          curl -L https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.dll -o ./target/x86_64-pc-windows-msvc/${{ matrix.profiles.name }}/deps/clang_rt.asan_dynamic-x86_64.dll
+          curl -L https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.pdb -o ./target/x86_64-pc-windows-msvc/${{ matrix.profiles.name }}/deps/clang_rt.asan_dynamic-x86_64.pdb
           cargo nextest run
           -p "pallet-*"
           -p gear-lazy-pages
