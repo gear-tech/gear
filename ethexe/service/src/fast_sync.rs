@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Event, Service};
+use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
 use ethexe_common::{
@@ -524,6 +524,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         compute,
         network,
         db,
+        #[cfg(test)]
         sender,
         ..
     } = service;
@@ -579,13 +580,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     log::info!("Fast synchronization done");
 
-    // Broadcast service started event.
-    // Never supposed to be Some in production code.
-    if let Some(sender) = sender.as_ref() {
-        sender
-            .send(Event::FastSyncDone(latest_committed_block))
-            .expect("failed to broadcast fast sync done event");
-    }
+    #[cfg(test)]
+    sender
+        .send(crate::tests::TestableEvent::FastSyncDone(
+            latest_committed_block,
+        ))
+        .expect("failed to broadcast fast sync done event");
 
     Ok(())
 }

@@ -1296,10 +1296,17 @@ mod utils {
     use ethexe_common::{
         db::OnChainStorage,
         ecdsa::{PrivateKey, PublicKey},
+        tx_pool::SignedOffchainTransaction,
         Address, SimpleBlockData,
     };
-    use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
-    use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkEvent, NetworkService};
+    use ethexe_consensus::{
+        ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorService,
+    };
+    use ethexe_network::{
+        db_sync,
+        export::{Multiaddr, PeerId},
+        NetworkConfig, NetworkEvent, NetworkService,
+    };
     use ethexe_observer::{ObserverEvent, ObserverService};
     use ethexe_prometheus::PrometheusEvent;
     use ethexe_rpc::{RpcEvent, RpcService};
@@ -2308,14 +2315,6 @@ mod utils {
                 NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
                     request_id: *request_id,
                     result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
-                },
-                NetworkEvent::DbExternalValidation {
-                    request_id,
-                    response,
-                    sender: _,
-                } => Self::DbExternalValidation {
-                    request_id: *request_id,
-                    response: response.clone(),
                 },
                 NetworkEvent::Message { data, source } => Self::Message {
                     data: data.clone(),
