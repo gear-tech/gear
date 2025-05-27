@@ -79,13 +79,16 @@ pub struct ChainCommitment {
     pub gear_blocks: Vec<GearBlock>,
 }
 
-impl ToDigest for ChainCommitment {
+impl ToDigest for Option<ChainCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Self {
+        let Some(ChainCommitment {
             transitions,
             gear_blocks,
-        } = self;
+        }) = self
+        else {
+            return;
+        };
 
         hasher.update(transitions.to_digest().as_ref());
         hasher.update(gear_blocks.to_digest().as_ref());
@@ -164,14 +167,17 @@ pub struct RewardsCommitment {
     pub timestamp: u64,
 }
 
-impl ToDigest for RewardsCommitment {
+impl ToDigest for Option<RewardsCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Self {
+        let Some(RewardsCommitment {
             operators,
             stakers,
             timestamp,
-        } = self;
+        }) = self
+        else {
+            return;
+        };
 
         hasher.update(operators.to_digest().as_ref());
         hasher.update(stakers.to_digest().as_ref());
@@ -211,13 +217,13 @@ impl ToDigest for BatchCommitment {
             rewards_commitment,
         } = self;
 
-        hasher.update(block_hash.as_bytes());
-        hasher.update(timestamp.to_be_bytes().as_slice());
-        hasher.update(previous_committed_block_hash.as_bytes());
+        hasher.update(block_hash);
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+        hasher.update(previous_committed_block_hash);
         hasher.update(chain_commitment.to_digest());
         hasher.update(code_commitments.to_digest());
-        hasher.update(validators_commitment.to_digest());
         hasher.update(rewards_commitment.to_digest());
+        hasher.update(validators_commitment.to_digest());
     }
 }
 
@@ -229,15 +235,18 @@ pub struct ValidatorsCommitment {
     pub era_index: u64,
 }
 
-impl ToDigest for ValidatorsCommitment {
+impl ToDigest for Option<ValidatorsCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Self {
+        let Some(ValidatorsCommitment {
             aggregated_public_key,
             verifiable_secret_sharing_commitment: _, // TODO: add to digest
             validators,
             era_index,
-        } = self;
+        }) = self
+        else {
+            return;
+        };
 
         hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
         hasher.update(<[u8; 32]>::from(aggregated_public_key.y));

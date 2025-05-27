@@ -103,14 +103,6 @@ impl<T: ToDigest> ToDigest for Vec<T> {
     }
 }
 
-impl<T: ToDigest> ToDigest for Option<T> {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        if let Some(item) = self.as_ref() {
-            hasher.update(item.to_digest())
-        }
-    }
-}
-
 impl ToDigest for [u8] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self);
