@@ -580,9 +580,36 @@ mod tests {
     use crate::utils::tests::init_logger;
     use assert_matches::assert_matches;
     use ethexe_db::MemDb;
-    use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
+    use libp2p::{
+        core::{transport::MemoryTransport, upgrade::Version},
+        futures::StreamExt,
+        identity::Keypair,
+        swarm,
+        swarm::SwarmEvent,
+        Swarm, Transport,
+    };
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
+    use tokio::time;
+
+    // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config
+    fn new_ephemeral_swarm<T: swarm::NetworkBehaviour>(
+        config: swarm::Config,
+        behaviour: T,
+    ) -> Swarm<T> {
+        let identity = Keypair::generate_ed25519();
+        let peer_id = PeerId::from(identity.public());
+
+        let transport = MemoryTransport::default()
+            .or_transport(libp2p::tcp::tokio::Transport::default())
+            .upgrade(Version::V1)
+            .authenticate(libp2p::plaintext::Config::new(&identity))
+            .multiplex(libp2p::yamux::Config::default())
+            .timeout(Duration::from_secs(20))
+            .boxed();
+
+        Swarm::new(transport, behaviour, peer_id, config)
+    }
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default());
@@ -765,15 +792,24 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn timeout() {
+        const IDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
+        let alice_config = Config::default().with_request_timeout(Duration::from_secs(3));
+        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+
+        // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
+        // so we cannot advance time like in tokio
+        let mut bob = new_ephemeral_swarm(
+            swarm::Config::with_tokio_executor()
+                .with_idle_connection_timeout(IDLE_CONNECTION_TIMEOUT),
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
-            )
-        });
+            ),
+        );
+        let bob_peer_id = *bob.local_peer_id();
         bob.connect(&mut alice).await;
 
         let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
@@ -805,7 +841,7 @@ mod tests {
             }
         });
 
-        tokio::time::advance(Config::default().request_timeout).await;
+        time::advance(Config::default().request_timeout).await;
 
         let event = alice.next_behaviour_event().await;
         assert!(matches!(
@@ -815,6 +851,17 @@ mod tests {
                 error: RequestFailure::Timeout,
             } if request.id() == request_id
         ));
+
+        time::resume();
+        time::sleep(IDLE_CONNECTION_TIMEOUT).await;
+
+        let event = alice.next_swarm_event().await;
+        assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
+
+        // to ensure proper event handling and cleanup, the swarm is polled only once.
+        let _ = futures::poll!(alice.next());
+
+        // `db_sync::OngoingRequests` has assertions in its `Drop` implementation
     }
 
     #[tokio::test]
@@ -1062,9 +1109,13 @@ mod tests {
         let alice_config = Config::default().with_request_timeout(Duration::from_secs(2));
         let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
 
-        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
-            InnerBehaviour::new([], request_response::Config::default())
-        });
+        // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
+        // so we cannot advance time like in tokio
+        let mut bob = new_ephemeral_swarm(
+            swarm::Config::with_tokio_executor()
+                .with_idle_connection_timeout(Duration::from_secs(5)),
+            InnerBehaviour::new([], request_response::Config::default()),
+        );
         let bob_peer_id = *bob.local_peer_id();
         bob.connect(&mut alice).await;
         tokio::spawn(bob.loop_on_next());
@@ -1173,7 +1224,7 @@ mod tests {
             }
         });
 
-        tokio::time::advance(Config::default().request_timeout).await;
+        time::advance(Config::default().request_timeout).await;
 
         let event = alice.next_behaviour_event().await;
         let Event::RequestFailed {
@@ -1185,7 +1236,7 @@ mod tests {
         };
         assert_eq!(request_id, ongoing_request.id());
 
-        tokio::time::resume();
+        time::resume();
 
         bob_handle.abort();
         assert!(bob_handle.await.unwrap_err().is_cancelled());

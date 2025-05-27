@@ -258,6 +258,18 @@ impl OngoingRequests {
     }
 }
 
+impl Drop for OngoingRequests {
+    fn drop(&mut self) {
+        #[cfg(test)]
+        {
+            assert!(self.pending_events.is_empty());
+            assert!(self.requests.is_empty());
+            assert!(self.active_requests.is_empty());
+            assert!(self.requests.is_empty());
+        }
+    }
+}
+
 #[derive(Debug)]
 struct OngoingRequest {
     request: Request,
