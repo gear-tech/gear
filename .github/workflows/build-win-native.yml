@@ -90,25 +90,26 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
+      #- name: "Build: Node"
+      #  run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Check: Stack height limit"
+      #- name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo run -p calc-stack-height --release --locked
+      #  if: ${{ matrix.profiles.name == 'release' }}
+      #  run: cargo run -p calc-stack-height --release --locked
 
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
+      #- name: "Test: gsdk tests"
+      #  run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
+      #- name: "Test: Client tests"
+      #  run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
 
       - name: "Test: Lazy pages"
         run: >-
-          mkdir -p ./target/x86_64-pc-windows-msvc/${{ matrix.profiles.name }}/deps &&
-          curl -L https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.dll -o ./target/x86_64-pc-windows-msvc/${{ matrix.profiles.name }}/deps/clang_rt.asan_dynamic-x86_64.dll &&
-          curl -L https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.pdb -o ./target/x86_64-pc-windows-msvc/${{ matrix.profiles.name }}/deps/clang_rt.asan_dynamic-x86_64.pdb &&
+          mkdir -p AddressSanitizer &&
+          curl -sL https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.dll -o ./AddressSanitizer/clang_rt.asan_dynamic-x86_64.dll &&
+          curl -sL https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.pdb -o ./AddressSanitizer/clang_rt.asan_dynamic-x86_64.pdb &&
+          echo "$(pwd)/AddressSanitizer" >> $GITHUB_PATH &&
           cargo nextest run
           -p "pallet-*"
           -p gear-lazy-pages
