@@ -290,7 +290,7 @@ jobs:
           ${{ matrix.profiles.flags }}
         env:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-          RUSTFLAGS: "-Zsanitizer=address"
+          RUSTFLAGS: "-Zsanitizer=address -Zexternal-clangrt"
           ASAN_OPTIONS: "halt_on_error=0"
 
   win-native:
