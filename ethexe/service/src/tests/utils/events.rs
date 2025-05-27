@@ -63,6 +63,14 @@ impl TestableNetworkEvent {
                 request_id: *request_id,
                 result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
             },
+            NetworkEvent::DbExternalValidation {
+                request_id,
+                response,
+                sender: _,
+            } => Self::DbExternalValidation {
+                request_id: *request_id,
+                response: response.clone(),
+            },
             NetworkEvent::Message { data, source } => Self::Message {
                 data: data.clone(),
                 source: *source,
