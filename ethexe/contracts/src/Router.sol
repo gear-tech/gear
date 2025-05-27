@@ -407,6 +407,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return keccak256(_codeCommitmentHashes);
     }
 
+    // TODO #4609
+    // TODO #4611
     function _commitRewards(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
         require(
             _batch.rewardsCommitment.length <= 1, "rewards commitment must be empty or contains only one commitment"
@@ -502,13 +504,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         return keccak256(transitionsHashes);
     }
-
-    // TODO #4609
-    // TODO #4611
-    function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
-        private
-        returns (bytes32)
-    {}
 
     function _resetValidators(
         Gear.Validators storage _validators,

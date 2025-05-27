@@ -147,8 +147,8 @@ contract RouterTest is Base {
         rollOneBlockAndWarp(router.genesisTimestamp() + eraDuration - electionDuration);
         commitValidators(_commitment, false);
 
+        // Goes to the next era
         rollOneBlockAndWarp(router.genesisTimestamp() + eraDuration);
-
         uint256 _eraStartNumber = vm.getBlockNumber();
         uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
 
@@ -171,148 +171,43 @@ contract RouterTest is Base {
         commitBlock(_privateKeys, _transitions, blockHash(_eraStartNumber), _eraStartTimestamp, false);
     }
 
-    // function test_lateCommitmentsAfterDelay() public {
-    //     address[] memory _validators = new address[](3);
-    //     uint256[] memory _validatorPrivateKeys = new uint256[](3);
-    //     for (uint256 i = 0; i < 3; i++) {
-    //         (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
-    //         _validators[i] = addr;
-    //         _validatorPrivateKeys[i] = key;
-    //     }
+    function test_lateCommitmentsAfterDelay() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
 
-    //     SigningKey _signingKey = FROSTOffchain.newSigningKey();
-    //     Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+        uint256[] memory _privateKeys = new uint256[](1);
 
-    //     Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-    //         Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
-    //     );
+        Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+        );
+        Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](0);
 
-    //     vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
-    //     commitValidators(_commitment);
+        rollOneBlockAndWarp(router.genesisTimestamp() + eraDuration - electionDuration);
+        commitValidators(_commitment, false);
 
-    //     // Go to the next era, setting block hash to the last 5 blocks of the era and first 5 blocks of the new era
-    //     vm.warp(router.genesisTimestamp() + eraDuration - 5 * uint48(blockDuration));
-    //     rollBlocks(10);
+        // Goes to the next era
+        rollOneBlockAndWarp(router.genesisTimestamp() + eraDuration);
+        uint256 _eraStartNumber = vm.getBlockNumber();
+        uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
 
-    //     Gear.BlockCommitment memory _blockCommitment = Gear.BlockCommitment({
-    //         hash: blockHash(vm.getBlockNumber() - 6),
-    //         timestamp: uint48(vm.getBlockTimestamp() - 6 * blockDuration),
-    //         previousCommittedBlock: router.latestCommittedBlockHash(),
-    //         predecessorBlock: blockHash(vm.getBlockNumber() - 1),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
+        // Go after validation delay
+        rollOneBlockAndWarp(_eraStartTimestamp + validationDelay);
 
-    //     // Try to commit block from the previous era using old validators
-    //     // Must be failed because the validation delay is already passed
-    //     vm.expectRevert();
-    //     uint256[] memory _privateKeys = new uint256[](1);
-    //     _privateKeys[0] = signingKey.asScalar();
-    //     commitBlock(_privateKeys, _blockCommitment);
+        // Revert - try to commit block from the previous era using old validators after validation delay
+        _privateKeys[0] = signingKey.asScalar();
+        commitBlock(_privateKeys, _transitions, blockHash(_eraStartNumber - 1), _eraStartTimestamp - 1, true);
 
-    //     // Now try to commit block from the previous era using new validators
-    //     // Must be successful because the validation delay is already passed
-    //     _privateKeys[0] = _signingKey.asScalar();
-    //     commitBlock(_privateKeys, _blockCommitment);
-    // }
-
-    // function test_manyLateCommitments() public {
-    //     address[] memory _validators = new address[](3);
-    //     uint256[] memory _validatorPrivateKeys = new uint256[](3);
-    //     for (uint256 i = 0; i < 3; i++) {
-    //         (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
-    //         _validators[i] = addr;
-    //         _validatorPrivateKeys[i] = key;
-    //     }
-
-    //     SigningKey _signingKey = FROSTOffchain.newSigningKey();
-    //     Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
-
-    //     Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-    //         Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), new bytes(5000), _validators, 1
-    //     );
-
-    //     vm.warp(router.genesisTimestamp() + eraDuration - electionDuration);
-    //     commitValidators(_commitment);
-
-    //     // Go to the next era, setting block hash to the last 4 blocks of the era
-    //     vm.warp(router.genesisTimestamp() + eraDuration - 4 * uint48(blockDuration));
-    //     rollBlocks(4);
-
-    //     uint256 _eraStartNumber = vm.getBlockNumber();
-    //     uint48 _eraStartTimestamp = uint48(vm.getBlockTimestamp());
-
-    //     // Try to commit blocks: [n - 4] <- [n - 3] <- [n]
-    //     // Where [n] is a start of the new era
-    //     Gear.BlockCommitment[] memory _commitments = new Gear.BlockCommitment[](3);
-    //     _commitments[0] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber - 4),
-    //         timestamp: _eraStartTimestamp - 4 * uint48(blockDuration),
-    //         previousCommittedBlock: router.latestCommittedBlockHash(),
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-    //     _commitments[1] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber - 3),
-    //         timestamp: _eraStartTimestamp - 3 * uint48(blockDuration),
-    //         previousCommittedBlock: _commitments[0].hash,
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-    //     _commitments[2] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber),
-    //         timestamp: _eraStartTimestamp,
-    //         previousCommittedBlock: _commitments[1].hash,
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-
-    //     // Roll to next block to be possible to make commitment for the era start block
-    //     rollBlocks(1);
-
-    //     // Validation must fail because the last block is from new era, so must be committed by new validators
-    //     vm.expectRevert();
-    //     uint256[] memory _privateKeys = new uint256[](1);
-    //     _privateKeys[0] = signingKey.asScalar();
-    //     commitBlocks(_privateKeys, _commitments);
-
-    //     // Now try to commit [n - 4] <- [n - 3] <- [n - 2]
-    //     _commitments[2] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber - 2),
-    //         timestamp: _eraStartTimestamp - 2 * uint48(blockDuration),
-    //         previousCommittedBlock: _commitments[1].hash,
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-    //     // Must be successful, because all blocks are from the previous era
-    //     commitBlocks(_privateKeys, _commitments);
-
-    //     // Now try to commit [n - 1] <- [n] <- [n + 1] using new validators
-    //     rollBlocks(1);
-    //     _commitments[0] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber - 1),
-    //         timestamp: _eraStartTimestamp - uint48(blockDuration),
-    //         previousCommittedBlock: router.latestCommittedBlockHash(),
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-    //     _commitments[1] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber),
-    //         timestamp: _eraStartTimestamp,
-    //         previousCommittedBlock: _commitments[0].hash,
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-    //     _commitments[2] = Gear.BlockCommitment({
-    //         hash: blockHash(_eraStartNumber + 1),
-    //         timestamp: _eraStartTimestamp + uint48(blockDuration),
-    //         previousCommittedBlock: _commitments[1].hash,
-    //         predecessorBlock: blockHash(_eraStartNumber),
-    //         transitions: new Gear.StateTransition[](0)
-    //     });
-    //     // Must be successful, because the newest blocks are from the new era
-    //     _privateKeys[0] = _signingKey.asScalar();
-    //     commitBlocks(_privateKeys, _commitments);
-    // }
+        // Now try to commit block from the previous era using new validators after validation delay
+        _privateKeys[0] = _signingKey.asScalar();
+        commitBlock(_privateKeys, _transitions, blockHash(_eraStartNumber - 1), _eraStartTimestamp - 1, false);
+    }
 
     /* helper functions */
 
