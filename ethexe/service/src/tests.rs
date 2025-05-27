@@ -18,20 +18,14 @@
 
 //! Integration tests.
 
-mod env;
-mod events;
-
-pub(crate) use events::{TestableEvent, TestableEventSender};
-
 use crate::{
     config::{self, Config},
-    tests::env::{EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig},
+    test_utils::{
+        init_logger, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig,
+    },
     Service,
 };
-use alloy::{
-    providers::{ext::AnvilApi, Provider as _},
-    rpc::types::Header as RpcHeader,
-};
+use alloy::providers::{ext::AnvilApi, Provider as _};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -61,7 +55,7 @@ use tempfile::tempdir;
 #[ignore = "until rpc fixed"]
 #[tokio::test]
 async fn basics() {
-    utils::init_logger();
+    init_logger();
 
     let tmp_dir = tempdir().unwrap();
     let tmp_dir = tmp_dir.path().to_path_buf();
@@ -119,7 +113,7 @@ async fn basics() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping() {
-    utils::init_logger();
+    init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -201,7 +195,7 @@ async fn ping() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn uninitialized_program() {
-    utils::init_logger();
+    init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -360,7 +354,7 @@ async fn uninitialized_program() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn mailbox() {
-    utils::init_logger();
+    init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -577,7 +571,7 @@ async fn mailbox() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn incoming_transfers() {
-    utils::init_logger();
+    init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -681,7 +675,7 @@ async fn incoming_transfers() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping_reorg() {
-    utils::init_logger();
+    init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -786,7 +780,7 @@ async fn ping_reorg() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping_deep_sync() {
-    utils::init_logger();
+    init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
@@ -854,7 +848,7 @@ async fn ping_deep_sync() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn multiple_validators() {
-    utils::init_logger();
+    init_logger();
 
     let config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(3),
@@ -1014,7 +1008,7 @@ async fn multiple_validators() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn tx_pool_gossip() {
-    utils::init_logger();
+    init_logger();
 
     let test_env_config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(2),
@@ -1100,7 +1094,7 @@ async fn tx_pool_gossip() {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn fast_sync() {
-    utils::init_logger();
+    init_logger();
 
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
@@ -1282,15 +1276,4 @@ async fn fast_sync() {
         &alice,
         &bob,
     );
-}
-
-mod utils {
-    use tracing_subscriber::EnvFilter;
-
-    pub fn init_logger() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .without_time()
-            .try_init();
-    }
 }

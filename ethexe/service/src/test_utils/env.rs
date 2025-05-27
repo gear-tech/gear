@@ -17,20 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    tests::{
+    test_utils::{
         events::{
             ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
             TestableEventReceiver, TestableNetworkEvent,
         },
-        RpcHeader, TestableEvent,
+        TestableEvent,
     },
     Service,
 };
 use alloy::{
     eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider, RootProvider},
-    rpc::types::anvil::MineOptions,
+    providers::{ext::AnvilApi, Provider as _, RootProvider},
+    rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
 use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
