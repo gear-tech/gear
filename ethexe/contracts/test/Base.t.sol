@@ -273,48 +273,6 @@ contract Base is POCBaseTest {
         commitBatch(_privateKeys, _batch, _expect_revert);
     }
 
-    // function commitCodes(uint256[] memory _privateKeys, bytes32 _blockHash, uint64 _timestamp, Gear.CodeCommitment[] memory _commitments) internal {
-    //     bytes memory _codesBytes;
-
-    //     for (uint256 i = 0; i < _commitments.length; i++) {
-    //         Gear.CodeCommitment memory _commitment = _commitments[i];
-    //         _codesBytes = bytes.concat(_codesBytes, Gear.codeCommitmentHash(_commitment));
-    //     }
-
-    //     router.commitBatch(
-    //         Gear.BatchCommitment({
-    //             blockHash: _blockHash,
-    //             timestamp: vm.getBlockTimestamp() - 12,
-    //             previousCommittedBlock: router.latestCommittedBlockHash(),
-    //             chainCommitment: new Gear.ChainCommitment[](0),
-    //             codeCommitments: _commitments,
-    //             rewardCommitment: new Gear.RewardsCommitment[](0),
-    //             validatorsCommitment: new Gear.ValidatorsCommitment[](0)
-    //         }),
-    //         Gear.SignatureType.FROST,
-    //         signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_codesBytes), keccak256("")))
-    //     );
-    // }
-
-    // function commitBlocks(uint256[] memory _privateKeys, Gear.BlockCommitment[] memory _commitments) internal {
-    //     bytes memory _message;
-
-    //     for (uint256 i = 0; i < _commitments.length; i++) {
-    //         Gear.BlockCommitment memory _commitment = _commitments[i];
-    //         _message = bytes.concat(_message, blockCommitmentHash(_commitment));
-    //     }
-
-    //     router.commitBatch(
-    //         Gear.BatchCommitment({
-    //             codeCommitments: new Gear.CodeCommitment[](0),
-    //             blockCommitments: _commitments,
-    //             rewardCommitments: new Gear.RewardsCommitment[](0)
-    //         }),
-    //         Gear.SignatureType.FROST,
-    //         signBytes(_privateKeys, abi.encodePacked(keccak256(_message), keccak256(""), keccak256("")))
-    //     );
-    // }
-
     function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {
         require(_batch.rewardsCommitment.length == 0, "Base: rewardsCommitment is not supported yet");
         require(_batch.validatorsCommitment.length <= 1, "Base: validatorsCommitment length must be 0 or 1");
