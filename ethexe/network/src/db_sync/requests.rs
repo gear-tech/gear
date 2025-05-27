@@ -143,36 +143,33 @@ impl OngoingRequests {
         );
     }
 
+    fn inner_on_peer(&mut self, outbound_request_id: OutboundRequestId, res: Result<Response, ()>) {
+        let request_id = self
+            .active_requests
+            .remove(&outbound_request_id)
+            .expect("unknown outbound request id");
+        let fut = self.requests.get_mut(&request_id);
+
+        // request can be removed because of timeout,
+        // so we don't expect it's still inside `self.requests`
+        if fut.is_some() {
+            self.responses.insert(request_id, res);
+            self.wake();
+        } else {
+            log::trace!("{outbound_request_id:?} has been skipped for {request_id:?}");
+        }
+    }
+
     pub(crate) fn on_peer_response(
         &mut self,
         outbound_request_id: OutboundRequestId,
         response: Response,
     ) {
-        let request_id = self
-            .active_requests
-            .remove(&outbound_request_id)
-            .expect("unknown outbound request id");
-        let request = self.requests.get_mut(&request_id);
-        if let Some(_request) = request {
-            self.responses.insert(request_id, Ok(response));
-            self.wake();
-        } else {
-            log::trace!("request {outbound_request_id} has been skipped");
-        }
+        self.inner_on_peer(outbound_request_id, Ok(response));
     }
 
     pub(crate) fn on_peer_failure(&mut self, outbound_request_id: OutboundRequestId) {
-        let request_id = self
-            .active_requests
-            .remove(&outbound_request_id)
-            .expect("unknown outbound request id");
-        let request = self.requests.get_mut(&request_id);
-        if let Some(_request) = request {
-            self.responses.insert(request_id, Err(()));
-            self.wake();
-        } else {
-            log::trace!("request {outbound_request_id} has been skipped");
-        }
+        self.inner_on_peer(outbound_request_id, Err(()));
     }
 
     pub(crate) fn poll(
