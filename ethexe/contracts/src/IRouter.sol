@@ -39,6 +39,8 @@ interface IRouter {
     /// @param hash The block hash that was "finalized" in relation to the necessary transitions.
     event BlockCommitted(bytes32 hash);
 
+    event GearBlockCommitted(Gear.GearBlock block);
+
     /// @notice Emitted when a code, previously requested for validation, receives validation results, so its CodeStatus changed.
     /// @dev This is an *informational* event, signaling the results of code validation.
     /// @param codeId The ID of the code that was validated.
@@ -120,12 +122,6 @@ interface IRouter {
     /// @dev BlockCommitted Emitted on success. Triggers multiple events for each corresponding mirror.
     function commitBatch(
         Gear.BatchCommitment calldata batchCommitment,
-        Gear.SignatureType signatureType,
-        bytes[] calldata signatures
-    ) external;
-    /// @dev NextEraValidatorsCommitted Emitted on success.
-    function commitValidators(
-        Gear.ValidatorsCommitment memory validatorsCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
     ) external;

@@ -78,7 +78,8 @@ contract POCTest is Base {
         uint256[] memory _privateKeys = new uint256[](1);
         _privateKeys[0] = signingKey.asScalar();
 
-        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, 42, true));
+        rollBlocks(1);
+        commitCode(_privateKeys, Gear.CodeCommitment(_codeId, true));
 
         address _ping = deployPing(_privateKeys, _codeId);
         IMirror actor = IMirror(_ping);
@@ -114,7 +115,8 @@ contract POCTest is Base {
             _privateKeys,
             Gear.ValidatorsCommitment(
                 Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
-            )
+            ),
+            false
         );
 
         for (uint256 i = 0; i < _validators.length; i++) {
@@ -146,11 +148,6 @@ contract POCTest is Base {
         }
         vm.stopPrank();
 
-        uint48 _deploymentTimestamp = uint48(vm.getBlockTimestamp());
-        bytes32 _deploymentBlock = blockHash(vm.getBlockNumber());
-
-        rollBlocks(1);
-
         Gear.Message[] memory _outgoingMessages = new Gear.Message[](1);
         _outgoingMessages[0] = Gear.Message(
             0, // message id
@@ -175,16 +172,7 @@ contract POCTest is Base {
 
         vm.expectEmit(true, false, false, false);
         emit IMirror.Message(0, admin, "PONG", 0);
-        commitBlock(
-            _privateKeys,
-            Gear.BlockCommitment(
-                _deploymentBlock, // commitment block hash
-                _deploymentTimestamp, // commitment block timestamp
-                router.latestCommittedBlockHash(), // previously committed block hash
-                _deploymentBlock, // predecessor block hash
-                _transitions // commitment transitions
-            )
-        );
+        commitBlock(_privateKeys, _transitions);
     }
 
     function doPingPong(uint256[] memory _privateKeys, address _ping) internal {
@@ -196,11 +184,6 @@ contract POCTest is Base {
             wrappedVara.approve(_ping, _allowanceBefore);
         }
         vm.stopPrank();
-
-        uint48 _pingTimestamp = uint48(vm.getBlockTimestamp());
-        bytes32 _pingBlock = blockHash(vm.getBlockNumber());
-
-        rollBlocks(1);
 
         Gear.Message[] memory _outgoingMessages = new Gear.Message[](1);
         _outgoingMessages[0] = Gear.Message(
@@ -226,15 +209,6 @@ contract POCTest is Base {
 
         vm.expectEmit(true, false, false, false);
         emit IMirror.Message(0, admin, "PONG", 0);
-        commitBlock(
-            _privateKeys,
-            Gear.BlockCommitment(
-                _pingBlock, // commitment block hash
-                _pingTimestamp, // commitment block timestamp
-                router.latestCommittedBlockHash(), // previously committed block hash
-                _pingBlock, // predecessor block hash
-                _transitions // commitment transitions
-            )
-        );
+        commitBlock(_privateKeys, _transitions);
     }
 }
