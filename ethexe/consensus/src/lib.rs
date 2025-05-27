@@ -38,17 +38,17 @@ mod validator;
 #[cfg(test)]
 mod mock;
 
+use anyhow::Result;
 pub use connect::SimpleConnectService;
+use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_observer::BlockSyncedData;
+use futures::{stream::FusedStream, Stream};
+use gprimitives::H256;
 pub use utils::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
     SignedValidationRequest,
 };
 pub use validator::{ValidatorConfig, ValidatorService};
-use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
-use ethexe_observer::BlockSyncedData;
-use futures::{stream::FusedStream, Stream};
-use gprimitives::H256;
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static
