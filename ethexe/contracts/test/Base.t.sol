@@ -204,12 +204,12 @@ contract Base is POCBaseTest {
     function commitBlock(
         uint256[] memory _privateKeys,
         Gear.StateTransition[] memory _transactions,
-        bytes32 blockHash,
+        bytes32 _blockHash,
         uint48 _timestamp,
         bool revertExpected
     ) internal {
         Gear.GearBlock[] memory _blocks = new Gear.GearBlock[](1);
-        _blocks[0] = Gear.GearBlock({hash: blockHash, gasAllowance: 1234, offchainTransactionsHash: keccak256("1234")});
+        _blocks[0] = Gear.GearBlock({hash: _blockHash, gasAllowance: 1234, offchainTransactionsHash: keccak256("1234")});
 
         Gear.ChainCommitment memory _chainCommitment =
             Gear.ChainCommitment({transitions: _transactions, blocks: _blocks});
@@ -218,7 +218,7 @@ contract Base is POCBaseTest {
         _chainCommitments[0] = _chainCommitment;
 
         Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
-            blockHash: blockHash,
+            blockHash: _blockHash,
             timestamp: _timestamp,
             previousCommittedBlock: router.latestCommittedBlockHash(),
             chainCommitment: _chainCommitments,
