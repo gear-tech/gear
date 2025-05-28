@@ -182,7 +182,7 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
-					UncheckedExtrinsic::new_unsigned(
+					UncheckedExtrinsic::new_bare(
 						pallet_gear::Call::run { max_gas }.into()
 					).into()
 				}

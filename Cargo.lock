@@ -11568,6 +11568,7 @@ dependencies = [
  "primitive-types 0.12.2",
  "sp-api",
  "sp-blockchain",
+ "sp-core",
  "sp-runtime",
 ]
 

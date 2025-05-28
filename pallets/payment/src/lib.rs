@@ -36,9 +36,7 @@ use sp_runtime::{
         Bounded, Convert, DispatchInfoOf, Dispatchable, Implication, PostDispatchInfoOf,
         TransactionExtension, ValidateResult,
     },
-    transaction_validity::{
-        TransactionSource, TransactionValidityError, ValidTransaction,
-    },
+    transaction_validity::{TransactionSource, TransactionValidityError, ValidTransaction},
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
 use sp_std::borrow::Cow;
