@@ -77,7 +77,7 @@ impl CrateInfo {
 
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
-        let name = root_package.name.clone();
+        let name = root_package.name.clone().into_inner();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
         let features = root_package.features.clone();

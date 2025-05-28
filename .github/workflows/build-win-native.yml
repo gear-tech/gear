@@ -105,16 +105,13 @@ jobs:
       #  run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
 
       - name: "Test: Lazy pages"
-        run: >-
-          mkdir -p AddressSanitizer &&
-          curl -sL https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.dll -o ./AddressSanitizer/clang_rt.asan_dynamic-x86_64.dll &&
-          curl -sL https://github.com/gear-tech/AddressSanitizer/releases/download/14.44.35207/clang_rt.asan_dynamic-x86_64.pdb -o ./AddressSanitizer/clang_rt.asan_dynamic-x86_64.pdb &&
-          echo "$(pwd)/AddressSanitizer" >> $GITHUB_PATH &&
-          cargo nextest run
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          ${{ matrix.profiles.flags }}
+        run: |
+          set vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          set vcvarsLookup=call %vswhere% -latest -property installationPath
+          for /f "tokens=*" %%i in ('%vcvarsLookup%') do set vcvars="%%i\VC\Auxiliary\Build\vcvars64.bat"
+          call %vcvars%
+          cargo nextest run -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface ${{ matrix.profiles.flags }}
         env:
           RUSTFLAGS: "-Zsanitizer=address"
           ASAN_OPTIONS: "halt_on_error=0"
+        shell: cmd
