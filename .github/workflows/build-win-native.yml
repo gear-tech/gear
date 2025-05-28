@@ -107,6 +107,7 @@ jobs:
       - name: "Test: Lazy pages"
         run: |
           set vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          call %vswhere% -latest -property installationPath
           set vcvarsLookup=call %vswhere% -latest -property installationPath
           for /f "tokens=*" %i in ('%vcvarsLookup%') do set vcvars="%i\VC\Auxiliary\Build\vcvars64.bat"
           call %vcvars%
