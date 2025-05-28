@@ -106,7 +106,8 @@ jobs:
 
       - name: "Test: Lazy pages"
         run: |
-          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationVersion
           set vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
           call %vswhere% -latest -property installationPath
           set vcvarsLookup=call %vswhere% -latest -property installationPath
