@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    db_sync::{Config, InnerBehaviour, Request, Response, ResponseId},
+    db_sync::{Config, InnerBehaviour, InnerResponse, Request, ResponseId},
     export::PeerId,
 };
 use ethexe_db::Database;
@@ -28,8 +28,8 @@ use tokio::task::JoinSet;
 struct OngoingResponse {
     response_id: ResponseId,
     peer_id: PeerId,
-    channel: request_response::ResponseChannel<Response>,
-    response: Response,
+    channel: request_response::ResponseChannel<InnerResponse>,
+    response: InnerResponse,
 }
 
 pub(crate) struct OngoingResponses {
@@ -58,7 +58,7 @@ impl OngoingResponses {
     pub(crate) fn prepare_response(
         &mut self,
         peer_id: PeerId,
-        channel: request_response::ResponseChannel<Response>,
+        channel: request_response::ResponseChannel<InnerResponse>,
         request: Request,
     ) -> Option<ResponseId> {
         if self.db_readers.len() >= self.max_simultaneous_responses as usize {
@@ -69,7 +69,7 @@ impl OngoingResponses {
 
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
-            let response = Response::from_db(request, &db);
+            let response = request.handle(&db);
             OngoingResponse {
                 response_id,
                 peer_id,

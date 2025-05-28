@@ -27,9 +27,15 @@ pub(crate) use crate::{
 };
 
 use crate::db_sync::requests::OngoingRequests;
-use ethexe_common::db::{BlockMetaStorage, CodesStorage};
+use anyhow::Context as _;
+use ethexe_common::{
+    db::{BlockMetaStorage, CodesStorage},
+    gear::CodeState,
+};
 use ethexe_db::Database;
+use ethexe_ethereum::router::RouterQuery;
 use gprimitives::{ActorId, CodeId, H256};
+use itertools::EitherOrBoth;
 use libp2p::{
     core::{transport::PortUse, Endpoint},
     request_response,
@@ -43,7 +49,7 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt,
+    fmt, iter,
     task::{Context, Poll},
     time::Duration,
 };
@@ -58,192 +64,404 @@ pub struct RequestId(u64);
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct ResponseId(u64);
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub enum Request {
-    Hashes(BTreeSet<H256>),
-    ProgramIdsAt(H256),
-    ValidCodes,
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
+enum HashesResponseError {
+    #[display("hash mismatch from provided data")]
+    HashMismatch,
 }
 
-impl fmt::Debug for Request {
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+struct HashesRequest(BTreeSet<H256>);
+
+impl fmt::Debug for HashesRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Request::Hashes(hashes) => {
-                if f.alternate() {
-                    f.debug_tuple("Hashes").field(hashes).finish()
-                } else {
-                    f.debug_tuple("Hashes")
-                        .field(&format_args!("{} keys", hashes.len()))
-                        .finish()
-                }
-            }
-            Request::ProgramIdsAt(block) => f.debug_tuple("ProgramIdsAt").field(block).finish(),
-            Request::ValidCodes => f.debug_tuple("CodeIdsAt").finish(),
+        if f.alternate() {
+            f.debug_tuple("HashesRequest").field(&self.0).finish()
+        } else {
+            f.debug_tuple("HashesRequest")
+                .field(&format_args!("{} keys", self.0.len()))
+                .finish()
         }
     }
 }
 
-impl Request {
-    /// Calculate missing request keys in response and create a new request with these keys
-    fn difference(&self, resp: &Response) -> Option<Self> {
-        match (self, resp) {
-            (Self::Hashes(req), Response::Hashes(resp)) => {
-                let resp_keys = resp.keys().copied().collect();
-                let new_requested_hashes: BTreeSet<H256> =
-                    req.difference(&resp_keys).copied().collect();
-                if !new_requested_hashes.is_empty() {
-                    Some(Self::Hashes(new_requested_hashes))
+impl HashesRequest {
+    fn handle(self, db: &Database) -> HashesResponse {
+        HashesResponse(
+            self.0
+                .into_iter()
+                .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                .collect(),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum HashesProcessed {
+    Done {
+        response: BTreeMap<H256, Vec<u8>>,
+        stripped: bool,
+    },
+    NewRequest {
+        acc: HashesResponse,
+        new_request: HashesRequest,
+        stripped: bool,
+    },
+    Err {
+        acc: HashesResponse,
+        err: HashesResponseError,
+        stripped: bool,
+    },
+}
+
+#[derive(Default, Clone, Eq, PartialEq, Encode, Decode)]
+struct HashesResponse(BTreeMap<H256, Vec<u8>>);
+
+impl fmt::Debug for HashesResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let alternate = f.alternate();
+        let mut d = f.debug_tuple("HashesResponse");
+        if alternate {
+            d.field(&self.0);
+        } else {
+            d.field(&format_args!("{} keys", self.0.len()));
+        }
+        d.finish()
+    }
+}
+
+impl HashesResponse {
+    fn process(mut self, request: &HashesRequest, new_response: Self) -> HashesProcessed {
+        let mut new_request = BTreeSet::new();
+        let mut stripped = false;
+
+        let diff = itertools::merge_join_by(
+            request.0.iter().copied(),
+            new_response.0,
+            |req_key, (resp_key, _resp_val)| req_key.cmp(resp_key),
+        );
+
+        for either in diff {
+            match either {
+                EitherOrBoth::Both(req_key, (resp_key, resp_val)) => {
+                    debug_assert_eq!(req_key, resp_key);
+                    if req_key != ethexe_db::hash(&resp_val) {
+                        return HashesProcessed::Err {
+                            acc: self,
+                            err: HashesResponseError::HashMismatch,
+                            stripped,
+                        };
+                    }
+
+                    self.0.insert(resp_key, resp_val);
+                }
+                EitherOrBoth::Left(key) => {
+                    // peer was unable to give this key
+                    new_request.insert(key);
+                }
+                EitherOrBoth::Right((_key, _value)) => {
+                    // peer sent more keys than we requested
+                    stripped = true;
+                }
+            }
+        }
+
+        if new_request.is_empty() {
+            HashesProcessed::Done {
+                response: self.0,
+                stripped,
+            }
+        } else {
+            HashesProcessed::NewRequest {
+                acc: self,
+                new_request: HashesRequest(new_request),
+                stripped,
+            }
+        }
+    }
+}
+
+#[derive(Debug, derive_more::Display)]
+enum ProgramIdsResponseError {
+    #[display("not enough program-code ids")]
+    NotEnoughIds,
+    #[display("router failed: {_0}")]
+    RouterQuery(anyhow::Error),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+struct ProgramIdsRequest {
+    at: H256,
+    expected_count: u64,
+}
+
+impl ProgramIdsRequest {
+    fn handle(self, db: &Database) -> ProgramIdsResponse {
+        ProgramIdsResponse(
+            db.block_program_states(self.at)
+                .map(|states| states.into_keys().collect())
+                .unwrap_or_default(), // FIXME: Option might be more suitable
+        )
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+struct ProgramIdsResponse(BTreeSet<ActorId>);
+
+impl fmt::Debug for ProgramIdsResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let alternate = f.alternate();
+        let mut d = f.debug_tuple("ProgramIdsResponse");
+        if alternate {
+            d.field(&self.0);
+        } else {
+            d.field(&format_args!("{:?} programs", self.0.len()));
+        }
+        d.finish()
+    }
+}
+
+impl ProgramIdsResponse {
+    async fn try_complete(
+        self,
+        request: &ProgramIdsRequest,
+        router_query: &RouterQuery,
+    ) -> Result<BTreeMap<ActorId, CodeId>, ProgramIdsResponseError> {
+        if self.0.len() as u64 != request.expected_count {
+            return Err(ProgramIdsResponseError::NotEnoughIds);
+        }
+
+        let code_ids = router_query
+            .programs_code_ids_at(self.0.iter().copied(), request.at)
+            .await
+            .context("failed to get code ids at block")
+            .map_err(ProgramIdsResponseError::RouterQuery)?;
+
+        let program_code_ids = iter::zip(self.0, code_ids).collect();
+        Ok(program_code_ids)
+    }
+}
+
+#[derive(Debug, derive_more::Display)]
+enum ValidCodesResponseError {
+    #[display("not enough validated codes")]
+    NotEnoughCodes,
+    #[display("{_0}")]
+    RouterQuery(anyhow::Error),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+struct ValidCodesRequest {
+    at: H256,
+    validated_count: u64,
+}
+
+impl ValidCodesRequest {
+    fn handle(self, db: &Database) -> ValidCodesResponse {
+        ValidCodesResponse(db.valid_codes())
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+struct ValidCodesResponse(BTreeSet<CodeId>);
+
+impl fmt::Debug for ValidCodesResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let alternate = f.alternate();
+        let mut d = f.debug_tuple("ValidCodeResponse");
+        if alternate {
+            d.field(&self.0);
+        } else {
+            d.field(&format_args!("{:?} codes", self.0.len()));
+        }
+        d.finish()
+    }
+}
+
+impl ValidCodesResponse {
+    async fn try_complete(
+        self,
+        request: &ValidCodesRequest,
+        router_query: &RouterQuery,
+    ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
+        // validated count at specified block can be less than
+        // the number of states at the latest block returned by peer
+        // but cannot be more
+        if (self.0.len() as u64) < request.validated_count {
+            return Err(ValidCodesResponseError::NotEnoughCodes);
+        }
+
+        let states = router_query
+            .codes_states_at(self.0.iter().copied(), request.at)
+            .await
+            .context("failed to get code states at block")
+            .map_err(ValidCodesResponseError::RouterQuery)?;
+
+        let code_ids: BTreeSet<CodeId> = iter::zip(self.0, states)
+            .flat_map(|(code_id, state)| {
+                if state.into() == CodeState::Validated as u8 {
+                    Some(code_id)
                 } else {
                     None
                 }
-            }
-            (Self::ProgramIdsAt(_), Response::ProgramIdsAt(_, _)) => None,
-            (Self::ValidCodes, Response::ValidCodes(_)) => None,
-            _ => unreachable!(),
+            })
+            .collect();
+        if request.validated_count != code_ids.len() as u64 {
+            return Err(ValidCodesResponseError::NotEnoughCodes);
+        }
+
+        Ok(code_ids)
+    }
+}
+
+#[derive(Debug, derive_more::Display, derive_more::From)]
+enum ResponseError {
+    #[display("{_0}")]
+    Hashes(HashesResponseError),
+    #[display("{_0}")]
+    ProgramIds(ProgramIdsResponseError),
+    #[display("{_0}")]
+    ValidCodes(ValidCodesResponseError),
+    #[display("request and response types mismatch")]
+    TypeMismatch,
+    #[display("new round required")]
+    NewRound,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub enum Request {
+    Hashes(HashesRequest),
+    ProgramIds(ProgramIdsRequest),
+    ValidCodes(ValidCodesRequest),
+}
+
+impl Request {
+    fn handle(self, db: &Database) -> InnerResponse {
+        match self {
+            Request::Hashes(request) => request.handle(db).into(),
+            Request::ProgramIds(request) => request.handle(db).into(),
+            Request::ValidCodes(request) => request.handle(db).into(),
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-#[allow(clippy::enum_variant_names)]
-enum ResponseValidationError {
-    /// Request variant differs from response variant
-    RequestResponseTypeMismatch,
-    /// Hashed data unequal to its corresponding hash
-    DataHashMismatch,
-    /// Requested block mismatches responded one
-    AtBlockMismatch,
+/// Network-only type to be encoded-decoded and sent over the network
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+enum InnerResponse {
+    Hashes(HashesResponse),
+    ProgramIds(ProgramIdsResponse),
+    ValidCodes(ValidCodesResponse),
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode, derive_more::Unwrap)]
+#[derive(Debug)]
+enum InnerResponseProcessor {
+    Hashes {
+        acc: Option<HashesResponse>,
+        original_request: HashesRequest,
+        reduced_request: HashesRequest,
+    },
+    ProgramIds {
+        request: ProgramIdsRequest,
+    },
+    ValidCodes {
+        request: ValidCodesRequest,
+    },
+}
+
+impl InnerResponseProcessor {
+    fn new(request: Request) -> Self {
+        match request {
+            Request::Hashes(request) => Self::Hashes {
+                acc: Default::default(),
+                original_request: request.clone(),
+                reduced_request: request,
+            },
+            Request::ProgramIds(request) => Self::ProgramIds { request },
+            Request::ValidCodes(request) => Self::ValidCodes { request },
+        }
+    }
+
+    fn request(&self) -> Request {
+        match self {
+            InnerResponseProcessor::Hashes {
+                reduced_request, ..
+            } => reduced_request.clone().into(),
+            InnerResponseProcessor::ProgramIds { request } => request.clone().into(),
+            InnerResponseProcessor::ValidCodes { request } => request.clone().into(),
+        }
+    }
+
+    async fn process(
+        &mut self,
+        peer: PeerId,
+        response: InnerResponse,
+        router_query: &RouterQuery,
+        peer_score_handle: &peer_score::Handle,
+    ) -> Result<Response, ResponseError> {
+        match (self, response) {
+            (
+                Self::Hashes {
+                    acc,
+                    original_request: _, // FIXME: strip check on original request
+                    reduced_request,
+                },
+                InnerResponse::Hashes(response),
+            ) => {
+                let taken_acc = acc.take().expect("always Some");
+                let s;
+                let res = match taken_acc.process(&reduced_request, response) {
+                    HashesProcessed::Done { response, stripped } => {
+                        s = stripped;
+                        Ok(Response::Hashes(response))
+                    }
+                    HashesProcessed::NewRequest {
+                        acc: new_acc,
+                        new_request,
+                        stripped,
+                    } => {
+                        *acc = Some(new_acc);
+                        *reduced_request = new_request;
+                        s = stripped;
+                        Err(ResponseError::NewRound)
+                    }
+                    HashesProcessed::Err {
+                        acc: new_acc,
+                        err,
+                        stripped,
+                    } => {
+                        *acc = Some(new_acc);
+                        s = stripped;
+                        Err(err.into())
+                    }
+                };
+
+                if s {
+                    log::debug!("data stripped in response from {peer}");
+                    peer_score_handle.excessive_data(peer);
+                }
+
+                res
+            }
+            (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => response
+                .try_complete(request, router_query)
+                .await
+                .map(Into::into)
+                .map_err(Into::into),
+            (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => response
+                .try_complete(request, router_query)
+                .await
+                .map(Into::into)
+                .map_err(Into::into),
+            _ => Err(ResponseError::TypeMismatch),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Response {
     Hashes(BTreeMap<H256, Vec<u8>>),
-    ProgramIdsAt(H256, Option<BTreeSet<ActorId>>),
+    ProgramIds(BTreeMap<ActorId, CodeId>),
     ValidCodes(BTreeSet<CodeId>),
-}
-
-impl fmt::Debug for Response {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let alternate = f.alternate();
-        match self {
-            Response::Hashes(hashes) => {
-                let mut d = f.debug_tuple("Hashes");
-                if alternate {
-                    d.field(hashes);
-                } else {
-                    d.field(&format_args!("{:?} keys", hashes.len()));
-                }
-                d.finish()
-            }
-            Response::ProgramIdsAt(at, ids) => {
-                let mut d = f.debug_tuple("ProgramIdsAt");
-                d.field(at);
-                if alternate {
-                    d.field(ids);
-                } else if let Some(ids) = ids {
-                    d.field(&format_args!("{:?} keys", ids.len()));
-                } else {
-                    d.field(&None::<()>);
-                }
-                d.finish()
-            }
-            Response::ValidCodes(code_ids) => f.debug_tuple("CodeIds").field(code_ids).finish(),
-        }
-    }
-}
-
-impl Response {
-    fn from_db(request: Request, db: &Database) -> Self {
-        match request {
-            Request::Hashes(hashes) => Self::Hashes({
-                hashes
-                    .into_iter()
-                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                    .collect()
-            }),
-            Request::ProgramIdsAt(block) => Self::ProgramIdsAt(
-                block,
-                db.block_program_states(block)
-                    .map(|states| states.into_keys().collect()),
-            ),
-            Request::ValidCodes => Self::ValidCodes(db.valid_codes()),
-        }
-    }
-
-    fn merge(&mut self, new_response: Response) {
-        match (self, new_response) {
-            (Self::Hashes(hashes), Response::Hashes(new_hashes)) => {
-                hashes.extend(new_hashes);
-            }
-            (Self::ProgramIdsAt(_, program_ids), Response::ProgramIdsAt(_, new_program_ids)) => {
-                match (program_ids, new_program_ids) {
-                    (Some(program_ids), Some(new_program_ids)) => {
-                        program_ids.extend(new_program_ids);
-                    }
-                    (Some(_program_ids), None) => {}
-                    (program_ids @ None, Some(new_program_ids)) => {
-                        *program_ids = Some(new_program_ids);
-                    }
-                    (None, None) => {}
-                }
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    /// Validates response against request.
-    ///
-    /// Returns `false` if external validation is required.
-    fn validate(&self, request: &Request) -> Result<bool, ResponseValidationError> {
-        match (request, self) {
-            (Request::Hashes(_), Response::Hashes(hashes)) => {
-                for (hash, data) in hashes {
-                    if *hash != ethexe_db::hash(data) {
-                        return Err(ResponseValidationError::DataHashMismatch);
-                    }
-                }
-            }
-            (Request::ProgramIdsAt(at), Response::ProgramIdsAt(responded_at, _)) => {
-                if *at != *responded_at {
-                    return Err(ResponseValidationError::AtBlockMismatch);
-                }
-
-                return Ok(false);
-            }
-            (Request::ValidCodes, Response::ValidCodes(_codes)) => {
-                return Ok(false);
-            }
-            _ => return Err(ResponseValidationError::RequestResponseTypeMismatch),
-        }
-
-        Ok(true)
-    }
-
-    fn strip_btree<K: Copy + Ord, V>(request: &BTreeSet<K>, response: &mut BTreeMap<K, V>) -> bool {
-        let hashes_keys: BTreeSet<K> = response.keys().copied().collect();
-        let excessive_requested_hashes: BTreeSet<K> =
-            hashes_keys.difference(request).copied().collect();
-
-        if excessive_requested_hashes.is_empty() {
-            return false;
-        }
-
-        for excessive_key in excessive_requested_hashes {
-            response.remove(&excessive_key);
-        }
-
-        true
-    }
-
-    // TODO: maybe external strip required
-    fn strip(&mut self, request: &Request) -> bool {
-        match (request, self) {
-            (Request::Hashes(req), Self::Hashes(resp)) => Self::strip_btree(req, resp),
-            (Request::ProgramIdsAt(_), Self::ProgramIdsAt(_, _resp)) => false,
-            (Request::ValidCodes, Self::ValidCodes(_)) => false,
-            _ => unreachable!(),
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -360,7 +578,7 @@ impl Config {
     }
 }
 
-type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
+type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, InnerResponse>>;
 
 pub struct Behaviour {
     inner: InnerBehaviour,
@@ -371,14 +589,19 @@ pub struct Behaviour {
 
 impl Behaviour {
     /// TODO: use database via traits
-    pub(crate) fn new(config: Config, peer_score_handle: peer_score::Handle, db: Database) -> Self {
+    pub(crate) fn new(
+        config: Config,
+        peer_score_handle: peer_score::Handle,
+        router_query: RouterQuery,
+        db: Database,
+    ) -> Self {
         Self {
             inner: InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
             peer_score_handle: peer_score_handle.clone(),
-            ongoing_requests: OngoingRequests::new(&config, peer_score_handle),
+            ongoing_requests: OngoingRequests::new(&config, peer_score_handle, router_query),
             ongoing_responses: OngoingResponses::new(db, &config),
         }
     }
@@ -393,7 +616,7 @@ impl Behaviour {
 
     fn handle_inner_event(
         &mut self,
-        event: request_response::Event<Request, Response>,
+        event: request_response::Event<Request, InnerResponse>,
     ) -> Poll<ToSwarm<Event, THandlerInEvent<Self>>> {
         match event {
             request_response::Event::Message {
@@ -630,7 +853,7 @@ mod tests {
         let hash3 = ethexe_db::hash(b"3");
 
         let request = Request::Hashes([hash1, hash2].into());
-        let mut response = Response::Hashes(
+        let mut response = MaybeResponse::Hashes(
             [
                 (hash1, b"1".to_vec()),
                 (hash2, b"2".to_vec()),
@@ -641,7 +864,7 @@ mod tests {
         assert!(response.strip(&request));
         assert_eq!(
             response,
-            Response::Hashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
+            MaybeResponse::Hashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
         );
     }
 
@@ -650,7 +873,7 @@ mod tests {
         let hash1 = ethexe_db::hash(b"1");
 
         let request = Request::Hashes([hash1].into());
-        let response = Response::Hashes([(hash1, b"2".to_vec())].into());
+        let response = MaybeResponse::Hashes([(hash1, b"2".to_vec())].into());
         assert_eq!(
             response.validate(&request),
             Err(ResponseValidationError::DataHashMismatch)
@@ -659,7 +882,7 @@ mod tests {
     #[test]
     fn validate_at_block_mismatch() {
         let request = Request::ProgramIdsAt(H256::random());
-        let response = Response::ProgramIdsAt(H256::zero(), None);
+        let response = MaybeResponse::ProgramIdsAt(H256::zero(), None);
         assert_eq!(
             response.validate(&request),
             Err(ResponseValidationError::AtBlockMismatch)
@@ -727,7 +950,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if request_id == rid && response == Response::Hashes(
+            } if request_id == rid && response == MaybeResponse::Hashes(
                 [
                     (hello_hash, b"hello".to_vec()),
                     (world_hash, b"world".to_vec())
@@ -912,7 +1135,7 @@ mod tests {
                     bob.behaviour_mut()
                         .send_response(
                             channel,
-                            Response::Hashes(
+                            MaybeResponse::Hashes(
                                 [
                                     (data_0, DATA[0].to_vec()),
                                     (data_1, DATA[1].to_vec()),
@@ -932,7 +1155,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response,
-            } if rid == request_id &&  response == Response::Hashes(
+            } if rid == request_id &&  response == MaybeResponse::Hashes(
                 [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
             )
         );
@@ -977,7 +1200,7 @@ mod tests {
                 {
                     assert_eq!(request, Request::Hashes([].into()));
                     bob.behaviour_mut()
-                        .send_response(channel, Response::ProgramIdsAt(H256::zero(), None))
+                        .send_response(channel, MaybeResponse::ProgramIdsAt(H256::zero(), None))
                         .unwrap();
                 }
             }
@@ -1042,7 +1265,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if rid == request_id &&  response == Response::Hashes(
+            } if rid == request_id &&  response == MaybeResponse::Hashes(
                 [
                     (hello_hash, b"hello".to_vec()),
                     (world_hash, b"world".to_vec()),
@@ -1092,7 +1315,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if rid == request_id &&  response == Response::Hashes(
+            } if rid == request_id &&  response == MaybeResponse::Hashes(
                 [
                     (hello_hash, b"hello".to_vec()),
                     (world_hash, b"world".to_vec())
@@ -1260,7 +1483,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if rid == request_id && response == Response::Hashes([(request_key, b"test".to_vec())].into())
+            } if rid == request_id && response == MaybeResponse::Hashes([(request_key, b"test".to_vec())].into())
         );
     }
 
@@ -1281,8 +1504,10 @@ mod tests {
             (ActorId::new([2; 32]), H256::random()),
         ]);
         charlie_db.set_block_program_states(H256::zero(), program_states.clone());
-        let expected_response =
-            Response::ProgramIdsAt(H256::zero(), Some(program_states.keys().cloned().collect()));
+        let expected_response = MaybeResponse::ProgramIdsAt(
+            H256::zero(),
+            Some(program_states.keys().cloned().collect()),
+        );
 
         let request_id = alice
             .behaviour_mut()
@@ -1306,7 +1531,7 @@ mod tests {
         } = event
         {
             assert_eq!(request_id, rid);
-            assert_eq!(response, Response::ProgramIdsAt(H256::zero(), None));
+            assert_eq!(response, MaybeResponse::ProgramIdsAt(H256::zero(), None));
             sender.send(false).unwrap();
         } else {
             unreachable!();

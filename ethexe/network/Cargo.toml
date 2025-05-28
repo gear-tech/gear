@@ -14,6 +14,7 @@ ethexe-signer.workspace = true
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
+ethexe-ethereum.workspace = true
 
 gprimitives = { workspace = true, features = ["codec"] }
 
@@ -26,6 +27,7 @@ async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
+itertools.workspace = true
 
 [dependencies.libp2p]
 version = "0.55.0"
