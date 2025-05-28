@@ -228,7 +228,7 @@ impl ComputeService {
             .ok_or(anyhow!("observer must set block events"))?;
 
         let mut validated_codes = HashSet::new();
-        let mut requested_codes = HashSet::new();
+        let mut codes_to_load = HashSet::new();
 
         for event in &events {
             match event {
@@ -242,28 +242,19 @@ impl ComputeService {
                         tx_hash: *tx_hash,
                     };
                     self.db.set_code_blob_info(*code_id, code_info.clone());
-
-                    if !self.db.original_code_exists(*code_id) && !validated_codes.contains(code_id)
-                    {
-                        requested_codes.insert(*code_id);
-                    }
+                    codes_to_load.insert(*code_id);
                 }
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                    if requested_codes.contains(code_id) {
-                        return Err(anyhow!("Code {code_id} is validated before requested"));
-                    };
-
                     if !self.db.original_code_exists(*code_id) {
                         validated_codes.insert(*code_id);
+                        codes_to_load.insert(*code_id);
                     }
                 }
                 _ => {}
             }
         }
 
-        // Return validated codes and all codes to load
-        requested_codes.extend(validated_codes.iter());
-        Ok((validated_codes, requested_codes))
+        Ok((validated_codes, codes_to_load))
     }
 }
 
