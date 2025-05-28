@@ -17,4 +17,5 @@ clap = { version = "4.5.38", features = ["derive"] }
 env_logger = "0.11.8"
 rand_chacha = "0.9.0"
 ipc-channel = "0.19.0"
+core_affinity = "0.8.3"
 

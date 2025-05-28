@@ -25,6 +25,9 @@ pub enum Commands {
         // Worker time to live in seconds (after which it will exit)
         #[arg(long)]
         ttl: u64,
+        // CPU core affinity for the worker
+        #[arg(long)]
+        cpu_affinity: usize,
     },
 }
 

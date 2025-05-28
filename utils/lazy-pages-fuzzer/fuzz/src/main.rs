@@ -32,7 +32,7 @@ mod worker;
 
 const SEED_SIZE_IN_U32: usize = 8192;
 const SEED_PATH: &str = "seed.bin";
-const STATS_PRINT_INTERVAL: u64 = 30;
+const STATS_PRINT_INTERVAL: u64 = 10;
 const WORKER_TTL_SEC: u64 = 10;
 
 #[derive(Default)]
@@ -49,7 +49,7 @@ fn ts() -> u64 {
     let now = std::time::SystemTime::now();
     now.duration_since(std::time::UNIX_EPOCH)
         .expect("Time went backwards")
-        .as_millis() as u64
+        .as_micros() as u64
 }
 
 fn generate_or_read_seed(silent: bool) -> Vec<u32> {
@@ -87,8 +87,12 @@ fn main() {
             let instance_seed = string_to_hex(&instance_seed);
             reproduce(instance_seed);
         }
-        Commands::Worker { token, ttl } => {
-            worker::run(token, ttl);
+        Commands::Worker {
+            token,
+            ttl,
+            cpu_affinity,
+        } => {
+            worker::run(token, ttl, cpu_affinity);
         }
     }
 }
@@ -133,8 +137,6 @@ fn reproduce(instance_seed: [u8; 32]) {
 
     let input_seed = generate_or_read_seed(false);
     let derived_seed = derivate_seed(&input_seed, &instance_seed);
-
-    simulate_panic(derived_seed[0], derived_seed[1]);
 
     let mut u = Unstructured::new(&derived_seed);
     let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
