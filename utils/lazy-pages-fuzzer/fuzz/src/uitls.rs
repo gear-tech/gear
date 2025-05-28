@@ -44,10 +44,10 @@ pub fn cast_slice(input: &[u32]) -> &[u8] {
     unsafe { std::slice::from_raw_parts(ptr as *const u8, length * mem::size_of::<u32>()) }
 }
 
-pub fn simulate_panic(b: u8, bb: u8) {
-    if b % 100 == 32 && bb % 100 == 42 {
-        println!("{b}");
-        eprint!("{bb}");
+pub fn simulate_panic(b: &[u8]) {
+    if b[0] % 100 == 32 && b[1] % 100 == 42 {
+        eprintln!("{b:X?}");
+        eprintln!("pid: {}", std::process::id());
         panic!("Simulated panic in worker process");
     }
 }

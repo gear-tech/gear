@@ -6,6 +6,7 @@ use std::{
 };
 
 use arbitrary::{Arbitrary as _, Unstructured};
+use core_affinity::CoreId;
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use lazy_pages_fuzzer::GeneratedModule;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ use crate::{
 };
 
 pub struct Worker {
+    pub cpu_affinity: usize,
     pub process: process::Child,
     pub receiver: IpcReceiver<WorkerReport>,
     pub last_report: WorkerReport,
@@ -47,7 +49,11 @@ pub struct WorkerReport {
 }
 
 // Run a worker process that connects to the IPC server and performs fuzzing
-pub fn run(token: String, ttl_sec: u64) {
+pub fn run(token: String, ttl_sec: u64, cpu_affinity: usize) {
+    if !core_affinity::set_for_current(CoreId { id: cpu_affinity }) {
+        panic!("Failed to set CPU affinity {cpu_affinity} for worker process");
+    }
+
     let pid = process::id();
     let tx: IpcSender<WorkerReport> =
         IpcSender::connect(token.to_string()).expect(format!("connect failed, pid {pid}").as_str());
@@ -65,8 +71,6 @@ pub fn run(token: String, ttl_sec: u64) {
         let instance_seed: [u8; 32] = generate_instance_seed(ts() + pid as u64);
         let derived_seed = derivate_seed(&input_seed, &instance_seed);
 
-        simulate_panic(derived_seed[0], derived_seed[1]);
-
         if tx
             .send(WorkerReport {
                 pid,
@@ -79,6 +83,8 @@ pub fn run(token: String, ttl_sec: u64) {
             // Main process has exited, worker should stop too
             break;
         }
+
+        //simulate_panic(&derived_seed[0..16]);
 
         let mut u = Unstructured::new(&derived_seed);
         let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
@@ -102,8 +108,8 @@ impl Workers {
         let executable_path = env::current_exe().expect("Failed to get current executable path");
         let mut workers = HashMap::new();
 
-        for _ in 0..num_workers {
-            let (pid, worker) = Self::spawn_worker(&executable_path, ttl_sec);
+        for num in 0..num_workers {
+            let (pid, worker) = Self::spawn_worker(&executable_path, ttl_sec, num);
             workers.insert(pid, worker);
         }
 
@@ -114,12 +120,20 @@ impl Workers {
         }
     }
 
-    fn spawn_worker(executable_path: &Path, ttl_sec: u64) -> (u32, Worker) {
+    fn spawn_worker(executable_path: &Path, ttl_sec: u64, cpu_affinity: usize) -> (u32, Worker) {
         let (server, token) =
             IpcOneShotServer::<WorkerReport>::new().expect("Failed to create IPC one-shot server.");
 
         let mut command = process::Command::new(executable_path);
-        command.args(["worker", "--token", &token, "--ttl", &ttl_sec.to_string()]);
+        command.args([
+            "worker",
+            "--token",
+            &token,
+            "--ttl",
+            &ttl_sec.to_string(),
+            "--cpu-affinity",
+            &cpu_affinity.to_string(),
+        ]);
 
         let process = command.spawn().expect("Failed to start worker process");
 
@@ -131,6 +145,7 @@ impl Workers {
         let worker_pid = msg.pid;
 
         let worker = Worker {
+            cpu_affinity,
             process,
             receiver: rx,
             last_report: msg,
@@ -144,15 +159,21 @@ impl Workers {
         let mut exited_workers = Vec::new();
 
         loop {
-            for (&pid, worker) in self.workers.iter_mut() {
-                if let Ok(report) = worker.receiver.try_recv() {
-                    worker.last_report = report;
-                    udpate_cb(worker);
-                }
+            thread::sleep(time::Duration::from_millis(100));
 
+            'outer: for (&pid, worker) in self.workers.iter_mut() {
                 if let Some(exit_code) = worker.process.try_wait().ok().flatten() {
                     worker.exit_status = Some(exit_code);
                     exited_workers.push(pid);
+                }
+
+                loop {
+                    if let Ok(report) = worker.receiver.try_recv() {
+                        worker.last_report = report;
+                        udpate_cb(worker);
+                    } else {
+                        continue 'outer; // No more reports to process, continue to next worker
+                    }
                 }
             }
 
@@ -166,8 +187,11 @@ impl Workers {
 
                     if output.status.success() {
                         // Recreate exited worker
-                        let (new_pid, new_worker) =
-                            Self::spawn_worker(&self.executable_path, self.woker_ttl_sec);
+                        let (new_pid, new_worker) = Self::spawn_worker(
+                            &self.executable_path,
+                            self.woker_ttl_sec,
+                            worker.cpu_affinity,
+                        );
                         self.workers.insert(new_pid, new_worker);
                     } else {
                         return Some(UserReport {
@@ -181,7 +205,6 @@ impl Workers {
             }
 
             exited_workers.clear();
-            thread::sleep(time::Duration::from_millis(300));
         }
     }
 }

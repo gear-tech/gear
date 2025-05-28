@@ -50,3 +50,38 @@ pub fn derivate_seed(seed: &[u32], der: &[u8; 32]) -> Vec<u8> {
 
     cast_vec(new_seed)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::ts;
+
+    use super::*;
+
+    #[test]
+    fn test_generate_seed() {
+        let seed = generate_seed(ts());
+        let seed2 = generate_seed(ts());
+        assert_ne!(seed, seed2, "Generated seeds should be different");
+    }
+
+    #[test]
+    fn test_generate_instace_seed() {
+        let seed = generate_instance_seed(ts());
+        let seed2 = generate_instance_seed(ts());
+        assert_ne!(seed, seed2, "Generated seeds should be different");
+    }
+
+    #[test]
+    fn test_derivate_seed() {
+        let seed = generate_seed(ts());
+
+        let instance_seed = generate_instance_seed(ts());
+        let derived_seed = derivate_seed(&seed, &instance_seed);
+        let instance_seed2 = generate_instance_seed(ts());
+        let derived_seed2 = derivate_seed(&seed, &instance_seed2);
+        assert_ne!(
+            derived_seed, derived_seed2,
+            "Derived seeds should be different"
+        );
+    }
+}
