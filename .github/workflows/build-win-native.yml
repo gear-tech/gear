@@ -105,15 +105,7 @@ jobs:
       #  run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
 
       - name: "Test: Lazy pages"
-        run: |
-          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationVersion
-          set vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
-          call %vswhere% -latest -property installationPath
-          set vcvarsLookup=call %vswhere% -latest -property installationPath
-          for /f "tokens=*" %i in ('%vcvarsLookup%') do set vcvars="%i\VC\Auxiliary\Build\vcvars64.bat"
-          call %vcvars%
-          cargo nextest run -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface ${{ matrix.profiles.flags }}
+        run: build.bat
         env:
           RUSTFLAGS: "-Zsanitizer=address"
           ASAN_OPTIONS: "halt_on_error=0"
