@@ -57,7 +57,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use tokio::sync::oneshot::Sender;
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
@@ -74,11 +73,6 @@ pub enum NetworkEvent {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
     },
-    DbExternalValidation {
-        request_id: db_sync::RequestId,
-        response: db_sync::Response,
-        sender: Sender<bool>,
-    },
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,
@@ -94,16 +88,6 @@ impl fmt::Debug for NetworkEvent {
                 .debug_struct("DbResponse")
                 .field("request_id", request_id)
                 .field("result", result)
-                .finish(),
-            NetworkEvent::DbExternalValidation {
-                request_id,
-                response,
-                sender,
-            } => f
-                .debug_struct("DbExternalValidation")
-                .field("request_id", request_id)
-                .field("response", response)
-                .field("sender", sender)
                 .finish(),
             NetworkEvent::Message { data, source } => f
                 .debug_struct("Message")
@@ -203,6 +187,7 @@ impl NetworkService {
     pub fn new(
         config: NetworkConfig,
         signer: &Signer,
+        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Database,
     ) -> anyhow::Result<NetworkService> {
         fs::create_dir_all(&config.config_dir)
@@ -210,7 +195,12 @@ impl NetworkService {
 
         let keypair =
             NetworkService::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkService::create_swarm(keypair, db, config.transport_type)?;
+        let mut swarm = NetworkService::create_swarm(
+            keypair,
+            external_data_provider,
+            db,
+            config.transport_type,
+        )?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -273,6 +263,7 @@ impl NetworkService {
 
     fn create_swarm(
         keypair: identity::Keypair,
+        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Database,
         transport_type: TransportType,
     ) -> anyhow::Result<Swarm<Behaviour>> {
@@ -308,7 +299,7 @@ impl NetworkService {
             TransportType::Test => false,
         };
 
-        let behaviour = Behaviour::new(&keypair, db, enable_mdns)?;
+        let behaviour = Behaviour::new(&keypair, external_data_provider, db, enable_mdns)?;
         let local_peer_id = keypair.public().to_peer_id();
         let mut config = SwarmConfig::with_tokio_executor();
 
@@ -452,17 +443,6 @@ impl NetworkService {
                     result: Err((request, error)),
                 });
             }
-            BehaviourEvent::DbSync(db_sync::Event::ExternalValidationRequired {
-                request_id,
-                response,
-                sender,
-            }) => {
-                return Some(NetworkEvent::DbExternalValidation {
-                    request_id,
-                    response,
-                    sender,
-                });
-            }
             BehaviourEvent::DbSync(_) => {}
         }
 
@@ -551,7 +531,12 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    fn new(keypair: &identity::Keypair, db: Database, enable_mdns: bool) -> anyhow::Result<Self> {
+    fn new(
+        keypair: &identity::Keypair,
+        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+        db: Database,
+        enable_mdns: bool,
+    ) -> anyhow::Result<Self> {
         let peer_id = keypair.public().to_peer_id();
 
         // we use custom behaviour because
@@ -615,7 +600,12 @@ impl Behaviour {
         gossipsub.subscribe(&commitments_topic())?;
         gossipsub.subscribe(&offchain_tx_topic())?;
 
-        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
+        let db_sync = db_sync::Behaviour::new(
+            db_sync::Config::default(),
+            peer_score_handle,
+            external_data_provider,
+            db,
+        );
 
         Ok(Self {
             custom_connection_limits,
@@ -643,18 +633,79 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::init_logger;
+    use crate::{db_sync::ExternalDataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
+    use async_trait::async_trait;
+    use ethexe_common::gear::CodeState;
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
-    use gprimitives::H256;
-    use tokio::time::{timeout, Duration};
+    use gprimitives::{ActorId, CodeId, H256};
+    use std::{
+        collections::{BTreeSet, HashMap},
+        sync::Arc,
+    };
+    use tokio::{
+        sync::Mutex,
+        time::{timeout, Duration},
+    };
+
+    #[derive(Default)]
+    struct DataProviderInner {
+        programs_code_ids_at: HashMap<(BTreeSet<ActorId>, H256), Vec<CodeId>>,
+        code_states_at: HashMap<(BTreeSet<CodeId>, H256), Vec<CodeState>>,
+    }
+
+    #[derive(Default, Clone)]
+    struct DataProvider(Arc<Mutex<DataProviderInner>>);
+
+    #[async_trait]
+    impl ExternalDataProvider for DataProvider {
+        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+            Box::new(self.clone())
+        }
+
+        async fn programs_code_ids_at(
+            self: Box<Self>,
+            program_ids: BTreeSet<ActorId>,
+            block: H256,
+        ) -> anyhow::Result<Vec<CodeId>> {
+            Ok(self
+                .0
+                .lock()
+                .await
+                .programs_code_ids_at
+                .get(&(program_ids, block))
+                .cloned()
+                .unwrap())
+        }
+
+        async fn codes_states_at(
+            self: Box<Self>,
+            code_ids: BTreeSet<CodeId>,
+            block: H256,
+        ) -> anyhow::Result<Vec<CodeState>> {
+            Ok(self
+                .0
+                .lock()
+                .await
+                .code_states_at
+                .get(&(code_ids, block))
+                .cloned()
+                .unwrap())
+        }
+    }
 
     fn new_service_with_db(db: Database) -> NetworkService {
         let key_storage = FSKeyStorage::tmp();
         let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
         let signer = Signer::new(key_storage);
-        NetworkService::new(config.clone(), &signer, db).unwrap()
+        NetworkService::new(
+            config.clone(),
+            &signer,
+            Box::new(DataProvider::default()),
+            db,
+        )
+        .unwrap()
     }
 
     fn new_service() -> NetworkService {
@@ -690,7 +741,7 @@ mod tests {
 
         let request_id = service1
             .db_sync()
-            .request(db_sync::Request::Hashes([hello, world].into()));
+            .request(db_sync::Request::hashes([hello, world]));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -742,27 +793,7 @@ mod tests {
 
         let request_id = service1
             .db_sync()
-            .request(db_sync::Request::ProgramIdsAt(H256::zero()));
-
-        let event = timeout(Duration::from_secs(5), service1.next())
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        if let NetworkEvent::DbExternalValidation {
-            request_id: rid,
-            response,
-            sender,
-        } = event
-        {
-            assert_eq!(rid, request_id);
-            assert_eq!(
-                response,
-                db_sync::Response::ProgramIdsAt(H256::zero(), None)
-            );
-            sender.send(true).unwrap();
-        } else {
-            unreachable!("{event:?}");
-        }
+            .request(db_sync::Request::program_ids(H256::zero(), 0));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -773,7 +804,7 @@ mod tests {
             NetworkEvent::DbResponse {
                 request_id: rid,
                 result: Ok(response)
-            } if rid == request_id && response == db_sync::Response::ProgramIdsAt(H256::zero(), None)
+            } if rid == request_id && response == db_sync::Response::ProgramIds([].into())
         );
     }
 }

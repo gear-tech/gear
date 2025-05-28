@@ -22,7 +22,7 @@ use anyhow::{Context, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
-    gear::{CodeCommitment, CodeState},
+    gear::CodeCommitment,
     Address, BlockData,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -41,10 +41,7 @@ use ethexe_runtime_common::{
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    iter,
-};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 struct EventData {
     /// Latest committed on the chain and not computed local block
@@ -128,15 +125,10 @@ impl EventData {
     }
 }
 
-async fn net_fetch<F, R>(
+async fn net_fetch(
     network: &mut NetworkService,
     request: db_sync::Request,
-    mut external_validation: F,
-) -> Result<db_sync::Response>
-where
-    F: FnMut(db_sync::Response) -> R,
-    R: Future<Output = Result<bool>>,
-{
+) -> Result<db_sync::Response> {
     let request_id = network.db_sync().request(request);
     loop {
         let event = network
@@ -144,33 +136,20 @@ where
             .await
             .expect("network service stream is infinite");
 
-        match event {
-            NetworkEvent::DbResponse {
-                request_id: rid,
-                result,
-            } => {
-                debug_assert_eq!(rid, request_id, "unknown request id");
-                match result {
-                    Ok(response) => break Ok(response),
-                    Err((request, err)) => {
-                        log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
-                        network.db_sync().retry(request);
-                        continue;
-                    }
+        if let NetworkEvent::DbResponse {
+            request_id: rid,
+            result,
+        } = event
+        {
+            debug_assert_eq!(rid, request_id, "unknown request id");
+            match result {
+                Ok(response) => break Ok(response),
+                Err((request, err)) => {
+                    log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
+                    network.db_sync().retry(request);
+                    continue;
                 }
             }
-            NetworkEvent::DbExternalValidation {
-                request_id: rid,
-                response,
-                sender,
-            } => {
-                debug_assert_eq!(rid, request_id, "unknown request id");
-                let is_valid = external_validation(response).await?;
-                sender
-                    .send(is_valid)
-                    .expect("`db-sync` never drops its receiver");
-            }
-            _ => continue,
         }
     }
 }
@@ -187,41 +166,11 @@ async fn collect_program_code_ids(
 
     let response = net_fetch(
         network,
-        db_sync::Request::ProgramIdsAt(latest_committed_block),
-        |response| async {
-            let (at, program_ids) = response.unwrap_program_ids_at();
-            debug_assert_eq!(at, latest_committed_block);
-
-            let Some(program_ids) = program_ids else {
-                return Ok(programs_count == 0);
-            };
-
-            if program_ids.len() as u64 != programs_count {
-                return Ok(false);
-            }
-
-            let new_code_ids = router_query
-                .programs_code_ids_at(program_ids, latest_committed_block)
-                .await?;
-            if new_code_ids.iter().any(|code_id| code_id.is_zero()) {
-                return Ok(false);
-            }
-
-            Ok(true)
-        },
+        db_sync::Request::program_ids(latest_committed_block, programs_count),
     )
     .await?;
 
-    let (at, program_ids) = response.unwrap_program_ids_at();
-    debug_assert_eq!(at, latest_committed_block);
-    let program_ids = program_ids.unwrap_or_default();
-
-    let code_ids = router_query
-        .programs_code_ids_at(program_ids.iter().copied(), latest_committed_block)
-        .await?;
-
-    debug_assert_eq!(program_ids.len(), code_ids.len());
-    let program_code_ids = iter::zip(program_ids, code_ids).collect();
+    let program_code_ids = response.unwrap_program_ids();
     Ok(program_code_ids)
 }
 
@@ -235,25 +184,10 @@ async fn collect_code_ids(
         .validated_codes_count_at(latest_committed_block)
         .await?;
 
-    let response = net_fetch(network, db_sync::Request::ValidCodes, |response| async {
-        let code_ids = response.unwrap_valid_codes();
-
-        if (code_ids.len() as u64) < codes_count {
-            return Ok(false);
-        }
-
-        let code_states = router_query
-            .codes_states_at(code_ids.iter().copied(), latest_committed_block)
-            .await?;
-        if code_states
-            .into_iter()
-            .any(|state| state.into() != CodeState::Validated as u8)
-        {
-            return Ok(false);
-        }
-
-        Ok(true)
-    })
+    let response = net_fetch(
+        network,
+        db_sync::Request::valid_codes(latest_committed_block, codes_count),
+    )
     .await?;
 
     let code_ids = response.unwrap_valid_codes();
@@ -348,12 +282,10 @@ impl RequestManager {
         let pending_network_requests = self.handle_pending_requests(db);
 
         if !pending_network_requests.is_empty() {
-            let request = pending_network_requests.keys().copied().collect();
-            let response = net_fetch(network, db_sync::Request::Hashes(request), |_| async {
-                unreachable!()
-            })
-            .await
-            .expect("no external validation required");
+            let request: BTreeSet<H256> = pending_network_requests.keys().copied().collect();
+            let response = net_fetch(network, db_sync::Request::hashes(request))
+                .await
+                .expect("no external validation required");
 
             self.handle_response(pending_network_requests, response, db);
         }

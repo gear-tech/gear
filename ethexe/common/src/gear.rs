@@ -213,6 +213,18 @@ pub enum CodeState {
     Validated,
 }
 
+impl From<u8> for CodeState {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Unknown,
+            1 => Self::ValidationRequested,
+            2 => Self::Validated,
+            // FIXME: might be reachable actually
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CommittedBlockInfo {
     pub hash: H256,

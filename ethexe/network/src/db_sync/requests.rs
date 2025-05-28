@@ -18,13 +18,12 @@
 
 use crate::{
     db_sync::{
-        Config, Event, InnerBehaviour, InnerResponse, InnerResponseProcessor,
+        Config, Event, ExternalDataProvider, InnerBehaviour, InnerResponse, InnerResponseProcessor,
         NewRequestRoundReason, PeerId, Request, RequestFailure, RequestId, Response,
     },
     peer_score::Handle,
     utils::ConnectionMap,
 };
-use ethexe_ethereum::router::RouterQuery;
 use futures::{future::BoxFuture, FutureExt};
 use libp2p::{
     request_response::OutboundRequestId,
@@ -37,7 +36,7 @@ use std::{
     task::{Context, Poll, Waker},
     time::Duration,
 };
-use tokio::{sync::oneshot::Sender, time};
+use tokio::time;
 
 ethexe_service_utils::task_local! {
     static CONTEXT: OngoingRequestContext;
@@ -55,7 +54,7 @@ pub(crate) struct OngoingRequests {
     request_id_counter: u64,
     //
     peer_score_handle: Handle,
-    router_query: RouterQuery,
+    external_data_provider: Box<dyn ExternalDataProvider>,
     // config
     request_timeout: Duration,
     max_rounds_per_request: u32,
@@ -65,7 +64,7 @@ impl OngoingRequests {
     pub(crate) fn new(
         config: &Config,
         peer_score_handle: Handle,
-        router_query: RouterQuery,
+        external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Self {
         Self {
             pending_events: VecDeque::new(),
@@ -76,7 +75,7 @@ impl OngoingRequests {
             waker: None,
             request_id_counter: 0,
             peer_score_handle,
-            router_query,
+            external_data_provider,
             request_timeout: config.request_timeout,
             max_rounds_per_request: config.max_rounds_per_request,
         }
@@ -124,7 +123,7 @@ impl OngoingRequests {
             OngoingRequest::new(request)
                 .request(
                     self.peer_score_handle.clone(),
-                    self.router_query.clone(),
+                    self.external_data_provider.clone_boxed(),
                     self.request_timeout,
                     self.max_rounds_per_request,
                 )
@@ -143,7 +142,7 @@ impl OngoingRequests {
             request
                 .request(
                     self.peer_score_handle.clone(),
-                    self.router_query.clone(),
+                    self.external_data_provider.clone_boxed(),
                     self.request_timeout,
                     self.max_rounds_per_request,
                 )
@@ -225,13 +224,6 @@ impl OngoingRequests {
                                 reason,
                             }
                         }
-                        OngoingRequestState::ExternalValidationRequired(sender, response) => {
-                            Event::ExternalValidationRequired {
-                                request_id,
-                                response,
-                                sender,
-                            }
-                        }
                     };
                     self.pending_events.push_back(event);
                 } else if let Poll::Ready(res) = poll {
@@ -284,14 +276,14 @@ impl Drop for OngoingRequests {
 
 #[derive(Debug)]
 struct OngoingRequest {
-    response_processor: InnerResponseProcessor,
+    response_processor: Option<InnerResponseProcessor>,
     tried_peers: HashSet<PeerId>,
 }
 
 impl OngoingRequest {
     fn new(request: Request) -> Self {
         Self {
-            response_processor: InnerResponseProcessor::new(request),
+            response_processor: Some(InnerResponseProcessor::new(request)),
             tried_peers: Default::default(),
         }
     }
@@ -335,7 +327,10 @@ impl OngoingRequest {
             ctx.state
                 .set(OngoingRequestState::SendRequest(
                     peer,
-                    self.response_processor.request(),
+                    self.response_processor
+                        .as_ref()
+                        .expect("always Some")
+                        .request(),
                     reason,
                 ))
                 .expect("set only once");
@@ -356,7 +351,7 @@ impl OngoingRequest {
         &mut self,
         mut reason: NewRequestRoundReason,
         peer_score_handle: &Handle,
-        router_query: &RouterQuery,
+        external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Result<Response, NewRequestRoundReason> {
         let (peer, new_reason) = self.choose_next_peer().await;
         reason = new_reason.unwrap_or(reason);
@@ -368,13 +363,16 @@ impl OngoingRequest {
 
         match self
             .response_processor
-            .process(peer, response, router_query, peer_score_handle)
+            .take()
+            .expect("always Some")
+            .process(peer, response, peer_score_handle, external_data_provider)
             .await
         {
             Ok(response) => Ok(response),
-            Err(err) => {
+            Err((processor, err)) => {
                 log::trace!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
+                self.response_processor = Some(processor);
                 Err(NewRequestRoundReason::PartialData)
             }
         }
@@ -383,7 +381,7 @@ impl OngoingRequest {
     async fn request(
         mut self,
         peer_score_handle: Handle,
-        router_query: RouterQuery,
+        external_data_provider: Box<dyn ExternalDataProvider>,
         request_timeout: Duration,
         max_rounds_per_request: u32,
     ) -> Result<Response, (RequestFailure, Self)> {
@@ -398,7 +396,11 @@ impl OngoingRequest {
                 rounds += 1;
 
                 match self
-                    .next_round(reason, &peer_score_handle, &router_query)
+                    .next_round(
+                        reason,
+                        &peer_score_handle,
+                        external_data_provider.clone_boxed(),
+                    )
                     .await
                 {
                     Ok(response) => return Ok(response),
@@ -421,7 +423,6 @@ impl OngoingRequest {
 enum OngoingRequestState {
     PendingState,
     SendRequest(PeerId, Request, NewRequestRoundReason),
-    ExternalValidationRequired(Sender<bool>, Response),
 }
 
 struct OngoingRequestContext {

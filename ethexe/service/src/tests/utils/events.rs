@@ -44,10 +44,6 @@ pub(crate) enum TestableNetworkEvent {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, db_sync::RequestFailure>,
     },
-    DbExternalValidation {
-        request_id: db_sync::RequestId,
-        response: db_sync::Response,
-    },
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,
@@ -62,14 +58,6 @@ impl TestableNetworkEvent {
             NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
                 request_id: *request_id,
                 result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
-            },
-            NetworkEvent::DbExternalValidation {
-                request_id,
-                response,
-                sender: _,
-            } => Self::DbExternalValidation {
-                request_id: *request_id,
-                response: response.clone(),
             },
             NetworkEvent::Message { data, source } => Self::Message {
                 data: data.clone(),

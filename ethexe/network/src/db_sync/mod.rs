@@ -28,12 +28,12 @@ pub(crate) use crate::{
 
 use crate::db_sync::requests::OngoingRequests;
 use anyhow::Context as _;
+use async_trait::async_trait;
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage},
     gear::CodeState,
 };
 use ethexe_db::Database;
-use ethexe_ethereum::router::RouterQuery;
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
 use libp2p::{
@@ -53,7 +53,6 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::sync::oneshot::Sender;
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
@@ -70,8 +69,8 @@ enum HashesResponseError {
     HashMismatch,
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-struct HashesRequest(BTreeSet<H256>);
+#[derive(Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub struct HashesRequest(pub BTreeSet<H256>);
 
 impl fmt::Debug for HashesRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -131,12 +130,17 @@ impl fmt::Debug for HashesResponse {
 }
 
 impl HashesResponse {
-    fn process(mut self, request: &HashesRequest, new_response: Self) -> HashesProcessed {
+    fn process(
+        mut self,
+        original_request: &HashesRequest,
+        reduced_request: &HashesRequest,
+        new_response: Self,
+    ) -> HashesProcessed {
         let mut new_request = BTreeSet::new();
         let mut stripped = false;
 
         let diff = itertools::merge_join_by(
-            request.0.iter().copied(),
+            reduced_request.0.iter().copied(),
             new_response.0,
             |req_key, (resp_key, _resp_val)| req_key.cmp(resp_key),
         );
@@ -159,9 +163,9 @@ impl HashesResponse {
                     // peer was unable to give this key
                     new_request.insert(key);
                 }
-                EitherOrBoth::Right((_key, _value)) => {
+                EitherOrBoth::Right((key, _value)) => {
                     // peer sent more keys than we requested
-                    stripped = true;
+                    stripped = !original_request.0.contains(&key);
                 }
             }
         }
@@ -190,7 +194,7 @@ enum ProgramIdsResponseError {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-struct ProgramIdsRequest {
+pub struct ProgramIdsRequest {
     at: H256,
     expected_count: u64,
 }
@@ -205,7 +209,7 @@ impl ProgramIdsRequest {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Default, Clone, Eq, PartialEq, Encode, Decode)]
 struct ProgramIdsResponse(BTreeSet<ActorId>);
 
 impl fmt::Debug for ProgramIdsResponse {
@@ -225,14 +229,14 @@ impl ProgramIdsResponse {
     async fn try_complete(
         self,
         request: &ProgramIdsRequest,
-        router_query: &RouterQuery,
+        external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Result<BTreeMap<ActorId, CodeId>, ProgramIdsResponseError> {
         if self.0.len() as u64 != request.expected_count {
             return Err(ProgramIdsResponseError::NotEnoughIds);
         }
 
-        let code_ids = router_query
-            .programs_code_ids_at(self.0.iter().copied(), request.at)
+        let code_ids = external_data_provider
+            .programs_code_ids_at(self.0.clone(), request.at)
             .await
             .context("failed to get code ids at block")
             .map_err(ProgramIdsResponseError::RouterQuery)?;
@@ -251,7 +255,7 @@ enum ValidCodesResponseError {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-struct ValidCodesRequest {
+pub struct ValidCodesRequest {
     at: H256,
     validated_count: u64,
 }
@@ -282,7 +286,7 @@ impl ValidCodesResponse {
     async fn try_complete(
         self,
         request: &ValidCodesRequest,
-        router_query: &RouterQuery,
+        external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
         // validated count at specified block can be less than
         // the number of states at the latest block returned by peer
@@ -291,15 +295,15 @@ impl ValidCodesResponse {
             return Err(ValidCodesResponseError::NotEnoughCodes);
         }
 
-        let states = router_query
-            .codes_states_at(self.0.iter().copied(), request.at)
+        let states = external_data_provider
+            .codes_states_at(self.0.clone(), request.at)
             .await
             .context("failed to get code states at block")
             .map_err(ValidCodesResponseError::RouterQuery)?;
 
         let code_ids: BTreeSet<CodeId> = iter::zip(self.0, states)
             .flat_map(|(code_id, state)| {
-                if state.into() == CodeState::Validated as u8 {
+                if state == CodeState::Validated {
                     Some(code_id)
                 } else {
                     None
@@ -336,6 +340,21 @@ pub enum Request {
 }
 
 impl Request {
+    pub fn hashes(request: impl Into<BTreeSet<H256>>) -> Self {
+        Self::Hashes(HashesRequest(request.into()))
+    }
+
+    pub fn program_ids(at: H256, expected_count: u64) -> Self {
+        Self::ProgramIds(ProgramIdsRequest { at, expected_count })
+    }
+
+    pub fn valid_codes(at: H256, validated_count: u64) -> Self {
+        Self::ValidCodes(ValidCodesRequest {
+            at,
+            validated_count,
+        })
+    }
+
     fn handle(self, db: &Database) -> InnerResponse {
         match self {
             Request::Hashes(request) => request.handle(db).into(),
@@ -347,7 +366,7 @@ impl Request {
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
-enum InnerResponse {
+pub enum InnerResponse {
     Hashes(HashesResponse),
     ProgramIds(ProgramIdsResponse),
     ValidCodes(ValidCodesResponse),
@@ -356,7 +375,7 @@ enum InnerResponse {
 #[derive(Debug)]
 enum InnerResponseProcessor {
     Hashes {
-        acc: Option<HashesResponse>,
+        acc: HashesResponse,
         original_request: HashesRequest,
         reduced_request: HashesRequest,
     },
@@ -392,46 +411,53 @@ impl InnerResponseProcessor {
     }
 
     async fn process(
-        &mut self,
+        self,
         peer: PeerId,
         response: InnerResponse,
-        router_query: &RouterQuery,
         peer_score_handle: &peer_score::Handle,
-    ) -> Result<Response, ResponseError> {
+        external_data_provider: Box<dyn ExternalDataProvider>,
+    ) -> Result<Response, (Self, ResponseError)> {
         match (self, response) {
             (
                 Self::Hashes {
                     acc,
-                    original_request: _, // FIXME: strip check on original request
+                    original_request,
                     reduced_request,
                 },
                 InnerResponse::Hashes(response),
             ) => {
-                let taken_acc = acc.take().expect("always Some");
+                let processed = acc.process(&original_request, &reduced_request, response);
                 let s;
-                let res = match taken_acc.process(&reduced_request, response) {
+                let res = match processed {
                     HashesProcessed::Done { response, stripped } => {
                         s = stripped;
                         Ok(Response::Hashes(response))
                     }
                     HashesProcessed::NewRequest {
-                        acc: new_acc,
+                        acc,
                         new_request,
                         stripped,
                     } => {
-                        *acc = Some(new_acc);
-                        *reduced_request = new_request;
                         s = stripped;
-                        Err(ResponseError::NewRound)
+                        Err((
+                            Self::Hashes {
+                                acc,
+                                original_request,
+                                reduced_request: new_request,
+                            },
+                            ResponseError::NewRound,
+                        ))
                     }
-                    HashesProcessed::Err {
-                        acc: new_acc,
-                        err,
-                        stripped,
-                    } => {
-                        *acc = Some(new_acc);
+                    HashesProcessed::Err { acc, err, stripped } => {
                         s = stripped;
-                        Err(err.into())
+                        Err((
+                            Self::Hashes {
+                                acc,
+                                original_request,
+                                reduced_request,
+                            },
+                            err.into(),
+                        ))
                     }
                 };
 
@@ -443,21 +469,38 @@ impl InnerResponseProcessor {
                 res
             }
             (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => response
-                .try_complete(request, router_query)
+                .try_complete(&request, external_data_provider)
                 .await
                 .map(Into::into)
-                .map_err(Into::into),
+                .map_err(|err| (Self::ProgramIds { request }, err.into())),
             (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => response
-                .try_complete(request, router_query)
+                .try_complete(&request, external_data_provider)
                 .await
                 .map(Into::into)
-                .map_err(Into::into),
-            _ => Err(ResponseError::TypeMismatch),
+                .map_err(|err| (Self::ValidCodes { request }, err.into())),
+            (this, _) => Err((this, ResponseError::TypeMismatch)),
         }
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
+#[async_trait]
+pub trait ExternalDataProvider: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
+
+    async fn programs_code_ids_at(
+        self: Box<Self>,
+        program_ids: BTreeSet<ActorId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeId>>;
+
+    async fn codes_states_at(
+        self: Box<Self>,
+        code_ids: BTreeSet<CodeId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeState>>;
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
 pub enum Response {
     Hashes(BTreeMap<H256, Vec<u8>>),
     ProgramIds(BTreeMap<ActorId, CodeId>),
@@ -533,11 +576,6 @@ pub enum Event {
         /// Peer who should receive response
         peer_id: PeerId,
     },
-    ExternalValidationRequired {
-        request_id: RequestId,
-        response: Response,
-        sender: Sender<bool>,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -592,7 +630,7 @@ impl Behaviour {
     pub(crate) fn new(
         config: Config,
         peer_score_handle: peer_score::Handle,
-        router_query: RouterQuery,
+        external_data_provider: Box<dyn ExternalDataProvider>,
         db: Database,
     ) -> Self {
         Self {
@@ -601,7 +639,11 @@ impl Behaviour {
                 request_response::Config::default(),
             ),
             peer_score_handle: peer_score_handle.clone(),
-            ongoing_requests: OngoingRequests::new(&config, peer_score_handle, router_query),
+            ongoing_requests: OngoingRequests::new(
+                &config,
+                peer_score_handle,
+                external_data_provider,
+            ),
             ongoing_responses: OngoingResponses::new(db, &config),
         }
     }
@@ -815,6 +857,32 @@ mod tests {
     use std::{iter, mem};
     use tokio::time;
 
+    #[derive(Copy, Clone)]
+    struct NoopDataProvider;
+
+    #[async_trait]
+    impl ExternalDataProvider for NoopDataProvider {
+        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+            Box::new(NoopDataProvider)
+        }
+
+        async fn programs_code_ids_at(
+            self: Box<Self>,
+            _program_ids: BTreeSet<ActorId>,
+            _block: H256,
+        ) -> anyhow::Result<Vec<CodeId>> {
+            unreachable!()
+        }
+
+        async fn codes_states_at(
+            self: Box<Self>,
+            _code_ids: BTreeSet<CodeId>,
+            _block: H256,
+        ) -> anyhow::Result<Vec<CodeState>> {
+            unreachable!()
+        }
+    }
+
     // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config
     fn new_ephemeral_swarm<T: swarm::NetworkBehaviour>(
         config: swarm::Config,
@@ -836,7 +904,12 @@ mod tests {
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
         let db = Database::from_one(&MemDb::default());
-        let behaviour = Behaviour::new(config, peer_score::Handle::new_test(), db.clone());
+        let behaviour = Behaviour::new(
+            config,
+            peer_score::Handle::new_test(),
+            Box::new(NoopDataProvider),
+            db.clone(),
+        );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
         (swarm, db)
@@ -852,8 +925,8 @@ mod tests {
         let hash2 = ethexe_db::hash(b"2");
         let hash3 = ethexe_db::hash(b"3");
 
-        let request = Request::Hashes([hash1, hash2].into());
-        let mut response = MaybeResponse::Hashes(
+        let request = HashesRequest([hash1, hash2].into());
+        let response = HashesResponse(
             [
                 (hash1, b"1".to_vec()),
                 (hash2, b"2".to_vec()),
@@ -861,32 +934,30 @@ mod tests {
             ]
             .into(),
         );
-        assert!(response.strip(&request));
+        let processed = HashesResponse::default().process(&request, &request, response);
+        let HashesProcessed::Done { response, stripped } = processed else {
+            unreachable!("{processed:?}")
+        };
         assert_eq!(
             response,
-            MaybeResponse::Hashes([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
+            BTreeMap::from_iter([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())])
         );
+        assert!(stripped);
     }
 
     #[test]
     fn validate_data_hash_mismatch() {
         let hash1 = ethexe_db::hash(b"1");
 
-        let request = Request::Hashes([hash1].into());
-        let response = MaybeResponse::Hashes([(hash1, b"2".to_vec())].into());
-        assert_eq!(
-            response.validate(&request),
-            Err(ResponseValidationError::DataHashMismatch)
-        );
-    }
-    #[test]
-    fn validate_at_block_mismatch() {
-        let request = Request::ProgramIdsAt(H256::random());
-        let response = MaybeResponse::ProgramIdsAt(H256::zero(), None);
-        assert_eq!(
-            response.validate(&request),
-            Err(ResponseValidationError::AtBlockMismatch)
-        );
+        let request = HashesRequest([hash1].into());
+        let response = HashesResponse([(hash1, b"2".to_vec())].into());
+        let processed = HashesResponse::default().process(&request, &request, response);
+        let HashesProcessed::Err { acc, err, stripped } = processed else {
+            unreachable!("{processed:?}")
+        };
+        assert_eq!(acc, Default::default());
+        assert_eq!(err, HashesResponseError::HashMismatch);
+        assert!(!stripped);
     }
 
     #[tokio::test]
@@ -932,7 +1003,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::Hashes([hello_hash, world_hash].into()));
+            .request(Request::hashes([hello_hash, world_hash]));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -950,7 +1021,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if request_id == rid && response == MaybeResponse::Hashes(
+            } if request_id == rid && response == Response::Hashes(
                 [
                     (hello_hash, b"hello".to_vec()),
                     (world_hash, b"world".to_vec())
@@ -975,7 +1046,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -997,7 +1068,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::Hashes([].into()));
+                    assert_eq!(request, Request::hashes([]));
                     drop(channel);
                 }
             }
@@ -1035,7 +1106,7 @@ mod tests {
         let bob_peer_id = *bob.local_peer_id();
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -1057,7 +1128,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::Hashes([].into()));
+                    assert_eq!(request, Request::hashes([]));
                     // just ignore request
                     mem::forget(channel);
                 }
@@ -1109,7 +1180,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::Hashes([data_0, data_1].into()));
+            .request(Request::hashes([data_0, data_1]));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -1131,18 +1202,19 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::Hashes([data_0, data_1].into()));
+                    assert_eq!(request, Request::hashes([data_0, data_1]));
                     bob.behaviour_mut()
                         .send_response(
                             channel,
-                            MaybeResponse::Hashes(
+                            HashesResponse(
                                 [
                                     (data_0, DATA[0].to_vec()),
                                     (data_1, DATA[1].to_vec()),
                                     (data_2, DATA[2].to_vec()),
                                 ]
                                 .into(),
-                            ),
+                            )
+                            .into(),
                         )
                         .unwrap();
                 }
@@ -1155,7 +1227,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response,
-            } if rid == request_id &&  response == MaybeResponse::Hashes(
+            } if rid == request_id &&  response == Response::Hashes(
                 [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
             )
         );
@@ -1176,7 +1248,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -1198,9 +1270,9 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::Hashes([].into()));
+                    assert_eq!(request, Request::hashes([]));
                     bob.behaviour_mut()
-                        .send_response(channel, MaybeResponse::ProgramIdsAt(H256::zero(), None))
+                        .send_response(channel, ProgramIdsResponse::default().into())
                         .unwrap();
                 }
             }
@@ -1238,7 +1310,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::Hashes([hello_hash, world_hash, mark_hash].into()));
+            .request(Request::hashes([hello_hash, world_hash, mark_hash]));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -1265,7 +1337,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if rid == request_id &&  response == MaybeResponse::Hashes(
+            } if rid == request_id &&  response == Response::Hashes(
                 [
                     (hello_hash, b"hello".to_vec()),
                     (world_hash, b"world".to_vec()),
@@ -1293,7 +1365,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::Hashes([hello_hash, world_hash].into()));
+            .request(Request::hashes([hello_hash, world_hash]));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -1315,7 +1387,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if rid == request_id &&  response == MaybeResponse::Hashes(
+            } if rid == request_id &&  response == Response::Hashes(
                 [
                     (hello_hash, b"hello".to_vec()),
                     (world_hash, b"world".to_vec())
@@ -1343,7 +1415,7 @@ mod tests {
         bob.connect(&mut alice).await;
         tokio::spawn(bob.loop_on_next());
 
-        let request_id = alice.behaviour_mut().request(Request::Hashes([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -1376,10 +1448,10 @@ mod tests {
         alice.connect(&mut bob).await;
 
         // make request way heavier so there definitely will be a few simultaneous requests
-        let request = Request::Hashes(
+        let request = Request::hashes(
             iter::from_fn(|| Some(H256::random()))
                 .take(16 * 1024)
-                .collect(),
+                .collect::<BTreeSet<H256>>(),
         );
         bob.behaviour_mut().request(request.clone());
         bob.behaviour_mut().request(request.clone());
@@ -1422,7 +1494,7 @@ mod tests {
         let request_key = ethexe_db::hash(b"test");
         let request_id = alice
             .behaviour_mut()
-            .request(Request::Hashes([request_key].into()));
+            .request(Request::hashes([request_key]));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -1440,7 +1512,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::Hashes([request_key].into()));
+                    assert_eq!(request, Request::hashes([request_key]));
                     // just ignore request
                     mem::forget(channel);
                 }
@@ -1483,7 +1555,7 @@ mod tests {
             Event::RequestSucceed {
                 request_id: rid,
                 response
-            } if rid == request_id && response == MaybeResponse::Hashes([(request_key, b"test".to_vec())].into())
+            } if rid == request_id && response == Response::Hashes([(request_key, b"test".to_vec())].into())
         );
     }
 
@@ -1504,14 +1576,14 @@ mod tests {
             (ActorId::new([2; 32]), H256::random()),
         ]);
         charlie_db.set_block_program_states(H256::zero(), program_states.clone());
-        let expected_response = MaybeResponse::ProgramIdsAt(
-            H256::zero(),
-            Some(program_states.keys().cloned().collect()),
-        );
+        let code_ids = BTreeSet::from_iter([CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])]);
+        let program_code_ids: BTreeMap<ActorId, CodeId> =
+            iter::zip(program_states.keys().copied(), code_ids.clone()).collect();
+        let expected_response = Response::ProgramIds(program_code_ids.clone());
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::ProgramIdsAt(H256::zero()));
+            .request(Request::program_ids(H256::zero(), 2));
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(
@@ -1523,38 +1595,10 @@ mod tests {
             } if rid == request_id && peer_id == bob_peer_id
         );
 
-        let event = alice.next_behaviour_event().await;
-        if let Event::ExternalValidationRequired {
-            request_id: rid,
-            response,
-            sender,
-        } = event
-        {
-            assert_eq!(request_id, rid);
-            assert_eq!(response, MaybeResponse::ProgramIdsAt(H256::zero(), None));
-            sender.send(false).unwrap();
-        } else {
-            unreachable!();
-        }
-
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
         // `Event::NewRequestRound` skipped by `connect()` above
-
-        let event = alice.next_behaviour_event().await;
-        if let Event::ExternalValidationRequired {
-            request_id: rid,
-            response,
-            sender,
-        } = event
-        {
-            assert_eq!(request_id, rid);
-            assert_eq!(response, expected_response);
-            sender.send(true).unwrap();
-        } else {
-            unreachable!();
-        }
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(

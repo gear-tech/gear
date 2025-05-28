@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
+    abi::{utils::uint256_to_u256, IRouter},
     wvara::WVara,
     AlloyEthereum, AlloyProvider, TryGetReceipt,
 };
@@ -31,7 +31,7 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     ecdsa::ContractSignature,
-    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
+    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType},
     Address as LocalAddress,
 };
 use events::signatures;
@@ -333,7 +333,7 @@ impl RouterQuery {
             .codeState(code_id.into_bytes().into())
             .call()
             .await
-            .map(|res| CodeState::from(res._0))
+            .map(|res| res._0.into())
             .map_err(Into::into)
     }
 
