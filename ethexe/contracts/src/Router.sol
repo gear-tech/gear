@@ -420,7 +420,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
 
-        // TODO +_+_+: check is for the previous eras
+        // TODO +_+_+: check that it is for previous eras
         require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
         require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
 

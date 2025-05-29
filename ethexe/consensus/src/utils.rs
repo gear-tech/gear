@@ -285,7 +285,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorage>(
     }))
 }
 
-// TODO +_+_+: improve squashing removing redundant state transitions
+// TODO +_+_+: improve squashing - removing redundant state transitions
 pub fn squash_chain_commitments(
     chain_commitments: Vec<ChainCommitment>,
 ) -> Option<ChainCommitment> {
@@ -309,22 +309,17 @@ pub fn squash_chain_commitments(
 
 pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
-    for item in data {
-        if !seen.insert(item) {
-            return true;
-        }
-    }
-    false
+    data.iter().any(|item| !seen.insert(item))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::mock::*;
+    use ethexe_common::gear::StateTransition;
+    use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);
-
-    // TODO +_+_+: test aggregate_code_commitments, aggregate_chain_commitment, squash_chain_commitments, has_duplicates
 
     #[test]
     fn multisigned_batch_commitment_creation() {
@@ -427,5 +422,128 @@ mod tests {
         });
         assert!(result.is_err());
         assert_eq!(multisigned_batch.signatures.len(), 2);
+    }
+
+    #[test]
+    fn test_aggregate_chain_commitment() {
+        let db = Database::memory();
+        let block1 = H256([1; 32]);
+        let block2 = H256([2; 32]);
+        let block3 = H256([3; 32]);
+
+        // Set up the database with computed blocks and outcomes
+        db.set_block_computed(block1);
+        db.set_block_computed(block2);
+        db.set_block_outcome(block1, vec![]);
+        db.set_block_outcome(block2, vec![]);
+
+        // Test with valid blocks
+        aggregate_chain_commitment(&db, vec![block1, block2], true)
+            .unwrap()
+            .unwrap();
+
+        // Test with a block that is not computed
+        aggregate_chain_commitment(&db, vec![block1, block3], true).unwrap_err();
+
+        // Test with fail_if_not_computed set to false
+        let chain_commitment =
+            aggregate_chain_commitment(&db, vec![block1, block3], false).unwrap();
+        assert!(chain_commitment.is_none());
+    }
+
+    #[test]
+    fn test_squash_chain_commitments() {
+        let block1 = H256::from([1; 32]);
+        let block2 = H256::from([2; 32]);
+
+        let transition1 = StateTransition::mock(());
+        let transition2 = StateTransition::mock(());
+        let transition3 = StateTransition::mock(());
+
+        let gb1 = GearBlock {
+            hash: block1,
+            off_chain_transactions_hash: H256::zero(),
+            gas_allowance: 0,
+        };
+        let gb2 = GearBlock {
+            hash: block2,
+            off_chain_transactions_hash: H256::zero(),
+            gas_allowance: 0,
+        };
+        let chain_commitment1 = ChainCommitment {
+            transitions: vec![transition1.clone(), transition2.clone()],
+            gear_blocks: vec![gb1.clone()],
+        };
+
+        let chain_commitment2 = ChainCommitment {
+            transitions: vec![transition3.clone()],
+            gear_blocks: vec![gb2.clone()],
+        };
+
+        let squashed =
+            squash_chain_commitments(vec![chain_commitment1.clone(), chain_commitment2.clone()])
+                .unwrap();
+
+        assert_eq!(squashed.gear_blocks, vec![gb1, gb2]);
+        assert_eq!(
+            squashed.transitions,
+            vec![transition1, transition2, transition3]
+        );
+
+        let squashed = squash_chain_commitments(vec![]);
+        assert!(squashed.is_none());
+    }
+
+    #[test]
+    fn test_aggregate_code_commitments() {
+        let db = Database::memory();
+        let codes = vec![CodeId::from([1; 32]), CodeId::from([2; 32])];
+
+        // Test with valid codes
+        db.set_code_valid(codes[0], true);
+        db.set_code_valid(codes[1], false);
+
+        let commitments = aggregate_code_commitments(&db, codes.clone(), false).unwrap();
+        assert_eq!(
+            commitments,
+            vec![
+                CodeCommitment {
+                    id: codes[0],
+                    valid: true,
+                },
+                CodeCommitment {
+                    id: codes[1],
+                    valid: false,
+                }
+            ]
+        );
+
+        let commitments =
+            aggregate_code_commitments(&db, vec![codes[0], CodeId::from([3; 32]), codes[1]], false)
+                .unwrap();
+        assert_eq!(
+            commitments,
+            vec![
+                CodeCommitment {
+                    id: codes[0],
+                    valid: true,
+                },
+                CodeCommitment {
+                    id: codes[1],
+                    valid: false,
+                }
+            ]
+        );
+
+        aggregate_code_commitments(&db, vec![CodeId::from([3; 32])], true).unwrap_err();
+    }
+
+    #[test]
+    fn test_has_duplicates() {
+        let data = vec![1, 2, 3, 4, 5];
+        assert!(!has_duplicates(&data));
+
+        let data = vec![1, 2, 3, 4, 5, 3];
+        assert!(has_duplicates(&data));
     }
 }

@@ -75,7 +75,6 @@ impl ToDigest for GearBlock {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    // +_+_+ change to vec1
     pub gear_blocks: Vec<GearBlock>,
 }
 
