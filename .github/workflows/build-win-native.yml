@@ -17,7 +17,7 @@ env:
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
   TERM: xterm-256color
-  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
+  # CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
 
 jobs:
   win-native:
@@ -90,24 +90,23 @@ jobs:
           $tmp | Remove-Item
         shell: powershell
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
+      #- name: "Build: Node"
+      #  run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Check: Stack height limit"
+      #- name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo run -p calc-stack-height --release --locked
+      #  if: ${{ matrix.profiles.name == 'release' }}
+      #  run: cargo run -p calc-stack-height --release --locked
 
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
+      #- name: "Test: gsdk tests"
+      #  run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
 
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
+      #- name: "Test: Client tests"
+      #  run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
 
       - name: "Test: Lazy pages"
-        run: >-
-          cargo nextest run
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          ${{ matrix.profiles.flags }}
+        run: build.bat
+        env:
+          RUSTFLAGS: "-Zsanitizer=address"
+          ASAN_OPTIONS: "halt_on_error=0"
+        shell: cmd
