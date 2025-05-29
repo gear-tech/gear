@@ -178,6 +178,7 @@ impl ConnectionMap {
 /// A helper struct for formatting collections (BTreeSet, BTreeMap) with two display modes:
 /// - alternate mode (`{:#?}`) - shows full collection contents
 /// - normal mode (`{:?}`) - shows only collection length and item type description
+#[allow(dead_code)] // clippy fails to detect it's actually used
 pub(crate) struct AlternateCollectionFmt<T> {
     collection: T,
     len: usize,
@@ -185,6 +186,7 @@ pub(crate) struct AlternateCollectionFmt<T> {
 }
 
 impl<'a, T> AlternateCollectionFmt<&'a BTreeSet<T>> {
+    #[allow(dead_code)]
     pub fn set(collection: &'a BTreeSet<T>, items: &'static str) -> Self {
         Self {
             len: collection.len(),
@@ -195,6 +197,7 @@ impl<'a, T> AlternateCollectionFmt<&'a BTreeSet<T>> {
 }
 
 impl<'a, K, V> AlternateCollectionFmt<&'a BTreeMap<K, V>> {
+    #[allow(dead_code)]
     pub fn map(collection: &'a BTreeMap<K, V>, items: &'static str) -> Self {
         Self {
             len: collection.len(),

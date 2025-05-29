@@ -18,8 +18,8 @@
 
 use crate::{
     db_sync::{
-        Config, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse, InnerResponse,
-        InnerValidCodesResponse, Request, ResponseId,
+        Config, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse, InnerRequest,
+        InnerResponse, ResponseId,
     },
     export::PeerId,
 };
@@ -59,9 +59,9 @@ impl OngoingResponses {
         ResponseId(id)
     }
 
-    fn response_from_db(request: Request, db: &Database) -> InnerResponse {
+    fn response_from_db(request: InnerRequest, db: &Database) -> InnerResponse {
         match request {
-            Request::Hashes(request) => InnerHashesResponse(
+            InnerRequest::Hashes(request) => InnerHashesResponse(
                 request
                     .0
                     .into_iter()
@@ -69,13 +69,13 @@ impl OngoingResponses {
                     .collect(),
             )
             .into(),
-            Request::ProgramIds(request) => InnerProgramIdsResponse(
+            InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_program_states(request.at)
                     .map(|states| states.into_keys().collect())
                     .unwrap_or_default(), // FIXME: Option might be more suitable
             )
             .into(),
-            Request::ValidCodes(_request) => InnerValidCodesResponse(db.valid_codes()).into(),
+            InnerRequest::ValidCodes => db.valid_codes().into(),
         }
     }
 
@@ -83,7 +83,7 @@ impl OngoingResponses {
         &mut self,
         peer_id: PeerId,
         channel: request_response::ResponseChannel<InnerResponse>,
-        request: Request,
+        request: InnerRequest,
     ) -> Option<ResponseId> {
         if self.db_readers.len() >= self.max_simultaneous_responses as usize {
             return None;

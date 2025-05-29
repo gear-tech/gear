@@ -19,8 +19,9 @@
 use crate::{
     db_sync::{
         Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour, InnerHashesResponse,
-        InnerProgramIdsResponse, InnerResponse, InnerValidCodesResponse, NewRequestRoundReason,
-        PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
+        InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest, InnerResponse,
+        NewRequestRoundReason, PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId,
+        Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
@@ -362,13 +363,25 @@ impl ResponseHandler {
         }
     }
 
-    fn request(&self) -> Request {
+    fn inner_request(&self) -> InnerRequest {
         match self {
             ResponseHandler::Hashes {
                 reduced_request, ..
-            } => reduced_request.clone().into(),
-            ResponseHandler::ProgramIds { request } => request.clone().into(),
-            ResponseHandler::ValidCodes { request } => request.clone().into(),
+            } => InnerRequest::Hashes(reduced_request.clone()),
+            ResponseHandler::ProgramIds {
+                request:
+                    ProgramIdsRequest {
+                        at,
+                        expected_count: _,
+                    },
+            } => InnerRequest::ProgramIds(InnerProgramIdsRequest { at: *at }),
+            ResponseHandler::ValidCodes {
+                request:
+                    ValidCodesRequest {
+                        at: _,
+                        validated_count: _,
+                    },
+            } => InnerRequest::ValidCodes,
         }
     }
 
@@ -448,12 +461,10 @@ impl ResponseHandler {
     }
 
     async fn handle_valid_codes(
-        response: InnerValidCodesResponse,
+        response: BTreeSet<CodeId>,
         request: &ValidCodesRequest,
         external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
-        let InnerValidCodesResponse(response) = response;
-
         // validated count at specified block can be less than
         // the number of states at the latest block returned by peer
         // but cannot be more
@@ -615,7 +626,7 @@ impl OngoingRequest {
                     self.response_handler
                         .as_ref()
                         .expect("always Some")
-                        .request(),
+                        .inner_request(),
                     reason,
                 ))
                 .expect("set only once");
@@ -707,7 +718,7 @@ impl OngoingRequest {
 #[derive(Debug)]
 enum OngoingRequestState {
     PendingState,
-    SendRequest(PeerId, Request, NewRequestRoundReason),
+    SendRequest(PeerId, InnerRequest, NewRequestRoundReason),
 }
 
 struct OngoingRequestContext {

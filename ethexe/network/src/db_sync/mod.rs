@@ -161,30 +161,47 @@ impl Config {
     }
 }
 
+#[async_trait]
+pub trait ExternalDataProvider: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
+
+    async fn programs_code_ids_at(
+        self: Box<Self>,
+        program_ids: BTreeSet<ActorId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeId>>;
+
+    async fn codes_states_at(
+        self: Box<Self>,
+        code_ids: BTreeSet<CodeId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeState>>;
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct RequestId(pub(crate) u64);
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct ResponseId(pub(crate) u64);
 
-#[derive(derive_more::Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+#[derive(derive_more::Debug, Default, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
 pub struct HashesRequest(
     #[debug("{:?}", AlternateCollectionFmt::set(_0, "hashes"))] pub BTreeSet<H256>,
 );
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ProgramIdsRequest {
     pub at: H256,
     pub expected_count: u64,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ValidCodesRequest {
     pub at: H256,
     pub validated_count: u64,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
@@ -217,41 +234,34 @@ pub enum Response {
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct InnerProgramIdsRequest {
+    at: H256,
+}
+
+/// Network-only type to be encoded-decoded and sent over the network
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub enum InnerRequest {
+    Hashes(HashesRequest),
+    ProgramIds(InnerProgramIdsRequest),
+    ValidCodes,
+}
+
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
-#[derive(Debug, Eq, PartialEq, Encode, Decode)]
-pub struct InnerValidCodesResponse(BTreeSet<CodeId>);
-
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
 pub enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
-    ValidCodes(InnerValidCodesResponse),
+    ValidCodes(BTreeSet<CodeId>),
 }
 
-#[async_trait]
-pub trait ExternalDataProvider: Send + Sync {
-    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
-
-    async fn programs_code_ids_at(
-        self: Box<Self>,
-        program_ids: BTreeSet<ActorId>,
-        block: H256,
-    ) -> anyhow::Result<Vec<CodeId>>;
-
-    async fn codes_states_at(
-        self: Box<Self>,
-        code_ids: BTreeSet<CodeId>,
-        block: H256,
-    ) -> anyhow::Result<Vec<CodeState>>;
-}
-
-type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, InnerResponse>>;
+type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
 pub struct Behaviour {
     inner: InnerBehaviour,
@@ -293,7 +303,7 @@ impl Behaviour {
 
     fn handle_inner_event(
         &mut self,
-        event: request_response::Event<Request, InnerResponse>,
+        event: request_response::Event<InnerRequest, InnerResponse>,
     ) -> Poll<ToSwarm<Event, THandlerInEvent<Self>>> {
         match event {
             request_response::Event::Message {
@@ -663,7 +673,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::hashes([]));
+                    assert_eq!(request, InnerRequest::Hashes(HashesRequest::default()));
                     drop(channel);
                 }
             }
@@ -723,7 +733,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::hashes([]));
+                    assert_eq!(request, InnerRequest::Hashes(HashesRequest::default()));
                     // just ignore request
                     mem::forget(channel);
                 }
@@ -797,7 +807,10 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::hashes([data_0, data_1]));
+                    assert_eq!(
+                        request,
+                        InnerRequest::Hashes(HashesRequest([data_0, data_1].into()))
+                    );
                     bob.behaviour_mut()
                         .send_response(
                             channel,
@@ -865,7 +878,7 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::hashes([]));
+                    assert_eq!(request, InnerRequest::Hashes(HashesRequest::default()));
                     bob.behaviour_mut()
                         .send_response(channel, InnerProgramIdsResponse::default().into())
                         .unwrap();
@@ -1107,7 +1120,10 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request::hashes([request_key]));
+                    assert_eq!(
+                        request,
+                        InnerRequest::Hashes(HashesRequest([request_key].into()))
+                    );
                     // just ignore request
                     mem::forget(channel);
                 }
