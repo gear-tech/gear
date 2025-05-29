@@ -29,6 +29,7 @@ use alloy::{
     rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
 use anyhow::Result;
+use ethexe_blob_loader::local::{LocalBlobLoader, LocalBlobStorage};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -38,7 +39,7 @@ use ethexe_common::{
 use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader};
+use ethexe_observer::EthereumConfig;
 use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig};
@@ -136,7 +137,6 @@ async fn ping() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -803,7 +803,6 @@ async fn ping_deep_sync() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code.as_slice(), demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -891,7 +890,6 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let ping_code_id = res.code_id;
@@ -924,7 +922,6 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code, demo_async::WASM_BINARY);
     assert!(res.valid);
 
     let async_code_id = res.code_id;
@@ -1210,8 +1207,6 @@ async fn fast_sync() {
 
     bob.start_service().await;
 
-    log::info!("Sending messages to programs");
-
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
             .send_message(program_id, &(i as u64).encode(), 0)
@@ -1291,6 +1286,7 @@ mod utils {
     use super::*;
     use crate::Event;
     use alloy::eips::BlockId;
+    use ethexe_blob_loader::BlobLoaderService;
     use ethexe_common::{
         db::OnChainStorage,
         ecdsa::{PrivateKey, PublicKey},
@@ -1330,7 +1326,7 @@ mod utils {
         pub eth_cfg: EthereumConfig,
         #[allow(unused)]
         pub wallets: Wallets,
-        pub blob_reader: MockBlobReader,
+        pub blobs_storage: LocalBlobStorage,
         pub provider: RootProvider,
         pub ethereum: Ethereum,
         pub signer: Signer,
@@ -1346,6 +1342,7 @@ mod utils {
         /// If network is enabled by test, then we store here:
         /// network service polling thread, bootstrap address and nonce for new node address generation.
         bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
+
         _anvil: Option<AnvilInstance>,
         _events_stream: JoinHandle<()>,
     }
@@ -1449,8 +1446,6 @@ mod utils {
             let router_query = router.query();
             let router_address = router.address();
 
-            let blob_reader = MockBlobReader::new();
-
             let db = Database::memory();
 
             let eth_cfg = EthereumConfig {
@@ -1459,10 +1454,11 @@ mod utils {
                 router_address,
                 block_time: config.block_time,
             };
-            let mut observer =
-                ObserverService::new(&eth_cfg, u32::MAX, db.clone(), blob_reader.clone_boxed())
-                    .await
-                    .unwrap();
+            let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
+                .await
+                .unwrap();
+
+            let blobs_storage = LocalBlobStorage::new(db.clone());
 
             let provider = observer.provider().clone();
 
@@ -1472,6 +1468,7 @@ mod utils {
 
                 let (send_subscription_created, receive_subscription_created) =
                     tokio::sync::oneshot::channel::<()>();
+
                 let handle = task::spawn(
                     async move {
                         send_subscription_created.send(()).unwrap();
@@ -1551,8 +1548,8 @@ mod utils {
             Ok(TestEnv {
                 eth_cfg,
                 wallets,
-                blob_reader,
                 provider,
+                blobs_storage,
                 ethereum,
                 signer,
                 validators,
@@ -1593,6 +1590,7 @@ mod utils {
                 })
                 .unzip();
 
+            self.blobs_storage.change_db(db.clone());
             Node {
                 name,
                 db,
@@ -1600,7 +1598,7 @@ mod utils {
                 latest_fast_synced_block: None,
                 eth_cfg: self.eth_cfg.clone(),
                 receiver: None,
-                blob_reader: self.blob_reader.clone(),
+                blob_storage: self.blobs_storage.clone(),
                 signer: self.signer.clone(),
                 threshold: self.threshold,
                 block_time: self.block_time,
@@ -1619,7 +1617,6 @@ mod utils {
             let listener = self.observer_events_publisher().subscribe().await;
 
             // Lock the blob reader to lock any other threads that may use it
-            let mut guard = self.blob_reader.storage_mut();
 
             let pending_builder = block_on(
                 self.ethereum
@@ -1628,9 +1625,7 @@ mod utils {
             )?;
 
             let code_id = pending_builder.code_id();
-            let tx_hash = pending_builder.tx_hash();
-
-            guard.insert(tx_hash, code.to_vec());
+            self.blobs_storage.add_code(code_id, code.to_vec()).await;
 
             Ok(WaitForUploadCode { listener, code_id })
         }
@@ -1870,6 +1865,7 @@ mod utils {
             self.receiver.recv().await.map_err(Into::into)
         }
 
+        #[allow(unused)]
         pub async fn apply_until<R: Sized>(
             &mut self,
             mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
@@ -1899,17 +1895,17 @@ mod utils {
             loop {
                 let event = self.next_event().await?;
 
-                let ObserverEvent::BlockSynced(data) = event else {
+                let ObserverEvent::BlockSynced(synced_block) = event else {
                     continue;
                 };
 
-                let header = OnChainStorage::block_header(&self.db, data.block_hash)
+                let header = OnChainStorage::block_header(&self.db, synced_block.block_hash)
                     .expect("Block header not found");
-                let events = OnChainStorage::block_events(&self.db, data.block_hash)
+                let events = OnChainStorage::block_events(&self.db, synced_block.block_hash)
                     .expect("Block events not found");
 
                 let block_data = SimpleBlockData {
-                    hash: data.block_hash,
+                    hash: synced_block.block_hash,
                     header,
                 };
 
@@ -2102,7 +2098,7 @@ mod utils {
 
         eth_cfg: EthereumConfig,
         receiver: Option<Receiver<Event>>,
-        blob_reader: MockBlobReader,
+        blob_storage: LocalBlobStorage,
         signer: Signer,
         threshold: u64,
         block_time: Duration,
@@ -2164,14 +2160,11 @@ mod utils {
 
             let (sender, receiver) = broadcast::channel(2048);
 
-            let observer = ObserverService::new(
-                &self.eth_cfg,
-                u32::MAX,
-                self.db.clone(),
-                self.blob_reader.clone_boxed(),
-            )
-            .await
-            .unwrap();
+            let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
+                .await
+                .unwrap();
+
+            let blob_loader = LocalBlobLoader::from_storage(self.blob_storage.clone()).into_box();
 
             let tx_pool_service = TxPoolService::new(self.db.clone());
 
@@ -2184,6 +2177,7 @@ mod utils {
             let service = Service::new_from_parts(
                 self.db.clone(),
                 observer,
+                blob_loader,
                 processor,
                 self.signer.clone(),
                 tx_pool_service,
@@ -2316,7 +2310,6 @@ mod utils {
     #[derive(Debug)]
     pub struct UploadCodeInfo {
         pub code_id: CodeId,
-        pub code: Vec<u8>,
         pub valid: bool,
     }
 
@@ -2324,18 +2317,7 @@ mod utils {
         pub async fn wait_for(mut self) -> Result<UploadCodeInfo> {
             log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-            let mut code_info = None;
             let mut valid_info = None;
-
-            self.listener
-                .apply_until(|event| match event {
-                    ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
-                        code_info = Some(blob.code);
-                        Ok(Some(()))
-                    }
-                    _ => Ok(None),
-                })
-                .await?;
 
             self.listener
                 .apply_until_block_event(|event| match event {
@@ -2351,7 +2333,6 @@ mod utils {
 
             Ok(UploadCodeInfo {
                 code_id: self.code_id,
-                code: code_info.expect("Code must be set"),
                 valid: valid_info.expect("Valid must be set"),
             })
         }
