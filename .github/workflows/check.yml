@@ -90,7 +90,7 @@ jobs:
           echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
-          echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
       - name: "Install: Windows packages environment"
         if: ${{ matrix.hosts.runs-on == 'windows-latest' }}
