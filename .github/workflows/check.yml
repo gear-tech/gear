@@ -20,23 +20,25 @@ jobs:
     strategy:
       matrix:
         hosts:
-          - target: aarch64-apple-darwin
+          - name: macos-aarch64
+            target: aarch64-apple-darwin
             runs-on: macos-latest
-          - target: x86_64-apple-darwin
+          - name: macos-x86_64
+            target: x86_64-apple-darwin
             runs-on: macos-latest
-          - target: x86_64-unknown-linux-gnu
+          - name: macos-x86_64
+            target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-latest
-          - target: x86_64-pc-windows-msvc
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
             runs-on: windows-latest
     runs-on: ${{ matrix.hosts.runs-on }}
-    name: clippy (${{ matrix.hosts.runs-on }})
+    name: clippy (${{ matrix.hosts.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
