@@ -44,6 +44,23 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
+      - name: "Install: macOS packages"
+        if: ${{ matrix.hosts.runs-on == 'macos-latest' }}
+        run: brew install protobuf binaryen
+
+      - name: "Install: Linux packages"
+        if: ${{ matrix.hosts.runs-on == 'ubuntu-latest' }}
+        run: apt install protoc binaryen
+
+      - name: "Install: Windows packages"
+        if: ${{ matrix.hosts.runs-on == 'windows-latest' }}
+        uses: MinoruSekine/setup-scoop@v4.0.1
+        with:
+          apps: >-
+            binaryen
+            protobuf
+          buckets: extras
+
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
