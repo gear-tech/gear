@@ -124,8 +124,7 @@ impl EthMessage {
     /// Has `pub(crate)` visibility due to dependency on substrate
     /// runtime interface (keccak hashing).
     pub(crate) fn hash(&self) -> H256 {
-        let mut nonce = [0; 32];
-        self.nonce.to_little_endian(&mut nonce);
+        let nonce = self.nonce.to_little_endian();
 
         let bytes = [
             nonce.as_ref(),
