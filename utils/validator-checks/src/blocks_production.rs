@@ -35,22 +35,21 @@ impl BlocksProduction {
         }
 
         let logs = &block.header().digest.logs;
-        if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.first() {
-            if *engine == BABE_ENGINE_ID {
-                if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())
-                    .ok()
-                    .and_then(|pre| self.all_validators.get(pre.authority_index() as usize))
-                {
-                    if let Ok(index) = self.validators.binary_search(author) {
-                        log::info!(
-                            "Validated {:?} for blocks production.",
-                            self.validators.remove(index)
-                        );
-                    }
-                }
-
-                return self.validators.is_empty();
+        if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.first()
+            && *engine == BABE_ENGINE_ID
+        {
+            if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())
+                .ok()
+                .and_then(|pre| self.all_validators.get(pre.authority_index() as usize))
+                && let Ok(index) = self.validators.binary_search(author)
+            {
+                log::info!(
+                    "Validated {:?} for blocks production.",
+                    self.validators.remove(index)
+                );
             }
+
+            return self.validators.is_empty();
         }
 
         false

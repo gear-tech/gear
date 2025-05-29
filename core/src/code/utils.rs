@@ -79,10 +79,10 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
         .as_ref()
         .expect("Exports section has been checked for already")
     {
-        if let ExternalKind::Func = entry.kind {
-            if let Some(entry) = DispatchKind::try_from_entry(&entry.name) {
-                entries.insert(entry);
-            }
+        if let ExternalKind::Func = entry.kind
+            && let Some(entry) = DispatchKind::try_from_entry(&entry.name)
+        {
+            entries.insert(entry);
         }
     }
 

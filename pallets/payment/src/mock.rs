@@ -132,10 +132,10 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
             if let Some(author) = Authorship::author() {
                 Balances::resolve_creating(&author, fees);
             }
-            if let Some(tips) = fees_then_tips.next() {
-                if let Some(author) = Authorship::author() {
-                    Balances::resolve_creating(&author, tips);
-                }
+            if let Some(tips) = fees_then_tips.next()
+                && let Some(author) = Authorship::author()
+            {
+                Balances::resolve_creating(&author, tips);
             }
         }
     }

@@ -374,11 +374,11 @@ where
             }
 
             // Add residual bytes to the last data segment
-            if residual_bytes != 0 {
-                if let Some(last) = module.data_segments.last_mut() {
-                    last.value
-                        .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
-                }
+            if residual_bytes != 0
+                && let Some(last) = module.data_segments.last_mut()
+            {
+                last.value
+                    .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
             }
         }
 
