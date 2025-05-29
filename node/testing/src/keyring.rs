@@ -127,17 +127,14 @@ pub fn sign(
                 ),
                 function: payload.0,
             }
-            .into()
         }
         ExtrinsicFormat::Bare => UncheckedExtrinsic {
             preamble: sp_runtime::generic::Preamble::Bare(EXTRINSIC_FORMAT_VERSION),
             function: xt.function,
-        }
-        .into(),
+        },
         ExtrinsicFormat::General(ext_version, tx_ext) => UncheckedExtrinsic {
             preamble: sp_runtime::generic::Preamble::General(ext_version, tx_ext),
             function: xt.function,
-        }
-        .into(),
+        },
     }
 }

@@ -327,13 +327,12 @@ fn query_info_and_fee_details_work() {
     });
     let extra = ();
 
-    let xt_affecting_mq = TestXt::new_signed(call_affecting_mq.clone(), ALICE.into(), (), extra);
+    let xt_affecting_mq = TestXt::new_signed(call_affecting_mq.clone(), ALICE, (), extra);
     let info_affecting_mq = xt_affecting_mq.get_dispatch_info();
     let ext_affecting_mq = xt_affecting_mq.encode();
     let len_affecting_mq = ext_affecting_mq.len() as u32;
 
-    let xt_not_affecting_mq =
-        TestXt::new_signed(call_not_affecting_mq.clone(), ALICE.into(), (), extra);
+    let xt_not_affecting_mq = TestXt::new_signed(call_not_affecting_mq.clone(), ALICE, (), extra);
     let info_not_affecting_mq = xt_not_affecting_mq.get_dispatch_info();
     let ext_not_affecting_mq = xt_not_affecting_mq.encode();
     let len_not_affecting_mq = ext_not_affecting_mq.len() as u32;

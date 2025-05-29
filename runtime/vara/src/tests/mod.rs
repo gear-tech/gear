@@ -125,7 +125,7 @@ fn payout_stakers_fits_in_block() {
     let dispatch_info = call.get_dispatch_info();
 
     assert_eq!(dispatch_info.class, DispatchClass::Normal);
-    assert_eq!(dispatch_info.weight, expected_weight);
+    assert_eq!(dispatch_info.call_weight, expected_weight);
 
     let block_weights = <Runtime as frame_system::Config>::BlockWeights::get();
 

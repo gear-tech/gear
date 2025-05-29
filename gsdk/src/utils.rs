@@ -94,6 +94,7 @@ pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Ve
 
 /// Outputs the [`storage_address_root_bytes`] as well as any additional bytes that represent
 /// a lookup in a storage map at that location.
+#[allow(clippy::result_large_err)]
 pub(crate) fn storage_address_bytes(
     addr: &impl Address,
     metadata: &Metadata,

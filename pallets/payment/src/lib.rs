@@ -120,7 +120,7 @@ where
             call,
             cow_info.as_ref(),
             len,
-            Self::Implicit::default(),
+            (),
             implication,
             source,
         )
