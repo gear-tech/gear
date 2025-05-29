@@ -65,7 +65,8 @@ jobs:
       - name: "Install: macOS packages environment"
         if: ${{ matrix.runs-on == 'macos-latest' }}
         run: |
-          echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
+          # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
+          #echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/opt/homebrew/opt/rocksdb/lib" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
@@ -79,7 +80,8 @@ jobs:
       - name: "Install: Linux packages environment"
         if: ${{ matrix.runs-on == 'ubuntu-latest' }}
         run: |
-          echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
