@@ -347,7 +347,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         }
 
         #[cfg(target_arch = "x86_64")]
-        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64 as i32;
+        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64;
 
         // Took const value from https://opensource.apple.com/source/cctools/cctools-870/include/mach/arm/thread_status.h
         // ```
