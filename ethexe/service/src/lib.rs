@@ -411,10 +411,9 @@ impl Service {
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         consensus.receive_computed_block(block_hash)?
                     }
-                    ComputeEvent::CodeProcessed(_) => {
+                    ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
                         // Nothing
                     }
-                    ComputeEvent::BlockPrepared(_block) => {}
                 },
                 Event::Network(event) => {
                     let Some(_) = network.as_mut() else {

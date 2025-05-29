@@ -325,7 +325,6 @@ async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
     log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
 
-    // TODO: fast sync must load codes from the network instead of the observer
     while let Some(event) = observer.next().await {
         match event? {
             ObserverEvent::Block(_) => {}
@@ -483,7 +482,7 @@ async fn sync_from_network(
     log::info!("Network data getting is done");
 }
 
-async fn instrument_codes(
+async fn prepare_codes(
     compute: &mut ComputeService,
     blobs_loader: &mut Box<dyn BlobLoaderService>,
     synced_block: H256,
@@ -537,7 +536,7 @@ async fn instrument_codes(
         }
     }
 
-    log::info!("Instrumentation done");
+    log::info!("Codes preparation done");
     Ok(())
 }
 
@@ -571,7 +570,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
-    instrument_codes(
+    prepare_codes(
         compute,
         blob_loader,
         finalized_block,

@@ -118,7 +118,7 @@ async fn test_deployment() -> Result<()> {
         )
     "#;
     let wasm = wat2wasm(wat);
-    let _request_code_id = request_wasm_validation(wasm.clone()).await;
+    let _request_code_id = request_wasm_validation(wasm).await;
 
     let event = observer
         .next()
@@ -140,7 +140,7 @@ async fn test_deployment() -> Result<()> {
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
-    let _request_code_id = request_wasm_validation(wasm.clone()).await;
+    let _request_code_id = request_wasm_validation(wasm).await;
 
     let event = observer
         .next()

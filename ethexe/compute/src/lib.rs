@@ -40,11 +40,6 @@ pub struct BlockProcessed {
 }
 
 #[derive(Debug, Clone)]
-pub struct BlockPrepared {
-    pub block_hash: H256,
-}
-
-#[derive(Debug, Clone)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeCommitment),
@@ -58,9 +53,8 @@ enum BlockAction {
     Process(H256),
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum BlockPreparationState {
-    #[default]
     WaitForBlock,
     WaitForCodes {
         block: H256,
@@ -92,9 +86,7 @@ impl Stream for ComputeService {
                     if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
                         &mut self.state
                     {
-                        if waiting_codes.contains(&commitment.id) {
-                            waiting_codes.remove(&commitment.id);
-                        }
+                        waiting_codes.remove(&commitment.id);
                     }
                     return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(commitment))));
                 }
@@ -133,22 +125,20 @@ impl Stream for ComputeService {
             }
         }
 
-        let old_state = std::mem::take(&mut self.state);
         if let BlockPreparationState::WaitForCodes {
             block,
             chain,
             waiting_codes,
-        } = &old_state
+        } = &self.state
         {
             if waiting_codes.is_empty() {
                 for block_data in chain {
                     self.db.set_block_prepared(block_data.hash);
                 }
 
+                let event = ComputeEvent::BlockPrepared(*block);
                 self.state = BlockPreparationState::WaitForBlock;
-                return Poll::Ready(Some(Ok(ComputeEvent::BlockPrepared(*block))));
-            } else {
-                self.state = old_state;
+                return Poll::Ready(Some(Ok(event)));
             }
         }
 
@@ -176,7 +166,7 @@ impl ComputeService {
             db,
             processor,
             blocks_queue: Default::default(),
-            state: Default::default(),
+            state: BlockPreparationState::WaitForBlock,
             process_block: None,
             process_codes: Default::default(),
         }
@@ -258,13 +248,13 @@ impl ComputeService {
     }
 }
 
-pub(crate) struct ChainHeadProcessContext {
-    pub db: Database,
-    pub processor: Processor,
+struct ChainHeadProcessContext {
+    db: Database,
+    processor: Processor,
 }
 
 impl ChainHeadProcessContext {
-    pub async fn process(mut self, head: H256) -> Result<BlockProcessed> {
+    async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
         // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
@@ -345,7 +335,7 @@ impl ChainHeadProcessContext {
         Ok(())
     }
 
-    pub fn propagate_data_from_parent<'a>(
+    fn propagate_data_from_parent<'a>(
         db: &Database,
         block: H256,
         parent: H256,
@@ -401,7 +391,7 @@ impl ChainHeadProcessContext {
     }
 
     /// Collect a chain of blocks from the head to the last not computed block.
-    pub fn collect_not_computed_blocks_chain(
+    fn collect_not_computed_blocks_chain(
         db: &Database,
         head: H256,
     ) -> Result<Vec<SimpleBlockData>> {
@@ -432,10 +422,6 @@ impl ChainHeadProcessContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        db::{BlockMetaStorage, OnChainStorage},
-        events::{BlockEvent, RouterEvent},
-    };
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {
@@ -485,10 +471,5 @@ mod tests {
         // Check for current block
         let codes_queue = db.block_codes_queue(current_block).unwrap();
         assert_eq!(codes_queue, VecDeque::from(vec![code_id_2]));
-    }
-
-    #[tokio::test]
-    async fn random_blocks() -> Result<()> {
-        Ok(())
     }
 }

@@ -60,7 +60,7 @@ pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
 }
 
-// TODO: write tests for BlobLoaderService implementations
+// TODO (#4674): write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
     Stream<Item = Result<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
@@ -106,9 +106,9 @@ impl ConsensusLayerBlobReader {
             .await
             .map_err(|err| anyhow!("failed to read blob: {err}"))?;
 
-        (CodeId::generate(&code) == expected_code_id)
-            .then_some(())
-            .ok_or_else(|| anyhow!("unexpected code id"))?;
+        if CodeId::generate(&code) != expected_code_id {
+            return Err(anyhow!("unexpected code id"));
+        }
 
         Ok(BlobData {
             code_id: expected_code_id,
@@ -193,7 +193,7 @@ pub struct BlobLoader {
     futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
     codes_loading: HashSet<CodeId>,
 
-    consensus_loader: ConsensusLayerBlobReader,
+    blobs_reader: ConsensusLayerBlobReader,
     db: Database,
 }
 
@@ -204,14 +204,12 @@ impl Stream for BlobLoader {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        log::info!("🤢 blob loader polling");
         let future = self.futures.poll_next_unpin(cx);
         match future {
             Poll::Ready(Some(result)) => match result {
                 Ok(blob_data) => {
                     let code_id = &blob_data.code_id;
                     self.codes_loading.remove(code_id);
-                    log::info!("I am calling");
                     self.db.set_original_code(blob_data.code.as_slice());
                     Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
                 }
@@ -234,7 +232,7 @@ impl BlobLoader {
             futures: FuturesUnordered::new(),
             codes_loading: HashSet::new(),
 
-            consensus_loader: ConsensusLayerBlobReader {
+            blobs_reader: ConsensusLayerBlobReader {
                 provider: ProviderBuilder::default()
                     .connect(&consensus_cfg.ethereum_rpc)
                     .await?,
@@ -256,8 +254,6 @@ impl BlobLoaderService for BlobLoader {
     }
 
     fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()> {
-        // log::trace!("request load codes: {codes:?}");
-
         for code_id in codes {
             if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {
                 continue;
@@ -266,12 +262,12 @@ impl BlobLoaderService for BlobLoader {
             let code_info = self
                 .db
                 .code_blob_info(code_id)
-                .ok_or(anyhow!("Not found code info for {code_id} in db"))?;
+                .ok_or(anyhow!("not found code info for {code_id} in db"))?;
 
             self.codes_loading.insert(code_id);
-            let consensus_loader = self.consensus_loader.clone();
             self.futures.push(
-                consensus_loader
+                self.blobs_reader
+                    .clone()
                     .read_code_from_tx_hash(
                         code_id,
                         code_info.timestamp,

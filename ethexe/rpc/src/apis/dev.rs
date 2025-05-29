@@ -33,7 +33,6 @@ pub trait Dev {
 
 #[derive(Clone)]
 pub struct DevApi {
-    // maybe use Box<dyn BlobLoaderService> instead
     blobs_storage: LocalBlobStorage,
 }
 

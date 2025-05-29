@@ -137,7 +137,6 @@ async fn ping() {
         .wait_for()
         .await
         .unwrap();
-    // assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -804,7 +803,6 @@ async fn ping_deep_sync() {
         .wait_for()
         .await
         .unwrap();
-    // assert_eq!(res.code.as_slice(), demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -892,8 +890,6 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    log::info!("❤️ code uploaded: {}", res.code_id);
-    // assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let ping_code_id = res.code_id;
@@ -926,7 +922,6 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    // assert_eq!(res.code, demo_async::WASM_BINARY);
     assert!(res.valid);
 
     let async_code_id = res.code_id;
@@ -1102,7 +1097,6 @@ async fn tx_pool_gossip() {
     assert_eq!(node1_db_tx, signed_ethexe_tx);
 }
 
-// #[ignore = "need to refactor fast-sync"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn fast_sync() {
@@ -2316,7 +2310,6 @@ mod utils {
     #[derive(Debug)]
     pub struct UploadCodeInfo {
         pub code_id: CodeId,
-        // pub code: Vec<u8>,
         pub valid: bool,
     }
 
@@ -2340,7 +2333,6 @@ mod utils {
 
             Ok(UploadCodeInfo {
                 code_id: self.code_id,
-                // code: code.expect("Code must be set"),
                 valid: valid_info.expect("Valid must be set"),
             })
         }

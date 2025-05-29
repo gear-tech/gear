@@ -65,7 +65,6 @@ pub struct BlockSyncedData {
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
-    // NOTE: `validated_codes` is a part of the `codes_to_load`
     BlockSynced(BlockSyncedData),
 }
 
@@ -149,8 +148,7 @@ impl Stream for ObserverService {
 
         if self.sync_future.is_none() {
             if let Some(header) = self.block_sync_queue.pop_back() {
-                let chain_sync_cloned = self.chain_sync.clone();
-                self.sync_future = Some(chain_sync_cloned.sync(header).boxed());
+                self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
             }
         }
 
@@ -203,6 +201,7 @@ impl ObserverService {
             router_address: *router_address,
             wvara_address,
             max_sync_depth,
+            // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
             block_time: *block_time,
         };
@@ -276,7 +275,6 @@ impl ObserverService {
         Ok(())
     }
 
-    // TODO: think about removing this
     pub fn provider(&self) -> &RootProvider {
         &self.provider
     }

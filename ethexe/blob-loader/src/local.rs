@@ -18,7 +18,7 @@
 
 use crate::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use anyhow::{anyhow, Result};
-use ethexe_common::db::{CodesStorage, OnChainStorage};
+use ethexe_common::db::OnChainStorage;
 use ethexe_db::Database;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::CodeId;
@@ -54,12 +54,8 @@ impl LocalBlobStorage {
     pub async fn get_code(self, code_id: CodeId) -> Result<BlobData> {
         let storage = self.inner.read().await;
 
-        let code = match storage.get(&code_id) {
-            Some(code) => code.clone(),
-            None => self.db.original_code(code_id).ok_or({
-                log::error!("local storage: {storage:?}");
-                anyhow!("expect code for {code_id} exists in db")
-            })?,
+        let Some(code) = storage.get(&code_id).cloned() else {
+            return Err(anyhow!("code {code_id} not found in db"));
         };
 
         let code_info = self

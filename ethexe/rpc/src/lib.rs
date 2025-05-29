@@ -21,7 +21,6 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
 };
-// use ethexe_blob_loader::blobs::MockBlobReader;
 use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
