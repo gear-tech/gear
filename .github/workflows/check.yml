@@ -32,6 +32,9 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
+      - name: "Install: Rust targets"
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu
+
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
 
@@ -39,6 +42,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+
+      - name: "Install: cargo-xwin"
+        run: |
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Show: Versioning"
         run: |
@@ -62,8 +70,19 @@ jobs:
       - name: "Check formatting: Doc"
         run: ./scripts/gear.sh format doc --check
 
-      - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+      - name: "Check clippy multitarget: Gear"
+        run: >-
+          ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+          --target aarch64-apple-darwin 
+          --target x86_64-apple-darwin 
+          --target x86_64-unknown-linux-gnu 
+
+      - name: "Check clippy Windows: Gear"
+        run: >-
+          ./scripts/cargo-xwin.sh clippy --workspace --all-targets --all-features --locked -- --no-deps -D warnings
+        env:
+          __GEAR_WASM_BUILDER_NO_BUILD: 1
+          SKIP_WASM_BUILD: 1
 
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples --all-targets --locked
