@@ -50,11 +50,11 @@ jobs:
 
       - name: "Install: macOS packages"
         if: ${{ matrix.hosts.runs-on == 'macos-latest' }}
-        run: brew install protobuf binaryen
+        run: brew install protobuf binaryen openssl rocksdb zstd jemalloc
 
       - name: "Install: Linux packages"
         if: ${{ matrix.hosts.runs-on == 'ubuntu-latest' }}
-        run: sudo apt install protobuf-compiler binaryen
+        run: sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
 
       - name: "Install: Windows packages"
         if: ${{ matrix.hosts.runs-on == 'windows-latest' }}
@@ -63,7 +63,50 @@ jobs:
           apps: >-
             binaryen
             protobuf
+            openssl
           buckets: extras
+
+      - name: "Install: macOS packages environment"
+        if: ${{ matrix.hosts.runs-on == 'macos-latest' }}
+        run: |
+          echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
+          echo "ROCKSDB_LIB_DIR=/opt/homebrew/opt/rocksdb/lib" >> $GITHUB_ENV
+
+          echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          
+          echo "JEMALLOC_OVERRIDE=/opt/homebrew/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/opt/homebrew/opt/openssl" >> $GITHUB_ENV
+
+      - name: "Install: Linux packages environment"
+        if: ${{ matrix.hosts.runs-on == 'ubuntu-latest' }}
+        run: |
+          echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+
+          echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          
+          echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
+
+      - name: "Install: Windows packages environment"
+        if: ${{ matrix.hosts.runs-on == 'windows-latest' }}
+        run: |
+          # Package is not available in choco or scoop
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+          
+          # Windows has no `pkg-config`
+          #echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          
+          # Not used on Windows
+          #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl\current" >> $GITHUB_ENV
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
