@@ -112,8 +112,8 @@ jobs:
           # Not used on Windows
           #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
-          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
-          echo "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl-light\current" >> $GITHUB_ENV
+          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_NO_VENDOR=1"
+          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl-light\current"
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
