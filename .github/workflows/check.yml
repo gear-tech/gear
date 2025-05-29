@@ -49,8 +49,8 @@ jobs:
 
       - name: "Install: Target"
         run: |
-          rustup target add ${{ matrix.arch.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.arch.target }}" >> $GITHUB_ENV
+          rustup target add ${{ matrix.hosts.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.hosts.target }}" >> $GITHUB_ENV
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked --target ${{ matrix.hosts.target }}
