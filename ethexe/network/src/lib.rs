@@ -636,16 +636,17 @@ mod tests {
     use crate::{db_sync::ExternalDataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::gear::CodeState;
+    use ethexe_common::{db::BlockMetaStorage, gear::CodeState};
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
     use std::{
         collections::{BTreeSet, HashMap},
+        iter,
         sync::Arc,
     };
     use tokio::{
-        sync::Mutex,
+        sync::RwLock,
         time::{timeout, Duration},
     };
 
@@ -656,7 +657,22 @@ mod tests {
     }
 
     #[derive(Default, Clone)]
-    struct DataProvider(Arc<Mutex<DataProviderInner>>);
+    pub struct DataProvider(Arc<RwLock<DataProviderInner>>);
+
+    impl DataProvider {
+        pub async fn set_programs_code_ids_at(
+            &self,
+            program_ids: BTreeSet<ActorId>,
+            at: H256,
+            code_ids: Vec<CodeId>,
+        ) {
+            self.0
+                .write()
+                .await
+                .programs_code_ids_at
+                .insert((program_ids, at), code_ids);
+        }
+    }
 
     #[async_trait]
     impl ExternalDataProvider for DataProvider {
@@ -669,14 +685,15 @@ mod tests {
             program_ids: BTreeSet<ActorId>,
             block: H256,
         ) -> anyhow::Result<Vec<CodeId>> {
+            assert!(!program_ids.is_empty());
             Ok(self
                 .0
-                .lock()
+                .read()
                 .await
                 .programs_code_ids_at
                 .get(&(program_ids, block))
                 .cloned()
-                .unwrap())
+                .unwrap_or_default())
         }
 
         async fn codes_states_at(
@@ -684,32 +701,27 @@ mod tests {
             code_ids: BTreeSet<CodeId>,
             block: H256,
         ) -> anyhow::Result<Vec<CodeState>> {
+            assert!(!code_ids.is_empty());
             Ok(self
                 .0
-                .lock()
+                .read()
                 .await
                 .code_states_at
                 .get(&(code_ids, block))
                 .cloned()
-                .unwrap())
+                .unwrap_or_default())
         }
     }
 
-    fn new_service_with_db(db: Database) -> NetworkService {
+    fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
         let key_storage = FSKeyStorage::tmp();
         let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
         let signer = Signer::new(key_storage);
-        NetworkService::new(
-            config.clone(),
-            &signer,
-            Box::new(DataProvider::default()),
-            db,
-        )
-        .unwrap()
+        NetworkService::new(config.clone(), &signer, Box::new(data_provider), db).unwrap()
     }
 
     fn new_service() -> NetworkService {
-        new_service_with_db(Database::from_one(&MemDb::default()))
+        new_service_with(Database::memory(), DataProvider::default())
     }
 
     #[tokio::test]
@@ -734,7 +746,7 @@ mod tests {
         let hello = db.write_hash(b"hello");
         let world = db.write_hash(b"world");
 
-        let mut service2 = new_service_with_db(db);
+        let mut service2 = new_service_with(db, Default::default());
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
@@ -782,20 +794,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn external_validation() {
+    async fn external_data_provider() {
         init_logger();
 
-        let mut service1 = new_service();
-        let mut service2 = new_service();
+        let alice_data_provider = DataProvider::default();
+        let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
+        let bob_db = Database::memory();
+        let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
 
-        service1.connect(&mut service2).await;
-        tokio::spawn(service2.loop_on_next());
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
 
-        let request_id = service1
+        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
+        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
+        alice_data_provider
+            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
+            .await;
+        bob_db.set_block_program_states(
+            H256::zero(),
+            iter::zip(program_ids.clone(), iter::repeat_with(|| H256::random())).collect(),
+        );
+
+        let expected_response =
+            db_sync::Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
+
+        let request_id = alice
             .db_sync()
-            .request(db_sync::Request::program_ids(H256::zero(), 0));
+            .request(db_sync::Request::program_ids(H256::zero(), 2));
 
-        let event = timeout(Duration::from_secs(5), service1.next())
+        let event = timeout(Duration::from_secs(5), alice.next())
             .await
             .expect("time has elapsed")
             .unwrap();
@@ -804,7 +831,7 @@ mod tests {
             NetworkEvent::DbResponse {
                 request_id: rid,
                 result: Ok(response)
-            } if rid == request_id && response == db_sync::Response::ProgramIds([].into())
+            } if rid == request_id && response == expected_response
         );
     }
 }

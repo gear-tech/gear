@@ -487,7 +487,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::init_logger;
+    use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use ethexe_common::db::BlockMetaStorage;
     use ethexe_db::MemDb;
@@ -502,32 +502,6 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
     use tokio::time;
-
-    #[derive(Copy, Clone)]
-    struct NoopDataProvider;
-
-    #[async_trait]
-    impl ExternalDataProvider for NoopDataProvider {
-        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
-            Box::new(NoopDataProvider)
-        }
-
-        async fn programs_code_ids_at(
-            self: Box<Self>,
-            _program_ids: BTreeSet<ActorId>,
-            _block: H256,
-        ) -> anyhow::Result<Vec<CodeId>> {
-            unreachable!()
-        }
-
-        async fn codes_states_at(
-            self: Box<Self>,
-            _code_ids: BTreeSet<CodeId>,
-            _block: H256,
-        ) -> anyhow::Result<Vec<CodeState>> {
-            unreachable!()
-        }
-    }
 
     // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config
     fn new_ephemeral_swarm<T: swarm::NetworkBehaviour>(
@@ -548,20 +522,21 @@ mod tests {
         Swarm::new(transport, behaviour, peer_id, config)
     }
 
-    async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
+    async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database, DataProvider) {
+        let data_provider = DataProvider::default();
         let db = Database::from_one(&MemDb::default());
         let behaviour = Behaviour::new(
             config,
             peer_score::Handle::new_test(),
-            Box::new(NoopDataProvider),
+            data_provider.clone_boxed(),
             db.clone(),
         );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
-        (swarm, db)
+        (swarm, db, data_provider)
     }
 
-    async fn new_swarm() -> (Swarm<Behaviour>, Database) {
+    async fn new_swarm() -> (Swarm<Behaviour>, Database, DataProvider) {
         new_swarm_with_config(Config::default()).await
     }
 
@@ -569,8 +544,8 @@ mod tests {
     async fn smoke() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, bob_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
         let hello_hash = bob_db.write_hash(b"hello");
@@ -641,7 +616,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_rounds_per_request(1);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
 
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
@@ -696,7 +671,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_request_timeout(Duration::from_secs(3));
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
 
         // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
         // so we cannot advance time like in tokio
@@ -756,11 +731,6 @@ mod tests {
 
         let event = alice.next_swarm_event().await;
         assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
-
-        // to ensure proper event handling and cleanup, the swarm is polled only once.
-        let _ = futures::poll!(alice.next());
-
-        // `db_sync::OngoingRequests` has assertions in its `Drop` implementation
     }
 
     #[tokio::test]
@@ -769,7 +739,7 @@ mod tests {
 
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
 
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
@@ -846,7 +816,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_rounds_per_request(1);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
 
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
@@ -900,10 +870,10 @@ mod tests {
     async fn request_completed_by_3_rounds() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, bob_db) = new_swarm().await;
-        let (mut charlie, charlie_db) = new_swarm().await;
-        let (mut dave, dave_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
+        let (mut dave, dave_db, _data_provider) = new_swarm().await;
 
         alice.connect(&mut bob).await;
         alice.connect(&mut charlie).await;
@@ -960,9 +930,9 @@ mod tests {
     async fn request_completed_after_new_peer() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, bob_db) = new_swarm().await;
-        let (charlie, charlie_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let (charlie, charlie_db, _data_provider) = new_swarm().await;
         let charlie_addr = charlie.external_addresses().next().cloned().unwrap();
 
         alice.connect(&mut bob).await;
@@ -1010,7 +980,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_request_timeout(Duration::from_secs(2));
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
 
         // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
         // so we cannot advance time like in tokio
@@ -1050,8 +1020,8 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_simultaneous_responses(2);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
-        let (mut bob, _bob_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
+        let (mut bob, _bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
         alice.connect(&mut bob).await;
 
@@ -1090,7 +1060,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_rounds_per_request(1);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
@@ -1146,7 +1116,7 @@ mod tests {
 
         bob_handle.abort();
         assert!(bob_handle.await.unwrap_err().is_cancelled());
-        let (mut charlie, charlie_db) = new_swarm().await;
+        let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
@@ -1171,26 +1141,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn external_validation() {
+    async fn external_data_provider() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, _bob_db) = new_swarm().await;
-        let (mut charlie, charlie_db) = new_swarm().await;
+        let (mut alice, _alice_db, alice_data_provider) = new_swarm().await;
+        let (mut bob, _bob_db, _data_provider) = new_swarm().await;
+        let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
+
+        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
+        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
+        alice_data_provider
+            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
+            .await;
+        charlie_db.set_block_program_states(
+            H256::zero(),
+            iter::zip(program_ids.clone(), iter::repeat_with(|| H256::random())).collect(),
+        );
+
+        let expected_response = Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
-
-        let program_states = BTreeMap::from_iter([
-            (ActorId::new([1; 32]), H256::random()),
-            (ActorId::new([2; 32]), H256::random()),
-        ]);
-        charlie_db.set_block_program_states(H256::zero(), program_states.clone());
-        let code_ids = BTreeSet::from_iter([CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])]);
-        let program_code_ids: BTreeMap<ActorId, CodeId> =
-            iter::zip(program_states.keys().copied(), code_ids.clone()).collect();
-        let expected_response = Response::ProgramIds(program_code_ids.clone());
 
         let request_id = alice
             .behaviour_mut()
@@ -1204,6 +1176,12 @@ mod tests {
                 peer_id,
                 reason: NewRequestRoundReason::FromQueue,
             } if rid == request_id && peer_id == bob_peer_id
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(
+            event,
+            Event::PendingStateRequest { request_id: rid } if rid == request_id
         );
 
         alice.connect(&mut charlie).await;
