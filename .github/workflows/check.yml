@@ -50,7 +50,7 @@ jobs:
 
       - name: "Install: Linux packages"
         if: ${{ matrix.hosts.runs-on == 'ubuntu-latest' }}
-        run: apt install protoc binaryen
+        run: sudo apt install protoc binaryen
 
       - name: "Install: Windows packages"
         if: ${{ matrix.hosts.runs-on == 'windows-latest' }}
