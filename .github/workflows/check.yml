@@ -106,9 +106,6 @@ jobs:
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
           echo "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl\current" >> $GITHUB_ENV
 
-      - name: "Install: MSYS2 environment"
-        uses: msys2/setup-msys2@v2
-
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
