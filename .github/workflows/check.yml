@@ -18,6 +18,7 @@ jobs:
 
   clippy:
     strategy:
+      fail-fast: false
       matrix:
         hosts:
           - name: macos-aarch64
