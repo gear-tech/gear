@@ -23,15 +23,19 @@ jobs:
         hosts:
           - name: macos-aarch64
             target: aarch64-apple-darwin
+            cargo: ./scripts/gear.sh
             runs-on: macos-latest
           - name: macos-x86_64
             target: x86_64-apple-darwin
+            cargo: ./scripts/gear.sh
             runs-on: macos-latest
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
+            cargo: ./scripts/gear.sh
             runs-on: ubuntu-latest
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
+            cargo: cargo
             runs-on: windows-latest
     runs-on: ${{ matrix.hosts.runs-on }}
     name: clippy (${{ matrix.hosts.name }})
@@ -70,7 +74,7 @@ jobs:
           echo "CARGO_BUILD_TARGET=${{ matrix.hosts.target }}" >> $GITHUB_ENV
 
       - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked --target ${{ matrix.hosts.target }}
+        run: ${{ matrix.hosts.cargo }} clippy gear --all-targets --all-features --locked
 
   linux:
     runs-on: [kuberunner, github-runner-01]
