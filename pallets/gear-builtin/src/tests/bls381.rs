@@ -36,7 +36,7 @@ use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use gear_runtime_interface::DST_G2;
 use pallet_gear::GasInfo;
 use parity_scale_codec::{Decode, Encode};
-use sp_core::H256;
+use primitive_types::H256;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;

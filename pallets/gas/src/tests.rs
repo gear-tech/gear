@@ -24,7 +24,7 @@ use common::{
 };
 use frame_support::{assert_noop, assert_ok};
 use gear_core::ids::MessageId;
-use sp_core::H256;
+use primitive_types::H256;
 use sp_runtime::traits::Zero;
 
 type Gas = <Pallet<Test> as common::GasProvider>::GasTree;

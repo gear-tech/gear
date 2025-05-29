@@ -27,7 +27,7 @@ use frame_support::assert_ok;
 use gear_core::ids::{prelude::*, ActorId, CodeId};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
-use sp_core::H256;
+use primitive_types::H256;
 
 pub(crate) fn init_logger() {
     let _ = tracing_subscriber::fmt::try_init();

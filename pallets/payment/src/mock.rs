@@ -32,7 +32,7 @@ use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
 use pallet_gear_voucher::VoucherId;
 #[allow(deprecated)]
 use pallet_transaction_payment::CurrencyAdapter;
-use sp_core::H256;
+use primitive_types::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
     BuildStorage,

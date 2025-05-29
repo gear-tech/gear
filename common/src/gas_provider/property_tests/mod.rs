@@ -82,8 +82,8 @@ use core::iter::FromIterator;
 use enum_iterator::all;
 use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
+use primitive_types::H256;
 use proptest::prelude::*;
-use sp_core::H256;
 use std::collections::{BTreeSet, HashMap};
 use strategies::GasTreeAction;
 

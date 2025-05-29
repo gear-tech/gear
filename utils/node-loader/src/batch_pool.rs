@@ -11,9 +11,9 @@ use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{ActorId, MessageId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use gsdk::metadata::{gear::Event as GearEvent, Event};
+use primitive_types::H256;
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};
-use sp_core::H256;
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,

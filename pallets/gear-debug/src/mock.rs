@@ -29,7 +29,8 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use pallet_gear::GasAllowanceOf;
-use sp_core::{ConstBool, H256};
+use primitive_types::H256;
+use sp_core::ConstBool;
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
     BuildStorage,

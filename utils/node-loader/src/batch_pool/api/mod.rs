@@ -9,7 +9,7 @@ use gear_call_gen::{
     UploadProgramArgs,
 };
 use gear_core::ids::{ActorId, CodeId, MessageId};
-use sp_core::H256;
+use primitive_types::H256;
 
 pub type UploadProgramBatchOutput = StandardBatchOutput;
 pub type CreateProgramBatchOutput = StandardBatchOutput;

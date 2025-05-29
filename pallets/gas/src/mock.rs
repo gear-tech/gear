@@ -21,7 +21,7 @@ use frame_support::{
     construct_runtime, parameter_types, traits::ConstU32, weights::constants::RocksDbWeight,
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use sp_core::H256;
+use primitive_types::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
     BuildStorage,

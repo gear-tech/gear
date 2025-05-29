@@ -49,8 +49,8 @@ pub mod pallet {
         pages::{GearPage, WasmPagesAmount},
         program::Program,
     };
+    use primitive_types::H256;
     use scale_info::TypeInfo;
-    use sp_core::H256;
     use sp_runtime::Percent;
     use sp_std::{
         collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -239,7 +239,7 @@ pub mod pallet {
                             ProgramState::Active(ProgramInfo {
                                 static_pages,
                                 persistent_pages,
-                                code_hash: active.code_hash.cast(),
+                                code_hash: active.code_hash,
                             })
                         },
                     }

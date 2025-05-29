@@ -98,7 +98,7 @@ use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
 use manager::{CodeInfo, QueuePostProcessingData};
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
-use sp_core::H256;
+use primitive_types::H256;
 use sp_runtime::{
     traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
     DispatchError, SaturatedConversion,
