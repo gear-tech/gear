@@ -138,7 +138,7 @@ impl Mock for BatchCommitment {
         BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
-            previous_committed_block_hash: H256::random(),
+            previous_batch: Digest::random(),
             chain_commitment: Some(ChainCommitment::mock(H256::random())),
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,
@@ -223,14 +223,15 @@ pub fn prepared_mock_batch_commitment(
     db: &Database,
     chain_head: &SimpleBlockData,
 ) -> BatchCommitment {
-    // [block3] <- ... <- [block2] <- ... <- [block1] <- ... <- [block]
+    // ... <- [block2] <- ... <- [block1] <- ... <- [chain_head]
     let block1 = SimpleBlockData::mock(()).prepare(db, ());
     let block2 = SimpleBlockData::mock(()).prepare(db, ());
-    let block3_hash = H256::random();
+    let last_committed_batch = Digest::random();
+
     let chain_commitment1 = ChainCommitment::mock(block1.hash).prepare(db, block2.hash);
-    let chain_commitment2 = ChainCommitment::mock(block2.hash).prepare(db, block3_hash);
+    let chain_commitment2 = ChainCommitment::mock(block2.hash).prepare(db, H256::random());
     db.set_block_commitment_queue(chain_head.hash, From::from([block2.hash, block1.hash]));
-    db.set_last_committed_block(chain_head.hash, block3_hash);
+    db.set_last_committed_batch(chain_head.hash, last_committed_batch);
 
     let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
     let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
@@ -242,7 +243,7 @@ pub fn prepared_mock_batch_commitment(
     BatchCommitment {
         block_hash: chain_head.hash,
         timestamp: chain_head.header.timestamp,
-        previous_committed_block_hash: block3_hash,
+        previous_batch: last_committed_batch,
         chain_commitment: utils::squash_chain_commitments(vec![
             chain_commitment2,
             chain_commitment1,

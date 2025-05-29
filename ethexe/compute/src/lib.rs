@@ -20,7 +20,7 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
-    gear::CodeCommitment,
+    gear::{CodeCommitment, GearBlock},
     SimpleBlockData,
 };
 use ethexe_db::Database;
@@ -231,15 +231,17 @@ impl ChainHeadProcessContext {
         let mut committed_blocks_in_current = BTreeSet::new();
         let mut validated_codes_in_current = BTreeSet::new();
         let mut requested_codes_in_current = Vec::new();
-        let mut last_committed_block = db
-            .last_committed_block(parent)
-            .ok_or_else(|| anyhow!("last committed block not found for computed block {block}"))?;
+        let mut last_committed_batch = db
+            .last_committed_batch(parent)
+            .ok_or_else(|| anyhow!("last committed batch not found for computed block {parent}"))?;
 
         for event in events {
             match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
+                    last_committed_batch = *digest;
+                }
+                BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock { hash, .. })) => {
                     committed_blocks_in_current.insert(*hash);
-                    last_committed_block = *hash;
                 }
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
                     validated_codes_in_current.insert(*code_id);
@@ -251,8 +253,7 @@ impl ChainHeadProcessContext {
             }
         }
 
-        // Set last committed block
-        db.set_last_committed_block(block, last_committed_block);
+        db.set_last_committed_batch(block, last_committed_batch);
 
         // Propagate `wait for commitment` blocks queue
         let mut blocks_queue = db
@@ -302,6 +303,8 @@ impl ChainHeadProcessContext {
 
 #[cfg(test)]
 mod tests {
+    use ethexe_common::Digest;
+
     use super::*;
 
     #[tokio::test]
@@ -321,6 +324,7 @@ mod tests {
         db.set_block_outcome(parent_block, Default::default());
         db.set_previous_not_empty_block(parent_block, H256::random());
         db.set_block_commitment_queue(parent_block, Default::default());
+        db.set_last_committed_batch(parent_block, Digest::random());
 
         // Simulate events for the current block
         let events = vec![

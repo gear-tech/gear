@@ -640,7 +640,7 @@ async fn incoming_transfers() {
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
         })
         .await
         .unwrap();
@@ -2201,7 +2201,7 @@ mod utils {
                     .run()
                     .instrument(tracing::info_span!("node", name))
                     .await
-                    .unwrap()
+                    .unwrap_or_else(|err| panic!("{name:?} failed: {err}"))
             });
             self.running_service_handle = Some(handle);
 

@@ -52,6 +52,16 @@ impl From<GearBlock> for Gear::GearBlock {
     }
 }
 
+impl From<Gear::GearBlock> for GearBlock {
+    fn from(value: Gear::GearBlock) -> Self {
+        Self {
+            hash: value.hash.0.into(),
+            gas_allowance: value.gasAllowance,
+            off_chain_transactions_hash: value.offchainTransactionsHash.0.into(),
+        }
+    }
+}
+
 impl From<CodeCommitment> for Gear::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
@@ -124,12 +134,20 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
     fn from(value: BatchCommitment) -> Self {
         Self {
             blockHash: value.block_hash.0.into(),
-            timestamp: u64_to_uint48_lossy(value.timestamp),
-            previousCommittedBlock: value.previous_committed_block_hash.0.into(),
+            blockTimestamp: u64_to_uint48_lossy(value.timestamp),
+            previousCommittedBatchHash: value.previous_batch.0.into(),
             chainCommitment: value.chain_commitment.into_iter().map(Into::into).collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
-            rewardsCommitment: value.rewards_commitment.into_iter().map(Into::into).collect(),
-            validatorsCommitment: value.validators_commitment.into_iter().map(Into::into).collect(),
+            rewardsCommitment: value
+                .rewards_commitment
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            validatorsCommitment: value
+                .validators_commitment
+                .into_iter()
+                .map(Into::into)
+                .collect(),
         }
     }
 }

@@ -28,7 +28,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeInfo, Schedule,
+    BlockHeader, CodeInfo, Digest, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -264,14 +264,13 @@ impl Database {
     }
 }
 
-#[cfg_attr(test, derive(serde::Serialize))]
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
     block_synced: bool,
     block_computed: bool,
     prev_not_empty_block: Option<H256>,
-    last_committed_block: Option<H256>,
+    last_committed_batch: Option<Digest>,
     commitment_queue: Option<VecDeque<H256>>,
     codes_queue: Option<VecDeque<CodeId>>,
 }
@@ -316,15 +315,13 @@ impl BlockMetaStorage for Database {
         });
     }
 
-    fn last_committed_block(&self, block_hash: H256) -> Option<H256> {
-        self.with_small_data(block_hash, |data| data.last_committed_block)?
+    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest> {
+        self.with_small_data(block_hash, |data| data.last_committed_batch)?
     }
 
-    fn set_last_committed_block(&self, block_hash: H256, last_committed_block_hash: H256) {
-        log::trace!("For block {block_hash} set last committed: {last_committed_block_hash}");
-        self.mutate_small_data(block_hash, |data| {
-            data.last_committed_block = Some(last_committed_block_hash)
-        });
+    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest) {
+        log::trace!("For block {block_hash} set last committed batch: {batch}");
+        self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
     fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {

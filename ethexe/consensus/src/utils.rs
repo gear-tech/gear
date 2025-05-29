@@ -267,7 +267,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorage>(
         return Ok(None);
     }
 
-    let last_committed = db.last_committed_block(block.hash).ok_or_else(|| {
+    let last_committed = db.last_committed_batch(block.hash).ok_or_else(|| {
         anyhow!(
             "Cannot get from db last committed block for block {}",
             block.hash
@@ -277,7 +277,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorage>(
     Ok(Some(BatchCommitment {
         block_hash: block.hash,
         timestamp: block.header.timestamp,
-        previous_committed_block_hash: last_committed,
+        previous_batch: last_committed,
         chain_commitment,
         code_commitments,
         validators_commitment: None,

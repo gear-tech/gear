@@ -18,7 +18,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, ToDigest};
+use crate::{Address, Digest, ToDigest};
 use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
@@ -51,7 +51,7 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GearBlock {
     pub hash: H256,
     pub off_chain_transactions_hash: H256,
@@ -196,7 +196,7 @@ pub struct BatchCommitment {
     /// This timestamp is used to identify validator set to verify commitment (current or previous era)
     pub timestamp: u64,
 
-    pub previous_committed_block_hash: H256,
+    pub previous_batch: Digest,
 
     pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
@@ -210,7 +210,7 @@ impl ToDigest for BatchCommitment {
         let Self {
             block_hash,
             timestamp,
-            previous_committed_block_hash,
+            previous_batch: previous_committed_block_hash,
             chain_commitment,
             code_commitments,
             validators_commitment,

@@ -219,7 +219,7 @@ impl Producer {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*, SignedValidationRequest};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{Digest, ToDigest};
     use std::vec;
 
     #[tokio::test]
@@ -331,7 +331,8 @@ mod tests {
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
-        ctx.db.set_last_committed_block(block.hash, H256::random());
+        ctx.db
+            .set_last_committed_batch(block.hash, Digest::random());
 
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
