@@ -230,10 +230,10 @@ impl<T: AuxiliaryDoubleStorageWrap> DoubleMapStorage for T {
         f: F,
     ) -> Option<R> {
         T::with_storage_mut(|map| {
-            if let Some(inner_map) = map.inner.get_mut(&key1) {
-                if let Some(value) = inner_map.get_mut(&key2) {
-                    return Some(f(value));
-                }
+            if let Some(inner_map) = map.inner.get_mut(&key1)
+                && let Some(value) = inner_map.get_mut(&key2)
+            {
+                return Some(f(value));
             }
 
             None

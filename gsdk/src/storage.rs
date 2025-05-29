@@ -459,12 +459,11 @@ impl Api {
 
         let mut fetched_keys = 0;
         while let Some(key) = keys.next().await {
-            if let Some(storage_data) = storage.fetch_raw(key?).await? {
-                if let Ok(value) =
+            if let Some(storage_data) = storage.fetch_raw(key?).await?
+                && let Ok(value) =
                     <(UserStoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
-                {
-                    mailbox.push(value);
-                }
+            {
+                mailbox.push(value);
             }
 
             fetched_keys += 1;

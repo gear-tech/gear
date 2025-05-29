@@ -580,10 +580,10 @@ where
             return Err(InternalError::consumed_with_lock().into());
         }
 
-        if let Some(system_reserve) = node.system_reserve() {
-            if !system_reserve.is_zero() {
-                return Err(InternalError::consumed_with_system_reservation().into());
-            }
+        if let Some(system_reserve) = node.system_reserve()
+            && !system_reserve.is_zero()
+        {
+            return Err(InternalError::consumed_with_system_reservation().into());
         }
 
         node.mark_consumed();
