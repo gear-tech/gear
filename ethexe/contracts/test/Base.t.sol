@@ -143,8 +143,8 @@ contract Base is POCBaseTest {
         assertEq(router.validators(), _validators);
         assertEq(router.signingThresholdPercentage(), 6666);
         assertTrue(router.areValidators(_validators));
-        assertEq(router.latestCommittedBlockHash(), bytes32(0));
-        assertEq(router.latestCommittedBlockTimestamp(), uint48(0));
+        assertEq(router.latestCommittedBatchHash(), bytes32(0));
+        assertEq(router.latestCommittedBatchTimestamp(), uint48(0));
 
         vm.startPrank(admin);
         {
@@ -219,8 +219,8 @@ contract Base is POCBaseTest {
 
         Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
             blockHash: _blockHash,
-            timestamp: _timestamp,
-            previousCommittedBlock: router.latestCommittedBlockHash(),
+            blockTimestamp: _timestamp,
+            previousCommittedBatchHash: router.latestCommittedBatchHash(),
             chainCommitment: _chainCommitments,
             codeCommitments: new Gear.CodeCommitment[](0),
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -236,8 +236,8 @@ contract Base is POCBaseTest {
 
         Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
             blockHash: blockHash(vm.getBlockNumber()),
-            timestamp: uint48(vm.getBlockTimestamp()),
-            previousCommittedBlock: router.latestCommittedBlockHash(),
+            blockTimestamp: uint48(vm.getBlockTimestamp()),
+            previousCommittedBatchHash: router.latestCommittedBatchHash(),
             chainCommitment: new Gear.ChainCommitment[](0),
             codeCommitments: _codeCommitments,
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -259,8 +259,8 @@ contract Base is POCBaseTest {
 
         Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
             blockHash: blockHash(vm.getBlockNumber()),
-            timestamp: uint48(vm.getBlockTimestamp()),
-            previousCommittedBlock: router.latestCommittedBlockHash(),
+            blockTimestamp: uint48(vm.getBlockTimestamp()),
+            previousCommittedBatchHash: router.latestCommittedBatchHash(),
             chainCommitment: new Gear.ChainCommitment[](0),
             codeCommitments: new Gear.CodeCommitment[](0),
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -297,8 +297,8 @@ contract Base is POCBaseTest {
 
         return Gear.batchCommitmentHash(
             _batch.blockHash,
-            _batch.timestamp,
-            _batch.previousCommittedBlock,
+            _batch.blockTimestamp,
+            _batch.previousCommittedBatchHash,
             _chainCommitmentHash,
             _codeCommitmentsHash,
             _rewardsCommitmentHash,

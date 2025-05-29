@@ -15,9 +15,8 @@ interface IRouter {
         /// @notice Genesis block information for this router.
         /// @dev This identifies the co-processor instance. To allow interactions with the router, after initialization, someone must call `lookupGenesisHash()`.
         Gear.GenesisBlockInfo genesisBlock;
-        /// @notice Information about the latest committed block.
-        /// @dev There is a guarantee that, for this block, validators have performed all necessary transitions.
-        Gear.CommittedBlockInfo latestCommittedBlock;
+        /// @notice Information about the latest committed batch.
+        Gear.CommittedBatchInfo latestCommittedBatch;
         /// @notice Details of the related contracts' implementation.
         Gear.AddressBook implAddresses;
         /// @notice Parameters for validation and signature verification.
@@ -34,10 +33,11 @@ interface IRouter {
         Gear.ProtocolData protocolData;
     }
 
+    // +_+_+ change comment
     /// @notice Emitted when all necessary state transitions have been applied and states have changed.
     /// @dev This is an *informational* event, signaling that the block outcome has been committed.
     /// @param hash The block hash that was "finalized" in relation to the necessary transitions.
-    event BlockCommitted(bytes32 hash);
+    event BatchCommitted(bytes32 hash);
 
     event GearBlockCommitted(Gear.GearBlock block);
 
@@ -76,7 +76,8 @@ interface IRouter {
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
     function genesisTimestamp() external view returns (uint48);
-    function latestCommittedBlockHash() external view returns (bytes32);
+    function latestCommittedBatchHash() external view returns (bytes32);
+    function latestCommittedBatchTimestamp() external view returns (uint48);
 
     function mirrorImpl() external view returns (address);
     function wrappedVara() external view returns (address);

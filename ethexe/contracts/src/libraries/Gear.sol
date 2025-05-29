@@ -74,12 +74,12 @@ library Gear {
     }
 
     struct BatchCommitment {
-        /// @dev Hash of ethereum block for which this batch is created.
+        /// @dev Hash of ethereum block for which the batch was created.
         bytes32 blockHash;
-        /// @dev Timestamp of ethereum block for which this batch is created.
-        uint48 timestamp;
-        /// @dev Hash of previous committed block.
-        bytes32 previousCommittedBlock;
+        /// @dev Timestamp of ethereum block for which this batch was created.
+        uint48 blockTimestamp;
+        /// @dev Hash of previously committed batch hash.
+        bytes32 previousCommittedBatchHash;
         /// @dev Chain commitment (contains one or zero commitments)
         ChainCommitment[] chainCommitment;
         /// @dev Code commitments
@@ -118,7 +118,7 @@ library Gear {
         Validated
     }
 
-    struct CommittedBlockInfo {
+    struct CommittedBatchInfo {
         bytes32 hash;
         uint48 timestamp;
     }

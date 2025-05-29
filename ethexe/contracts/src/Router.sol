@@ -120,12 +120,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().genesisBlock.timestamp;
     }
 
-    function latestCommittedBlockHash() public view returns (bytes32) {
-        return _router().latestCommittedBlock.hash;
+    function latestCommittedBatchHash() public view returns (bytes32) {
+        return _router().latestCommittedBatch.hash;
     }
 
-    function latestCommittedBlockTimestamp() public view returns (uint48) {
-        return _router().latestCommittedBlock.timestamp;
+    function latestCommittedBatchTimestamp() public view returns (uint48) {
+        return _router().latestCommittedBatch.timestamp;
     }
 
     function mirrorImpl() public view returns (address) {
@@ -295,40 +295,40 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         // to estimate gas excluding `Gear.blockIsPredecessor()`.
         if (router.reserved == 0) {
             require(Gear.blockIsPredecessor(_batch.blockHash), "allowed predecessor block wasn't found");
-            require(block.timestamp > _batch.timestamp, "batch timestamp must be in the past");
+            require(block.timestamp > _batch.blockTimestamp, "batch timestamp must be in the past");
         }
 
-        // Check that batch correctly references on previous committed block
+        // Check that batch correctly references to the previous committed batch.
         require(
-            router.latestCommittedBlock.hash == _batch.previousCommittedBlock, "invalid previous committed block hash"
+            router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash,
+            "invalid previous committed batch hash"
         );
         require(
-            router.latestCommittedBlock.timestamp < _batch.timestamp,
-            "batch timestamp must be greater than latest committed block timestamp"
+            router.latestCommittedBatch.timestamp <= _batch.blockTimestamp,
+            "batch timestamp must be greater or equal to latest committed batch timestamp"
         );
-        router.latestCommittedBlock = Gear.CommittedBlockInfo(_batch.blockHash, _batch.timestamp);
 
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
         bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
         bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
 
+        bytes32 _batchHash = Gear.batchCommitmentHash(
+            _batch.blockHash,
+            _batch.blockTimestamp,
+            _batch.previousCommittedBatchHash,
+            _chainCommitmentHash,
+            _codeCommitmentsHash,
+            _rewardsCommitmentHash,
+            _validatorsCommitmentHash
+        );
+
+        router.latestCommittedBatch = Gear.CommittedBatchInfo(_batchHash, _batch.blockTimestamp);
+        emit BatchCommitted(_batchHash);
+
         require(
             Gear.validateSignaturesAt(
-                router,
-                TRANSIENT_STORAGE,
-                Gear.batchCommitmentHash(
-                    _batch.blockHash,
-                    _batch.timestamp,
-                    _batch.previousCommittedBlock,
-                    _chainCommitmentHash,
-                    _codeCommitmentsHash,
-                    _rewardsCommitmentHash,
-                    _validatorsCommitmentHash
-                ),
-                _signatureType,
-                _signatures,
-                _batch.timestamp
+                router, TRANSIENT_STORAGE, _batchHash, _signatureType, _signatures, _batch.blockTimestamp
             ),
             "signatures verification failed"
         );
@@ -422,7 +422,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // TODO +_+_+: check is for the previous eras
         require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
-        require(_commitment.timestamp < _batch.timestamp, "rewards commitment timestamp must be for the past");
+        require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
 
         address _middleware = router.implAddresses.middleware;
         IERC20(router.implAddresses.wrappedVara).approve(

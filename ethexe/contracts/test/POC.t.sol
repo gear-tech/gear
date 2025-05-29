@@ -83,19 +83,16 @@ contract POCTest is Base {
 
         address _ping = deployPing(_privateKeys, _codeId);
         IMirror actor = IMirror(_ping);
-        assertEq(router.latestCommittedBlockHash(), blockHash(vm.getBlockNumber() - 1));
         assertEq(actor.stateHash(), bytes32(uint256(1)));
         assertEq(actor.nonce(), uint256(1));
 
         doPingPong(_privateKeys, _ping);
-        assertEq(router.latestCommittedBlockHash(), blockHash(vm.getBlockNumber() - 1));
         assertEq(actor.stateHash(), bytes32(uint256(2)));
         assertEq(actor.nonce(), uint256(2));
 
         // Check that going to next era without re-election is ok and old validators are still valid.
         rollBlocks(eraDuration / blockDuration);
         doPingPong(_privateKeys, _ping);
-        assertEq(router.latestCommittedBlockHash(), blockHash(vm.getBlockNumber() - 1));
         assertEq(actor.stateHash(), bytes32(uint256(2)));
         assertEq(actor.nonce(), uint256(3));
 
@@ -133,7 +130,6 @@ contract POCTest is Base {
         // Go to a new era and commit from new validators
         rollBlocks(electionDuration / blockDuration);
         doPingPong(_privateKeys, _ping);
-        assertEq(router.latestCommittedBlockHash(), blockHash(vm.getBlockNumber() - 1));
         assertEq(actor.stateHash(), bytes32(uint256(2)));
         assertEq(actor.nonce(), uint256(4));
     }
