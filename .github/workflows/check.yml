@@ -64,7 +64,7 @@ jobs:
           apps: >-
             binaryen
             protobuf
-            openssl
+            openssl-light
           buckets: extras
 
       - name: "Install: macOS packages environment"
