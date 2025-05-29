@@ -18,11 +18,9 @@
 
 use crate::{
     db_sync::{
-        Config, Event, ExternalDataProvider, HashesRequest, HashesResponseError, InnerBehaviour,
-        InnerHashesProcessed, InnerHashesResponse, InnerProgramIdsResponse, InnerResponse,
-        InnerValidCodesResponse, NewRequestRoundReason, PeerId, ProgramIdsRequest,
-        ProgramIdsResponseError, Request, RequestFailure, RequestId, Response, ResponseError,
-        ValidCodesRequest, ValidCodesResponseError,
+        Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour, InnerHashesResponse,
+        InnerProgramIdsResponse, InnerResponse, InnerValidCodesResponse, NewRequestRoundReason,
+        PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
@@ -30,7 +28,7 @@ use crate::{
 use anyhow::Context as _;
 use ethexe_common::gear::CodeState;
 use futures::{future::BoxFuture, FutureExt};
-use gprimitives::{ActorId, CodeId};
+use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
 use libp2p::{
     request_response::OutboundRequestId,
@@ -283,6 +281,60 @@ impl Drop for OngoingRequests {
 }
 
 #[derive(Debug)]
+enum HashesResponseHandled {
+    Done {
+        response: BTreeMap<H256, Vec<u8>>,
+        stripped: bool,
+    },
+    NewRequest {
+        acc: InnerHashesResponse,
+        new_request: HashesRequest,
+        stripped: bool,
+    },
+    Err {
+        acc: InnerHashesResponse,
+        err: HashesResponseError,
+        stripped: bool,
+    },
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum HashesResponseError {
+    #[display("hash mismatch from provided data")]
+    HashMismatch,
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum ProgramIdsResponseError {
+    #[display("not enough program-code ids")]
+    NotEnoughIds,
+    #[display("router failed: {_0}")]
+    RouterQuery(anyhow::Error),
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum ValidCodesResponseError {
+    #[display("not enough validated codes")]
+    NotEnoughCodes,
+    #[display("{_0}")]
+    RouterQuery(anyhow::Error),
+}
+
+#[derive(Debug, derive_more::Display, derive_more::From)]
+enum ResponseError {
+    #[display("{_0}")]
+    Hashes(HashesResponseError),
+    #[display("{_0}")]
+    ProgramIds(ProgramIdsResponseError),
+    #[display("{_0}")]
+    ValidCodes(ValidCodesResponseError),
+    #[display("request and response types mismatch")]
+    TypeMismatch,
+    #[display("new round required")]
+    NewRound,
+}
+
+#[derive(Debug)]
 enum ResponseHandler {
     Hashes {
         acc: InnerHashesResponse,
@@ -325,7 +377,7 @@ impl ResponseHandler {
         original_request: &HashesRequest,
         reduced_request: &HashesRequest,
         new_response: InnerHashesResponse,
-    ) -> InnerHashesProcessed {
+    ) -> HashesResponseHandled {
         let mut new_request = BTreeSet::new();
         let mut stripped = false;
 
@@ -340,7 +392,7 @@ impl ResponseHandler {
                 EitherOrBoth::Both(req_key, (resp_key, resp_val)) => {
                     debug_assert_eq!(req_key, resp_key);
                     if req_key != ethexe_db::hash(&resp_val) {
-                        return InnerHashesProcessed::Err {
+                        return HashesResponseHandled::Err {
                             acc,
                             err: HashesResponseError::HashMismatch,
                             stripped,
@@ -361,12 +413,12 @@ impl ResponseHandler {
         }
 
         if new_request.is_empty() {
-            InnerHashesProcessed::Done {
+            HashesResponseHandled::Done {
                 response: acc.0,
                 stripped,
             }
         } else {
-            InnerHashesProcessed::NewRequest {
+            HashesResponseHandled::NewRequest {
                 acc,
                 new_request: HashesRequest(new_request),
                 stripped,
@@ -451,11 +503,11 @@ impl ResponseHandler {
                     Self::handle_hashes(acc, &original_request, &reduced_request, response);
                 let s;
                 let res = match processed {
-                    InnerHashesProcessed::Done { response, stripped } => {
+                    HashesResponseHandled::Done { response, stripped } => {
                         s = stripped;
                         Ok(Response::Hashes(response))
                     }
-                    InnerHashesProcessed::NewRequest {
+                    HashesResponseHandled::NewRequest {
                         acc,
                         new_request,
                         stripped,
@@ -470,7 +522,7 @@ impl ResponseHandler {
                             ResponseError::NewRound,
                         ))
                     }
-                    InnerHashesProcessed::Err { acc, err, stripped } => {
+                    HashesResponseHandled::Err { acc, err, stripped } => {
                         s = stripped;
                         Err((
                             Self::Hashes {
@@ -718,7 +770,7 @@ mod tests {
         );
         let processed =
             ResponseHandler::handle_hashes(Default::default(), &request, &request, response);
-        let InnerHashesProcessed::Done { response, stripped } = processed else {
+        let HashesResponseHandled::Done { response, stripped } = processed else {
             unreachable!("{processed:?}")
         };
         assert_eq!(
@@ -736,7 +788,7 @@ mod tests {
         let response = InnerHashesResponse([(hash1, b"2".to_vec())].into());
         let processed =
             ResponseHandler::handle_hashes(Default::default(), &request, &request, response);
-        let InnerHashesProcessed::Err { acc, err, stripped } = processed else {
+        let HashesResponseHandled::Err { acc, err, stripped } = processed else {
             unreachable!("{processed:?}")
         };
         assert_eq!(acc, Default::default());

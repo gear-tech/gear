@@ -167,24 +167,10 @@ pub struct RequestId(pub(crate) u64);
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct ResponseId(pub(crate) u64);
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
-pub enum HashesResponseError {
-    #[display("hash mismatch from provided data")]
-    HashMismatch,
-}
-
 #[derive(derive_more::Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
 pub struct HashesRequest(
     #[debug("{:?}", AlternateCollectionFmt::set(_0, "hashes"))] pub BTreeSet<H256>,
 );
-
-#[derive(Debug, derive_more::Display)]
-pub enum ProgramIdsResponseError {
-    #[display("not enough program-code ids")]
-    NotEnoughIds,
-    #[display("router failed: {_0}")]
-    RouterQuery(anyhow::Error),
-}
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct ProgramIdsRequest {
@@ -192,32 +178,10 @@ pub struct ProgramIdsRequest {
     pub expected_count: u64,
 }
 
-#[derive(Debug, derive_more::Display)]
-pub enum ValidCodesResponseError {
-    #[display("not enough validated codes")]
-    NotEnoughCodes,
-    #[display("{_0}")]
-    RouterQuery(anyhow::Error),
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct ValidCodesRequest {
     pub at: H256,
     pub validated_count: u64,
-}
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum ResponseError {
-    #[display("{_0}")]
-    Hashes(HashesResponseError),
-    #[display("{_0}")]
-    ProgramIds(ProgramIdsResponseError),
-    #[display("{_0}")]
-    ValidCodes(ValidCodesResponseError),
-    #[display("request and response types mismatch")]
-    TypeMismatch,
-    #[display("new round required")]
-    NewRound,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
@@ -251,24 +215,6 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
-}
-
-#[derive(Debug)]
-enum InnerHashesProcessed {
-    Done {
-        response: BTreeMap<H256, Vec<u8>>,
-        stripped: bool,
-    },
-    NewRequest {
-        acc: InnerHashesResponse,
-        new_request: HashesRequest,
-        stripped: bool,
-    },
-    Err {
-        acc: InnerHashesResponse,
-        err: HashesResponseError,
-        stripped: bool,
-    },
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
