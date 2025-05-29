@@ -44,10 +44,6 @@ pub(crate) enum TestableNetworkEvent {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, db_sync::RequestFailure>,
     },
-    DbExternalValidation {
-        request_id: db_sync::RequestId,
-        response: db_sync::Response,
-    },
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,

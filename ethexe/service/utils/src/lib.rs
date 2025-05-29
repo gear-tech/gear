@@ -23,6 +23,7 @@ use std::future::Future;
 
 pub use timer::Timer;
 
+pub mod task_local;
 mod timer;
 
 mod private {

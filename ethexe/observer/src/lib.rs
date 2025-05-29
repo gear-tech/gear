@@ -25,7 +25,9 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{db::OnChainStorage, Address, BlockHeader, CodeInfo, SimpleBlockData};
+use ethexe_common::{
+    db::OnChainStorage, Address, BlockData, BlockHeader, CodeInfo, SimpleBlockData,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{
@@ -334,14 +336,18 @@ impl ObserverService {
         self.config.block_time.as_secs()
     }
 
-    pub async fn force_sync_block(&mut self, block: H256) -> Result<()> {
-        let block = self
-            .provider
-            .get_block_by_hash(block.0.into())
-            .await?
-            .context("forced block not found")?;
-        self.block_sync_queue.push_back(block.header);
-        Ok(())
+    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
+        load_block_data(
+            self.provider.clone(),
+            block,
+            self.config.router_address,
+            self.config.wvara_address,
+            None,
+        )
+    }
+
+    pub fn router_query(&self) -> RouterQuery {
+        RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
     }
 
     fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
