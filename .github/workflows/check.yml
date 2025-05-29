@@ -46,6 +46,11 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
+      - name: "Install: Target"
+        run: |
+          rustup target add ${{ matrix.arch.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.arch.target }}" >> $GITHUB_ENV
+
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked --target ${{ matrix.hosts.target }}
 
