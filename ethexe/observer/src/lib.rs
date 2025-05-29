@@ -176,32 +176,32 @@ impl Stream for ObserverService {
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        if self.sync_future.is_none() {
-            if let Some(header) = self.block_sync_queue.pop_front() {
-                let sync = ChainSync {
-                    provider: self.provider.clone(),
-                    db: self.db.clone(),
-                    blobs_reader: self.blobs_reader.clone(),
-                    config: self.config.clone(),
-                };
-                self.sync_future = Some(Box::pin(sync.sync(header)));
-            }
+        if self.sync_future.is_none()
+            && let Some(header) = self.block_sync_queue.pop_front()
+        {
+            let sync = ChainSync {
+                provider: self.provider.clone(),
+                db: self.db.clone(),
+                blobs_reader: self.blobs_reader.clone(),
+                config: self.config.clone(),
+            };
+            self.sync_future = Some(Box::pin(sync.sync(header)));
         }
 
-        if let Some(fut) = self.sync_future.as_mut() {
-            if let Poll::Ready(res) = fut.poll_unpin(cx) {
-                self.sync_future = None;
+        if let Some(fut) = self.sync_future.as_mut()
+            && let Poll::Ready(res) = fut.poll_unpin(cx)
+        {
+            self.sync_future = None;
 
-                let res = res.map(|(hash, codes)| {
-                    for (code_id, code_info) in codes {
-                        self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
-                    }
+            let res = res.map(|(hash, codes)| {
+                for (code_id, code_info) in codes {
+                    self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
+                }
 
-                    ObserverEvent::BlockSynced(hash)
-                });
+                ObserverEvent::BlockSynced(hash)
+            });
 
-                return Poll::Ready(Some(res));
-            }
+            return Poll::Ready(Some(res));
         }
 
         if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {

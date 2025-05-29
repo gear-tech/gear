@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -e
+set -ex
 
 SELF="$0"
 ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"

@@ -16143,12 +16143,12 @@ pub(crate) mod utils {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some(details) = message.details() {
-                    let (mid, code) = details.into_parts();
-                    if mid == message_id && code.is_error() {
-                        actual_error = Some((message.payload_bytes().to_vec(), code));
-                    }
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event
+                && let Some(details) = message.details()
+            {
+                let (mid, code) = details.into_parts();
+                if mid == message_id && code.is_error() {
+                    actual_error = Some((message.payload_bytes().to_vec(), code));
                 }
             }
         });
