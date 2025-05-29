@@ -19,6 +19,7 @@
 mod requests;
 mod responses;
 
+use crate::utils::AlternateCollectionFmt;
 pub(crate) use crate::{
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
@@ -27,15 +28,10 @@ pub(crate) use crate::{
 };
 
 use crate::db_sync::requests::OngoingRequests;
-use anyhow::Context as _;
 use async_trait::async_trait;
-use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage},
-    gear::CodeState,
-};
+use ethexe_common::gear::CodeState;
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
-use itertools::EitherOrBoth;
 use libp2p::{
     core::{transport::PortUse, Endpoint},
     request_response,
@@ -49,463 +45,12 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt, iter,
     task::{Context, Poll},
     time::Duration,
 };
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
-pub struct RequestId(u64);
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
-pub struct ResponseId(u64);
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
-enum HashesResponseError {
-    #[display("hash mismatch from provided data")]
-    HashMismatch,
-}
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
-pub struct HashesRequest(pub BTreeSet<H256>);
-
-impl fmt::Debug for HashesRequest {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            f.debug_tuple("HashesRequest").field(&self.0).finish()
-        } else {
-            f.debug_tuple("HashesRequest")
-                .field(&format_args!("{} keys", self.0.len()))
-                .finish()
-        }
-    }
-}
-
-impl HashesRequest {
-    fn handle(self, db: &Database) -> InnerHashesResponse {
-        InnerHashesResponse(
-            self.0
-                .into_iter()
-                .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                .collect(),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum HashesProcessed {
-    Done {
-        response: BTreeMap<H256, Vec<u8>>,
-        stripped: bool,
-    },
-    NewRequest {
-        acc: InnerHashesResponse,
-        new_request: HashesRequest,
-        stripped: bool,
-    },
-    Err {
-        acc: InnerHashesResponse,
-        err: HashesResponseError,
-        stripped: bool,
-    },
-}
-
-#[derive(Default, Clone, Eq, PartialEq, Encode, Decode)]
-struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
-
-impl fmt::Debug for InnerHashesResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let alternate = f.alternate();
-        let mut d = f.debug_tuple("HashesResponse");
-        if alternate {
-            d.field(&self.0);
-        } else {
-            d.field(&format_args!("{} keys", self.0.len()));
-        }
-        d.finish()
-    }
-}
-
-impl InnerHashesResponse {
-    fn process(
-        mut self,
-        original_request: &HashesRequest,
-        reduced_request: &HashesRequest,
-        new_response: Self,
-    ) -> HashesProcessed {
-        let mut new_request = BTreeSet::new();
-        let mut stripped = false;
-
-        let diff = itertools::merge_join_by(
-            reduced_request.0.iter().copied(),
-            new_response.0,
-            |req_key, (resp_key, _resp_val)| req_key.cmp(resp_key),
-        );
-
-        for either in diff {
-            match either {
-                EitherOrBoth::Both(req_key, (resp_key, resp_val)) => {
-                    debug_assert_eq!(req_key, resp_key);
-                    if req_key != ethexe_db::hash(&resp_val) {
-                        return HashesProcessed::Err {
-                            acc: self,
-                            err: HashesResponseError::HashMismatch,
-                            stripped,
-                        };
-                    }
-
-                    self.0.insert(resp_key, resp_val);
-                }
-                EitherOrBoth::Left(key) => {
-                    // peer was unable to give this key
-                    new_request.insert(key);
-                }
-                EitherOrBoth::Right((key, _value)) => {
-                    // peer sent more keys than we requested
-                    stripped = !original_request.0.contains(&key);
-                }
-            }
-        }
-
-        if new_request.is_empty() {
-            HashesProcessed::Done {
-                response: self.0,
-                stripped,
-            }
-        } else {
-            HashesProcessed::NewRequest {
-                acc: self,
-                new_request: HashesRequest(new_request),
-                stripped,
-            }
-        }
-    }
-}
-
-#[derive(Debug, derive_more::Display)]
-enum ProgramIdsResponseError {
-    #[display("not enough program-code ids")]
-    NotEnoughIds,
-    #[display("router failed: {_0}")]
-    RouterQuery(anyhow::Error),
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-pub struct ProgramIdsRequest {
-    at: H256,
-    expected_count: u64,
-}
-
-impl ProgramIdsRequest {
-    fn handle(self, db: &Database) -> InnerProgramIdsResponse {
-        InnerProgramIdsResponse(
-            db.block_program_states(self.at)
-                .map(|states| states.into_keys().collect())
-                .unwrap_or_default(), // FIXME: Option might be more suitable
-        )
-    }
-}
-
-#[derive(Default, Clone, Eq, PartialEq, Encode, Decode)]
-struct InnerProgramIdsResponse(BTreeSet<ActorId>);
-
-impl fmt::Debug for InnerProgramIdsResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let alternate = f.alternate();
-        let mut d = f.debug_tuple("ProgramIdsResponse");
-        if alternate {
-            d.field(&self.0);
-        } else {
-            d.field(&format_args!("{:?} programs", self.0.len()));
-        }
-        d.finish()
-    }
-}
-
-impl InnerProgramIdsResponse {
-    async fn try_complete(
-        self,
-        request: &ProgramIdsRequest,
-        external_data_provider: Box<dyn ExternalDataProvider>,
-    ) -> Result<BTreeMap<ActorId, CodeId>, ProgramIdsResponseError> {
-        if self.0.len() as u64 != request.expected_count {
-            return Err(ProgramIdsResponseError::NotEnoughIds);
-        }
-
-        let code_ids = external_data_provider
-            .programs_code_ids_at(self.0.clone(), request.at)
-            .await
-            .context("failed to get code ids at block")
-            .map_err(ProgramIdsResponseError::RouterQuery)?;
-
-        let program_code_ids = iter::zip(self.0, code_ids).collect();
-        Ok(program_code_ids)
-    }
-}
-
-#[derive(Debug, derive_more::Display)]
-enum ValidCodesResponseError {
-    #[display("not enough validated codes")]
-    NotEnoughCodes,
-    #[display("{_0}")]
-    RouterQuery(anyhow::Error),
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-pub struct ValidCodesRequest {
-    at: H256,
-    validated_count: u64,
-}
-
-impl ValidCodesRequest {
-    fn handle(self, db: &Database) -> InnerValidCodesResponse {
-        InnerValidCodesResponse(db.valid_codes())
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-struct InnerValidCodesResponse(BTreeSet<CodeId>);
-
-impl fmt::Debug for InnerValidCodesResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let alternate = f.alternate();
-        let mut d = f.debug_tuple("ValidCodeResponse");
-        if alternate {
-            d.field(&self.0);
-        } else {
-            d.field(&format_args!("{:?} codes", self.0.len()));
-        }
-        d.finish()
-    }
-}
-
-impl InnerValidCodesResponse {
-    async fn try_complete(
-        self,
-        request: &ValidCodesRequest,
-        external_data_provider: Box<dyn ExternalDataProvider>,
-    ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
-        // validated count at specified block can be less than
-        // the number of states at the latest block returned by peer
-        // but cannot be more
-        if (self.0.len() as u64) < request.validated_count {
-            return Err(ValidCodesResponseError::NotEnoughCodes);
-        }
-
-        let states = external_data_provider
-            .codes_states_at(self.0.clone(), request.at)
-            .await
-            .context("failed to get code states at block")
-            .map_err(ValidCodesResponseError::RouterQuery)?;
-
-        let code_ids: BTreeSet<CodeId> = iter::zip(self.0, states)
-            .flat_map(|(code_id, state)| {
-                if state == CodeState::Validated {
-                    Some(code_id)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if request.validated_count != code_ids.len() as u64 {
-            return Err(ValidCodesResponseError::NotEnoughCodes);
-        }
-
-        Ok(code_ids)
-    }
-}
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-enum ResponseError {
-    #[display("{_0}")]
-    Hashes(HashesResponseError),
-    #[display("{_0}")]
-    ProgramIds(ProgramIdsResponseError),
-    #[display("{_0}")]
-    ValidCodes(ValidCodesResponseError),
-    #[display("request and response types mismatch")]
-    TypeMismatch,
-    #[display("new round required")]
-    NewRound,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
-pub enum Request {
-    Hashes(HashesRequest),
-    ProgramIds(ProgramIdsRequest),
-    ValidCodes(ValidCodesRequest),
-}
-
-impl Request {
-    pub fn hashes(request: impl Into<BTreeSet<H256>>) -> Self {
-        Self::Hashes(HashesRequest(request.into()))
-    }
-
-    pub fn program_ids(at: H256, expected_count: u64) -> Self {
-        Self::ProgramIds(ProgramIdsRequest { at, expected_count })
-    }
-
-    pub fn valid_codes(at: H256, validated_count: u64) -> Self {
-        Self::ValidCodes(ValidCodesRequest {
-            at,
-            validated_count,
-        })
-    }
-
-    fn handle(self, db: &Database) -> InnerResponse {
-        match self {
-            Request::Hashes(request) => request.handle(db).into(),
-            Request::ProgramIds(request) => request.handle(db).into(),
-            Request::ValidCodes(request) => request.handle(db).into(),
-        }
-    }
-}
-
-/// Network-only type to be encoded-decoded and sent over the network
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
-pub enum InnerResponse {
-    Hashes(InnerHashesResponse),
-    ProgramIds(InnerProgramIdsResponse),
-    ValidCodes(InnerValidCodesResponse),
-}
-
-#[derive(Debug)]
-enum InnerResponseProcessor {
-    Hashes {
-        acc: InnerHashesResponse,
-        original_request: HashesRequest,
-        reduced_request: HashesRequest,
-    },
-    ProgramIds {
-        request: ProgramIdsRequest,
-    },
-    ValidCodes {
-        request: ValidCodesRequest,
-    },
-}
-
-impl InnerResponseProcessor {
-    fn new(request: Request) -> Self {
-        match request {
-            Request::Hashes(request) => Self::Hashes {
-                acc: Default::default(),
-                original_request: request.clone(),
-                reduced_request: request,
-            },
-            Request::ProgramIds(request) => Self::ProgramIds { request },
-            Request::ValidCodes(request) => Self::ValidCodes { request },
-        }
-    }
-
-    fn request(&self) -> Request {
-        match self {
-            InnerResponseProcessor::Hashes {
-                reduced_request, ..
-            } => reduced_request.clone().into(),
-            InnerResponseProcessor::ProgramIds { request } => request.clone().into(),
-            InnerResponseProcessor::ValidCodes { request } => request.clone().into(),
-        }
-    }
-
-    async fn process(
-        self,
-        peer: PeerId,
-        response: InnerResponse,
-        peer_score_handle: &peer_score::Handle,
-        external_data_provider: Box<dyn ExternalDataProvider>,
-    ) -> Result<Response, (Self, ResponseError)> {
-        match (self, response) {
-            (
-                Self::Hashes {
-                    acc,
-                    original_request,
-                    reduced_request,
-                },
-                InnerResponse::Hashes(response),
-            ) => {
-                let processed = acc.process(&original_request, &reduced_request, response);
-                let s;
-                let res = match processed {
-                    HashesProcessed::Done { response, stripped } => {
-                        s = stripped;
-                        Ok(Response::Hashes(response))
-                    }
-                    HashesProcessed::NewRequest {
-                        acc,
-                        new_request,
-                        stripped,
-                    } => {
-                        s = stripped;
-                        Err((
-                            Self::Hashes {
-                                acc,
-                                original_request,
-                                reduced_request: new_request,
-                            },
-                            ResponseError::NewRound,
-                        ))
-                    }
-                    HashesProcessed::Err { acc, err, stripped } => {
-                        s = stripped;
-                        Err((
-                            Self::Hashes {
-                                acc,
-                                original_request,
-                                reduced_request,
-                            },
-                            err.into(),
-                        ))
-                    }
-                };
-
-                if s {
-                    log::debug!("data stripped in response from {peer}");
-                    peer_score_handle.excessive_data(peer);
-                }
-
-                res
-            }
-            (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => response
-                .try_complete(&request, external_data_provider)
-                .await
-                .map(Into::into)
-                .map_err(|err| (Self::ProgramIds { request }, err.into())),
-            (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => response
-                .try_complete(&request, external_data_provider)
-                .await
-                .map(Into::into)
-                .map_err(|err| (Self::ValidCodes { request }, err.into())),
-            (this, _) => Err((this, ResponseError::TypeMismatch)),
-        }
-    }
-}
-
-#[async_trait]
-pub trait ExternalDataProvider: Send + Sync {
-    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
-
-    async fn programs_code_ids_at(
-        self: Box<Self>,
-        program_ids: BTreeSet<ActorId>,
-        block: H256,
-    ) -> anyhow::Result<Vec<CodeId>>;
-
-    async fn codes_states_at(
-        self: Box<Self>,
-        code_ids: BTreeSet<CodeId>,
-        block: H256,
-    ) -> anyhow::Result<Vec<CodeState>>;
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
-pub enum Response {
-    Hashes(BTreeMap<H256, Vec<u8>>),
-    ProgramIds(BTreeMap<ActorId, CodeId>),
-    ValidCodes(BTreeSet<CodeId>),
-}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
@@ -580,9 +125,9 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    max_rounds_per_request: u32,
-    request_timeout: Duration,
-    max_simultaneous_responses: u32,
+    pub max_rounds_per_request: u32,
+    pub request_timeout: Duration,
+    pub max_simultaneous_responses: u32,
 }
 
 impl Default for Config {
@@ -614,6 +159,150 @@ impl Config {
         self.max_simultaneous_responses = max_simultaneous_responses;
         self
     }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
+pub struct RequestId(pub(crate) u64);
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
+pub struct ResponseId(pub(crate) u64);
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
+pub enum HashesResponseError {
+    #[display("hash mismatch from provided data")]
+    HashMismatch,
+}
+
+#[derive(derive_more::Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub struct HashesRequest(
+    #[debug("{:?}", AlternateCollectionFmt::set(_0, "hashes"))] pub BTreeSet<H256>,
+);
+
+#[derive(Debug, derive_more::Display)]
+pub enum ProgramIdsResponseError {
+    #[display("not enough program-code ids")]
+    NotEnoughIds,
+    #[display("router failed: {_0}")]
+    RouterQuery(anyhow::Error),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct ProgramIdsRequest {
+    pub at: H256,
+    pub expected_count: u64,
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum ValidCodesResponseError {
+    #[display("not enough validated codes")]
+    NotEnoughCodes,
+    #[display("{_0}")]
+    RouterQuery(anyhow::Error),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct ValidCodesRequest {
+    pub at: H256,
+    pub validated_count: u64,
+}
+
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum ResponseError {
+    #[display("{_0}")]
+    Hashes(HashesResponseError),
+    #[display("{_0}")]
+    ProgramIds(ProgramIdsResponseError),
+    #[display("{_0}")]
+    ValidCodes(ValidCodesResponseError),
+    #[display("request and response types mismatch")]
+    TypeMismatch,
+    #[display("new round required")]
+    NewRound,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub enum Request {
+    Hashes(HashesRequest),
+    ProgramIds(ProgramIdsRequest),
+    ValidCodes(ValidCodesRequest),
+}
+
+impl Request {
+    pub fn hashes(request: impl Into<BTreeSet<H256>>) -> Self {
+        Self::Hashes(HashesRequest(request.into()))
+    }
+
+    pub fn program_ids(at: H256, expected_count: u64) -> Self {
+        Self::ProgramIds(ProgramIdsRequest { at, expected_count })
+    }
+
+    pub fn valid_codes(at: H256, validated_count: u64) -> Self {
+        Self::ValidCodes(ValidCodesRequest {
+            at,
+            validated_count,
+        })
+    }
+}
+
+#[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
+pub enum Response {
+    Hashes(#[debug("{:?}", AlternateCollectionFmt::map(_0, "entries"))] BTreeMap<H256, Vec<u8>>),
+    ProgramIds(
+        #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
+    ),
+    ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+}
+
+#[derive(Debug)]
+enum InnerHashesProcessed {
+    Done {
+        response: BTreeMap<H256, Vec<u8>>,
+        stripped: bool,
+    },
+    NewRequest {
+        acc: InnerHashesResponse,
+        new_request: HashesRequest,
+        stripped: bool,
+    },
+    Err {
+        acc: InnerHashesResponse,
+        err: HashesResponseError,
+        stripped: bool,
+    },
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+pub struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
+
+#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+pub struct InnerProgramIdsResponse(BTreeSet<ActorId>);
+
+#[derive(Debug, Eq, PartialEq, Encode, Decode)]
+pub struct InnerValidCodesResponse(BTreeSet<CodeId>);
+
+/// Network-only type to be encoded-decoded and sent over the network
+#[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
+pub enum InnerResponse {
+    Hashes(InnerHashesResponse),
+    ProgramIds(InnerProgramIdsResponse),
+    ValidCodes(InnerValidCodesResponse),
+}
+
+#[async_trait]
+pub trait ExternalDataProvider: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
+
+    async fn programs_code_ids_at(
+        self: Box<Self>,
+        program_ids: BTreeSet<ActorId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeId>>;
+
+    async fn codes_states_at(
+        self: Box<Self>,
+        code_ids: BTreeSet<CodeId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeState>>;
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, InnerResponse>>;
@@ -673,7 +362,7 @@ impl Behaviour {
             } => {
                 let response_id = self
                     .ongoing_responses
-                    .prepare_response(peer, channel, request);
+                    .handle_response(peer, channel, request);
 
                 let event = if let Some(response_id) = response_id {
                     Event::IncomingRequest {
@@ -844,6 +533,7 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use assert_matches::assert_matches;
+    use ethexe_common::db::BlockMetaStorage;
     use ethexe_db::MemDb;
     use libp2p::{
         core::{transport::MemoryTransport, upgrade::Version},
@@ -917,47 +607,6 @@ mod tests {
 
     async fn new_swarm() -> (Swarm<Behaviour>, Database) {
         new_swarm_with_config(Config::default()).await
-    }
-
-    #[test]
-    fn validate_data_stripped() {
-        let hash1 = ethexe_db::hash(b"1");
-        let hash2 = ethexe_db::hash(b"2");
-        let hash3 = ethexe_db::hash(b"3");
-
-        let request = HashesRequest([hash1, hash2].into());
-        let response = InnerHashesResponse(
-            [
-                (hash1, b"1".to_vec()),
-                (hash2, b"2".to_vec()),
-                (hash3, b"3".to_vec()),
-            ]
-            .into(),
-        );
-        let processed = InnerHashesResponse::default().process(&request, &request, response);
-        let HashesProcessed::Done { response, stripped } = processed else {
-            unreachable!("{processed:?}")
-        };
-        assert_eq!(
-            response,
-            BTreeMap::from_iter([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())])
-        );
-        assert!(stripped);
-    }
-
-    #[test]
-    fn validate_data_hash_mismatch() {
-        let hash1 = ethexe_db::hash(b"1");
-
-        let request = HashesRequest([hash1].into());
-        let response = InnerHashesResponse([(hash1, b"2".to_vec())].into());
-        let processed = InnerHashesResponse::default().process(&request, &request, response);
-        let HashesProcessed::Err { acc, err, stripped } = processed else {
-            unreachable!("{processed:?}")
-        };
-        assert_eq!(acc, Default::default());
-        assert_eq!(err, HashesResponseError::HashMismatch);
-        assert!(!stripped);
     }
 
     #[tokio::test]

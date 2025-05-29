@@ -17,9 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    db_sync::{Config, InnerBehaviour, InnerResponse, Request, ResponseId},
+    db_sync::{
+        Config, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse, InnerResponse,
+        InnerValidCodesResponse, Request, ResponseId,
+    },
     export::PeerId,
 };
+use ethexe_common::db::{BlockMetaStorage, CodesStorage};
 use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};
@@ -55,7 +59,27 @@ impl OngoingResponses {
         ResponseId(id)
     }
 
-    pub(crate) fn prepare_response(
+    fn response_from_db(request: Request, db: &Database) -> InnerResponse {
+        match request {
+            Request::Hashes(request) => InnerHashesResponse(
+                request
+                    .0
+                    .into_iter()
+                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
+                    .collect(),
+            )
+            .into(),
+            Request::ProgramIds(request) => InnerProgramIdsResponse(
+                db.block_program_states(request.at)
+                    .map(|states| states.into_keys().collect())
+                    .unwrap_or_default(), // FIXME: Option might be more suitable
+            )
+            .into(),
+            Request::ValidCodes(_request) => InnerValidCodesResponse(db.valid_codes()).into(),
+        }
+    }
+
+    pub(crate) fn handle_response(
         &mut self,
         peer_id: PeerId,
         channel: request_response::ResponseChannel<InnerResponse>,
@@ -69,7 +93,7 @@ impl OngoingResponses {
 
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
-            let response = request.handle(&db);
+            let response = Self::response_from_db(request, &db);
             OngoingResponse {
                 response_id,
                 peer_id,

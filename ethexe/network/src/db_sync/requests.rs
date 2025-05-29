@@ -18,13 +18,20 @@
 
 use crate::{
     db_sync::{
-        Config, Event, ExternalDataProvider, InnerBehaviour, InnerResponse, InnerResponseProcessor,
-        NewRequestRoundReason, PeerId, Request, RequestFailure, RequestId, Response,
+        Config, Event, ExternalDataProvider, HashesRequest, HashesResponseError, InnerBehaviour,
+        InnerHashesProcessed, InnerHashesResponse, InnerProgramIdsResponse, InnerResponse,
+        InnerValidCodesResponse, NewRequestRoundReason, PeerId, ProgramIdsRequest,
+        ProgramIdsResponseError, Request, RequestFailure, RequestId, Response, ResponseError,
+        ValidCodesRequest, ValidCodesResponseError,
     },
     peer_score::Handle,
     utils::ConnectionMap,
 };
+use anyhow::Context as _;
+use ethexe_common::gear::CodeState;
 use futures::{future::BoxFuture, FutureExt};
+use gprimitives::{ActorId, CodeId};
+use itertools::EitherOrBoth;
 use libp2p::{
     request_response::OutboundRequestId,
     swarm::{behaviour::ConnectionEstablished, ConnectionClosed, FromSwarm},
@@ -32,7 +39,8 @@ use libp2p::{
 use rand::prelude::IteratorRandom;
 use std::{
     cell::OnceCell,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    iter,
     task::{Context, Poll, Waker},
     time::Duration,
 };
@@ -275,15 +283,240 @@ impl Drop for OngoingRequests {
 }
 
 #[derive(Debug)]
+enum ResponseHandler {
+    Hashes {
+        acc: InnerHashesResponse,
+        original_request: HashesRequest,
+        reduced_request: HashesRequest,
+    },
+    ProgramIds {
+        request: ProgramIdsRequest,
+    },
+    ValidCodes {
+        request: ValidCodesRequest,
+    },
+}
+
+impl ResponseHandler {
+    fn new(request: Request) -> Self {
+        match request {
+            Request::Hashes(request) => Self::Hashes {
+                acc: Default::default(),
+                original_request: request.clone(),
+                reduced_request: request,
+            },
+            Request::ProgramIds(request) => Self::ProgramIds { request },
+            Request::ValidCodes(request) => Self::ValidCodes { request },
+        }
+    }
+
+    fn request(&self) -> Request {
+        match self {
+            ResponseHandler::Hashes {
+                reduced_request, ..
+            } => reduced_request.clone().into(),
+            ResponseHandler::ProgramIds { request } => request.clone().into(),
+            ResponseHandler::ValidCodes { request } => request.clone().into(),
+        }
+    }
+
+    fn handle_hashes(
+        mut acc: InnerHashesResponse,
+        original_request: &HashesRequest,
+        reduced_request: &HashesRequest,
+        new_response: InnerHashesResponse,
+    ) -> InnerHashesProcessed {
+        let mut new_request = BTreeSet::new();
+        let mut stripped = false;
+
+        let diff = itertools::merge_join_by(
+            reduced_request.0.iter().copied(),
+            new_response.0,
+            |req_key, (resp_key, _resp_val)| req_key.cmp(resp_key),
+        );
+
+        for either in diff {
+            match either {
+                EitherOrBoth::Both(req_key, (resp_key, resp_val)) => {
+                    debug_assert_eq!(req_key, resp_key);
+                    if req_key != ethexe_db::hash(&resp_val) {
+                        return InnerHashesProcessed::Err {
+                            acc,
+                            err: HashesResponseError::HashMismatch,
+                            stripped,
+                        };
+                    }
+
+                    acc.0.insert(resp_key, resp_val);
+                }
+                EitherOrBoth::Left(key) => {
+                    // peer was unable to give this key
+                    new_request.insert(key);
+                }
+                EitherOrBoth::Right((key, _value)) => {
+                    // peer sent more keys than we requested
+                    stripped = !original_request.0.contains(&key);
+                }
+            }
+        }
+
+        if new_request.is_empty() {
+            InnerHashesProcessed::Done {
+                response: acc.0,
+                stripped,
+            }
+        } else {
+            InnerHashesProcessed::NewRequest {
+                acc,
+                new_request: HashesRequest(new_request),
+                stripped,
+            }
+        }
+    }
+
+    async fn handle_program_ids(
+        response: InnerProgramIdsResponse,
+        request: &ProgramIdsRequest,
+        external_data_provider: Box<dyn ExternalDataProvider>,
+    ) -> Result<BTreeMap<ActorId, CodeId>, ProgramIdsResponseError> {
+        let InnerProgramIdsResponse(response) = response;
+
+        if response.len() as u64 != request.expected_count {
+            return Err(ProgramIdsResponseError::NotEnoughIds);
+        }
+
+        let code_ids = external_data_provider
+            .programs_code_ids_at(response.clone(), request.at)
+            .await
+            .context("failed to get code ids at block")
+            .map_err(ProgramIdsResponseError::RouterQuery)?;
+
+        let program_code_ids = iter::zip(response, code_ids).collect();
+        Ok(program_code_ids)
+    }
+
+    async fn handle_valid_codes(
+        response: InnerValidCodesResponse,
+        request: &ValidCodesRequest,
+        external_data_provider: Box<dyn ExternalDataProvider>,
+    ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
+        let InnerValidCodesResponse(response) = response;
+
+        // validated count at specified block can be less than
+        // the number of states at the latest block returned by peer
+        // but cannot be more
+        if (response.len() as u64) < request.validated_count {
+            return Err(ValidCodesResponseError::NotEnoughCodes);
+        }
+
+        let states = external_data_provider
+            .codes_states_at(response.clone(), request.at)
+            .await
+            .context("failed to get code states at block")
+            .map_err(ValidCodesResponseError::RouterQuery)?;
+
+        let code_ids: BTreeSet<CodeId> = iter::zip(response, states)
+            .flat_map(|(code_id, state)| {
+                if state == CodeState::Validated {
+                    Some(code_id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if request.validated_count != code_ids.len() as u64 {
+            return Err(ValidCodesResponseError::NotEnoughCodes);
+        }
+
+        Ok(code_ids)
+    }
+
+    async fn handle(
+        self,
+        peer: PeerId,
+        response: InnerResponse,
+        peer_score_handle: &Handle,
+        external_data_provider: Box<dyn ExternalDataProvider>,
+    ) -> Result<Response, (Self, ResponseError)> {
+        match (self, response) {
+            (
+                Self::Hashes {
+                    acc,
+                    original_request,
+                    reduced_request,
+                },
+                InnerResponse::Hashes(response),
+            ) => {
+                let processed =
+                    Self::handle_hashes(acc, &original_request, &reduced_request, response);
+                let s;
+                let res = match processed {
+                    InnerHashesProcessed::Done { response, stripped } => {
+                        s = stripped;
+                        Ok(Response::Hashes(response))
+                    }
+                    InnerHashesProcessed::NewRequest {
+                        acc,
+                        new_request,
+                        stripped,
+                    } => {
+                        s = stripped;
+                        Err((
+                            Self::Hashes {
+                                acc,
+                                original_request,
+                                reduced_request: new_request,
+                            },
+                            ResponseError::NewRound,
+                        ))
+                    }
+                    InnerHashesProcessed::Err { acc, err, stripped } => {
+                        s = stripped;
+                        Err((
+                            Self::Hashes {
+                                acc,
+                                original_request,
+                                reduced_request,
+                            },
+                            err.into(),
+                        ))
+                    }
+                };
+
+                if s {
+                    log::debug!("data stripped in response from {peer}");
+                    peer_score_handle.excessive_data(peer);
+                }
+
+                res
+            }
+            (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => {
+                Self::handle_program_ids(response, &request, external_data_provider)
+                    .await
+                    .map(Into::into)
+                    .map_err(|err| (Self::ProgramIds { request }, err.into()))
+            }
+            (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => {
+                Self::handle_valid_codes(response, &request, external_data_provider)
+                    .await
+                    .map(Into::into)
+                    .map_err(|err| (Self::ValidCodes { request }, err.into()))
+            }
+            (this, _) => Err((this, ResponseError::TypeMismatch)),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct OngoingRequest {
-    response_processor: Option<InnerResponseProcessor>,
+    response_handler: Option<ResponseHandler>,
     tried_peers: HashSet<PeerId>,
 }
 
 impl OngoingRequest {
     fn new(request: Request) -> Self {
         Self {
-            response_processor: Some(InnerResponseProcessor::new(request)),
+            response_handler: Some(ResponseHandler::new(request)),
             tried_peers: Default::default(),
         }
     }
@@ -327,7 +560,7 @@ impl OngoingRequest {
             ctx.state
                 .set(OngoingRequestState::SendRequest(
                     peer,
-                    self.response_processor
+                    self.response_handler
                         .as_ref()
                         .expect("always Some")
                         .request(),
@@ -362,17 +595,17 @@ impl OngoingRequest {
             .map_err(|()| NewRequestRoundReason::PeerFailed)?;
 
         match self
-            .response_processor
+            .response_handler
             .take()
             .expect("always Some")
-            .process(peer, response, peer_score_handle, external_data_provider)
+            .handle(peer, response, peer_score_handle, external_data_provider)
             .await
         {
             Ok(response) => Ok(response),
             Err((processor, err)) => {
                 log::trace!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
-                self.response_processor = Some(processor);
+                self.response_handler = Some(processor);
                 Err(NewRequestRoundReason::PartialData)
             }
         }
@@ -461,5 +694,53 @@ impl Eq for RetriableRequest {}
 impl RetriableRequest {
     pub fn id(&self) -> RequestId {
         self.request_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_data_stripped() {
+        let hash1 = ethexe_db::hash(b"1");
+        let hash2 = ethexe_db::hash(b"2");
+        let hash3 = ethexe_db::hash(b"3");
+
+        let request = HashesRequest([hash1, hash2].into());
+        let response = InnerHashesResponse(
+            [
+                (hash1, b"1".to_vec()),
+                (hash2, b"2".to_vec()),
+                (hash3, b"3".to_vec()),
+            ]
+            .into(),
+        );
+        let processed =
+            ResponseHandler::handle_hashes(Default::default(), &request, &request, response);
+        let InnerHashesProcessed::Done { response, stripped } = processed else {
+            unreachable!("{processed:?}")
+        };
+        assert_eq!(
+            response,
+            BTreeMap::from_iter([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())])
+        );
+        assert!(stripped);
+    }
+
+    #[test]
+    fn validate_data_hash_mismatch() {
+        let hash1 = ethexe_db::hash(b"1");
+
+        let request = HashesRequest([hash1].into());
+        let response = InnerHashesResponse([(hash1, b"2".to_vec())].into());
+        let processed =
+            ResponseHandler::handle_hashes(Default::default(), &request, &request, response);
+        let InnerHashesProcessed::Err { acc, err, stripped } = processed else {
+            unreachable!("{processed:?}")
+        };
+        assert_eq!(acc, Default::default());
+        assert_eq!(err, HashesResponseError::HashMismatch);
+        assert!(!stripped);
     }
 }
