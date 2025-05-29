@@ -796,7 +796,7 @@ mod utils {
     pub(crate) fn issue(
         from: AccountIdOf<Test>,
         to: AccountIdOf<Test>,
-        program: ProgramId,
+        program: ActorId,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
         issue_w_balance_and_uploading(from, to, DEFAULT_BALANCE, program, false)
     }
@@ -806,7 +806,7 @@ mod utils {
         from: AccountIdOf<Test>,
         to: AccountIdOf<Test>,
         balance: BalanceOf<Test>,
-        program: ProgramId,
+        program: ActorId,
         code_uploading: bool,
     ) -> Result<VoucherId, DispatchErrorWithPostInfo> {
         Voucher::issue(

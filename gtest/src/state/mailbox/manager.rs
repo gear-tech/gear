@@ -23,7 +23,7 @@ use gear_common::{
     auxiliary::{mailbox::*, BlockNumber},
     storage::{Interval, IterableByKeyMap, Mailbox, MailboxCallbacks},
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{ActorId, MessageId};
 
 /// Mailbox manager which operates under the hood over
 /// [`gear_common::auxiliary::mailbox::AuxiliaryMailbox`].
@@ -43,7 +43,7 @@ impl MailboxManager {
     /// Remove user message from mailbox.
     pub(crate) fn remove(
         &self,
-        user: ProgramId,
+        user: ActorId,
         reply_to: MessageId,
     ) -> Result<(MailboxedMessage, Interval<BlockNumber>), MailboxErrorImpl> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as Mailbox>::remove(user, reply_to)
@@ -53,7 +53,7 @@ impl MailboxManager {
     /// inside mailbox.
     pub(crate) fn iter_key(
         &self,
-        to: ProgramId,
+        to: ActorId,
     ) -> impl Iterator<Item = (MailboxedMessage, Interval<BlockNumber>)> + use<> {
         <AuxiliaryMailbox<MailboxCallbacksImpl> as IterableByKeyMap<_>>::iter_key(to)
     }

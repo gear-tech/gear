@@ -18,36 +18,31 @@
 
 //! Ethereum address.
 
-use crate::PublicKey;
-use anyhow::{anyhow, Error, Result};
+use super::keys::PublicKey;
+use alloc::string::String;
+use core::str::FromStr;
+use derive_more::{Debug, Display, Error, From};
 use gprimitives::{ActorId, H160};
+use hex::FromHexError;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
-use std::{fmt, str::FromStr};
 
 /// Ethereum address type.
 ///
 /// Basically a 20 bytes buffer, which is obtained from the least significant 20 bytes
 /// of the hashed with keccak256 public key.
-#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Encode, Decode, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, From, Debug, Display,
+)]
+#[from([u8; 20], H160)]
+#[display("0x{}", self.to_hex())]
+#[debug("0x{}", self.to_hex())]
 pub struct Address(pub [u8; 20]);
 
 impl Address {
     /// Address hex string.
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)
-    }
-}
-
-impl From<[u8; 20]> for Address {
-    fn from(value: [u8; 20]) -> Self {
-        Self(value)
-    }
-}
-
-impl From<H160> for Address {
-    fn from(value: H160) -> Self {
-        Self(value.into())
     }
 }
 
@@ -64,26 +59,31 @@ impl From<PublicKey> for Address {
 }
 
 impl FromStr for Address {
-    type Err = Error;
+    type Err = FromHexError;
 
-    fn from_str(s: &str) -> Result<Self> {
-        Ok(Self(crate::decode_to_array(s)?))
+    fn from_str(s: &str) -> Result<Self, FromHexError> {
+        crate::decode_to_array(s).map(Self)
     }
 }
+
+#[derive(Debug, Display, Error)]
+#[display("{:?}", self)]
+#[debug("First 12 bytes are not 0, it is not ethereum address")]
+pub struct FromActorIdError;
 
 /// Tries to convert `ActorId`` into `Address`.
 ///
 /// Succeeds if first 12 bytes are 0.
 impl TryFrom<ActorId> for Address {
-    type Error = Error;
+    type Error = FromActorIdError;
 
-    fn try_from(id: ActorId) -> Result<Self> {
+    fn try_from(id: ActorId) -> Result<Self, Self::Error> {
         id.as_ref()
             .iter()
             .take(12)
             .all(|&byte| byte == 0)
             .then_some(Address(id.to_address_lossy().0))
-            .ok_or_else(|| anyhow!("First 12 bytes are not 0, it is not ethereum address"))
+            .ok_or(FromActorIdError)
     }
 }
 
@@ -102,18 +102,6 @@ impl From<Address> for ActorId {
     }
 }
 
-impl fmt::Debug for Address {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
-    }
-}
-
-impl fmt::Display for Address {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +110,18 @@ mod tests {
     fn test_u64_to_address() {
         // Does not panic
         let _ = Address::from(u64::MAX / 2);
+    }
+
+    #[test]
+    fn try_from_actor_id() {
+        let id =
+            ActorId::from_str("0x0000000000000000000000006e4c403878dbcb0dadcbe562346e8387f9542829")
+                .unwrap();
+        Address::try_from(id).expect("Must be correct ethereum address");
+
+        let id =
+            ActorId::from_str("0x1111111111111111111111116e4c403878dbcb0dadcbe562346e8387f9542829")
+                .unwrap();
+        Address::try_from(id).expect_err("Must be incorrect ethereum address");
     }
 }

@@ -34,10 +34,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::{
-    ids::ProgramId,
-    message::{Payload, StoredDispatch},
-};
+use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
@@ -71,7 +68,7 @@ pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
     pub destination: u64,
-    pub source: ProgramId,
+    pub source: ActorId,
     pub input: Vec<u8>,
     pub is_success: bool,
 }

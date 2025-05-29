@@ -337,10 +337,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         /* Commit Rewards */
 
-        bytes memory rewardsCommitmentHash;
+        bytes memory rewardsCommitmentHashes;
+
         if (_batchCommitment.rewardCommitments.length > 0) {
+            require(
+                _batchCommitment.rewardCommitments.length == 1,
+                "rewards commitment must be empty or contains only one commitment"
+            );
+
             Gear.RewardsCommitment calldata rewardsCommitment = _batchCommitment.rewardCommitments[0];
-            rewardsCommitmentHash = _commitRewards(router, rewardsCommitment);
+            rewardsCommitmentHashes = abi.encodePacked(_commitRewards(router, rewardsCommitment));
 
             if (rewardsCommitment.timestamp > maxTimestamp) {
                 maxTimestamp = rewardsCommitment.timestamp;
@@ -359,7 +365,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
                     abi.encodePacked(
                         keccak256(blockCommitmentsHashes),
                         keccak256(codeCommitmentsHashes),
-                        keccak256(rewardsCommitmentHash)
+                        keccak256(rewardsCommitmentHashes)
                     )
                 ),
                 _signatureType,
@@ -501,25 +507,24 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     // TODO #4611
     function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
         private
-        returns (bytes memory)
+        returns (bytes32)
     {
+        require(_rewardsCommitment.timestamp > 0, "rewards commitment timestamp is zero");
+        require(_rewardsCommitment.timestamp < block.timestamp, "rewards commitment timestamp must be in the past");
+
         address middleware = router.implAddresses.middleware;
         IERC20(router.implAddresses.wrappedVara).approve(
             middleware, _rewardsCommitment.operators.amount + _rewardsCommitment.stakers.totalAmount
         );
 
-        bytes memory rewardsCommitmentHash;
-
         bytes32 operatorRewardsHash = IMiddleware(middleware).distributeOperatorRewards(
             router.implAddresses.wrappedVara, _rewardsCommitment.operators.amount, _rewardsCommitment.operators.root
         );
-        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, operatorRewardsHash);
 
         bytes32 stakerRewardsHash =
             IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers, _rewardsCommitment.timestamp);
-        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, stakerRewardsHash);
 
-        return rewardsCommitmentHash;
+        return keccak256(abi.encodePacked(operatorRewardsHash, stakerRewardsHash, _rewardsCommitment.timestamp));
     }
 
     function _resetValidators(

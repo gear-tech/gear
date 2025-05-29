@@ -27,7 +27,7 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, Signature, B256, U256},
+    primitives::{Address, Bytes, ChainId, Signature, SignatureError, B256, U256},
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
@@ -46,8 +46,8 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use ethexe_common::gear::AggregatedPublicKey;
-use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
+use ethexe_common::{ecdsa::PublicKey, gear::AggregatedPublicKey, Address as LocalAddress, Digest};
+use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
 use roast_secp256k1_evm::frost::{
@@ -254,6 +254,7 @@ struct Sender {
 impl Sender {
     pub fn new(signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
         let sender = signer
+            .storage()
             .get_key_by_addr(sender_address)?
             .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
 
@@ -300,11 +301,14 @@ impl TxSigner<Signature> for Sender {
 
 impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
-        let signature = self
+        let (s, r) = self
             .signer
-            .raw_sign_digest(self.sender, hash.0.into())
-            .map_err(|err| SignerError::Other(err.into()))?;
-        Ok(Signature::try_from(signature.as_ref())?)
+            .sign(self.sender, Digest::from(hash.0))
+            .map_err(|err| SignerError::Other(err.into()))
+            .map(|s| s.into_parts())?;
+        let v = r.to_byte() as u64;
+        let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
+        Ok(Signature::from_signature_and_parity(s, v))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {

@@ -401,7 +401,7 @@ There are two cases of fails when this signal code is sent:
         ```rust
         #![no_std]
 
-        use gear_core::ids::ProgramId;
+        use gear_core::ids::ActorId;
         use gstd::{
             ActorId,
             errors::{SignalCode, SimpleExecutionError},
@@ -421,7 +421,7 @@ There are two cases of fails when this signal code is sent:
         extern "C" fn handle() {
             exec::system_reserve_gas(1_000_000_000).unwrap();
 
-            msg::send(ActorId::new(ProgramId::SYSTEM.into()), "hello", 0)
+            msg::send(ActorId::new(ActorId::SYSTEM.into()), "hello", 0)
                     .expect("cannot send message");
         }
 
