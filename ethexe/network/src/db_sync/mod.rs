@@ -85,8 +85,8 @@ impl fmt::Debug for HashesRequest {
 }
 
 impl HashesRequest {
-    fn handle(self, db: &Database) -> HashesResponse {
-        HashesResponse(
+    fn handle(self, db: &Database) -> InnerHashesResponse {
+        InnerHashesResponse(
             self.0
                 .into_iter()
                 .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
@@ -102,21 +102,21 @@ enum HashesProcessed {
         stripped: bool,
     },
     NewRequest {
-        acc: HashesResponse,
+        acc: InnerHashesResponse,
         new_request: HashesRequest,
         stripped: bool,
     },
     Err {
-        acc: HashesResponse,
+        acc: InnerHashesResponse,
         err: HashesResponseError,
         stripped: bool,
     },
 }
 
 #[derive(Default, Clone, Eq, PartialEq, Encode, Decode)]
-struct HashesResponse(BTreeMap<H256, Vec<u8>>);
+struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 
-impl fmt::Debug for HashesResponse {
+impl fmt::Debug for InnerHashesResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let alternate = f.alternate();
         let mut d = f.debug_tuple("HashesResponse");
@@ -129,7 +129,7 @@ impl fmt::Debug for HashesResponse {
     }
 }
 
-impl HashesResponse {
+impl InnerHashesResponse {
     fn process(
         mut self,
         original_request: &HashesRequest,
@@ -200,8 +200,8 @@ pub struct ProgramIdsRequest {
 }
 
 impl ProgramIdsRequest {
-    fn handle(self, db: &Database) -> ProgramIdsResponse {
-        ProgramIdsResponse(
+    fn handle(self, db: &Database) -> InnerProgramIdsResponse {
+        InnerProgramIdsResponse(
             db.block_program_states(self.at)
                 .map(|states| states.into_keys().collect())
                 .unwrap_or_default(), // FIXME: Option might be more suitable
@@ -210,9 +210,9 @@ impl ProgramIdsRequest {
 }
 
 #[derive(Default, Clone, Eq, PartialEq, Encode, Decode)]
-struct ProgramIdsResponse(BTreeSet<ActorId>);
+struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
-impl fmt::Debug for ProgramIdsResponse {
+impl fmt::Debug for InnerProgramIdsResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let alternate = f.alternate();
         let mut d = f.debug_tuple("ProgramIdsResponse");
@@ -225,7 +225,7 @@ impl fmt::Debug for ProgramIdsResponse {
     }
 }
 
-impl ProgramIdsResponse {
+impl InnerProgramIdsResponse {
     async fn try_complete(
         self,
         request: &ProgramIdsRequest,
@@ -261,15 +261,15 @@ pub struct ValidCodesRequest {
 }
 
 impl ValidCodesRequest {
-    fn handle(self, db: &Database) -> ValidCodesResponse {
-        ValidCodesResponse(db.valid_codes())
+    fn handle(self, db: &Database) -> InnerValidCodesResponse {
+        InnerValidCodesResponse(db.valid_codes())
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
-struct ValidCodesResponse(BTreeSet<CodeId>);
+struct InnerValidCodesResponse(BTreeSet<CodeId>);
 
-impl fmt::Debug for ValidCodesResponse {
+impl fmt::Debug for InnerValidCodesResponse {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let alternate = f.alternate();
         let mut d = f.debug_tuple("ValidCodeResponse");
@@ -282,7 +282,7 @@ impl fmt::Debug for ValidCodesResponse {
     }
 }
 
-impl ValidCodesResponse {
+impl InnerValidCodesResponse {
     async fn try_complete(
         self,
         request: &ValidCodesRequest,
@@ -367,15 +367,15 @@ impl Request {
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
 pub enum InnerResponse {
-    Hashes(HashesResponse),
-    ProgramIds(ProgramIdsResponse),
-    ValidCodes(ValidCodesResponse),
+    Hashes(InnerHashesResponse),
+    ProgramIds(InnerProgramIdsResponse),
+    ValidCodes(InnerValidCodesResponse),
 }
 
 #[derive(Debug)]
 enum InnerResponseProcessor {
     Hashes {
-        acc: HashesResponse,
+        acc: InnerHashesResponse,
         original_request: HashesRequest,
         reduced_request: HashesRequest,
     },
@@ -926,7 +926,7 @@ mod tests {
         let hash3 = ethexe_db::hash(b"3");
 
         let request = HashesRequest([hash1, hash2].into());
-        let response = HashesResponse(
+        let response = InnerHashesResponse(
             [
                 (hash1, b"1".to_vec()),
                 (hash2, b"2".to_vec()),
@@ -934,7 +934,7 @@ mod tests {
             ]
             .into(),
         );
-        let processed = HashesResponse::default().process(&request, &request, response);
+        let processed = InnerHashesResponse::default().process(&request, &request, response);
         let HashesProcessed::Done { response, stripped } = processed else {
             unreachable!("{processed:?}")
         };
@@ -950,8 +950,8 @@ mod tests {
         let hash1 = ethexe_db::hash(b"1");
 
         let request = HashesRequest([hash1].into());
-        let response = HashesResponse([(hash1, b"2".to_vec())].into());
-        let processed = HashesResponse::default().process(&request, &request, response);
+        let response = InnerHashesResponse([(hash1, b"2".to_vec())].into());
+        let processed = InnerHashesResponse::default().process(&request, &request, response);
         let HashesProcessed::Err { acc, err, stripped } = processed else {
             unreachable!("{processed:?}")
         };
@@ -1206,7 +1206,7 @@ mod tests {
                     bob.behaviour_mut()
                         .send_response(
                             channel,
-                            HashesResponse(
+                            InnerHashesResponse(
                                 [
                                     (data_0, DATA[0].to_vec()),
                                     (data_1, DATA[1].to_vec()),
@@ -1272,7 +1272,7 @@ mod tests {
                 {
                     assert_eq!(request, Request::hashes([]));
                     bob.behaviour_mut()
-                        .send_response(channel, ProgramIdsResponse::default().into())
+                        .send_response(channel, InnerProgramIdsResponse::default().into())
                         .unwrap();
                 }
             }
