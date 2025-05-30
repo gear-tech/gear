@@ -50,29 +50,11 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: macOS packages"
-        if: ${{ matrix.runs-on == 'macos-latest' }}
-        run: brew install protobuf binaryen openssl rocksdb zstd jemalloc
-
-      - name: "Install: Linux packages"
-        if: ${{ matrix.runs-on == 'ubuntu-latest' }}
+      - name: "Install: macOS aarch64 packages"
+        if: ${{ matrix.name == 'macos-aarch64' }}
         run: |
-          sudo apt update
-          sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
-
-      - name: "Install: Windows packages"
-        if: ${{ matrix.runs-on == 'windows-latest' }}
-        uses: MinoruSekine/setup-scoop@v4.0.1
-        with:
-          apps: >-
-            binaryen
-            protobuf
-            openssl
-          buckets: extras
-
-      - name: "Install: macOS packages environment"
-        if: ${{ matrix.runs-on == 'macos-latest' }}
-        run: |
+          brew install protobuf binaryen openssl rocksdb zstd jemalloc
+          
           # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
           #echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/opt/homebrew/opt/rocksdb/lib" >> $GITHUB_ENV
@@ -85,9 +67,12 @@ jobs:
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
           echo "OPENSSL_DIR=/opt/homebrew/opt/openssl" >> $GITHUB_ENV
 
-      - name: "Install: Linux packages environment"
+      - name: "Install: Linux packages"
         if: ${{ matrix.runs-on == 'ubuntu-latest' }}
         run: |
+          sudo apt update
+          sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
+          
           # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
@@ -100,8 +85,17 @@ jobs:
           echo "OPENSSL_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           echo "OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
-      - name: "Install: Windows packages environment"
+      - name: "Install: Windows packages"
         if: ${{ matrix.runs-on == 'windows-latest' }}
+        uses: MinoruSekine/setup-scoop@v4.0.1
+        with:
+          apps: >-
+            binaryen
+            protobuf
+            openssl
+          buckets: extras
+
+      - name: "Install: Windows packages environment"
         run: |
           # Package is not available in choco or scoop
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
