@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -e
 
@@ -169,6 +169,10 @@ case "$COMMAND" in
       examples)
         header "Invoking clippy on gear examples only"
         examples_clippy "$@"; ;;
+
+      no_std)
+        header "Invoking clippy on '#![no_std]' crates"
+        no_std_clippy "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

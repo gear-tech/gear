@@ -90,7 +90,7 @@ mod panic_handler {
         let _ = write!(&mut debug_msg, "'{msg}'");
 
         #[cfg(feature = "debug")]
-        let _ = ext::debug(&debug_msg);
+        ext::debug(&debug_msg);
 
         ext::panic_str(&debug_msg)
     }
