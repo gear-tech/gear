@@ -98,7 +98,7 @@ jobs:
         shell: arch -x86_64 zsh {0}
 
       - name: "Install: Linux packages"
-        if: ${{ matrix.runs-on == 'ubuntu-latest' }}
+        if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
           sudo apt update
           sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
@@ -147,7 +147,7 @@ jobs:
           echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
 
       - name: "Install: Linux linker"
-        if: ${{ matrix.runs-on == 'ubuntu-latest' }}
+        if: ${{ matrix.name == 'ubuntu-latest' }}
         run: |
           sudo apt install mold
           echo "CFLAGS_${{ matrix.target }}=-fuse-ld=mold" >> $GITHUB_ENV
