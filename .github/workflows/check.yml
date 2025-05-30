@@ -87,6 +87,7 @@ jobs:
           
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
           echo "OPENSSL_DIR=/usr/local/opt/openssl" >> $GITHUB_ENV
+        shell: arch -x86_64 zsh {0}
 
       - name: "Install: Linux packages"
         if: ${{ matrix.runs-on == 'ubuntu-latest' }}
