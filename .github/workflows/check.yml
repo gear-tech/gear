@@ -178,6 +178,7 @@ jobs:
           workspaces: |
             . -> target
             utils/wasm-builder/test-program -> target
+            utils/cargo-gbuild/test-program -> target
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
