@@ -121,6 +121,7 @@ jobs:
             binaryen
             protobuf
             openssl
+            pkg-config
           buckets: extras
 
       - name: "Install: Windows packages environment"
@@ -130,8 +131,8 @@ jobs:
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
           
-          # Windows has no `pkg-config`
-          #echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          Add-Content -Path $Env:GITHUB_ENV -Value "ZSTD_SYS_USE_PKG_CONFIG=1"
+          Add-Content -Path $Env:GITHUB_ENV -Value "PKG_CONFIG=C:\Users\runneradmin\scoop\apps\pkg-config\current\bin\pkg-config"
           
           # Not used on Windows
           #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
