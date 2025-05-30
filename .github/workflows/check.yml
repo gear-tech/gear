@@ -32,7 +32,7 @@ jobs:
             runs-on: ubuntu-latest
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
-            runs-on: windows-latest
+            runs-on: ubuntu-latest
     runs-on: ${{ matrix.runs-on }}
     name: clippy (${{ matrix.name }})
     env:
@@ -116,19 +116,17 @@ jobs:
           echo "OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
       - name: "Install: Windows packages"
-        if: ${{ matrix.runs-on == 'windows-latest' }}
-        uses: MinoruSekine/setup-scoop@v4.0.1
-        with:
-          apps: >-
-            binaryen
-            protobuf
-            openssl
-            pkg-config
-          buckets: extras
-
-      - name: "Install: Windows packages environment"
-        if: ${{ matrix.runs-on == 'windows-latest' }}
+        if: ${{ matrix.name == 'windows-x86_64' }}
         run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+          
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
+          
+          sudo apt update
+          sudo apt install wine
+          
           # Package is not available in choco or scoop
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
@@ -139,8 +137,14 @@ jobs:
           # Not used on Windows
           #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
-          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_NO_VENDOR=1"
-          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl\current"
+          wget -q -O - https://github.com/ScoopInstaller/Main/raw/refs/heads/master/bucket/innoextract.json | jq -r '.url' | xargs wget -O innoextract.zip
+          unzip innoextract.zip
+          wget -q -O - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -O openssl_installer.exe
+          wine innoextract.exe -d openssl_extracted -I app openssl_installer.exe
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
 
       - name: "Install: Linux linker"
         if: ${{ matrix.runs-on == 'ubuntu-latest' }}
@@ -149,15 +153,6 @@ jobs:
           echo "CFLAGS_${{ matrix.target }}=-fuse-ld=mold" >> $GITHUB_ENV
           echo "CXXFLAGS_${{ matrix.target }}=-fuse-ld=mold" >> $GITHUB_ENV
           echo "RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
-
-      - name: "Install: Windows linker"
-        if: ${{ matrix.runs-on == 'windows-latest' }}
-        run: |
-          Add-Content -Path $Env:GITHUB_ENV -Value "CC_${{ matrix.target }}=C:\Program Files\LLVM\bin\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_${{ matrix.target }}=C:\Program Files\LLVM\bin\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_${{ matrix.target }}=-fuse-ld=lld"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_${{ matrix.target }}=-fuse-ld=lld /EHsc"
-          Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
