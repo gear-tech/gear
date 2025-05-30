@@ -15,6 +15,7 @@ EXE_EXTENSION=""
 . "$SCRIPTS"/common.sh
 
 if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
+  export XWIN_ARCH="x86_64"
   TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
   CARGO="cargo xwin"
   EXE_RUNNER="wine"
