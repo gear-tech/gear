@@ -171,8 +171,6 @@ jobs:
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
-        with:
-          key: "${{ matrix.name }}"
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
