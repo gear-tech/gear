@@ -58,6 +58,7 @@ jobs:
         uses: rui314/setup-mold@v1
 
       - name: "Install: Windows linker"
+        if: ${{ matrix.runs-on == 'windows-latest' }}
         run: Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
 
       - name: "Install: macOS aarch64 packages"
