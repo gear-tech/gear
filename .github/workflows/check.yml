@@ -173,7 +173,9 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
-          cache-all-crates: true
+          workspaces: |
+            . -> target
+            utils/wasm-builder/test-program -> target
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
