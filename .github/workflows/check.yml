@@ -133,7 +133,7 @@ jobs:
           #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
           
           Add-Content -Path $Env:GITHUB_ENV -Value "ZSTD_SYS_USE_PKG_CONFIG=1"
-          Add-Content -Path $Env:GITHUB_ENV -Value "PKG_CONFIG=C:\Users\runneradmin\scoop\apps\pkg-config\current\bin\pkg-config.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "PKG_CONFIG=C:\Users\runneradmin\scoop\apps\pkg-config\current\pkg-config.exe"
           
           # Not used on Windows
           #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
