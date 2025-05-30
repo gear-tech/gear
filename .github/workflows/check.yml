@@ -124,9 +124,8 @@ jobs:
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
           
-          sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install wine32 wine64
+          sudo apt install innoextract
           
           # Package is not available in choco or scoop
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
@@ -138,10 +137,8 @@ jobs:
           # Not used on Windows
           #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
-          wget -q -O - https://github.com/ScoopInstaller/Main/raw/refs/heads/master/bucket/innoextract.json | jq -r '.url' | xargs wget -O innoextract.zip
-          unzip innoextract.zip
-          wget -q -O - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -O openssl_installer.exe
-          wine innoextract.exe -d openssl_extracted -I app openssl_installer.exe
+          wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
+          innoextract -d openssl_extracted -I app openssl_installer.exe
           
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
           echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
