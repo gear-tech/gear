@@ -125,7 +125,7 @@ jobs:
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
           
           sudo apt update
-          sudo apt install innoextract
+          sudo apt install protobuf-compiler binaryen innoextract
           
           # Package is not available in choco or scoop
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
