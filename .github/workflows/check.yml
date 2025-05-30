@@ -67,7 +67,7 @@ jobs:
           apps: >-
             binaryen
             protobuf
-            openssl-light
+            openssl
           buckets: extras
 
       - name: "Install: macOS packages environment"
@@ -114,7 +114,7 @@ jobs:
           #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_NO_VENDOR=1"
-          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl-light\current"
+          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl\current"
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
