@@ -67,7 +67,6 @@ jobs:
           echo "ROCKSDB_LIB_DIR=/opt/homebrew/opt/rocksdb/lib" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig" >> $GITHUB_ENV
           
           echo "JEMALLOC_OVERRIDE=/opt/homebrew/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
           
@@ -81,15 +80,14 @@ jobs:
           echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
           
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-          /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc
+          /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc pkgconf
           
           # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
           #echo "ROCKSDB_INCLUDE_DIR=/usr/local/opt/rocksdb/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/local/opt/rocksdb/lib" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
-          echo "PKG_CONFIG_SYSROOT_DIR=/usr/local" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG=/usr/local/opt/pkgconf/bin/pkg-config" >> $GITHUB_ENV
           
           echo "JEMALLOC_OVERRIDE=/usr/local/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
           
