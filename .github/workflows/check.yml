@@ -67,6 +67,27 @@ jobs:
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
           echo "OPENSSL_DIR=/opt/homebrew/opt/openssl" >> $GITHUB_ENV
 
+      - name: "Install: macOS x86_64 packages"
+        if: ${{ matrix.name == 'macos-x86_64' }}
+        run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+          
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+          /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc
+          
+          # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/local/opt/rocksdb/include" >> $GITHUB_ENV
+          echo "ROCKSDB_LIB_DIR=/usr/local/opt/rocksdb/lib" >> $GITHUB_ENV
+
+          echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
+          
+          echo "JEMALLOC_OVERRIDE=/usr/local/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/usr/local/opt/openssl" >> $GITHUB_ENV
+
       - name: "Install: Linux packages"
         if: ${{ matrix.runs-on == 'ubuntu-latest' }}
         run: |
@@ -112,11 +133,6 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Target"
-        run: |
-          rustup target add ${{ matrix.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
