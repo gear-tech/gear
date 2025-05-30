@@ -117,6 +117,7 @@ jobs:
           buckets: extras
 
       - name: "Install: Windows packages environment"
+        if: ${{ matrix.runs-on == 'windows-latest' }}
         run: |
           # Package is not available in choco or scoop
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
