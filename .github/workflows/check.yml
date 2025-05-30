@@ -153,7 +153,7 @@ jobs:
           Add-Content -Path $Env:GITHUB_ENV -Value "CC_${{ matrix.target }}=C:\Program Files\LLVM\bin\clang-cl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "CXX_${{ matrix.target }}=C:\Program Files\LLVM\bin\clang-cl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_${{ matrix.target }}=-fuse-ld=lld"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_${{ matrix.target }}=-fuse-ld=lld -fcxx-exceptions"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_${{ matrix.target }}=-fuse-ld=lld /EHsc"
           Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
 
       - name: "Check clippy: Gear"
