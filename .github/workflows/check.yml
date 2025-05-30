@@ -37,6 +37,7 @@ jobs:
     name: clippy (${{ matrix.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      RUSTC_LINKER: rust-lld
       __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
     steps:
       - name: "ACTIONS: Checkout"
