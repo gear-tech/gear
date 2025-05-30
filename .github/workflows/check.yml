@@ -55,14 +55,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Linux linker"
-        if: ${{ matrix.runs-on == 'ubuntu-latest' }}
-        uses: rui314/setup-mold@v1
-
-      - name: "Install: Windows linker"
-        if: ${{ matrix.runs-on == 'windows-latest' }}
-        run: Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
-
       - name: "Install: macOS aarch64 packages"
         if: ${{ matrix.name == 'macos-aarch64' }}
         run: |
@@ -146,6 +138,23 @@ jobs:
           
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_NO_VENDOR=1"
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_DIR=C:\Users\runneradmin\scoop\apps\openssl\current"
+
+      - name: "Install: Linux linker"
+        if: ${{ matrix.runs-on == 'ubuntu-latest' }}
+        run: |
+          sudo apt install mold
+          echo "CFLAGS_${{ matrix.target }}=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "CXXFLAGS_${{ matrix.target }}=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+
+      - name: "Install: Windows linker"
+        if: ${{ matrix.runs-on == 'windows-latest' }}
+        run: |
+          Add-Content -Path $Env:GITHUB_ENV -Value "CC_${{ matrix.target }}=C:\Program Files\LLVM\bin\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_${{ matrix.target }}=C:\Program Files\LLVM\bin\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_${{ matrix.target }}=-fuse-ld=lld"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_${{ matrix.target }}=-fuse-ld=lld"
+          Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
