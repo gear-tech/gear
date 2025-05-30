@@ -177,11 +177,9 @@ jobs:
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples --all-targets --locked
 
-      - name: "Check: Compiling gstd on stable"
-        run: |
-          cargo +stable check -p gstd --target wasm32v1-none
-          cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-          cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+      - run: cargo +stable check -p gstd --target wasm32v1-none
+      - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+      - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   linux:
     runs-on: [kuberunner, github-runner-01]
