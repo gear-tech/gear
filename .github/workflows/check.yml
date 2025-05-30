@@ -46,8 +46,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.name }}"
-          # packages installation for macOS x86_64 takes too long
-          cache-directories: "/usr/local/opt"
+          # packages installation for Windows and macOS x86_64 takes too long
+          cache-directories: "/usr/local/opt,C:\Users\runneradmin\scoop\apps"
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
