@@ -82,6 +82,7 @@ jobs:
           echo "ROCKSDB_LIB_DIR=/usr/local/opt/rocksdb/lib" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG_SYSROOT_DIR=/usr/local" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
           
           echo "JEMALLOC_OVERRIDE=/usr/local/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
