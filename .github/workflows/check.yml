@@ -88,6 +88,7 @@ jobs:
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
           echo "PKG_CONFIG=/usr/local/opt/pkgconf/bin/pkg-config" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
           
           echo "JEMALLOC_OVERRIDE=/usr/local/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
           
