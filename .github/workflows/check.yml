@@ -147,6 +147,7 @@ jobs:
           echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
 
       - name: "ACTIONS: Cache MSVC CRT"
+        if: ${{ matrix.name == 'windows-x86_64' }}
         uses: actions/cache@v4
         with:
           path: /home/runner/.cache/cargo-xwin/xwin
@@ -155,7 +156,7 @@ jobs:
             ${{ matrix.name }}-
 
       - name: "Install: Linux linker"
-        if: ${{ matrix.name == 'ubuntu-latest' }}
+        if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
           sudo apt install mold
           echo "CFLAGS_${{ matrix.target }}=-fuse-ld=mold" >> $GITHUB_ENV
