@@ -54,9 +54,109 @@ jobs:
           echo "Profiles: ${profiles}"
           echo "profiles=${profiles}" >> $GITHUB_OUTPUT
 
-  linux:
-    runs-on: [kuberunner, github-runner-02]
+  node:
+    runs-on: [ kuberunner, github-runner-02 ]
     needs: dynamic-profiles
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
+      fail-fast: false
+    name: node (${{ matrix.profiles.name }})
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Show: Versioning"
+        run: ./scripts/gear.sh show
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: Upload node binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-binary
+          path: target/release/gear
+
+  gsdk:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: [ dynamic-profiles, node ]
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
+      fail-fast: false
+    name: gsdk (${{ matrix.profiles.name }})
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: Download node binary
+        uses: actions/download-artifact@v4
+        with:
+          name: node-binary
+          path: target/release
+
+      - name: Change permissions for gear binary
+        run: chmod +x target/release/gear
+
+      - name: "Test: Gear workspace"
+        run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
+
+
+  gcli:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: [ dynamic-profiles, node ]
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
+      fail-fast: false
+    name: gcli (${{ matrix.profiles.name }})
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: Download node binary
+        uses: actions/download-artifact@v4
+        with:
+          name: node-binary
+          path: target/release
+
+      - name: Change permissions for gear binary
+        run: chmod +x target/release/gear
+
+      - name: "Test: `gcli`"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.profiles.flags }}
+
+
+  linux:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: [ dynamic-profiles, node ]
     strategy:
       matrix:
         profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
@@ -81,6 +181,15 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Download node binary
+        uses: actions/download-artifact@v4
+        with:
+          name: node-binary
+          path: target/release
+
+      - name: Change permissions for gear binary
+        run: chmod +x target/release/gear
+
       - name: "Show: Versioning"
         run: |
           ./scripts/gear.sh show
@@ -88,9 +197,6 @@ jobs:
 
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
-
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked ${{ matrix.profiles.flags }}
@@ -108,14 +214,6 @@ jobs:
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
-
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
-
-      - name: "Test: `gcli`"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.profiles.flags }}
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
@@ -202,7 +300,7 @@ jobs:
           path: artifact
 
   win-cross:
-    runs-on: [kuberunner, github-runner-03]
+    runs-on: [ kuberunner, github-runner-03 ]
     needs: dynamic-profiles
     # TODO: this job is temporary disabled, enable after fixing #4615
     if: false
@@ -288,14 +386,14 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [dynamic-profiles, linux]
+    needs: [ dynamic-profiles, linux ]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
       profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
 
   macos:
-    needs: [dynamic-profiles, linux]
+    needs: [ dynamic-profiles, linux ]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
