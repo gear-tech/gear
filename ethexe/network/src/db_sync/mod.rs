@@ -1156,7 +1156,7 @@ mod tests {
             .await;
         charlie_db.set_block_program_states(
             H256::zero(),
-            iter::zip(program_ids.clone(), iter::repeat_with(|| H256::random())).collect(),
+            iter::zip(program_ids.clone(), iter::repeat_with(H256::random)).collect(),
         );
 
         let expected_response = Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
