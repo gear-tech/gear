@@ -45,7 +45,8 @@ jobs:
 
       - name: "Install: Packages from Scoop"
         run: |
-          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression -ArgumentList '-RunAsAdmin'
+          iwr get.scoop.sh -outfile 'scoop_install.ps1'
+          .\scoop_install.ps1 -RunAsAdmin
           
           scoop config 7ZIPEXTRACT_USE_EXTERNAL true
           scoop bucket add extras
