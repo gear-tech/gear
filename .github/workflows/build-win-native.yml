@@ -45,11 +45,11 @@ jobs:
 
       - name: "Install: Packages from Scoop"
         run: |
+          Set-ExecutionPolicy RemoteSigned -scope CurrentUser
           iwr get.scoop.sh -outfile 'scoop_install.ps1'
           .\scoop_install.ps1 -RunAsAdmin
           
-          choco install 7zip
-          scoop config 7ZIPEXTRACT_USE_EXTERNAL true
+          scoop install 7zip
           scoop bucket add extras
           scoop install perl binaryen protobuf
         shell: powershell
