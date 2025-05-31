@@ -122,8 +122,7 @@ jobs:
           
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-          cargo install xwin
-          echo "xwin-list=$(xwin --accept-license list)" >> xwin-list.txt
+          cargo xwin --version >> cargo-xwin-version.txt
           
           sudo apt update
           sudo apt install protobuf-compiler binaryen innoextract
@@ -150,7 +149,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /home/runner/.cache/cargo-xwin/xwin
-          key: ${{ matrix.name }}-${{ hashFiles('xwin-list.txt') }}
+          key: ${{ matrix.name }}-${{ hashFiles('cargo-xwin-version.txt') }}
           restore-keys: |
             ${{ matrix.name }}-
 
