@@ -20,12 +20,13 @@ env:
 
 jobs:
   win-native:
-    runs-on: ci-win
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
+        runs-on: ["ci-win", "windows-11-arm"]
       fail-fast: false
-    name: win-native (${{ matrix.profiles.name }})
+    runs-on: ${{ matrix.runs-on }}
+    name: win-native (${{ matrix.profiles.name }}) [${{ matrix.runs-on }}]
     defaults:
       run:
         shell: msys2 {0}
