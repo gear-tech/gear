@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
-        runs-on: ["ci-win", "windows-11-arm"]
+        runs-on: ["ci-win", "windows-11-arm", "windows-latest"]
       fail-fast: false
     runs-on: ${{ matrix.runs-on }}
     name: win-native (${{ matrix.profiles.name }}) [${{ matrix.runs-on }}]
@@ -47,6 +47,7 @@ jobs:
         uses: MinoruSekine/setup-scoop@v4.0.1
         with:
           apps: >-
+            7zip
             perl
             binaryen
             wabt
@@ -92,6 +93,11 @@ jobs:
           tar zxf $tmp -C $outputDir
           $tmp | Remove-Item
         shell: powershell
+
+      - name: "Install: Force x86_64 target"
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
