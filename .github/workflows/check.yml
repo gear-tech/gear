@@ -36,7 +36,6 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     name: clippy (${{ matrix.name }})
     env:
-      RUSTUP_HOME: /tmp/rustup_home
       __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
     steps:
       - name: "ACTIONS: Checkout"
@@ -50,9 +49,6 @@ jobs:
           cache-directories: |
             /Users/runner/Library/Caches/Homebrew
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
@@ -61,7 +57,7 @@ jobs:
         run: |
           brew install protobuf binaryen openssl rocksdb zstd jemalloc
           
-          # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
+          # Do not override include directory because system RocksDB is too new
           #echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/opt/homebrew/opt/rocksdb/lib" >> $GITHUB_ENV
 
@@ -81,7 +77,7 @@ jobs:
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
           /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc pkgconf
           
-          # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
+          # Do not override include directory because system RocksDB is too new
           #echo "ROCKSDB_INCLUDE_DIR=/usr/local/opt/rocksdb/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/local/opt/rocksdb/lib" >> $GITHUB_ENV
 
@@ -102,7 +98,7 @@ jobs:
           sudo apt update
           sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
           
-          # Do not override include directory: https://github.com/rust-rocksdb/rust-rocksdb/issues/925
+          # Do not override include directory because system RocksDB is too new
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
