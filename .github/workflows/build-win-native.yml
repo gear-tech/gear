@@ -49,7 +49,7 @@ jobs:
           
           scoop config 7ZIPEXTRACT_USE_EXTERNAL true
           scoop bucket add extras
-          scoop install perl binaryen wabt protobuf
+          scoop install perl binaryen protobuf
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |

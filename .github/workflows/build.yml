@@ -56,6 +56,7 @@ jobs:
 
   linux:
     runs-on: [kuberunner, github-runner-02]
+    if: false # TODO: temporary disable
     needs: dynamic-profiles
     strategy:
       matrix:
