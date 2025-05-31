@@ -50,7 +50,7 @@ jobs:
           Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
           
           choco install 7zip
-          "C:\Program Files\7-Zip" >> $Env:GITHUB_PATH
+          Add-Content -Path $Env:GITHUB_PATH -Value "C:\Program Files\7-Zip"
           
           scoop config 7ZIPEXTRACT_USE_EXTERNAL true
           scoop bucket add extras
