@@ -104,6 +104,8 @@ jobs:
       - name: "Install: Linux packages"
         if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
+          sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
+          sudo dpkg --add-architecture amd64
           sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
