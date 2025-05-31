@@ -95,7 +95,7 @@ jobs:
       - name: "Install: Force x86_64 target"
         run: |
           rustup target add x86_64-pc-windows-msvc
-          echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
+          Add-Content -Path $Env:GITHUB_ENV -Value "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
