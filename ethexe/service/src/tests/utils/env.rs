@@ -32,6 +32,10 @@ use alloy::{
     providers::{ext::AnvilApi, Provider as _, RootProvider},
     rpc::types::{anvil::MineOptions, Header as RpcHeader},
 };
+use ethexe_blob_loader::{
+    local::{LocalBlobLoader, LocalBlobStorage},
+    BlobLoaderService,
+};
 use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -41,7 +45,7 @@ use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService}
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkService};
-use ethexe_observer::{BlobReader, EthereumConfig, MockBlobReader, ObserverEvent, ObserverService};
+use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig, RpcService};
 use ethexe_signer::Signer;
@@ -75,7 +79,7 @@ pub struct TestEnv {
     pub eth_cfg: EthereumConfig,
     #[allow(unused)]
     pub wallets: Wallets,
-    pub blob_reader: MockBlobReader,
+    pub blobs_storage: LocalBlobStorage,
     pub provider: RootProvider,
     pub ethereum: Ethereum,
     pub signer: Signer,
@@ -91,6 +95,7 @@ pub struct TestEnv {
     /// If network is enabled by test, then we store here:
     /// network service polling thread, bootstrap address and nonce for new node address generation.
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
+
     _anvil: Option<AnvilInstance>,
     _events_stream: JoinHandle<()>,
 }
@@ -192,8 +197,6 @@ impl TestEnv {
         let router_query = router.query();
         let router_address = router.address();
 
-        let blob_reader = MockBlobReader::new();
-
         let db = Database::memory();
 
         let eth_cfg = EthereumConfig {
@@ -202,10 +205,11 @@ impl TestEnv {
             router_address,
             block_time: config.block_time,
         };
-        let mut observer =
-            ObserverService::new(&eth_cfg, u32::MAX, db.clone(), blob_reader.clone_boxed())
-                .await
-                .unwrap();
+        let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
+            .await
+            .unwrap();
+
+        let blobs_storage = LocalBlobStorage::new(db.clone());
 
         let provider = observer.provider().clone();
 
@@ -215,6 +219,7 @@ impl TestEnv {
 
             let (send_subscription_created, receive_subscription_created) =
                 tokio::sync::oneshot::channel::<()>();
+
             let handle = task::spawn(
                 async move {
                     send_subscription_created.send(()).unwrap();
@@ -294,8 +299,8 @@ impl TestEnv {
         Ok(TestEnv {
             eth_cfg,
             wallets,
-            blob_reader,
             provider,
+            blobs_storage,
             ethereum,
             signer,
             validators,
@@ -336,6 +341,7 @@ impl TestEnv {
             })
             .unzip();
 
+        self.blobs_storage.change_db(db.clone());
         Node {
             name,
             db,
@@ -343,7 +349,7 @@ impl TestEnv {
             latest_fast_synced_block: None,
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
-            blob_reader: self.blob_reader.clone(),
+            blob_storage: self.blobs_storage.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
             block_time: self.block_time,
@@ -362,7 +368,6 @@ impl TestEnv {
         let listener = self.observer_events_publisher().subscribe().await;
 
         // Lock the blob reader to lock any other threads that may use it
-        let mut guard = self.blob_reader.storage_mut();
 
         let pending_builder = block_on(
             self.ethereum
@@ -371,9 +376,7 @@ impl TestEnv {
         )?;
 
         let code_id = pending_builder.code_id();
-        let tx_hash = pending_builder.tx_hash();
-
-        guard.insert(tx_hash, code.to_vec());
+        self.blobs_storage.add_code(code_id, code.to_vec()).await;
 
         Ok(WaitForUploadCode { listener, code_id })
     }
@@ -757,7 +760,7 @@ pub struct Node {
 
     eth_cfg: EthereumConfig,
     receiver: Option<TestingEventReceiver>,
-    blob_reader: MockBlobReader,
+    blob_storage: LocalBlobStorage,
     signer: Signer,
     threshold: u64,
     block_time: Duration,
@@ -819,14 +822,11 @@ impl Node {
 
         let (sender, receiver) = broadcast::channel(2048);
 
-        let observer = ObserverService::new(
-            &self.eth_cfg,
-            u32::MAX,
-            self.db.clone(),
-            self.blob_reader.clone_boxed(),
-        )
-        .await
-        .unwrap();
+        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
+            .await
+            .unwrap();
+
+        let blob_loader = LocalBlobLoader::from_storage(self.blob_storage.clone()).into_box();
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
@@ -839,6 +839,7 @@ impl Node {
         let service = Service::new_from_parts(
             self.db.clone(),
             observer,
+            blob_loader,
             processor,
             self.signer.clone(),
             tx_pool_service,
@@ -941,7 +942,6 @@ pub struct WaitForUploadCode {
 #[derive(Debug)]
 pub struct UploadCodeInfo {
     pub code_id: CodeId,
-    pub code: Vec<u8>,
     pub valid: bool,
 }
 
@@ -949,18 +949,7 @@ impl WaitForUploadCode {
     pub async fn wait_for(mut self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-        let mut code_info = None;
         let mut valid_info = None;
-
-        self.listener
-            .apply_until(|event| match event {
-                ObserverEvent::Blob(blob) if blob.code_id == self.code_id => {
-                    code_info = Some(blob.code);
-                    Ok(Some(()))
-                }
-                _ => Ok(None),
-            })
-            .await?;
 
         self.listener
             .apply_until_block_event(|event| match event {
@@ -976,7 +965,6 @@ impl WaitForUploadCode {
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,
-            code: code_info.expect("Code must be set"),
             valid: valid_info.expect("Valid must be set"),
         })
     }

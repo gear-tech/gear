@@ -18,6 +18,7 @@
 
 use crate::Event;
 use anyhow::Result;
+use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
     db::OnChainStorage, events::BlockEvent, tx_pool::SignedOffchainTransaction, SimpleBlockData,
 };
@@ -105,6 +106,7 @@ pub(crate) enum TestingEvent {
     Consensus(ConsensusEvent),
     Network(TestingNetworkEvent),
     Observer(ObserverEvent),
+    BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
 }
@@ -116,6 +118,7 @@ impl TestingEvent {
             Event::Consensus(event) => Self::Consensus(event.clone()),
             Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
+            Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
         }
@@ -194,6 +197,7 @@ impl ObserverEventsListener {
         self.receiver.recv().await.map_err(Into::into)
     }
 
+    #[allow(unused)]
     pub async fn apply_until<R: Sized>(
         &mut self,
         mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
