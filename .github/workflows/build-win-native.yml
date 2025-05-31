@@ -47,13 +47,11 @@ jobs:
         run: |
           iwr get.scoop.sh -outfile 'scoop_install.ps1'
           .\scoop_install.ps1 -RunAsAdmin
-          
-          scoop install 7zip
           scoop bucket add extras
         shell: powershell
 
       - name: "Install: Packages from Scoop"
-        run: scoop install perl binaryen protobuf
+        run: scoop install 7zip perl binaryen protobuf
         shell: powershell
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
