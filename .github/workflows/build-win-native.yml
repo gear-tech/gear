@@ -48,6 +48,7 @@ jobs:
           iwr get.scoop.sh -outfile 'scoop_install.ps1'
           .\scoop_install.ps1 -RunAsAdmin
           scoop bucket add extras
+          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
         shell: powershell
 
       - name: "Install: Packages from Scoop"
