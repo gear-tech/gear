@@ -20,9 +20,9 @@ use crate::{
     tests::utils::{
         events::{
             ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
-            TestableEventReceiver, TestableNetworkEvent,
+            TestingEventReceiver, TestingNetworkEvent,
         },
-        TestableEvent,
+        TestingEvent,
     },
     Service,
 };
@@ -756,7 +756,7 @@ pub struct Node {
     pub latest_fast_synced_block: Option<H256>,
 
     eth_cfg: EthereumConfig,
-    receiver: Option<TestableEventReceiver>,
+    receiver: Option<TestingEventReceiver>,
     blob_reader: MockBlobReader,
     signer: Signer,
     threshold: u64,
@@ -864,7 +864,7 @@ impl Node {
             self.latest_fast_synced_block = self
                 .listener()
                 .apply_until(|e| {
-                    if let TestableEvent::FastSyncDone(block) = e {
+                    if let TestingEvent::FastSyncDone(block) = e {
                         Ok(Some(block))
                     } else {
                         Ok(None)
@@ -875,7 +875,7 @@ impl Node {
                 .unwrap();
         }
 
-        self.wait_for(|e| matches!(e, TestableEvent::ServiceStarted))
+        self.wait_for(|e| matches!(e, TestingEvent::ServiceStarted))
             .await;
 
         // fast sync implies network has connections
@@ -883,7 +883,7 @@ impl Node {
             self.wait_for(|e| {
                 matches!(
                     e,
-                    TestableEvent::Network(TestableNetworkEvent::PeerConnected(_))
+                    TestingEvent::Network(TestingNetworkEvent::PeerConnected(_))
                 )
             })
             .await;
@@ -916,7 +916,7 @@ impl Node {
     }
 
     // TODO(playX18): Tests that actually use Event broadcast channel extensively
-    pub async fn wait_for(&mut self, f: impl Fn(TestableEvent) -> bool) {
+    pub async fn wait_for(&mut self, f: impl Fn(TestingEvent) -> bool) {
         self.listener()
             .wait_for(|e| Ok(f(e)))
             .await

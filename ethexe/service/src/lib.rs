@@ -77,7 +77,7 @@ pub struct Service {
     fast_sync: bool,
 
     #[cfg(test)]
-    sender: tests::utils::TestableEventSender,
+    sender: tests::utils::TestingEventSender,
 }
 
 // TODO #4176: consider to move this to another module
@@ -266,7 +266,7 @@ impl Service {
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
-        sender: tests::utils::TestableEventSender,
+        sender: tests::utils::TestingEventSender,
         fast_sync: bool,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
@@ -327,7 +327,7 @@ impl Service {
 
         #[cfg(test)]
         sender
-            .send(tests::utils::TestableEvent::ServiceStarted)
+            .send(tests::utils::TestingEvent::ServiceStarted)
             .expect("failed to broadcast service STARTED event");
 
         loop {
@@ -348,7 +348,7 @@ impl Service {
 
             #[cfg(test)]
             sender
-                .send(tests::utils::TestableEvent::new(&event))
+                .send(tests::utils::TestingEvent::new(&event))
                 .expect("failed to broadcast service event");
 
             match event {

@@ -34,12 +34,12 @@ use tokio::sync::{
     broadcast::{Receiver, Sender},
 };
 
-pub type TestableEventSender = Sender<TestableEvent>;
-pub type TestableEventReceiver = Receiver<TestableEvent>;
+pub type TestingEventSender = Sender<TestingEvent>;
+pub type TestingEventReceiver = Receiver<TestingEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(dead_code)]
-pub(crate) enum TestableNetworkEvent {
+pub(crate) enum TestingNetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, db_sync::RequestFailure>,
@@ -56,7 +56,7 @@ pub(crate) enum TestableNetworkEvent {
     PeerConnected(PeerId),
 }
 
-impl TestableNetworkEvent {
+impl TestingNetworkEvent {
     fn new(event: &NetworkEvent) -> Self {
         match event {
             NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
@@ -74,13 +74,13 @@ impl TestableNetworkEvent {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TestableRpcEvent {
+pub enum TestingRpcEvent {
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
     },
 }
 
-impl TestableRpcEvent {
+impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
             RpcEvent::OffchainTransaction {
@@ -95,7 +95,7 @@ impl TestableRpcEvent {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(dead_code)]
-pub(crate) enum TestableEvent {
+pub(crate) enum TestingEvent {
     // Fast sync done. Sent just once.
     FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
@@ -103,37 +103,37 @@ pub(crate) enum TestableEvent {
     // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
-    Network(TestableNetworkEvent),
+    Network(TestingNetworkEvent),
     Observer(ObserverEvent),
     Prometheus(PrometheusEvent),
-    Rpc(TestableRpcEvent),
+    Rpc(TestingRpcEvent),
 }
 
-impl TestableEvent {
+impl TestingEvent {
     pub(crate) fn new(event: &Event) -> Self {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
-            Event::Network(event) => Self::Network(TestableNetworkEvent::new(event)),
+            Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
-            Event::Rpc(event) => Self::Rpc(TestableRpcEvent::new(event)),
+            Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
         }
     }
 }
 
 pub struct ServiceEventsListener<'a> {
-    pub receiver: &'a mut TestableEventReceiver,
+    pub receiver: &'a mut TestingEventReceiver,
 }
 
 impl ServiceEventsListener<'_> {
-    pub async fn next_event(&mut self) -> anyhow::Result<TestableEvent> {
+    pub async fn next_event(&mut self) -> anyhow::Result<TestingEvent> {
         self.receiver.recv().await.map_err(Into::into)
     }
 
     pub async fn wait_for(
         &mut self,
-        f: impl Fn(TestableEvent) -> Result<bool>,
+        f: impl Fn(TestingEvent) -> Result<bool>,
     ) -> anyhow::Result<()> {
         self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
             .await
@@ -143,14 +143,14 @@ impl ServiceEventsListener<'_> {
         self.wait_for(|event| {
             Ok(matches!(
                 event,
-                TestableEvent::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
+                TestingEvent::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
             ))
         }).await.unwrap();
     }
 
     pub async fn apply_until<R: Sized>(
         &mut self,
-        f: impl Fn(TestableEvent) -> Result<Option<R>>,
+        f: impl Fn(TestingEvent) -> Result<Option<R>>,
     ) -> anyhow::Result<R> {
         loop {
             let event = self.next_event().await?;
