@@ -45,7 +45,6 @@ jobs:
 
       - name: "Install: Packages from Scoop"
         run: |
-          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
           Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression -ArgumentList '-RunAsAdmin'
           
           scoop config 7ZIPEXTRACT_USE_EXTERNAL true
