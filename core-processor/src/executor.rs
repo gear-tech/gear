@@ -48,7 +48,7 @@ use gear_core_backend::{
 /// Execute wasm with dispatch and return dispatch result.
 pub(crate) fn execute_wasm<Ext>(
     balance: u128,
-    dispatch: IncomingDispatch,
+    dispatch: &IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
@@ -86,9 +86,6 @@ where
     )
     .map_err(SystemExecutionError::from)?;
 
-    // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
-
     // Creating value counter.
     //
     // NOTE: Value available equals free balance with message value if value
@@ -102,6 +99,14 @@ where
         Default::default()
     });
     let value_counter = ValueCounter::new(value_available);
+
+    // Creating message context.
+    let message_context = MessageContext::new(
+        // dispatch clone is cheap because is uses `Arc` for payload
+        dispatch.clone(),
+        program.id,
+        msg_ctx_settings,
+    );
 
     let context = ProcessorContext {
         gas_counter,
@@ -226,7 +231,8 @@ where
     // Output
     Ok(DispatchResult {
         kind,
-        dispatch,
+        // dispatch clone is cheap because is uses `Arc` for payload
+        dispatch: dispatch.clone(),
         program_id: program.id,
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,
