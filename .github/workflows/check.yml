@@ -29,10 +29,10 @@ jobs:
             runs-on: macos-latest
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs-on }}
     name: clippy (${{ matrix.name }})
     env:
@@ -59,6 +59,11 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
+      - name: "Install: Rust target"
+        run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+
       - name: "Install: macOS aarch64 packages"
         if: ${{ matrix.name == 'macos-aarch64' }}
         run: |
@@ -78,9 +83,6 @@ jobs:
       - name: "Install: macOS x86_64 packages"
         if: ${{ matrix.name == 'macos-x86_64' }}
         run: |
-          rustup target add ${{ matrix.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
-          
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
           /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc pkgconf
           
@@ -102,8 +104,9 @@ jobs:
       - name: "Install: Linux packages"
         if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
+          sudo dpkg --add-architecture amd64
           sudo apt update
-          sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
+          sudo apt install protobuf-compiler binaryen libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64
           
           # Do not override include directory because system RocksDB is too new
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
@@ -120,10 +123,7 @@ jobs:
       - name: "Install: Windows packages"
         if: ${{ matrix.name == 'windows-x86_64' }}
         run: |
-          rustup target add ${{ matrix.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
-          
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.aarch64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
           cargo xwin --version >> cargo-xwin-version.txt
           
