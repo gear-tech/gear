@@ -48,7 +48,7 @@ jobs:
           key: "${{ matrix.name }}"
           # packages installation for macOS x86_64 takes too long
           cache-directories: |
-            /usr/local/opt
+            /Users/runner/Library/Caches/Homebrew
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
