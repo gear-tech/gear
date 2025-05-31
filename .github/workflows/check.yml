@@ -104,7 +104,7 @@ jobs:
       - name: "Install: Linux packages"
         if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
-          sudo cat > /etc/apt/sources.list.d/amd64.list <<EOF
+          sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
