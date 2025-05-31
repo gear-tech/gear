@@ -142,7 +142,7 @@ contract POCTest is Base {
             vm.expectEmit(true, false, false, false);
             emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
             _ping = router.createProgram(_codeId, "salt", address(0));
-            IMirror(_ping).sendMessage("PING", 0);
+            IMirror(_ping).sendMessage("PING", 0, false);
         }
         vm.stopPrank();
 
@@ -160,13 +160,15 @@ contract POCTest is Base {
             Gear.ReplyDetails(
                 0, // reply to
                 0 // reply code
-            )
+            ),
+            false // call
         );
 
         Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](1);
         _transitions[0] = Gear.StateTransition(
             _ping, // actor id
             bytes32(uint256(1)), // new state hash
+            false, // exited
             address(0), // inheritor
             uint128(0), // value to receive
             new Gear.ValueClaim[](0), // value claims
@@ -192,7 +194,7 @@ contract POCTest is Base {
         {
             uint256 _allowanceBefore = wrappedVara.allowance(admin, _ping);
             wrappedVara.approve(_ping, type(uint256).max);
-            IMirror(_ping).sendMessage("PING", 0);
+            IMirror(_ping).sendMessage("PING", 0, false);
             wrappedVara.approve(_ping, _allowanceBefore);
         }
         vm.stopPrank();
@@ -211,13 +213,15 @@ contract POCTest is Base {
             Gear.ReplyDetails(
                 0, // reply to
                 0 // reply code
-            )
+            ),
+            false // call
         );
 
         Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](1);
         _transitions[0] = Gear.StateTransition(
             _ping, // actor id
             bytes32(uint256(2)), // new state hash
+            false, // exited
             address(0), // inheritor
             0, // value to receive
             new Gear.ValueClaim[](0), // value claims
