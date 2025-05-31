@@ -216,6 +216,7 @@ jobs:
     env:
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -231,9 +232,6 @@ jobs:
 
       - name: "Install: MSVC target"
         run: rustup target add x86_64-pc-windows-msvc
-
-      - name: "Install: cargo config"
-        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
