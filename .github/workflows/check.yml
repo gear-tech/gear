@@ -113,13 +113,16 @@ jobs:
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
           EOF
           sudo apt update
-          sudo apt install protobuf-compiler binaryen libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64
+          sudo apt install protobuf-compiler binaryen libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64 pkg-config
           
           # Do not override include directory because system RocksDB is too new
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
+          echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "TARGET_PKG_CONFIG_PATH=/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
           
           echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
