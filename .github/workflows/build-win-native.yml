@@ -57,7 +57,7 @@ jobs:
         shell: powershell
 
       - name: "Install: Packages from Scoop"
-        run: scoop install 7zip perl binaryen protobuf
+        run: scoop install perl binaryen protobuf
         shell: powershell
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
