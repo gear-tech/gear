@@ -47,8 +47,13 @@ jobs:
         run: |
           iwr get.scoop.sh -outfile 'scoop_install.ps1'
           .\scoop_install.ps1 -RunAsAdmin
-          scoop bucket add extras
           Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
+          
+          choco install 7zip
+          "C:\ProgramData\chocolatey\lib\7zip" >> $Env:GITHUB_PATH
+          
+          scoop config 7ZIPEXTRACT_USE_EXTERNAL true
+          scoop bucket add extras
         shell: powershell
 
       - name: "Install: Packages from Scoop"
