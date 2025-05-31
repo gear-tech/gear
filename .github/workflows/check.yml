@@ -104,7 +104,12 @@ jobs:
       - name: "Install: Linux packages"
         if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
-          sudo dpkg --add-architecture amd64
+          sudo cat > /etc/apt/sources.list.d/amd64.list <<EOF
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+          EOF
           sudo apt update
           sudo apt install protobuf-compiler binaryen libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64
           
