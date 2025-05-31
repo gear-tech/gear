@@ -202,7 +202,7 @@ jobs:
       - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   linux:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -278,7 +278,7 @@ jobs:
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   fuzzer:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
       RUSTFLAGS: "--cfg fuzz"
