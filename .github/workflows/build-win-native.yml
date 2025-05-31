@@ -44,15 +44,13 @@ jobs:
           install: procps
 
       - name: "Install: Packages from Scoop"
-        uses: MinoruSekine/setup-scoop@v4.0.1
-        with:
-          apps: >-
-            7zip
-            perl
-            binaryen
-            wabt
-            protobuf
-          buckets: extras
+        run: |
+          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+          Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression -ArgumentList '-RunAsAdmin'
+          
+          scoop config 7ZIPEXTRACT_USE_EXTERNAL true
+          scoop bucket add extras
+          scoop install perl binaryen wabt protobuf
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
