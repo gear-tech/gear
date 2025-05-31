@@ -129,7 +129,6 @@ async fn ping() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -796,7 +795,6 @@ async fn ping_deep_sync() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code.as_slice(), demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let code_id = res.code_id;
@@ -884,7 +882,6 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code, demo_ping::WASM_BINARY);
     assert!(res.valid);
 
     let ping_code_id = res.code_id;
@@ -917,7 +914,6 @@ async fn multiple_validators() {
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.code, demo_async::WASM_BINARY);
     assert!(res.valid);
 
     let async_code_id = res.code_id;

@@ -62,7 +62,9 @@ impl Mirror {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<(H256, MessageId)> {
-        let builder = self.0.sendMessage(payload.as_ref().to_vec().into(), value);
+        let builder = self
+            .0
+            .sendMessage(payload.as_ref().to_vec().into(), value, false);
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();

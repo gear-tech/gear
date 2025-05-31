@@ -22,11 +22,13 @@
 
 extern crate alloc;
 
-use alloc::string::ToString;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, quote_spanned};
-use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Ident};
+use syn::{parse_macro_input, Data, DeriveInput, Ident};
+#[cfg(feature = "full")]
+use {alloc::string::ToString, syn::spanned::Spanned};
+
 /// This derives `Debug` for a struct where each field must be of some numeric type.
 /// It interprets each field as its represents some weight and formats it as times so that
 /// it is readable by humans.
@@ -62,7 +64,7 @@ fn derive_debug(input: TokenStream, fmt: impl Fn(&Ident) -> TokenStream2) -> Tok
     #[cfg(not(feature = "full"))]
     let fields = {
         drop(fmt);
-        drop(data);
+        let _ = data;
         TokenStream2::new()
     };
 

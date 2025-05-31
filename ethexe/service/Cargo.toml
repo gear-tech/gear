@@ -13,6 +13,7 @@ ethexe-service-utils.workspace = true
 ethexe-db.workspace = true
 ethexe-network.workspace = true
 ethexe-observer.workspace = true
+ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
 ethexe-signer.workspace = true
 ethexe-consensus.workspace = true

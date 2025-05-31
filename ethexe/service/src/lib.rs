@@ -19,6 +19,10 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
+use ethexe_blob_loader::{
+    local::{LocalBlobLoader, LocalBlobStorage},
+    BlobData, BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
+};
 use ethexe_common::{
     ecdsa::{PublicKey, SignedData},
     gear::CodeState,
@@ -32,9 +36,7 @@ use ethexe_consensus::{
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_network::{db_sync::ExternalDataProvider, NetworkEvent, NetworkService};
-use ethexe_observer::{
-    BlobData, BlobReader, ConsensusLayerBlobReader, MockBlobReader, ObserverEvent, ObserverService,
-};
+use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
@@ -58,6 +60,7 @@ pub enum Event {
     Consensus(ConsensusEvent),
     Network(NetworkEvent),
     Observer(ObserverEvent),
+    BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
 }
@@ -103,6 +106,7 @@ impl ExternalDataProvider for RouterDataProvider {
 pub struct Service {
     db: Database,
     observer: ObserverService,
+    blob_loader: Box<dyn BlobLoaderService>,
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
@@ -116,26 +120,11 @@ pub struct Service {
     fast_sync: bool,
 
     #[cfg(test)]
-    sender: tests::utils::TestableEventSender,
+    sender: tests::utils::TestingEventSender,
 }
 
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
-        let (blob_reader, mock_blob_reader_for_rpc): (Box<dyn BlobReader>, Option<MockBlobReader>) =
-            if config.node.dev {
-                let reader = MockBlobReader::new();
-                (Box::new(reader.clone()), Some(reader))
-            } else {
-                let reader = ConsensusLayerBlobReader::new(
-                    &config.ethereum.rpc,
-                    &config.ethereum.beacon_rpc,
-                    config.ethereum.block_time,
-                )
-                .await
-                .context("failed to create consensus layer blob reader")?;
-                (Box::new(reader), None)
-            };
-
         let rocks_db = RocksDatabase::open(
             config
                 .node
@@ -144,14 +133,31 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let observer = ObserverService::new(
-            &config.ethereum,
-            config.node.eth_max_sync_depth,
-            db.clone(),
-            blob_reader,
-        )
-        .await
-        .context("failed to create observer service")?;
+        let (blob_loader, local_blob_storage_for_rpc): (
+            Box<dyn BlobLoaderService>,
+            Option<LocalBlobStorage>,
+        ) = if config.node.dev {
+            let storage = LocalBlobStorage::new(db.clone());
+            let blob_loader = LocalBlobLoader::from_storage(storage.clone());
+
+            (blob_loader.into_box(), Some(storage))
+        } else {
+            let consensus_config = ConsensusLayerConfig {
+                ethereum_rpc: config.ethereum.rpc.clone(),
+                ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
+                beacon_block_time: config.ethereum.block_time,
+            };
+            let blob_loader = BlobLoader::new(db.clone(), consensus_config)
+                .await
+                .context("failed to create blob loader")?;
+
+            (blob_loader.into_box(), None)
+        };
+
+        let observer =
+            ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
+                .await
+                .context("failed to create observer service")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -254,7 +260,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), mock_blob_reader_for_rpc));
+            .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
 
         let tx_pool = TxPoolService::new(db.clone());
 
@@ -267,6 +273,7 @@ impl Service {
             db,
             network,
             observer,
+            blob_loader,
             compute,
             consensus,
             signer,
@@ -292,6 +299,7 @@ impl Service {
     pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
+        blob_loader: Box<dyn BlobLoaderService>,
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
@@ -299,7 +307,7 @@ impl Service {
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
-        sender: tests::utils::TestableEventSender,
+        sender: tests::utils::TestingEventSender,
         fast_sync: bool,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
@@ -307,6 +315,7 @@ impl Service {
         Self {
             db,
             observer,
+            blob_loader,
             compute,
             consensus,
             signer,
@@ -334,6 +343,7 @@ impl Service {
             db,
             mut network,
             mut observer,
+            mut blob_loader,
             mut compute,
             mut consensus,
             signer: _signer,
@@ -360,7 +370,7 @@ impl Service {
 
         #[cfg(test)]
         sender
-            .send(tests::utils::TestableEvent::ServiceStarted)
+            .send(tests::utils::TestingEvent::ServiceStarted)
             .expect("failed to broadcast service STARTED event");
 
         loop {
@@ -369,6 +379,7 @@ impl Service {
                 event = consensus.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
+                event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
@@ -381,23 +392,11 @@ impl Service {
 
             #[cfg(test)]
             sender
-                .send(tests::utils::TestableEvent::new(&event))
+                .send(tests::utils::TestingEvent::new(&event))
                 .expect("failed to broadcast service event");
 
             match event {
                 Event::Observer(event) => match event {
-                    ObserverEvent::Blob(BlobData {
-                        code_id,
-                        timestamp,
-                        code,
-                    }) => {
-                        log::info!(
-                            "🔢 receive a code blob, code_id {code_id}, code size {}",
-                            code.len()
-                        );
-
-                        compute.receive_code(code_id, timestamp, code)
-                    }
                     ObserverEvent::Block(block_data) => {
                         log::info!(
                             "📦 receive a chain head, height {}, hash {}, parent hash {}",
@@ -408,20 +407,32 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(data) => {
+                    ObserverEvent::BlockSynced(synced_block) => {
                         // NOTE: Observer guarantees that, if this event is emitted,
                         // then from latest synced block and up to `block_hash`:
                         // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
-                        // 2) all approved(at least) codes are loaded and available in database.
 
-                        consensus.receive_synced_block(data)?
+                        compute.prepare_block(synced_block.block_hash);
+                        consensus.receive_synced_block(synced_block)?;
+                    }
+                },
+                Event::BlobLoader(event) => match event {
+                    BlobLoaderEvent::BlobLoaded(BlobData {
+                        code_id,
+                        timestamp,
+                        code,
+                    }) => {
+                        compute.process_code(code_id, timestamp, code);
                     }
                 },
                 Event::Compute(event) => match event {
+                    ComputeEvent::RequestLoadCodes(codes) => {
+                        blob_loader.load_codes(codes, None)?;
+                    }
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
                         consensus.receive_computed_block(block_hash)?
                     }
-                    ComputeEvent::CodeProcessed(_) => {
+                    ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
                         // Nothing
                     }
                 },
@@ -476,9 +487,10 @@ impl Service {
 
                     match event {
                         PrometheusEvent::CollectMetrics => {
-                            let status = observer.status();
+                            let last_block = observer.last_block_number();
+                            let pending_codes = blob_loader.pending_codes_len();
 
-                            p.update_observer_metrics(status.eth_best_height, status.pending_codes);
+                            p.update_observer_metrics(last_block, pending_codes);
 
                             // TODO #4643: support metrics for consensus service
                         }
@@ -513,7 +525,7 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.receive_synced_head(block),
+                    ConsensusEvent::ComputeBlock(block) => compute.process_block(block),
                     ConsensusEvent::ComputeProducerBlock(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
@@ -521,7 +533,7 @@ impl Service {
                             todo!("#4638 #4639 off-chain transactions and gas allowance are not supported yet");
                         }
 
-                        compute.receive_synced_head(producer_block.block_hash);
+                        compute.process_block(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {

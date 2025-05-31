@@ -20,10 +20,7 @@ use super::address::Address;
 use alloc::string::String;
 use core::str::FromStr;
 use hex::FromHexError;
-use k256::{
-    ecdsa::{SigningKey, VerifyingKey},
-    elliptic_curve::rand_core,
-};
+use k256::ecdsa::{SigningKey, VerifyingKey};
 use parity_scale_codec::{Decode, Encode};
 
 /// Private key.
@@ -72,7 +69,7 @@ impl FromStr for PrivateKey {
 #[cfg(feature = "std")]
 impl PrivateKey {
     pub fn random() -> Self {
-        SigningKey::random(&mut rand_core::OsRng).into()
+        SigningKey::random(&mut k256::elliptic_curve::rand_core::OsRng).into()
     }
 }
 

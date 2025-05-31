@@ -521,8 +521,8 @@ async fn sync_from_network(
 }
 
 async fn instrument_codes(
-    db: &Database,
     compute: &mut ComputeService,
+    db: &Database,
     mut code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
     /// codes we instrument had already been processed by gear.exe,
@@ -541,7 +541,7 @@ async fn instrument_codes(
         let original_code = db
             .original_code(code_id)
             .expect("`sync_from_network` must fulfill database");
-        compute.receive_code(code_id, TIMESTAMP, original_code);
+        compute.process_code(code_id, TIMESTAMP, original_code);
     }
 
     while let Some(event) = compute.next().await {
@@ -554,7 +554,7 @@ async fn instrument_codes(
         }
     }
 
-    log::info!("Instrumentation done");
+    log::info!("Codes preparation done");
     Ok(())
 }
 
@@ -610,7 +610,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     sync_from_network(network, db, &code_ids, &program_states).await;
 
-    instrument_codes(db, compute, code_ids).await?;
+    instrument_codes(compute, db, code_ids).await?;
 
     let schedule =
         ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
@@ -650,7 +650,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     #[cfg(test)]
     sender
-        .send(crate::tests::utils::TestableEvent::FastSyncDone(
+        .send(crate::tests::utils::TestingEvent::FastSyncDone(
             latest_committed_block,
         ))
         .expect("failed to broadcast fast sync done event");

@@ -257,6 +257,7 @@ contract Base is POCBaseTest {
                 Gear.stateTransitionHash(
                     _transition.actorId,
                     _transition.newStateHash,
+                    _transition.exited,
                     _transition.inheritor,
                     _transition.valueToReceive,
                     keccak256(_valueClaimsBytes),

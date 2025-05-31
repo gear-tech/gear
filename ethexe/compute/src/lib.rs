@@ -21,14 +21,14 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
-    SimpleBlockData,
+    CodeInfo, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::{BlockProcessingResult, Processor};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeSet, HashSet, VecDeque},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -41,8 +41,26 @@ pub struct BlockProcessed {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ComputeEvent {
-    BlockProcessed(BlockProcessed),
+    RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeCommitment),
+    BlockPrepared(H256),
+    BlockProcessed(BlockProcessed),
+}
+
+#[derive(Debug, Clone)]
+enum BlockAction {
+    Prepare(H256),
+    Process(H256),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum BlockPreparationState {
+    WaitForBlock,
+    WaitForCodes {
+        block: H256,
+        chain: Vec<SimpleBlockData>,
+        waiting_codes: HashSet<CodeId>,
+    },
 }
 
 // TODO #4548: add state monitoring in prometheus
@@ -50,7 +68,10 @@ pub enum ComputeEvent {
 pub struct ComputeService {
     db: Database,
     processor: Processor,
-    blocks_queue: VecDeque<H256>,
+
+    blocks_queue: VecDeque<BlockAction>,
+    state: BlockPreparationState,
+
     process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
     process_codes: JoinSet<Result<CodeCommitment>>,
 }
@@ -59,24 +80,73 @@ impl Stream for ComputeService {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(Poll::Ready(res)) = self.process_block.as_mut().map(|f| f.poll_unpin(cx)) {
-            self.process_block = self.blocks_queue.pop_front().map(|block| {
-                ChainHeadProcessContext {
-                    db: self.db.clone(),
-                    processor: self.processor.clone(),
+        if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
+            match res {
+                Ok(Ok(commitment)) => {
+                    if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
+                        &mut self.state
+                    {
+                        waiting_codes.remove(&commitment.id);
+                    }
+                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(commitment))));
                 }
-                .process(block)
-                .boxed()
-            });
-
-            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
+                Ok(Err(e)) => return Poll::Ready(Some(Err(anyhow!("process code error: {e}")))),
+                Err(e) => return Poll::Ready(Some(Err(anyhow!("process codes join error: {e}")))),
+            }
         }
 
-        if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
-            return Poll::Ready(Some(
-                res.map_err(Into::into)
-                    .and_then(|res| res.map(ComputeEvent::CodeProcessed)),
-            ));
+        if self.process_block.is_none() && self.state == BlockPreparationState::WaitForBlock {
+            match self.blocks_queue.pop_back() {
+                Some(BlockAction::Prepare(block)) => {
+                    let (chain, validated_codes, codes_to_load) =
+                        self.collect_chain_codes(block)?;
+
+                    self.state = BlockPreparationState::WaitForCodes {
+                        block,
+                        chain,
+                        waiting_codes: validated_codes,
+                    };
+                    return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load))));
+                }
+                Some(BlockAction::Process(block)) => {
+                    if !self.db.block_prepared(block) {
+                        return Poll::Ready(Some(Err(anyhow!(
+                            "block {block:?} requested to process, but it's not prepared"
+                        ))));
+                    }
+
+                    let context = ChainHeadProcessContext {
+                        db: self.db.clone(),
+                        processor: self.processor.clone(),
+                    };
+                    self.process_block = Some(context.process(block).boxed());
+                }
+                None => {}
+            }
+        }
+
+        if let BlockPreparationState::WaitForCodes {
+            block,
+            chain,
+            waiting_codes,
+        } = &self.state
+        {
+            if waiting_codes.is_empty() {
+                for block_data in chain {
+                    self.db.set_block_prepared(block_data.hash);
+                }
+
+                let event = ComputeEvent::BlockPrepared(*block);
+                self.state = BlockPreparationState::WaitForBlock;
+                return Poll::Ready(Some(Ok(event)));
+            }
+        }
+
+        if let Some(fut) = self.process_block.as_mut() {
+            if let Poll::Ready(res) = fut.poll_unpin(cx) {
+                self.process_block = None;
+                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
+            }
         }
 
         Poll::Pending
@@ -95,13 +165,14 @@ impl ComputeService {
         Self {
             db,
             processor,
-            blocks_queue: VecDeque::new(),
-            process_block: Default::default(),
+            blocks_queue: Default::default(),
+            state: BlockPreparationState::WaitForBlock,
+            process_block: None,
             process_codes: Default::default(),
         }
     }
 
-    pub fn receive_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
+    pub fn process_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
             let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
@@ -113,17 +184,67 @@ impl ComputeService {
         });
     }
 
-    pub fn receive_synced_head(&mut self, block: H256) {
-        if self.process_block.is_none() {
-            let context = ChainHeadProcessContext {
-                db: self.db.clone(),
-                processor: self.processor.clone(),
-            };
+    pub fn prepare_block(&mut self, block: H256) {
+        self.blocks_queue.push_front(BlockAction::Prepare(block));
+    }
 
-            self.process_block = Some(Box::pin(context.process(block)));
-        } else {
-            self.blocks_queue.push_back(block);
+    pub fn process_block(&mut self, block: H256) {
+        self.blocks_queue.push_front(BlockAction::Process(block));
+    }
+
+    fn collect_chain_codes(
+        &self,
+        block: H256,
+    ) -> Result<(Vec<SimpleBlockData>, HashSet<CodeId>, HashSet<CodeId>)> {
+        let chain = ChainHeadProcessContext::collect_not_computed_blocks_chain(&self.db, block)?;
+
+        let mut validated_codes = HashSet::new();
+        let mut codes_to_load = HashSet::new();
+        for block in chain.iter() {
+            let (block_validated_coded, block_codes_to_load) =
+                self.collect_block_codes(block.hash)?;
+
+            validated_codes.extend(block_validated_coded.into_iter());
+            codes_to_load.extend(block_codes_to_load.into_iter());
         }
+
+        Ok((chain, validated_codes, codes_to_load))
+    }
+
+    fn collect_block_codes(&self, block: H256) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
+        let events = self
+            .db
+            .block_events(block)
+            .ok_or(anyhow!("observer must set block events"))?;
+
+        let mut validated_codes = HashSet::new();
+        let mut codes_to_load = HashSet::new();
+
+        for event in &events {
+            match event {
+                BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    timestamp,
+                    tx_hash,
+                }) => {
+                    let code_info = CodeInfo {
+                        timestamp: *timestamp,
+                        tx_hash: *tx_hash,
+                    };
+                    self.db.set_code_blob_info(*code_id, code_info.clone());
+                    codes_to_load.insert(*code_id);
+                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+                    if !self.db.original_code_exists(*code_id) {
+                        validated_codes.insert(*code_id);
+                        codes_to_load.insert(*code_id);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok((validated_codes, codes_to_load))
     }
 }
 
@@ -140,7 +261,6 @@ impl ChainHeadProcessContext {
         for block_data in chain.into_iter().rev() {
             self.process_one_block(block_data).await?;
         }
-
         Ok(BlockProcessed { block_hash: head })
     }
 
@@ -164,8 +284,10 @@ impl ChainHeadProcessContext {
                     .db
                     .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
                 {
-                    let code = CodesStorage::original_code(&self.db, *code_id)
-                        .ok_or_else(|| anyhow!("code not found for validated code {code_id}"))?;
+                    let code = self
+                        .db
+                        .original_code(*code_id)
+                        .ok_or(anyhow!("code not found for validated code {code_id}"))?;
                     self.processor.process_upload_code(*code_id, &code)?;
                 }
             }
