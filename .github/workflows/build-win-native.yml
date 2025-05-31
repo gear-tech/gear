@@ -48,6 +48,7 @@ jobs:
           iwr get.scoop.sh -outfile 'scoop_install.ps1'
           .\scoop_install.ps1 -RunAsAdmin
           
+          choco install 7zip
           scoop config 7ZIPEXTRACT_USE_EXTERNAL true
           scoop bucket add extras
           scoop install perl binaryen protobuf
