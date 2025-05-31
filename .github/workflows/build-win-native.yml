@@ -17,7 +17,6 @@ env:
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
   TERM: xterm-256color
-  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
 
 jobs:
   win-native:
@@ -33,6 +32,9 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Setup MSYS2 environment"
         uses: msys2/setup-msys2@v2

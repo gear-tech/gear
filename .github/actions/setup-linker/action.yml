@@ -1,0 +1,38 @@
+runs:
+  using: composite
+  steps:
+    - name: "Setup linker on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo apt update
+        sudo apt install mold
+        
+        echo "CFLAGS_X86_64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CXXFLAGS_X86_64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+        
+        echo "CFLAGS_X86_64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CXXFLAGS_X86_64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+        
+        echo "CFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+        
+        echo "CFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+      shell: bash
+    - name: "Setup linker on Windows"
+      if: ${{ runner.os == 'Windows' }}
+      run: |
+        Add-Content -Path $Env:GITHUB_ENV -Value "CC_X86_64_PC_WINDOWS_MSVC=C:\Program Files\LLVM\bin\clang-cl.exe"
+        Add-Content -Path $Env:GITHUB_ENV -Value "CXX_X86_64_PC_WINDOWS_MSVC=C:\Program Files\LLVM\bin\clang-cl.exe"
+        Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld"
+        Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
+        Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
+      shell: powershell
+    - name: "Setup linker on macOS"
+      if: ${{ runner.os == 'macOS' }}
+      run: "" # macOS already has the fastest linker by default
+      shell: bash
