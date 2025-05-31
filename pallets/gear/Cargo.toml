@@ -23,7 +23,6 @@ primitive-types = { workspace = true, features = ["scale-info"] }
 gear-wasm-instrument.workspace = true
 derive_more.workspace = true
 tracing-subscriber = { workspace = true, optional = true }
-scopeguard.workspace = true
 
 # Internal deps
 common.workspace = true
@@ -144,7 +143,6 @@ std = [
     "frame-support-test/std",
     "frame-system/std",
     "gear-wasm-instrument/std",
-    "scopeguard/use_std",
     "core-processor/std",
     "gear-core-backend/std",
     "gear-lazy-pages-interface/std",

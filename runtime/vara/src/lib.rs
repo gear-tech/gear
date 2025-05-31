@@ -23,7 +23,9 @@
 #![allow(clippy::legacy_numeric_constants)]
 #![allow(non_local_definitions)]
 
-// Make the WASM binary available.
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking; // Make the WASM binary available.
 #[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
@@ -1043,12 +1045,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => {
                 // Dev pallets.
                 #[cfg(feature = "dev")]
-                if matches!(
-                    c,
-                    RuntimeCall::GearDebug(..)
-                        | RuntimeCall::GearEthBridge(..)
-                        | RuntimeCall::Sudo(..)
-                ) {
+                if matches!(c, |RuntimeCall::GearEthBridge(..)| RuntimeCall::Sudo(..)) {
                     return false;
                 }
 
@@ -1161,7 +1158,6 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = OutgoingLimit;
     type OutgoingBytesLimit = OutgoingBytesLimit;
     type PerformanceMultiplier = PerformanceMultiplier;
-    type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
@@ -1733,15 +1729,6 @@ mod tests;
 
 #[cfg(test)]
 mod integration_tests;
-
-#[cfg(feature = "dev")]
-type DebugInfo = GearDebug;
-#[cfg(not(feature = "dev"))]
-type DebugInfo = ();
-
-#[cfg(feature = "runtime-benchmarks")]
-#[macro_use]
-extern crate frame_benchmarking;
 
 #[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
 mod benches {
