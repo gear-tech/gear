@@ -289,7 +289,7 @@ jobs:
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
 
   win-native:
-    needs: [dynamic-profiles, linux]
+    needs: [dynamic-profiles]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
     uses: ./.github/workflows/build-win-native.yml
     with:
