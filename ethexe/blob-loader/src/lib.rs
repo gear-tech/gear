@@ -55,7 +55,7 @@ impl fmt::Debug for BlobData {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
 }
