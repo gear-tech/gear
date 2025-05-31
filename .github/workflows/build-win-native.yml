@@ -43,15 +43,17 @@ jobs:
           path-type: inherit
           install: procps
 
-      - name: "Install: Packages from Scoop"
+      - name: "Install: Scoop"
         run: |
-          Set-ExecutionPolicy RemoteSigned -scope CurrentUser
           iwr get.scoop.sh -outfile 'scoop_install.ps1'
           .\scoop_install.ps1 -RunAsAdmin
           
           scoop install 7zip
           scoop bucket add extras
-          scoop install perl binaryen protobuf
+        shell: powershell
+
+      - name: "Install: Packages from Scoop"
+        run: scoop install perl binaryen protobuf
         shell: powershell
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
