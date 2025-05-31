@@ -205,12 +205,24 @@ pub struct ValidatorsCommitment {
     pub era_index: u64,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,
     ValidationRequested,
     Validated,
+}
+
+impl From<u8> for CodeState {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Unknown,
+            1 => Self::ValidationRequested,
+            2 => Self::Validated,
+            // FIXME: might be reachable actually
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]

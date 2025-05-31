@@ -28,6 +28,7 @@ use gear_core::ids::ActorId;
 use gprimitives::H256;
 use std::collections::BTreeMap;
 use tokio::sync::{mpsc, oneshot};
+use tracing::Instrument;
 
 enum Task {
     Run {
@@ -76,12 +77,10 @@ async fn run_in_async(
     for id in 0..virtual_threads {
         let (task_sender, task_receiver) = mpsc::channel(100);
         task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(
-            id,
-            db.clone(),
-            instance_creator.clone(),
-            task_receiver,
-        ));
+        let handle = tokio::spawn(
+            worker(id, db.clone(), instance_creator.clone(), task_receiver)
+                .instrument(tracing::debug_span!("worker", id).or_current()),
+        );
         handles.push(handle);
     }
 
