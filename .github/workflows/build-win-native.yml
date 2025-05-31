@@ -50,6 +50,7 @@ jobs:
           scoop config 7ZIPEXTRACT_USE_EXTERNAL true
           scoop bucket add extras
           scoop install perl binaryen protobuf
+        shell: powershell
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
