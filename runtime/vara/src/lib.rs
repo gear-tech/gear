@@ -913,7 +913,7 @@ impl pallet_im_online::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type NextSessionRotation = Babe;
     type ValidatorSet = Historical;
-    type ReportUnresponsiveness = ();
+    type ReportUnresponsiveness = Offences;
     type UnsignedPriority = ImOnlineUnsignedPriority;
     type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
     type MaxKeys = MaxKeys;
