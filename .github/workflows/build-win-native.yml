@@ -110,7 +110,6 @@ jobs:
       fail-fast: false
     name: win-run (${{ matrix.profiles.name }})
     env:
-      RUSTUP_DISABLE_DOCS: 1
       CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
