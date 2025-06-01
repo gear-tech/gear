@@ -106,14 +106,33 @@ jobs:
       - name: "Build: Target size"
         run: du -sh target
 
-#      - name: "Build: Cleanup target"
-#        run: find target -type f ! -name '*.exe' ! -name '*.pdb' ! -name '*.wasm' -delete
+      - name: "Build: Cleanup target"
+        run: >-
+          find target -type f 
+          ! -name '*.exe'
+          ! -name '*.pdb'
+          ! -name '*.wasm'
+          ! -name '*.d'
+          ! -name '*.timestamp'
+          ! -name '*.rmeta'
+          ! -name '*.json'
+          ! -name '*.rs'
+          ! -name '*.h'
+          ! -name '*.hpp'
+          ! -name '*.c'
+          ! -name '*.cc'
+          ! -name '*.cpp'
+          ! -name '.cargo-lock'
+          ! -name 'CACHEDIR.TAG'
+          -delete
 
       - name: "ACTIONS: Upload target directory"
         uses: actions/upload-artifact@v4
         with:
           name: target-xwin-${{ matrix.profiles.name }}
           path: target
+          retention-days: 1
+          overwrite: true
 
   win-run:
     runs-on: windows-latest
