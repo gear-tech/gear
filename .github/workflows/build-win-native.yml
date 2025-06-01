@@ -20,6 +20,165 @@ env:
   CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
 
 jobs:
+  win-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
+      fail-fast: false
+    name: win-build (${{ matrix.profiles.name }})
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+
+      - name: "Install: Windows packages"
+        if: ${{ matrix.name == 'windows-x86_64' }}
+        run: |
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
+          cargo xwin --version >> cargo-xwin-version.txt
+          
+          sudo apt update
+          sudo apt install protobuf-compiler binaryen innoextract
+          
+          # Package is not available in choco or scoop
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+          
+          # Custom ".pc" is required to be written
+          #Add-Content -Path $Env:GITHUB_ENV -Value "ZSTD_SYS_USE_PKG_CONFIG=1"
+          
+          # Not used on Windows
+          #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
+          
+          wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
+          innoextract -d openssl_extracted -I app openssl_installer.exe
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
+
+      - name: "ACTIONS: Cache MSVC CRT"
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/cargo-xwin/xwin
+          key: windows-x86_64-${{ hashFiles('cargo-xwin-version.txt') }}
+          restore-keys: |
+            windows-x86_64-
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "Check: Stack height limit"
+        # no need to run check twice
+        if: ${{ matrix.profiles.name == 'release' }}
+        run: cargo xwin build -p calc-stack-height --release --locked
+
+      - name: "Test: Client tests"
+        run: |
+          cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
+          ./scripts/gear.sh test client --no-run
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo test --no-run
+          -p "pallet-*"
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          ${{ matrix.profiles.flags }}
+          
+      - name: "ACTIONS: Upload target directory"
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-xwin-${{ matrix.profiles.name }}
+          path: target
+
+  win-run:
+    runs-on: windows-latest
+    needs: win-build
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
+      fail-fast: false
+    name: win-run (${{ matrix.profiles.name }})
+    env:
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rustup"
+        run: |
+          Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
+          .\rustup-init.exe -y
+          #Remove-Item rustup-init.exe
+          Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          Add-Content -Path $Env:GITHUB_ENV -Value "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
+
+      - name: "Install: Packages"
+        run: |
+          iwr get.scoop.sh -outfile 'scoop_install.ps1'
+          .\scoop_install.ps1 -RunAsAdmin
+          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
+          
+          scoop config USE_EXTERNAL_7ZIP true
+          scoop bucket add extras
+          scoop install perl binaryen protobuf
+
+          $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin\perl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
+
+      - name: "ACTIONS: Download target directory"
+        uses: actions/download-artifact@v4
+        with:
+          name: target-xwin-${{ matrix.profiles.name }}
+          path: target
+
+      - name: "Check: Stack height limit"
+        # no need to run check twice
+        if: ${{ matrix.profiles.name == 'release' }}
+        run: cargo xwin run -p calc-stack-height --release --locked
+
+      - name: "Test: Client tests"
+        run: |
+          cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
+          ./scripts/gear.sh test client
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo test
+          -p "pallet-*"
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          ${{ matrix.profiles.flags }}
+
   win-native:
     runs-on: ci-win
     strategy:
