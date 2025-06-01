@@ -90,43 +90,10 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: cargo xwin build -p calc-stack-height --release --locked
 
-      - name: "Build: Client tests"
-        run: |
-          cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
-          ./scripts/gear.sh test client --no-run
-
-      - name: "Build: Lazy pages"
-        run: >-
-          cargo xwin test --no-run
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          ${{ matrix.profiles.flags }}
-
-      - name: "Build: Target size"
-        run: du -sh target
-
       - name: "Build: Cleanup target"
-        run: >-
-          find target -type f 
-          ! -name '*.exe'
-          ! -name '*.pdb'
-          ! -name '*.wasm'
-          ! -name '*.d'
-          ! -name '*.timestamp'
-          ! -name '*.rmeta'
-          ! -name '*.json'
-          ! -name '*.rs'
-          ! -name '*.h'
-          ! -name '*.hpp'
-          ! -name '*.c'
-          ! -name '*.cc'
-          ! -name '*.cpp'
-          ! -name '.cargo-lock'
-          ! -name 'CACHEDIR.TAG'
-          -delete
+        run: find target -type f ! -name '*.exe' -delete
 
-      - name: "ACTIONS: Upload target directory"
+      - name: "ACTIONS: Upload binaries"
         uses: actions/upload-artifact@v4
         with:
           name: target-xwin-${{ matrix.profiles.name }}
@@ -180,7 +147,7 @@ jobs:
           $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin\perl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
 
-      - name: "ACTIONS: Download target directory"
+      - name: "ACTIONS: Download binaries"
         uses: actions/download-artifact@v4
         with:
           name: target-xwin-${{ matrix.profiles.name }}
@@ -189,7 +156,7 @@ jobs:
       - name: "Check: Stack height limit"
         # no need to run check twice
         if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo xwin run -p calc-stack-height --release --locked
+        run: ./target/x86_64-pc-windows-msvc/release/calc-stack-height.exe
 
       - name: "Test: Client tests"
         run: |
