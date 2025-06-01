@@ -147,6 +147,15 @@ jobs:
           $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin\perl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
 
+      - name: "Install: cargo-nextest"
+        run: |
+          $tmp = "cargo-nextest.zip"
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+        shell: powershell
+
       - name: "ACTIONS: Download binaries"
         uses: actions/download-artifact@v4
         with:
