@@ -43,11 +43,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
-      - name: "Install: Rust target"
-        run: |
-          rustup target add x86_64-pc-windows-msvc
-          echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
-
       - name: "Install: Windows packages"
         run: |
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
@@ -73,6 +68,11 @@ jobs:
           echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
           echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
           echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
 
       - name: "ACTIONS: Cache MSVC CRT"
         uses: actions/cache@v4
