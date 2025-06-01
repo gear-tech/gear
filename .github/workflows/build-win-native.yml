@@ -85,23 +85,26 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Check: Stack height limit"
+      - name: "Build: Stack height limit"
         # no need to run check twice
         if: ${{ matrix.profiles.name == 'release' }}
         run: cargo xwin build -p calc-stack-height --release --locked
 
-      - name: "Test: Client tests"
+      - name: "Build: Client tests"
         run: |
           cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
           ./scripts/gear.sh test client --no-run
 
-      - name: "Test: Lazy pages"
+      - name: "Build: Lazy pages"
         run: >-
           cargo test --no-run
           -p "pallet-*"
           -p gear-lazy-pages
           -p gear-runtime-interface
           ${{ matrix.profiles.flags }}
+
+      - name: "Build: Cleanup target"
+        run: find target -type f ! -name '*.exe' ! -name '*.pdb' ! -name '*.wasm' -delete
 
       - name: "ACTIONS: Upload target directory"
         uses: actions/upload-artifact@v4
