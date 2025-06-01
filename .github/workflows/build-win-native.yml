@@ -21,7 +21,7 @@ env:
 
 jobs:
   win-build:
-    runs-on: ubuntu-latest
+    runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -49,7 +49,6 @@ jobs:
           echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
 
       - name: "Install: Windows packages"
-        if: ${{ matrix.name == 'windows-x86_64' }}
         run: |
           curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
@@ -103,7 +102,7 @@ jobs:
           -p gear-lazy-pages
           -p gear-runtime-interface
           ${{ matrix.profiles.flags }}
-          
+
       - name: "ACTIONS: Upload target directory"
         uses: actions/upload-artifact@v4
         with:
