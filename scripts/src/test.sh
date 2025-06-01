@@ -42,7 +42,7 @@ workspace_test() {
     cargo nextest run --workspace \
       --exclude gclient --exclude gcli --exclude gsdk \
       --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
-      --profile ci --no-fail-fast "$@"
+      --no-fail-fast "$@"
   fi
 }
 
@@ -50,7 +50,7 @@ gsdk_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gsdk --no-fail-fast "$@"
   else
-    cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gsdk --no-fail-fast "$@"
   fi
 }
 
@@ -58,7 +58,7 @@ gcli_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gcli --no-fail-fast "$@"
   else
-    cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gcli --no-fail-fast "$@"
   fi
 }
 
@@ -66,7 +66,7 @@ pallet_test() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p "pallet-*" --no-fail-fast "$@"
   else
-    cargo nextest run -p "pallet-*" --profile ci --no-fail-fast "$@"
+    cargo nextest run -p "pallet-*" --no-fail-fast "$@"
   fi
 }
 
@@ -74,7 +74,7 @@ client_tests() {
   if [ "$CARGO" = "cargo xwin" ]; then
     $CARGO test -p gclient --no-fail-fast "$@"
   else
-    cargo nextest run -p gclient --profile ci --no-fail-fast "$@"
+    cargo nextest run -p gclient --no-fail-fast "$@"
   fi
 }
 
