@@ -614,3 +614,5 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
+
+cargo_metadata = { git = "https://github.com/gear-tech/cargo_metadata", branch = "al/cross-compile-fix" }
