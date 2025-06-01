@@ -26,8 +26,8 @@ runs:
     - name: "Setup linker on Windows"
       if: ${{ runner.os == 'Windows' }}
       run: |
-        Add-Content -Path $Env:GITHUB_ENV -Value "CC_X86_64_PC_WINDOWS_MSVC=C:\Program Files\LLVM\bin\clang-cl.exe"
-        Add-Content -Path $Env:GITHUB_ENV -Value "CXX_X86_64_PC_WINDOWS_MSVC=C:\Program Files\LLVM\bin\clang-cl.exe"
+        Add-Content -Path $Env:GITHUB_ENV -Value "CC_X86_64_PC_WINDOWS_MSVC=C:/Program Files/LLVM/bin/clang-cl.exe"
+        Add-Content -Path $Env:GITHUB_ENV -Value "CXX_X86_64_PC_WINDOWS_MSVC=C:/Program Files/LLVM/bin/clang-cl.exe"
         Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld"
         Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
         Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
