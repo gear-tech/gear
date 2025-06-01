@@ -122,7 +122,7 @@ jobs:
       - name: "Install: Rustup"
         run: |
           Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
-          .\rustup-init.exe -y
+          .\rustup-init.exe -y --profile minimal
           #Remove-Item rustup-init.exe
           Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
 
