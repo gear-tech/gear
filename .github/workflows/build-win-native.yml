@@ -103,6 +103,9 @@ jobs:
           -p gear-runtime-interface
           ${{ matrix.profiles.flags }}
 
+      - name: "Build: Target size"
+        run: du -sh target
+
 #      - name: "Build: Cleanup target"
 #        run: find target -type f ! -name '*.exe' ! -name '*.pdb' ! -name '*.wasm' -delete
 
