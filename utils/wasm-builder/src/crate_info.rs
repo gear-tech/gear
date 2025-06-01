@@ -49,6 +49,8 @@ impl CrateInfo {
         let mut meta_cmd = MetadataCommand::new();
         let metadata = meta_cmd
             .manifest_path(manifest_path)
+            // TODO: comment
+            .env("CARGO_ENCODED_RUSTFLAGS", "")
             .exec()
             .context("unable to invoke `cargo metadata`")?;
 
