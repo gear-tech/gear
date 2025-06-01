@@ -143,6 +143,7 @@ jobs:
       fail-fast: false
     name: win-run (${{ matrix.profiles.name }})
     env:
+      RUSTUP_DISABLE_DOCS: 1
       CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
@@ -194,6 +195,7 @@ jobs:
         run: |
           cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
           ./scripts/gear.sh test client
+        shell: bash
 
       - name: "Test: Lazy pages"
         run: >-
