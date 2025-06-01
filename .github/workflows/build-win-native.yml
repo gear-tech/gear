@@ -52,7 +52,7 @@ jobs:
           choco install 7zip
           Add-Content -Path $Env:GITHUB_PATH -Value "C:\Program Files\7-Zip"
           
-          scoop config 7ZIPEXTRACT_USE_EXTERNAL true
+          scoop config USE_EXTERNAL_7ZIP true
           scoop bucket add extras
         shell: powershell
 
