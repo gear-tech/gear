@@ -4647,7 +4647,6 @@ dependencies = [
  "ethexe-runtime",
  "futures",
  "gprimitives",
- "log",
  "tokio",
 ]
 
