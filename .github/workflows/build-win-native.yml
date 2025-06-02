@@ -31,9 +31,10 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "ACTIONS: Install Dev Drive"
+      - name: "ACTIONS: Setup Dev Drive"
         uses: samypr100/setup-dev-drive@v3
         with:
+          drive-size: 10GB
           env-mapping: |
             RUSTUP_HOME,{{ DEV_DRIVE }}/rustup
             CARGO_HOME,{{ DEV_DRIVE }}/cargo
