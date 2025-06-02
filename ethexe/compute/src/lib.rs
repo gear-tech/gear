@@ -421,7 +421,151 @@ impl ChainHeadProcessContext {
 
 #[cfg(test)]
 mod tests {
+    use ethexe_common::BlockHeader;
+    use futures::StreamExt;
+    use gear_core::ids::prelude::CodeIdExt;
+    use std::collections::HashMap;
+
     use super::*;
+
+    struct ComputeTestEnv {
+        validated_codes: HashMap<CodeId, Vec<u8>>,
+        blobs_counter: u64,
+
+        db: Database,
+        compute: ComputeService,
+    }
+
+    impl ComputeTestEnv {
+        fn new() -> Self {
+            let db = Database::memory();
+            let processor = Processor::new(db.clone()).unwrap();
+            let compute_service = ComputeService::new(db.clone(), processor);
+            ComputeTestEnv {
+                validated_codes: HashMap::new(),
+                blobs_counter: 0u64,
+
+                db,
+                compute: compute_service,
+            }
+        }
+
+        fn new_wasm(&mut self) -> Vec<u8> {
+            let wat = format!(
+                r#"
+                (module
+                    (import "env" "memory" (memory 1))
+                    (export "init" (func $init))
+                    (func $init)
+                    (func $ret_{})
+                )"#,
+                self.blobs_counter
+            );
+
+            self.blobs_counter += 1;
+            let code = wat::parse_str(&wat).unwrap();
+            wasmparser::validate(&code).unwrap();
+            code
+        }
+
+        fn new_validated_code(&mut self) -> CodeId {
+            let code = self.new_wasm();
+            let code_id = CodeId::generate(&code);
+            self.validated_codes.insert(code_id, code);
+            code_id
+        }
+
+        fn generate_chain(&mut self, len: u32) -> VecDeque<H256> {
+            // prepare genesis block for chain
+            let genesis_hash = H256::random();
+            self.db
+                .set_block_codes_queue(genesis_hash, Default::default());
+            self.db.set_block_computed(genesis_hash);
+            self.db.set_block_outcome(genesis_hash, vec![]);
+            self.db
+                .set_previous_not_empty_block(genesis_hash, H256::random());
+            self.db
+                .set_block_commitment_queue(genesis_hash, Default::default());
+            self.db
+                .set_block_program_states(genesis_hash, Default::default());
+            self.db.set_block_schedule(genesis_hash, Default::default());
+
+            let mut chain = VecDeque::new();
+
+            let mut parent_hash = genesis_hash;
+            for block_num in 0..len {
+                let block_hash = H256::random();
+                let block_header = BlockHeader {
+                    height: block_num,
+                    timestamp: (block_num * 10) as u64,
+                    parent_hash,
+                };
+                self.db.set_block_header(block_hash, block_header);
+                self.db.set_block_is_synced(block_hash);
+
+                let block_events: Vec<BlockEvent> = (0..10)
+                    .map(|_| {
+                        let code_id = self.new_validated_code();
+                        BlockEvent::Router(RouterEvent::CodeGotValidated {
+                            code_id,
+                            valid: true,
+                        })
+                    })
+                    .collect();
+
+                self.db.set_block_events(block_hash, &block_events);
+                chain.push_back(block_hash);
+                parent_hash = block_hash;
+            }
+            chain
+        }
+
+        async fn prepare_and_assert_block(&mut self, block: H256) -> Result<()> {
+            self.compute.prepare_block(block);
+
+            let ComputeEvent::RequestLoadCodes(codes_to_load) =
+                self.compute.next().await.unwrap()?
+            else {
+                return Err(anyhow!("expect compute service request codes to load"));
+            };
+
+            for code_id in codes_to_load {
+                // skip if code not validated
+                if !self.validated_codes.contains_key(&code_id) {
+                    continue;
+                }
+                let code = self.validated_codes.remove(&code_id).unwrap();
+                self.compute.process_code(code_id, 0u64, code);
+
+                let ComputeEvent::CodeProcessed(commitment) = self.compute.next().await.unwrap()?
+                else {
+                    return Err(anyhow!("expect code will be processing"));
+                };
+
+                assert_eq!(commitment.id, code_id);
+            }
+
+            let ComputeEvent::BlockPrepared(prepared_block) = self.compute.next().await.unwrap()?
+            else {
+                return Err(anyhow!("expect block prepared after processing all codes"));
+            };
+            assert_eq!(prepared_block, block);
+
+            Ok(())
+        }
+
+        async fn process_and_assert_block(&mut self, block: H256) -> Result<()> {
+            self.compute.process_block(block);
+
+            let ComputeEvent::BlockProcessed(processed_block) =
+                self.compute.next().await.unwrap()?
+            else {
+                return Err(anyhow!("expect block will be processing"));
+            };
+            assert_eq!(processed_block.block_hash, block);
+            Ok(())
+        }
+    }
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {
@@ -471,5 +615,82 @@ mod tests {
         // Check for current block
         let codes_queue = db.block_codes_queue(current_block).unwrap();
         assert_eq!(codes_queue, VecDeque::from(vec![code_id_2]));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_block_computation_basic() -> Result<()> {
+        gear_utils::init_default_logger();
+        let mut compute_env = ComputeTestEnv::new();
+        let mut chain = compute_env.generate_chain(5);
+
+        for _ in 0..5 {
+            let block = chain.pop_front().unwrap();
+            compute_env.prepare_and_assert_block(block).await?;
+            compute_env.process_and_assert_block(block).await?;
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_multiple_preparation_and_one_processing() -> Result<()> {
+        gear_utils::init_default_logger();
+        let mut compute_env = ComputeTestEnv::new();
+        let mut chain = compute_env.generate_chain(3);
+
+        let block1 = chain.pop_front().unwrap();
+        let block2 = chain.pop_front().unwrap();
+        let block3 = chain.pop_front().unwrap();
+
+        compute_env.prepare_and_assert_block(block1).await?;
+        compute_env.prepare_and_assert_block(block2).await?;
+        compute_env.prepare_and_assert_block(block3).await?;
+
+        compute_env.process_and_assert_block(block3).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_one_preparation_and_multiple_processing() -> Result<()> {
+        gear_utils::init_default_logger();
+        let mut compute_env = ComputeTestEnv::new();
+        let mut chain = compute_env.generate_chain(3);
+
+        let block1 = chain.pop_front().unwrap();
+        let block2 = chain.pop_front().unwrap();
+        let block3 = chain.pop_front().unwrap();
+
+        compute_env.prepare_and_assert_block(block3).await?;
+
+        compute_env.process_and_assert_block(block1).await?;
+        compute_env.process_and_assert_block(block2).await?;
+        compute_env.process_and_assert_block(block3).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_code_validation_request_does_not_block_preparation() -> Result<()> {
+        gear_utils::init_default_logger();
+
+        let mut compute_env = ComputeTestEnv::new();
+        let mut chain = compute_env.generate_chain(1);
+
+        let block = chain.pop_back().unwrap();
+        let mut block_events = compute_env.db.block_events(block).unwrap();
+
+        // add invalid event which shouldn't stop block preparation
+        block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested {
+            code_id: CodeId::zero(),
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        }));
+        compute_env.db.set_block_events(block, &block_events);
+
+        compute_env.prepare_and_assert_block(block).await?;
+        compute_env.process_and_assert_block(block).await?;
+
+        Ok(())
     }
 }
