@@ -167,7 +167,7 @@ jobs:
       - name: "Check: Stack height limit"
         # no need to run check twice
         if: ${{ matrix.profiles.name == 'release' }}
-        run: ./target/x86_64-pc-windows-msvc/release/calc-stack-height.exe
+        run: ./target/release/calc-stack-height.exe
 
       - name: "Test: Client tests"
         run: |
