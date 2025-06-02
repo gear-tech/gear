@@ -17,11 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Keccak256 digest type.
-//!
-//! Implements `ToDigest` hashing for ethexe common types.
 
 use alloc::vec::Vec;
-use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -53,7 +50,7 @@ impl Digest {
     #[cfg(feature = "std")]
     /// NOTE: This function is cryptographically insecure and should not be used in production.
     pub fn random() -> Self {
-        Digest(H256::random().0)
+        Digest(gprimitives::H256::random().0)
     }
 }
 
