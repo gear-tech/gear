@@ -273,26 +273,6 @@ impl ChainHeadProcessContext {
         let events = OnChainStorage::block_events(&self.db, block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
-        for event in &events {
-            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
-                code_id,
-                valid: true,
-            }) = event
-            {
-                // TODO: test branch
-                if !self
-                    .db
-                    .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
-                {
-                    let code = self
-                        .db
-                        .original_code(*code_id)
-                        .ok_or(anyhow!("code not found for validated code {code_id}"))?;
-                    self.processor.process_upload_code(*code_id, &code)?;
-                }
-            }
-        }
-
         let parent = header.parent_hash;
 
         if !self.db.block_computed(parent) {
