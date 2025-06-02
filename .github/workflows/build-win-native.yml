@@ -44,6 +44,18 @@ jobs:
           scoop bucket add extras
           scoop install perl binaryen protobuf
 
+      - name: "Install: LLVM for x86_64"
+        run: |
+          scoop install llvm
+          
+          $llvm = Resolve-Path "~\scoop\apps\llvm\current\bin"
+
+          Add-Content -Path $Env:GITHUB_ENV -Value "CC_X86_64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_X86_64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
+          Add-Content -Path $Env:GITHUB_ENV -Value "AR_X86_64_PC_WINDOWS_MSVC=$llvm\llvm-ar.exe"
+
       - name: "Install: LLVM for aarch64"
         if: ${{ matrix.runs-on == 'windows-11-arm' }}
         run: |
@@ -52,15 +64,15 @@ jobs:
           scoop install llvm-arm64
           $ErrorActionPreference = $old
           
+          $llvm-arm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
           # for bindgen
-          $llvm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
-          Add-Content -Path $Env:GITHUB_ENV -Value "LIBCLANG_PATH=$llvm"
+          Add-Content -Path $Env:GITHUB_ENV -Value "LIBCLANG_PATH=$llvm-arm"
           
-          Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm-arm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm-arm\clang-cl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld"
           Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
-          Add-Content -Path $Env:GITHUB_ENV -Value "AR_AARCH64_PC_WINDOWS_MSVC=$llvm\llvm-ar.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "AR_AARCH64_PC_WINDOWS_MSVC=$llvm-arm\llvm-ar.exe"
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
