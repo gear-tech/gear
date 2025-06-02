@@ -20,81 +20,51 @@ env:
 
 jobs:
   win-native:
+    runs-on: ci-win
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
-        runs-on: ["windows-11-arm", "windows-latest"]
       fail-fast: false
-    runs-on: ${{ matrix.runs-on }}
-    name: win-native (${{ matrix.profiles.name }}) [${{ matrix.runs-on }}]
+    name: win-native (${{ matrix.profiles.name }})
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "ACTIONS: Setup Dev Drive"
-        uses: samypr100/setup-dev-drive@v3
-        with:
-          drive-size: 70GB
-          drive-type: Fixed
-          env-mapping: |
-            RUSTUP_HOME,{{ DEV_DRIVE }}/rustup
-            CARGO_HOME,{{ DEV_DRIVE }}/cargo
-            CARGO_TARGET_DIR,{{ DEV_DRIVE }}/workspace/target
-
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
-      - name: "Install: Scoop"
-        run: |
-          iwr get.scoop.sh -outfile 'scoop_install.ps1'
-          .\scoop_install.ps1 -RunAsAdmin
-          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
-          
-          scoop config USE_EXTERNAL_7ZIP true
-          scoop bucket add extras
-          scoop install perl binaryen protobuf
+      - name: "Install: Setup MSYS2 environment"
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: procps
 
-      - name: "Install: LLVM for x86_64"
-        run: |
-          scoop install llvm
-          
-          $llvm = Resolve-Path "~\scoop\apps\llvm\current\bin"
-
-          Add-Content -Path $Env:GITHUB_ENV -Value "CC_X86_64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_X86_64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
-          Add-Content -Path $Env:GITHUB_ENV -Value "AR_X86_64_PC_WINDOWS_MSVC=$llvm\llvm-ar.exe"
-
-      - name: "Install: LLVM for aarch64"
-        if: ${{ matrix.runs-on == 'windows-11-arm' }}
-        run: |
-          $old = $ErrorActionPreference
-          $ErrorActionPreference = "SilentlyContinue"
-          scoop install llvm-arm64
-          $ErrorActionPreference = $old
-          
-          $llvm_arm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
-          # for bindgen
-          Add-Content -Path $Env:GITHUB_ENV -Value "LIBCLANG_PATH=$llvm_arm"
-          
-          Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm_arm\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm_arm\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
-          Add-Content -Path $Env:GITHUB_ENV -Value "AR_AARCH64_PC_WINDOWS_MSVC=$llvm_arm\llvm-ar.exe"
+      - name: "Install: Packages from Scoop"
+        uses: MinoruSekine/setup-scoop@v4.0.1
+        with:
+          apps: >-
+            perl
+            binaryen
+            wabt
+            protobuf
+            llvm
+          buckets: extras
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
           $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin\perl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
+        shell: powershell
 
       - name: "Install: Rustup"
         run: |
           Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
           .\rustup-init.exe -y
-          #Remove-Item rustup-init.exe
-          Add-Content -Path $Env:GITHUB_PATH -Value "$Env:CARGO_HOME/bin"
+          Remove-Item rustup-init.exe
+        shell: powershell
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
@@ -112,6 +82,7 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
+        shell: powershell
 
       - name: "Install: cargo-hack"
         run: |
@@ -120,21 +91,10 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { Resolve-Path "~/.cargo/bin" }
           tar zxf $tmp -C $outputDir
           $tmp | Remove-Item
-
-      - name: "Install: Force x86_64 target"
-        run: |
-          rustup target add x86_64-pc-windows-msvc
-          Add-Content -Path $Env:GITHUB_ENV -Value "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
-
-      - name: "Install: Setup MSYS2 environment"
-        uses: msys2/setup-msys2@v2
-        with:
-          path-type: inherit
-          install: procps
+        shell: powershell
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
-        shell: msys2 {0}
 
       - name: "Check: Stack height limit"
         # no need to run check twice
@@ -143,11 +103,9 @@ jobs:
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
-        shell: msys2 {0}
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
-        shell: msys2 {0}
 
       - name: "Test: Lazy pages"
         run: >-
