@@ -6009,7 +6009,6 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-gear-builtin",
- "pallet-gear-debug",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
@@ -11039,7 +11038,6 @@ dependencies = [
  "rand 0.8.5",
  "rand_pcg",
  "scale-info",
- "scopeguard",
  "serde",
  "sp-consensus-babe",
  "sp-core",
@@ -11154,7 +11152,6 @@ dependencies = [
 name = "pallet-gear-debug"
 version = "1.8.1"
 dependencies = [
- "demo-vec",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
@@ -11162,28 +11159,12 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
- "hex-literal",
- "log",
  "pallet-authorship",
- "pallet-balances",
- "pallet-gear",
- "pallet-gear-bank",
- "pallet-gear-gas",
- "pallet-gear-messenger",
- "pallet-gear-program",
- "pallet-gear-scheduler",
- "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
  "sp-std",
  "test-syscalls",
- "tracing-subscriber",
- "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "wat",
 ]
 
 [[package]]
