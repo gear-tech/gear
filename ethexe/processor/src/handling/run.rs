@@ -94,7 +94,7 @@
 //!      To achieve this, we first merge all temporary chunk lists sequentially
 //!      and then redistribute the data according to the expected chunk size.
 //!   5. Reverse the order of the chunks to ensure that the first chunk contains the largest queue size.
-//!   5. Finally, we return the final chunk list.
+//!   6. Finally, we return the final chunk list.
 //!
 //! ---
 //!

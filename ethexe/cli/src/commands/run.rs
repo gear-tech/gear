@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::time::Duration;
-
-use super::MergeParams;
-use crate::Params;
 use anyhow::{anyhow, Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
+
+use crate::{cli::MergeParams, Params};
 
 /// Run the node.
 #[derive(Debug, Args)]
