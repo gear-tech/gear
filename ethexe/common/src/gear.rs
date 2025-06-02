@@ -234,6 +234,7 @@ pub struct Message {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: Option<ReplyDetails>,
+    pub call: bool,
 }
 
 impl ToDigest for Message {
@@ -245,6 +246,7 @@ impl ToDigest for Message {
             payload,
             value,
             reply_details,
+            call,
         } = self;
 
         let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
@@ -255,11 +257,12 @@ impl ToDigest for Message {
         hasher.update(value.to_be_bytes().as_slice());
         hasher.update(reply_details_to.as_ref());
         hasher.update(reply_details_code.to_bytes().as_slice());
+        hasher.update([*call as u8]);
     }
 }
 
-impl From<StoredMessage> for Message {
-    fn from(value: StoredMessage) -> Self {
+impl Message {
+    pub fn from_stored(value: StoredMessage, call: bool) -> Self {
         let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
             id,
@@ -267,6 +270,7 @@ impl From<StoredMessage> for Message {
             payload: payload.into_vec(),
             value,
             reply_details: details.and_then(|v| v.to_reply_details()),
+            call,
         }
     }
 }
@@ -284,6 +288,7 @@ pub struct ProtocolData {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub exited: bool,
     pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
@@ -296,6 +301,7 @@ impl ToDigest for StateTransition {
         let Self {
             actor_id,
             new_state_hash,
+            exited,
             inheritor,
             value_to_receive,
             value_claims,
@@ -304,6 +310,7 @@ impl ToDigest for StateTransition {
 
         hasher.update(actor_id.to_address_lossy().as_bytes());
         hasher.update(new_state_hash.as_bytes());
+        hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy().as_bytes());
         hasher.update(value_to_receive.to_be_bytes().as_slice());
         hasher.update(value_claims.to_digest().as_ref());

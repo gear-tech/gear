@@ -8,7 +8,10 @@ use crate::{
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
-use ethexe_common::{gear::Origin, ScheduledTask};
+use ethexe_common::{
+    gear::{Message, Origin},
+    ScheduledTask,
+};
 use gear_core::{
     env::MessageWaitedType,
     memory::PageBuf,
@@ -23,6 +26,7 @@ use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
 pub struct NativeJournalHandler<'a, S: Storage> {
     pub program_id: ActorId,
     pub dispatch_origin: Origin,
+    pub call_reply: bool,
     pub controller: TransitionController<'a, S>,
 }
 
@@ -63,7 +67,11 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             self.controller
                 .transitions
                 .modify_transition(dispatch.source(), |transition| {
-                    transition.messages.push(dispatch.into_parts().1.into())
+                    let stored = dispatch.into_parts().1;
+
+                    transition
+                        .messages
+                        .push(Message::from_stored(stored, self.call_reply))
                 });
 
             return;
@@ -83,7 +91,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     );
 
                     let user_id = dispatch.destination();
-                    let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
+                    let dispatch =
+                        Dispatch::from_core_stored(storage, dispatch, dispatch_origin, false);
 
                     state.stash_hash.modify_stash(storage, |stash| {
                         stash.add_to_user(dispatch, expiry, user_id);
@@ -115,7 +124,11 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     });
 
                     transitions.modify_transition(dispatch.source(), |transition| {
-                        transition.messages.push(dispatch.into_parts().1.into())
+                        let stored = dispatch.into_parts().1;
+
+                        transition
+                            .messages
+                            .push(Message::from_stored(stored, false))
                     });
                 }
             });
@@ -137,25 +150,24 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         // unreachable!("Must not be called here")
     }
 
-    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, inheritor: ActorId) {
         // TODO (breathx): handle rest of value cases; exec balance into value_to_receive.
         let balance = self
             .controller
             .update_state(id_exited, |state, _, transitions| {
-                state.program = Program::Exited(value_destination);
+                state.program = Program::Exited(inheritor);
 
                 transitions.modify_transition(id_exited, |transition| {
-                    transition.inheritor = value_destination
+                    transition.inheritor = Some(inheritor);
                 });
 
                 mem::replace(&mut state.balance, 0)
             });
 
-        if self.controller.transitions.is_program(&value_destination) {
-            self.controller
-                .update_state(value_destination, |state, _, _| {
-                    state.balance += balance;
-                })
+        if self.controller.transitions.is_program(&inheritor) {
+            self.controller.update_state(inheritor, |state, _, _| {
+                state.balance += balance;
+            })
         }
     }
 
@@ -192,8 +204,12 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         let dispatch = dispatch.into_stored();
 
         if self.controller.transitions.is_program(&destination) {
-            let dispatch =
-                Dispatch::from_core_stored(self.controller.storage, dispatch, self.dispatch_origin);
+            let dispatch = Dispatch::from_core_stored(
+                self.controller.storage,
+                dispatch,
+                self.dispatch_origin,
+                false,
+            );
 
             self.send_dispatch_to_program(message_id, destination, dispatch, delay);
         } else {
@@ -216,6 +232,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         let program_id = self.program_id;
         let dispatch_origin = self.dispatch_origin;
+        let call_reply = self.call_reply;
 
         self.controller
             .update_state(program_id, |state, storage, transitions| {
@@ -224,7 +241,8 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
                 );
 
-                let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
+                let dispatch =
+                    Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
 
                 state.queue.modify_queue(storage, |queue| {
                     let head = queue

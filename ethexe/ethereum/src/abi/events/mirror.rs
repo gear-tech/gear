@@ -35,6 +35,7 @@ impl From<IMirror::MessageQueueingRequested> for MirrorEvent {
             source: address_to_actor_id(value.source),
             payload: value.payload.into(),
             value: value.value,
+            call_reply: value.callReply,
         }
     }
 }
@@ -74,6 +75,16 @@ impl From<IMirror::Message> for MirrorEvent {
     }
 }
 
+impl From<IMirror::MessageCallFailed> for MirrorEvent {
+    fn from(value: IMirror::MessageCallFailed) -> Self {
+        Self::MessageCallFailed {
+            id: bytes32_to_message_id(value.id),
+            destination: address_to_actor_id(value.destination),
+            value: value.value,
+        }
+    }
+}
+
 impl From<IMirror::Reply> for MirrorEvent {
     fn from(value: IMirror::Reply) -> Self {
         Self::Reply {
@@ -84,6 +95,17 @@ impl From<IMirror::Reply> for MirrorEvent {
         }
     }
 }
+
+impl From<IMirror::ReplyCallFailed> for MirrorEvent {
+    fn from(value: IMirror::ReplyCallFailed) -> Self {
+        Self::ReplyCallFailed {
+            value: value.value,
+            reply_to: bytes32_to_message_id(value.replyTo),
+            reply_code: ReplyCode::from_bytes(*value.replyCode),
+        }
+    }
+}
+
 impl From<IMirror::ValueClaimed> for MirrorEvent {
     fn from(value: IMirror::ValueClaimed) -> Self {
         Self::ValueClaimed {

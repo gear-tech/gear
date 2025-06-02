@@ -111,6 +111,7 @@ async fn process_observer_event() {
                 source: H256::random().0.into(),
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         ),
     ];
@@ -138,6 +139,7 @@ async fn process_observer_event() {
             source: H256::random().0.into(),
             payload: b"PING".to_vec(),
             value: 0,
+            call_reply: false,
         },
     );
 
@@ -266,6 +268,7 @@ async fn ping_pong() {
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -278,6 +281,7 @@ async fn ping_pong() {
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -352,6 +356,7 @@ async fn async_and_ping() {
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -380,6 +385,7 @@ async fn async_and_ping() {
                 source: user_id,
                 payload: ping_id.encode(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -394,6 +400,7 @@ async fn async_and_ping() {
                 source: user_id,
                 payload: demo_async::Command::Common.encode(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -485,6 +492,7 @@ async fn many_waits() {
                     source: H256::random().0.into(),
                     payload: Default::default(),
                     value: 0,
+                    call_reply: false,
                 },
             )
             .expect("failed to send message");
@@ -507,6 +515,7 @@ async fn many_waits() {
                     source: H256::random().0.into(),
                     payload: Default::default(),
                     value: 0,
+                    call_reply: false,
                 },
             )
             .expect("failed to send message");

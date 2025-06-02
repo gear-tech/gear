@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Event, Service};
+use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
+use ethexe_blob_loader::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -328,14 +329,12 @@ async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
 
     log::info!("Syncing chain head {highest_block}");
     observer.force_sync_block(highest_block).await?;
+
     while let Some(event) = observer.next().await {
         match event? {
-            ObserverEvent::Blob(_blob) => {
-                unreachable!("no blob events should occur before chain head is synced")
-            }
             ObserverEvent::Block(_) => {}
-            ObserverEvent::BlockSynced(data) => {
-                debug_assert_eq!(highest_block, data.block_hash);
+            ObserverEvent::BlockSynced(synced_block) => {
+                debug_assert_eq!(highest_block, synced_block.block_hash);
                 break;
             }
         }
@@ -511,9 +510,10 @@ async fn sync_from_network(
         .collect()
 }
 
-async fn instrument_codes(
-    db: &Database,
+async fn prepare_codes(
     compute: &mut ComputeService,
+    blobs_loader: &mut Box<dyn BlobLoaderService>,
+    synced_block: H256,
     mut code_ids: HashSet<CodeId>,
 ) -> Result<()> {
     if code_ids.is_empty() {
@@ -521,16 +521,38 @@ async fn instrument_codes(
         return Ok(());
     }
 
+    compute.prepare_block(synced_block);
+    match compute.next().await {
+        Some(Ok(ComputeEvent::RequestLoadCodes(codes))) => blobs_loader.load_codes(codes, None)?,
+        Some(Ok(event)) => {
+            return Err(anyhow!(
+                "expect codes to load, but got another event: {event:?}"
+            ))
+        }
+        Some(Err(e)) => return Err(anyhow!("expect codes to load, but got err: {e:?}")),
+        None => return Err(anyhow!("expect codes to load, but got None")),
+    };
+
     log::info!("Instrument {} codes", code_ids.len());
 
-    for &code_id in &code_ids {
-        let code_info = db
-            .code_blob_info(code_id)
-            .expect("observer must fulfill database");
-        let original_code = db
-            .original_code(code_id)
-            .expect("observer must fulfill database");
-        compute.receive_code(code_id, code_info.timestamp, original_code);
+    let mut wait_load_codes = code_ids.clone();
+    while !wait_load_codes.is_empty() {
+        match blobs_loader.next().await {
+            Some(Ok(BlobLoaderEvent::BlobLoaded(BlobData {
+                code_id,
+                timestamp,
+                code,
+            }))) => {
+                wait_load_codes.remove(&code_id);
+                compute.process_code(code_id, timestamp, code);
+            }
+            Some(Err(e)) => {
+                return Err(anyhow!("expect BlobLoaded, but got err: {e:?}"));
+            }
+            None => {
+                return Err(anyhow!("expect BlobLoaded, but got None"));
+            }
+        }
     }
 
     while let Some(event) = compute.next().await {
@@ -542,16 +564,18 @@ async fn instrument_codes(
         }
     }
 
-    log::info!("Instrumentation done");
+    log::info!("Codes preparation done");
     Ok(())
 }
 
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
+        blob_loader,
         compute,
         network,
         db,
+        #[cfg(test)]
         sender,
         ..
     } = service;
@@ -575,7 +599,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
-    instrument_codes(db, compute, needs_instrumentation_codes).await?;
+    prepare_codes(
+        compute,
+        blob_loader,
+        finalized_block,
+        needs_instrumentation_codes,
+    )
+    .await?;
 
     let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
         .expect("observer must fulfill database");
@@ -607,13 +637,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     log::info!("Fast synchronization done");
 
-    // Broadcast service started event.
-    // Never supposed to be Some in production code.
-    if let Some(sender) = sender.as_ref() {
-        sender
-            .send(Event::FastSyncDone(latest_committed_block))
-            .expect("failed to broadcast fast sync done event");
-    }
+    #[cfg(test)]
+    sender
+        .send(crate::tests::utils::TestingEvent::FastSyncDone(
+            latest_committed_block,
+        ))
+        .expect("failed to broadcast fast sync done event");
 
     Ok(())
 }

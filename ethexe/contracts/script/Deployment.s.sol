@@ -61,11 +61,23 @@ contract DeploymentScript is Script {
                 )
             )
         );
+
         mirror = new Mirror(address(router));
 
-        address operatorRewardsFactoryAddress = address(0x6D52fC402b2dA2669348Cc2682D85c61c122755D);
-        middleware = new Middleware(
-            IMiddleware.InitParams({
+        if (vm.envBool("DEV_MODE") == false) {
+            address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
+
+            Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+                vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
+                operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
+                networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
+                middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
+                networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
+                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
+            });
+
+            IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
+                owner: deployerAddress,
                 eraDuration: 1 days,
                 minVaultEpochDuration: 2 hours,
                 operatorGracePeriod: 5 minutes,
@@ -75,21 +87,22 @@ contract DeploymentScript is Script {
                 allowedVaultImplVersion: 1,
                 vetoSlasherImplType: 1,
                 maxResolverSetEpochsDelay: 5 minutes,
-                router: address(router),
-                vaultRegistry: address(0xAEb6bdd95c502390db8f52c8909F703E9Af6a346),
-                operatorRegistry: address(0xAd817a6Bc954F678451A71363f04150FDD81Af9F),
-                networkRegistry: address(0xC773b1011461e7314CF05f97d95aa8e92C1Fd8aA),
-                networkOptIn: address(0x7133415b33B438843D581013f98A08704316633c),
-                middlewareService: address(0xD7dC9B366c027743D90761F71858BCa83C6899Ad),
                 collateral: address(wrappedVara),
+                maxAdminFee: 10000,
+                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
+                router: address(router),
                 roleSlashRequester: address(router),
                 roleSlashExecutor: address(router),
                 vetoResolver: address(router),
-                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
-                operatorRewardsFactory: operatorRewardsFactoryAddress,
-                stakerRewardsFactory: address(0xFEB871581C2ab2e1EEe6f7dDC7e6246cFa087A23)
-            })
-        );
+                registries: registries
+            });
+
+            middleware = Middleware(
+                Upgrades.deployTransparentProxy(
+                    "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
+                )
+            );
+        }
 
         wrappedVara.approve(address(router), type(uint256).max);
 
@@ -102,6 +115,7 @@ contract DeploymentScript is Script {
         router.lookupGenesisHash();
 
         vm.assertEq(router.mirrorImpl(), address(mirror));
+        vm.assertEq(middlewareAddress, address(middleware));
         vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();
@@ -113,6 +127,7 @@ contract DeploymentScript is Script {
 
     function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
         public
+        view
     {
         console.log("================================================================================================");
         console.log("[ CONTRACT  ]", contractName);

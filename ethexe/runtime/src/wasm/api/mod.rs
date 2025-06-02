@@ -57,13 +57,13 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
     // Split to chunks to prevent alloc limit (32MiB)
     let res: Vec<_> = program_journals
         .into_iter()
-        .flat_map(|(journal, origin)| {
+        .flat_map(|(journal, origin, call_reply)| {
             let chunks = journal.encoded_size().div_ceil(32 * 1024 * 1024);
             let chunk_size = journal.len().div_ceil(chunks);
 
             let chunked_journal: Vec<_> = journal
                 .chunks(chunk_size)
-                .map(|chunk| (chunk, origin))
+                .map(|chunk| (chunk, origin, call_reply))
                 .map(return_val)
                 .collect();
 

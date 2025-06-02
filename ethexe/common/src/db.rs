@@ -35,6 +35,9 @@ use gear_core::{
 use gprimitives::H256;
 
 pub trait BlockMetaStorage: Send + Sync {
+    fn block_prepared(&self, block_hash: H256) -> bool;
+    fn set_block_prepared(&self, block_hash: H256);
+
     fn block_computed(&self, block_hash: H256) -> bool;
     fn set_block_computed(&self, block_hash: H256);
 

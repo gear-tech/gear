@@ -53,11 +53,11 @@ pub fn run(
         &ri,
     );
 
-    for (journal, origin) in &journals {
+    for (journal, origin, call_reply) in &journals {
         for note in journal {
             log::debug!("{note:?}");
         }
-        log::debug!("Origin: {origin:?}");
+        log::debug!("Origin: {origin:?}, call_reply {call_reply:?}");
     }
 
     journals

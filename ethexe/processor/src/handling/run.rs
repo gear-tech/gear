@@ -173,10 +173,11 @@ pub async fn run(
                     state.hash = new_state_hash;
                 });
 
-                for (journal, dispatch_origin) in program_journals {
+                for (journal, dispatch_origin, call_reply) in program_journals {
                     let mut journal_handler = JournalHandler {
                         program_id,
                         dispatch_origin,
+                        call_reply,
                         controller: TransitionController {
                             transitions: in_block_transitions,
                             storage: &db,

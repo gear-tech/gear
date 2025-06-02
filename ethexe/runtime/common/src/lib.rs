@@ -55,7 +55,7 @@ pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
 pub const RUNTIME_ID: u32 = 0;
 
-pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin)>;
+pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin, bool)>;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -181,6 +181,7 @@ where
 
     for dispatch in queue {
         let origin = dispatch.origin;
+        let call_reply = dispatch.call;
 
         let journal = process_dispatch(
             dispatch,
@@ -196,7 +197,7 @@ where
             program_state: &mut program_state,
         };
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
-        mega_journal.push((unhandled_journal_notes, origin));
+        mega_journal.push((unhandled_journal_notes, origin, call_reply));
 
         // Update state hash if it was changed.
         if let Some(new_state_hash) = new_state_hash {

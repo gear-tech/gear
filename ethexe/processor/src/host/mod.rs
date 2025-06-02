@@ -150,7 +150,8 @@ impl InstanceWrapper {
         let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
         for ptr_len in ptr_lens {
-            let journal_and_origin: (Vec<JournalNote>, Origin) = self.get_call_output(ptr_len)?;
+            let journal_and_origin: (Vec<JournalNote>, Origin, bool) =
+                self.get_call_output(ptr_len)?;
             mega_journal.push(journal_and_origin);
         }
 
