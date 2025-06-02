@@ -72,15 +72,15 @@ jobs:
           scoop install llvm-arm64
           $ErrorActionPreference = $old
           
-          $llvm-arm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
+          $llvm_arm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
           # for bindgen
-          Add-Content -Path $Env:GITHUB_ENV -Value "LIBCLANG_PATH=$llvm-arm"
+          Add-Content -Path $Env:GITHUB_ENV -Value "LIBCLANG_PATH=$llvm_arm"
           
-          Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm-arm\clang-cl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm-arm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm_arm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm_arm\clang-cl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld"
           Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
-          Add-Content -Path $Env:GITHUB_ENV -Value "AR_AARCH64_PC_WINDOWS_MSVC=$llvm-arm\llvm-ar.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "AR_AARCH64_PC_WINDOWS_MSVC=$llvm_arm\llvm-ar.exe"
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
