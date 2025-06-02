@@ -34,7 +34,12 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Setup linker"
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "ACTIONS: Setup linker"
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Set cargo path"
