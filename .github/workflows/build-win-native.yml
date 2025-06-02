@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
-        runs-on: ["ci-win", "windows-11-arm", "windows-latest"]
+        runs-on: ["windows-11-arm", "windows-latest"]
       fail-fast: false
     runs-on: ${{ matrix.runs-on }}
     name: win-native (${{ matrix.profiles.name }}) [${{ matrix.runs-on }}]
