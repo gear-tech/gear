@@ -34,7 +34,8 @@ jobs:
       - name: "ACTIONS: Setup Dev Drive"
         uses: samypr100/setup-dev-drive@v3
         with:
-          drive-size: 10GB
+          drive-size: 70GB
+          drive-type: Fixed
           env-mapping: |
             RUSTUP_HOME,{{ DEV_DRIVE }}/rustup
             CARGO_HOME,{{ DEV_DRIVE }}/cargo
