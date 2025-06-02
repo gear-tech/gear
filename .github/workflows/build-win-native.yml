@@ -34,11 +34,6 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: "${{ matrix.profiles.name }}"
-
       - name: "ACTIONS: Setup linker"
         uses: ./.github/actions/setup-linker
 
@@ -81,6 +76,11 @@ jobs:
         run: |
           rustup target add x86_64-pc-windows-msvc
           echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
+
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.profiles.name }}"
 
       - name: "ACTIONS: Cache MSVC CRT"
         uses: actions/cache@v4
