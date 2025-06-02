@@ -60,6 +60,7 @@ jobs:
           Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
           Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld"
           Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
+          Add-Content -Path $Env:GITHUB_ENV -Value "AR_AARCH64_PC_WINDOWS_MSVC=$llvm\llvm-lib.exe"
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |
