@@ -42,7 +42,12 @@ jobs:
           
           scoop config USE_EXTERNAL_7ZIP true
           scoop bucket add extras
-          scoop install perl binaryen protobuf llvm-arm64
+          scoop install perl binaryen protobuf
+
+      - name: "Install: LLVM for aarch64"
+        if: ${{ matrix.runs-on == 'windows-11-arm' }}
+        run: |
+          scoop install llvm-arm64
           
           # for bindgen
           $llvm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
