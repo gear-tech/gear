@@ -93,7 +93,7 @@ jobs:
           Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
           .\rustup-init.exe -y
           #Remove-Item rustup-init.exe
-          Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
+          Add-Content -Path $Env:GITHUB_PATH -Value "$Env:CARGO_HOME/bin"
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
