@@ -22,7 +22,7 @@ use ethexe_service::Service;
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 
-use crate::{cli::MergeParams, Params};
+use crate::{params::MergeParams, Params};
 
 /// Run the node.
 #[derive(Debug, Args)]
