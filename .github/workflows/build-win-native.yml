@@ -47,7 +47,7 @@ jobs:
       - name: "Install: LLVM for aarch64"
         if: ${{ matrix.runs-on == 'windows-11-arm' }}
         run: |
-          scoop install llvm-arm64
+          scoop install llvm-arm64 2> $null
           
           # for bindgen
           $llvm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
