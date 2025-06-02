@@ -31,6 +31,14 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "ACTIONS: Install Dev Drive"
+        uses: samypr100/setup-dev-drive@v3
+        with:
+          env-mapping: |
+            RUSTUP_HOME,{{ DEV_DRIVE }}/rustup
+            CARGO_HOME,{{ DEV_DRIVE }}/cargo
+            CARGO_TARGET_DIR,{{ DEV_DRIVE }}/workspace/target
+
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
