@@ -52,6 +52,11 @@ jobs:
           # for bindgen
           $llvm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
           Add-Content -Path $Env:GITHUB_ENV -Value "LIBCLANG_PATH=$llvm"
+          
+          Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld"
+          Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
 
       - name: "Install: Set `OPENSSL_SRC_PERL` environment variable"
         run: |

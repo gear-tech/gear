@@ -32,17 +32,6 @@ runs:
         Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_X86_64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
         Add-Content -Path $Env:GITHUB_ENV -Value "RUSTC_LINKER=rust-lld"
       shell: powershell
-    - name: "Setup linker for Windows on ARM"
-      if: ${{ runner.os == 'Windows' && runner.arch == 'ARM64' }}
-      run: |
-        scoop install llvm-arm64 2> $null
-        
-        $llvm = Resolve-Path "~\scoop\apps\llvm-arm64\current\bin"
-        Add-Content -Path $Env:GITHUB_ENV -Value "CC_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
-        Add-Content -Path $Env:GITHUB_ENV -Value "CXX_AARCH64_PC_WINDOWS_MSVC=$llvm\clang-cl.exe"
-        Add-Content -Path $Env:GITHUB_ENV -Value "CFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld"
-        Add-Content -Path $Env:GITHUB_ENV -Value "CXXFLAGS_AARCH64_PC_WINDOWS_MSVC=-fuse-ld=lld /EHsc"
-      shell: powershell
     - name: "Setup linker on macOS"
       if: ${{ runner.os == 'macOS' }}
       run: "" # macOS already has the fastest linker by default
