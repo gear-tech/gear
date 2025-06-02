@@ -18,10 +18,10 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
-    gear::CodeCommitment,
-    CodeInfo, SimpleBlockData,
+    gear::{CodeCommitment, GearBlock},
+    CodeAndIdUnchecked, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::{BlockProcessingResult, Processor};
@@ -172,15 +172,12 @@ impl ComputeService {
         }
     }
 
-    pub fn process_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
+    pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) {
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
-            let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-            Ok(CodeCommitment {
-                id: code_id,
-                timestamp,
-                valid,
-            })
+            let id = code_and_id.code_id;
+            let valid = processor.process_upload_code(code_and_id)?;
+            Ok(CodeCommitment { id, valid })
         });
     }
 
@@ -222,16 +219,7 @@ impl ComputeService {
 
         for event in &events {
             match event {
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id,
-                    timestamp,
-                    tx_hash,
-                }) => {
-                    let code_info = CodeInfo {
-                        timestamp: *timestamp,
-                        tx_hash: *tx_hash,
-                    };
-                    self.db.set_code_blob_info(*code_id, code_info.clone());
+                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
                     codes_to_load.insert(*code_id);
                 }
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
@@ -248,12 +236,12 @@ impl ComputeService {
     }
 }
 
-struct ChainHeadProcessContext {
-    db: Database,
+struct ChainHeadProcessContext<DB: OnChainStorageRead + BlockMetaStorage> {
+    db: DB,
     processor: Processor,
 }
 
-impl ChainHeadProcessContext {
+impl<DB: OnChainStorageRead + BlockMetaStorage> ChainHeadProcessContext<DB> {
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -270,35 +258,15 @@ impl ChainHeadProcessContext {
             header,
         } = block_data;
 
-        let events = OnChainStorage::block_events(&self.db, block)
+        let events = self
+            .db
+            .block_events(block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
-        for event in &events {
-            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
-                code_id,
-                valid: true,
-            }) = event
-            {
-                // TODO: test branch
-                if !self
-                    .db
-                    .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
-                {
-                    let code = self
-                        .db
-                        .original_code(*code_id)
-                        .ok_or(anyhow!("code not found for validated code {code_id}"))?;
-                    self.processor.process_upload_code(*code_id, &code)?;
-                }
-            }
-        }
-
         let parent = header.parent_hash;
-
         if !self.db.block_computed(parent) {
             unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
-
         let mut commitments_queue =
             Self::propagate_data_from_parent(&self.db, block, parent, events.iter())?;
 
@@ -320,23 +288,19 @@ impl ChainHeadProcessContext {
         if !transitions.is_empty() {
             commitments_queue.push_back(block);
         }
+
         self.db.set_block_commitment_queue(block, commitments_queue);
-
         self.db.set_block_outcome(block, transitions);
-
         self.db.set_block_program_states(block, states);
         self.db.set_block_schedule(block, schedule);
-
-        // Set block as valid - means state db has all states for the end of the block
         self.db.set_block_computed(block);
-
         self.db.set_latest_computed_block(block, header);
 
         Ok(())
     }
 
     fn propagate_data_from_parent<'a>(
-        db: &Database,
+        db: &DB,
         block: H256,
         parent: H256,
         events: impl Iterator<Item = &'a BlockEvent>,
@@ -357,10 +321,16 @@ impl ChainHeadProcessContext {
         let mut committed_blocks_in_current = BTreeSet::new();
         let mut validated_codes_in_current = BTreeSet::new();
         let mut requested_codes_in_current = Vec::new();
+        let mut last_committed_batch = db
+            .last_committed_batch(parent)
+            .ok_or_else(|| anyhow!("last committed batch not found for computed block {parent}"))?;
 
         for event in events {
             match event {
-                BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
+                    last_committed_batch = *digest;
+                }
+                BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock { hash, .. })) => {
                     committed_blocks_in_current.insert(*hash);
                 }
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
@@ -372,6 +342,8 @@ impl ChainHeadProcessContext {
                 _ => {}
             }
         }
+
+        db.set_last_committed_batch(block, last_committed_batch);
 
         // Propagate `wait for commitment` blocks queue
         let mut blocks_queue = db
@@ -391,10 +363,7 @@ impl ChainHeadProcessContext {
     }
 
     /// Collect a chain of blocks from the head to the last not computed block.
-    fn collect_not_computed_blocks_chain(
-        db: &Database,
-        head: H256,
-    ) -> Result<Vec<SimpleBlockData>> {
+    fn collect_not_computed_blocks_chain(db: &DB, head: H256) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
         while !db.block_computed(block) {
@@ -402,7 +371,8 @@ impl ChainHeadProcessContext {
                 return Err(anyhow!("Block {block} is not synced, but must be"));
             }
 
-            let header = OnChainStorage::block_header(db, block)
+            let header = db
+                .block_header(block)
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
 
             let parent = header.parent_hash;
@@ -422,6 +392,7 @@ impl ChainHeadProcessContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethexe_common::{db::OnChainStorageWrite, Digest};
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {
@@ -440,6 +411,7 @@ mod tests {
         db.set_block_outcome(parent_block, Default::default());
         db.set_previous_not_empty_block(parent_block, H256::random());
         db.set_block_commitment_queue(parent_block, Default::default());
+        db.set_last_committed_batch(parent_block, Digest::random());
 
         // Simulate events for the current block
         let events = vec![

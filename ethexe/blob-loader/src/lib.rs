@@ -23,14 +23,16 @@ use alloy::{
     rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::db::{CodesStorage, OnChainStorage};
+use ethexe_common::{
+    db::{CodesStorage, OnChainStorageRead},
+    CodeAndIdUnchecked, CodeInfo,
+};
 use ethexe_db::Database;
 use futures::{
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Stream, StreamExt,
 };
-use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
 use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
@@ -39,25 +41,8 @@ use tokio::time::{self, Duration};
 pub mod local;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct BlobData {
-    pub code_id: CodeId,
-    pub timestamp: u64,
-    pub code: Vec<u8>,
-}
-
-impl fmt::Debug for BlobData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BlobData")
-            .field("code_id", &self.code_id)
-            .field("timestamp", &self.timestamp)
-            .field("code", &format_args!("{} bytes", self.code.len()))
-            .finish()
-    }
-}
-
-#[derive(Clone, Eq, PartialEq)]
 pub enum BlobLoaderEvent {
-    BlobLoaded(BlobData),
+    BlobLoaded(CodeAndIdUnchecked),
 }
 
 // TODO (#4674): write tests for BlobLoaderService implementations
@@ -96,25 +81,18 @@ struct ConsensusLayerBlobReader {
 impl ConsensusLayerBlobReader {
     async fn read_code_from_tx_hash(
         self,
-        expected_code_id: CodeId,
-        timestamp: u64,
+        code_id: CodeId,
         tx_hash: H256,
         attempts: Option<u8>,
-    ) -> Result<BlobData> {
+    ) -> Result<CodeAndIdUnchecked> {
         let code = self
             .read_blob_from_tx_hash(tx_hash, attempts)
             .await
             .map_err(|err| anyhow!("failed to read blob: {err}"))?;
 
-        if CodeId::generate(&code) != expected_code_id {
-            return Err(anyhow!("unexpected code id"));
-        }
+        let code_and_id = CodeAndIdUnchecked { code, code_id };
 
-        Ok(BlobData {
-            code_id: expected_code_id,
-            timestamp,
-            code,
-        })
+        Ok(code_and_id)
     }
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
@@ -190,7 +168,7 @@ impl ConsensusLayerBlobReader {
 }
 
 pub struct BlobLoader {
-    futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
+    futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,
     codes_loading: HashSet<CodeId>,
 
     blobs_reader: ConsensusLayerBlobReader,
@@ -207,11 +185,9 @@ impl Stream for BlobLoader {
         let future = self.futures.poll_next_unpin(cx);
         match future {
             Poll::Ready(Some(result)) => match result {
-                Ok(blob_data) => {
-                    let code_id = &blob_data.code_id;
-                    self.codes_loading.remove(code_id);
-                    self.db.set_original_code(blob_data.code.as_slice());
-                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
+                Ok(code_and_id) => {
+                    self.codes_loading.remove(&code_and_id.code_id);
+                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(code_and_id))))
                 }
                 Err(e) => Poll::Ready(Some(Err(e))),
             },
@@ -259,7 +235,7 @@ impl BlobLoaderService for BlobLoader {
                 continue;
             }
 
-            let code_info = self
+            let CodeInfo { tx_hash, .. } = self
                 .db
                 .code_blob_info(code_id)
                 .ok_or(anyhow!("not found code info for {code_id} in db"))?;
@@ -268,12 +244,7 @@ impl BlobLoaderService for BlobLoader {
             self.futures.push(
                 self.blobs_reader
                     .clone()
-                    .read_code_from_tx_hash(
-                        code_id,
-                        code_info.timestamp,
-                        code_info.tx_hash,
-                        attempts,
-                    )
+                    .read_code_from_tx_hash(code_id, tx_hash, attempts)
                     .boxed(),
             );
         }

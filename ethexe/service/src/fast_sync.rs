@@ -19,11 +19,12 @@
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
-use ethexe_blob_loader::{BlobData, BlobLoaderEvent, BlobLoaderService};
+use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::CodeCommitment,
+    gear::{CodeCommitment, GearBlock},
+    Digest,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -46,9 +47,11 @@ struct EventData {
     program_states: BTreeMap<ActorId, H256>,
     program_code_ids: Vec<(ActorId, CodeId)>,
     needs_instrumentation_codes: HashSet<CodeId>,
+    /// Last committed batch
+    latest_committed_batch: Digest,
     /// Latest committed on the chain and not computed local block
     latest_committed_block: H256,
-    /// Previous committed block
+    /// Previous committed block (previous to `latest_committed_block`)
     previous_committed_block: Option<H256>,
 }
 
@@ -59,6 +62,7 @@ impl EventData {
         let mut needs_instrumentation_codes = HashSet::new();
         let mut previous_committed_block = None;
         let mut latest_committed_block = None;
+        let mut latest_committed_batch = None;
 
         let mut block = highest_block;
         while !db.block_computed(block) {
@@ -79,8 +83,16 @@ impl EventData {
                     continue;
                 }
 
+                if let BlockEvent::Router(RouterEvent::BatchCommitted { digest }) = event {
+                    latest_committed_batch.get_or_insert(digest);
+                }
+
                 if latest_committed_block.is_none() {
-                    if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
+                    if let BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock {
+                        hash,
+                        ..
+                    })) = event
+                    {
                         latest_committed_block = Some(hash);
                     }
                     // we don't collect any further info until the latest committed block is known
@@ -94,7 +106,9 @@ impl EventData {
                     } => {
                         program_states.entry(actor_id).or_insert(state_hash);
                     }
-                    BlockEvent::Router(RouterEvent::BlockCommitted { hash }) => {
+                    BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock {
+                        hash, ..
+                    })) => {
                         previous_committed_block.get_or_insert(hash);
                     }
                     BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id }) => {
@@ -104,7 +118,8 @@ impl EventData {
                 }
             }
 
-            let header = OnChainStorage::block_header(db, block)
+            let header = db
+                .block_header(block)
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
             let parent = header.parent_hash;
             block = parent;
@@ -113,6 +128,10 @@ impl EventData {
         let Some(latest_committed_block) = latest_committed_block else {
             return Ok(None);
         };
+
+        // impossible situation, because block can be committed only if batch is committed
+        let latest_committed_batch =
+            latest_committed_batch.ok_or_else(|| anyhow!("latest committed batch not found"))?;
 
         // recover data we haven't seen in events by the latest computed block
         // NOTE: we use `block` instead of `db.latest_computed_block()` so
@@ -126,9 +145,11 @@ impl EventData {
 
         #[cfg(debug_assertions)]
         if let Some(previous_committed_block) = previous_committed_block {
-            let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
+            let latest_block_header = db
+                .block_header(latest_committed_block)
                 .expect("observer must fulfill database");
-            let previous_block_header = OnChainStorage::block_header(db, previous_committed_block)
+            let previous_block_header = db
+                .block_header(previous_committed_block)
                 .expect("observer must fulfill database");
             assert!(previous_block_header.height < latest_block_header.height);
         }
@@ -137,6 +158,7 @@ impl EventData {
             program_states,
             program_code_ids,
             needs_instrumentation_codes,
+            latest_committed_batch,
             latest_committed_block,
             previous_committed_block,
         }))
@@ -510,13 +532,9 @@ async fn prepare_codes(
     let mut wait_load_codes = code_ids.clone();
     while !wait_load_codes.is_empty() {
         match blobs_loader.next().await {
-            Some(Ok(BlobLoaderEvent::BlobLoaded(BlobData {
-                code_id,
-                timestamp,
-                code,
-            }))) => {
-                wait_load_codes.remove(&code_id);
-                compute.process_code(code_id, timestamp, code);
+            Some(Ok(BlobLoaderEvent::BlobLoaded(code_and_id))) => {
+                wait_load_codes.remove(&code_and_id.code_id);
+                compute.process_code(code_and_id);
             }
             Some(Err(e)) => {
                 return Err(anyhow!("expect BlobLoaded, but got err: {e:?}"));
@@ -563,11 +581,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         program_states,
         program_code_ids,
         needs_instrumentation_codes,
+        latest_committed_batch,
         latest_committed_block,
         previous_committed_block,
     }) = EventData::collect(db, finalized_block).await?
     else {
-        log::warn!("No any committed block found. Skipping fast synchronization...");
+        log::warn!("No committed but not computed blocks found. Skipping fast synchronization...");
         return Ok(());
     };
 
@@ -579,7 +598,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     )
     .await?;
 
-    let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
+    let latest_block_header = db
+        .block_header(latest_committed_block)
         .expect("observer must fulfill database");
 
     sync_from_network(network, db, &program_states).await;
@@ -606,6 +626,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     );
     db.set_block_computed(latest_committed_block);
     db.set_latest_computed_block(latest_committed_block, latest_block_header);
+    db.set_last_committed_batch(latest_committed_block, latest_committed_batch);
 
     log::info!("Fast synchronization done");
 

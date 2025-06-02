@@ -21,6 +21,7 @@
 //! Implements `ToDigest` hashing for ethexe common types.
 
 use alloc::vec::Vec;
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -30,6 +31,7 @@ use sha3::Digest as _;
 #[derive(
     Clone,
     Copy,
+    Default,
     PartialOrd,
     Ord,
     PartialEq,
@@ -45,7 +47,21 @@ use sha3::Digest as _;
 #[repr(transparent)]
 #[debug("0x{}", hex::encode(self.0))]
 #[display("0x{}", hex::encode(self.0))]
-pub struct Digest([u8; 32]);
+pub struct Digest(pub [u8; 32]);
+
+impl Digest {
+    #[cfg(feature = "std")]
+    /// NOTE: This function is cryptographically insecure and should not be used in production.
+    pub fn random() -> Self {
+        Digest(H256::random().0)
+    }
+}
+
+impl<'a> From<&'a Digest> for Digest {
+    fn from(digest: &'a Digest) -> Self {
+        *digest
+    }
+}
 
 impl<T> FromIterator<T> for Digest
 where

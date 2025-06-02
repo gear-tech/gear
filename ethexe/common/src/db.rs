@@ -20,7 +20,7 @@
 
 // TODO #4547: move types to another module(s)
 
-use crate::{events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Schedule};
+use crate::{events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Digest, Schedule};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -46,6 +46,9 @@ pub trait BlockMetaStorage: Send + Sync {
 
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
+
+    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest>;
+    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest);
 
     fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
     fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
@@ -79,19 +82,18 @@ pub trait CodesStorage: Send + Sync {
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
-pub trait OnChainStorage: Send + Sync {
+pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
-
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
-
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo>;
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo);
-
     fn block_is_synced(&self, block_hash: H256) -> bool;
-    fn set_block_is_synced(&self, block_hash: H256);
-
     fn latest_synced_block_height(&self) -> Option<u32>;
+}
+
+pub trait OnChainStorageWrite {
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo);
+    fn set_block_is_synced(&self, block_hash: H256);
     fn set_latest_synced_block_height(&self, height: u32);
 }

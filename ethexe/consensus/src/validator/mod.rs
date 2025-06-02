@@ -41,23 +41,18 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
-    utils::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
-        MultisignedBatchCommitment,
-    },
+    utils::MultisignedBatchCommitment,
     validator::{
         coordinator::Coordinator, participant::Participant, producer::Producer,
         submitter::Submitter, subordinate::Subordinate,
     },
-    ConsensusEvent, ConsensusService,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{
-    ecdsa::{PublicKey, SignedData},
-    Address, ProducerBlock, SimpleBlockData,
-};
+use ethexe_common::{ecdsa::PublicKey, Address, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::BlockSyncedData;
@@ -182,14 +177,11 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_computed_block(computed_block))
     }
 
-    fn receive_block_from_producer(&mut self, signed: SignedData<ProducerBlock>) -> Result<()> {
+    fn receive_block_from_producer(&mut self, signed: SignedProducerBlock) -> Result<()> {
         self.update_inner(|inner| inner.process_block_from_producer(signed))
     }
 
-    fn receive_validation_request(
-        &mut self,
-        signed: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<()> {
+    fn receive_validation_request(&mut self, signed: SignedValidationRequest) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_request(signed))
     }
 
@@ -227,9 +219,9 @@ impl FusedStream for ValidatorService {
 #[derive(Clone, Debug, From, PartialEq, Eq)]
 enum PendingEvent {
     /// A block from the producer
-    ProducerBlock(SignedData<ProducerBlock>),
+    ProducerBlock(SignedProducerBlock),
     /// A validation request
-    ValidationRequest(SignedData<BatchCommitmentValidationRequest>),
+    ValidationRequest(SignedValidationRequest),
 }
 
 /// Trait defining the interface for validator inner state and events handler.
@@ -264,16 +256,13 @@ where
         DefaultProcessing::computed_block(self.into(), computed_block)
     }
 
-    fn process_block_from_producer(
-        self,
-        block: SignedData<ProducerBlock>,
-    ) -> Result<ValidatorState> {
+    fn process_block_from_producer(self, block: SignedProducerBlock) -> Result<ValidatorState> {
         DefaultProcessing::block_from_producer(self, block)
     }
 
     fn process_validation_request(
         self,
-        request: SignedData<BatchCommitmentValidationRequest>,
+        request: SignedValidationRequest,
     ) -> Result<ValidatorState> {
         DefaultProcessing::validation_request(self, request)
     }
@@ -290,6 +279,7 @@ where
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, derive_more::Display, derive_more::From, derive_more::IsVariant)]
 enum ValidatorState {
     Initial(Initial),
@@ -299,6 +289,7 @@ enum ValidatorState {
     Subordinate(Subordinate),
     Participant(Participant),
 }
+
 macro_rules! delegate_call {
     ($this:ident => $func:ident( $( $arg:ident ),* )) => {
         match $this {
@@ -345,16 +336,13 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_computed_block(computed_block))
     }
 
-    fn process_block_from_producer(
-        self,
-        block: SignedData<ProducerBlock>,
-    ) -> Result<ValidatorState> {
+    fn process_block_from_producer(self, block: SignedProducerBlock) -> Result<ValidatorState> {
         delegate_call!(self => process_block_from_producer(block))
     }
 
     fn process_validation_request(
         self,
-        request: SignedData<BatchCommitmentValidationRequest>,
+        request: SignedValidationRequest,
     ) -> Result<ValidatorState> {
         delegate_call!(self => process_validation_request(request))
     }
@@ -395,7 +383,7 @@ impl DefaultProcessing {
 
     fn block_from_producer(
         s: impl Into<ValidatorState>,
-        block: SignedData<ProducerBlock>,
+        block: SignedProducerBlock,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
@@ -407,7 +395,7 @@ impl DefaultProcessing {
 
     fn validation_request(
         s: impl Into<ValidatorState>,
-        request: SignedData<BatchCommitmentValidationRequest>,
+        request: SignedValidationRequest,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
