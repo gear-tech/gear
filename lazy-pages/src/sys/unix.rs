@@ -272,9 +272,16 @@ unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
 
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 mod linux_aarch64 {
-    use std::ptr;
+    use std::{ptr, slice};
 
     const ESR_MAGIC: u32 = u32::from_be_bytes(*b"ESR\x01");
+
+    #[repr(packed)]
+    #[derive(Clone, Copy)]
+    struct Header {
+        magic: u32, // Magic number to identify the record type
+        size: u32,  // Size of the record in bytes
+    }
 
     /// Scan through the 4 KiB __reserved buffer looking for an `esr_context` record.
     /// Returns `Some(esr)` if we find a record whose magic == ESR_MAGIC, else `None`.
@@ -297,25 +304,16 @@ mod linux_aarch64 {
             let reserved_addr_unaligned = ptr::addr_of!(mcontext.pstate).add(1);
             let reserved_addr =
                 reserved_addr_unaligned.add(reserved_addr_unaligned.align_offset(16)) as *const u8;
-            std::slice::from_raw_parts(reserved_addr, 4096)
+            slice::from_raw_parts(reserved_addr, 4096)
         };
 
         let mut offset = 0usize;
 
         while offset + 8 <= reserved.len() {
-            // Read the 32-bit magic and 32-bit size of the next context record:
-            let magic = u32::from_ne_bytes([
-                reserved[offset],
-                reserved[offset + 1],
-                reserved[offset + 2],
-                reserved[offset + 3],
-            ]);
-            let size = u32::from_ne_bytes([
-                reserved[offset + 4],
-                reserved[offset + 5],
-                reserved[offset + 6],
-                reserved[offset + 7],
-            ]) as usize;
+            // Read header of the next context record:
+            let Header { magic, size } =
+                unsafe { (reserved.as_ptr().add(offset) as *const Header).read_unaligned() };
+            let size = size as usize;
 
             // Sanity check: size must be at least 8 (header itself), and offset+size must not overflow 4096.
             if size < 8 || offset + size > reserved.len() {
@@ -323,19 +321,12 @@ mod linux_aarch64 {
             }
 
             if magic == ESR_MAGIC {
-                // The first 8 bytes are (magic, size).  The next 8 bytes are the u64 ESR value.
+                // The first 8 bytes are (magic, size). The next 8 bytes are the u64 ESR value.
                 if offset + 16 <= reserved.len() {
-                    let esr_bytes = &reserved[offset + 8..offset + 16];
-                    let esr = usize::from_ne_bytes([
-                        esr_bytes[0],
-                        esr_bytes[1],
-                        esr_bytes[2],
-                        esr_bytes[3],
-                        esr_bytes[4],
-                        esr_bytes[5],
-                        esr_bytes[6],
-                        esr_bytes[7],
-                    ]);
+                    let esr_bytes = reserved[offset + 8..offset + 16]
+                        .try_into()
+                        .expect("cannot fail");
+                    let esr = usize::from_ne_bytes(esr_bytes);
                     return Some(esr);
                 } else {
                     // Not enough room for a full u64 after the header: treat as “not found”.
