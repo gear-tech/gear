@@ -409,36 +409,32 @@ mod tests {
     use super::*;
 
     struct ComputeTestEnv {
-        validated_codes: HashMap<CodeId, Vec<u8>>,
-        blobs_counter: u64,
-
         db: Database,
         compute: ComputeService,
+        blobs_counter: u64,
+        validated_codes: HashMap<CodeId, Vec<u8>>,
     }
 
     impl ComputeTestEnv {
         fn new() -> Self {
             let db = Database::memory();
             let processor = Processor::new(db.clone()).unwrap();
-            let compute_service = ComputeService::new(db.clone(), processor);
-            ComputeTestEnv {
-                validated_codes: HashMap::new(),
-                blobs_counter: 0u64,
 
-                db,
-                compute: compute_service,
+            Self {
+                db: db.clone(),
+                compute: ComputeService::new(db, processor),
+                blobs_counter: 0u64,
+                validated_codes: HashMap::new(),
             }
         }
 
         fn new_wasm(&mut self) -> Vec<u8> {
             let wat = format!(
-                r#"
-                (module
+                r#"(module
                     (import "env" "memory" (memory 1))
                     (export "init" (func $init))
                     (func $init)
-                    (func $ret_{})
-                )"#,
+                    (func $ret_{}))"#,
                 self.blobs_counter
             );
 
