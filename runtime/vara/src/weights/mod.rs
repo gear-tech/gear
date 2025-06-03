@@ -21,6 +21,7 @@
 #![allow(dead_code)]
 
 pub mod frame_system;
+pub mod frame_system_extensions;
 pub mod pallet_balances;
 pub mod pallet_gear;
 pub mod pallet_gear_builtin;

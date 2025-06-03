@@ -286,6 +286,7 @@ impl frame_system::Config for Runtime {
     type AccountData = pallet_balances::AccountData<Balance>;
     /// Weight information for the extrinsics of this pallet.
     type SystemWeightInfo = weights::frame_system::SubstrateWeight<Runtime>;
+    type ExtensionsWeightInfo = weights::frame_system_extensions::WeightInfo<Runtime>;
     /// This is used as an identifier of the chain. 42 is the generic substrate prefix.
     type SS58Prefix = SS58Prefix;
     /// The set code logic, just the default since we're not a parachain.
@@ -1784,6 +1785,7 @@ mod benches {
     define_benchmarks!(
         // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
+        [frame_system_extensions, SystemExtensionsBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
@@ -1800,6 +1802,7 @@ mod benches {
     define_benchmarks!(
         // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
+        [frame_system_extensions, SystemExtensionsBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
