@@ -377,7 +377,7 @@ impl TestEnv {
             .router()
             .request_code_validation_with_sidecar(code)
             .await?;
-        debug_assert_eq!(pending_builder.code_id(), code_id);
+        assert_eq!(pending_builder.code_id(), code_id);
 
         Ok(WaitForUploadCode { listener, code_id })
     }
