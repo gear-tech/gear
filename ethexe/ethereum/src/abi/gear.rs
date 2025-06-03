@@ -140,6 +140,7 @@ impl From<Message> for Gear::Message {
             payload: value.payload.into(),
             value: value.value,
             replyDetails: value.reply_details.into(),
+            call: value.call,
         }
     }
 }
@@ -166,6 +167,7 @@ impl From<StateTransition> for Gear::StateTransition {
         Self {
             actorId: actor_id_to_address_lossy(value.actor_id),
             newStateHash: h256_to_bytes32(value.new_state_hash),
+            exited: value.exited,
             inheritor: actor_id_to_address_lossy(value.inheritor),
             valueToReceive: value.value_to_receive,
             valueClaims: value.value_claims.into_iter().map(Into::into).collect(),

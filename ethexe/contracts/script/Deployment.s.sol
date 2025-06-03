@@ -127,6 +127,7 @@ contract DeploymentScript is Script {
 
     function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
         public
+        view
     {
         console.log("================================================================================================");
         console.log("[ CONTRACT  ]", contractName);

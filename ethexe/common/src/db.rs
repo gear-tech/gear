@@ -20,7 +20,10 @@
 
 // TODO #4547: move types to another module(s)
 
-use crate::{events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Schedule};
+use crate::{
+    events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Schedule,
+    StateHashWithQueueSize,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -32,6 +35,9 @@ use gear_core::{
 use gprimitives::H256;
 
 pub trait BlockMetaStorage: Send + Sync {
+    fn block_prepared(&self, block_hash: H256) -> bool;
+    fn set_block_prepared(&self, block_hash: H256);
+
     fn block_computed(&self, block_hash: H256) -> bool;
     fn set_block_computed(&self, block_hash: H256);
 
@@ -44,8 +50,15 @@ pub trait BlockMetaStorage: Send + Sync {
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
 
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn block_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>>;
+    fn set_block_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
+    );
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);

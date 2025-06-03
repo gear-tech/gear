@@ -161,7 +161,7 @@ pub enum NewRequestRoundReason {
     PeerFailed,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, derive_more::Display)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, derive_more::Display)]
 pub enum RequestFailure {
     /// Request exceeded its round limit
     #[display("Request exceeded its round limit")]
