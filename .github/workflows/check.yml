@@ -29,14 +29,16 @@ jobs:
             runs-on: macos-latest
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs-on }}
     name: clippy (${{ matrix.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
       __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
     steps:
       - name: "ACTIONS: Checkout"
@@ -48,11 +50,19 @@ jobs:
           key: "${{ matrix.name }}"
           save-if: ${{ github.ref == 'refs/heads/master' }}
 
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: "Install: macOS aarch64 packages"
         if: ${{ matrix.name == 'macos-aarch64' }}
@@ -73,9 +83,6 @@ jobs:
       - name: "Install: macOS x86_64 packages"
         if: ${{ matrix.name == 'macos-x86_64' }}
         run: |
-          rustup target add ${{ matrix.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
-          
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
           /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc pkgconf
           
@@ -97,14 +104,30 @@ jobs:
       - name: "Install: Linux packages"
         if: ${{ matrix.name == 'linux-x86_64' }}
         run: |
+          sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
+          sudo dpkg --add-architecture amd64
+          sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+          EOF
           sudo apt update
-          sudo apt install protobuf-compiler binaryen libssl-dev librocksdb-dev libzstd-dev libjemalloc-dev
+          sudo apt install protobuf-compiler binaryen \
+            libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64 \
+            pkg-config gcc-x86-64-linux-gnu g++-x86-64-linux-gnu
+          
+          echo "CC_x86_64-unknown-linux-gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX_x86_64-unknown-linux-gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
           
           # Do not override include directory because system RocksDB is too new
           #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
           echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
 
           echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
+          echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "TARGET_PKG_CONFIG_PATH=/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
           
           echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
           
@@ -115,10 +138,7 @@ jobs:
       - name: "Install: Windows packages"
         if: ${{ matrix.name == 'windows-x86_64' }}
         run: |
-          rustup target add ${{ matrix.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
-          
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.aarch64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
           cargo xwin --version >> cargo-xwin-version.txt
           
@@ -151,14 +171,6 @@ jobs:
           restore-keys: |
             ${{ matrix.name }}-
 
-      - name: "Install: Linux linker"
-        if: ${{ matrix.runs-on == 'ubuntu-latest' }}
-        run: |
-          sudo apt install mold
-          echo "CFLAGS_X86_64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-          echo "CXXFLAGS_X86_64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-          echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
-
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
@@ -166,6 +178,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTUP_HOME: /tmp/rustup_home
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
       __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
     steps:
       - name: "ACTIONS: Checkout"
@@ -179,6 +193,9 @@ jobs:
             . -> target
             utils/wasm-builder/test-program -> target
             utils/cargo-gbuild/test-program -> target
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH

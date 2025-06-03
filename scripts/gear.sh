@@ -14,7 +14,9 @@ EXE_EXTENSION=""
 
 . "$SCRIPTS"/common.sh
 
-if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
+if [[ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" && "$(uname -o)" != "Msys" ]]; then
+  export RUSTC_WRAPPER="" # cross compilation fails with sccache
+  export XWIN_CROSS_COMPILER="clang-cl"
   export XWIN_ARCH="x86_64"
   TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
   CARGO="cargo xwin"
