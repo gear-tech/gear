@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
+    db::{BlockMetaStorage, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,

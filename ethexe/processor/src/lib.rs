@@ -20,7 +20,7 @@
 
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
-    db::CodesStorage,
+    db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
     Schedule, StateHashWithQueueSize,

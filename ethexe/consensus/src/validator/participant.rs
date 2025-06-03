@@ -30,7 +30,7 @@ use crate::{
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
+    db::{BlockMetaStorage, CodesStorageRead, OnChainStorageRead},
     ecdsa::SignedData,
     gear::CodeCommitment,
     Address, Digest, SimpleBlockData, ToDigest,
@@ -147,7 +147,7 @@ impl Participant {
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
     }
 
-    fn validate_code_commitment<DB: OnChainStorageRead + CodesStorage>(
+    fn validate_code_commitment<DB: OnChainStorageRead + CodesStorageRead>(
         db: &DB,
         request: CodeCommitment,
     ) -> Result<()> {

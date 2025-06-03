@@ -71,31 +71,21 @@ pub trait BlockMetaStorage: Send + Sync {
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
 }
 
-pub trait CodesStorage: Send + Sync {
+pub trait CodesStorageRead {
     fn original_code_exists(&self, code_id: CodeId) -> bool;
-
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
-    fn set_original_code(&self, code: &[u8]) -> CodeId;
-
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
-    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
-
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
-    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
-
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
-    fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
-// pub trait CodesStorageRead {
-//     fn original_code_exists(&self, code_id: CodeId) -> bool;
-//     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
-//     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
-//     fn program_ids(&self) -> BTreeSet<ActorId>;
-//     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
-//     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
-// }
+pub trait CodesStorageWrite {
+    fn set_original_code(&self, code: &[u8]) -> CodeId;
+    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
+    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
+    fn set_code_valid(&self, code_id: CodeId, valid: bool);
+}
 
 pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;

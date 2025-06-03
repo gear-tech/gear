@@ -24,7 +24,10 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead, OnChainStorageWrite},
+    db::{
+        BlockMetaStorage, CodesStorageRead, CodesStorageWrite, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
@@ -406,7 +409,7 @@ impl BlockMetaStorage for Database {
     }
 }
 
-impl CodesStorage for Database {
+impl CodesStorageRead for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
         self.kv.contains(code_id.as_ref())
     }
@@ -415,24 +418,12 @@ impl CodesStorage for Database {
         self.cas.read(code_id.into())
     }
 
-    // TODO +_+_+: change to Vec<u8>
-    fn set_original_code(&self, code: &[u8]) -> CodeId {
-        self.cas.write(code).into()
-    }
-
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId> {
         self.kv
             .get(&Key::ProgramToCodeId(program_id).to_bytes())
             .map(|data| {
                 CodeId::try_from(data.as_slice()).expect("Failed to decode data into `CodeId`")
             })
-    }
-
-    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId) {
-        self.kv.put(
-            &Key::ProgramToCodeId(program_id).to_bytes(),
-            code_id.into_bytes().to_vec(),
-        );
     }
 
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool {
@@ -449,19 +440,32 @@ impl CodesStorage for Database {
             })
     }
 
-    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
-        self.kv.put(
-            &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
-            code.encode(),
-        );
-    }
-
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
         self.kv
             .get(&Key::CodeValid(code_id).to_bytes())
             .map(|data| {
                 bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
             })
+    }
+}
+
+impl CodesStorageWrite for Database {
+    fn set_original_code(&self, code: &[u8]) -> CodeId {
+        self.cas.write(code).into()
+    }
+
+    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId) {
+        self.kv.put(
+            &Key::ProgramToCodeId(program_id).to_bytes(),
+            code_id.into_bytes().to_vec(),
+        );
+    }
+
+    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
+        self.kv.put(
+            &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
+            code.encode(),
+        );
     }
 
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
