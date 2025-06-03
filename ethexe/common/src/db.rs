@@ -25,7 +25,7 @@ use crate::{
     StateHashWithQueueSize,
 };
 use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
 use gear_core::{
@@ -79,7 +79,6 @@ pub trait CodesStorage: Send + Sync {
 
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
-    fn program_ids(&self) -> BTreeSet<ActorId>;
 
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
@@ -88,6 +87,15 @@ pub trait CodesStorage: Send + Sync {
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
+
+// pub trait CodesStorageRead {
+//     fn original_code_exists(&self, code_id: CodeId) -> bool;
+//     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
+//     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
+//     fn program_ids(&self) -> BTreeSet<ActorId>;
+//     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+//     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
+// }
 
 pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;

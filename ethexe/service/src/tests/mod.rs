@@ -1098,7 +1098,6 @@ async fn fast_sync() {
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
 
-        assert_eq!(alice.db.program_ids(), bob.db.program_ids());
         assert_eq!(
             alice.db.latest_computed_block(),
             bob.db.latest_computed_block()

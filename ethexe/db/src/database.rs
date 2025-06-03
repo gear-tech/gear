@@ -42,7 +42,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 #[repr(u64)]
 enum Key {
@@ -433,25 +433,6 @@ impl CodesStorage for Database {
             &Key::ProgramToCodeId(program_id).to_bytes(),
             code_id.into_bytes().to_vec(),
         );
-    }
-
-    // TODO (gsobol): consider to move to another place
-    fn program_ids(&self) -> BTreeSet<ActorId> {
-        let key_prefix = Key::ProgramToCodeId(Default::default()).prefix();
-        self.kv
-            .iter_prefix(&key_prefix)
-            .map(|(key, code_id)| {
-                let (split_key_prefix, program_id) = key.split_at(key_prefix.len());
-                debug_assert_eq!(split_key_prefix, key_prefix);
-                let program_id =
-                    ActorId::try_from(program_id).expect("Failed to decode key into `ActorId`");
-
-                #[cfg(debug_assertions)]
-                CodeId::try_from(code_id.as_slice()).expect("Failed to decode data into `CodeId`");
-
-                program_id
-            })
-            .collect()
     }
 
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool {
@@ -1017,40 +998,6 @@ mod tests {
         let code_id = CodeId::default();
         db.set_program_code_id(program_id, code_id);
         assert_eq!(db.program_code_id(program_id), Some(code_id));
-    }
-
-    #[test]
-    fn test_program_ids() {
-        let db = Database::memory();
-
-        let program_id_1 = ActorId::from(H256::random());
-        let program_id_2 = ActorId::from(H256::random());
-        let program_id_3 = ActorId::from(H256::random());
-
-        let code_id_1 = CodeId::from(H256::random());
-        let code_id_2 = CodeId::from(H256::random());
-        let code_id_3 = CodeId::from(H256::random());
-
-        // Add some program IDs
-        db.set_program_code_id(program_id_1, code_id_1);
-        db.set_program_code_id(program_id_2, code_id_2);
-        db.set_program_code_id(program_id_3, code_id_3);
-
-        // Retrieve all program IDs
-        let retrieved_ids = db.program_ids();
-
-        // Check if the retrieved set contains all added IDs and has the correct size
-        let mut expected_ids = BTreeSet::new();
-        expected_ids.insert(program_id_1);
-        expected_ids.insert(program_id_2);
-        expected_ids.insert(program_id_3);
-
-        assert_eq!(retrieved_ids.len(), 3);
-        assert_eq!(retrieved_ids, expected_ids);
-
-        // Test with an empty database
-        let empty_db = Database::memory();
-        assert!(empty_db.program_ids().is_empty());
     }
 
     #[test]
