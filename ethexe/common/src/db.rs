@@ -20,7 +20,10 @@
 
 // TODO #4547: move types to another module(s)
 
-use crate::{events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Digest, Schedule};
+use crate::{
+    events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Digest, Schedule,
+    StateHashWithQueueSize,
+};
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
@@ -50,8 +53,15 @@ pub trait BlockMetaStorage: Send + Sync {
     fn last_committed_batch(&self, block_hash: H256) -> Option<Digest>;
     fn set_last_committed_batch(&self, block_hash: H256, batch: Digest);
 
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
+    fn block_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>>;
+    fn set_block_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
+    );
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);

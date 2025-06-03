@@ -277,7 +277,8 @@ impl<DB: OnChainStorageRead + BlockMetaStorage> ChainHeadProcessContext<DB> {
 
         let processing_result = self
             .processor
-            .process_block_events(block, block_request_events)?;
+            .process_block_events(block, block_request_events)
+            .await?;
 
         let BlockProcessingResult {
             transitions,

@@ -28,7 +28,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeInfo, Digest, Schedule,
+    BlockHeader, CodeInfo, Digest, Schedule, StateHashWithQueueSize,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -334,7 +334,10 @@ impl BlockMetaStorage for Database {
         self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    fn block_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>> {
         self.kv
             .get(&Key::BlockProgramStates(block_hash).to_bytes())
             .map(|data| {
@@ -343,7 +346,11 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    fn set_block_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
+    ) {
         log::trace!("For block {block_hash} set program states: {map:?}");
         self.kv.put(
             &Key::BlockProgramStates(block_hash).to_bytes(),

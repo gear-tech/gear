@@ -24,7 +24,7 @@ use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{CodeCommitment, GearBlock},
-    Digest,
+    Digest, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -136,9 +136,13 @@ impl EventData {
         // recover data we haven't seen in events by the latest computed block
         // NOTE: we use `block` instead of `db.latest_computed_block()` so
         // possible reorganization have no effect
-        let computed_program_states = db
+        let computed_program_states: BTreeMap<_, _> = db
             .block_program_states(block)
-            .context("program states of latest computed block not found")?;
+            .context("program states of latest computed block not found")?
+            .into_iter()
+            .map(|(program_id, state)| (program_id, state.hash))
+            .collect();
+
         for (program_id, state) in computed_program_states {
             program_states.entry(program_id).or_insert(state);
         }
@@ -363,14 +367,16 @@ async fn sync_finalized_head(observer: &mut ObserverService) -> Result<H256> {
 async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
-    program_states: &BTreeMap<ActorId, H256>,
-) {
+    program_states: BTreeMap<ActorId, H256>,
+) -> BTreeMap<ActorId, StateHashWithQueueSize> {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
         PayloadLookup::Stored(hash) => {
             manager.add(hash.hash(), RequestMetadata::Data);
         }
     };
+
+    let mut restored_cached_queue_sizes = BTreeMap::new();
 
     let mut manager = RequestManager::default();
     for &state in program_states.values() {
@@ -393,13 +399,17 @@ async fn sync_from_network(
 
                     let ProgramState {
                         program,
-                        queue_hash,
+                        queue,
                         waitlist_hash,
                         stash_hash,
                         mailbox_hash,
                         balance: _,
                         executable_balance: _,
                     } = &state;
+
+                    // Save restored cached queue sizes
+                    let program_state_hash = ethexe_db::hash(&data);
+                    restored_cached_queue_sizes.insert(program_state_hash, queue.cached_queue_size);
 
                     if let Program::Active(ActiveProgram {
                         allocations_hash,
@@ -416,7 +426,7 @@ async fn sync_from_network(
                         }
                     }
 
-                    if let Some(queue_hash) = queue_hash.hash() {
+                    if let Some(queue_hash) = queue.hash.hash() {
                         manager.add(queue_hash, RequestMetadata::MessageQueue);
                     }
                     if let Some(waitlist_hash) = waitlist_hash.hash() {
@@ -502,6 +512,23 @@ async fn sync_from_network(
     }
 
     log::info!("Network data getting is done");
+
+    // Enrich program states with cached queue size
+    program_states
+        .into_iter()
+        .map(|(program_id, hash)| {
+            let cached_queue_size = *restored_cached_queue_sizes
+                .get(&hash)
+                .expect("program state cached queue size must be restored");
+            (
+                program_id,
+                StateHashWithQueueSize {
+                    hash,
+                    cached_queue_size,
+                },
+            )
+        })
+        .collect()
 }
 
 async fn prepare_codes(
@@ -602,7 +629,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .block_header(latest_committed_block)
         .expect("observer must fulfill database");
 
-    sync_from_network(network, db, &program_states).await;
+    let program_states = sync_from_network(network, db, program_states).await;
 
     let schedule =
         ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
