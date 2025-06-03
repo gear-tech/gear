@@ -23,7 +23,7 @@ use ethexe_common::{
     db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    Schedule, StateHashWithQueueSize,
+    ProgramStatesMap, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -31,7 +31,6 @@ use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
-use std::collections::BTreeMap;
 
 pub use common::LocalOutcome;
 
@@ -46,7 +45,7 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
-    pub states: BTreeMap<ActorId, StateHashWithQueueSize>,
+    pub states: ProgramStatesMap,
     pub schedule: Schedule,
 }
 
