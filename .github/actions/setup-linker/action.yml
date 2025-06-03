@@ -34,5 +34,5 @@ runs:
       shell: powershell
     - name: "Setup linker on macOS"
       if: ${{ runner.os == 'macOS' }}
-      run: "" # macOS already has the fastest linker by default
+      run: "exit 0" # macOS already has the fastest linker by default
       shell: bash
