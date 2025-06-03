@@ -332,7 +332,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
         ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
         ActorWithId<1, bls12_381::Actor<Self>>,
-        ActorWithId<3, proxy::Actor<Self>>,
+        ActorWithId<4, proxy::Actor<Self>>,
     );
     type BlockLimiter = GearGas;
     type WeightInfo = ();
