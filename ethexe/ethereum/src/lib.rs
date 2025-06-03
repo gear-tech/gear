@@ -31,7 +31,7 @@ use alloy::{
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            WalletFiller,
+            SimpleNonceManager, WalletFiller,
         },
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -67,15 +67,14 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
+type AlloyRecommendedFillers = JoinFill<
+    GasFiller,
+    JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+>;
 type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
 
-pub(crate) type ExeFiller = JoinFill<
-    JoinFill<
-        Identity,
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-    >,
-    WalletFiller<EthereumWallet>,
->;
+pub(crate) type ExeFiller =
+    JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
     router_address: Address,
@@ -238,7 +237,8 @@ async fn create_provider(
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
-    Ok(ProviderBuilder::new()
+    Ok(ProviderBuilder::default()
+        .filler(AlloyRecommendedFillers::default())
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
