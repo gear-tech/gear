@@ -18,13 +18,13 @@
 
 use crate::errors;
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorageRead},
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     BlockHeader,
 };
 use gprimitives::H256;
 use jsonrpsee::core::RpcResult;
 
-pub fn block_header_at_or_latest<DB: BlockMetaStorage + OnChainStorageRead>(
+pub fn block_header_at_or_latest<DB: BlockMetaStorageRead + OnChainStorageRead>(
     db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<(H256, BlockHeader)> {

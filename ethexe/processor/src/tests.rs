@@ -18,7 +18,10 @@
 
 use crate::*;
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorageRead, OnChainStorageRead, OnChainStorageWrite},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
     BlockHeader,
 };

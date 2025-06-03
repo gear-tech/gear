@@ -25,13 +25,13 @@ use crate::{
 use anyhow::{bail, Result};
 use ethexe_common::{
     db::{
-        BlockMetaStorage, CodesStorageRead, CodesStorageWrite, OnChainStorageRead,
-        OnChainStorageWrite,
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeBlobInfo, Schedule, StateHashWithQueueSize,
+    BlockHeader, CodeBlobInfo, ProgramStatesMap, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -277,15 +277,10 @@ struct BlockSmallData {
     codes_queue: Option<VecDeque<CodeId>>,
 }
 
-impl BlockMetaStorage for Database {
+impl BlockMetaStorageRead for Database {
     fn block_prepared(&self, block_hash: H256) -> bool {
         self.with_small_data(block_hash, |data| data.block_pre_computed)
             .unwrap_or(false)
-    }
-
-    fn set_block_prepared(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set pre-computed");
-        self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
     }
 
     fn block_computed(&self, block_hash: H256) -> bool {
@@ -293,62 +288,25 @@ impl BlockMetaStorage for Database {
             .unwrap_or(false)
     }
 
-    fn set_block_computed(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set block computed");
-        self.mutate_small_data(block_hash, |data| data.block_computed = true);
-    }
-
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
         self.with_small_data(block_hash, |data| data.commitment_queue)?
-    }
-
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
-        log::trace!("For block {block_hash} set commitment queue: {queue:?}");
-        self.mutate_small_data(block_hash, |data| data.commitment_queue = Some(queue));
     }
 
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>> {
         self.with_small_data(block_hash, |data| data.codes_queue)?
     }
 
-    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
-        log::trace!("For block {block_hash} set codes queue: {queue:?}");
-        self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
-    }
-
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
         self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
     }
 
-    fn set_previous_not_empty_block(&self, block_hash: H256, prev_not_empty_block_hash: H256) {
-        log::trace!("For block {block_hash} set prev commitment: {prev_not_empty_block_hash}");
-        self.mutate_small_data(block_hash, |data| {
-            data.prev_not_empty_block = Some(prev_not_empty_block_hash)
-        });
-    }
-
-    fn block_program_states(
-        &self,
-        block_hash: H256,
-    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>> {
+    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStatesMap> {
         self.kv
             .get(&Key::BlockProgramStates(block_hash).to_bytes())
             .map(|data| {
                 BTreeMap::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BTreeMap`")
             })
-    }
-
-    fn set_block_program_states(
-        &self,
-        block_hash: H256,
-        map: BTreeMap<ActorId, StateHashWithQueueSize>,
-    ) {
-        log::trace!("For block {block_hash} set program states: {map:?}");
-        self.kv.put(
-            &Key::BlockProgramStates(block_hash).to_bytes(),
-            map.encode(),
-        );
     }
 
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
@@ -359,14 +317,6 @@ impl BlockMetaStorage for Database {
                     panic!("`block_outcome()` called on forced non-empty block {block_hash}")
                 }
             })
-    }
-
-    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
-        log::trace!("For block {block_hash} set outcome: {outcome:?}");
-        self.kv.put(
-            &Key::BlockOutcome(block_hash).to_bytes(),
-            BlockOutcome::Transitions(outcome).encode(),
-        );
     }
 
     fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
@@ -386,11 +336,6 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_schedule(&self, block_hash: H256, map: Schedule) {
-        self.kv
-            .put(&Key::BlockSchedule(block_hash).to_bytes(), map.encode());
-    }
-
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)> {
         self.kv
             .get(&Key::LatestComputedBlock.to_bytes())
@@ -398,6 +343,57 @@ impl BlockMetaStorage for Database {
                 <(H256, BlockHeader)>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
+    }
+}
+
+impl BlockMetaStorageWrite for Database {
+    fn set_block_prepared(&self, block_hash: H256) {
+        log::trace!("For block {block_hash} set pre-computed");
+        self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
+    }
+
+    fn set_block_computed(&self, block_hash: H256) {
+        log::trace!("For block {block_hash} set block computed");
+        self.mutate_small_data(block_hash, |data| data.block_computed = true);
+    }
+
+    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
+        log::trace!("For block {block_hash} set commitment queue: {queue:?}");
+        self.mutate_small_data(block_hash, |data| data.commitment_queue = Some(queue));
+    }
+
+    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
+        log::trace!("For block {block_hash} set codes queue: {queue:?}");
+        self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
+    }
+
+    fn set_previous_not_empty_block(&self, block_hash: H256, prev_not_empty_block_hash: H256) {
+        log::trace!("For block {block_hash} set prev commitment: {prev_not_empty_block_hash}");
+        self.mutate_small_data(block_hash, |data| {
+            data.prev_not_empty_block = Some(prev_not_empty_block_hash)
+        });
+    }
+
+    fn set_block_program_states(&self, block_hash: H256, map: ProgramStatesMap) {
+        log::trace!("For block {block_hash} set program states: {map:?}");
+        self.kv.put(
+            &Key::BlockProgramStates(block_hash).to_bytes(),
+            map.encode(),
+        );
+    }
+
+    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
+        log::trace!("For block {block_hash} set outcome: {outcome:?}");
+        self.kv.put(
+            &Key::BlockOutcome(block_hash).to_bytes(),
+            BlockOutcome::Transitions(outcome).encode(),
+        );
+    }
+
+    fn set_block_schedule(&self, block_hash: H256, map: Schedule) {
+        log::trace!("For block {block_hash} set schedule: {map:?}");
+        self.kv
+            .put(&Key::BlockSchedule(block_hash).to_bytes(), map.encode());
     }
 
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader) {

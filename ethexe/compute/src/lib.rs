@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorageRead, OnChainStorageRead},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
@@ -239,12 +239,16 @@ impl ComputeService {
     }
 }
 
-struct ChainHeadProcessContext<DB: OnChainStorageRead + BlockMetaStorage> {
+struct ChainHeadProcessContext<
+    DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead,
+> {
     db: DB,
     processor: Processor,
 }
 
-impl<DB: OnChainStorageRead + BlockMetaStorage> ChainHeadProcessContext<DB> {
+impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
+    ChainHeadProcessContext<DB>
+{
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 

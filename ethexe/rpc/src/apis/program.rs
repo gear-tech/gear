@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_common::db::{BlockMetaStorage, CodesStorageRead};
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageRead};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{

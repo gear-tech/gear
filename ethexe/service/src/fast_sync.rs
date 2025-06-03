@@ -21,7 +21,10 @@ use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
 use ethexe_blob_loader::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorageRead, CodesStorageWrite, OnChainStorageRead},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
+        OnChainStorageRead,
+    },
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
     StateHashWithQueueSize,

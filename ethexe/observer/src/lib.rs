@@ -234,7 +234,7 @@ impl ObserverService {
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
-        use ethexe_common::db::{BlockMetaStorage, OnChainStorageWrite};
+        use ethexe_common::db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite};
 
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
