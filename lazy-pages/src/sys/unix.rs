@@ -274,7 +274,7 @@ unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
 mod linux_aarch64 {
     use std::ptr;
 
-    const ESR_MAGIC: u32 = 0x45535201; // “ESR\0x01” in little‐endian
+    const ESR_MAGIC: u32 = u32::from_be_bytes(*b"ESR\x01");
 
     /// Scan through the 4 KiB __reserved buffer looking for an `esr_context` record.
     /// Returns `Some(esr)` if we find a record whose magic == ESR_MAGIC, else `None`.
