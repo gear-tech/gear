@@ -108,14 +108,7 @@ mod tests {
     #[tokio::test]
     async fn submitter() {
         let (ctx, _) = mock_validator_context();
-        let batch = BatchCommitment {
-            code_commitments: vec![mock_code_commitment(), mock_code_commitment()],
-            block_commitments: vec![
-                mock_block_commitment(H256::random(), H256::random(), H256::random()).1,
-            ],
-            rewards_commitments: vec![],
-        };
-
+        let batch = BatchCommitment::mock(());
         let multisigned_batch =
             MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)
                 .unwrap();

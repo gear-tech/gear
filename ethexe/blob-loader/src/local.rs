@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BlobData, BlobLoaderEvent, BlobLoaderService};
+use crate::{BlobLoaderEvent, BlobLoaderService};
 use anyhow::{anyhow, Result};
-use ethexe_common::db::OnChainStorage;
+use ethexe_common::{CodeAndId, CodeAndIdUnchecked};
 use ethexe_db::Database;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::CodeId;
@@ -42,32 +42,22 @@ impl LocalBlobStorage {
             db,
         }
     }
-    pub async fn add_code(&self, code_id: CodeId, code: Vec<u8>) {
-        let mut storage = self.inner.write().await;
-        if storage.contains_key(&code_id) {
-            return;
-        }
-
-        storage.insert(code_id, code);
+    pub async fn add_code(&self, code_and_id: CodeAndId) {
+        let CodeAndIdUnchecked { code, code_id } = code_and_id.into_unchecked();
+        self.inner.write().await.insert(code_id, code);
     }
 
-    pub async fn get_code(self, code_id: CodeId) -> Result<BlobData> {
+    pub async fn get_code(self, code_id: CodeId) -> Result<CodeAndId> {
         let storage = self.inner.read().await;
 
         let Some(code) = storage.get(&code_id).cloned() else {
             return Err(anyhow!("code {code_id} not found in db"));
         };
 
-        let code_info = self
-            .db
-            .code_blob_info(code_id)
-            .ok_or(anyhow!("expect code info for {code_id} exists in db"))?;
-
-        Ok(BlobData {
-            code_id,
-            timestamp: code_info.timestamp,
+        Ok(CodeAndId::from_unchecked(CodeAndIdUnchecked {
             code,
-        })
+            code_id,
+        }))
     }
 
     pub fn change_db(&mut self, db: Database) {
@@ -84,7 +74,7 @@ impl FusedStream for LocalBlobLoader {
 pub struct LocalBlobLoader {
     storage: LocalBlobStorage,
     codes_queue: VecDeque<CodeId>,
-    future: Option<BoxFuture<'static, Result<BlobData>>>,
+    future: Option<BoxFuture<'static, Result<CodeAndId>>>,
 }
 
 impl BlobLoaderService for LocalBlobLoader {
@@ -126,7 +116,9 @@ impl Stream for LocalBlobLoader {
             Poll::Ready(res) => {
                 self.future = None;
                 match res {
-                    Ok(blob_data) => Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data)))),
+                    Ok(code_and_id) => Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(
+                        code_and_id.into_unchecked(),
+                    )))),
                     Err(e) => Poll::Ready(Some(Err(e))),
                 }
             }

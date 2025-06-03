@@ -20,7 +20,7 @@ use crate::Event;
 use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    db::OnChainStorage, events::BlockEvent, tx_pool::SignedOffchainTransaction, SimpleBlockData,
+    db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction, SimpleBlockData,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_consensus::ConsensusEvent;
@@ -231,9 +231,13 @@ impl ObserverEventsListener {
                 continue;
             };
 
-            let header = OnChainStorage::block_header(&self.db, data.block_hash)
+            let header = self
+                .db
+                .block_header(data.block_hash)
                 .expect("Block header not found");
-            let events = OnChainStorage::block_events(&self.db, data.block_hash)
+            let events = self
+                .db
+                .block_events(data.block_hash)
                 .expect("Block events not found");
 
             let block_data = SimpleBlockData {

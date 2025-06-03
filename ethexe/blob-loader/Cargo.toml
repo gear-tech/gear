@@ -10,7 +10,6 @@ rust-version.workspace = true
 
 [dependencies]
 ethexe-db.workspace = true
-gear-core.workspace = true
 ethexe-common.workspace = true
 gprimitives.workspace = true
 

@@ -39,7 +39,7 @@ use ethexe_blob_loader::{
 use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    Address,
+    Address, CodeAndId,
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
@@ -50,7 +50,7 @@ use ethexe_processor::Processor;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig, RpcService};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
-use futures::{executor::block_on, StreamExt};
+use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use rand::{prelude::StdRng, SeedableRng};
@@ -367,16 +367,14 @@ impl TestEnv {
 
         let listener = self.observer_events_publisher().subscribe().await;
 
-        // Lock the blob reader to lock any other threads that may use it
+        let code_and_id = CodeAndId::new(code.to_vec());
+        let code_id = code_and_id.code_id();
+        self.blobs_storage.add_code(code_and_id).await;
 
-        let pending_builder = block_on(
-            self.ethereum
-                .router()
-                .request_code_validation_with_sidecar(code),
-        )?;
-
-        let code_id = pending_builder.code_id();
-        self.blobs_storage.add_code(code_id, code.to_vec()).await;
+        self.ethereum
+            .router()
+            .request_code_validation_with_sidecar(code)
+            .await?;
 
         Ok(WaitForUploadCode { listener, code_id })
     }
