@@ -4644,7 +4644,6 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
- "ethexe-runtime",
  "futures",
  "gprimitives",
  "tokio",
