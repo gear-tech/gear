@@ -89,19 +89,18 @@ pub trait CodesStorage: Send + Sync {
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
-pub trait OnChainStorage: Send + Sync {
+pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
-
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
-
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-
     fn block_is_synced(&self, block_hash: H256) -> bool;
-    fn set_block_is_synced(&self, block_hash: H256);
-
     fn latest_synced_block_height(&self) -> Option<u32>;
+}
+
+pub trait OnChainStorageWrite {
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
+    fn set_block_is_synced(&self, block_hash: H256);
     fn set_latest_synced_block_height(&self, height: u32);
 }

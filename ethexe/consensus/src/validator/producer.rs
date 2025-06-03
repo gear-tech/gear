@@ -23,7 +23,7 @@ use crate::ConsensusEvent;
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
     Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
 };

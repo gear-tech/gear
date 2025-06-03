@@ -29,7 +29,7 @@ use crate::{
 };
 use alloy::providers::{ext::AnvilApi, Provider as _};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
     ScheduledTask,

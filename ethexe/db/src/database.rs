@@ -24,7 +24,7 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead, OnChainStorageWrite},
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
@@ -180,8 +180,7 @@ impl Database {
         else {
             bail!("No latest valid block found");
         };
-        let Some(reference_block_header) = OnChainStorage::block_header(self, reference_block_hash)
-        else {
+        let Some(reference_block_header) = self.block_header(reference_block_hash) else {
             bail!("No reference block found");
         };
 
@@ -204,7 +203,7 @@ impl Database {
                 return Ok(true);
             }
 
-            let Some(block_header) = OnChainStorage::block_header(self, block_hash) else {
+            let Some(block_header) = self.block_header(block_hash) else {
                 bail!(
                     "Block with {block_hash} hash not found in the window. Possibly reorg happened"
                 );
@@ -264,7 +263,6 @@ impl Database {
     }
 }
 
-#[cfg_attr(test, derive(serde::Serialize))]
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
@@ -417,6 +415,7 @@ impl CodesStorage for Database {
         self.cas.read(code_id.into())
     }
 
+    // TODO +_+_+: change to Vec<u8>
     fn set_original_code(&self, code: &[u8]) -> CodeId {
         self.cas.write(code).into()
     }
@@ -617,13 +616,9 @@ impl Storage for Database {
     }
 }
 
-impl OnChainStorage for Database {
+impl OnChainStorageRead for Database {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.with_small_data(block_hash, |data| data.block_header)?
-    }
-
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
-        self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
@@ -635,31 +630,18 @@ impl OnChainStorage for Database {
             })
     }
 
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
-        self.kv
-            .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
-    }
-
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo> {
         self.kv
             .get(&Key::CodeUploadInfo(code_id).to_bytes())
             .map(|data| {
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode data into `CodeInfo`")
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeBlobInfo`")
             })
-    }
-
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
-        self.kv
-            .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
     fn block_is_synced(&self, block_hash: H256) -> bool {
         self.with_small_data(block_hash, |data| data.block_synced)
             .unwrap_or(false)
-    }
-
-    fn set_block_is_synced(&self, block_hash: H256) {
-        self.mutate_small_data(block_hash, |data| data.block_synced = true);
     }
 
     fn latest_synced_block_height(&self) -> Option<u32> {
@@ -668,6 +650,26 @@ impl OnChainStorage for Database {
             .map(|data| {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
+    }
+}
+
+impl OnChainStorageWrite for Database {
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
+        self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
+    }
+
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
+        self.kv
+            .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
+    }
+
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
+        self.kv
+            .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
+    }
+
+    fn set_block_is_synced(&self, block_hash: H256) {
+        self.mutate_small_data(block_hash, |data| data.block_synced = true);
     }
 
     fn set_latest_synced_block_height(&self, height: u32) {

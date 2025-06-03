@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
@@ -239,12 +239,12 @@ impl ComputeService {
     }
 }
 
-struct ChainHeadProcessContext<DB: OnChainStorage + BlockMetaStorage> {
+struct ChainHeadProcessContext<DB: OnChainStorageRead + BlockMetaStorage> {
     db: DB,
     processor: Processor,
 }
 
-impl<DB: OnChainStorage + BlockMetaStorage> ChainHeadProcessContext<DB> {
+impl<DB: OnChainStorageRead + BlockMetaStorage> ChainHeadProcessContext<DB> {
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -388,6 +388,7 @@ impl<DB: OnChainStorage + BlockMetaStorage> ChainHeadProcessContext<DB> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethexe_common::db::OnChainStorageWrite;
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {

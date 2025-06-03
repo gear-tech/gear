@@ -26,7 +26,7 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     self,
-    db::OnChainStorage,
+    db::{OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     BlockData, BlockHeader, CodeBlobInfo,
 };
@@ -34,15 +34,18 @@ use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 use std::collections::HashMap;
 
+pub(crate) trait SyncDB: OnChainStorageRead + OnChainStorageWrite + Clone {}
+impl<T: OnChainStorageRead + OnChainStorageWrite + Clone> SyncDB for T {}
+
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
-pub(crate) struct ChainSync<DB: OnChainStorage + Clone> {
+pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,
     pub provider: RootProvider,
 }
 
-impl<DB: OnChainStorage + Clone> ChainSync<DB> {
+impl<DB: SyncDB> ChainSync<DB> {
     pub async fn sync(self, chain_head: Header) -> Result<BlockSyncedData> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
