@@ -138,10 +138,6 @@ jobs:
       - name: "Install: Windows packages"
         if: ${{ matrix.name == 'windows-x86_64' }}
         run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.aarch64-unknown-linux-musl.tar.gz | tar zxf -
-          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-          cargo xwin --version >> cargo-xwin-version.txt
-          
           sudo apt update
           sudo apt install protobuf-compiler binaryen innoextract
           
@@ -162,14 +158,9 @@ jobs:
           echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
           echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
 
-      - name: "ACTIONS: Cache MSVC CRT"
+      - name: "Install: cargo-xwin"
         if: ${{ matrix.name == 'windows-x86_64' }}
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/.cache/cargo-xwin/xwin
-          key: ${{ matrix.name }}-${{ hashFiles('cargo-xwin-version.txt') }}
-          restore-keys: |
-            ${{ matrix.name }}-
+        uses: ./.github/actions/install-cargo-xwin
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked

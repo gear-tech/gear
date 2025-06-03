@@ -40,6 +40,9 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
+      - name: "Install: cargo-xwin"
+        uses: ./.github/actions/install-cargo-xwin
+
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
@@ -48,10 +51,6 @@ jobs:
 
       - name: "Install: Windows packages"
         run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
-          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-          cargo xwin --version >> cargo-xwin-version.txt
-          
           sudo apt update
           sudo apt install -y protobuf-compiler binaryen innoextract
           
@@ -81,14 +80,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.profiles.name }}"
-
-      - name: "ACTIONS: Cache MSVC CRT"
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/.cache/cargo-xwin/xwin
-          key: windows-x86_64-${{ hashFiles('cargo-xwin-version.txt') }}
-          restore-keys: |
-            windows-x86_64-
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
