@@ -64,10 +64,12 @@ jobs:
     name: linux (${{ matrix.profiles.name }})
     env:
       RUSTUP_HOME: /tmp/rustup_home
-      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-Clink-arg=-fuse-ld=mold"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -212,13 +214,15 @@ jobs:
       fail-fast: false
     name: win-cross (${{ matrix.profiles.name }})
     env:
-      XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -228,9 +232,6 @@ jobs:
 
       - name: "Install: MSVC target"
         run: rustup target add x86_64-pc-windows-msvc
-
-      - name: "Install: cargo config"
-        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
