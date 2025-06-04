@@ -827,8 +827,7 @@ impl Node {
             .unwrap();
 
         let blob_loader =
-            LocalBlobLoader::new_with_storage(self.db.clone(), self.blob_storage.clone())
-                .into_box();
+            LocalBlobLoader::new(self.db.clone(), self.blob_storage.clone()).into_box();
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 

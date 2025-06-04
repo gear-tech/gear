@@ -107,7 +107,7 @@ impl Service {
 
         let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
             let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new_with_storage(db.clone(), storage.clone());
+            let blob_loader = LocalBlobLoader::new(db.clone(), storage.clone());
 
             (blob_loader.into_box(), Some(storage))
         } else {
