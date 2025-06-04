@@ -4629,7 +4629,6 @@ dependencies = [
  "alloy",
  "anyhow",
  "ethexe-common",
- "ethexe-db",
  "futures",
  "gear-core",
  "gprimitives",
