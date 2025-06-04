@@ -21,7 +21,7 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Schedule,
+    events::BlockEvent, gear::StateTransition, BlockHeader, CodeBlobInfo, Schedule,
     StateHashWithQueueSize,
 };
 use alloc::{
@@ -96,8 +96,8 @@ pub trait OnChainStorage: Send + Sync {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
 
-    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo>;
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo);
+    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
 
     fn block_is_synced(&self, block_hash: H256) -> bool;
     fn set_block_is_synced(&self, block_hash: H256);

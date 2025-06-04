@@ -92,7 +92,7 @@ struct RuntimeConfig {
 pub struct ObserverService {
     provider: RootProvider,
     config: RuntimeConfig,
-    chain_sync: ChainSync,
+    chain_sync: ChainSync<Database>,
 
     last_block_number: u32,
     headers_stream: SubscriptionStream<Header>,
