@@ -46,6 +46,14 @@ cfg_if! {
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
         }
+    } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
+        unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
+            let esr = linux_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
+            // Use the WNR bit to determine if it was a write access.
+            // See https://developer.arm.com/documentation/ddi0595/2021-03/AArch64-Registers/ESR-EL1--Exception-Syndrome-Register--EL1-?lang=en#fieldset_0-24_0_15-6_6
+            let is_wnr = (esr & 0b100_0000) != 0;
+            Some(is_wnr)
+        }
     } else if #[cfg(all(target_os = "macos", target_arch = "x86_64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             // See https://wiki.osdev.org/Exceptions
@@ -259,5 +267,77 @@ unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
         }
     } else {
         false
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+mod linux_aarch64 {
+    use std::{ptr, slice};
+
+    const ESR_MAGIC: u32 = u32::from_be_bytes(*b"ESR\x01");
+
+    #[repr(packed)]
+    #[derive(Clone, Copy)]
+    struct Header {
+        magic: u32, // Magic number to identify the record type
+        size: u32,  // Size of the record in bytes
+    }
+
+    /// Scan through the 4 KiB __reserved buffer looking for an `esr_context` record.
+    /// Returns `Some(esr)` if we find a record whose magic == ESR_MAGIC, else `None`.
+    /// See: https://github.com/torvalds/linux/blob/7f9039c524a351c684149ecf1b3c5145a0dff2fe/arch/arm64/include/uapi/asm/sigcontext.h#L40
+    pub fn get_esr(mcontext: &nix::libc::mcontext_t) -> Option<usize> {
+        // SAFETY: See `mcontext_t` definition:
+        // ```C
+        //  struct sigcontext {
+        //      __u64 fault_address;
+        //      /* AArch64 registers */
+        //      __u64 regs[31];
+        //      __u64 sp;
+        //      __u64 pc;
+        //      __u64 pstate;
+        //      /* 4K reserved for FP/SIMD state and future expansion */
+        //      __u8 __reserved[4096] __attribute__((__aligned__(16)));
+        //  };
+        // ```
+        let reserved = unsafe {
+            let reserved_addr_unaligned = ptr::addr_of!(mcontext.pstate).add(1);
+            let reserved_addr =
+                reserved_addr_unaligned.add(reserved_addr_unaligned.align_offset(16)) as *const u8;
+            slice::from_raw_parts(reserved_addr, 4096)
+        };
+
+        let mut offset = 0usize;
+
+        while offset + 8 <= reserved.len() {
+            // Read header of the next context record:
+            let Header { magic, size } =
+                unsafe { (reserved.as_ptr().add(offset) as *const Header).read_unaligned() };
+            let size = size as usize;
+
+            // Sanity check: size must be at least 8 (header itself), and offset+size must not overflow 4096.
+            if size < 8 || offset + size > reserved.len() {
+                break;
+            }
+
+            if magic == ESR_MAGIC {
+                // The first 8 bytes are (magic, size). The next 8 bytes are the u64 ESR value.
+                if offset + 16 <= reserved.len() {
+                    let esr_bytes = reserved[offset + 8..offset + 16]
+                        .try_into()
+                        .expect("cannot fail");
+                    let esr = usize::from_ne_bytes(esr_bytes);
+                    return Some(esr);
+                } else {
+                    // Not enough room for a full u64 after the header: treat as “not found”.
+                    return None;
+                }
+            }
+
+            // Skip to next record
+            offset += size;
+        }
+
+        None
     }
 }
