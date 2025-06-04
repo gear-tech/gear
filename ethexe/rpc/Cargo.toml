@@ -12,6 +12,7 @@ repository.workspace = true
 [dependencies]
 tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
+thiserror.workspace = true
 futures.workspace = true
 gprimitives = { workspace = true, features = ["serde", "ethexe"] }
 ethexe-db.workspace = true

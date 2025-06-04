@@ -141,7 +141,7 @@ impl ProgramServer for ProgramApi {
                 value,
             )
             .await
-            .map_err(errors::runtime)
+            .map_err(|e| errors::runtime(e.to_string()))
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {

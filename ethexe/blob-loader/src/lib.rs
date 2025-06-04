@@ -22,7 +22,6 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
-use anyhow::{anyhow, Result};
 use ethexe_common::db::{CodesStorage, OnChainStorage};
 use ethexe_db::Database;
 use futures::{
@@ -59,6 +58,35 @@ impl fmt::Debug for BlobData {
 pub enum BlobLoaderEvent {
     BlobLoaded(BlobData),
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum BlobLoaderError {
+    #[error("failed to get transaction")]
+    BlobTxNotFound(H256),
+
+    #[error("not found code info for {0} in db")]
+    CodeInfoNotFound(CodeId),
+
+    #[error("unexpected code id")]
+    UnexpectedCodeId,
+
+    #[error("failed to get versioned hashes")]
+    VersionedHashesNotFound,
+
+    #[error("failed to get block hash")]
+    BlockHashNotFound,
+
+    #[error("failed to get block")]
+    BlockNotFound,
+
+    #[error("failed to decode blobs")]
+    DecodeBlobsFailed,
+
+    #[error("failed to read blob: {0}")]
+    BlobReadFailed(String),
+}
+
+type Result<T> = std::result::Result<T, BlobLoaderError>;
 
 // TODO (#4674): write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
@@ -104,10 +132,10 @@ impl ConsensusLayerBlobReader {
         let code = self
             .read_blob_from_tx_hash(tx_hash, attempts)
             .await
-            .map_err(|err| anyhow!("failed to read blob: {err}"))?;
+            .map_err(|err| BlobLoaderError::BlobReadFailed(err.to_string()))?;
 
         if CodeId::generate(&code) != expected_code_id {
-            return Err(anyhow!("unexpected code id"));
+            return Err(BlobLoaderError::UnexpectedCodeId);
         }
 
         Ok(BlobData {
@@ -124,21 +152,21 @@ impl ConsensusLayerBlobReader {
         let tx = self
             .provider
             .get_transaction_by_hash(tx_hash.0.into())
-            .await?
-            .ok_or_else(|| anyhow!("failed to get transaction"))?;
+            .await
+            .map_err(|_| BlobLoaderError::BlobTxNotFound(tx_hash))?
+            .ok_or(BlobLoaderError::BlobTxNotFound(tx_hash))?;
 
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
-            .ok_or_else(|| anyhow!("failed to get versioned hashes"))?;
+            .ok_or(BlobLoaderError::VersionedHashesNotFound)?;
         let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
-        let block_hash = tx
-            .block_hash
-            .ok_or_else(|| anyhow!("failed to get block hash"))?;
+        let block_hash = tx.block_hash.ok_or(BlobLoaderError::BlockHashNotFound)?;
         let block = self
             .provider
             .get_block_by_hash(block_hash)
-            .await?
-            .ok_or_else(|| anyhow!("failed to get block"))?;
+            .await
+            .map_err(|_| BlobLoaderError::BlockNotFound)?
+            .ok_or(BlobLoaderError::BlockNotFound)?;
         let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
             / self.config.beacon_block_time.as_secs();
         let blob_bundle_result = match attempts {
@@ -157,7 +185,8 @@ impl ConsensusLayerBlobReader {
             }
             None => self.read_blob_bundle(slot).await,
         };
-        let blob_bundle = blob_bundle_result?;
+        let blob_bundle =
+            blob_bundle_result.map_err(|e| BlobLoaderError::BlobReadFailed(e.to_string()))?;
 
         let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());
         for blob_data in blob_bundle.into_iter().filter(|blob_data| {
@@ -170,7 +199,7 @@ impl ConsensusLayerBlobReader {
         let mut coder = SimpleCoder::default();
         let data = coder
             .decode_all(&blobs)
-            .ok_or_else(|| anyhow!("failed to decode blobs"))?
+            .ok_or(BlobLoaderError::DecodeBlobsFailed)?
             .concat();
 
         Ok(data)
@@ -235,7 +264,8 @@ impl BlobLoader {
             blobs_reader: ConsensusLayerBlobReader {
                 provider: ProviderBuilder::default()
                     .connect(&consensus_cfg.ethereum_rpc)
-                    .await?,
+                    .await
+                    .map_err(|e| BlobLoaderError::BlobReadFailed(e.to_string()))?,
                 http_client: Client::new(),
                 config: consensus_cfg,
             },
@@ -262,7 +292,7 @@ impl BlobLoaderService for BlobLoader {
             let code_info = self
                 .db
                 .code_blob_info(code_id)
-                .ok_or(anyhow!("not found code info for {code_id} in db"))?;
+                .ok_or(BlobLoaderError::CodeInfoNotFound(code_id))?;
 
             self.codes_loading.insert(code_id);
             self.futures.push(

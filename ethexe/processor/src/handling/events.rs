@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::ProcessingHandler;
-use anyhow::{ensure, Result};
+use crate::{ProcessorError, Result};
 use ethexe_common::{
     db::CodesStorage,
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
@@ -31,15 +31,15 @@ impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
-                ensure!(
-                    self.db.original_code(code_id).is_some(),
-                    "db corrupted: missing code [OR] code existence wasn't checked on Eth"
-                );
+                if self.db.original_code(code_id).is_none() {
+                    return Err(ProcessorError::DbCorrupted(String::from(
+                        "missing code [OR] code existence wasn't checked on Eth",
+                    )));
+                }
 
-                ensure!(
-                    self.db.program_code_id(actor_id).is_none(),
-                    "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth"
-                );
+                if self.db.program_code_id(actor_id).is_some() {
+                    return Err(ProcessorError::DbCorrupted(String::from( "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth")));
+                }
 
                 self.db.set_program_code_id(actor_id, code_id);
 
