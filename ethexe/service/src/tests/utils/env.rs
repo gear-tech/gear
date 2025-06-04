@@ -265,7 +265,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(config_path);
@@ -785,7 +785,7 @@ impl Node {
         let wait_for_network = self.network_bootstrap_address.is_some();
 
         let network = self.network_address.as_ref().map(|addr| {
-            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = addr.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(config_path);
