@@ -4684,13 +4684,17 @@ name = "ethexe-compute"
 version = "1.8.1"
 dependencies = [
  "anyhow",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
- "ethexe-runtime",
  "futures",
+ "gear-core",
+ "gear-utils",
  "gprimitives",
  "tokio",
+ "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wat",
 ]
 
 [[package]]

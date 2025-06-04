@@ -50,7 +50,8 @@ use ethexe_processor::Processor;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig, RpcService};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
-use futures::{executor::block_on, StreamExt};
+use futures::StreamExt;
+use gear_core::ids::prelude::CodeIdExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use rand::{prelude::StdRng, SeedableRng};
@@ -368,15 +369,15 @@ impl TestEnv {
         let listener = self.observer_events_publisher().subscribe().await;
 
         // Lock the blob reader to lock any other threads that may use it
-
-        let pending_builder = block_on(
-            self.ethereum
-                .router()
-                .request_code_validation_with_sidecar(code),
-        )?;
-
-        let code_id = pending_builder.code_id();
+        let code_id = CodeId::generate(code);
         self.blobs_storage.add_code(code_id, code.to_vec()).await;
+
+        let pending_builder = self
+            .ethereum
+            .router()
+            .request_code_validation_with_sidecar(code)
+            .await?;
+        assert_eq!(pending_builder.code_id(), code_id);
 
         Ok(WaitForUploadCode { listener, code_id })
     }
