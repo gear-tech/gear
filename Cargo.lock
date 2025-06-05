@@ -4691,6 +4691,7 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gprimitives",
+ "log",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
