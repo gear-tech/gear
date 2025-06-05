@@ -172,8 +172,21 @@ impl ComputeService {
     }
 
     pub fn process_code(&mut self, code_id: CodeId, _timestamp: u64, code: Vec<u8>) {
-        if self.db.code_valid(code_id).is_some() {
-            log::warn!("Code {code_id:?} already processed, skipping");
+        if let Some(valid) = self.db.code_valid(code_id) {
+            log::warn!("Code {code_id:?} already processed");
+
+            if valid {
+                debug_assert!(
+                    self.db.original_code_exists(code_id),
+                    "Code {code_id:?} must exist in database"
+                );
+                debug_assert!(
+                    self.db
+                        .instrumented_code_exists(ethexe_runtime::VERSION, code_id),
+                    "Instrumented code {code_id:?} must exist in database"
+                );
+            }
+
             self.process_codes.spawn(async move { Ok(code_id) });
         }
 
