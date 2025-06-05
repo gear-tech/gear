@@ -20,7 +20,6 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
-    gear::CodeCommitment,
     SimpleBlockData,
 };
 use ethexe_db::Database;
@@ -42,7 +41,7 @@ pub struct BlockProcessed {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
-    CodeProcessed(CodeCommitment),
+    CodeProcessed(CodeId),
     BlockPrepared(H256),
     BlockProcessed(BlockProcessed),
 }
@@ -73,7 +72,7 @@ pub struct ComputeService {
     state: BlockPreparationState,
 
     process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
-    process_codes: JoinSet<Result<CodeCommitment>>,
+    process_codes: JoinSet<Result<CodeId>>,
 }
 
 impl Stream for ComputeService {
@@ -82,13 +81,13 @@ impl Stream for ComputeService {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
-                Ok(Ok(commitment)) => {
+                Ok(Ok(code_id)) => {
                     if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
                         &mut self.state
                     {
-                        waiting_codes.remove(&commitment.id);
+                        waiting_codes.remove(&code_id);
                     }
-                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(commitment))));
+                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(code_id))));
                 }
                 Ok(Err(e)) => return Poll::Ready(Some(Err(anyhow!("process code error: {e}")))),
                 Err(e) => return Poll::Ready(Some(Err(anyhow!("process codes join error: {e}")))),
@@ -172,15 +171,30 @@ impl ComputeService {
         }
     }
 
-    pub fn process_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
+    pub fn process_code(&mut self, code_id: CodeId, _timestamp: u64, code: Vec<u8>) {
+        if let Some(valid) = self.db.code_valid(code_id) {
+            log::warn!("Code {code_id:?} already processed");
+
+            if valid {
+                debug_assert!(
+                    self.db.original_code_exists(code_id),
+                    "Code {code_id:?} must exist in database"
+                );
+                debug_assert!(
+                    self.db
+                        .instrumented_code_exists(ethexe_runtime::VERSION, code_id),
+                    "Instrumented code {code_id:?} must exist in database"
+                );
+            }
+
+            self.process_codes.spawn(async move { Ok(code_id) });
+        }
+
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
-            let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-            Ok(CodeCommitment {
-                id: code_id,
-                timestamp,
-                valid,
-            })
+            processor
+                .process_upload_code_raw(code_id, code.as_slice())
+                .map(|_valid| code_id)
         });
     }
 
@@ -505,9 +519,9 @@ mod tests {
                     .await
                     .unwrap()
                     .expect("expect code will be processing");
-                let commitment = event.unwrap_code_processed();
+                let processed_code_id = event.unwrap_code_processed();
 
-                assert_eq!(commitment.id, code_id);
+                assert_eq!(processed_code_id, code_id);
             }
 
             let event = self

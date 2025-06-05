@@ -23,8 +23,10 @@ use alloy::{
     rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::db::{CodesStorageRead, OnChainStorageRead};
-use ethexe_db::Database;
+use ethexe_common::{
+    db::{CodesStorageRead, OnChainStorageRead},
+    CodeBlobInfo,
+};
 use futures::{
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
@@ -189,15 +191,18 @@ impl ConsensusLayerBlobReader {
     }
 }
 
-pub struct BlobLoader {
+pub trait Database: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static {}
+impl<T: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static> Database for T {}
+
+pub struct BlobLoader<DB: Database> {
     futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
     codes_loading: HashSet<CodeId>,
 
     blobs_reader: ConsensusLayerBlobReader,
-    db: Database,
+    db: DB,
 }
 
-impl Stream for BlobLoader {
+impl<DB: Database> Stream for BlobLoader<DB> {
     type Item = Result<BlobLoaderEvent>;
 
     fn poll_next(
@@ -219,14 +224,14 @@ impl Stream for BlobLoader {
     }
 }
 
-impl FusedStream for BlobLoader {
+impl<DB: Database> FusedStream for BlobLoader<DB> {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl BlobLoader {
-    pub async fn new(db: Database, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
+impl<DB: Database> BlobLoader<DB> {
+    pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
         Ok(Self {
             futures: FuturesUnordered::new(),
             codes_loading: HashSet::new(),
@@ -243,7 +248,7 @@ impl BlobLoader {
     }
 }
 
-impl BlobLoaderService for BlobLoader {
+impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
     fn into_box(self) -> Box<dyn BlobLoaderService> {
         Box::new(self)
     }
@@ -254,25 +259,33 @@ impl BlobLoaderService for BlobLoader {
 
     fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()> {
         for code_id in codes {
-            if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {
+            if self.codes_loading.contains(&code_id) {
                 continue;
             }
 
-            let code_info = self
+            let CodeBlobInfo { timestamp, tx_hash } = self
                 .db
                 .code_blob_info(code_id)
                 .ok_or(anyhow!("not found code info for {code_id} in db"))?;
+
+            if let Some(code) = self.db.original_code(code_id) {
+                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
+                self.futures.push(
+                    futures::future::ready(Ok(BlobData {
+                        code_id,
+                        timestamp,
+                        code,
+                    }))
+                    .boxed(),
+                );
+                continue;
+            }
 
             self.codes_loading.insert(code_id);
             self.futures.push(
                 self.blobs_reader
                     .clone()
-                    .read_code_from_tx_hash(
-                        code_id,
-                        code_info.timestamp,
-                        code_info.tx_hash,
-                        attempts,
-                    )
+                    .read_code_from_tx_hash(code_id, timestamp, tx_hash, attempts)
                     .boxed(),
             );
         }
