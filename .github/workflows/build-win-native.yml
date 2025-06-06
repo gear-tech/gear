@@ -41,9 +41,6 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - name: "Install: cargo-xwin"
         uses: ./.github/actions/install-cargo-xwin
 
