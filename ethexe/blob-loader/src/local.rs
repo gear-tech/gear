@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BlobData, BlobLoaderEvent, BlobLoaderService};
-use anyhow::{anyhow, Result};
+use crate::{BlobData, BlobLoaderError, BlobLoaderEvent, BlobLoaderService, Result};
 use ethexe_common::db::OnChainStorage;
 use ethexe_db::Database;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
@@ -54,14 +53,12 @@ impl LocalBlobStorage {
     pub async fn get_code(self, code_id: CodeId) -> Result<BlobData> {
         let storage = self.inner.read().await;
 
-        let Some(code) = storage.get(&code_id).cloned() else {
-            return Err(anyhow!("code {code_id} not found in db"));
-        };
+        let code = storage.get(&code_id).cloned().unwrap();
 
         let code_info = self
             .db
             .code_blob_info(code_id)
-            .ok_or(anyhow!("expect code info for {code_id} exists in db"))?;
+            .ok_or(BlobLoaderError::CodeInfoNotFound(code_id))?;
 
         Ok(BlobData {
             code_id,

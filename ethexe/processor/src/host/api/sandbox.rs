@@ -18,8 +18,10 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory.
 
-use crate::host::{api::MemoryWrap, context::HostContext};
-use anyhow::Result;
+use crate::{
+    host::{api::MemoryWrap, context::HostContext},
+    Result,
+};
 use ethexe_runtime_common::pack_u32_to_i64;
 use gear_runtime_interface::{sandbox_detail, Instantiate};
 use parity_scale_codec::Encode;

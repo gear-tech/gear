@@ -24,8 +24,8 @@ pub fn db(err: &'static str) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Database error", Some(err))
 }
 
-pub fn runtime(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{err}")))
+pub fn runtime(err: String) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Runtime error", Some(err))
 }
 
 pub fn internal() -> ErrorObject<'static> {
