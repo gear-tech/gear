@@ -38,7 +38,9 @@ impl ProcessingHandler {
                 }
 
                 if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DbCorrupted(String::from( "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth")));
+                    return Err(ProcessorError::DbCorrupted(String::from(
+                        "unrecognized program [OR] program duplicates wasn't checked on Eth",
+                    )));
                 }
 
                 self.db.set_program_code_id(actor_id, code_id);

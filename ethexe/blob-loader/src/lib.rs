@@ -136,7 +136,7 @@ impl ConsensusLayerBlobReader {
         let code_id = CodeId::generate(&code);
         if code_id != expected_code_id {
             return Err(BlobLoaderError::ReadUnexpectedCode {
-                code: code,
+                code,
                 code_id,
                 expected_code_id,
             });

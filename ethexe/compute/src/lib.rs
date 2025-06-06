@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
     events::{BlockEvent, RouterEvent},
@@ -70,7 +69,7 @@ pub enum ComputeError {
     #[error("previous commitment not found for computed block ({0})")]
     PreviousCommitmentNotFound(H256),
 
-    // processon
+    // `Processor` errors
     #[error("processor error: {0}")]
     Processor(#[from] ProcessorError),
 }
