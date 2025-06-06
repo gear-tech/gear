@@ -3,12 +3,23 @@ name: install-cargo-nextest
 runs:
   using: composite
   steps:
+    - run: |
+        if [[ "${{ runner.arch }}" == "ARM64" ]]; then
+          echo "value=aarch64"
+        elif [[ "${{ runner.arch }}" == "X64" ]]; then
+          echo "value=x86_64"
+        else
+          echo "Unsupported arch"
+          exit 1
+        fi
+      id: arch
+      shell: bash
     - name: "Install cargo-xwin"
       uses: robinraju/release-downloader@v1
       with:
         repository: 'rust-cross/cargo-xwin'
         latest: true
-        fileName: '*x86_64-unknown-linux-musl.tar.gz'
+        fileName: '*${{ steps.arch.outputs.value }}-unknown-linux-musl.tar.gz'
         extract: true
     - run: |
         mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin
