@@ -13,11 +13,14 @@ on:
         default: '[{ "name": "debug", "flags": "" }]'
 
 env:
-  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  TERM: xterm-256color
-  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: "rust-lld"
+  RUSTUP_HOME: /tmp/rustup_home
+  CARGO_TERM_COLOR: always
+  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
+  CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+  NEXTEST_PROFILE: ci
 
 jobs:
   win-build:
@@ -27,9 +30,6 @@ jobs:
         profiles: ${{ fromJson(inputs.profiles) }}
       fail-fast: false
     name: win-build (${{ matrix.profiles.name }})
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -71,11 +71,6 @@ jobs:
           echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
           echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
 
-      - name: "Install: Rust target"
-        run: |
-          rustup target add x86_64-pc-windows-msvc
-          echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
-
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
@@ -89,10 +84,36 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: cargo xwin build -p calc-stack-height --release --locked
 
-      - name: "Build: Cleanup target"
-        run: find target -type f ! -name '*.exe' -delete
+      - name: "Build: Client tests"
+        run: |
+          eval $(cargo xwin env)
+          cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient \
+              --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
 
-      - name: "ACTIONS: Upload binaries"
+      - name: "Build: Lazy pages"
+        run: |
+          eval $(cargo xwin env)
+          cargo nextest archive --archive-file=lazy_pages_tests.tar.zst \
+            -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface \
+            --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
+
+      - name: "Build: Cleanup target"
+        run: |
+          mv ./target/x86_64-pc-windows-msvc ./target-renamed
+          mv ./target ./target-unused
+          mv ./target-renamed ./target
+          find target -type f ! -name '*.exe' ! -name "*.wasm" -delete
+
+      - name: "ACTIONS: Upload nextest archives"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archives
+          path: "*.tar.zst"
+          retention-days: 1
+          overwrite: true
+          compression-level: 0
+
+      - name: "ACTIONS: Upload target"
         uses: actions/upload-artifact@v4
         with:
           name: target-xwin-${{ matrix.profiles.name }}
@@ -108,14 +129,9 @@ jobs:
         profiles: ${{ fromJson(inputs.profiles) }}
       fail-fast: false
     name: win-run (${{ matrix.profiles.name }})
-    env:
-      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
-
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
 
       - name: "Install: Rustup"
         run: |
@@ -124,27 +140,6 @@ jobs:
           #Remove-Item rustup-init.exe
           Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
 
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Rust target"
-        run: |
-          rustup target add x86_64-pc-windows-msvc
-          Add-Content -Path $Env:GITHUB_ENV -Value "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc"
-
-      - name: "Install: Packages"
-        run: |
-          iwr get.scoop.sh -outfile 'scoop_install.ps1'
-          .\scoop_install.ps1 -RunAsAdmin
-          Join-Path (Resolve-Path ~).Path "scoop\shims" >> $Env:GITHUB_PATH
-          
-          scoop config USE_EXTERNAL_7ZIP true
-          scoop bucket add extras
-          scoop install perl binaryen protobuf
-
-          $perl = Resolve-Path "~\scoop\apps\perl\current\perl\bin\perl.exe"
-          Add-Content -Path $Env:GITHUB_ENV -Value "OPENSSL_SRC_PERL=$perl"
-
       - name: "Install: cargo-nextest"
         run: |
           $tmp = "cargo-nextest.zip"
@@ -152,9 +147,13 @@ jobs:
           $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
-        shell: powershell
 
-      - name: "ACTIONS: Download binaries"
+      - name: "ACTIONS: Download nextest archives"
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archives
+
+      - name: "ACTIONS: Download target"
         uses: actions/download-artifact@v4
         with:
           name: target-xwin-${{ matrix.profiles.name }}
@@ -166,15 +165,7 @@ jobs:
         run: ./target/release/calc-stack-height.exe
 
       - name: "Test: Client tests"
-        run: |
-          cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
-          ./scripts/gear.sh test client
-        shell: bash
+        run: cargo nextest run --archive-file=gclient_tests.tar.zst
 
       - name: "Test: Lazy pages"
-        run: >-
-          cargo test
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          ${{ matrix.profiles.flags }}
+        run: cargo nextest run --archive-file=lazy_pages_tests.tar.zst
