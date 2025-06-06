@@ -4,10 +4,10 @@ runs:
   using: composite
   steps:
     - name: "Install cargo-xwin"
-      run: >-
-        wget -qO - https://api.github.com/repos/rust-cross/cargo-xwin/releases |
-        jq -r '.[0].assets.[] | select(.name | endswith("x86_64-unknown-linux-musl.tar.gz")) | .browser_download_url' |
-        xargs wget -qO - | 
+      run: |
+        wget -qO - https://api.github.com/repos/rust-cross/cargo-xwin/releases | \
+        jq -r '.[0].assets.[] | select(.name | endswith("x86_64-unknown-linux-musl.tar.gz")) | .browser_download_url' | \
+        xargs wget -qO - | \
         tar -xzf - -C ${CARGO_HOME:-~/.cargo}/bin/
         
         echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
