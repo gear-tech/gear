@@ -61,29 +61,31 @@ pub enum BlobLoaderEvent {
 
 #[derive(thiserror::Error, Debug)]
 pub enum BlobLoaderError {
-    #[error("failed to get transaction")]
-    BlobTxNotFound(H256),
-
-    #[error("not found code info for {0} in db")]
-    CodeInfoNotFound(CodeId),
-
-    #[error("unexpected code id")]
-    UnexpectedCodeId,
-
-    #[error("failed to get versioned hashes")]
-    VersionedHashesNotFound,
-
-    #[error("failed to get block hash")]
-    BlockHashNotFound,
-
-    #[error("failed to get block")]
-    BlockNotFound,
-
+    // `ConsensusLayerBlobReader` errors
+    #[error("transport error: {0}")]
+    Transport(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    #[error("failed to found transaction by hash: {0}")]
+    TransactionNotFound(H256),
+    #[error("failed to get blob versioned hashes from transaction: {0}")]
+    BlobVersionedHashesNotFound(H256),
+    #[error("failed to get transaction block hash: {0}")]
+    TransactionBlockNotFound(H256),
+    #[error("failed to get block by hash: {0}")]
+    BlockNotFound(H256),
+    #[error("failed to read blob bundle: {0}")]
+    ReadBlob(#[from] reqwest::Error),
     #[error("failed to decode blobs")]
-    DecodeBlobsFailed,
+    DecodeBlobs,
+    #[error("expect code id {expected_code_id}, but got {code_id}, code: {code:?}")]
+    ReadUnexpectedCode {
+        code: Vec<u8>,
+        code_id: CodeId,
+        expected_code_id: CodeId,
+    },
 
-    #[error("failed to read blob: {0}")]
-    BlobReadFailed(String),
+    // `BlobLoader` errors
+    #[error("failed to get code info for: {0}")]
+    CodeInfoNotFound(CodeId),
 }
 
 type Result<T> = std::result::Result<T, BlobLoaderError>;
@@ -129,13 +131,15 @@ impl ConsensusLayerBlobReader {
         tx_hash: H256,
         attempts: Option<u8>,
     ) -> Result<BlobData> {
-        let code = self
-            .read_blob_from_tx_hash(tx_hash, attempts)
-            .await
-            .map_err(|err| BlobLoaderError::BlobReadFailed(err.to_string()))?;
+        let code = self.read_blob_from_tx_hash(tx_hash, attempts).await?;
 
-        if CodeId::generate(&code) != expected_code_id {
-            return Err(BlobLoaderError::UnexpectedCodeId);
+        let code_id = CodeId::generate(&code);
+        if code_id != expected_code_id {
+            return Err(BlobLoaderError::ReadUnexpectedCode {
+                code: code,
+                code_id,
+                expected_code_id,
+            });
         }
 
         Ok(BlobData {
@@ -152,24 +156,24 @@ impl ConsensusLayerBlobReader {
         let tx = self
             .provider
             .get_transaction_by_hash(tx_hash.0.into())
-            .await
-            .map_err(|_| BlobLoaderError::BlobTxNotFound(tx_hash))?
-            .ok_or(BlobLoaderError::BlobTxNotFound(tx_hash))?;
+            .await?
+            .ok_or(BlobLoaderError::TransactionNotFound(tx_hash))?;
 
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
-            .ok_or(BlobLoaderError::VersionedHashesNotFound)?;
+            .ok_or(BlobLoaderError::BlobVersionedHashesNotFound(tx_hash))?;
         let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
-        let block_hash = tx.block_hash.ok_or(BlobLoaderError::BlockHashNotFound)?;
+        let block_hash = tx
+            .block_hash
+            .ok_or(BlobLoaderError::TransactionBlockNotFound(tx_hash))?;
         let block = self
             .provider
             .get_block_by_hash(block_hash)
-            .await
-            .map_err(|_| BlobLoaderError::BlockNotFound)?
-            .ok_or(BlobLoaderError::BlockNotFound)?;
+            .await?
+            .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
         let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
             / self.config.beacon_block_time.as_secs();
-        let blob_bundle_result = match attempts {
+        let blob_bundle = match attempts {
             Some(attempts) => {
                 let mut count = 0;
                 loop {
@@ -184,9 +188,7 @@ impl ConsensusLayerBlobReader {
                 }
             }
             None => self.read_blob_bundle(slot).await,
-        };
-        let blob_bundle =
-            blob_bundle_result.map_err(|e| BlobLoaderError::BlobReadFailed(e.to_string()))?;
+        }?;
 
         let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());
         for blob_data in blob_bundle.into_iter().filter(|blob_data| {
@@ -199,7 +201,7 @@ impl ConsensusLayerBlobReader {
         let mut coder = SimpleCoder::default();
         let data = coder
             .decode_all(&blobs)
-            .ok_or(BlobLoaderError::DecodeBlobsFailed)?
+            .ok_or(BlobLoaderError::DecodeBlobs)?
             .concat();
 
         Ok(data)
@@ -264,8 +266,7 @@ impl BlobLoader {
             blobs_reader: ConsensusLayerBlobReader {
                 provider: ProviderBuilder::default()
                     .connect(&consensus_cfg.ethereum_rpc)
-                    .await
-                    .map_err(|e| BlobLoaderError::BlobReadFailed(e.to_string()))?,
+                    .await?,
                 http_client: Client::new(),
                 config: consensus_cfg,
             },
