@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Program"],"mod":["backtrace","config","events","ext","gp","metadata","result","signer","subscription"],"struct":["Api","ApiBuilder","GasInfo","Value"],"type":["BlockNumber","GearGasNode","GearGasNodeId","GearPages","TxInBlock","TxInBlockResult","TxStatus"]};
