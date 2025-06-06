@@ -127,7 +127,7 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
-cargo_metadata = "0.19.2"
+cargo_metadata = "0.20.0"
 clap = "4.5.8"
 color-eyre = "0.6.3"
 colored = "2.1.0"
@@ -614,5 +614,3 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
-
-cargo_metadata = { git = "https://github.com/gear-tech/cargo_metadata", branch = "al/cross-compile-fix" }
