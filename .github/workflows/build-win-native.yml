@@ -20,7 +20,6 @@ env:
   CARGO_HOME: /tmp/cargo/bin
   CARGO_TERM_COLOR: always
   CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
-  CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
   NEXTEST_PROFILE: ci
 
 jobs:
@@ -43,6 +42,11 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: "Install: cargo-xwin"
         uses: ./.github/actions/install-cargo-xwin
