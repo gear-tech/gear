@@ -22,15 +22,15 @@
 <a href=#22 id=22 data-nosnippet>22</a>#![doc(html_logo_url = <span class="string">"https://docs.gear.rs/logo.svg"</span>)]
 <a href=#23 id=23 data-nosnippet>23</a>#![doc(html_favicon_url = <span class="string">"https://gear-tech.io/favicons/favicon.ico"</span>)]
 <a href=#24 id=24 data-nosnippet>24</a>
-<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">use </span><a href="../../gear_common/trait.Origin.html">gear_common::Origin</a>;
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><a href="../../gear_core_errors/index.html">gear_core_errors</a>::<span class="kw-2">*</span>;
+<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">use </span>gear_common::Origin;
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>gear_core_errors::<span class="kw-2">*</span>;
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>jsonrpsee::{
 <a href=#28 id=28 data-nosnippet>28</a>    core::{<a href="https://docs.rs/async-trait/0.1.81/async_trait/attr.async_trait.html">async_trait</a>, RpcResult},
 <a href=#29 id=29 data-nosnippet>29</a>    proc_macros::rpc,
 <a href=#30 id=30 data-nosnippet>30</a>    types::{error::ErrorObject, ErrorObjectOwned},
 <a href=#31 id=31 data-nosnippet>31</a>};
 <a href=#32 id=32 data-nosnippet>32</a><span class="kw">pub use </span><a href="../../pallet_gear_rpc/trait.GearRuntimeApi.html">pallet_gear_rpc_runtime_api::GearApi</a> <span class="kw">as </span>GearRuntimeApi;
-<a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>pallet_gear_rpc_runtime_api::{<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>, <a href="../../pallet_gear/manager/enum.HandleKind.html">HandleKind</a>, <a href="../../gear_core/rpc/struct.ReplyInfo.html">ReplyInfo</a>};
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 <a href=#35 id=35 data-nosnippet>35</a><span class="kw">use </span>sp_blockchain::HeaderBackend;
 <a href=#36 id=36 data-nosnippet>36</a><span class="kw">use </span>sp_core::{Bytes, H256};
@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a>        gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
 <a href=#54 id=54 data-nosnippet>54</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#55 id=55 data-nosnippet>55</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;BlockHash&gt;,
-<a href=#56 id=56 data-nosnippet>56</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.ReplyInfo.html">ReplyInfo</a>&gt;;
+<a href=#56 id=56 data-nosnippet>56</a>    ) -&gt; RpcResult&lt;ReplyInfo&gt;;
 <a href=#57 id=57 data-nosnippet>57</a>
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="attr">#[method(name = <span class="string">"gear_calculateInitCreateGas"</span>, aliases = [<span class="string">"gear_calculateGasForCreate"</span>]</span>)]
 <a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">fn </span>get_init_create_gas_spent(
@@ -64,7 +64,7 @@
 <a href=#64 id=64 data-nosnippet>64</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#65 id=65 data-nosnippet>65</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#66 id=66 data-nosnippet>66</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;BlockHash&gt;,
-<a href=#67 id=67 data-nosnippet>67</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt;;
+<a href=#67 id=67 data-nosnippet>67</a>    ) -&gt; RpcResult&lt;GasInfo&gt;;
 <a href=#68 id=68 data-nosnippet>68</a>
 <a href=#69 id=69 data-nosnippet>69</a>    <span class="attr">#[method(name = <span class="string">"gear_calculateInitUploadGas"</span>, aliases = [<span class="string">"gear_calculateGasForUpload"</span>]</span>)]
 <a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">fn </span>get_init_upload_gas_spent(
@@ -75,7 +75,7 @@
 <a href=#75 id=75 data-nosnippet>75</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#76 id=76 data-nosnippet>76</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#77 id=77 data-nosnippet>77</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;BlockHash&gt;,
-<a href=#78 id=78 data-nosnippet>78</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt;;
+<a href=#78 id=78 data-nosnippet>78</a>    ) -&gt; RpcResult&lt;GasInfo&gt;;
 <a href=#79 id=79 data-nosnippet>79</a>
 <a href=#80 id=80 data-nosnippet>80</a>    <span class="attr">#[method(name = <span class="string">"gear_calculateHandleGas"</span>, aliases = [<span class="string">"gear_calculateGasForHandle"</span>]</span>)]
 <a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">fn </span>get_handle_gas_spent(
@@ -86,7 +86,7 @@
 <a href=#86 id=86 data-nosnippet>86</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#87 id=87 data-nosnippet>87</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#88 id=88 data-nosnippet>88</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;BlockHash&gt;,
-<a href=#89 id=89 data-nosnippet>89</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt;;
+<a href=#89 id=89 data-nosnippet>89</a>    ) -&gt; RpcResult&lt;GasInfo&gt;;
 <a href=#90 id=90 data-nosnippet>90</a>
 <a href=#91 id=91 data-nosnippet>91</a>    <span class="attr">#[method(name = <span class="string">"gear_calculateReplyGas"</span>, aliases = [<span class="string">"gear_calculateGasForReply"</span>]</span>)]
 <a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">fn </span>get_reply_gas_spent(
@@ -97,7 +97,7 @@
 <a href=#97 id=97 data-nosnippet>97</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#98 id=98 data-nosnippet>98</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#99 id=99 data-nosnippet>99</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;BlockHash&gt;,
-<a href=#100 id=100 data-nosnippet>100</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt;;
+<a href=#100 id=100 data-nosnippet>100</a>    ) -&gt; RpcResult&lt;GasInfo&gt;;
 <a href=#101 id=101 data-nosnippet>101</a>
 <a href=#102 id=102 data-nosnippet>102</a>    <span class="attr">#[method(name = <span class="string">"gear_readState"</span>)]
 <a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">fn </span>read_state(
@@ -198,12 +198,12 @@
 <a href=#198 id=198 data-nosnippet>198</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#199 id=199 data-nosnippet>199</a>        at_hash: &lt;Block <span class="kw">as </span>BlockT&gt;::Hash,
 <a href=#200 id=200 data-nosnippet>200</a>        source: H256,
-<a href=#201 id=201 data-nosnippet>201</a>        kind: <a href="../../pallet_gear/manager/enum.HandleKind.html">HandleKind</a>,
+<a href=#201 id=201 data-nosnippet>201</a>        kind: HandleKind,
 <a href=#202 id=202 data-nosnippet>202</a>        payload: <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>&gt;,
 <a href=#203 id=203 data-nosnippet>203</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#204 id=204 data-nosnippet>204</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#205 id=205 data-nosnippet>205</a>        min_limit: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;,
-<a href=#206 id=206 data-nosnippet>206</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt; {
+<a href=#206 id=206 data-nosnippet>206</a>    ) -&gt; RpcResult&lt;GasInfo&gt; {
 <a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">let </span>api_version = <a class="self" href="#198">self</a>.<a href="#183-195">get_api_version</a>(<a href="#199">at_hash</a>)<span class="question-mark">?</span>;
 <a href=#208 id=208 data-nosnippet>208</a>
 <a href=#209 id=209 data-nosnippet>209</a>        <a class="self" href="#198">self</a>.<a href="#170-181">run_with_api_copy</a>(|api| {
@@ -266,7 +266,7 @@
 <a href=#266 id=266 data-nosnippet>266</a>        gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
 <a href=#267 id=267 data-nosnippet>267</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#268 id=268 data-nosnippet>268</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;&lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;,
-<a href=#269 id=269 data-nosnippet>269</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.ReplyInfo.html">ReplyInfo</a>&gt; {
+<a href=#269 id=269 data-nosnippet>269</a>    ) -&gt; RpcResult&lt;ReplyInfo&gt; {
 <a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">let </span>at_hash = <a href="#268">at</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a class="self" href="#262">self</a>.client.info().best_hash);
 <a href=#271 id=271 data-nosnippet>271</a>
 <a href=#272 id=272 data-nosnippet>272</a>        <a class="self" href="#262">self</a>.<a href="#170-181">run_with_api_copy</a>(|api| {
@@ -290,13 +290,13 @@
 <a href=#290 id=290 data-nosnippet>290</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#291 id=291 data-nosnippet>291</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#292 id=292 data-nosnippet>292</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;&lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;,
-<a href=#293 id=293 data-nosnippet>293</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt; {
+<a href=#293 id=293 data-nosnippet>293</a>    ) -&gt; RpcResult&lt;GasInfo&gt; {
 <a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>at_hash = <a href="#292">at</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a class="self" href="#286">self</a>.client.info().best_hash);
 <a href=#295 id=295 data-nosnippet>295</a>
-<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span><a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a> { min_limit, .. } = <a class="self" href="#286">self</a>.<a href="#197-234">calculate_gas_info</a>(
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#286">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#297 id=297 data-nosnippet>297</a>            <a href="#294">at_hash</a>,
 <a href=#298 id=298 data-nosnippet>298</a>            <a href="#287">source</a>,
-<a href=#299 id=299 data-nosnippet>299</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.InitByHash">HandleKind::InitByHash</a>(<a href="#288">code_id</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>()),
+<a href=#299 id=299 data-nosnippet>299</a>            HandleKind::InitByHash(<a href="#288">code_id</a>.cast()),
 <a href=#300 id=300 data-nosnippet>300</a>            <a href="#289">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#301 id=301 data-nosnippet>301</a>            <a href="#290">value</a>,
 <a href=#302 id=302 data-nosnippet>302</a>            <a href="#291">allow_other_panics</a>,
@@ -306,7 +306,7 @@
 <a href=#306 id=306 data-nosnippet>306</a>        <a class="self" href="#286">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#307 id=307 data-nosnippet>307</a>            <a href="#294">at_hash</a>,
 <a href=#308 id=308 data-nosnippet>308</a>            <a href="#287">source</a>,
-<a href=#309 id=309 data-nosnippet>309</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.InitByHash">HandleKind::InitByHash</a>(<a href="#288">code_id</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>()),
+<a href=#309 id=309 data-nosnippet>309</a>            HandleKind::InitByHash(<a href="#288">code_id</a>.cast()),
 <a href=#310 id=310 data-nosnippet>310</a>            <a href="#289">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#311 id=311 data-nosnippet>311</a>            <a href="#290">value</a>,
 <a href=#312 id=312 data-nosnippet>312</a>            <a href="#291">allow_other_panics</a>,
@@ -322,13 +322,13 @@
 <a href=#322 id=322 data-nosnippet>322</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#323 id=323 data-nosnippet>323</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#324 id=324 data-nosnippet>324</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;&lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;,
-<a href=#325 id=325 data-nosnippet>325</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt; {
+<a href=#325 id=325 data-nosnippet>325</a>    ) -&gt; RpcResult&lt;GasInfo&gt; {
 <a href=#326 id=326 data-nosnippet>326</a>        <span class="kw">let </span>at_hash = <a href="#324">at</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a class="self" href="#318">self</a>.client.info().best_hash);
 <a href=#327 id=327 data-nosnippet>327</a>
-<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span><a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a> { min_limit, .. } = <a class="self" href="#318">self</a>.<a href="#197-234">calculate_gas_info</a>(
+<a href=#328 id=328 data-nosnippet>328</a>        <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#318">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#329 id=329 data-nosnippet>329</a>            <a href="#326">at_hash</a>,
 <a href=#330 id=330 data-nosnippet>330</a>            <a href="#319">source</a>,
-<a href=#331 id=331 data-nosnippet>331</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Init">HandleKind::Init</a>(<a href="#320">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
+<a href=#331 id=331 data-nosnippet>331</a>            HandleKind::Init(<a href="#320">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
 <a href=#332 id=332 data-nosnippet>332</a>            <a href="#321">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#333 id=333 data-nosnippet>333</a>            <a href="#322">value</a>,
 <a href=#334 id=334 data-nosnippet>334</a>            <a href="#323">allow_other_panics</a>,
@@ -338,7 +338,7 @@
 <a href=#338 id=338 data-nosnippet>338</a>        <a class="self" href="#318">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#339 id=339 data-nosnippet>339</a>            <a href="#326">at_hash</a>,
 <a href=#340 id=340 data-nosnippet>340</a>            <a href="#319">source</a>,
-<a href=#341 id=341 data-nosnippet>341</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Init">HandleKind::Init</a>(<a href="#320">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
+<a href=#341 id=341 data-nosnippet>341</a>            HandleKind::Init(<a href="#320">code</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()),
 <a href=#342 id=342 data-nosnippet>342</a>            <a href="#321">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#343 id=343 data-nosnippet>343</a>            <a href="#322">value</a>,
 <a href=#344 id=344 data-nosnippet>344</a>            <a href="#323">allow_other_panics</a>,
@@ -354,13 +354,13 @@
 <a href=#354 id=354 data-nosnippet>354</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#355 id=355 data-nosnippet>355</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#356 id=356 data-nosnippet>356</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;&lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;,
-<a href=#357 id=357 data-nosnippet>357</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt; {
+<a href=#357 id=357 data-nosnippet>357</a>    ) -&gt; RpcResult&lt;GasInfo&gt; {
 <a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">let </span>at_hash = <a href="#356">at</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a class="self" href="#350">self</a>.client.info().best_hash);
 <a href=#359 id=359 data-nosnippet>359</a>
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span><a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a> { min_limit, .. } = <a class="self" href="#350">self</a>.<a href="#197-234">calculate_gas_info</a>(
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#350">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#361 id=361 data-nosnippet>361</a>            <a href="#358">at_hash</a>,
 <a href=#362 id=362 data-nosnippet>362</a>            <a href="#351">source</a>,
-<a href=#363 id=363 data-nosnippet>363</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Handle">HandleKind::Handle</a>(<a href="#352">dest</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>()),
+<a href=#363 id=363 data-nosnippet>363</a>            HandleKind::Handle(<a href="#352">dest</a>.cast()),
 <a href=#364 id=364 data-nosnippet>364</a>            <a href="#353">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#365 id=365 data-nosnippet>365</a>            <a href="#354">value</a>,
 <a href=#366 id=366 data-nosnippet>366</a>            <a href="#355">allow_other_panics</a>,
@@ -370,7 +370,7 @@
 <a href=#370 id=370 data-nosnippet>370</a>        <a class="self" href="#350">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#371 id=371 data-nosnippet>371</a>            <a href="#358">at_hash</a>,
 <a href=#372 id=372 data-nosnippet>372</a>            <a href="#351">source</a>,
-<a href=#373 id=373 data-nosnippet>373</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Handle">HandleKind::Handle</a>(<a href="#352">dest</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>()),
+<a href=#373 id=373 data-nosnippet>373</a>            HandleKind::Handle(<a href="#352">dest</a>.cast()),
 <a href=#374 id=374 data-nosnippet>374</a>            <a href="#353">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#375 id=375 data-nosnippet>375</a>            <a href="#354">value</a>,
 <a href=#376 id=376 data-nosnippet>376</a>            <a href="#355">allow_other_panics</a>,
@@ -386,15 +386,15 @@
 <a href=#386 id=386 data-nosnippet>386</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>,
 <a href=#387 id=387 data-nosnippet>387</a>        allow_other_panics: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>,
 <a href=#388 id=388 data-nosnippet>388</a>        at: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;&lt;Block <span class="kw">as </span>BlockT&gt;::Hash&gt;,
-<a href=#389 id=389 data-nosnippet>389</a>    ) -&gt; RpcResult&lt;<a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a>&gt; {
+<a href=#389 id=389 data-nosnippet>389</a>    ) -&gt; RpcResult&lt;GasInfo&gt; {
 <a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">let </span>at_hash = <a href="#388">at</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a class="self" href="#382">self</a>.client.info().best_hash);
 <a href=#391 id=391 data-nosnippet>391</a>
-<a href=#392 id=392 data-nosnippet>392</a>        <span class="kw">let </span><a href="../../gear_core/rpc/struct.GasInfo.html">GasInfo</a> { min_limit, .. } = <a class="self" href="#382">self</a>.<a href="#197-234">calculate_gas_info</a>(
+<a href=#392 id=392 data-nosnippet>392</a>        <span class="kw">let </span>GasInfo { min_limit, .. } = <a class="self" href="#382">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#393 id=393 data-nosnippet>393</a>            <a href="#390">at_hash</a>,
 <a href=#394 id=394 data-nosnippet>394</a>            <a href="#383">source</a>,
-<a href=#395 id=395 data-nosnippet>395</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Reply">HandleKind::Reply</a>(
-<a href=#396 id=396 data-nosnippet>396</a>                <a href="#384">message_id</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>(),
-<a href=#397 id=397 data-nosnippet>397</a>                <a href="../../gear_core_errors/simple/enum.ReplyCode.html#variant.Success">ReplyCode::Success</a>(<a href="../../gear_core_errors/simple/enum.SuccessReplyReason.html#variant.Manual">SuccessReplyReason::Manual</a>),
+<a href=#395 id=395 data-nosnippet>395</a>            HandleKind::Reply(
+<a href=#396 id=396 data-nosnippet>396</a>                <a href="#384">message_id</a>.cast(),
+<a href=#397 id=397 data-nosnippet>397</a>                ReplyCode::Success(SuccessReplyReason::Manual),
 <a href=#398 id=398 data-nosnippet>398</a>            ),
 <a href=#399 id=399 data-nosnippet>399</a>            <a href="#385">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#400 id=400 data-nosnippet>400</a>            <a href="#386">value</a>,
@@ -405,9 +405,9 @@
 <a href=#405 id=405 data-nosnippet>405</a>        <a class="self" href="#382">self</a>.<a href="#197-234">calculate_gas_info</a>(
 <a href=#406 id=406 data-nosnippet>406</a>            <a href="#390">at_hash</a>,
 <a href=#407 id=407 data-nosnippet>407</a>            <a href="#383">source</a>,
-<a href=#408 id=408 data-nosnippet>408</a>            <a href="../../pallet_gear/manager/enum.HandleKind.html#variant.Reply">HandleKind::Reply</a>(
-<a href=#409 id=409 data-nosnippet>409</a>                <a href="#384">message_id</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>(),
-<a href=#410 id=410 data-nosnippet>410</a>                <a href="../../gear_core_errors/simple/enum.ReplyCode.html#variant.Success">ReplyCode::Success</a>(<a href="../../gear_core_errors/simple/enum.SuccessReplyReason.html#variant.Manual">SuccessReplyReason::Manual</a>),
+<a href=#408 id=408 data-nosnippet>408</a>            HandleKind::Reply(
+<a href=#409 id=409 data-nosnippet>409</a>                <a href="#384">message_id</a>.cast(),
+<a href=#410 id=410 data-nosnippet>410</a>                ReplyCode::Success(SuccessReplyReason::Manual),
 <a href=#411 id=411 data-nosnippet>411</a>            ),
 <a href=#412 id=412 data-nosnippet>412</a>            <a href="#385">payload</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>(),
 <a href=#413 id=413 data-nosnippet>413</a>            <a href="#386">value</a>,

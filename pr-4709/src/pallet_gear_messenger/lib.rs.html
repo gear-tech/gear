@@ -157,12 +157,12 @@
 <a href=#157 id=157 data-nosnippet>157</a></span><span class="kw">pub mod </span><a href="../../pallet_gear_messenger/pallet/index.html">pallet</a> {
 <a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">pub use </span><a href="../../pallet_gear_messenger/pallet/struct.Weight.html">frame_support::weights::Weight</a>;
 <a href=#159 id=159 data-nosnippet>159</a>
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">use </span>common::{<a href="../../gear_common/storage/index.html">storage</a>::<span class="kw-2">*</span>, <a href="../../gear_common/trait.BlockLimiter.html">BlockLimiter</a>, <a href="../../gear_common/trait.Origin.html">Origin</a>};
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">use </span>common::{storage::<span class="kw-2">*</span>, BlockLimiter, Origin};
 <a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">use </span>frame_support::{pallet_prelude::<span class="kw-2">*</span>, storage::PrefixIterator, traits::StorageVersion};
 <a href=#162 id=162 data-nosnippet>162</a>    <span class="kw">use </span>frame_system::pallet_prelude::BlockNumberFor;
 <a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">use </span>gear_core::{
 <a href=#164 id=164 data-nosnippet>164</a>        ids::{ActorId, MessageId},
-<a href=#165 id=165 data-nosnippet>165</a>        message::{<a href="../../gear_core/message/stored/struct.StoredDelayedDispatch.html">StoredDelayedDispatch</a>, <a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>, <a href="../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>},
+<a href=#165 id=165 data-nosnippet>165</a>        message::{StoredDelayedDispatch, StoredDispatch, UserStoredMessage},
 <a href=#166 id=166 data-nosnippet>166</a>    };
 <a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">use </span>sp_runtime::DispatchError;
 <a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">use </span>sp_std::{<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html">convert::TryInto</a>, <a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>};
@@ -174,7 +174,7 @@
 <a href=#174 id=174 data-nosnippet>174</a>    </span><span class="attr">#[pallet::config]
 <a href=#175 id=175 data-nosnippet>175</a>    </span><span class="kw">pub trait </span><a href="../../pallet_gear_messenger/pallet/trait.Config.html">Config</a>: frame_system::Config {
 <a href=#176 id=176 data-nosnippet>176</a>        <span class="doccomment">/// Block limits.
-<a href=#177 id=177 data-nosnippet>177</a>        </span><span class="kw">type </span>BlockLimiter: <a href="../../gear_common/trait.BlockLimiter.html">BlockLimiter</a>&lt;Balance = <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;;
+<a href=#177 id=177 data-nosnippet>177</a>        </span><span class="kw">type </span>BlockLimiter: BlockLimiter&lt;Balance = <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;;
 <a href=#178 id=178 data-nosnippet>178</a>
 <a href=#179 id=179 data-nosnippet>179</a>        <span class="doccomment">/// Custom block number tracker.
 <a href=#180 id=180 data-nosnippet>180</a>        </span><span class="kw">type </span>CurrentBlockNumber: Get&lt;BlockNumberFor&lt;<span class="self">Self</span>&gt;&gt;;
@@ -230,7 +230,7 @@
 <a href=#230 id=230 data-nosnippet>230</a>
 <a href=#231 id=231 data-nosnippet>231</a>    <span class="comment">// Implementation of `DequeueError` for `Error&lt;T&gt;`
 <a href=#232 id=232 data-nosnippet>232</a>    // usage as `Queue::Error`.
-<a href=#233 id=233 data-nosnippet>233</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complicated/dequeue/trait.DequeueError.html">DequeueError</a> <span class="kw">for </span><a href="#198-229">Error</a>&lt;T&gt; {
+<a href=#233 id=233 data-nosnippet>233</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; DequeueError <span class="kw">for </span><a href="#198-229">Error</a>&lt;T&gt; {
 <a href=#234 id=234 data-nosnippet>234</a>        <span class="kw">fn </span>duplicate_key() -&gt; <span class="self">Self </span>{
 <a href=#235 id=235 data-nosnippet>235</a>            <span class="self">Self</span>::QueueDuplicateKey
 <a href=#236 id=236 data-nosnippet>236</a>        }
@@ -266,7 +266,7 @@
 <a href=#266 id=266 data-nosnippet>266</a>
 <a href=#267 id=267 data-nosnippet>267</a>    <span class="comment">// Implementation of `MailboxError` for `Error&lt;T&gt;`
 <a href=#268 id=268 data-nosnippet>268</a>    // usage as `Mailbox::Error`.
-<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complex/mailbox/trait.MailboxError.html">MailboxError</a> <span class="kw">for </span><a href="#198-229">Error</a>&lt;T&gt; {
+<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; MailboxError <span class="kw">for </span><a href="#198-229">Error</a>&lt;T&gt; {
 <a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">fn </span>duplicate_key() -&gt; <span class="self">Self </span>{
 <a href=#271 id=271 data-nosnippet>271</a>            <span class="self">Self</span>::MailboxDuplicateKey
 <a href=#272 id=272 data-nosnippet>272</a>        }
@@ -278,7 +278,7 @@
 <a href=#278 id=278 data-nosnippet>278</a>
 <a href=#279 id=279 data-nosnippet>279</a>    <span class="comment">// Implementation of `WaitlistError` for `Error&lt;T&gt;`
 <a href=#280 id=280 data-nosnippet>280</a>    // usage as `Waitlist::Error`.
-<a href=#281 id=281 data-nosnippet>281</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complex/waitlist/trait.WaitlistError.html">WaitlistError</a> <span class="kw">for </span><a href="#198-229">Error</a>&lt;T&gt; {
+<a href=#281 id=281 data-nosnippet>281</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; WaitlistError <span class="kw">for </span><a href="#198-229">Error</a>&lt;T&gt; {
 <a href=#282 id=282 data-nosnippet>282</a>        <span class="kw">fn </span>duplicate_key() -&gt; <span class="self">Self </span>{
 <a href=#283 id=283 data-nosnippet>283</a>            <span class="self">Self</span>::WaitlistDuplicateKey
 <a href=#284 id=284 data-nosnippet>284</a>        }
@@ -306,21 +306,21 @@
 <a href=#306 id=306 data-nosnippet>306</a>    </span><span class="kw">type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.Dequeued.html">Dequeued</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, <a href="#293">Capacity</a>&gt;;
 <a href=#307 id=307 data-nosnippet>307</a>
 <a href=#308 id=308 data-nosnippet>308</a>    <span class="comment">// Public wrap of the amount of messages dequeued.
-<a href=#309 id=309 data-nosnippet>309</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_value.html">common::wrap_storage_value!</a>(storage: Dequeued, name: <a href="../../pallet_gear_messenger/pallet/struct.DequeuedWrap.html">DequeuedWrap</a>, value: <a href="#293">Capacity</a>);
+<a href=#309 id=309 data-nosnippet>309</a>    </span><span class="macro">common::wrap_storage_value!</span>(storage: Dequeued, name: <a href="../../pallet_gear_messenger/pallet/struct.DequeuedWrap.html">DequeuedWrap</a>, value: <a href="#293">Capacity</a>);
 <a href=#310 id=310 data-nosnippet>310</a>
 <a href=#311 id=311 data-nosnippet>311</a>    <span class="comment">// ----
 <a href=#312 id=312 data-nosnippet>312</a>
 <a href=#313 id=313 data-nosnippet>313</a>    // Private storage for queue's elements.
 <a href=#314 id=314 data-nosnippet>314</a>    </span><span class="attr">#[pallet::storage]
 <a href=#315 id=315 data-nosnippet>315</a>    </span><span class="kw">pub type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.Dispatches.html">Dispatches</a>&lt;T&gt; =
-<a href=#316 id=316 data-nosnippet>316</a>        CountedStorageMap&lt;<span class="kw">_</span>, Identity, MessageId, <a href="../../gear_common/storage/complicated/dequeue/struct.LinkedNode.html">LinkedNode</a>&lt;MessageId, <a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>&gt;&gt;;
+<a href=#316 id=316 data-nosnippet>316</a>        CountedStorageMap&lt;<span class="kw">_</span>, Identity, MessageId, LinkedNode&lt;MessageId, StoredDispatch&gt;&gt;;
 <a href=#317 id=317 data-nosnippet>317</a>
 <a href=#318 id=318 data-nosnippet>318</a>    <span class="comment">// Public wrap of the queue's elements.
-<a href=#319 id=319 data-nosnippet>319</a>    </span><a class="macro" href="../../gear_common/macro.wrap_counted_storage_map.html">common::wrap_counted_storage_map!</a>(
+<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="macro">common::wrap_counted_storage_map!</span>(
 <a href=#320 id=320 data-nosnippet>320</a>        storage: Dispatches,
 <a href=#321 id=321 data-nosnippet>321</a>        name: <a href="../../pallet_gear_messenger/pallet/struct.DispatchesWrap.html">DispatchesWrap</a>,
 <a href=#322 id=322 data-nosnippet>322</a>        key: MessageId,
-<a href=#323 id=323 data-nosnippet>323</a>        value: <a href="../../gear_common/storage/complicated/dequeue/struct.LinkedNode.html">LinkedNode</a>&lt;MessageId, <a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>&gt;,
+<a href=#323 id=323 data-nosnippet>323</a>        value: LinkedNode&lt;MessageId, StoredDispatch&gt;,
 <a href=#324 id=324 data-nosnippet>324</a>        length: <a href="#293">Capacity</a>
 <a href=#325 id=325 data-nosnippet>325</a>    );
 <a href=#326 id=326 data-nosnippet>326</a>
@@ -331,7 +331,7 @@
 <a href=#331 id=331 data-nosnippet>331</a>    </span><span class="kw">type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.Head.html">Head</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, MessageId&gt;;
 <a href=#332 id=332 data-nosnippet>332</a>
 <a href=#333 id=333 data-nosnippet>333</a>    <span class="comment">// Public wrap of the queue's head key.
-<a href=#334 id=334 data-nosnippet>334</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_value.html">common::wrap_storage_value!</a>(storage: Head, name: <a href="../../pallet_gear_messenger/pallet/struct.HeadWrap.html">HeadWrap</a>, value: MessageId);
+<a href=#334 id=334 data-nosnippet>334</a>    </span><span class="macro">common::wrap_storage_value!</span>(storage: Head, name: <a href="../../pallet_gear_messenger/pallet/struct.HeadWrap.html">HeadWrap</a>, value: MessageId);
 <a href=#335 id=335 data-nosnippet>335</a>
 <a href=#336 id=336 data-nosnippet>336</a>    <span class="comment">// ----
 <a href=#337 id=337 data-nosnippet>337</a>
@@ -343,16 +343,16 @@
 <a href=#343 id=343 data-nosnippet>343</a>        T::AccountId,
 <a href=#344 id=344 data-nosnippet>344</a>        Identity,
 <a href=#345 id=345 data-nosnippet>345</a>        MessageId,
-<a href=#346 id=346 data-nosnippet>346</a>        (<a href="../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>, <a href="../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;BlockNumberFor&lt;T&gt;&gt;),
+<a href=#346 id=346 data-nosnippet>346</a>        (UserStoredMessage, Interval&lt;BlockNumberFor&lt;T&gt;&gt;),
 <a href=#347 id=347 data-nosnippet>347</a>    &gt;;
 <a href=#348 id=348 data-nosnippet>348</a>
 <a href=#349 id=349 data-nosnippet>349</a>    <span class="comment">// Public wrap of the mailbox elements.
-<a href=#350 id=350 data-nosnippet>350</a>    </span><a class="macro" href="../../gear_common/macro.wrap_extended_storage_double_map.html">common::wrap_extended_storage_double_map!</a>(
+<a href=#350 id=350 data-nosnippet>350</a>    </span><span class="macro">common::wrap_extended_storage_double_map!</span>(
 <a href=#351 id=351 data-nosnippet>351</a>        storage: Mailbox,
 <a href=#352 id=352 data-nosnippet>352</a>        name: <a href="../../pallet_gear_messenger/pallet/struct.MailboxWrap.html">MailboxWrap</a>,
 <a href=#353 id=353 data-nosnippet>353</a>        key1: T::AccountId,
 <a href=#354 id=354 data-nosnippet>354</a>        key2: MessageId,
-<a href=#355 id=355 data-nosnippet>355</a>        value: (<a href="../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>, <a href="../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;BlockNumberFor&lt;T&gt;&gt;),
+<a href=#355 id=355 data-nosnippet>355</a>        value: (UserStoredMessage, Interval&lt;BlockNumberFor&lt;T&gt;&gt;),
 <a href=#356 id=356 data-nosnippet>356</a>        length: <a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>
 <a href=#357 id=357 data-nosnippet>357</a>    );
 <a href=#358 id=358 data-nosnippet>358</a>
@@ -363,7 +363,7 @@
 <a href=#363 id=363 data-nosnippet>363</a>    </span><span class="kw">type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.QueueProcessing.html">QueueProcessing</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;;
 <a href=#364 id=364 data-nosnippet>364</a>
 <a href=#365 id=365 data-nosnippet>365</a>    <span class="comment">// Public wrap of the queue processing flag.
-<a href=#366 id=366 data-nosnippet>366</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_value.html">common::wrap_storage_value!</a>(
+<a href=#366 id=366 data-nosnippet>366</a>    </span><span class="macro">common::wrap_storage_value!</span>(
 <a href=#367 id=367 data-nosnippet>367</a>        storage: QueueProcessing,
 <a href=#368 id=368 data-nosnippet>368</a>        name: <a href="../../pallet_gear_messenger/pallet/struct.QueueProcessingWrap.html">QueueProcessingWrap</a>,
 <a href=#369 id=369 data-nosnippet>369</a>        value: <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>
@@ -376,7 +376,7 @@
 <a href=#376 id=376 data-nosnippet>376</a>    </span><span class="kw">type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.Sent.html">Sent</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, <a href="#293">Capacity</a>&gt;;
 <a href=#377 id=377 data-nosnippet>377</a>
 <a href=#378 id=378 data-nosnippet>378</a>    <span class="comment">// Public wrap of the amount of messages sent.
-<a href=#379 id=379 data-nosnippet>379</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_value.html">common::wrap_storage_value!</a>(storage: Sent, name: <a href="../../pallet_gear_messenger/pallet/struct.SentWrap.html">SentWrap</a>, value: <a href="#293">Capacity</a>);
+<a href=#379 id=379 data-nosnippet>379</a>    </span><span class="macro">common::wrap_storage_value!</span>(storage: Sent, name: <a href="../../pallet_gear_messenger/pallet/struct.SentWrap.html">SentWrap</a>, value: <a href="#293">Capacity</a>);
 <a href=#380 id=380 data-nosnippet>380</a>
 <a href=#381 id=381 data-nosnippet>381</a>    <span class="comment">// ----
 <a href=#382 id=382 data-nosnippet>382</a>
@@ -385,7 +385,7 @@
 <a href=#385 id=385 data-nosnippet>385</a>    </span><span class="kw">type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.Tail.html">Tail</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, MessageId&gt;;
 <a href=#386 id=386 data-nosnippet>386</a>
 <a href=#387 id=387 data-nosnippet>387</a>    <span class="comment">// Public wrap of the queue's tail key.
-<a href=#388 id=388 data-nosnippet>388</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_value.html">common::wrap_storage_value!</a>(storage: Tail, name: <a href="../../pallet_gear_messenger/pallet/struct.TailWrap.html">TailWrap</a>, value: MessageId);
+<a href=#388 id=388 data-nosnippet>388</a>    </span><span class="macro">common::wrap_storage_value!</span>(storage: Tail, name: <a href="../../pallet_gear_messenger/pallet/struct.TailWrap.html">TailWrap</a>, value: MessageId);
 <a href=#389 id=389 data-nosnippet>389</a>
 <a href=#390 id=390 data-nosnippet>390</a>    <span class="comment">// ----
 <a href=#391 id=391 data-nosnippet>391</a>
@@ -397,16 +397,16 @@
 <a href=#397 id=397 data-nosnippet>397</a>        ActorId,
 <a href=#398 id=398 data-nosnippet>398</a>        Identity,
 <a href=#399 id=399 data-nosnippet>399</a>        MessageId,
-<a href=#400 id=400 data-nosnippet>400</a>        (<a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>, <a href="../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;BlockNumberFor&lt;T&gt;&gt;),
+<a href=#400 id=400 data-nosnippet>400</a>        (StoredDispatch, Interval&lt;BlockNumberFor&lt;T&gt;&gt;),
 <a href=#401 id=401 data-nosnippet>401</a>    &gt;;
 <a href=#402 id=402 data-nosnippet>402</a>
 <a href=#403 id=403 data-nosnippet>403</a>    <span class="comment">// Public wrap of the waitlist elements.
-<a href=#404 id=404 data-nosnippet>404</a>    </span><a class="macro" href="../../gear_common/macro.wrap_extended_storage_double_map.html">common::wrap_extended_storage_double_map!</a>(
+<a href=#404 id=404 data-nosnippet>404</a>    </span><span class="macro">common::wrap_extended_storage_double_map!</span>(
 <a href=#405 id=405 data-nosnippet>405</a>        storage: Waitlist,
 <a href=#406 id=406 data-nosnippet>406</a>        name: <a href="../../pallet_gear_messenger/pallet/struct.WaitlistWrap.html">WaitlistWrap</a>,
 <a href=#407 id=407 data-nosnippet>407</a>        key1: ActorId,
 <a href=#408 id=408 data-nosnippet>408</a>        key2: MessageId,
-<a href=#409 id=409 data-nosnippet>409</a>        value: (<a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>, <a href="../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;BlockNumberFor&lt;T&gt;&gt;),
+<a href=#409 id=409 data-nosnippet>409</a>        value: (StoredDispatch, Interval&lt;BlockNumberFor&lt;T&gt;&gt;),
 <a href=#410 id=410 data-nosnippet>410</a>        length: <a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>
 <a href=#411 id=411 data-nosnippet>411</a>    );
 <a href=#412 id=412 data-nosnippet>412</a>
@@ -415,14 +415,14 @@
 <a href=#415 id=415 data-nosnippet>415</a>    // Private storage for dispatch stash elements.
 <a href=#416 id=416 data-nosnippet>416</a>    </span><span class="attr">#[pallet::storage]
 <a href=#417 id=417 data-nosnippet>417</a>    </span><span class="kw">pub type </span><a href="../../pallet_gear_messenger/pallet/storage_types/struct.DispatchStash.html">DispatchStash</a>&lt;T: <a href="#175-181">Config</a>&gt; =
-<a href=#418 id=418 data-nosnippet>418</a>        StorageMap&lt;<span class="kw">_</span>, Identity, MessageId, (<a href="../../gear_core/message/stored/struct.StoredDelayedDispatch.html">StoredDelayedDispatch</a>, <a href="../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;BlockNumberFor&lt;T&gt;&gt;)&gt;;
+<a href=#418 id=418 data-nosnippet>418</a>        StorageMap&lt;<span class="kw">_</span>, Identity, MessageId, (StoredDelayedDispatch, Interval&lt;BlockNumberFor&lt;T&gt;&gt;)&gt;;
 <a href=#419 id=419 data-nosnippet>419</a>
 <a href=#420 id=420 data-nosnippet>420</a>    <span class="comment">// Public wrap of the dispatch stash elements.
-<a href=#421 id=421 data-nosnippet>421</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_map.html">common::wrap_storage_map!</a>(
+<a href=#421 id=421 data-nosnippet>421</a>    </span><span class="macro">common::wrap_storage_map!</span>(
 <a href=#422 id=422 data-nosnippet>422</a>        storage: DispatchStash,
 <a href=#423 id=423 data-nosnippet>423</a>        name: <a href="../../pallet_gear_messenger/pallet/struct.DispatchStashWrap.html">DispatchStashWrap</a>,
 <a href=#424 id=424 data-nosnippet>424</a>        key: MessageId,
-<a href=#425 id=425 data-nosnippet>425</a>        value: (<a href="../../gear_core/message/stored/struct.StoredDelayedDispatch.html">StoredDelayedDispatch</a>, <a href="../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;BlockNumberFor&lt;T&gt;&gt;)
+<a href=#425 id=425 data-nosnippet>425</a>        value: (StoredDelayedDispatch, Interval&lt;BlockNumberFor&lt;T&gt;&gt;)
 <a href=#426 id=426 data-nosnippet>426</a>    );
 <a href=#427 id=427 data-nosnippet>427</a>
 <a href=#428 id=428 data-nosnippet>428</a>    <span class="comment">// ----
@@ -437,14 +437,14 @@
 <a href=#437 id=437 data-nosnippet>437</a>    </span><span class="doccomment">/// Callback function for success `pop_front` action.
 <a href=#438 id=438 data-nosnippet>438</a>    </span><span class="kw">pub struct </span><a href="../../pallet_gear_messenger/pallet/struct.OnPopFront.html">OnPopFront</a>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>, V&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;(T, V)&gt;)
 <a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">where
-<a href=#440 id=440 data-nosnippet>440</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>;
+<a href=#440 id=440 data-nosnippet>440</a>        </span>T::AccountId: Origin;
 <a href=#441 id=441 data-nosnippet>441</a>
 <a href=#442 id=442 data-nosnippet>442</a>    <span class="comment">// Callback trait implementation.
 <a href=#443 id=443 data-nosnippet>443</a>    //
 <a href=#444 id=444 data-nosnippet>444</a>    // Pop front increases amount of messages dequeued.
-<a href=#445 id=445 data-nosnippet>445</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>, V&gt; <a href="../../gear_common/storage/primitives/callback/trait.Callback.html">Callback</a>&lt;V&gt; <span class="kw">for </span><a href="#438-440">OnPopFront</a>&lt;T, V&gt;
+<a href=#445 id=445 data-nosnippet>445</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>, V&gt; Callback&lt;V&gt; <span class="kw">for </span><a href="#438-440">OnPopFront</a>&lt;T, V&gt;
 <a href=#446 id=446 data-nosnippet>446</a>    <span class="kw">where
-<a href=#447 id=447 data-nosnippet>447</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#447 id=447 data-nosnippet>447</a>        </span>T::AccountId: Origin,
 <a href=#448 id=448 data-nosnippet>448</a>    {
 <a href=#449 id=449 data-nosnippet>449</a>        <span class="kw">fn </span>call(_arg: <span class="kw-2">&amp;</span>V) {
 <a href=#450 id=450 data-nosnippet>450</a>            &lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::Dequeued::increase();
@@ -456,16 +456,16 @@
 <a href=#456 id=456 data-nosnippet>456</a>    </span><span class="doccomment">/// Callback function for success `push_front` action.
 <a href=#457 id=457 data-nosnippet>457</a>    </span><span class="kw">pub struct </span><a href="../../pallet_gear_messenger/pallet/struct.OnPushFront.html">OnPushFront</a>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>, V&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;(T, V)&gt;)
 <a href=#458 id=458 data-nosnippet>458</a>    <span class="kw">where
-<a href=#459 id=459 data-nosnippet>459</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>;
+<a href=#459 id=459 data-nosnippet>459</a>        </span>T::AccountId: Origin;
 <a href=#460 id=460 data-nosnippet>460</a>
 <a href=#461 id=461 data-nosnippet>461</a>    <span class="comment">// Callback trait implementation.
 <a href=#462 id=462 data-nosnippet>462</a>    //
 <a href=#463 id=463 data-nosnippet>463</a>    // Push front means requeue in Gear Messenger Context,
 <a href=#464 id=464 data-nosnippet>464</a>    // so the dequeued amount should be decreased and
 <a href=#465 id=465 data-nosnippet>465</a>    // queue processing stopped.
-<a href=#466 id=466 data-nosnippet>466</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>, V&gt; <a href="../../gear_common/storage/primitives/callback/trait.Callback.html">Callback</a>&lt;V&gt; <span class="kw">for </span><a href="#457-459">OnPushFront</a>&lt;T, V&gt;
+<a href=#466 id=466 data-nosnippet>466</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>, V&gt; Callback&lt;V&gt; <span class="kw">for </span><a href="#457-459">OnPushFront</a>&lt;T, V&gt;
 <a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">where
-<a href=#468 id=468 data-nosnippet>468</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#468 id=468 data-nosnippet>468</a>        </span>T::AccountId: Origin,
 <a href=#469 id=469 data-nosnippet>469</a>    {
 <a href=#470 id=470 data-nosnippet>470</a>        <span class="kw">fn </span>call(_arg: <span class="kw-2">&amp;</span>V) {
 <a href=#471 id=471 data-nosnippet>471</a>            &lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::Dequeued::decrease();
@@ -478,13 +478,13 @@
 <a href=#478 id=478 data-nosnippet>478</a>    </span><span class="doccomment">/// Store of queue action's callbacks.
 <a href=#479 id=479 data-nosnippet>479</a>    </span><span class="kw">pub struct </span><a href="../../pallet_gear_messenger/pallet/struct.QueueCallbacks.html">QueueCallbacks</a>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;)
 <a href=#480 id=480 data-nosnippet>480</a>    <span class="kw">where
-<a href=#481 id=481 data-nosnippet>481</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>;
+<a href=#481 id=481 data-nosnippet>481</a>        </span>T::AccountId: Origin;
 <a href=#482 id=482 data-nosnippet>482</a>
 <a href=#483 id=483 data-nosnippet>483</a>    <span class="comment">// Callbacks store for queue trait implementation, over
 <a href=#484 id=484 data-nosnippet>484</a>    // specified (associated) type of queue value.
-<a href=#485 id=485 data-nosnippet>485</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complicated/dequeue/trait.DequeueCallbacks.html">DequeueCallbacks</a> <span class="kw">for </span><a href="#479-481">QueueCallbacks</a>&lt;T&gt;
+<a href=#485 id=485 data-nosnippet>485</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; DequeueCallbacks <span class="kw">for </span><a href="#479-481">QueueCallbacks</a>&lt;T&gt;
 <a href=#486 id=486 data-nosnippet>486</a>    <span class="kw">where
-<a href=#487 id=487 data-nosnippet>487</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#487 id=487 data-nosnippet>487</a>        </span>T::AccountId: Origin,
 <a href=#488 id=488 data-nosnippet>488</a>    {
 <a href=#489 id=489 data-nosnippet>489</a>        <span class="kw">type </span>Value = &lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::QueuedDispatch;
 <a href=#490 id=490 data-nosnippet>490</a>
@@ -507,14 +507,14 @@
 <a href=#507 id=507 data-nosnippet>507</a>    </span><span class="doccomment">/// Store of mailbox action's callbacks.
 <a href=#508 id=508 data-nosnippet>508</a>    </span><span class="kw">pub struct </span><a href="../../pallet_gear_messenger/pallet/struct.MailBoxCallbacks.html">MailBoxCallbacks</a>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;)
 <a href=#509 id=509 data-nosnippet>509</a>    <span class="kw">where
-<a href=#510 id=510 data-nosnippet>510</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>;
+<a href=#510 id=510 data-nosnippet>510</a>        </span>T::AccountId: Origin;
 <a href=#511 id=511 data-nosnippet>511</a>
 <a href=#512 id=512 data-nosnippet>512</a>    <span class="comment">// Callbacks store for mailbox trait implementation, over
 <a href=#513 id=513 data-nosnippet>513</a>    // specified (associated) types of mailbox and error values.
-<a href=#514 id=514 data-nosnippet>514</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complex/mailbox/trait.MailboxCallbacks.html">MailboxCallbacks</a>&lt;&lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::OutputError&gt;
+<a href=#514 id=514 data-nosnippet>514</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; MailboxCallbacks&lt;&lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::OutputError&gt;
 <a href=#515 id=515 data-nosnippet>515</a>        <span class="kw">for </span><a href="#508-510">MailBoxCallbacks</a>&lt;T&gt;
 <a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">where
-<a href=#517 id=517 data-nosnippet>517</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#517 id=517 data-nosnippet>517</a>        </span>T::AccountId: Origin,
 <a href=#518 id=518 data-nosnippet>518</a>    {
 <a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">type </span>Value = &lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::MailboxedMessage;
 <a href=#520 id=520 data-nosnippet>520</a>        <span class="kw">type </span>BlockNumber = BlockNumberFor&lt;T&gt;;
@@ -536,12 +536,12 @@
 <a href=#536 id=536 data-nosnippet>536</a>    </span><span class="doccomment">/// Callback function for getting actual block number.
 <a href=#537 id=537 data-nosnippet>537</a>    </span><span class="kw">pub struct </span><a href="../../pallet_gear_messenger/pallet/struct.GetBlockNumber.html">GetBlockNumber</a>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;)
 <a href=#538 id=538 data-nosnippet>538</a>    <span class="kw">where
-<a href=#539 id=539 data-nosnippet>539</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>;
+<a href=#539 id=539 data-nosnippet>539</a>        </span>T::AccountId: Origin;
 <a href=#540 id=540 data-nosnippet>540</a>
 <a href=#541 id=541 data-nosnippet>541</a>    <span class="comment">// Callback trait implementation.
-<a href=#542 id=542 data-nosnippet>542</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/primitives/callback/trait.GetCallback.html">GetCallback</a>&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#537-539">GetBlockNumber</a>&lt;T&gt;
+<a href=#542 id=542 data-nosnippet>542</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; GetCallback&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#537-539">GetBlockNumber</a>&lt;T&gt;
 <a href=#543 id=543 data-nosnippet>543</a>    <span class="kw">where
-<a href=#544 id=544 data-nosnippet>544</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#544 id=544 data-nosnippet>544</a>        </span>T::AccountId: Origin,
 <a href=#545 id=545 data-nosnippet>545</a>    {
 <a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">fn </span>call() -&gt; BlockNumberFor&lt;T&gt; {
 <a href=#547 id=547 data-nosnippet>547</a>            T::CurrentBlockNumber::get()
@@ -553,13 +553,13 @@
 <a href=#553 id=553 data-nosnippet>553</a>    </span><span class="doccomment">/// Store of waitlist action's callbacks.
 <a href=#554 id=554 data-nosnippet>554</a>    </span><span class="kw">pub struct </span><a href="../../pallet_gear_messenger/pallet/struct.WaitListCallbacks.html">WaitListCallbacks</a>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;)
 <a href=#555 id=555 data-nosnippet>555</a>    <span class="kw">where
-<a href=#556 id=556 data-nosnippet>556</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>;
+<a href=#556 id=556 data-nosnippet>556</a>        </span>T::AccountId: Origin;
 <a href=#557 id=557 data-nosnippet>557</a>
 <a href=#558 id=558 data-nosnippet>558</a>    <span class="comment">// Callbacks store for waitlist trait implementation, over
 <a href=#559 id=559 data-nosnippet>559</a>    // specified (associated) types of waitlist and error values.
-<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complex/waitlist/trait.WaitlistCallbacks.html">WaitlistCallbacks</a> <span class="kw">for </span><a href="#554-556">WaitListCallbacks</a>&lt;T&gt;
+<a href=#560 id=560 data-nosnippet>560</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; WaitlistCallbacks <span class="kw">for </span><a href="#554-556">WaitListCallbacks</a>&lt;T&gt;
 <a href=#561 id=561 data-nosnippet>561</a>    <span class="kw">where
-<a href=#562 id=562 data-nosnippet>562</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#562 id=562 data-nosnippet>562</a>        </span>T::AccountId: Origin,
 <a href=#563 id=563 data-nosnippet>563</a>    {
 <a href=#564 id=564 data-nosnippet>564</a>        <span class="kw">type </span>Value = &lt;<a href="#192">Pallet</a>&lt;T&gt; <span class="kw">as </span>Messenger&gt;::WaitlistedMessage;
 <a href=#565 id=565 data-nosnippet>565</a>        <span class="kw">type </span>BlockNumber = BlockNumberFor&lt;T&gt;;
@@ -580,9 +580,9 @@
 <a href=#580 id=580 data-nosnippet>580</a>    ///
 <a href=#581 id=581 data-nosnippet>581</a>    /// See `gear_common::storage::Messenger` for
 <a href=#582 id=582 data-nosnippet>582</a>    /// complete documentation.
-<a href=#583 id=583 data-nosnippet>583</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; <a href="../../gear_common/storage/complex/messenger/trait.Messenger.html">Messenger</a> <span class="kw">for </span><a href="#192">Pallet</a>&lt;T&gt;
+<a href=#583 id=583 data-nosnippet>583</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181"><span class="kw">crate</span>::Config</a>&gt; Messenger <span class="kw">for </span><a href="#192">Pallet</a>&lt;T&gt;
 <a href=#584 id=584 data-nosnippet>584</a>    <span class="kw">where
-<a href=#585 id=585 data-nosnippet>585</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#585 id=585 data-nosnippet>585</a>        </span>T::AccountId: Origin,
 <a href=#586 id=586 data-nosnippet>586</a>    {
 <a href=#587 id=587 data-nosnippet>587</a>        <span class="kw">type </span>BlockNumber = BlockNumberFor&lt;T&gt;;
 <a href=#588 id=588 data-nosnippet>588</a>        <span class="kw">type </span>Capacity = <a href="#293">Capacity</a>;
@@ -591,22 +591,22 @@
 <a href=#591 id=591 data-nosnippet>591</a>
 <a href=#592 id=592 data-nosnippet>592</a>        <span class="kw">type </span>MailboxFirstKey = T::AccountId;
 <a href=#593 id=593 data-nosnippet>593</a>        <span class="kw">type </span>MailboxSecondKey = MessageId;
-<a href=#594 id=594 data-nosnippet>594</a>        <span class="kw">type </span>MailboxedMessage = <a href="../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>;
-<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">type </span>QueuedDispatch = <a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
-<a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">type </span>DelayedDispatch = <a href="../../gear_core/message/stored/struct.StoredDelayedDispatch.html">StoredDelayedDispatch</a>;
+<a href=#594 id=594 data-nosnippet>594</a>        <span class="kw">type </span>MailboxedMessage = UserStoredMessage;
+<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">type </span>QueuedDispatch = StoredDispatch;
+<a href=#596 id=596 data-nosnippet>596</a>        <span class="kw">type </span>DelayedDispatch = StoredDelayedDispatch;
 <a href=#597 id=597 data-nosnippet>597</a>        <span class="kw">type </span>WaitlistFirstKey = ActorId;
 <a href=#598 id=598 data-nosnippet>598</a>        <span class="kw">type </span>WaitlistSecondKey = MessageId;
-<a href=#599 id=599 data-nosnippet>599</a>        <span class="kw">type </span>WaitlistedMessage = <a href="../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
+<a href=#599 id=599 data-nosnippet>599</a>        <span class="kw">type </span>WaitlistedMessage = StoredDispatch;
 <a href=#600 id=600 data-nosnippet>600</a>        <span class="kw">type </span>DispatchStashKey = MessageId;
 <a href=#601 id=601 data-nosnippet>601</a>
-<a href=#602 id=602 data-nosnippet>602</a>        <span class="kw">type </span>Sent = <a href="../../gear_common/storage/complicated/counter/struct.CounterImpl.html">CounterImpl</a>&lt;<span class="self">Self</span>::Capacity, <a href="#379">SentWrap</a>&lt;T&gt;&gt;;
+<a href=#602 id=602 data-nosnippet>602</a>        <span class="kw">type </span>Sent = CounterImpl&lt;<span class="self">Self</span>::Capacity, <a href="#379">SentWrap</a>&lt;T&gt;&gt;;
 <a href=#603 id=603 data-nosnippet>603</a>
-<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">type </span>Dequeued = <a href="../../gear_common/storage/complicated/counter/struct.CounterImpl.html">CounterImpl</a>&lt;<span class="self">Self</span>::Capacity, <a href="#309">DequeuedWrap</a>&lt;T&gt;&gt;;
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="kw">type </span>Dequeued = CounterImpl&lt;<span class="self">Self</span>::Capacity, <a href="#309">DequeuedWrap</a>&lt;T&gt;&gt;;
 <a href=#605 id=605 data-nosnippet>605</a>
-<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">type </span>QueueProcessing = <a href="../../gear_common/storage/complicated/toggler/struct.TogglerImpl.html">TogglerImpl</a>&lt;<a href="#366-370">QueueProcessingWrap</a>&lt;T&gt;&gt;;
+<a href=#606 id=606 data-nosnippet>606</a>        <span class="kw">type </span>QueueProcessing = TogglerImpl&lt;<a href="#366-370">QueueProcessingWrap</a>&lt;T&gt;&gt;;
 <a href=#607 id=607 data-nosnippet>607</a>
-<a href=#608 id=608 data-nosnippet>608</a>        <span class="kw">type </span>Queue = <a href="../../gear_common/storage/complex/queue/struct.QueueImpl.html">QueueImpl</a>&lt;
-<a href=#609 id=609 data-nosnippet>609</a>            <a href="../../gear_common/storage/complicated/dequeue/struct.DequeueImpl.html">DequeueImpl</a>&lt;
+<a href=#608 id=608 data-nosnippet>608</a>        <span class="kw">type </span>Queue = QueueImpl&lt;
+<a href=#609 id=609 data-nosnippet>609</a>            DequeueImpl&lt;
 <a href=#610 id=610 data-nosnippet>610</a>                MessageId,
 <a href=#611 id=611 data-nosnippet>611</a>                <span class="self">Self</span>::QueuedDispatch,
 <a href=#612 id=612 data-nosnippet>612</a>                <span class="self">Self</span>::Error,
@@ -616,27 +616,27 @@
 <a href=#616 id=616 data-nosnippet>616</a>                <a href="#479-481">QueueCallbacks</a>&lt;T&gt;,
 <a href=#617 id=617 data-nosnippet>617</a>            &gt;,
 <a href=#618 id=618 data-nosnippet>618</a>            DispatchError,
-<a href=#619 id=619 data-nosnippet>619</a>            <a href="../../gear_common/storage/primitives/key/struct.QueueKeyGen.html">QueueKeyGen</a>,
+<a href=#619 id=619 data-nosnippet>619</a>            QueueKeyGen,
 <a href=#620 id=620 data-nosnippet>620</a>        &gt;;
 <a href=#621 id=621 data-nosnippet>621</a>
-<a href=#622 id=622 data-nosnippet>622</a>        <span class="kw">type </span>Mailbox = <a href="../../gear_common/storage/complex/mailbox/struct.MailboxImpl.html">MailboxImpl</a>&lt;
+<a href=#622 id=622 data-nosnippet>622</a>        <span class="kw">type </span>Mailbox = MailboxImpl&lt;
 <a href=#623 id=623 data-nosnippet>623</a>            <a href="#350-357">MailboxWrap</a>&lt;T&gt;,
 <a href=#624 id=624 data-nosnippet>624</a>            <span class="self">Self</span>::MailboxedMessage,
 <a href=#625 id=625 data-nosnippet>625</a>            <span class="self">Self</span>::BlockNumber,
 <a href=#626 id=626 data-nosnippet>626</a>            <span class="self">Self</span>::Error,
 <a href=#627 id=627 data-nosnippet>627</a>            DispatchError,
 <a href=#628 id=628 data-nosnippet>628</a>            <a href="#508-510">MailBoxCallbacks</a>&lt;T&gt;,
-<a href=#629 id=629 data-nosnippet>629</a>            <a href="../../gear_common/storage/primitives/key/struct.MailboxKeyGen.html">MailboxKeyGen</a>&lt;T::AccountId&gt;,
+<a href=#629 id=629 data-nosnippet>629</a>            MailboxKeyGen&lt;T::AccountId&gt;,
 <a href=#630 id=630 data-nosnippet>630</a>        &gt;;
 <a href=#631 id=631 data-nosnippet>631</a>
-<a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">type </span>Waitlist = <a href="../../gear_common/storage/complex/waitlist/struct.WaitlistImpl.html">WaitlistImpl</a>&lt;
+<a href=#632 id=632 data-nosnippet>632</a>        <span class="kw">type </span>Waitlist = WaitlistImpl&lt;
 <a href=#633 id=633 data-nosnippet>633</a>            <a href="#404-411">WaitlistWrap</a>&lt;T&gt;,
 <a href=#634 id=634 data-nosnippet>634</a>            <span class="self">Self</span>::WaitlistedMessage,
 <a href=#635 id=635 data-nosnippet>635</a>            <span class="self">Self</span>::BlockNumber,
 <a href=#636 id=636 data-nosnippet>636</a>            <span class="self">Self</span>::Error,
 <a href=#637 id=637 data-nosnippet>637</a>            DispatchError,
 <a href=#638 id=638 data-nosnippet>638</a>            <a href="#554-556">WaitListCallbacks</a>&lt;T&gt;,
-<a href=#639 id=639 data-nosnippet>639</a>            <a href="../../gear_common/storage/primitives/key/struct.WaitlistKeyGen.html">WaitlistKeyGen</a>,
+<a href=#639 id=639 data-nosnippet>639</a>            WaitlistKeyGen,
 <a href=#640 id=640 data-nosnippet>640</a>        &gt;;
 <a href=#641 id=641 data-nosnippet>641</a>
 <a href=#642 id=642 data-nosnippet>642</a>        <span class="kw">type </span>DispatchStash = <a href="#421-426">DispatchStashWrap</a>&lt;T&gt;;
@@ -650,7 +650,7 @@
 <a href=#650 id=650 data-nosnippet>650</a>    </span><span class="attr">#[pallet::hooks]
 <a href=#651 id=651 data-nosnippet>651</a>    </span><span class="kw">impl</span>&lt;T: <a href="#175-181">Config</a>&gt; Hooks&lt;BlockNumberFor&lt;T&gt;&gt; <span class="kw">for </span><a href="#192">Pallet</a>&lt;T&gt;
 <a href=#652 id=652 data-nosnippet>652</a>    <span class="kw">where
-<a href=#653 id=653 data-nosnippet>653</a>        </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#653 id=653 data-nosnippet>653</a>        </span>T::AccountId: Origin,
 <a href=#654 id=654 data-nosnippet>654</a>    {
 <a href=#655 id=655 data-nosnippet>655</a>        <span class="doccomment">/// Block initialization.
 <a href=#656 id=656 data-nosnippet>656</a>        </span><span class="kw">fn </span>on_initialize(_bn: BlockNumberFor&lt;T&gt;) -&gt; <a href="../../pallet_gear_messenger/pallet/struct.Weight.html">Weight</a> {

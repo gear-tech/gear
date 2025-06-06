@@ -23,12 +23,12 @@
 <a href=#23 id=23 data-nosnippet>23</a>    <a href="../../log.rs.html#187-193">Log</a>, <a href="../../lib.rs.html#522">Value</a>, <a href="../../lib.rs.html#537">MAX_USER_GAS_LIMIT</a>,
 <a href=#24 id=24 data-nosnippet>24</a>};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>gear_common::{
-<a href=#26 id=26 data-nosnippet>26</a>    auxiliary::{<a href="../../../../gear_common/auxiliary/mailbox/index.html">mailbox</a>::<span class="kw-2">*</span>, <a href="../../../../gear_common/auxiliary/type.BlockNumber.html">BlockNumber</a>},
-<a href=#27 id=27 data-nosnippet>27</a>    <a href="../../../../gear_common/storage/primitives/struct.Interval.html">storage::Interval</a>,
+<a href=#26 id=26 data-nosnippet>26</a>    auxiliary::{mailbox::<span class="kw-2">*</span>, BlockNumber},
+<a href=#27 id=27 data-nosnippet>27</a>    storage::Interval,
 <a href=#28 id=28 data-nosnippet>28</a>};
 <a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>gear_core::{
-<a href=#30 id=30 data-nosnippet>30</a>    ids::{<a href="../../../../gear_core/ids/prelude/trait.MessageIdExt.html">prelude::MessageIdExt</a> <span class="kw">as _</span>, ActorId, MessageId},
-<a href=#31 id=31 data-nosnippet>31</a>    message::{<a href="../../../../gear_core/message/reply/struct.ReplyMessage.html">ReplyMessage</a>, <a href="../../../../gear_core/message/reply/struct.ReplyPacket.html">ReplyPacket</a>},
+<a href=#30 id=30 data-nosnippet>30</a>    ids::{prelude::MessageIdExt <span class="kw">as _</span>, ActorId, MessageId},
+<a href=#31 id=31 data-nosnippet>31</a>    message::{ReplyMessage, ReplyPacket},
 <a href=#32 id=32 data-nosnippet>32</a>};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>parity_scale_codec::Encode;
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">std::cell::RefCell</a>;
@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a>        log: <a href="../../log.rs.html#187-193">Log</a>,
 <a href=#63 id=63 data-nosnippet>63</a>        payload: <span class="kw">impl </span>Encode,
 <a href=#64 id=64 data-nosnippet>64</a>        value: <a href="../../lib.rs.html#522">Value</a>,
-<a href=#65 id=65 data-nosnippet>65</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;MessageId, <a href="../../../../gear_common/auxiliary/mailbox/enum.MailboxErrorImpl.html">MailboxErrorImpl</a>&gt; {
+<a href=#65 id=65 data-nosnippet>65</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;MessageId, MailboxErrorImpl&gt; {
 <a href=#66 id=66 data-nosnippet>66</a>        <a class="self" href="#61">self</a>.<a href="#71-122">reply_bytes</a>(<a href="#62">log</a>, <a href="#63">payload</a>.encode(), <a href="#64">value</a>)
 <a href=#67 id=67 data-nosnippet>67</a>    }
 <a href=#68 id=68 data-nosnippet>68</a>
@@ -73,19 +73,19 @@
 <a href=#73 id=73 data-nosnippet>73</a>        log: <a href="../../log.rs.html#187-193">Log</a>,
 <a href=#74 id=74 data-nosnippet>74</a>        raw_payload: <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html">AsRef</a>&lt;[<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>]&gt;,
 <a href=#75 id=75 data-nosnippet>75</a>        value: <a href="../../lib.rs.html#522">Value</a>,
-<a href=#76 id=76 data-nosnippet>76</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;MessageId, <a href="../../../../gear_common/auxiliary/mailbox/enum.MailboxErrorImpl.html">MailboxErrorImpl</a>&gt; {
+<a href=#76 id=76 data-nosnippet>76</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;MessageId, MailboxErrorImpl&gt; {
 <a href=#77 id=77 data-nosnippet>77</a>        <span class="kw">let </span>reply_to_id = <span class="self"><a href="#72">self</a>
 <a href=#78 id=78 data-nosnippet>78</a>            </span>.<a href="#165-168">find_message_by_log</a>(<span class="kw-2">&amp;</span><a href="#73">log</a>)
-<a href=#79 id=79 data-nosnippet>79</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="../../../../gear_common/auxiliary/mailbox/enum.MailboxErrorImpl.html#variant.ElementNotFound">MailboxErrorImpl::ElementNotFound</a>)<span class="question-mark">?
-<a href=#80 id=80 data-nosnippet>80</a>            </span>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>();
+<a href=#79 id=79 data-nosnippet>79</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(MailboxErrorImpl::ElementNotFound)<span class="question-mark">?
+<a href=#80 id=80 data-nosnippet>80</a>            </span>.id();
 <a href=#81 id=81 data-nosnippet>81</a>
 <a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">let </span>mailboxed = <span class="self"><a href="#72">self</a>
 <a href=#83 id=83 data-nosnippet>83</a>            </span>.manager
 <a href=#84 id=84 data-nosnippet>84</a>            .<a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html#method.borrow_mut">borrow_mut</a>()
 <a href=#85 id=85 data-nosnippet>85</a>            .<a href="../../manager.rs.html#260-288">read_mailbox_message</a>(<a class="self" href="#72">self</a>.user_id, <a href="#77">reply_to_id</a>)<span class="question-mark">?</span>;
 <a href=#86 id=86 data-nosnippet>86</a>
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>destination = <a href="#82">mailboxed</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.source">source</a>();
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>reply_id = <a href="../../../../gear_core/ids/prelude/trait.MessageIdExt.html#tymethod.generate_reply">MessageId::generate_reply</a>(<a href="#82">mailboxed</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>());
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>destination = <a href="#82">mailboxed</a>.source();
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>reply_id = MessageId::generate_reply(<a href="#82">mailboxed</a>.id());
 <a href=#89 id=89 data-nosnippet>89</a>
 <a href=#90 id=90 data-nosnippet>90</a>        <span class="comment">// Set zero gas limit if reply deposit exists.
 <a href=#91 id=91 data-nosnippet>91</a>        </span><span class="kw">let </span>gas_limit = <span class="kw">if </span><span class="self">self
@@ -107,12 +107,12 @@
 <a href=#107 id=107 data-nosnippet>107</a>                .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
 <a href=#108 id=108 data-nosnippet>108</a>                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|err| <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"Can't send reply with such payload: {err:?}"</span>));
 <a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>            <span class="kw">let </span>message = <a href="../../../../gear_core/message/reply/struct.ReplyMessage.html#method.from_packet">ReplyMessage::from_packet</a>(
+<a href=#110 id=110 data-nosnippet>110</a>            <span class="kw">let </span>message = ReplyMessage::from_packet(
 <a href=#111 id=111 data-nosnippet>111</a>                <a href="#88">reply_id</a>,
-<a href=#112 id=112 data-nosnippet>112</a>                <a href="../../../../gear_core/message/reply/struct.ReplyPacket.html#method.new_with_gas">ReplyPacket::new_with_gas</a>(<a href="#104">payload</a>, <a href="#91">gas_limit</a>, <a href="#75">value</a>),
+<a href=#112 id=112 data-nosnippet>112</a>                ReplyPacket::new_with_gas(<a href="#104">payload</a>, <a href="#91">gas_limit</a>, <a href="#75">value</a>),
 <a href=#113 id=113 data-nosnippet>113</a>            );
 <a href=#114 id=114 data-nosnippet>114</a>
-<a href=#115 id=115 data-nosnippet>115</a>            <a href="#110">message</a>.<a href="../../../../gear_core/message/reply/struct.ReplyMessage.html#method.into_dispatch">into_dispatch</a>(<a class="self" href="#72">self</a>.user_id, <a href="#87">destination</a>, <a href="#82">mailboxed</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>())
+<a href=#115 id=115 data-nosnippet>115</a>            <a href="#110">message</a>.into_dispatch(<a class="self" href="#72">self</a>.user_id, <a href="#87">destination</a>, <a href="#82">mailboxed</a>.id())
 <a href=#116 id=116 data-nosnippet>116</a>        };
 <a href=#117 id=117 data-nosnippet>117</a>
 <a href=#118 id=118 data-nosnippet>118</a>        <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Ok">Ok</a>(<span class="self"><a href="#72">self</a>
@@ -125,11 +125,11 @@
 <a href=#125 id=125 data-nosnippet>125</a>    ///
 <a href=#126 id=126 data-nosnippet>126</a>    /// If message with traits defined in `log` is not found, an error is
 <a href=#127 id=127 data-nosnippet>127</a>    /// returned.
-<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub fn </span>claim_value&lt;T: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="../../log.rs.html#187-193">Log</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, log: T) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../../../gear_common/auxiliary/mailbox/enum.MailboxErrorImpl.html">MailboxErrorImpl</a>&gt; {
+<a href=#128 id=128 data-nosnippet>128</a>    </span><span class="kw">pub fn </span>claim_value&lt;T: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html">Into</a>&lt;<a href="../../log.rs.html#187-193">Log</a>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, log: T) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), MailboxErrorImpl&gt; {
 <a href=#129 id=129 data-nosnippet>129</a>        <span class="kw">let </span>message_id = <span class="self"><a href="#128">self</a>
 <a href=#130 id=130 data-nosnippet>130</a>            </span>.<a href="#165-168">find_message_by_log</a>(<span class="kw-2">&amp;</span><a href="#128">log</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>())
-<a href=#131 id=131 data-nosnippet>131</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="../../../../gear_common/auxiliary/mailbox/enum.MailboxErrorImpl.html#variant.ElementNotFound">MailboxErrorImpl::ElementNotFound</a>)<span class="question-mark">?
-<a href=#132 id=132 data-nosnippet>132</a>            </span>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>();
+<a href=#131 id=131 data-nosnippet>131</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(MailboxErrorImpl::ElementNotFound)<span class="question-mark">?
+<a href=#132 id=132 data-nosnippet>132</a>            </span>.id();
 <a href=#133 id=133 data-nosnippet>133</a>
 <a href=#134 id=134 data-nosnippet>134</a>        <span class="comment">// User must exist
 <a href=#135 id=135 data-nosnippet>135</a>        </span><span class="kw">if </span>!Accounts::exists(<span class="self">self</span>.user_id) {
@@ -145,16 +145,16 @@
 <a href=#145 id=145 data-nosnippet>145</a>            .<a href="../../manager.rs.html#260-288">read_mailbox_message</a>(<a class="self" href="#128">self</a>.user_id, <a href="#129">message_id</a>)<span class="question-mark">?</span>;
 <a href=#146 id=146 data-nosnippet>146</a>
 <a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">if </span>Actors::is_active_program(mailboxed.source()) {
-<a href=#148 id=148 data-nosnippet>148</a>            <span class="kw">let </span>message = <a href="../../../../gear_core/message/reply/struct.ReplyMessage.html#method.auto">ReplyMessage::auto</a>(<a href="#142">mailboxed</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>());
+<a href=#148 id=148 data-nosnippet>148</a>            <span class="kw">let </span>message = ReplyMessage::auto(<a href="#142">mailboxed</a>.id());
 <a href=#149 id=149 data-nosnippet>149</a>
 <a href=#150 id=150 data-nosnippet>150</a>            <a class="self" href="#128">self</a>.manager
 <a href=#151 id=151 data-nosnippet>151</a>                .<a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html#method.borrow_mut">borrow_mut</a>()
 <a href=#152 id=152 data-nosnippet>152</a>                .gas_tree
-<a href=#153 id=153 data-nosnippet>153</a>                .<a href="../gas_tree.rs.html#48-65">create</a>(<a class="self" href="#128">self</a>.user_id, <a href="#148">message</a>.<a href="../../../../gear_core/message/reply/struct.ReplyMessage.html#method.id">id</a>(), <span class="number">0</span>, <span class="bool-val">true</span>)
+<a href=#153 id=153 data-nosnippet>153</a>                .<a href="../gas_tree.rs.html#48-65">create</a>(<a class="self" href="#128">self</a>.user_id, <a href="#148">message</a>.id(), <span class="number">0</span>, <span class="bool-val">true</span>)
 <a href=#154 id=154 data-nosnippet>154</a>                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.unreachable.html">unreachable!</a>(<span class="string">"GasTree corrupted! {:?}"</span>, e));
 <a href=#155 id=155 data-nosnippet>155</a>
 <a href=#156 id=156 data-nosnippet>156</a>            <span class="kw">let </span>dispatch =
-<a href=#157 id=157 data-nosnippet>157</a>                <a href="#148">message</a>.<a href="../../../../gear_core/message/reply/struct.ReplyMessage.html#method.into_stored_dispatch">into_stored_dispatch</a>(<a class="self" href="#128">self</a>.user_id, <a href="#142">mailboxed</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.source">source</a>(), <a href="#142">mailboxed</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>());
+<a href=#157 id=157 data-nosnippet>157</a>                <a href="#148">message</a>.into_stored_dispatch(<a class="self" href="#128">self</a>.user_id, <a href="#142">mailboxed</a>.source(), <a href="#142">mailboxed</a>.id());
 <a href=#158 id=158 data-nosnippet>158</a>
 <a href=#159 id=159 data-nosnippet>159</a>            <a class="self" href="#128">self</a>.manager.<a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html#method.borrow_mut">borrow_mut</a>().dispatches.<a href="https://doc.rust-lang.org/nightly/alloc/collections/vec_deque/struct.VecDeque.html#method.push_back">push_back</a>(<a href="#156">dispatch</a>);
 <a href=#160 id=160 data-nosnippet>160</a>        }
@@ -162,14 +162,14 @@
 <a href=#162 id=162 data-nosnippet>162</a>        <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Ok">Ok</a>(())
 <a href=#163 id=163 data-nosnippet>163</a>    }
 <a href=#164 id=164 data-nosnippet>164</a>
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">fn </span>find_message_by_log(<span class="kw-2">&amp;</span><span class="self">self</span>, log: <span class="kw-2">&amp;</span><a href="../../log.rs.html#187-193">Log</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="../../../../gear_common/auxiliary/mailbox/type.MailboxedMessage.html">MailboxedMessage</a>&gt; {
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">fn </span>find_message_by_log(<span class="kw-2">&amp;</span><span class="self">self</span>, log: <span class="kw-2">&amp;</span><a href="../../log.rs.html#187-193">Log</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;MailboxedMessage&gt; {
 <a href=#166 id=166 data-nosnippet>166</a>        <a class="self" href="#165">self</a>.<a href="#170-174">get_user_mailbox</a>()
 <a href=#167 id=167 data-nosnippet>167</a>            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.find_map">find_map</a>(|(msg, <span class="kw">_</span>)| <a href="#165">log</a>.<a href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html#tymethod.eq">eq</a>(<span class="kw-2">&amp;</span><a href="#167">msg</a>).<a href="https://doc.rust-lang.org/nightly/core/foreigntype.bool.html#method.then_some">then_some</a>(<a href="#167">msg</a>))
 <a href=#168 id=168 data-nosnippet>168</a>    }
 <a href=#169 id=169 data-nosnippet>169</a>
 <a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">fn </span>get_user_mailbox(
 <a href=#171 id=171 data-nosnippet>171</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#172 id=172 data-nosnippet>172</a>    ) -&gt; <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">Iterator</a>&lt;Item = (<a href="../../../../gear_common/auxiliary/mailbox/type.MailboxedMessage.html">MailboxedMessage</a>, <a href="../../../../gear_common/storage/primitives/struct.Interval.html">Interval</a>&lt;<a href="../../../../gear_common/auxiliary/type.BlockNumber.html">BlockNumber</a>&gt;)&gt; + <span class="kw">use</span>&lt;&gt; {
+<a href=#172 id=172 data-nosnippet>172</a>    ) -&gt; <span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html">Iterator</a>&lt;Item = (MailboxedMessage, Interval&lt;BlockNumber&gt;)&gt; + <span class="kw">use</span>&lt;&gt; {
 <a href=#173 id=173 data-nosnippet>173</a>        <a class="self" href="#171">self</a>.manager.<a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html#method.borrow">borrow</a>().mailbox.<a href="manager.rs.html#54-59">iter_key</a>(<a class="self" href="#171">self</a>.user_id)
 <a href=#174 id=174 data-nosnippet>174</a>    }
 <a href=#175 id=175 data-nosnippet>175</a>}

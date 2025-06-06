@@ -21,7 +21,7 @@
 <a href=#21 id=21 data-nosnippet>21</a>#![doc(html_favicon_url = <span class="string">"https://gear-tech.io/favicons/favicon.ico"</span>)]
 <a href=#22 id=22 data-nosnippet>22</a>#![allow(clippy::manual_inspect)]
 <a href=#23 id=23 data-nosnippet>23</a>
-<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span>common::{<a href="../../gear_common/storage/index.html">storage</a>::<span class="kw-2">*</span>, <a href="../../gear_common/trait.DelegateFee.html">DelegateFee</a>, <a href="../../gear_common/trait.ExtractCall.html">ExtractCall</a>};
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span>common::{storage::<span class="kw-2">*</span>, DelegateFee, ExtractCall};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>frame_support::{
 <a href=#26 id=26 data-nosnippet>26</a>    dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
 <a href=#27 id=27 data-nosnippet>27</a>    pallet_prelude::<span class="kw-2">*</span>,
@@ -190,7 +190,7 @@
 <a href=#190 id=190 data-nosnippet>190</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html">Cow</a>&lt;<span class="lifetime">'a</span>, &lt;T <span class="kw">as </span>frame_system::Config&gt;::AccountId&gt; {
 <a href=#191 id=191 data-nosnippet>191</a>        <span class="comment">// Check if the extrinsic being called allows to charge fee payment to another account.
 <a href=#192 id=192 data-nosnippet>192</a>        // The only such call at the moment is `GearVoucher::call`.
-<a href=#193 id=193 data-nosnippet>193</a>        </span><span class="kw">if let </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(acc) = <a href="../../gear_common/trait.DelegateFee.html#tymethod.delegate_fee">T::DelegateFee::delegate_fee</a>(<a href="#188">call</a>, <a href="#189">who</a>) {
+<a href=#193 id=193 data-nosnippet>193</a>        </span><span class="kw">if let </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(acc) = T::DelegateFee::delegate_fee(<a href="#188">call</a>, <a href="#189">who</a>) {
 <a href=#194 id=194 data-nosnippet>194</a>            <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Owned">Cow::Owned</a>(<a href="#193">acc</a>)
 <a href=#195 id=195 data-nosnippet>195</a>        } <span class="kw">else </span>{
 <a href=#196 id=196 data-nosnippet>196</a>            <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Borrowed">Cow::Borrowed</a>(<a href="#189">who</a>)
@@ -238,7 +238,7 @@
 <a href=#238 id=238 data-nosnippet>238</a>    <span class="doccomment">/// Modification of the `pallet_transaction_payment::Pallet&lt;T&gt;::query_info()`
 <a href=#239 id=239 data-nosnippet>239</a>    /// that is aware of the transaction fee customization based on a specific call
 <a href=#240 id=240 data-nosnippet>240</a>    </span><span class="kw">pub fn </span>query_info&lt;
-<a href=#241 id=241 data-nosnippet>241</a>        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + <a href="../../gear_common/trait.ExtractCall.html">ExtractCall</a>&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;,
+<a href=#241 id=241 data-nosnippet>241</a>        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;,
 <a href=#242 id=242 data-nosnippet>242</a>    &gt;(
 <a href=#243 id=243 data-nosnippet>243</a>        unchecked_extrinsic: Extrinsic,
 <a href=#244 id=244 data-nosnippet>244</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
@@ -291,7 +291,7 @@
 <a href=#291 id=291 data-nosnippet>291</a>
 <a href=#292 id=292 data-nosnippet>292</a>    <span class="doccomment">/// Modification of the `pallet_transaction_payment::Pallet&lt;T&gt;::query_fee_details()`
 <a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">pub fn </span>query_fee_details&lt;
-<a href=#294 id=294 data-nosnippet>294</a>        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + <a href="../../gear_common/trait.ExtractCall.html">ExtractCall</a>&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;,
+<a href=#294 id=294 data-nosnippet>294</a>        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;,
 <a href=#295 id=295 data-nosnippet>295</a>    &gt;(
 <a href=#296 id=296 data-nosnippet>296</a>        unchecked_extrinsic: Extrinsic,
 <a href=#297 id=297 data-nosnippet>297</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
@@ -351,10 +351,10 @@
 <a href=#351 id=351 data-nosnippet>351</a>        </span><span class="kw">type </span>ExtraFeeCallFilter: Contains&lt;<a href="#46">CallOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
 <a href=#352 id=352 data-nosnippet>352</a>
 <a href=#353 id=353 data-nosnippet>353</a>        <span class="doccomment">/// Filter for a call that delegates fee payment to another account
-<a href=#354 id=354 data-nosnippet>354</a>        </span><span class="kw">type </span>DelegateFee: <a href="../../gear_common/trait.DelegateFee.html">DelegateFee</a>&lt;<a href="#46">CallOf</a>&lt;<span class="self">Self</span>&gt;, <a href="#43">AccountIdOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
+<a href=#354 id=354 data-nosnippet>354</a>        </span><span class="kw">type </span>DelegateFee: DelegateFee&lt;<a href="#46">CallOf</a>&lt;<span class="self">Self</span>&gt;, <a href="#43">AccountIdOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
 <a href=#355 id=355 data-nosnippet>355</a>
 <a href=#356 id=356 data-nosnippet>356</a>        <span class="doccomment">/// Type representing message queue
-<a href=#357 id=357 data-nosnippet>357</a>        </span><span class="kw">type </span>Messenger: <a href="../../gear_common/storage/complex/messenger/trait.Messenger.html">Messenger</a>&lt;Capacity = <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;;
+<a href=#357 id=357 data-nosnippet>357</a>        </span><span class="kw">type </span>Messenger: Messenger&lt;Capacity = <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;;
 <a href=#358 id=358 data-nosnippet>358</a>    }
 <a href=#359 id=359 data-nosnippet>359</a>
 <a href=#360 id=360 data-nosnippet>360</a>    <span class="attr">#[pallet::pallet]

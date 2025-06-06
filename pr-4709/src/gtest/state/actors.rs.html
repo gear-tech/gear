@@ -20,12 +20,12 @@
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use </span>std::{<a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">cell::RefCell</a>, <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">collections::BTreeMap</a>, <a href="https://doc.rust-lang.org/nightly/alloc/fmt/index.html">fmt</a>};
 <a href=#22 id=22 data-nosnippet>22</a>
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><a href="../../../gear_core_processor/common/struct.ExecutableActorData.html">core_processor::common::ExecutableActorData</a>;
-<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>gear_common::{ActorId, CodeId, <a href="../../../gear_core/pages/type.GearPage.html">GearPage</a>, MessageId, <a href="../../../gear_core/memory/struct.PageBuf.html">PageBuf</a>};
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>core_processor::common::ExecutableActorData;
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>gear_common::{ActorId, CodeId, GearPage, MessageId, PageBuf};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>gear_core::{
-<a href=#26 id=26 data-nosnippet>26</a>    <a href="../../../gear_core/code/instrumented/struct.InstrumentedCode.html">code::InstrumentedCode</a>,
-<a href=#27 id=27 data-nosnippet>27</a>    pages::{numerated::tree::IntervalsTree, <a href="../../../gear_core/pages/type.WasmPage.html">WasmPage</a>},
-<a href=#28 id=28 data-nosnippet>28</a>    <a href="../../../gear_core/reservation/type.GasReservationMap.html">reservation::GasReservationMap</a>,
+<a href=#26 id=26 data-nosnippet>26</a>    code::InstrumentedCode,
+<a href=#27 id=27 data-nosnippet>27</a>    pages::{numerated::tree::IntervalsTree, WasmPage},
+<a href=#28 id=28 data-nosnippet>28</a>    reservation::GasReservationMap,
 <a href=#29 id=29 data-nosnippet>29</a>};
 <a href=#30 id=30 data-nosnippet>30</a>
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span><a href="../program.rs.html#99-127"><span class="kw">crate</span>::WasmProgram</a>;
@@ -165,12 +165,12 @@
 <a href=#165 id=165 data-nosnippet>165</a>    }
 <a href=#166 id=166 data-nosnippet>166</a>
 <a href=#167 id=167 data-nosnippet>167</a>    <span class="comment">// Returns pages data of genuine program.
-<a href=#168 id=168 data-nosnippet>168</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_pages_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../../gear_core/pages/type.GearPage.html">GearPage</a>, <a href="../../../gear_core/memory/struct.PageBuf.html">PageBuf</a>&gt;&gt; {
+<a href=#168 id=168 data-nosnippet>168</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_pages_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;GearPage, PageBuf&gt;&gt; {
 <a href=#169 id=169 data-nosnippet>169</a>        <a class="self" href="#168">self</a>.<a href="#150-156">genuine_program</a>().<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <span class="kw-2">&amp;</span><a href="#169">program</a>.pages_data)
 <a href=#170 id=170 data-nosnippet>170</a>    }
 <a href=#171 id=171 data-nosnippet>171</a>
 <a href=#172 id=172 data-nosnippet>172</a>    <span class="comment">// Returns pages data of genuine program but mutable.
-<a href=#173 id=173 data-nosnippet>173</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_pages_data_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../../gear_core/pages/type.GearPage.html">GearPage</a>, <a href="../../../gear_core/memory/struct.PageBuf.html">PageBuf</a>&gt;&gt; {
+<a href=#173 id=173 data-nosnippet>173</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_pages_data_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;GearPage, PageBuf&gt;&gt; {
 <a href=#174 id=174 data-nosnippet>174</a>        <a class="self" href="#173">self</a>.<a href="#159-165">genuine_program_mut</a>()
 <a href=#175 id=175 data-nosnippet>175</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|program| <span class="kw-2">&amp;mut </span><a href="#175">program</a>.pages_data)
 <a href=#176 id=176 data-nosnippet>176</a>    }
@@ -197,7 +197,7 @@
 <a href=#197 id=197 data-nosnippet>197</a>    <span class="comment">// Gets a new executable actor derived from the inner program.
 <a href=#198 id=198 data-nosnippet>198</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_executable_actor_data(
 <a href=#199 id=199 data-nosnippet>199</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#200 id=200 data-nosnippet>200</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(<a href="../../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a>, <a href="../../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>)&gt; {
+<a href=#200 id=200 data-nosnippet>200</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(ExecutableActorData, InstrumentedCode)&gt; {
 <a href=#201 id=201 data-nosnippet>201</a>        <a class="self" href="#199">self</a>.<a href="#150-156">genuine_program</a>()
 <a href=#202 id=202 data-nosnippet>202</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(GenuineProgram::executable_actor_data)
 <a href=#203 id=203 data-nosnippet>203</a>    }
@@ -206,20 +206,20 @@
 <a href=#206 id=206 data-nosnippet>206</a><span class="attr">#[derive(Debug, Clone)]
 <a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>GenuineProgram {
 <a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">pub </span>code_id: CodeId,
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">pub </span>code: <a href="../../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>,
-<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">pub </span>allocations: IntervalsTree&lt;<a href="../../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;,
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">pub </span>pages_data: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../../gear_core/pages/type.GearPage.html">GearPage</a>, <a href="../../../gear_core/memory/struct.PageBuf.html">PageBuf</a>&gt;,
-<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">pub </span>gas_reservation_map: <a href="../../../gear_core/reservation/type.GasReservationMap.html">GasReservationMap</a>,
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">pub </span>code: InstrumentedCode,
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">pub </span>allocations: IntervalsTree&lt;WasmPage&gt;,
+<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">pub </span>pages_data: <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;GearPage, PageBuf&gt;,
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">pub </span>gas_reservation_map: GasReservationMap,
 <a href=#213 id=213 data-nosnippet>213</a>}
 <a href=#214 id=214 data-nosnippet>214</a>
 <a href=#215 id=215 data-nosnippet>215</a><span class="kw">impl </span><a href="#207-213">GenuineProgram</a> {
-<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>executable_actor_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<a href="../../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a>, <a href="../../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>) {
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>executable_actor_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (ExecutableActorData, InstrumentedCode) {
 <a href=#217 id=217 data-nosnippet>217</a>        (
-<a href=#218 id=218 data-nosnippet>218</a>            <a href="../../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a> {
+<a href=#218 id=218 data-nosnippet>218</a>            ExecutableActorData {
 <a href=#219 id=219 data-nosnippet>219</a>                allocations: <a class="self" href="#216">self</a>.allocations.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
 <a href=#220 id=220 data-nosnippet>220</a>                code_id: <a class="self" href="#216">self</a>.code_id,
-<a href=#221 id=221 data-nosnippet>221</a>                code_exports: <a class="self" href="#216">self</a>.code.<a href="../../../gear_core/code/instrumented/struct.InstrumentedCode.html#method.exports">exports</a>().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
-<a href=#222 id=222 data-nosnippet>222</a>                static_pages: <a class="self" href="#216">self</a>.code.<a href="../../../gear_core/code/instrumented/struct.InstrumentedCode.html#method.static_pages">static_pages</a>(),
+<a href=#221 id=221 data-nosnippet>221</a>                code_exports: <a class="self" href="#216">self</a>.code.exports().<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
+<a href=#222 id=222 data-nosnippet>222</a>                static_pages: <a class="self" href="#216">self</a>.code.static_pages(),
 <a href=#223 id=223 data-nosnippet>223</a>                gas_reservation_map: <a class="self" href="#216">self</a>.gas_reservation_map.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>(),
 <a href=#224 id=224 data-nosnippet>224</a>                memory_infix: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),
 <a href=#225 id=225 data-nosnippet>225</a>            },

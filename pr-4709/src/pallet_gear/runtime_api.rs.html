@@ -21,9 +21,9 @@
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html">core::convert::TryFrom</a>;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>gear_core::{
-<a href=#24 id=24 data-nosnippet>24</a>    <a href="../../gear_core/code/struct.TryNewCodeConfig.html">code::TryNewCodeConfig</a>,
-<a href=#25 id=25 data-nosnippet>25</a>    pages::{numerated::tree::IntervalsTree, <a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>},
-<a href=#26 id=26 data-nosnippet>26</a>    program::{<a href="../../gear_core/program/struct.ActiveProgram.html">ActiveProgram</a>, <a href="../../gear_core/program/struct.MemoryInfix.html">MemoryInfix</a>},
+<a href=#24 id=24 data-nosnippet>24</a>    code::TryNewCodeConfig,
+<a href=#25 id=25 data-nosnippet>25</a>    pages::{numerated::tree::IntervalsTree, WasmPage},
+<a href=#26 id=26 data-nosnippet>26</a>    program::{ActiveProgram, MemoryInfix},
 <a href=#27 id=27 data-nosnippet>27</a>    <a href="../../pallet_gear/struct.ReplyInfo.html">rpc::ReplyInfo</a>,
 <a href=#28 id=28 data-nosnippet>28</a>};
 <a href=#29 id=29 data-nosnippet>29</a><span class="kw">use </span>gear_wasm_instrument::syscalls::SyscallName;
@@ -35,14 +35,14 @@
 <a href=#35 id=35 data-nosnippet>35</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>ALLOWANCE_LIMIT_ERR: <span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <span class="string">"Calculation gas limit exceeded. Use your own RPC node with `--rpc-calculations-multiplier` parameter raised"</span>;
 <a href=#36 id=36 data-nosnippet>36</a>
 <a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CodeWithMemoryData {
-<a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">pub </span>instrumented_code: <a href="../../gear_core/code/instrumented/struct.InstrumentedCode.html">InstrumentedCode</a>,
-<a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">pub </span>allocations: IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;,
-<a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">pub </span>memory_infix: <a href="../../gear_core/program/struct.MemoryInfix.html">MemoryInfix</a>,
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">pub </span>instrumented_code: InstrumentedCode,
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">pub </span>allocations: IntervalsTree&lt;WasmPage&gt;,
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">pub </span>memory_infix: MemoryInfix,
 <a href=#41 id=41 data-nosnippet>41</a>}
 <a href=#42 id=42 data-nosnippet>42</a>
 <a href=#43 id=43 data-nosnippet>43</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="lib.rs.html#303">Pallet</a>&lt;T&gt;
 <a href=#44 id=44 data-nosnippet>44</a><span class="kw">where
-<a href=#45 id=45 data-nosnippet>45</a>    </span>T::AccountId: <a href="../../gear_common/trait.Origin.html">Origin</a>,
+<a href=#45 id=45 data-nosnippet>45</a>    </span>T::AccountId: Origin,
 <a href=#46 id=46 data-nosnippet>46</a>{
 <a href=#47 id=47 data-nosnippet>47</a>    <span class="comment">// Internal implementation of RPC call `gear_calculate_replyForHandle(..)`.
 <a href=#48 id=48 data-nosnippet>48</a>    //
@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>        </span><a href="#698-701"><span class="self">Self</span>::update_gas_allowance</a>(<a href="#67">gas_allowance</a>);
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a>        <span class="comment">// Casting types into runtime assoc-s.
-<a href=#73 id=73 data-nosnippet>73</a>        </span><span class="kw">let </span>origin = <a href="#52">origin</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>();
+<a href=#73 id=73 data-nosnippet>73</a>        </span><span class="kw">let </span>origin = <a href="#52">origin</a>.cast();
 <a href=#74 id=74 data-nosnippet>74</a>        <span class="kw">let </span>value = <a href="#56">value</a>.unique_saturated_into();
 <a href=#75 id=75 data-nosnippet>75</a>
 <a href=#76 id=76 data-nosnippet>76</a>        <span class="comment">// Preparing origin balance for extrinsic expenses.
@@ -158,7 +158,7 @@
 <a href=#158 id=158 data-nosnippet>158</a>        </span><a href="#698-701"><span class="self">Self</span>::update_gas_allowance</a>(<a href="#153">gas_allowance</a>);
 <a href=#159 id=159 data-nosnippet>159</a>
 <a href=#160 id=160 data-nosnippet>160</a>        <span class="comment">// Casting types into runtime assoc-s.
-<a href=#161 id=161 data-nosnippet>161</a>        </span><span class="kw">let </span>origin = <a href="#136">origin</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>();
+<a href=#161 id=161 data-nosnippet>161</a>        </span><span class="kw">let </span>origin = <a href="#136">origin</a>.cast();
 <a href=#162 id=162 data-nosnippet>162</a>        <span class="kw">let </span>value = <a href="#140">value</a>.unique_saturated_into();
 <a href=#163 id=163 data-nosnippet>163</a>
 <a href=#164 id=164 data-nosnippet>164</a>        <span class="comment">// Preparing origin balance for extrinsic expenses.
@@ -395,10 +395,10 @@
 <a href=#395 id=395 data-nosnippet>395</a>            <span class="kw">return </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<span class="string">"Wasm too big"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
 <a href=#396 id=396 data-nosnippet>396</a>        }
 <a href=#397 id=397 data-nosnippet>397</a>
-<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>code = <a href="../../gear_core/code/struct.Code.html#method.try_new_mock_with_rules">Code::try_new_mock_with_rules</a>(
+<a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">let </span>code = Code::try_new_mock_with_rules(
 <a href=#399 id=399 data-nosnippet>399</a>            <a href="#386">wasm</a>,
 <a href=#400 id=400 data-nosnippet>400</a>            |module| <a href="#392">schedule</a>.<a href="schedule.rs.html#1552-1564">rules</a>(<a href="#400">module</a>),
-<a href=#401 id=401 data-nosnippet>401</a>            <a href="../../gear_core/code/struct.TryNewCodeConfig.html#method.new_no_exports_check">TryNewCodeConfig::new_no_exports_check</a>(),
+<a href=#401 id=401 data-nosnippet>401</a>            TryNewCodeConfig::new_no_exports_check(),
 <a href=#402 id=402 data-nosnippet>402</a>        )
 <a href=#403 id=403 data-nosnippet>403</a>        .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Failed to construct program: {e:?}"</span>))<span class="question-mark">?</span>;
 <a href=#404 id=404 data-nosnippet>404</a>
@@ -406,10 +406,10 @@
 <a href=#406 id=406 data-nosnippet>406</a>            <span class="kw">return </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<span class="string">"Wasm after instrumentation too big"</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>());
 <a href=#407 id=407 data-nosnippet>407</a>        }
 <a href=#408 id=408 data-nosnippet>408</a>
-<a href=#409 id=409 data-nosnippet>409</a>        <span class="kw">let </span>code_and_id = <a href="../../gear_core/code/struct.CodeAndId.html#method.new">CodeAndId::new</a>(<a href="#398">code</a>);
+<a href=#409 id=409 data-nosnippet>409</a>        <span class="kw">let </span>code_and_id = CodeAndId::new(<a href="#398">code</a>);
 <a href=#410 id=410 data-nosnippet>410</a>        <span class="kw">let </span>code_and_id = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">InstrumentedCodeAndId::from</a>(<a href="#409">code_and_id</a>);
 <a href=#411 id=411 data-nosnippet>411</a>
-<a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span>instrumented_code = <a href="#410">code_and_id</a>.<a href="../../gear_core/code/instrumented/struct.InstrumentedCodeAndId.html#method.into_parts">into_parts</a>().<span class="number">0</span>;
+<a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span>instrumented_code = <a href="#410">code_and_id</a>.into_parts().<span class="number">0</span>;
 <a href=#413 id=413 data-nosnippet>413</a>
 <a href=#414 id=414 data-nosnippet>414</a>        <span class="kw">let </span>payload_arg = <a href="#384">payload</a>;
 <a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">let </span><span class="kw-2">mut </span>payload = <a href="#387">argument</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_default">unwrap_or_default</a>();
@@ -419,7 +419,7 @@
 <a href=#419 id=419 data-nosnippet>419</a>            <a href="#388">allowance_multiplier</a>,
 <a href=#420 id=420 data-nosnippet>420</a>        )<span class="question-mark">?</span>);
 <a href=#421 id=421 data-nosnippet>421</a>
-<a href=#422 id=422 data-nosnippet>422</a>        <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+<a href=#422 id=422 data-nosnippet>422</a>        <span class="kw">let </span>block_info = BlockInfo {
 <a href=#423 id=423 data-nosnippet>423</a>            height: <a href="lib.rs.html#537-539"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
 <a href=#424 id=424 data-nosnippet>424</a>            timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
 <a href=#425 id=425 data-nosnippet>425</a>        };
@@ -430,7 +430,7 @@
 <a href=#430 id=430 data-nosnippet>430</a>
 <a href=#431 id=431 data-nosnippet>431</a>        <a href="#698-701"><span class="self">Self</span>::update_gas_allowance</a>(<a href="#427">gas_allowance</a>);
 <a href=#432 id=432 data-nosnippet>432</a>
-<a href=#433 id=433 data-nosnippet>433</a>        <a href="../../gear_core_processor/executor/fn.execute_for_reply.html">core_processor::informational::execute_for_reply</a>::&lt;<a href="lib.rs.html#112">Ext</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;(
+<a href=#433 id=433 data-nosnippet>433</a>        core_processor::informational::execute_for_reply::&lt;<a href="lib.rs.html#112">Ext</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;(
 <a href=#434 id=434 data-nosnippet>434</a>            <a href="#385">function</a>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
 <a href=#435 id=435 data-nosnippet>435</a>            <a href="#412">instrumented_code</a>,
 <a href=#436 id=436 data-nosnippet>436</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.None">None</a>,
@@ -456,7 +456,7 @@
 <a href=#456 id=456 data-nosnippet>456</a>            memory_infix,
 <a href=#457 id=457 data-nosnippet>457</a>        } = <a href="#521-550"><span class="self">Self</span>::code_with_memory</a>(<a href="#445">program_id</a>)<span class="question-mark">?</span>;
 <a href=#458 id=458 data-nosnippet>458</a>
-<a href=#459 id=459 data-nosnippet>459</a>        <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+<a href=#459 id=459 data-nosnippet>459</a>        <span class="kw">let </span>block_info = BlockInfo {
 <a href=#460 id=460 data-nosnippet>460</a>            height: <a href="lib.rs.html#537-539"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
 <a href=#461 id=461 data-nosnippet>461</a>            timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
 <a href=#462 id=462 data-nosnippet>462</a>        };
@@ -467,7 +467,7 @@
 <a href=#467 id=467 data-nosnippet>467</a>
 <a href=#468 id=468 data-nosnippet>468</a>        <a href="#698-701"><span class="self">Self</span>::update_gas_allowance</a>(<a href="#464">gas_allowance</a>);
 <a href=#469 id=469 data-nosnippet>469</a>
-<a href=#470 id=470 data-nosnippet>470</a>        <a href="../../gear_core_processor/executor/fn.execute_for_reply.html">core_processor::informational::execute_for_reply</a>::&lt;<a href="lib.rs.html#112">Ext</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;(
+<a href=#470 id=470 data-nosnippet>470</a>        core_processor::informational::execute_for_reply::&lt;<a href="lib.rs.html#112">Ext</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;(
 <a href=#471 id=471 data-nosnippet>471</a>            <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">String::from</a>(<span class="string">"state"</span>),
 <a href=#472 id=472 data-nosnippet>472</a>            <a href="#454">instrumented_code</a>,
 <a href=#473 id=473 data-nosnippet>473</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(<a href="#455">allocations</a>),
@@ -492,7 +492,7 @@
 <a href=#492 id=492 data-nosnippet>492</a>            memory_infix,
 <a href=#493 id=493 data-nosnippet>493</a>        } = <a href="#521-550"><span class="self">Self</span>::code_with_memory</a>(<a href="#482">program_id</a>)<span class="question-mark">?</span>;
 <a href=#494 id=494 data-nosnippet>494</a>
-<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+<a href=#495 id=495 data-nosnippet>495</a>        <span class="kw">let </span>block_info = BlockInfo {
 <a href=#496 id=496 data-nosnippet>496</a>            height: <a href="lib.rs.html#537-539"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
 <a href=#497 id=497 data-nosnippet>497</a>            timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
 <a href=#498 id=498 data-nosnippet>498</a>        };
@@ -503,7 +503,7 @@
 <a href=#503 id=503 data-nosnippet>503</a>
 <a href=#504 id=504 data-nosnippet>504</a>        <a href="#698-701"><span class="self">Self</span>::update_gas_allowance</a>(<a href="#500">gas_allowance</a>);
 <a href=#505 id=505 data-nosnippet>505</a>
-<a href=#506 id=506 data-nosnippet>506</a>        <a href="../../gear_core_processor/executor/fn.execute_for_reply.html">core_processor::informational::execute_for_reply</a>::&lt;<a href="lib.rs.html#112">Ext</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;(
+<a href=#506 id=506 data-nosnippet>506</a>        core_processor::informational::execute_for_reply::&lt;<a href="lib.rs.html#112">Ext</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;(
 <a href=#507 id=507 data-nosnippet>507</a>            <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">String::from</a>(<span class="string">"metahash"</span>),
 <a href=#508 id=508 data-nosnippet>508</a>            <a href="#490">instrumented_code</a>,
 <a href=#509 id=509 data-nosnippet>509</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(<a href="#491">allocations</a>),
@@ -520,15 +520,15 @@
 <a href=#520 id=520 data-nosnippet>520</a>    <span class="comment">// Returns code and allocations of the given program id.
 <a href=#521 id=521 data-nosnippet>521</a>    </span><span class="kw">fn </span>code_with_memory(program_id: ActorId) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="#37-41">CodeWithMemoryData</a>, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {
 <a href=#522 id=522 data-nosnippet>522</a>        <span class="comment">// Load active program from storage.
-<a href=#523 id=523 data-nosnippet>523</a>        </span><span class="kw">let </span>program: <a href="../../gear_core/program/struct.ActiveProgram.html">ActiveProgram</a>&lt;<span class="kw">_</span>&gt; = <a href="lib.rs.html#138">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#521">program_id</a>)
+<a href=#523 id=523 data-nosnippet>523</a>        </span><span class="kw">let </span>program: ActiveProgram&lt;<span class="kw">_</span>&gt; = <a href="lib.rs.html#138">ProgramStorageOf</a>::&lt;T&gt;::get_program(<a href="#521">program_id</a>)
 <a href=#524 id=524 data-nosnippet>524</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">String::from</a>(<span class="string">"Program not found"</span>))<span class="question-mark">?
 <a href=#525 id=525 data-nosnippet>525</a>            </span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
 <a href=#526 id=526 data-nosnippet>526</a>            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|e| <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Get active program error: {e:?}"</span>))<span class="question-mark">?</span>;
 <a href=#527 id=527 data-nosnippet>527</a>
-<a href=#528 id=528 data-nosnippet>528</a>        <span class="kw">let </span>code_id = <a href="#523">program</a>.code_hash.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>();
+<a href=#528 id=528 data-nosnippet>528</a>        <span class="kw">let </span>code_id = <a href="#523">program</a>.code_hash.cast();
 <a href=#529 id=529 data-nosnippet>529</a>
 <a href=#530 id=530 data-nosnippet>530</a>        <span class="comment">// Load instrumented binary code from storage.
-<a href=#531 id=531 data-nosnippet>531</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>code = <a href="../../gear_common/code_storage/trait.CodeStorage.html#tymethod.get_code">T::CodeStorage::get_code</a>(<a href="#528">code_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or_else">ok_or_else</a>(|| {
+<a href=#531 id=531 data-nosnippet>531</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>code = T::CodeStorage::get_code(<a href="#528">code_id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or_else">ok_or_else</a>(|| {
 <a href=#532 id=532 data-nosnippet>532</a>            <a class="macro" href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format!</a>(<span class="string">"Program '{program_id:?}' exists so must do code '{code_id:?}'"</span>)
 <a href=#533 id=533 data-nosnippet>533</a>        })<span class="question-mark">?</span>;
 <a href=#534 id=534 data-nosnippet>534</a>
@@ -564,7 +564,7 @@
 <a href=#564 id=564 data-nosnippet>564</a>        );
 <a href=#565 id=565 data-nosnippet>565</a>
 <a href=#566 id=566 data-nosnippet>566</a>        <span class="comment">// Calculating amount of value to be paid for gas.
-<a href=#567 id=567 data-nosnippet>567</a>        </span><span class="kw">let </span>value_for_gas = &lt;T <span class="kw">as </span>pallet_gear_bank::Config&gt;::GasMultiplier::get().<a href="../../gear_common/enum.GasMultiplier.html#method.gas_to_value">gas_to_value</a>(<a href="#555">gas</a>);
+<a href=#567 id=567 data-nosnippet>567</a>        </span><span class="kw">let </span>value_for_gas = &lt;T <span class="kw">as </span>pallet_gear_bank::Config&gt;::GasMultiplier::get().gas_to_value(<a href="#555">gas</a>);
 <a href=#568 id=568 data-nosnippet>568</a>
 <a href=#569 id=569 data-nosnippet>569</a>        <span class="comment">// Required balance of the account.
 <a href=#570 id=570 data-nosnippet>570</a>        </span><span class="kw">let </span>required_balance = <a href="lib.rs.html#115">CurrencyOf</a>::&lt;T&gt;::minimum_balance()
@@ -587,7 +587,7 @@
 <a href=#587 id=587 data-nosnippet>587</a>    </span><span class="kw">fn </span>dequeue_head_and_run(
 <a href=#588 id=588 data-nosnippet>588</a>        ext_manager: <span class="kw-2">&amp;mut </span><a href="manager/mod.rs.html#137-150">ExtManager</a>&lt;T&gt;,
 <a href=#589 id=589 data-nosnippet>589</a>        forbidden_funcs: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/set/struct.BTreeSet.html">BTreeSet</a>&lt;SyscallName&gt;&gt;,
-<a href=#590 id=590 data-nosnippet>590</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(<a href="../../gear_core/message/common/struct.Dispatch.html">Dispatch</a>, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt;, <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {
+<a href=#590 id=590 data-nosnippet>590</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(Dispatch, <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;JournalNote&gt;, <a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>)&gt;, <a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {
 <a href=#591 id=591 data-nosnippet>591</a>        <span class="comment">// Extracting queued dispatch.
 <a href=#592 id=592 data-nosnippet>592</a>        </span><span class="kw">let </span>head =
 <a href=#593 id=593 data-nosnippet>593</a>            <a href="lib.rs.html#122">QueueOf</a>::&lt;T&gt;::dequeue().<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="#704-709"><span class="self">Self</span>::internal_err_string</a>(<span class="string">"Queue corrupted"</span>))<span class="question-mark">?</span>;
@@ -597,27 +597,27 @@
 <a href=#597 id=597 data-nosnippet>597</a>        };
 <a href=#598 id=598 data-nosnippet>598</a>
 <a href=#599 id=599 data-nosnippet>599</a>        <span class="comment">// Extracting destination from dispatch.
-<a href=#600 id=600 data-nosnippet>600</a>        </span><span class="kw">let </span>destination = <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.destination">destination</a>();
+<a href=#600 id=600 data-nosnippet>600</a>        </span><span class="kw">let </span>destination = <a href="#595">dispatch</a>.destination();
 <a href=#601 id=601 data-nosnippet>601</a>
 <a href=#602 id=602 data-nosnippet>602</a>        <span class="comment">// Querying gas limit for dispatch.
-<a href=#603 id=603 data-nosnippet>603</a>        </span><span class="kw">let </span>gas_limit = <a href="lib.rs.html#134">GasHandlerOf</a>::&lt;T&gt;::get_limit(<a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>())
+<a href=#603 id=603 data-nosnippet>603</a>        </span><span class="kw">let </span>gas_limit = <a href="lib.rs.html#134">GasHandlerOf</a>::&lt;T&gt;::get_limit(<a href="#595">dispatch</a>.id())
 <a href=#604 id=604 data-nosnippet>604</a>            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="#704-709"><span class="self">Self</span>::internal_err_string</a>(<span class="string">"Failed to get gas limit"</span>))<span class="question-mark">?</span>;
 <a href=#605 id=605 data-nosnippet>605</a>
 <a href=#606 id=606 data-nosnippet>606</a>        <span class="comment">// Storing processed dispatch.
-<a href=#607 id=607 data-nosnippet>607</a>        </span><span class="kw">let </span>processed = <a href="../../gear_core/message/common/struct.Dispatch.html#method.new">Dispatch::new</a>(
-<a href=#608 id=608 data-nosnippet>608</a>            <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredDispatch.html#method.kind">kind</a>(),
-<a href=#609 id=609 data-nosnippet>609</a>            <a href="../../gear_core/message/common/struct.Message.html#method.new">Message::new</a>(
-<a href=#610 id=610 data-nosnippet>610</a>                <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>(),
-<a href=#611 id=611 data-nosnippet>611</a>                <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.source">source</a>(),
-<a href=#612 id=612 data-nosnippet>612</a>                <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.destination">destination</a>(),
+<a href=#607 id=607 data-nosnippet>607</a>        </span><span class="kw">let </span>processed = Dispatch::new(
+<a href=#608 id=608 data-nosnippet>608</a>            <a href="#595">dispatch</a>.kind(),
+<a href=#609 id=609 data-nosnippet>609</a>            Message::new(
+<a href=#610 id=610 data-nosnippet>610</a>                <a href="#595">dispatch</a>.id(),
+<a href=#611 id=611 data-nosnippet>611</a>                <a href="#595">dispatch</a>.source(),
+<a href=#612 id=612 data-nosnippet>612</a>                <a href="#595">dispatch</a>.destination(),
 <a href=#613 id=613 data-nosnippet>613</a>                <a href="#595">dispatch</a>
-<a href=#614 id=614 data-nosnippet>614</a>                    .<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.payload_bytes">payload_bytes</a>()
+<a href=#614 id=614 data-nosnippet>614</a>                    .payload_bytes()
 <a href=#615 id=615 data-nosnippet>615</a>                    .<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.slice.html#method.to_vec">to_vec</a>()
 <a href=#616 id=616 data-nosnippet>616</a>                    .<a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryInto.html#tymethod.try_into">try_into</a>()
 <a href=#617 id=617 data-nosnippet>617</a>                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.expect">expect</a>(<span class="string">"Infallible"</span>),
 <a href=#618 id=618 data-nosnippet>618</a>                <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(<a href="#603">gas_limit</a>),
-<a href=#619 id=619 data-nosnippet>619</a>                <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.value">value</a>(),
-<a href=#620 id=620 data-nosnippet>620</a>                <a href="#595">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.details">details</a>(),
+<a href=#619 id=619 data-nosnippet>619</a>                <a href="#595">dispatch</a>.value(),
+<a href=#620 id=620 data-nosnippet>620</a>                <a href="#595">dispatch</a>.details(),
 <a href=#621 id=621 data-nosnippet>621</a>            ),
 <a href=#622 id=622 data-nosnippet>622</a>        );
 <a href=#623 id=623 data-nosnippet>623</a>
@@ -636,7 +636,7 @@
 <a href=#636 id=636 data-nosnippet>636</a>
 <a href=#637 id=637 data-nosnippet>637</a>        <span class="comment">// Program's balance that it can spend during a message execution.
 <a href=#638 id=638 data-nosnippet>638</a>        </span><span class="kw">let </span>disposable_balance = &lt;<a href="lib.rs.html#115">CurrencyOf</a>&lt;T&gt; <span class="kw">as </span>fungible::Inspect&lt;<span class="kw">_</span>&gt;&gt;::reducible_balance(
-<a href=#639 id=639 data-nosnippet>639</a>            <span class="kw-2">&amp;</span><a href="#600">destination</a>.<a href="../../gear_common/trait.Origin.html#tymethod.cast">cast</a>(),
+<a href=#639 id=639 data-nosnippet>639</a>            <span class="kw-2">&amp;</span><a href="#600">destination</a>.cast(),
 <a href=#640 id=640 data-nosnippet>640</a>            Preservation::Expendable,
 <a href=#641 id=641 data-nosnippet>641</a>            Fortitude::Polite,
 <a href=#642 id=642 data-nosnippet>642</a>        );
@@ -689,7 +689,7 @@
 <a href=#689 id=689 data-nosnippet>689</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or_else">ok_or_else</a>(|| <a href="#704-709"><span class="self">Self</span>::internal_err_string</a>(<span class="string">"Failed to get last message from the queue"</span>))
 <a href=#690 id=690 data-nosnippet>690</a>            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.and_then">and_then</a>(|queued| {
 <a href=#691 id=691 data-nosnippet>691</a>                <a href="#690">queued</a>
-<a href=#692 id=692 data-nosnippet>692</a>                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|dispatch| (<a href="#692">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>(), <a href="#692">dispatch</a>.<a href="../../gear_core/message/stored/struct.StoredMessage.html#method.destination">destination</a>()))
+<a href=#692 id=692 data-nosnippet>692</a>                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|dispatch| (<a href="#692">dispatch</a>.id(), <a href="#692">dispatch</a>.destination()))
 <a href=#693 id=693 data-nosnippet>693</a>                    .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map_err">map_err</a>(|<span class="kw">_</span>| <a href="#704-709"><span class="self">Self</span>::internal_err_string</a>(<span class="string">"Failed to extract queued dispatch"</span>))
 <a href=#694 id=694 data-nosnippet>694</a>            })
 <a href=#695 id=695 data-nosnippet>695</a>    }

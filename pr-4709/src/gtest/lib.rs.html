@@ -516,7 +516,7 @@
 <a href=#516 id=516 data-nosnippet>516</a></span><span class="kw">pub mod </span><a href="../../gtest/constants/index.html">constants</a> {
 <a href=#517 id=517 data-nosnippet>517</a>    <span class="comment">/* Constant types */
 <a href=#518 id=518 data-nosnippet>518</a>
-<a href=#519 id=519 data-nosnippet>519</a>    </span><span class="kw">use </span><a href="../../gear_common/enum.GasMultiplier.html">gear_common::GasMultiplier</a>;
+<a href=#519 id=519 data-nosnippet>519</a>    </span><span class="kw">use </span>gear_common::GasMultiplier;
 <a href=#520 id=520 data-nosnippet>520</a>
 <a href=#521 id=521 data-nosnippet>521</a>    <span class="doccomment">/// Numeric type representing value in Gear protocol.
 <a href=#522 id=522 data-nosnippet>522</a>    </span><span class="kw">pub type </span><a href="../../gtest/constants/type.Value.html">Value</a> = <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>;
@@ -537,7 +537,7 @@
 <a href=#537 id=537 data-nosnippet>537</a>    </span><span class="kw">pub const </span><a href="../../gtest/constants/constant.MAX_USER_GAS_LIMIT.html">MAX_USER_GAS_LIMIT</a>: <a href="#525">Gas</a> = <span class="number">750_000_000_000</span>;
 <a href=#538 id=538 data-nosnippet>538</a>
 <a href=#539 id=539 data-nosnippet>539</a>    <span class="doccomment">/// Gas multiplier used to calculate equivalence of gas in token value.
-<a href=#540 id=540 data-nosnippet>540</a>    </span><span class="kw">pub const </span><a href="../../gtest/constants/constant.GAS_MULTIPLIER.html">GAS_MULTIPLIER</a>: <a href="../../gear_common/enum.GasMultiplier.html">GasMultiplier</a>&lt;<a href="#522">Value</a>, <a href="#525">Gas</a>&gt; = <a href="../../gear_common/enum.GasMultiplier.html#variant.ValuePerGas">GasMultiplier::ValuePerGas</a>(<a href="#550">VALUE_PER_GAS</a>);
+<a href=#540 id=540 data-nosnippet>540</a>    </span><span class="kw">pub const </span><a href="../../gtest/constants/constant.GAS_MULTIPLIER.html">GAS_MULTIPLIER</a>: GasMultiplier&lt;<a href="#522">Value</a>, <a href="#525">Gas</a>&gt; = GasMultiplier::ValuePerGas(<a href="#550">VALUE_PER_GAS</a>);
 <a href=#541 id=541 data-nosnippet>541</a>
 <a href=#542 id=542 data-nosnippet>542</a>    <span class="comment">/* Currency-related constants */
 <a href=#543 id=543 data-nosnippet>543</a>

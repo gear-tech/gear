@@ -20,15 +20,15 @@
 <a href=#20 id=20 data-nosnippet>20</a>//! sane default schedule from a `WeightInfo` implementation.
 <a href=#21 id=21 data-nosnippet>21</a>
 <a href=#22 id=22 data-nosnippet>22</a></span><span class="kw">use crate</span>::{<a href="weights.rs.html#40-232">weights::WeightInfo</a>, <a href="lib.rs.html#170-298">Config</a>, <a href="lib.rs.html#129">CostsPerBlockOf</a>, <a href="lib.rs.html#118">DbWeightOf</a>};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><a href="../../gear_common/scheduler/trait.SchedulingCostsPerBlock.html">common::scheduler::SchedulingCostsPerBlock</a>;
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>common::scheduler::SchedulingCostsPerBlock;
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>frame_support::{traits::Get, weights::Weight};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>gear_core::{
-<a href=#26 id=26 data-nosnippet>26</a>    <a href="../../gear_core/code/utils/constant.MAX_WASM_PAGES_AMOUNT.html">code::MAX_WASM_PAGES_AMOUNT</a>,
+<a href=#26 id=26 data-nosnippet>26</a>    code::MAX_WASM_PAGES_AMOUNT,
 <a href=#27 id=27 data-nosnippet>27</a>    costs::{
-<a href=#28 id=28 data-nosnippet>28</a>        <a href="../../gear_core/costs/struct.ExtCosts.html">ExtCosts</a>, <a href="../../gear_core/costs/struct.InstantiationCosts.html">InstantiationCosts</a>, <a href="../../gear_core/costs/struct.IoCosts.html">IoCosts</a>, <a href="../../gear_core/costs/struct.LazyPagesCosts.html">LazyPagesCosts</a>, <a href="../../gear_core/costs/struct.PagesCosts.html">PagesCosts</a>, <a href="../../gear_core/costs/struct.ProcessCosts.html">ProcessCosts</a>, <a href="../../gear_core/costs/struct.RentCosts.html">RentCosts</a>,
-<a href=#29 id=29 data-nosnippet>29</a>        <a href="../../gear_core/costs/struct.SyscallCosts.html">SyscallCosts</a>,
+<a href=#28 id=28 data-nosnippet>28</a>        ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
+<a href=#29 id=29 data-nosnippet>29</a>        SyscallCosts,
 <a href=#30 id=30 data-nosnippet>30</a>    },
-<a href=#31 id=31 data-nosnippet>31</a>    pages::{<a href="../../gear_core/pages/type.GearPage.html">GearPage</a>, <a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>},
+<a href=#31 id=31 data-nosnippet>31</a>    pages::{GearPage, WasmPage},
 <a href=#32 id=32 data-nosnippet>32</a>};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>gear_wasm_instrument::{
 <a href=#34 id=34 data-nosnippet>34</a>    gas_metering::{MemoryGrowCost, Rules},
@@ -823,13 +823,13 @@
 <a href=#823 id=823 data-nosnippet>823</a>            globals: <span class="number">256</span>,
 <a href=#824 id=824 data-nosnippet>824</a>            locals: <span class="number">1024</span>,
 <a href=#825 id=825 data-nosnippet>825</a>            parameters: <span class="number">128</span>,
-<a href=#826 id=826 data-nosnippet>826</a>            memory_pages: <a href="../../gear_core/code/utils/constant.MAX_WASM_PAGES_AMOUNT.html">MAX_WASM_PAGES_AMOUNT</a>,
+<a href=#826 id=826 data-nosnippet>826</a>            memory_pages: MAX_WASM_PAGES_AMOUNT,
 <a href=#827 id=827 data-nosnippet>827</a>            <span class="comment">// 4k function pointers (This is in count not bytes).
 <a href=#828 id=828 data-nosnippet>828</a>            </span>table_size: <span class="number">4096</span>,
 <a href=#829 id=829 data-nosnippet>829</a>            br_table_size: <span class="number">256</span>,
 <a href=#830 id=830 data-nosnippet>830</a>            subject_len: <span class="number">32</span>,
 <a href=#831 id=831 data-nosnippet>831</a>            call_depth: <span class="number">32</span>,
-<a href=#832 id=832 data-nosnippet>832</a>            payload_len: <a href="../../gear_core/buffer/constant.MAX_PAYLOAD_SIZE.html">gear_core::buffer::MAX_PAYLOAD_SIZE</a> <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+<a href=#832 id=832 data-nosnippet>832</a>            payload_len: gear_core::buffer::MAX_PAYLOAD_SIZE <span class="kw">as </span><a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
 <a href=#833 id=833 data-nosnippet>833</a>            code_len: <span class="number">512 </span>* <span class="number">1024</span>,
 <a href=#834 id=834 data-nosnippet>834</a>        }
 <a href=#835 id=835 data-nosnippet>835</a>    }
@@ -1136,7 +1136,7 @@
 <a href=#1136 id=1136 data-nosnippet>1136</a>    }
 <a href=#1137 id=1137 data-nosnippet>1137</a>}
 <a href=#1138 id=1138 data-nosnippet>1138</a>
-<a href=#1139 id=1139 data-nosnippet>1139</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#353-568">SyscallWeights</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="../../gear_core/costs/struct.SyscallCosts.html">SyscallCosts</a> {
+<a href=#1139 id=1139 data-nosnippet>1139</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#353-568">SyscallWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>SyscallCosts {
 <a href=#1140 id=1140 data-nosnippet>1140</a>    <span class="kw">fn </span>from(val: <a href="#353-568">SyscallWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
 <a href=#1141 id=1141 data-nosnippet>1141</a>        <span class="self">Self </span>{
 <a href=#1142 id=1142 data-nosnippet>1142</a>            alloc: <a href="#1140">val</a>.alloc.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -1292,7 +1292,7 @@
 <a href=#1292 id=1292 data-nosnippet>1292</a>    }
 <a href=#1293 id=1293 data-nosnippet>1293</a>}
 <a href=#1294 id=1294 data-nosnippet>1294</a>
-<a href=#1295 id=1295 data-nosnippet>1295</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#583-627">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="../../gear_core/costs/struct.IoCosts.html">IoCosts</a> {
+<a href=#1295 id=1295 data-nosnippet>1295</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#583-627">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>IoCosts {
 <a href=#1296 id=1296 data-nosnippet>1296</a>    <span class="kw">fn </span>from(val: <a href="#583-627">MemoryWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
 <a href=#1297 id=1297 data-nosnippet>1297</a>        <span class="self">Self </span>{
 <a href=#1298 id=1298 data-nosnippet>1298</a>            common: <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">PagesCosts::from</a>(<a href="#1296">val</a>.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>()),
@@ -1301,7 +1301,7 @@
 <a href=#1301 id=1301 data-nosnippet>1301</a>    }
 <a href=#1302 id=1302 data-nosnippet>1302</a>}
 <a href=#1303 id=1303 data-nosnippet>1303</a>
-<a href=#1304 id=1304 data-nosnippet>1304</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#583-627">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="../../gear_core/costs/struct.PagesCosts.html">PagesCosts</a> {
+<a href=#1304 id=1304 data-nosnippet>1304</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#583-627">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>PagesCosts {
 <a href=#1305 id=1305 data-nosnippet>1305</a>    <span class="kw">fn </span>from(val: <a href="#583-627">MemoryWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
 <a href=#1306 id=1306 data-nosnippet>1306</a>        <span class="self">Self </span>{
 <a href=#1307 id=1307 data-nosnippet>1307</a>            load_page_data: <a href="#1305">val</a>.load_page_data.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -1313,7 +1313,7 @@
 <a href=#1313 id=1313 data-nosnippet>1313</a>    }
 <a href=#1314 id=1314 data-nosnippet>1314</a>}
 <a href=#1315 id=1315 data-nosnippet>1315</a>
-<a href=#1316 id=1316 data-nosnippet>1316</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#583-627">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="../../gear_core/costs/struct.LazyPagesCosts.html">LazyPagesCosts</a> {
+<a href=#1316 id=1316 data-nosnippet>1316</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#583-627">MemoryWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>LazyPagesCosts {
 <a href=#1317 id=1317 data-nosnippet>1317</a>    <span class="kw">fn </span>from(val: <a href="#583-627">MemoryWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
 <a href=#1318 id=1318 data-nosnippet>1318</a>        <span class="self">Self </span>{
 <a href=#1319 id=1319 data-nosnippet>1319</a>            signal_read: <a href="#1317">val</a>.lazy_pages_signal_read.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -1360,7 +1360,7 @@
 <a href=#1360 id=1360 data-nosnippet>1360</a>    }
 <a href=#1361 id=1361 data-nosnippet>1361</a>}
 <a href=#1362 id=1362 data-nosnippet>1362</a>
-<a href=#1363 id=1363 data-nosnippet>1363</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#662-677">RentWeights</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="../../gear_core/costs/struct.RentCosts.html">RentCosts</a> {
+<a href=#1363 id=1363 data-nosnippet>1363</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#662-677">RentWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>RentCosts {
 <a href=#1364 id=1364 data-nosnippet>1364</a>    <span class="kw">fn </span>from(val: <a href="#662-677">RentWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
 <a href=#1365 id=1365 data-nosnippet>1365</a>        <span class="self">Self </span>{
 <a href=#1366 id=1366 data-nosnippet>1366</a>            waitlist: <a href="#1364">val</a>.waitlist.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -1398,7 +1398,7 @@
 <a href=#1398 id=1398 data-nosnippet>1398</a>    }
 <a href=#1399 id=1399 data-nosnippet>1399</a>}
 <a href=#1400 id=1400 data-nosnippet>1400</a>
-<a href=#1401 id=1401 data-nosnippet>1401</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#633-656">InstantiationWeights</a>&lt;T&gt;&gt; <span class="kw">for </span><a href="../../gear_core/costs/struct.InstantiationCosts.html">InstantiationCosts</a> {
+<a href=#1401 id=1401 data-nosnippet>1401</a><span class="kw">impl</span>&lt;T: <a href="lib.rs.html#170-298">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="#633-656">InstantiationWeights</a>&lt;T&gt;&gt; <span class="kw">for </span>InstantiationCosts {
 <a href=#1402 id=1402 data-nosnippet>1402</a>    <span class="kw">fn </span>from(val: <a href="#633-656">InstantiationWeights</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
 <a href=#1403 id=1403 data-nosnippet>1403</a>        <span class="self">Self </span>{
 <a href=#1404 id=1404 data-nosnippet>1404</a>            code_section_per_byte: <a href="#1402">val</a>.code_section_per_byte.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
@@ -1563,9 +1563,9 @@
 <a href=#1563 id=1563 data-nosnippet>1563</a>        }
 <a href=#1564 id=1564 data-nosnippet>1564</a>    }
 <a href=#1565 id=1565 data-nosnippet>1565</a>
-<a href=#1566 id=1566 data-nosnippet>1566</a>    <span class="kw">pub fn </span>process_costs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../gear_core/costs/struct.ProcessCosts.html">ProcessCosts</a> {
-<a href=#1567 id=1567 data-nosnippet>1567</a>        <a href="../../gear_core/costs/struct.ProcessCosts.html">ProcessCosts</a> {
-<a href=#1568 id=1568 data-nosnippet>1568</a>            ext: <a href="../../gear_core/costs/struct.ExtCosts.html">ExtCosts</a> {
+<a href=#1566 id=1566 data-nosnippet>1566</a>    <span class="kw">pub fn </span>process_costs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProcessCosts {
+<a href=#1567 id=1567 data-nosnippet>1567</a>        ProcessCosts {
+<a href=#1568 id=1568 data-nosnippet>1568</a>            ext: ExtCosts {
 <a href=#1569 id=1569 data-nosnippet>1569</a>                syscalls: <a class="self" href="#1566">self</a>.syscall_weights.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
 <a href=#1570 id=1570 data-nosnippet>1570</a>                rent: <a class="self" href="#1566">self</a>.rent_weights.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
 <a href=#1571 id=1571 data-nosnippet>1571</a>                mem_grow: <a class="self" href="#1566">self</a>.memory_weights.mem_grow.ref_time().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
