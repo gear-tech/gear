@@ -4,15 +4,15 @@ runs:
   using: composite
   steps:
     - name: "Install cargo-xwin"
-      run: |
-        wget -qO - https://api.github.com/repos/rust-cross/cargo-xwin/releases | \
-        jq -r '.[0].assets.[] | select(.name | endswith("x86_64-unknown-linux-musl.tar.gz")) | .browser_download_url' | \
-        xargs wget -qO - | \
-        tar -xzf - -C ${CARGO_HOME:-~/.cargo}/bin/
-        
-        echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
+      run: >-
+        wget -qO - https://api.github.com/repos/rust-cross/cargo-xwin/releases |
+        jq -r '.[0].assets.[] | select(.name | endswith("x86_64-unknown-linux-musl.tar.gz")) | .browser_download_url' |
+        xargs wget -qO - |
+        tar -xzf - -C ${CARGO_HOME:-~/.cargo}/bin
       shell: bash
-    - run: cargo xwin --version >> ${{ runner.temp }}/cargo-xwin-version.txt
+    - run: |
+        echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
+        cargo xwin --version >> ${{ runner.temp }}/cargo-xwin-version.txt
       shell: bash
     - name: "Cache MSVC CRT"
       uses: actions/cache@v4
