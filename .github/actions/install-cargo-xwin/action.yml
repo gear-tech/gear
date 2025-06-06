@@ -5,9 +5,9 @@ runs:
   steps:
     - run: |
         if [[ "${{ runner.arch }}" == "ARM64" ]]; then
-          echo "value=aarch64"
+          echo "value=aarch64" >> $GITHUB_OUTPUT
         elif [[ "${{ runner.arch }}" == "X64" ]]; then
-          echo "value=x86_64"
+          echo "value=x86_64" >> $GITHUB_OUTPUT
         else
           echo "Unsupported arch"
           exit 1
