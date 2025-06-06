@@ -24,20 +24,20 @@ use anyhow::{anyhow, Result};
 use core::num::NonZero;
 use ethexe_common::{
     gear::{Message, StateTransition, ValueClaim},
-    BlockHeader, ProgramStatesMap, Schedule, ScheduledTask, StateHashWithQueueSize,
+    BlockHeader, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
 };
 use gprimitives::{ActorId, H256};
 
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
-    states: ProgramStatesMap,
+    states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
 }
 
 impl InBlockTransitions {
-    pub fn new(header: BlockHeader, states: ProgramStatesMap, schedule: Schedule) -> Self {
+    pub fn new(header: BlockHeader, states: ProgramStates, schedule: Schedule) -> Self {
         Self {
             header,
             states,
@@ -153,7 +153,7 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStatesMap, Schedule) {
+    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule) {
         let Self {
             states,
             schedule,

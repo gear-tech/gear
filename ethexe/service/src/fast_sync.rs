@@ -27,7 +27,7 @@ use ethexe_common::{
     },
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::CodeCommitment,
-    ProgramStatesMap, StateHashWithQueueSize,
+    ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -353,7 +353,7 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     program_states: BTreeMap<ActorId, H256>,
-) -> ProgramStatesMap {
+) -> ProgramStates {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
         PayloadLookup::Stored(hash) => {

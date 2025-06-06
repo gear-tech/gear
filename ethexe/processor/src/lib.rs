@@ -23,7 +23,7 @@ use ethexe_common::{
     db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    ProgramStatesMap, Schedule,
+    ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -45,7 +45,7 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
-    pub states: ProgramStatesMap,
+    pub states: ProgramStates,
     pub schedule: Schedule,
 }
 

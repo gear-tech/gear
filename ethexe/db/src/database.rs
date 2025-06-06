@@ -31,7 +31,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeBlobInfo, ProgramStatesMap, Schedule,
+    BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -300,7 +300,7 @@ impl BlockMetaStorageRead for Database {
         self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
     }
 
-    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStatesMap> {
+    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
         self.kv
             .get(&Key::BlockProgramStates(block_hash).to_bytes())
             .map(|data| {
@@ -374,7 +374,7 @@ impl BlockMetaStorageWrite for Database {
         });
     }
 
-    fn set_block_program_states(&self, block_hash: H256, map: ProgramStatesMap) {
+    fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {
         log::trace!("For block {block_hash} set program states: {map:?}");
         self.kv.put(
             &Key::BlockProgramStates(block_hash).to_bytes(),

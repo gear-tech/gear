@@ -25,7 +25,7 @@ use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
-pub type ProgramStatesMap = BTreeMap<ActorId, StateHashWithQueueSize>;
+pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
