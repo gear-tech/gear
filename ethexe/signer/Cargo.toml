@@ -12,7 +12,8 @@ repository.workspace = true
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
 
-anyhow = { workspace = true, features = ["std"] }
+# anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 derive_more.workspace = true
 tempfile.workspace = true

@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
-use anyhow::Result;
+use crate::{
+    storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage},
+    Result, SignerError,
+};
 use ethexe_common::{
     ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
     Address, Digest,
