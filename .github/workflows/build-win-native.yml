@@ -41,11 +41,11 @@ jobs:
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
-      - name: "Install: cargo-xwin"
-        uses: ./.github/actions/install-cargo-xwin
-
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: cargo-xwin"
+        uses: ./.github/actions/install-cargo-xwin
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
