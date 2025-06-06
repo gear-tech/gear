@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Context as _, Result};
+// use anyhow::{anyhow, Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
 use std::time::Duration;

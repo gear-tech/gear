@@ -25,6 +25,25 @@ use std::path::PathBuf;
 mod commands;
 mod params;
 
+<<<<<<< Updated upstream
+=======
+#[derive(thiserror::Error, Debug)]
+pub enum CliError {
+    // `KeyCommand` errors
+    #[error("failed to parse eth address key: {0}")]
+    InvalidEthAddressKey(#[from] hex::FromHexError),
+    #[error("unrecognized eth address key: {0}")]
+    UnrecognizedAddressKey(Address),
+
+    #[error("signature isn't 65 bytes len")]
+    InvalidSignatureLength,
+    #[error("invalid signature")]
+    InvalidSignature,
+    #[error("failed to recover signature from digest")]
+    RecoverSignatureFailed,
+}
+
+>>>>>>> Stashed changes
 #[derive(Debug, Parser)]
 pub struct Cli {
     /// Path to the TOML config file. If not provided, the default path "./.ethexe.toml" is used. To disable parsing of the config file, use "none".

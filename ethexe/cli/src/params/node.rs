@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
-use anyhow::{ensure, Context, Result};
+// use anyhow::{ensure, Context, Result};
 use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};

@@ -4957,11 +4957,11 @@ name = "ethexe-signer"
 version = "1.8.1"
 dependencies = [
  "alloy",
- "anyhow",
  "derive_more 2.0.1",
  "ethexe-common",
  "parity-scale-codec",
  "tempfile",
+ "thiserror 1.0.62",
 ]
 
 [[package]]

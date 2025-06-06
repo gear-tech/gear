@@ -123,18 +123,17 @@ impl KeyCommand {
                 let key = key.strip_prefix("0x").unwrap_or(&key);
 
                 let public = if key.len() == 66 {
-                    key.parse().with_context(|| "invalid `key`")?
+                    key.parse()?
                 } else if key.len() == 40 {
                     let mut address_bytes = [0u8; 20];
-                    hex::decode_to_slice(key, &mut address_bytes)
-                        .map_err(|e| anyhow!("Failed to parse eth address hex: {e}"))
-                        .with_context(|| "invalid `key`")?;
+                    hex::decode_to_slice(key, &mut address_bytes)?;
 
                     signer
                         .storage()
                         .get_key_by_addr(address_bytes.into())?
-                        .ok_or_else(|| anyhow!("Unrecognized eth address"))
-                        .with_context(|| "invalid `key`")?
+                        .ok_or(CliError::UnrecognizedAddressKey(address_bytes.into()))?
+                    // .ok_or_else(|| anyhow!("Unrecognized eth address"))
+                    // .with_context(|| "invalid `key`")?
                 } else {
                     bail!("Invalid key length: should be 33 bytes public key or 20 bytes eth address ");
                 };
