@@ -28,7 +28,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeInfo, Schedule,
+    BlockHeader, CodeBlobInfo, Schedule, StateHashWithQueueSize,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -326,7 +326,10 @@ impl BlockMetaStorage for Database {
         });
     }
 
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>> {
+    fn block_program_states(
+        &self,
+        block_hash: H256,
+    ) -> Option<BTreeMap<ActorId, StateHashWithQueueSize>> {
         self.kv
             .get(&Key::BlockProgramStates(block_hash).to_bytes())
             .map(|data| {
@@ -335,7 +338,11 @@ impl BlockMetaStorage for Database {
             })
     }
 
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>) {
+    fn set_block_program_states(
+        &self,
+        block_hash: H256,
+        map: BTreeMap<ActorId, StateHashWithQueueSize>,
+    ) {
         log::trace!("For block {block_hash} set program states: {map:?}");
         self.kv.put(
             &Key::BlockProgramStates(block_hash).to_bytes(),
@@ -633,7 +640,7 @@ impl OnChainStorage for Database {
             .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
     }
 
-    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo> {
+    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo> {
         self.kv
             .get(&Key::CodeUploadInfo(code_id).to_bytes())
             .map(|data| {
@@ -641,7 +648,7 @@ impl OnChainStorage for Database {
             })
     }
 
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo) {
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
         self.kv
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
@@ -968,7 +975,7 @@ mod tests {
         let db = Database::memory();
 
         let code_id = CodeId::default();
-        let code_info = CodeInfo::default();
+        let code_info = CodeBlobInfo::default();
         db.set_code_blob_info(code_id, code_info.clone());
         assert_eq!(db.code_blob_info(code_id), Some(code_info));
     }

@@ -76,10 +76,10 @@ mod tests {
         let actor_id_encoded = actor_id.abi_encode();
         assert_eq!(address_encoded.as_slice(), actor_id_encoded.as_slice());
 
-        let actor_id_decoded = ActorId::abi_decode(actor_id_encoded.as_slice(), false);
+        let actor_id_decoded = ActorId::abi_decode(actor_id_encoded.as_slice());
         assert_eq!(Ok(actor_id), actor_id_decoded);
 
-        let address_decoded = Address::abi_decode(actor_id_encoded.as_slice(), false);
+        let address_decoded = Address::abi_decode(actor_id_encoded.as_slice());
         assert_eq!(Ok(ADDR), address_decoded);
     }
 }

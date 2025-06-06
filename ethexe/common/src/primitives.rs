@@ -83,8 +83,24 @@ impl ToDigest for ProducerBlock {
     }
 }
 
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+pub struct StateHashWithQueueSize {
+    pub hash: H256,
+    pub cached_queue_size: u8,
+}
+
+impl StateHashWithQueueSize {
+    pub fn zero() -> Self {
+        Self {
+            hash: H256::zero(),
+            cached_queue_size: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct CodeInfo {
+pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
 }
