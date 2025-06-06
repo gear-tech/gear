@@ -25,8 +25,6 @@ use std::path::PathBuf;
 mod commands;
 mod params;
 
-<<<<<<< Updated upstream
-=======
 #[derive(thiserror::Error, Debug)]
 pub enum CliError {
     // `KeyCommand` errors
@@ -43,7 +41,6 @@ pub enum CliError {
     RecoverSignatureFailed,
 }
 
->>>>>>> Stashed changes
 #[derive(Debug, Parser)]
 pub struct Cli {
     /// Path to the TOML config file. If not provided, the default path "./.ethexe.toml" is used. To disable parsing of the config file, use "none".
