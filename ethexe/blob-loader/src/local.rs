@@ -18,7 +18,7 @@
 
 use crate::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use anyhow::{anyhow, Result};
-use ethexe_common::db::OnChainStorage;
+use ethexe_common::db::OnChainStorageRead;
 use ethexe_db::Database;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::CodeId;

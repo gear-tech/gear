@@ -18,7 +18,7 @@
 
 use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     events::BlockRequestEvent,
     gear::StateTransition,
     BlockHeader,

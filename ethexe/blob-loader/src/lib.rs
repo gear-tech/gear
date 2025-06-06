@@ -23,7 +23,7 @@ use alloy::{
     rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use anyhow::{anyhow, Result};
-use ethexe_common::db::{CodesStorage, OnChainStorage};
+use ethexe_common::db::{CodesStorageRead, OnChainStorageRead};
 use ethexe_db::Database;
 use futures::{
     future::BoxFuture,

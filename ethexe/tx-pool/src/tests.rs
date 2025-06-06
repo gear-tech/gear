@@ -25,7 +25,7 @@ use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
     BlockHeader,
 };
 use ethexe_db::Database;

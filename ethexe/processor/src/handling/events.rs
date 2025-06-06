@@ -19,7 +19,7 @@
 use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
-    db::CodesStorage,
+    db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
     ScheduledTask,
