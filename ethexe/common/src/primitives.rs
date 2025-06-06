@@ -100,7 +100,7 @@ impl StateHashWithQueueSize {
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct CodeInfo {
+pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
 }

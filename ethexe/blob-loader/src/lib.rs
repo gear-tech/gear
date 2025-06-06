@@ -241,7 +241,6 @@ impl Stream for BlobLoader {
                 Ok(blob_data) => {
                     let code_id = &blob_data.code_id;
                     self.codes_loading.remove(code_id);
-                    self.db.set_original_code(blob_data.code.as_slice());
                     Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
                 }
                 Err(e) => Poll::Ready(Some(Err(e))),
