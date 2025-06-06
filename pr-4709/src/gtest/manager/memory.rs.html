@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>        })<span class="question-mark">?</span>;
 <a href=#36 id=36 data-nosnippet>36</a>
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="kw">if let </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>((data, code)) = <a href="#29">executable_actor_data</a> {
-<a href=#38 id=38 data-nosnippet>38</a>            core_processor::informational::execute_for_reply::&lt;Ext&lt;LazyPagesNative&gt;, <span class="kw">_</span>&gt;(
+<a href=#38 id=38 data-nosnippet>38</a>            <a href="../../../gear_core_processor/executor/fn.execute_for_reply.html">core_processor::informational::execute_for_reply</a>::&lt;<a href="../../../gear_core_processor/ext/struct.Ext.html">Ext</a>&lt;LazyPagesNative&gt;, <span class="kw">_</span>&gt;(
 <a href=#39 id=39 data-nosnippet>39</a>                <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from">String::from</a>(<span class="string">"state"</span>),
 <a href=#40 id=40 data-nosnippet>40</a>                <a href="#37">code</a>,
 <a href=#41 id=41 data-nosnippet>41</a>                <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(<a href="#37">data</a>.allocations),
@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<a href="../error.rs.html#46">TestError::ActorIsNotExecutable</a>(<span class="kw-2">*</span><a href="#27">program_id</a>))
 <a href=#56 id=56 data-nosnippet>56</a>        }
 <a href=#57 id=57 data-nosnippet>57</a>    }
-<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>read_memory_pages(<span class="kw-2">&amp;</span><span class="self">self</span>, program_id: <span class="kw-2">&amp;</span>ActorId) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;GearPage, PageBuf&gt; {
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>read_memory_pages(<span class="kw-2">&amp;</span><span class="self">self</span>, program_id: <span class="kw-2">&amp;</span>ActorId) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">BTreeMap</a>&lt;<a href="../../../gear_core/pages/type.GearPage.html">GearPage</a>, <a href="../../../gear_core/memory/struct.PageBuf.html">PageBuf</a>&gt; {
 <a href=#59 id=59 data-nosnippet>59</a>        <a href="../state/actors.rs.html#42-47">Actors::access</a>(<span class="kw-2">*</span><a href="#58">program_id</a>, |actor| {
 <a href=#60 id=60 data-nosnippet>60</a>            <span class="kw">let </span>program = <span class="kw">match </span><a href="#59">actor</a>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(|| <a class="macro" href="https://doc.rust-lang.org/nightly/std/macro.panic.html">panic!</a>(<span class="string">"Actor id {program_id:?} not found"</span>))
 <a href=#61 id=61 data-nosnippet>61</a>            {

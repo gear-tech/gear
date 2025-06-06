@@ -128,8 +128,8 @@
 <a href=#128 id=128 data-nosnippet>128</a>#![allow(clippy::manual_inspect)]
 <a href=#129 id=129 data-nosnippet>129</a>
 <a href=#130 id=130 data-nosnippet>130</a></span><span class="kw">use </span>common::{
-<a href=#131 id=131 data-nosnippet>131</a>    storage::{MapStorage, ValueStorage},
-<a href=#132 id=132 data-nosnippet>132</a>    BlockLimiter, GasProvider,
+<a href=#131 id=131 data-nosnippet>131</a>    storage::{<a href="../../gear_common/storage/primitives/map/trait.MapStorage.html">MapStorage</a>, <a href="../../gear_common/storage/primitives/value/trait.ValueStorage.html">ValueStorage</a>},
+<a href=#132 id=132 data-nosnippet>132</a>    <a href="../../gear_common/trait.BlockLimiter.html">BlockLimiter</a>, <a href="../../gear_common/gas_provider/trait.Provider.html">GasProvider</a>,
 <a href=#133 id=133 data-nosnippet>133</a>};
 <a href=#134 id=134 data-nosnippet>134</a><span class="kw">use </span>frame_support::{pallet_prelude::<span class="kw-2">*</span>, traits::StorageVersion};
 <a href=#135 id=135 data-nosnippet>135</a><span class="kw">pub use </span><a href="#162-389">pallet</a>::<span class="kw-2">*</span>;
@@ -161,7 +161,7 @@
 <a href=#161 id=161 data-nosnippet>161</a><span class="attr">#[frame_support::pallet]
 <a href=#162 id=162 data-nosnippet>162</a></span><span class="kw">pub mod </span><a href="../../pallet_gear_gas/pallet/index.html">pallet</a> {
 <a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">use </span>common::gas_provider::{Error <span class="kw">as </span>GasError, GasNode, GasNodeId, TreeImpl};
+<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">use </span>common::gas_provider::{<a href="../../gear_common/gas_provider/error/trait.Error.html">Error</a> <span class="kw">as </span>GasError, <a href="../../gear_common/gas_provider/node/enum.GasNode.html">GasNode</a>, <a href="../../gear_common/gas_provider/node/enum.GasNodeId.html">GasNodeId</a>, <a href="../../gear_common/gas_provider/internal/struct.TreeImpl.html">TreeImpl</a>};
 <a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">use </span>frame_system::pallet_prelude::<span class="kw-2">*</span>;
 <a href=#166 id=166 data-nosnippet>166</a>    <span class="kw">use </span>gear_core::ids::{MessageId, ReservationId};
 <a href=#167 id=167 data-nosnippet>167</a>
@@ -224,7 +224,7 @@
 <a href=#224 id=224 data-nosnippet>224</a>        </span>TotalValueIsUnderflowed,
 <a href=#225 id=225 data-nosnippet>225</a>    }
 <a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; GasError <span class="kw">for </span><a href="#182-225">Error</a>&lt;T&gt; {
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; <a href="../../gear_common/gas_provider/error/trait.Error.html">GasError</a> <span class="kw">for </span><a href="#182-225">Error</a>&lt;T&gt; {
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">fn </span>node_already_exists() -&gt; <span class="self">Self </span>{
 <a href=#229 id=229 data-nosnippet>229</a>            <span class="self">Self</span>::NodeAlreadyExists
 <a href=#230 id=230 data-nosnippet>230</a>        }
@@ -300,7 +300,7 @@
 <a href=#300 id=300 data-nosnippet>300</a>    </span><span class="kw">pub type </span><a href="../../pallet_gear_gas/pallet/storage_types/struct.TotalIssuance.html">TotalIssuance</a>&lt;T&gt; = StorageValue&lt;<span class="kw">_</span>, <a href="#293">Balance</a>&gt;;
 <a href=#301 id=301 data-nosnippet>301</a>
 <a href=#302 id=302 data-nosnippet>302</a>    <span class="comment">// Public wrap of the total issuance of gas.
-<a href=#303 id=303 data-nosnippet>303</a>    </span><span class="macro">common::wrap_storage_value!</span>(
+<a href=#303 id=303 data-nosnippet>303</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_value.html">common::wrap_storage_value!</a>(
 <a href=#304 id=304 data-nosnippet>304</a>        storage: TotalIssuance,
 <a href=#305 id=305 data-nosnippet>305</a>        name: <a href="../../pallet_gear_gas/pallet/struct.TotalIssuanceWrap.html">TotalIssuanceWrap</a>,
 <a href=#306 id=306 data-nosnippet>306</a>        value: <a href="#293">Balance</a>
@@ -308,8 +308,8 @@
 <a href=#308 id=308 data-nosnippet>308</a>
 <a href=#309 id=309 data-nosnippet>309</a>    <span class="comment">// ----
 <a href=#310 id=310 data-nosnippet>310</a>
-<a href=#311 id=311 data-nosnippet>311</a>    </span><span class="kw">pub type </span><a href="../../pallet_gear_gas/pallet/type.Key.html">Key</a> = GasNodeId&lt;MessageId, ReservationId&gt;;
-<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">pub type </span><a href="../../pallet_gear_gas/pallet/type.NodeOf.html">NodeOf</a>&lt;T&gt; = GasNode&lt;<a href="#147">AccountIdOf</a>&lt;T&gt;, <a href="#311">Key</a>, <a href="#293">Balance</a>, <a href="#294">Funds</a>&gt;;
+<a href=#311 id=311 data-nosnippet>311</a>    </span><span class="kw">pub type </span><a href="../../pallet_gear_gas/pallet/type.Key.html">Key</a> = <a href="../../gear_common/gas_provider/node/enum.GasNodeId.html">GasNodeId</a>&lt;MessageId, ReservationId&gt;;
+<a href=#312 id=312 data-nosnippet>312</a>    <span class="kw">pub type </span><a href="../../pallet_gear_gas/pallet/type.NodeOf.html">NodeOf</a>&lt;T&gt; = <a href="../../gear_common/gas_provider/node/enum.GasNode.html">GasNode</a>&lt;<a href="#147">AccountIdOf</a>&lt;T&gt;, <a href="#311">Key</a>, <a href="#293">Balance</a>, <a href="#294">Funds</a>&gt;;
 <a href=#313 id=313 data-nosnippet>313</a>
 <a href=#314 id=314 data-nosnippet>314</a>    <span class="comment">// Private storage for nodes of the gas tree.
 <a href=#315 id=315 data-nosnippet>315</a>    </span><span class="attr">#[pallet::storage]
@@ -317,7 +317,7 @@
 <a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">pub type </span><a href="../../pallet_gear_gas/pallet/storage_types/struct.GasNodes.html">GasNodes</a>&lt;T&gt; = StorageMap&lt;<span class="kw">_</span>, Identity, <a href="#311">Key</a>, <a href="#312">NodeOf</a>&lt;T&gt;&gt;;
 <a href=#318 id=318 data-nosnippet>318</a>
 <a href=#319 id=319 data-nosnippet>319</a>    <span class="comment">// Public wrap of the nodes of the gas tree.
-<a href=#320 id=320 data-nosnippet>320</a>    </span><span class="macro">common::wrap_storage_map!</span>(
+<a href=#320 id=320 data-nosnippet>320</a>    </span><a class="macro" href="../../gear_common/macro.wrap_storage_map.html">common::wrap_storage_map!</a>(
 <a href=#321 id=321 data-nosnippet>321</a>        storage: GasNodes,
 <a href=#322 id=322 data-nosnippet>322</a>        name: <a href="../../pallet_gear_gas/pallet/struct.GasNodesWrap.html">GasNodesWrap</a>,
 <a href=#323 id=323 data-nosnippet>323</a>        key: <a href="#311">Key</a>,
@@ -331,7 +331,7 @@
 <a href=#331 id=331 data-nosnippet>331</a>
 <a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">pub struct </span><a href="../../pallet_gear_gas/pallet/struct.GasAllowance.html">GasAllowance</a>&lt;T: <a href="#169-173">Config</a>&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">PhantomData</a>&lt;T&gt;);
 <a href=#333 id=333 data-nosnippet>333</a>
-<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; common::storage::Limiter <span class="kw">for </span><a href="#332">GasAllowance</a>&lt;T&gt; {
+<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; <a href="../../gear_common/storage/complicated/limiter/trait.Limiter.html">common::storage::Limiter</a> <span class="kw">for </span><a href="#332">GasAllowance</a>&lt;T&gt; {
 <a href=#335 id=335 data-nosnippet>335</a>        <span class="kw">type </span>Value = <a href="#293">Balance</a>;
 <a href=#336 id=336 data-nosnippet>336</a>
 <a href=#337 id=337 data-nosnippet>337</a>        <span class="kw">fn </span>get() -&gt; <span class="self">Self</span>::Value {
@@ -347,15 +347,15 @@
 <a href=#347 id=347 data-nosnippet>347</a>        }
 <a href=#348 id=348 data-nosnippet>348</a>    }
 <a href=#349 id=349 data-nosnippet>349</a>
-<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; GasProvider <span class="kw">for </span><a href="#178">Pallet</a>&lt;T&gt; {
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; <a href="../../gear_common/gas_provider/trait.Provider.html">GasProvider</a> <span class="kw">for </span><a href="#178">Pallet</a>&lt;T&gt; {
 <a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">type </span>ExternalOrigin = <a href="#147">AccountIdOf</a>&lt;T&gt;;
-<a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">type </span>NodeId = GasNodeId&lt;MessageId, ReservationId&gt;;
+<a href=#352 id=352 data-nosnippet>352</a>        <span class="kw">type </span>NodeId = <a href="../../gear_common/gas_provider/node/enum.GasNodeId.html">GasNodeId</a>&lt;MessageId, ReservationId&gt;;
 <a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">type </span>Balance = <a href="#293">Balance</a>;
 <a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">type </span>Funds = <a href="#294">Funds</a>;
 <a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">type </span>InternalError = <a href="#182-225">Error</a>&lt;T&gt;;
 <a href=#356 id=356 data-nosnippet>356</a>        <span class="kw">type </span>Error = DispatchError;
 <a href=#357 id=357 data-nosnippet>357</a>
-<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">type </span>GasTree = TreeImpl&lt;
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="kw">type </span>GasTree = <a href="../../gear_common/gas_provider/internal/struct.TreeImpl.html">TreeImpl</a>&lt;
 <a href=#359 id=359 data-nosnippet>359</a>            <a href="#303-307">TotalIssuanceWrap</a>&lt;T&gt;,
 <a href=#360 id=360 data-nosnippet>360</a>            <span class="self">Self</span>::InternalError,
 <a href=#361 id=361 data-nosnippet>361</a>            <span class="self">Self</span>::Error,
@@ -365,7 +365,7 @@
 <a href=#365 id=365 data-nosnippet>365</a>        &gt;;
 <a href=#366 id=366 data-nosnippet>366</a>    }
 <a href=#367 id=367 data-nosnippet>367</a>
-<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; BlockLimiter <span class="kw">for </span><a href="#178">Pallet</a>&lt;T&gt; {
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">impl</span>&lt;T: <a href="#169-173">Config</a>&gt; <a href="../../gear_common/trait.BlockLimiter.html">BlockLimiter</a> <span class="kw">for </span><a href="#178">Pallet</a>&lt;T&gt; {
 <a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">type </span>BlockGasLimit = <a href="#146">BlockGasLimitOf</a>&lt;T&gt;;
 <a href=#370 id=370 data-nosnippet>370</a>
 <a href=#371 id=371 data-nosnippet>371</a>        <span class="kw">type </span>Balance = <a href="#293">Balance</a>;

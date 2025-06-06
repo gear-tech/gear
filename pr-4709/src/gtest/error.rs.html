@@ -16,8 +16,8 @@
 <a href=#16 id=16 data-nosnippet>16</a>// You should have received a copy of the GNU General Public License
 <a href=#17 id=17 data-nosnippet>17</a>// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 <a href=#18 id=18 data-nosnippet>18</a>
-<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">use </span>gear_core::{ids::ActorId, pages::WasmPage};
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>gear_core_errors::ExtError;
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">use </span>gear_core::{ids::ActorId, <a href="../../gear_core/pages/type.WasmPage.html">pages::WasmPage</a>};
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><a href="../../gear_core_errors/enum.ExtError.html">gear_core_errors::ExtError</a>;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>parity_scale_codec::Error <span class="kw">as </span>CodecError;
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// Type alias for the testing functions running result.
@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>
 <a href=#52 id=52 data-nosnippet>52</a>    <span class="doccomment">/// Insufficient memory.
 <a href=#53 id=53 data-nosnippet>53</a>    </span><span class="attr">#[display(<span class="string">"Insufficient memory: available {_0:?} &lt; requested {_1:?}"</span>)]
-<a href=#54 id=54 data-nosnippet>54</a>    </span>InsufficientMemory(WasmPage, WasmPage),
+<a href=#54 id=54 data-nosnippet>54</a>    </span>InsufficientMemory(<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>, <a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>),
 <a href=#55 id=55 data-nosnippet>55</a>
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="doccomment">/// Invalid import module.
 <a href=#57 id=57 data-nosnippet>57</a>    </span><span class="attr">#[from(ignore)]
@@ -64,10 +64,10 @@
 <a href=#64 id=64 data-nosnippet>64</a>    </span>UnsupportedFunction(<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>),
 <a href=#65 id=65 data-nosnippet>65</a>
 <a href=#66 id=66 data-nosnippet>66</a>    <span class="doccomment">/// Wrapper for [`ExtError`].
-<a href=#67 id=67 data-nosnippet>67</a>    </span>ExecutionError(ExtError),
+<a href=#67 id=67 data-nosnippet>67</a>    </span>ExecutionError(<a href="../../gear_core_errors/enum.ExtError.html">ExtError</a>),
 <a href=#68 id=68 data-nosnippet>68</a>
 <a href=#69 id=69 data-nosnippet>69</a>    <span class="doccomment">/// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
-<a href=#70 id=70 data-nosnippet>70</a>    </span>MemoryError(gear_core_errors::MemoryError),
+<a href=#70 id=70 data-nosnippet>70</a>    </span>MemoryError(<a href="../../gear_core_errors/enum.MemoryError.html">gear_core_errors::MemoryError</a>),
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
 <a href=#73 id=73 data-nosnippet>73</a>    </span>ScaleCodecError(CodecError),

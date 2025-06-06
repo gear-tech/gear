@@ -19,15 +19,15 @@
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="doccomment">//! Various reservation related methods for ExtManager
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">use </span><a href="../manager.rs.html#88-116"><span class="kw">super</span>::ExtManager</a>;
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>gear_common::{scheduler::StorageType, storage::Interval, ActorId, ReservationId};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>gear_common::{<a href="../../../gear_common/scheduler/enum.StorageType.html">scheduler::StorageType</a>, <a href="../../../gear_common/storage/primitives/struct.Interval.html">storage::Interval</a>, ActorId, ReservationId};
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>gear_core::{<a href="../../../gear_core/reservation/struct.GasReservationSlot.html">reservation::GasReservationSlot</a>, <a href="../../../gear_core/tasks/enum.ScheduledTask.html">tasks::ScheduledTask</a>};
 <a href=#24 id=24 data-nosnippet>24</a>
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">impl </span><a href="../manager.rs.html#88-116">ExtManager</a> {
 <a href=#26 id=26 data-nosnippet>26</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>remove_gas_reservation_impl(
 <a href=#27 id=27 data-nosnippet>27</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#28 id=28 data-nosnippet>28</a>        program_id: ActorId,
 <a href=#29 id=29 data-nosnippet>29</a>        reservation: ReservationId,
-<a href=#30 id=30 data-nosnippet>30</a>    ) -&gt; GasReservationSlot {
+<a href=#30 id=30 data-nosnippet>30</a>    ) -&gt; <a href="../../../gear_core/reservation/struct.GasReservationSlot.html">GasReservationSlot</a> {
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="kw">let </span>slot = <a class="self" href="#27">self</a>.<a href="../manager.rs.html#250-258">update_genuine_program</a>(<a href="#28">program_id</a>, |p| {
 <a href=#32 id=32 data-nosnippet>32</a>            <a href="#31">p</a>.gas_reservation_map
 <a href=#33 id=33 data-nosnippet>33</a>                .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.remove">remove</a>(<span class="kw-2">&amp;</span><a href="#29">reservation</a>)
@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a>            </span>.task_pool
 <a href=#56 id=56 data-nosnippet>56</a>            .<a href="../state/task_pool.rs.html#66-72">delete</a>(
 <a href=#57 id=57 data-nosnippet>57</a>                <a href="#52">slot</a>.finish,
-<a href=#58 id=58 data-nosnippet>58</a>                ScheduledTask::RemoveGasReservation(<a href="#49">program_id</a>, <a href="#50">reservation</a>),
+<a href=#58 id=58 data-nosnippet>58</a>                <a href="../../../gear_core/tasks/enum.ScheduledTask.html#variant.RemoveGasReservation">ScheduledTask::RemoveGasReservation</a>(<a href="#49">program_id</a>, <a href="#50">reservation</a>),
 <a href=#59 id=59 data-nosnippet>59</a>            )
 <a href=#60 id=60 data-nosnippet>60</a>            .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.map">map</a>(|<span class="kw">_</span>| {
 <a href=#61 id=61 data-nosnippet>61</a>                <a class="self" href="#48">self</a>.<a href="../manager.rs.html#225-228">on_task_pool_change</a>();
@@ -65,14 +65,14 @@
 <a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>remove_gas_reservation_slot(
 <a href=#66 id=66 data-nosnippet>66</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#67 id=67 data-nosnippet>67</a>        reservation: ReservationId,
-<a href=#68 id=68 data-nosnippet>68</a>        slot: GasReservationSlot,
-<a href=#69 id=69 data-nosnippet>69</a>    ) -&gt; GasReservationSlot {
-<a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span>interval = Interval {
+<a href=#68 id=68 data-nosnippet>68</a>        slot: <a href="../../../gear_core/reservation/struct.GasReservationSlot.html">GasReservationSlot</a>,
+<a href=#69 id=69 data-nosnippet>69</a>    ) -&gt; <a href="../../../gear_core/reservation/struct.GasReservationSlot.html">GasReservationSlot</a> {
+<a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span>interval = <a href="../../../gear_common/storage/primitives/struct.Interval.html">Interval</a> {
 <a href=#71 id=71 data-nosnippet>71</a>            start: <a href="#68">slot</a>.start,
 <a href=#72 id=72 data-nosnippet>72</a>            finish: <a href="#68">slot</a>.finish,
 <a href=#73 id=73 data-nosnippet>73</a>        };
 <a href=#74 id=74 data-nosnippet>74</a>
-<a href=#75 id=75 data-nosnippet>75</a>        <a class="self" href="#66">self</a>.<a href="expend.rs.html#101-144">charge_for_hold</a>(<a href="#67">reservation</a>, <a href="#70">interval</a>, StorageType::Reservation);
+<a href=#75 id=75 data-nosnippet>75</a>        <a class="self" href="#66">self</a>.<a href="expend.rs.html#101-144">charge_for_hold</a>(<a href="#67">reservation</a>, <a href="#70">interval</a>, <a href="../../../gear_common/scheduler/enum.StorageType.html#variant.Reservation">StorageType::Reservation</a>);
 <a href=#76 id=76 data-nosnippet>76</a>        <a class="self" href="#66">self</a>.<a href="expend.rs.html#78-99">consume_and_retrieve</a>(<a href="#67">reservation</a>);
 <a href=#77 id=77 data-nosnippet>77</a>
 <a href=#78 id=78 data-nosnippet>78</a>        <a href="#68">slot</a>

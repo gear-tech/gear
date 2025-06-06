@@ -154,7 +154,7 @@
 <a href=#154 id=154 data-nosnippet>154</a>    /// a dependency.
 <a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">pub fn </span>generate(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;()&gt; {
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span>original_manifest = <a class="self" href="#155">self</a>.original_dir.<a href="https://doc.rust-lang.org/nightly/std/path/struct.Path.html#method.join">join</a>(<span class="string">"Cargo.toml"</span>);
-<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span>crate_info = <a href="crate_info.rs.html#43-92">CrateInfo::from_manifest</a>(<span class="kw-2">&amp;</span><a href="#156">original_manifest</a>)<span class="question-mark">?</span>;
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span>crate_info = <a href="crate_info.rs.html#43-93">CrateInfo::from_manifest</a>(<span class="kw-2">&amp;</span><a href="#156">original_manifest</a>)<span class="question-mark">?</span>;
 <a href=#158 id=158 data-nosnippet>158</a>        <a class="self" href="#155">self</a>.file_base_name = <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(<a href="#157">crate_info</a>.snake_case_name.<a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">clone</a>());
 <a href=#159 id=159 data-nosnippet>159</a>
 <a href=#160 id=160 data-nosnippet>160</a>        <span class="kw">let </span><span class="kw-2">mut </span>package = Table::new();
