@@ -32,7 +32,7 @@ pub const PROFILE: &str = if cfg!(debug_assertions) {
 
 fn bin_path(name: &str, profile: &str, wasm: bool) -> String {
     format!(
-        "{manifest_dir}/{target_dir}/{profile}/{name}",
+        "{manifest_dir}/../{target_dir}/{profile}/{name}",
         manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap(),
         target_dir = if wasm { WASM_TARGET } else { TARGET }
     )
