@@ -93,6 +93,7 @@ jobs:
         run: |
           eval $(cargo xwin env)
           cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient \
+              --zstd-level=6 \
               --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
 
       - name: "Build: Lazy pages"
@@ -100,6 +101,7 @@ jobs:
           eval $(cargo xwin env)
           cargo nextest archive --archive-file=lazy_pages_tests.tar.zst \
             -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface \
+            --zstd-level=6 \
             --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
 
       - name: "Build: Cleanup target"
