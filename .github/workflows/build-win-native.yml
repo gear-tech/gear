@@ -177,11 +177,11 @@ jobs:
       - name: "Test: Client tests"
         run: >-
           cargo nextest run --archive-file=gclient_tests.tar.zst
-          --target=x86_64-pc-windows-msvc
+          -E 'platform(target)'
           --workspace-remap=${{ github.workspace }}
 
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run --archive-file=lazy_pages_tests.tar.zst
-          --target=x86_64-pc-windows-msvc
+          -E 'platform(target)'
           --workspace-remap=${{ github.workspace }}
