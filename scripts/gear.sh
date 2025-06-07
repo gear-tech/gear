@@ -12,6 +12,8 @@ CARGO="cargo"
 EXE_RUNNER=""
 EXE_EXTENSION=""
 
+export NEXTEST_PROFILE=ci
+
 . "$SCRIPTS"/common.sh
 
 if [[ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" && "$(uname -o)" != "Msys" ]]; then

@@ -1,0 +1,35 @@
+name: install-cargo-nextest
+
+runs:
+  using: composite
+  steps:
+    - run: |
+        if [[ "${{ runner.arch }}" == "ARM64" ]]; then
+          echo "value=aarch64" >> $GITHUB_OUTPUT
+        elif [[ "${{ runner.arch }}" == "X64" ]]; then
+          echo "value=x86_64" >> $GITHUB_OUTPUT
+        else
+          echo "Unsupported arch"
+          exit 1
+        fi
+      id: arch
+      shell: bash
+    - name: "Install cargo-xwin"
+      uses: robinraju/release-downloader@v1
+      with:
+        repository: 'rust-cross/cargo-xwin'
+        latest: true
+        fileName: '*${{ steps.arch.outputs.value }}-unknown-linux-musl.tar.gz'
+        extract: true
+    - run: |
+        mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin
+        echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
+        cargo xwin --version >> ${{ runner.temp }}/cargo-xwin-version.txt
+      shell: bash
+    - name: "Cache MSVC CRT"
+      uses: actions/cache@v4
+      with:
+        path: /home/runner/.cache/cargo-xwin/xwin
+        key: windows-x86_64-${{ hashFiles(format('{0}/cargo-xwin-version.txt', runner.temp)) }}
+        restore-keys: |
+          windows-x86_64-
