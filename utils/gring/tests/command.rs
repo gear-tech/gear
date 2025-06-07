@@ -19,10 +19,10 @@
 
 use anyhow::{anyhow, Result};
 use gring::{cmd::Command, Keystore};
-use std::{path::PathBuf, process};
+use std::{env, path::PathBuf, process};
 
 fn bin() -> PathBuf {
-    let target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
+    let target = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../target");
     let profile = if cfg!(debug_assertions) {
         "debug"
     } else {

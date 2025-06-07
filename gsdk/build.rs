@@ -19,7 +19,10 @@ fn main() {
         return;
     }
 
-    let generated = format!("{}/{GENERATED_API_PATH}", env!("CARGO_MANIFEST_DIR"));
+    let generated = format!(
+        "{}/{GENERATED_API_PATH}",
+        env::var("CARGO_MANIFEST_DIR").unwrap()
+    );
     fs::write(generated, generate_api()).expect("Failed to write generated api");
 }
 
@@ -30,7 +33,7 @@ fn main() {
 // using an extra tool for doing this is for preventing the
 // build-dependencies slow down the compilation speed.
 fn generate_api() -> Vec<u8> {
-    let root = env!("CARGO_MANIFEST_DIR");
+    let root = env::var("CARGO_MANIFEST_DIR").expect("Environment CARGO_MANIFEST_DIR not found.");
     let profile = env::var("PROFILE").expect("Environment PROFILE not found.");
 
     // NOTE: use vara here since vara includes all pallets gear have,
@@ -39,7 +42,7 @@ fn generate_api() -> Vec<u8> {
         (VARA_RUNTIME_RELATIVE_PATH, VARA_RUNTIME_PKG, vec!["dev"]),
         (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG, vec![]),
     ]
-    .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
+    .map(|(relative_path, pkg, features)| get_path(&root, &profile, relative_path, pkg, features));
 
     // Generate api
     let code = Command::new(api_gen)
