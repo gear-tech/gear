@@ -112,7 +112,7 @@ jobs:
       - name: "ACTIONS: Upload nextest archives"
         uses: actions/upload-artifact@v4
         with:
-          name: nextest-archives
+          name: nextest-archives-${{ matrix.profiles.name }}
           path: "*.tar.zst"
           retention-days: 1
           overwrite: true
@@ -156,7 +156,7 @@ jobs:
       - name: "ACTIONS: Download nextest archives"
         uses: actions/download-artifact@v4
         with:
-          name: nextest-archives
+          name: nextest-archives-${{ matrix.profiles.name }}
 
       - name: "ACTIONS: Download target"
         uses: actions/download-artifact@v4
