@@ -167,9 +167,6 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: ./target/release/calc-stack-height.exe
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - name: "Test: gsdk tests"
         run: >-
           cargo nextest run --archive-file=gsdk_tests.tar.zst
