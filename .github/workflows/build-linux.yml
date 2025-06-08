@@ -1,0 +1,154 @@
+name: Build Linux
+
+on:
+  workflow_call:
+    inputs:
+      profiles:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      profiles:
+        type: string
+        default: '[{ "name": "debug", "flags": "" }]'
+
+jobs:
+  linux:
+    runs-on: [kuberunner, github-runner-02]
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
+      fail-fast: false
+    name: linux (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: "Show: Versioning"
+        run: |
+          ./scripts/gear.sh show
+          forge --version
+
+      - name: "Build: Init"
+        run: ./scripts/gear.sh init cargo
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "Build: Gear"
+        run: ./scripts/gear.sh build gear --locked ${{ matrix.profiles.flags }}
+
+      - name: "Build fuzzer"
+        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profiles.flags }}
+
+      - name: "Check: Vara runtime imports"
+        run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
+
+      - name: "Check: Stack height limit"
+        # no need to run check twice
+        if: ${{ matrix.profiles.name == 'release' }}
+        run: cargo run -p calc-stack-height --release --locked
+
+      - name: "Test: Gear workspace"
+        run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
+
+      - name: "Test: gsdk tests"
+        run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
+
+      - name: "Test: `gcli`"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.profiles.flags }}
+
+      - name: "Test: Client tests"
+        run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
+
+      - name: "Test: Benchmarks in native"
+        run: |
+          # fast benchmark tests before long run
+          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profiles.flags }} bench
+
+      - name: "Test: Benchmarks in WASM"
+        # unoptimized benchmarks take a few hours to run
+        if: ${{ matrix.profiles.name == 'release' }}
+        run: |
+          cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
+          # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
+          # check that read_big_state benchmarks works
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="read_big_state" --heap-pages=4096 --extra
+          # check that signal_stack_limit_exceeded_works benchmarks works
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
+          # check that check/test benchmarks works
+          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
+
+      - name: "Test: Syscalls Wasmi integrity"
+        run: ./scripts/gear.sh test syscalls ${{ matrix.profiles.flags }}
+
+      - name: "Test: `try-runtime` feature tests"
+        run: |
+          cargo test -p "pallet-*" --features try-runtime --locked ${{ matrix.profiles.flags }}
+
+      - name: "Test: Try runtime migrations"
+        run: |
+          echo "---------- Downloading try-runtime CLI ----------"
+          
+          curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
+          chmod +x ./try-runtime
+          
+          
+          echo "---------- Creating Vara Mainnet db snapshot [vara_ci.snap] ----------"
+          
+          time ./try-runtime \
+            create-snapshot \
+            --uri wss://rpc-private.vara-network.io \
+            vara_ci.snap
+          
+          
+          echo "---------- Building Vara Mainnet runtime ----------"
+          
+          time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
+          
+          
+          echo "---------- Executing on-runtime-upgrade for snapshot ----------"
+          
+          time ./try-runtime \
+            --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm \
+            on-runtime-upgrade \
+            --blocktime 3000 \
+            --checks all \
+            --disable-spec-version-check \
+            --no-weight-warnings \
+            snap -p vara_ci.snap
+
+      - name: "Build: Production binaries"
+        if: ${{ inputs.production && matrix.profiles.name == 'release' }}
+        run: cargo build -p gear-cli -F cli --profile production
+
+      - name: Prepare artifacts
+        if: ${{ inputs.production && matrix.profiles.name == 'release' }}
+        run: |
+          mkdir -p artifact
+          tar czvf artifact/examples.tar.gz target/wasm32-gear/release/*.wasm
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
+          cp target/production/gear artifact/
+          cp target/release/wasm-proc artifact/
+          strip artifact/gear || true
+          strip artifact/wasm-proc || true
+
+      - name: Upload artifacts
+        if: ${{ github.event_name == 'push' && inputs.production && matrix.profiles.name == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: artifact
