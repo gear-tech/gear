@@ -18,14 +18,16 @@
 
 //! Auxiliary implementation of the gas provider.
 
+use super::overlay;
 use crate::{
     gas_provider::{Error, GasNode, GasNodeId, Provider, TreeImpl},
     storage::{MapStorage, ValueStorage},
     Origin,
 };
 use alloc::collections::BTreeMap;
-use core::{cell::RefCell, ops::DerefMut};
+use core::cell::RefCell;
 use sp_core::H256;
+use std::thread::LocalKey;
 
 /// Balance type used in the gas tree.
 pub(crate) type Balance = u64;
@@ -200,6 +202,14 @@ std::thread_local! {
     pub(crate) static TOTAL_ISSUANCE: RefCell<Option<Balance>> = const { RefCell::new(None) };
 }
 
+fn total_issuance_storage() -> &'static LocalKey<RefCell<Option<Balance>>> {
+    if overlay::overlay_enabled() {
+        &overlay::TOTAL_ISSUANCE_OVERLAY
+    } else {
+        &TOTAL_ISSUANCE
+    }
+}
+
 /// Global `TotalIssuance` storage manager.
 #[derive(Debug, PartialEq, Eq)]
 pub struct TotalIssuanceWrap;
@@ -208,27 +218,27 @@ impl ValueStorage for TotalIssuanceWrap {
     type Value = Balance;
 
     fn exists() -> bool {
-        TOTAL_ISSUANCE.with(|i| i.borrow().is_some())
+        total_issuance_storage().with(|i| i.borrow().is_some())
     }
 
     fn get() -> Option<Self::Value> {
-        TOTAL_ISSUANCE.with(|i| *i.borrow())
+        total_issuance_storage().with(|i| *i.borrow())
     }
 
     fn kill() {
-        TOTAL_ISSUANCE.with(|i| {
+        total_issuance_storage().with(|i| {
             *i.borrow_mut() = None;
-        })
+        });
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(f: F) -> R {
-        TOTAL_ISSUANCE.with(|i| f(i.borrow_mut().deref_mut()))
+        total_issuance_storage().with_borrow_mut(f)
     }
 
     fn put(value: Self::Value) {
-        TOTAL_ISSUANCE.with(|i| {
+        total_issuance_storage().with(|i| {
             i.replace(Some(value));
-        })
+        });
     }
 
     fn set(value: Self::Value) -> Option<Self::Value> {
@@ -240,13 +250,23 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 
     fn take() -> Option<Self::Value> {
-        TOTAL_ISSUANCE.with(|i| i.take())
+        total_issuance_storage().with_borrow_mut(|i| i.take())
     }
 }
 
 std::thread_local! {
     // Definition of the `GasNodes` (tree `StorageMap`) global storage, accessed by the tree.
     pub(crate) static GAS_NODES: RefCell<BTreeMap<NodeId, Node>> = const { RefCell::new(BTreeMap::new()) };
+    /// Copy of the `GAS_NODES` storage, used for overlay mode.
+    pub(crate) static GAS_NODES_OVERLAY: RefCell<BTreeMap<NodeId, Node>> = const { RefCell::new(BTreeMap::new()) };
+}
+
+fn gas_nodes_storage() -> &'static LocalKey<RefCell<BTreeMap<NodeId, Node>>> {
+    if overlay::overlay_enabled() {
+        &overlay::GAS_NODES_OVERLAY
+    } else {
+        &GAS_NODES
+    }
 }
 
 /// Global `GasNodes` storage manager.
@@ -257,15 +277,17 @@ impl MapStorage for GasNodesWrap {
     type Value = Node;
 
     fn contains_key(key: &Self::Key) -> bool {
-        GAS_NODES.with(|tree| tree.borrow().contains_key(key))
+        gas_nodes_storage().with_borrow(|tree| tree.contains_key(key))
     }
 
     fn get(key: &Self::Key) -> Option<Self::Value> {
-        GAS_NODES.with(|tree| tree.borrow().get(key).cloned())
+        gas_nodes_storage().with_borrow(|tree| tree.get(key).cloned())
     }
 
     fn insert(key: Self::Key, value: Self::Value) {
-        GAS_NODES.with(|tree| tree.borrow_mut().insert(key, value));
+        gas_nodes_storage().with_borrow_mut(|tree| {
+            tree.insert(key, value);
+        });
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(_key: Self::Key, _f: F) -> R {
@@ -277,14 +299,18 @@ impl MapStorage for GasNodesWrap {
     }
 
     fn remove(key: Self::Key) {
-        GAS_NODES.with(|tree| tree.borrow_mut().remove(&key));
+        gas_nodes_storage().with_borrow_mut(|tree| {
+            tree.remove(&key);
+        });
     }
 
     fn clear() {
-        GAS_NODES.with(|tree| tree.borrow_mut().clear());
+        gas_nodes_storage().with_borrow_mut(|tree| {
+            tree.clear();
+        });
     }
 
     fn take(key: Self::Key) -> Option<Self::Value> {
-        GAS_NODES.with(|tree| tree.borrow_mut().remove(&key))
+        gas_nodes_storage().with_borrow_mut(|tree| tree.remove(&key))
     }
 }

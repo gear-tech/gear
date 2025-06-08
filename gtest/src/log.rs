@@ -462,7 +462,7 @@ impl BlockRunResult {
         );
     }
 
-    /// Calculate the total spent value.
+    /// Calculate the total spent value for the gas consumption.
     pub fn spent_value(&self) -> Value {
         let spent_gas = self
             .gas_burned
