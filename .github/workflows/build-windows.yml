@@ -108,7 +108,7 @@ jobs:
 
       - name: "Build: Cleanup target"
         run: |
-          rsync -av --include='*/' --include='*.exe' --include="*.wasm" --exclude='*' ./target ./target-rsync
+          rsync -av --include='*/' --include='*.exe' --include="*.wasm" --exclude='*' ./target/x86_64-pc-windows-msvc ./target-rsync
           mv ./target-rsync/target ./target-cleaned
 
       - name: "ACTIONS: Upload nextest archives"
