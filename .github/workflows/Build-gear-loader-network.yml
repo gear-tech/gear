@@ -9,17 +9,12 @@ env:
 jobs:
   build-gear-loader:
     runs-on: [kuberunner]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
         
       - name: "Build gear-loader"
         run: |

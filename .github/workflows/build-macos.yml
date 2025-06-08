@@ -19,7 +19,6 @@ env:
   CARGO_PROFILE_TEST_DEBUG: 0
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  RUSTUP_HOME: /tmp/rustup_home
 
 jobs:
   macos:
@@ -42,7 +41,7 @@ jobs:
         run: brew install protobuf binaryen
 
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: Target"
         run: |

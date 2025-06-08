@@ -1,0 +1,19 @@
+name: install-rust
+
+runs:
+  using: composite
+  steps:
+    - run: |
+        echo "RUSTUP_HOME=/tmp/rustup_home" >> $GITHUB_ENV
+        echo "CARGO_HOME=/tmp/cargo/bin" >> $GITHUB_ENV
+        echo "/tmp/cargo/bin" >> $GITHUB_PATH
+      if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
+      shell: bash
+    - run: |
+        Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
+        .\rustup-init.exe -y --profile minimal
+        #Remove-Item rustup-init.exe
+        Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
+      if: ${{ runner.os == 'Windows' }}
+      shell: powershell
+    - uses: dsherret/rust-toolchain-file@v1

@@ -5,8 +5,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: "Install: Rust toolchain"
-      uses: dsherret/rust-toolchain-file@v1
+    - uses: ./.github/actions/install-rust
 
     - name: Cache
       uses: Swatinem/rust-cache@v2

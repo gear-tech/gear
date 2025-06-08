@@ -17,19 +17,14 @@ env:
 jobs:
   comparison-table:
     runs-on: [kuberunner]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout & fetch all history"
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo

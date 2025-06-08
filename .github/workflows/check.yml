@@ -36,7 +36,6 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     name: clippy (${{ matrix.name }})
     env:
-      RUSTUP_HOME: /tmp/rustup_home
       CARGO_PROFILE_DEV_DEBUG: 0
       CARGO_PROFILE_TEST_DEBUG: 0
       __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
@@ -53,11 +52,8 @@ jobs:
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: Rust target"
         run: |
@@ -168,7 +164,6 @@ jobs:
   clippy-wasm:
     runs-on: ubuntu-latest
     env:
-      RUSTUP_HOME: /tmp/rustup_home
       CARGO_PROFILE_DEV_DEBUG: 0
       CARGO_PROFILE_TEST_DEBUG: 0
       __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
@@ -188,11 +183,8 @@ jobs:
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: Rust stable toolchain"
         uses: dtolnay/rust-toolchain@stable
@@ -211,19 +203,14 @@ jobs:
 
   linux:
     runs-on: [ kuberunner, github-runner-01 ]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -288,7 +275,6 @@ jobs:
   fuzzer:
     runs-on: [ kuberunner, github-runner-01 ]
     env:
-      RUSTUP_HOME: /tmp/rustup_home
       RUSTFLAGS: "--cfg fuzz"
     steps:
       - name: Cancel Previous Runs
@@ -312,11 +298,8 @@ jobs:
           sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/utils/runtime-fuzzer/fuzz/artifacts
           sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/utils/runtime-fuzzer/proptest-regressions
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

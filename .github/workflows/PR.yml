@@ -20,8 +20,6 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docs

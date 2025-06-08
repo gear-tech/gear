@@ -63,8 +63,6 @@ jobs:
         profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
       fail-fast: false
     name: linux (${{ matrix.profiles.name }})
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -72,14 +70,8 @@ jobs:
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: Mold"
-        uses: rui314/setup-mold@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1

@@ -49,11 +49,8 @@ jobs:
         with:
           ref: ${{ github.event.inputs.tag_name }}
 
-      - name: "Environment: Cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Environment: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Environment: Build dependencies"
         run: |
