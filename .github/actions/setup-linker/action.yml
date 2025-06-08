@@ -7,7 +7,7 @@ runs:
         sudo apt update
         sudo apt install mold
         
-        targets=("X86_64_UNKNOWN_LINUX_GNU", "X86_64_UNKNOWN_LINUX_MUSL", "AARCH64_UNKNOWN_LINUX_GNU", "AARCH64_UNKNOWN_LINUX_MUSL")
+        targets=("X86_64_UNKNOWN_LINUX_GNU" "X86_64_UNKNOWN_LINUX_MUSL" "AARCH64_UNKNOWN_LINUX_GNU" "AARCH64_UNKNOWN_LINUX_MUSL")
         for target in "${targets[@]}"
         do
           echo "CFLAGS_${target}=-fuse-ld=mold" >> $GITHUB_ENV
