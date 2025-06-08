@@ -108,10 +108,8 @@ jobs:
 
       - name: "Build: Cleanup target"
         run: |
-          mv ./target/x86_64-pc-windows-msvc ./target-renamed
-          mv ./target ./target-unused
-          mv ./target-renamed ./target
-          find target -type f ! -name '*.exe' ! -name "*.wasm" -delete
+          rsync -av --include='*/' --include='*.exe' --include="*.wasm" --exclude='*' ./target ./target-rsync
+          mv ./target-rsync/target ./target-cleaned
 
       - name: "ACTIONS: Upload nextest archives"
         uses: actions/upload-artifact@v4
@@ -126,7 +124,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: target-xwin-${{ matrix.profiles.name }}
-          path: target
+          path: target-cleaned
           retention-days: 1
           overwrite: true
 
