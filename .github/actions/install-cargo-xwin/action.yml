@@ -1,4 +1,4 @@
-name: install-cargo-nextest
+name: install-cargo-xwin
 
 runs:
   using: composite
@@ -22,6 +22,16 @@ runs:
         fileName: '*${{ steps.arch.outputs.value }}-unknown-linux-musl.tar.gz'
         extract: true
     - run: |
+        if ! [ -e ./cargo-xwin ]; then
+          echo "No `cargo-xwin` binary file"
+          exit 1
+        fi
+        
+        if ! [ -e ${CARGO_HOME:-~/.cargo}/bin ]; then
+          echo "No `.cargo` folder"
+          exit 1
+        fi
+        
         mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin
         echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
         cargo xwin --version >> ${{ runner.temp }}/cargo-xwin-version.txt
