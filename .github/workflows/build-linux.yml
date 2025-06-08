@@ -6,18 +6,24 @@ on:
       profiles:
         type: string
         required: true
+      production:
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       profiles:
         type: string
         default: '[{ "name": "debug", "flags": "" }]'
+      production:
+        type: boolean
+        default: false
 
 jobs:
   linux:
     runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
-        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
+        profiles: ${{ fromJson(inputs.profiles) }}
       fail-fast: false
     name: linux (${{ matrix.profiles.name }})
     steps:

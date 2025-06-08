@@ -60,6 +60,7 @@ jobs:
     uses: ./.github/workflows/build-linux.yml
     with:
       profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
+      production: ${{ inputs.production }}
 
   windows:
     needs: [dynamic-profiles]
