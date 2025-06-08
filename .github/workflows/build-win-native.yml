@@ -89,6 +89,13 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: cargo xwin build -p calc-stack-height --release --locked
 
+      - name: "Build: gsdk tests"
+        run: |
+          eval $(cargo xwin env)
+          cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk \
+              --zstd-level=6 \
+              --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
+
       - name: "Build: Client tests"
         run: |
           eval $(cargo xwin env)
@@ -173,6 +180,12 @@ jobs:
         # no need to run check twice
         if: ${{ matrix.profiles.name == 'release' }}
         run: ./target/release/calc-stack-height.exe
+
+      - name: "Test: gsdk tests"
+        run: >-
+          cargo nextest run --archive-file=gsdk_tests.tar.zst
+          -E 'platform(target)'
+          --workspace-remap=${{ github.workspace }}
 
       - name: "Test: Client tests"
         run: >-
