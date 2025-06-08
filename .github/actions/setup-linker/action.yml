@@ -10,9 +10,9 @@ runs:
         targets=("X86_64_UNKNOWN_LINUX_GNU", "X86_64_UNKNOWN_LINUX_MUSL", "AARCH64_UNKNOWN_LINUX_GNU", "AARCH64_UNKNOWN_LINUX_MUSL")
         for target in "${targets[@]}"
         do
-          echo "CFLAGS_$target=-fuse-ld=mold" >> $GITHUB_ENV
-          echo "CXXFLAGS_$target=-fuse-ld=mold" >> $GITHUB_ENV
-          echo "CARGO_TARGET_$target_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "CFLAGS_${target}=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "CXXFLAGS_${target}=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "CARGO_TARGET_${target}_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
         done
       shell: bash
     - name: "Setup linker on Windows"
