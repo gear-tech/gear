@@ -431,7 +431,7 @@ impl CodesStorageRead for Database {
         self.kv
             .get(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
             .map(|data| {
-                InstrumentedCode::decode(&mut data.as_slice())
+                Decode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
             })
     }
@@ -677,7 +677,7 @@ mod tests {
             OffchainTransaction {
                 raw: SendMessage {
                     program_id: H256::random().into(),
-                    payload: H256::random().as_bytes().to_vec(),
+                    payload: H256::random().0.to_vec(),
                 },
                 reference_block: H256::random(),
             },

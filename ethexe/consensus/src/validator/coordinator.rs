@@ -117,7 +117,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{Digest, ToDigest};
     use gprimitives::H256;
 
     #[test]
@@ -176,7 +176,7 @@ mod tests {
             &ctx.signer,
             keys[1],
             ctx.router_address,
-            H256::random().0.into(),
+            Digest(H256::random().0),
         );
         let reply4 = mock_validation_reply(&ctx.signer, keys[2], ctx.router_address, digest);
 

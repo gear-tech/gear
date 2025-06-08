@@ -270,27 +270,22 @@ mod tests {
         PrivateKey::from([42; 32])
     }
 
-    fn mock_digest() -> Digest {
-        Digest::from([43; 32])
-    }
-
+    const MOCK_DIGEST: Digest = Digest([43; 32]);
     const CONTRACT_ADDRESS: Address = Address([44; 20]);
 
     #[test]
     fn signature_create_for_digest() {
         let private_key = mock_private_key();
-        let digest = mock_digest();
 
-        let signature = Signature::create(private_key, digest).unwrap();
-        signature.validate(digest).unwrap();
+        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
+        signature.validate(MOCK_DIGEST).unwrap();
     }
 
     #[test]
     fn signature_from_pre_eip155_bytes() {
         let private_key = mock_private_key();
-        let digest = mock_digest();
 
-        let signature = Signature::create(private_key, digest).unwrap();
+        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
         let bytes = signature.into_pre_eip155_bytes();
 
         let recovered_signature = Signature::from_pre_eip155_bytes(bytes).unwrap();
@@ -302,21 +297,19 @@ mod tests {
     #[test]
     fn signature_validate() {
         let private_key = mock_private_key();
-        let digest = mock_digest();
 
-        Signature::create(private_key, digest)
+        Signature::create(private_key, MOCK_DIGEST)
             .unwrap()
-            .validate(digest)
+            .validate(MOCK_DIGEST)
             .unwrap();
     }
 
     #[test]
     fn signature_recover_from_digest() {
         let private_key = mock_private_key();
-        let digest = mock_digest();
 
-        let signature = Signature::create(private_key, digest).unwrap();
-        let public_key = signature.recover(digest).unwrap();
+        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
+        let public_key = signature.recover(MOCK_DIGEST).unwrap();
 
         assert_eq!(PublicKey::from(private_key), public_key);
     }
@@ -331,30 +324,20 @@ mod tests {
         assert_eq!(signed_data.public_key(), public_key);
         assert_eq!(signed_data.address(), public_key.to_address());
         assert_eq!(signed_data.data(), &data);
-        assert_eq!(
-            signed_data.signature().recover(data.as_slice()).unwrap(),
-            public_key
-        );
-        assert_eq!(
-            signed_data.signature().validate(data.as_slice()).unwrap(),
-            public_key
-        );
-        signed_data
-            .signature()
-            .verify(public_key, data.as_slice())
-            .unwrap();
+        assert_eq!(signed_data.signature().recover(&data).unwrap(), public_key);
+        assert_eq!(signed_data.signature().validate(&data).unwrap(), public_key);
+        signed_data.signature().verify(public_key, &data).unwrap();
     }
 
     #[test]
     fn contract_signature() {
         let private_key = mock_private_key();
         let address = PublicKey::from(private_key).to_address();
-        let digest = mock_digest();
 
         let contract_signature =
-            ContractSignature::create(CONTRACT_ADDRESS, private_key, digest).unwrap();
+            ContractSignature::create(CONTRACT_ADDRESS, private_key, MOCK_DIGEST).unwrap();
         let public_key = contract_signature
-            .validate(CONTRACT_ADDRESS, digest)
+            .validate(CONTRACT_ADDRESS, MOCK_DIGEST)
             .unwrap();
         assert_eq!(public_key.to_address(), address);
     }
@@ -362,9 +345,8 @@ mod tests {
     #[test]
     fn signature_encode_decode() {
         let private_key = mock_private_key();
-        let digest = mock_digest();
 
-        let signature = Signature::create(private_key, digest).unwrap();
+        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
         let encoded = signature.encode();
         let decoded = Signature::decode(&mut &encoded[..]).unwrap();
 
@@ -386,10 +368,9 @@ mod tests {
     #[test]
     fn contract_signature_encode_decode() {
         let private_key = mock_private_key();
-        let digest = mock_digest();
 
         let contract_signature =
-            ContractSignature::create(CONTRACT_ADDRESS, private_key, digest).unwrap();
+            ContractSignature::create(CONTRACT_ADDRESS, private_key, MOCK_DIGEST).unwrap();
         let encoded = contract_signature.encode();
         let decoded = ContractSignature::decode(&mut &encoded[..]).unwrap();
 

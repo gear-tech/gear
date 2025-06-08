@@ -193,7 +193,7 @@ impl ComputeService {
         let mut processor = self.processor.clone();
         self.process_codes.spawn_blocking(move || {
             processor
-                .process_upload_code_raw(code_id, code.as_slice())
+                .process_upload_code_raw(code_id, &code)
                 .map(|_valid| code_id)
         });
     }

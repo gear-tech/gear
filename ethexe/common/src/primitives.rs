@@ -79,9 +79,9 @@ pub struct ProducerBlock {
 
 impl ToDigest for ProducerBlock {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.block_hash.as_bytes());
-        hasher.update(self.gas_allowance.encode().as_slice());
-        hasher.update(self.off_chain_transactions.encode().as_slice());
+        hasher.update(self.block_hash);
+        hasher.update(self.gas_allowance.encode());
+        hasher.update(self.off_chain_transactions.encode());
     }
 }
 
