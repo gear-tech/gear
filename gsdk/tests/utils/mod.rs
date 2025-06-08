@@ -16,20 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Context;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
-use std::{env, env::consts::EXE_SUFFIX};
+use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
 pub fn dev_node() -> NodeInstance {
     // Use release build because of performance reasons.
-    let bin_path = env::var("CARGO_MANIFEST_DIR").unwrap() + "/../target/release/gear" + EXE_SUFFIX;
+    let bin_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let mut bin_path = bin_path.join("../target/release/gear");
+    bin_path.set_extension(EXE_EXTENSION);
 
-    Node::from_path(&bin_path)
+    Node::from_path(bin_path)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
         .spawn()
-        .with_context(|| format!("Failed to spawn node process for {bin_path}"))
-        .unwrap()
+        .expect("Failed to spawn node process")
 }
 
 pub fn alice_account_id() -> AccountId32 {
