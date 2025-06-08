@@ -25,7 +25,7 @@ pub fn dev_node() -> NodeInstance {
     // Use release build because of performance reasons.
     let bin_path = env::var("CARGO_MANIFEST_DIR").unwrap() + "/../target/release/gear" + EXE_SUFFIX;
 
-    Node::from_path(bin_path)
+    Node::from_path(&bin_path)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
         .spawn()
         .with_context(|| format!("Failed to spawn node process for {bin_path}"))
