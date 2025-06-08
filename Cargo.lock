@@ -6492,6 +6492,7 @@ dependencies = [
  "gear-wasmer-cache",
  "log",
  "parity-scale-codec",
+ "pathdiff",
  "sp-core",
  "sp-std",
  "sp-wasm-interface-common",
