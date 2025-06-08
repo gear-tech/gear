@@ -7,21 +7,13 @@ runs:
         sudo apt update
         sudo apt install mold
         
-        echo "CFLAGS_X86_64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CXXFLAGS_X86_64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
-        
-        echo "CFLAGS_X86_64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CXXFLAGS_X86_64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
-        
-        echo "CFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
-        
-        echo "CFLAGS_AARCH64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+        targets=("X86_64_UNKNOWN_LINUX_GNU", "X86_64_UNKNOWN_LINUX_MUSL", "AARCH64_UNKNOWN_LINUX_GNU", "AARCH64_UNKNOWN_LINUX_MUSL")
+        for target in "${targets[@]}"
+        do
+          echo "CFLAGS_$target=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "CXXFLAGS_$target=-fuse-ld=mold" >> $GITHUB_ENV
+          echo "CARGO_TARGET_$target_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+        done
       shell: bash
     - name: "Setup linker on Windows"
       if: ${{ runner.os == 'Windows' }}
