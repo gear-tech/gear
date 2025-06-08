@@ -19,9 +19,9 @@ runs:
         echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
         echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
         
-        echo "CFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_GNU=-fuse-ld=mold" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CFLAGS_AARCH64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CXXFLAGS_AARCH64_UNKNOWN_LINUX_MUSL=-fuse-ld=mold" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS=-Clink-arg=-fuse-ld=mold" >> $GITHUB_ENV
       shell: bash
     - name: "Setup linker on Windows"
       if: ${{ runner.os == 'Windows' }}
