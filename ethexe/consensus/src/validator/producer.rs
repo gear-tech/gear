@@ -23,7 +23,7 @@ use crate::ConsensusEvent;
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
     Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
 };
@@ -253,6 +253,7 @@ enum AggregationError {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
+    use ethexe_common::db::BlockMetaStorageWrite;
     use std::vec;
 
     #[tokio::test]
