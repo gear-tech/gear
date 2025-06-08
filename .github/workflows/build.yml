@@ -6,7 +6,7 @@ on:
       macos:
         type: boolean
         default: false
-      win-native:
+      windows:
         type: boolean
         default: false
       release:
@@ -61,10 +61,10 @@ jobs:
     with:
       profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
 
-  win-native:
+  windows:
     needs: [dynamic-profiles]
-    if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
-    uses: ./.github/workflows/build-win-native.yml
+    if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.windows) }}
+    uses: ./.github/workflows/build-windows.yml
     with:
       profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
 

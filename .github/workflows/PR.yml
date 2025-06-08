@@ -36,7 +36,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
-      win-native: ${{ contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
+      windows: ${{ contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
       release: ${{ contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}
       production: ${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
 
