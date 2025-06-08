@@ -23,12 +23,12 @@ runs:
         extract: true
     - run: |
         if ! [ -e ./cargo-xwin ]; then
-          echo "No `cargo-xwin` binary file"
+          echo "No 'cargo-xwin' binary file"
           exit 1
         fi
         
         if ! [ -e ${CARGO_HOME:-~/.cargo}/bin ]; then
-          echo "No `.cargo` folder"
+          echo "No '.cargo' folder"
           exit 1
         fi
         
