@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::CodeCommitment,
     SimpleBlockData,
@@ -267,12 +267,16 @@ impl ComputeService {
     }
 }
 
-struct ChainHeadProcessContext<DB: OnChainStorage + BlockMetaStorage> {
+struct ChainHeadProcessContext<
+    DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead,
+> {
     db: DB,
     processor: Processor,
 }
 
-impl<DB: OnChainStorage + BlockMetaStorage> ChainHeadProcessContext<DB> {
+impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
+    ChainHeadProcessContext<DB>
+{
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -421,6 +425,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+    use ethexe_common::db::OnChainStorageWrite;
 
     // Create new code with a unique nonce
     fn create_new_code(nonce: u32) -> Vec<u8> {

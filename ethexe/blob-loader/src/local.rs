@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{BlobData, BlobLoaderError, BlobLoaderEvent, BlobLoaderService, Result};
-use ethexe_common::db::OnChainStorage;
+use ethexe_common::db::OnChainStorageRead;
 use ethexe_db::Database;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::CodeId;

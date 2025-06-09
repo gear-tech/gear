@@ -19,7 +19,7 @@
 use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
-    db::CodesStorage,
+    db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
     ScheduledTask,

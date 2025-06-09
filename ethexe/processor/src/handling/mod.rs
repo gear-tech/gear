@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Processor, ProcessorError, Result};
-use ethexe_common::db::{BlockMetaStorage, CodesStorage, OnChainStorage};
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,

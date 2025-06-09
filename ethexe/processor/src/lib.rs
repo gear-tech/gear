@@ -19,10 +19,10 @@
 //! Program's execution service for eGPU.
 
 use ethexe_common::{
-    db::CodesStorage,
+    db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    Schedule, StateHashWithQueueSize,
+    ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -30,7 +30,6 @@ use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
-use std::collections::BTreeMap;
 
 pub use common::LocalOutcome;
 
@@ -106,7 +105,7 @@ pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
-    pub states: BTreeMap<ActorId, StateHashWithQueueSize>,
+    pub states: ProgramStates,
     pub schedule: Schedule,
 }
 
