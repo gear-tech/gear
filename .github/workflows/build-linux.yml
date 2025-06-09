@@ -151,6 +151,9 @@ jobs:
           name: node-release
           path: target/release
 
+      - name: "ACTIONS: Restore permissions for node binary"
+        run: chmod +x ./target/release/gear
+
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
 
