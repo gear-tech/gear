@@ -45,6 +45,8 @@ jobs:
 
       - name: "Install: cargo-xwin"
         uses: ./.github/actions/install-cargo-xwin
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

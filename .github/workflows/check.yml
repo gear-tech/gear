@@ -155,6 +155,8 @@ jobs:
       - name: "Install: cargo-xwin"
         if: ${{ matrix.name == 'windows-x86_64' }}
         uses: ./.github/actions/install-cargo-xwin
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
