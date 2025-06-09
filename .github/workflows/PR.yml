@@ -63,10 +63,11 @@ jobs:
           echo "value=${targets}" >> $GITHUB_OUTPUT
 
   node:
+    needs: dynamic-matrix
     strategy:
       fail-fast: false
       matrix:
-        targets: ${{ fromJson(dynamic-matrix.outputs.targets) }}
+        targets: ${{ fromJson(needs.dynamic-matrix.outputs.targets) }}
     runs-on: ${{ matrix.targets.runs-on }}
     name: node (${{ matrix.targets.name }}) [${{ matrix.profiles.name }}]
     steps:
