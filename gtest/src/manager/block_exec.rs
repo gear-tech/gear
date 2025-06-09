@@ -486,7 +486,7 @@ impl ExtManager {
         }
 
         let (dispatch, program_id, gas_counter) = context.into_inner();
-        let payload = dispatch.payload_bytes().to_vec();
+        let payload = dispatch.payload().to_vec();
 
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
@@ -550,7 +550,7 @@ impl ExtManager {
                     TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
                 );
                 core_processor::process_execution_error(
-                    dispatch,
+                    &dispatch,
                     program_id,
                     gas_counter.burned(),
                     Default::default(),
