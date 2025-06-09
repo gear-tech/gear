@@ -19,8 +19,32 @@ on:
         default: false
 
 jobs:
+  node:
+    runs-on: [ kuberunner, github-runner-02 ]
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "ACTIONS: Upload node"
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-release
+          path: target/release/gear
+          retention-days: 1
+          overwrite: true
+
   linux:
     runs-on: [ kuberunner, github-runner-02 ]
+    needs: node
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -29,6 +53,12 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-release
+          path: target/release/gear
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -47,9 +77,6 @@ jobs:
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --locked ${{ matrix.profiles.flags }}
 
@@ -57,7 +84,7 @@ jobs:
         run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profiles.flags }}
 
       - name: "Check: Vara runtime imports"
-        run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
+        run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Check: Stack height limit"
         # no need to run check twice
@@ -73,7 +100,7 @@ jobs:
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
       - name: "Build: Cleanup target"
-        run: rsync -av --include='*/' --include='gear.exe' --include="*.wasm" --exclude='*' ./target ./target-rsync
+        run: rsync -av --include='*/' --include="*.wasm" --exclude='*' ./target ./target-rsync
 
       - name: "ACTIONS: Upload target"
         if: ${{ matrix.profiles.name == 'release' }}
