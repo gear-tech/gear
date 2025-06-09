@@ -38,11 +38,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Install: Rust target"
-        run: |
-          rustup target add x86_64-pc-windows-msvc
-          echo "CARGO_BUILD_TARGET=x86_64-pc-windows-msvc" >> $GITHUB_ENV
-
       - name: "Install: cargo-xwin"
         uses: ./.github/actions/install-cargo-xwin
         with:
@@ -51,27 +46,10 @@ jobs:
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-      - name: "Install: Windows packages"
-        run: |
-          sudo apt update
-          sudo apt install -y protobuf-compiler binaryen innoextract
-          
-          # Package is not available in choco or scoop
-          #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
-          #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
-          
-          # Custom ".pc" is required to be written
-          #Add-Content -Path $Env:GITHUB_ENV -Value "ZSTD_SYS_USE_PKG_CONFIG=1"
-          
-          # Not used on Windows
-          #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
-          
-          wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
-          innoextract -d openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
-          
-          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
+      - name: "Install: cross-compile environment"
+        uses: ./.github/actions/setup-cross-compile
+        with:
+          target: x86_64-pc-windows-msvc
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
@@ -92,14 +70,14 @@ jobs:
           eval $(cargo xwin env)
           cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk \
               --zstd-level=6 \
-              --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
+              --target=x86_64-pc-windows-msvc ${{ matrix.profiles.flags }}
 
       - name: "Build: Client tests"
         run: |
           eval $(cargo xwin env)
           cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient \
               --zstd-level=6 \
-              --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
+              --target=x86_64-pc-windows-msvc ${{ matrix.profiles.flags }}
 
       - name: "Build: Lazy pages"
         run: |
@@ -107,7 +85,7 @@ jobs:
           cargo nextest archive --archive-file=lazy_pages_tests.tar.zst \
             -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface \
             --zstd-level=6 \
-            --target=$CARGO_BUILD_TARGET ${{ matrix.profiles.flags }}
+            --target=x86_64-pc-windows-msvc ${{ matrix.profiles.flags }}
 
       - name: "Build: Cleanup target"
         run: |
