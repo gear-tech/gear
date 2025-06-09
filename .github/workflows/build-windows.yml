@@ -57,26 +57,26 @@ jobs:
         run: ./scripts/gear.sh build node --release --locked
 
       - name: "Build: gsdk tests"
-        run: |
-          eval $(cargo xwin env)
-          cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk \
-              --zstd-level=6 \
-              --target=x86_64-pc-windows-msvc ${{ matrix.profiles.flags }}
+        run: >-
+          cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
 
       - name: "Build: Client tests"
-        run: |
-          eval $(cargo xwin env)
-          cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient \
-              --zstd-level=6 \
-              --target=x86_64-pc-windows-msvc ${{ matrix.profiles.flags }}
+        run: >-
+          cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
 
       - name: "Build: Lazy pages"
-        run: |
-          eval $(cargo xwin env)
-          cargo nextest archive --archive-file=lazy_pages_tests.tar.zst \
-            -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface \
-            --zstd-level=6 \
-            --target=x86_64-pc-windows-msvc ${{ matrix.profiles.flags }}
+        run: >-
+          cargo nextest archive --archive-file=lazy_pages_tests.tar.zst
+          -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
 
       - name: "Build: Cleanup target"
         run: |

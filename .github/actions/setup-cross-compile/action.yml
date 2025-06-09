@@ -113,6 +113,12 @@ runs:
         echo "OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
       shell: bash
 
+    - name: "Install: cargo-xwin"
+      if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
+      uses: ./.github/actions/install-cargo-xwin
+      with:
+        token: ${{ inputs.token }}
+
     - name: "Install: Windows packages"
       if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
       run: |
@@ -140,10 +146,6 @@ runs:
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
         echo "OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
+        
+        cargo xwin env | sed -e 's/^export //' -e 's/;$//'
       shell: bash
-
-    - name: "Install: cargo-xwin"
-      if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
-      uses: ./.github/actions/install-cargo-xwin
-      with:
-        token: ${{ inputs.token }}
