@@ -86,6 +86,10 @@ pub enum BlobLoaderError {
     // `BlobLoader` errors
     #[error("failed to get code info for: {0}")]
     CodeInfoNotFound(CodeId),
+
+    // `LocalBlobLoader` errors
+    #[error("failed to get code from local storage: {0}")]
+    LocalCodeNotFound(CodeId),
 }
 
 type Result<T> = std::result::Result<T, BlobLoaderError>;
@@ -124,6 +128,7 @@ struct ConsensusLayerBlobReader {
 }
 
 impl ConsensusLayerBlobReader {
+    /// Note: if `attempts` is `None`, it will be trying to read blob only once.
     async fn read_code_from_tx_hash(
         self,
         expected_code_id: CodeId,
@@ -173,21 +178,18 @@ impl ConsensusLayerBlobReader {
             .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
         let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
             / self.config.beacon_block_time.as_secs();
-        let blob_bundle = match attempts {
-            Some(attempts) => {
-                let mut count = 0;
-                loop {
-                    log::trace!("trying to get blob, attempt #{}", count + 1);
-                    let blob_bundle_result = self.read_blob_bundle(slot).await;
-                    if blob_bundle_result.is_ok() || count >= attempts {
-                        break blob_bundle_result;
-                    } else {
-                        time::sleep(self.config.beacon_block_time).await;
-                        count += 1;
-                    }
-                }
+
+        let attempts = attempts.unwrap_or(0);
+        let mut count = 0;
+        let blob_bundle = loop {
+            log::trace!("trying to get blob, attempt #{}", count + 1);
+            let blob_bundle_result = self.read_blob_bundle(slot).await;
+            if blob_bundle_result.is_ok() || count >= attempts {
+                break blob_bundle_result;
+            } else {
+                time::sleep(self.config.beacon_block_time).await;
+                count += 1;
             }
-            None => self.read_blob_bundle(slot).await,
         }?;
 
         let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());

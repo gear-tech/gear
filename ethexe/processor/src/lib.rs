@@ -85,20 +85,19 @@ pub enum ProcessorError {
     #[error("allocator should be set after `set_host_state`")]
     AllocatorNotSet,
 
-    // `ProcessingHandler`
-    #[error("db corrupted: {0}")]
-    DbCorrupted(String),
+    // `ProcessingHandler` errors
+    #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
+    MissingCode(CodeId),
+    #[error("db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}")]
+    DuplicatedProgram(ActorId),
 
-    // wasmtime errors
-    #[error("wasmtime error: {0}")]
+    #[error(transparent)]
     Wasm(#[from] wasmtime::Error),
 
-    // parity-scale-codes
-    #[error("")]
+    #[error(transparent)]
     ParityScaleCodes(#[from] parity_scale_codec::Error),
 
-    // sp-allocator
-    #[error("")]
+    #[error(transparent)]
     SpAllocator(#[from] sp_allocator::Error),
 }
 

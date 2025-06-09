@@ -32,15 +32,11 @@ impl ProcessingHandler {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
                 if self.db.original_code(code_id).is_none() {
-                    return Err(ProcessorError::DbCorrupted(String::from(
-                        "missing code [OR] code existence wasn't checked on Eth",
-                    )));
+                    return Err(ProcessorError::MissingCode(code_id));
                 }
 
                 if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DbCorrupted(String::from(
-                        "unrecognized program [OR] program duplicates wasn't checked on Eth",
-                    )));
+                    return Err(ProcessorError::DuplicatedProgram(actor_id));
                 }
 
                 self.db.set_program_code_id(actor_id, code_id);

@@ -59,7 +59,7 @@ pub enum ComputeError {
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("block outcome not set for computed block({0})")]
-    BlockOutcomeNotFound(H256),
+    ParentNotFound(H256),
     #[error("code({0}) marked as validated, but not found in db")]
     ValidatedCodeNotFound(CodeId),
     #[error("codes queue nоt found for computed block({0})")]
@@ -69,8 +69,7 @@ pub enum ComputeError {
     #[error("previous commitment not found for computed block ({0})")]
     PreviousCommitmentNotFound(H256),
 
-    // `Processor` errors
-    #[error("processor error: {0}")]
+    #[error(transparent)]
     Processor(#[from] ProcessorError),
 }
 
@@ -112,13 +111,14 @@ impl Stream for ComputeService {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
-                    if let Ok(commitment) = &res {
-                        if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
-                            &mut self.state
-                        {
-                            waiting_codes.remove(&commitment.id);
-                        }
+                    if let (
+                        Ok(commitment),
+                        BlockPreparationState::WaitForCodes { waiting_codes, .. },
+                    ) = (&res, &mut self.state)
+                    {
+                        waiting_codes.remove(&commitment.id);
                     }
+
                     return Poll::Ready(Some(res.map(ComputeEvent::CodeProcessed)));
                 }
                 Err(e) => return Poll::Ready(Some(Err(ComputeError::CodeProcessJoin(e)))),
@@ -340,7 +340,7 @@ impl<DB: OnChainStorage + BlockMetaStorage> ChainHeadProcessContext<DB> {
         // Propagate prev commitment (prev not empty block hash or zero for genesis).
         if db
             .block_outcome_is_empty(parent)
-            .ok_or(ComputeError::BlockOutcomeNotFound(block))?
+            .ok_or(ComputeError::ParentNotFound(block))?
         {
             let parent_prev_commitment = db
                 .previous_not_empty_block(parent)

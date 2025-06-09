@@ -53,7 +53,10 @@ impl LocalBlobStorage {
     pub async fn get_code(self, code_id: CodeId) -> Result<BlobData> {
         let storage = self.inner.read().await;
 
-        let code = storage.get(&code_id).cloned().unwrap();
+        let code = storage
+            .get(&code_id)
+            .cloned()
+            .ok_or(BlobLoaderError::LocalCodeNotFound(code_id))?;
 
         let code_info = self
             .db
