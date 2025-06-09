@@ -2209,7 +2209,6 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "tracing-subscriber",
- "vara-runtime",
  "wasmer",
  "wasmer-types",
  "wat",
