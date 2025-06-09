@@ -30,3 +30,10 @@ mod storage;
 
 pub use signer::Signer;
 pub use storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
+
+#[derive(Debug, thiserror::Error)]
+pub enum SignerError {
+
+}
+
+pub(crate) type Result<T> = std::result::Result<T, SignerError>;
