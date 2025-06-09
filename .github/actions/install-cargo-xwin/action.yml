@@ -18,8 +18,8 @@ runs:
           exit 1
         fi
         
-        wget --header='Authorization: token ${{ inputs.GITHUB_TOKEN }}' -qO - https://api.github.com/repos/rust-cross/cargo-xwin/releases | \
-          jq -r '.[] | .assets[]? | select(.name | endswith("x86_64-unknown-linux-musl.tar.gz")) | .browser_download_url' | \
+        wget --header='Authorization: token ${{ inputs.token }}' -qO - https://api.github.com/repos/rust-cross/cargo-xwin/releases | \
+          jq -r '.[] | .assets[]? | select(.name | endswith("${ARCH}-unknown-linux-musl.tar.gz")) | .browser_download_url' | \
           head -n1 | xargs -r wget -qO - | tar -xzf - -C ${CARGO_HOME:-~/.cargo}/bin
         
         echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
