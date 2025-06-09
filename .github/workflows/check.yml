@@ -157,7 +157,12 @@ jobs:
           #save-if: ${{ github.ref == 'refs/heads/master' }}
           cache-provider: buildjet
 
-      - run: cargo run -p calc-stack-height --target=${{ matrix.target }} --release --locked
+      - run: |
+          if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
+            eval $(cargo xwin env)
+          fi
+          
+          cargo run -p calc-stack-height --release --locked
 
   fmt:
     runs-on: ubuntu-latest
