@@ -56,11 +56,6 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo xwin build -p calc-stack-height --release --locked
-
       - name: "Build: gsdk tests"
         run: |
           eval $(cargo xwin env)
@@ -138,11 +133,6 @@ jobs:
         with:
           name: target-xwin-${{ matrix.profiles.name }}
           path: target
-
-      - name: "Check: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: ./target/release/calc-stack-height.exe
 
       - name: "Test: gsdk tests"
         run: >-

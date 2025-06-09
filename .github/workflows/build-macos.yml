@@ -63,11 +63,6 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: cargo build -p gear-cli --release --locked
 
-      - name: "Check: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo run -p calc-stack-height --release --locked
-
       - name: "Test: Lazy pages"
         run: >-
           cargo nextest run

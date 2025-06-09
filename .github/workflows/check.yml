@@ -112,6 +112,40 @@ jobs:
       - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
       - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
+  stack-height:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-aarch64
+            target: aarch64-apple-darwin
+            runs-on: macos-latest
+          - name: macos-x86_64
+            target: x86_64-apple-darwin
+            runs-on: macos-latest
+          - name: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    name: stack-height (${{ matrix.name }})
+    env:
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - run: cargo run -p calc-stack-height --target=${{ matrix.target }} --release --locked
+
   fmt:
     runs-on: ubuntu-latest
     steps:

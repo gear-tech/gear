@@ -87,11 +87,6 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Check: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo run -p calc-stack-height --release --locked
-
       - name: "Test: Doc tests"
         # no need to run check twice
         if: ${{ matrix.profiles.name == 'debug' }}
