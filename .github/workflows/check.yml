@@ -128,7 +128,7 @@ jobs:
             runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
-            runs-on: ubuntu-24.04-arm
+            runs-on: windows-latest
     runs-on: ${{ matrix.runs-on }}
     name: stack-height (${{ matrix.name }})
     env:
@@ -145,6 +145,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "Install: cross-compile environment"
+        if: ${{ matrix.target != 'x86_64-pc-windows-msvc' }}
         uses: ./.github/actions/setup-cross-compile
         with:
           target: "${{ matrix.target }}"
@@ -157,12 +158,7 @@ jobs:
           #save-if: ${{ github.ref == 'refs/heads/master' }}
           cache-provider: buildjet
 
-      - run: |
-          if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
-            eval $(cargo xwin env)
-          fi
-          
-          cargo run -p calc-stack-height --release --locked
+      - run: cargo run -p calc-stack-height --release --locked
 
   fmt:
     runs-on: ubuntu-latest
