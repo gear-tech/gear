@@ -20,7 +20,7 @@ on:
 
 jobs:
   linux:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [ kuberunner, github-runner-02 ]
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -72,6 +72,39 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
+      - name: "ACTIONS: Upload node"
+        if: ${{ matrix.profiles.name == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-node-release
+          path: ./target/release/gear
+          retention-days: 1
+          overwrite: true
+
+  sdk:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: linux
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
+      fail-fast: false
+    name: sdk (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Download target"
+        uses: actions/download-artifact@v4
+        with:
+          name: build-node-release
+          path: ./target/release/gear
+
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
 
@@ -82,6 +115,24 @@ jobs:
 
       - name: "Test: Client tests"
         run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
+
+  benchmarks:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: linux
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
+      fail-fast: false
+    name: benchmarks (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
 
       - name: "Test: Benchmarks in native"
         run: |
@@ -104,6 +155,24 @@ jobs:
 
       - name: "Test: Syscalls Wasmi integrity"
         run: ./scripts/gear.sh test syscalls ${{ matrix.profiles.flags }}
+
+  try-runtime:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: linux
+    strategy:
+      matrix:
+        profiles: ${{ fromJson(inputs.profiles) }}
+      fail-fast: false
+    name: try-runtime (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
 
       - name: "Test: `try-runtime` feature tests"
         run: |
@@ -141,12 +210,27 @@ jobs:
             --no-weight-warnings \
             snap -p vara_ci.snap
 
+  production:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: linux
+    if: ${{ inputs.production }}
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Build: wasm-proc"
+        run: cargo build -p wasm-proc --profile production
+
       - name: "Build: Production binaries"
-        if: ${{ inputs.production && matrix.profiles.name == 'release' }}
         run: cargo build -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
-        if: ${{ inputs.production && matrix.profiles.name == 'release' }}
         run: |
           mkdir -p artifact
           tar czvf artifact/examples.tar.gz target/wasm32-gear/release/*.wasm
@@ -154,12 +238,12 @@ jobs:
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
-          cp target/release/wasm-proc artifact/
+          cp target/production/wasm-proc artifact/
           strip artifact/gear || true
           strip artifact/wasm-proc || true
 
       - name: Upload artifacts
-        if: ${{ github.event_name == 'push' && inputs.production && matrix.profiles.name == 'release' }}
+        if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
           path: artifact
