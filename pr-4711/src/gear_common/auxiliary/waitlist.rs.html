@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html">core::cell::RefCell</a>;
 <a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>gear_core::{
 <a href=#25 id=25 data-nosnippet>25</a>    ids::{<a href="../../../gear_common/struct.ActorId.html">ActorId</a>, <a href="../../../gear_common/struct.MessageId.html">MessageId</a>},
-<a href=#26 id=26 data-nosnippet>26</a>    message::StoredDispatch,
+<a href=#26 id=26 data-nosnippet>26</a>    <a href="../../../gear_core/message/stored/struct.StoredDispatch.html">message::StoredDispatch</a>,
 <a href=#27 id=27 data-nosnippet>27</a>};
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a><span class="doccomment">/// Waitlist implementation that can be used in a native, non-wasm runtimes.
@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>    <a href="../storage/primitives/key.rs.html#76">WaitlistKeyGen</a>,
 <a href=#38 id=38 data-nosnippet>38</a>&gt;;
 <a href=#39 id=39 data-nosnippet>39</a><span class="doccomment">/// Type represents message stored in the waitlist.
-<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">pub type </span><a href="../../../gear_common/auxiliary/waitlist/type.WaitlistedMessage.html">WaitlistedMessage</a> = StoredDispatch;
+<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">pub type </span><a href="../../../gear_common/auxiliary/waitlist/type.WaitlistedMessage.html">WaitlistedMessage</a> = <a href="../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
 <a href=#41 id=41 data-nosnippet>41</a>
 <a href=#42 id=42 data-nosnippet>42</a><a class="macro" href="https://doc.rust-lang.org/nightly/std/macro.thread_local.html">std::thread_local!</a> {
 <a href=#43 id=43 data-nosnippet>43</a>    <span class="comment">// Definition of the waitlist (`StorageDoubleMap`) global storage, accessed by the `Waitlist` trait implementor.
