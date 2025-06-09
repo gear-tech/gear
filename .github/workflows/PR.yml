@@ -16,9 +16,6 @@ jobs:
     steps:
       - run: exit 0
 
-  docs:
-    uses: ./.github/workflows/docs.yml
-
   check:
     uses: ./.github/workflows/check.yml
 

@@ -12,9 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs:
-    uses: ./.github/workflows/docs.yml
-
   check:
     uses: ./.github/workflows/check.yml
 
