@@ -38,11 +38,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Install: cargo-xwin"
-        uses: ./.github/actions/install-cargo-xwin
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
@@ -50,6 +45,7 @@ jobs:
         uses: ./.github/actions/setup-cross-compile
         with:
           target: x86_64-pc-windows-msvc
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2

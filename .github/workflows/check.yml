@@ -58,11 +58,6 @@ jobs:
         uses: ./.github/actions/setup-cross-compile
         with:
           target: "${{ matrix.target }}"
-
-      - name: "Install: cargo-xwin"
-        if: ${{ matrix.name == 'windows-x86_64' }}
-        uses: ./.github/actions/install-cargo-xwin
-        with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Check clippy: Gear"
