@@ -47,18 +47,18 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: cross-compile environment"
+        uses: ./.github/actions/setup-cross-compile
+        with:
+          target: "${{ matrix.target }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.name }}"
           #save-if: ${{ github.ref == 'refs/heads/master' }}
           cache-provider: buildjet
-
-      - name: "Install: cross-compile environment"
-        uses: ./.github/actions/setup-cross-compile
-        with:
-          target: "${{ matrix.target }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
