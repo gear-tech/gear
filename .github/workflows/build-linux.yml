@@ -72,12 +72,15 @@ jobs:
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
-      - name: "ACTIONS: Upload node"
+      - name: "Build: Cleanup target"
+        run: rsync -av --include='*/' --include='gear.exe' --include="*.wasm" --exclude='*' ./target ./target-rsync
+
+      - name: "ACTIONS: Upload target"
         if: ${{ matrix.profiles.name == 'release' }}
         uses: actions/upload-artifact@v4
         with:
-          name: build-node-release
-          path: ./target/release/gear
+          name: target-linux-release
+          path: target-rsync
           retention-days: 1
           overwrite: true
 
@@ -99,11 +102,14 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
       - name: "ACTIONS: Download target"
         uses: actions/download-artifact@v4
         with:
-          name: build-node-release
-          path: ./target/release/gear
+          name: target-linux-release
+          path: target
 
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
