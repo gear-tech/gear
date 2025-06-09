@@ -13,16 +13,7 @@ concurrency:
 
 jobs:
   docs:
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/docs
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/docs.yml
 
   check:
     uses: ./.github/workflows/check.yml
