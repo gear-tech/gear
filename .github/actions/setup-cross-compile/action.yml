@@ -147,5 +147,5 @@ runs:
         echo "OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
         echo "OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
         
-        cargo xwin env | sed -e 's/^export //' -e 's/;$//'
+        cargo xwin env | sed -e 's/^export //' -e 's/;$//' >> $GITHUB_ENV
       shell: bash
