@@ -204,7 +204,7 @@ mod tests {
             .signed_data(public_key, b"hello world")
             .expect("Failed to create signed data");
 
-        assert_eq!(*signed_data.data(), b"hello world");
+        assert_eq!(signed_data.data(), &b"hello world");
         assert_eq!(signed_data.public_key(), public_key);
     }
 }
