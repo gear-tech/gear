@@ -58,7 +58,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-release
-          path: target/release/gear
+          path: target/release
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
