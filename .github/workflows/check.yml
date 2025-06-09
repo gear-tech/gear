@@ -51,7 +51,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.name }}"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
+          #save-if: ${{ github.ref == 'refs/heads/master' }}
+          cache-provider: buildjet
 
       - name: "Install: Rust target"
         run: |
@@ -184,7 +185,8 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/master' }}
+          #save-if: ${{ github.ref == 'refs/heads/master' }}
+          cache-provider: buildjet
           workspaces: |
             . -> target
             utils/wasm-builder/test-program -> target
