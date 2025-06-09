@@ -160,7 +160,7 @@ jobs:
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
-  clippy-wasm:
+  wasm:
     runs-on: ubuntu-latest
     env:
       CARGO_PROFILE_DEV_DEBUG: 0
@@ -189,6 +189,15 @@ jobs:
             utils/wasm-builder/test-program -> target
             utils/cargo-gbuild/test-program -> target
 
+      - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
+        run: |
+          TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
+          CARGO_TOOLCHAIN="utils/wasm-optimizer/src/cargo_toolchain.rs"
+          if ! grep -q "$TOOLCHAIN" $CARGO_TOOLCHAIN; then
+            echo "Please update PINNED_NIGHTLY_TOOLCHAIN constant in $CARGO_TOOLCHAIN to match rust-toolchain.toml."
+            exit 1
+          fi
+
       - name: "Check clippy: Examples"
         run: ./scripts/gear.sh clippy examples --all-targets --locked
 
@@ -199,16 +208,28 @@ jobs:
       - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
       - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
-  linux:
-    runs-on: [ kuberunner, github-runner-01 ]
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Check formatting: Gear"
+        run: ./scripts/gear.sh format gear --check
+
+      - name: "Check formatting: Doc"
+        run: ./scripts/gear.sh format doc --check
+
+  ethexe-contracts:
+    runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: "Install: Rust toolchain"
-        uses: ./.github/actions/install-rust
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -234,14 +255,28 @@ jobs:
           forge build --sizes
           forge test -vvv
 
-      - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
+  crates-io:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
 
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
 
-      - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test docs
+      - name: "Check: crates-io packages publishing"
+        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+
+  gsdk-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
 
       - name: "Test: Changes in gsdk generated code"
         run: |
@@ -252,23 +287,6 @@ jobs:
             git --no-pager diff $GENERATED_CODE
             exit 1
           fi
-
-      - name: "Test: Wasm-builder recommended toolchain matches rust-toolchain.toml"
-        run: |
-          TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
-          CARGO_TOOLCHAIN="utils/wasm-optimizer/src/cargo_toolchain.rs"
-          if ! grep -q "$TOOLCHAIN" $CARGO_TOOLCHAIN; then
-            echo "Please update PINNED_NIGHTLY_TOOLCHAIN constant in $CARGO_TOOLCHAIN to match rust-toolchain.toml."
-            exit 1
-          fi
-
-      - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32v1-none
-
-      - name: "Check: crates-io packages publishing"
-        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   fuzzer:
     runs-on: [ kuberunner, github-runner-01 ]

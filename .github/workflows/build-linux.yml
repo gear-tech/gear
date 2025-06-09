@@ -64,6 +64,9 @@ jobs:
         if: ${{ matrix.profiles.name == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
+      - name: "Test: Doc tests"
+        run: ./scripts/gear.sh test docs
+
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
 
