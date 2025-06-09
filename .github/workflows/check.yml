@@ -253,7 +253,7 @@ jobs:
           forge test -vvv
 
   crates-io:
-    runs-on: ubuntu-latest
+    runs-on: [ kuberunner, github-runner-02 ]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
