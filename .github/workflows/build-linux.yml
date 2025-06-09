@@ -84,6 +84,8 @@ jobs:
         run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profiles.flags }}
 
       - name: "Check: Vara runtime imports"
+        # no need to run check twice
+        if: ${{ matrix.profiles.name == 'release' }}
         run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Check: Stack height limit"
