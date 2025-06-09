@@ -13,8 +13,8 @@ runs:
   steps:
     - name: "Install: Rust target"
       run: |
-        rustup target add ${{ matrix.target }}
-        echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+        rustup target add ${{ inputs.target }}
+        echo "CARGO_BUILD_TARGET=${{ inputs.target }}" >> $GITHUB_ENV
       shell: bash
 
     - name: "Install: macOS aarch64 packages"
