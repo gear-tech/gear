@@ -18,15 +18,15 @@ jobs:
     steps:
       - id: profiles
         run: |
-          profiles=$(jq -n '[{name: "debug", flags: ""}]')
+          profiles=$(jq -c -n '[{name: "debug", flags: ""}]')
           if [ ${{ contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }} ]; then
-            profiles=$(echo "$profiles" | jq '. += [{name: "release", flags: "--release"}]')
+            profiles=$(echo "$profiles" | jq -c '. += [{name: "release", flags: "--release"}]')
           fi
           echo "Profiles: ${profiles}"
           echo "value=${profiles}" >> $GITHUB_OUTPUT
       - id: targets
         run: |
-          targets=$(jq -n '[
+          targets=$(jq -c -n '[
             {
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
@@ -35,7 +35,7 @@ jobs:
           ]')
           
           if [ ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }} ]; then
-            targets=$(echo "$targets" | jq '. += [
+            targets=$(echo "$targets" | jq -c '. += [
               {
                 name: "macos-aarch64",
                 target: "aarch64-apple-darwin",
@@ -50,7 +50,7 @@ jobs:
           fi
           
           if [ ${{ contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }} ]; then
-            targets=$(echo "$targets" | jq '. += [
+            targets=$(echo "$targets" | jq -c '. += [
               {
                 name: "windows-x86_64",
                 target: "x86_64-pc-windows-msvc",
