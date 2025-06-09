@@ -138,6 +138,12 @@ jobs:
           name: target-linux-release
           path: target
 
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-release
+          path: target/release/gear
+
       - name: "Test: gsdk tests"
         run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
 
