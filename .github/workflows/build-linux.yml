@@ -103,7 +103,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: target-linux-release
-          path: target-rsync
+          path: target-rsync/target
           retention-days: 1
           overwrite: true
 
