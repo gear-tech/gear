@@ -270,11 +270,14 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Build: wasm-proc"
-        run: cargo build -p wasm-proc --profile production
+      - name: "ACTIONS: Download target"
+        uses: actions/download-artifact@v4
+        with:
+          name: target-linux-release
+          path: target
 
       - name: "Build: Production binaries"
-        run: cargo build -p gear-cli -F cli --profile production
+        run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
         run: |
