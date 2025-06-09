@@ -210,7 +210,7 @@ impl TestEnv {
             .await
             .unwrap();
 
-        let blobs_storage = LocalBlobStorage::new(db.clone());
+        let blobs_storage = LocalBlobStorage::default();
 
         let provider = observer.provider().clone();
 
@@ -342,7 +342,6 @@ impl TestEnv {
             })
             .unzip();
 
-        self.blobs_storage.change_db(db.clone());
         Node {
             name,
             db,
@@ -827,7 +826,8 @@ impl Node {
             .await
             .unwrap();
 
-        let blob_loader = LocalBlobLoader::from_storage(self.blob_storage.clone()).into_box();
+        let blob_loader =
+            LocalBlobLoader::new(self.db.clone(), self.blob_storage.clone()).into_box();
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
