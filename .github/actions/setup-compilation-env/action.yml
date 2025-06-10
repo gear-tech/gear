@@ -55,7 +55,7 @@ runs:
       shell: bash
 
     - name: "Install: macOS x86_64 fast-compile"
-      if: ${{ inputs.target == 'x86_64-apple-darwin' }}
+      if: ${{ inputs.target == 'x86_64-apple-darwin' && inputs.fast-compile }}
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'x86_64-apple-darwin' target"
