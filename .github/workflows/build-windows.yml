@@ -41,11 +41,12 @@ jobs:
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-      - name: "Install: cross-compile environment"
-        uses: ./.github/actions/setup-cross-compile
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-pc-windows-msvc
           token: ${{ secrets.GITHUB_TOKEN }}
+          fast-compile: true
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2

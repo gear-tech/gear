@@ -47,11 +47,12 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Install: cross-compile environment"
-        uses: ./.github/actions/setup-cross-compile
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
         with:
           target: "${{ matrix.target }}"
           token: ${{ secrets.GITHUB_TOKEN }}
+          fast-compile: true
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
