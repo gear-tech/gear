@@ -173,3 +173,10 @@ runs:
         
         cargo xwin env | sed -e 's/^export //' -e 's/;$//' -e 's/="\(.*\)"$/=\1/' >> $GITHUB_ENV
       shell: bash
+
+    - name: "Cleanup: cargo-xwin env"
+      uses: webiny/action-post-run@3.1.0
+      id: post-run-command
+      with:
+        # cargo metadata used in `rust-cache` action, so it fails with this env var set
+        run: echo "CARGO_ENCODED_RUSTFLAGS=" >> $GITHUB_ENV
