@@ -56,7 +56,7 @@ jobs:
           fast-compile: true
 
       - name: "ACTIONS: Setup caching"
-        uses: useblacksmith/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.name }}"
           #save-if: ${{ github.ref == 'refs/heads/master' }}
@@ -85,7 +85,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: "ACTIONS: Setup caching"
-        uses: useblacksmith/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           #save-if: ${{ github.ref == 'refs/heads/master' }}
           workspaces: |
@@ -142,7 +142,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Setup caching"
-        uses: useblacksmith/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.name }}"
           #save-if: ${{ github.ref == 'refs/heads/master' }}

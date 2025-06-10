@@ -120,7 +120,7 @@ jobs:
           fast-compile: false
 
       - name: "ACTIONS: Setup caching"
-        uses: useblacksmith/rust-cache@v3
+        uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.targets.target }}
 
