@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["CostToken"],"struct":["BlocksAmount","BytesAmount","CallsAmount","CostOf","ExtCosts","InstantiationCosts","IoCosts","LazyPagesCosts","PagesCosts","ProcessCosts","RentCosts","SyscallCosts"]};

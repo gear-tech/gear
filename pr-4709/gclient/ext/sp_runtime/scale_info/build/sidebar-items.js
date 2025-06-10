@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["NamedFields","NoFields","UnnamedFields"],"mod":["field_state","state","variant_state"],"struct":["FieldBuilder","Fields","FieldsBuilder","TypeBuilder","VariantBuilder","Variants"]};

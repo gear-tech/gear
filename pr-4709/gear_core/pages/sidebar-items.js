@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["Page","PageError","PagesAmount","PagesAmountError"],"type":["GearPage","GearPagesAmount","WasmPage","WasmPagesAmount"]};

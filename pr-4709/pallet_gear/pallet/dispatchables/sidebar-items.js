@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["claim_value","claim_value_to_inheritor","create_program","run","send_message","send_reply","set_execute_inherent","upload_code","upload_program"]};

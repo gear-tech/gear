@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Program","ProgramState"],"struct":["ActiveProgram","InactiveProgramError","MemoryInfix"]};

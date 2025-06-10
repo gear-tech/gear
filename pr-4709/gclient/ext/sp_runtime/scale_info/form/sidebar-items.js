@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["MetaForm","PortableForm"],"trait":["Form","JsonSchemaMaybe"]};

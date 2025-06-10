@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"trait":["ActorIdExt","CodeIdExt","MessageIdExt","ReservationIdExt"]};

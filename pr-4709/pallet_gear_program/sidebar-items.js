@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"macro":["impl_config"],"mod":["migrations","pallet","pallet_tests"]};

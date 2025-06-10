@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["CodeErrorWithContext","ExportErrorWithContext","ImportErrorWithContext"],"fn":["validate_program"],"struct":["PrintableFunctionType","PrintableValType","PrintableValTypes"]};

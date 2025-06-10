@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["HandleKind"],"struct":["GasInfo","ReplyInfo"],"trait":["GearApi"]};

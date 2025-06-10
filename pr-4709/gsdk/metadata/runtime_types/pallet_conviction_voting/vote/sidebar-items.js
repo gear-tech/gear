@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["AccountVote","Voting"],"struct":["Casting","Delegating","PriorLock","Vote"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Call","DefensiveError","Error","Event","FreezeReason"]};

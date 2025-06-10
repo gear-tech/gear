@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["Equivocation","Precommit","Prevote"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["StorageType"],"struct":["TaskPoolImpl"],"trait":["Scheduler","SchedulingCostsPerBlock","TaskPool","TaskPoolCallbacks","TaskPoolError"]};

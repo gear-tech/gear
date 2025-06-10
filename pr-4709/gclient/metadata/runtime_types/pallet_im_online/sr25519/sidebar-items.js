@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["app_sr25519"]};

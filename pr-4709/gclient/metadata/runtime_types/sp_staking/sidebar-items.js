@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["offence"],"struct":["Exposure","ExposurePage","IndividualExposure","PagedExposureMetadata"]};

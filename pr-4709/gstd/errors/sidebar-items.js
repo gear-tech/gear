@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ConversionError","CoreError","Error","ErrorReplyReason","ExecutionError","ExtError","MemoryError","MessageError","ReplyCode","ReservationError","SignalCode","SimpleExecutionError","SimpleUnavailableActorError","SuccessReplyReason","UsageError"],"struct":["CodecError","ErrorReplyPayload","SyscallError"],"type":["Result"]};

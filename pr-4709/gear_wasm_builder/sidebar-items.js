@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["TARGET"],"enum":["PreProcessorTarget"],"fn":["build","recommended_nightly"],"mod":["code_validator"],"struct":["CargoCommand","WasmBuilder"],"trait":["PreProcessor"],"type":["PreProcessorResult"]};

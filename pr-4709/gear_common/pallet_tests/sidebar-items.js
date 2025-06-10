@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["MAX_BLOCK","NORMAL_DISPATCH_WEIGHT_RATIO"],"struct":["DbWeight","MinimumPeriod","RuntimeBlockWeights","SS58Prefix"]};

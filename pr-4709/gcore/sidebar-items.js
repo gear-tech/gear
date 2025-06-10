@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"macro":["debug","static_mut","static_ref"],"mod":["errors","exec","ext","msg","prog"],"struct":["ActorId","CodeId","EnvVars","GasMultiplier","MessageHandle","MessageId","Percent","ReservationId","Ss58Address"],"type":["BlockCount","BlockNumber","Gas","Value"]};

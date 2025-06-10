@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["check_genesis","check_mortality","check_non_zero_sender","check_spec_version","check_tx_version","check_weight"]};

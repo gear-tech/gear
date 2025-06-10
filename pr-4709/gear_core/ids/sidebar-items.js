@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["hash","hash_of_array"],"mod":["prelude"],"struct":["ActorId","CodeId","MessageId","ReservationId"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["FromBytesWithNulError"],"struct":["Bytes","CStr","FromBytesUntilNulError"]};

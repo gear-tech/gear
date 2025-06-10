@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["MessageWaitedType"],"struct":["DropPayloadLockBound","PayloadSliceAccess","PayloadSliceLock","UnlockPayloadBound"],"trait":["Externalities","WasmEntryPoint"]};

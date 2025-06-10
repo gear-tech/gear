@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Void"],"mod":["crypto","sr25519"]};

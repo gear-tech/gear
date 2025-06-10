@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"macro":["format","vec"],"mod":["time"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["conviction","pallet","types","vote"]};

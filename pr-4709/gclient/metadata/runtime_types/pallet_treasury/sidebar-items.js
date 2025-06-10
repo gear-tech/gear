@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["PaymentState"],"mod":["pallet"],"struct":["Proposal","SpendStatus"]};
