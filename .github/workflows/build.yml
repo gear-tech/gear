@@ -120,9 +120,9 @@ jobs:
           fast-compile: false
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: useblacksmith/rust-cache@v3
         with:
-          cache-provider: buildjet
+          key: ${{ matrix.targets.target }}
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked

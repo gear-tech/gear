@@ -54,7 +54,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.profiles.name }}"
-          cache-provider: buildjet
 
       - name: "Build: gsdk tests"
         run: >-
