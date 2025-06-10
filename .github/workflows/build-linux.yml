@@ -19,6 +19,50 @@ on:
         default: false
 
 jobs:
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/install-rust
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test docs
+        run: ./scripts/gear.sh test docs
+
+      - name: Build docs
+        run: make doc
+        shell: bash
+        env:
+          CARGO_PROFILE_DEV_DEBUG: 0
+
+      - name: Copy logo image
+        run: cp ./images/logo.svg ./target/doc/
+        shell: bash
+
+      - name: Deploy
+        if: github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          cname: docs.gear.rs
+          force_orphan: true
+          user_name: "github-actions[bot]"
+          user_email: "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy PR
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          destination_dir: pr-${{ github.event.number }}
+
   linux:
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
@@ -57,11 +101,6 @@ jobs:
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
-
-      - name: "Test: Doc tests"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'debug' }}
-        run: ./scripts/gear.sh test docs
 
       - name: "ACTIONS: Cleanup target"
         run: rsync -av --include='*/' --include="*.wasm" --exclude='*' ./target ./target-rsync
