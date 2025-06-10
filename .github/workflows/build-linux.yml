@@ -57,7 +57,7 @@ jobs:
         shell: bash
 
       - name: Copy logo image
-        run: cp ./images/logo.svg ./target/doc/
+        run: cp ./images/logo.svg ./target/target/x86_64-unknown-linux-gnu/doc/
         shell: bash
 
       - name: Deploy
