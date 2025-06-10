@@ -53,9 +53,6 @@ jobs:
           key: "${{ matrix.profiles.name }}"
           cache-provider: buildjet
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-
       - name: "Build: gsdk tests"
         run: >-
           cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk
@@ -133,6 +130,12 @@ jobs:
         with:
           name: target-xwin-${{ matrix.profiles.name }}
           path: target
+
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-release-x86_64-pc-windows-msvc
+          path: target/release
 
       - name: "Test: gsdk tests"
         run: >-

@@ -40,20 +40,57 @@ env:
   NEXTEST_PROFILE: ci
 
 jobs:
-  dynamic-profiles:
+  dynamic-matrix:
     runs-on: ubuntu-latest
     outputs:
-      profiles: ${{ steps.set-matrix.outputs.profiles }}
+      profiles: ${{ steps.profiles.outputs.value }}
+      targets: ${{ steps.targets.outputs.value }}
     steps:
-      - id: set-matrix
+      - id: profiles
         run: |
-          profiles='{"name": "debug", "flags": ""}'
-          if [ "${{ inputs.release }}" = "true" ]; then
-            profiles+=', {"name": "release", "flags": "--release"}'
+          profiles=$(jq -c -n '[{name: "debug", flags: ""}]')
+          if [ ${{ inputs.release }} ]; then
+            profiles=$(echo "$profiles" | jq -c '. += [{name: "release", flags: "--release"}]')
           fi
-          profiles="[${profiles}]"
           echo "Profiles: ${profiles}"
-          echo "profiles=${profiles}" >> $GITHUB_OUTPUT
+          echo "value=${profiles}" >> $GITHUB_OUTPUT
+      - id: targets
+        run: |
+          targets=$(jq -c -n '[
+            {
+              name: "linux-x86_64",
+              target: "x86_64-unknown-linux-gnu",
+              "runs-on": ["kuberunner", "github-runner-02"]
+            }
+          ]')
+          
+          if [ ${{ inputs.macos }} ]; then
+            targets=$(echo "$targets" | jq -c '. += [
+              {
+                name: "macos-aarch64",
+                target: "aarch64-apple-darwin",
+                "runs-on": "macos-latest"
+              },
+              {
+                name: "macos-x86_64",
+                target: "x86_64-apple-darwin",
+                "runs-on": "macos-latest"
+              }
+            ]')
+          fi
+          
+          if [ ${{ inputs.windows }} ]; then
+            targets=$(echo "$targets" | jq -c '. += [
+              {
+                name: "windows-x86_64",
+                target: "x86_64-pc-windows-msvc",
+                "runs-on": ["kuberunner", "github-runner-02"]
+              }
+            ]')
+          fi
+          
+          echo "Targets: ${targets}"
+          echo "value=${targets}" >> $GITHUB_OUTPUT
 
   docs:
     runs-on: ubuntu-latest
@@ -96,23 +133,71 @@ jobs:
           publish_dir: ./target/doc
           destination_dir: pr-${{ github.event.number }}
 
+  node:
+    needs: dynamic-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: ${{ fromJson(needs.dynamic-matrix.outputs.targets) }}
+    runs-on: ${{ matrix.targets.runs-on }}
+    name: node (${{ matrix.targets.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add ${{ matrix.targets.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.targets.target }}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: "Install: cross-compile environment"
+        # the only platforms where host == target
+        if: ${{ matrix.targets.target != 'x86_64-unknown-linux-gnu' && matrix.targets.target != 'aarch64-apple-darwin' }}
+        uses: ./.github/actions/setup-cross-compile
+        with:
+          target: ${{ matrix.targets.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-provider: buildjet
+
+      - name: "Build: Node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "ACTIONS: Upload node"
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-release-${{ matrix.targets.target }}
+          path: target/${{ matrix.targets.target }}/release/gear
+          retention-days: 1
+          overwrite: true
+
   linux:
-    needs: [dynamic-profiles]
+    needs: [dynamic-matrix, node]
     uses: ./.github/workflows/build-linux.yml
     with:
-      profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
       production: ${{ inputs.production }}
 
   windows:
-    needs: [dynamic-profiles]
+    needs: [dynamic-matrix, node]
     if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.windows) }}
     uses: ./.github/workflows/build-windows.yml
     with:
-      profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
 
   macos:
-    needs: [dynamic-profiles, linux]
+    needs: [dynamic-matrix, node, linux]
     if: ${{ !cancelled() && inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
-      profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}

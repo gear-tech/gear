@@ -37,6 +37,12 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-release-${{ matrix.arch.target }}
+          path: target/release
+
       - name: "Install: Packages"
         run: brew install protobuf binaryen
 
@@ -56,12 +62,6 @@ jobs:
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "Build: Node"
-        # the node is not used in the following test sequence,
-        # so we just check compilation
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo build -p gear-cli --release --locked
 
       - name: "Test: Lazy pages"
         run: >-

@@ -19,37 +19,8 @@ on:
         default: false
 
 jobs:
-  node:
-    runs-on: [ kuberunner, github-runner-02 ]
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
-
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
-
-      - name: "Install: Rust toolchain"
-        uses: ./.github/actions/install-rust
-
-      - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-provider: buildjet
-
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-
-      - name: "ACTIONS: Upload node"
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-release
-          path: target/release/gear
-          retention-days: 1
-          overwrite: true
-
   linux:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: node
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -137,7 +108,7 @@ jobs:
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
         with:
-          name: node-release
+          name: node-release-x86_64-unknown-linux-gnu
           path: target/release
 
       - name: "ACTIONS: Restore permissions for node binary"
