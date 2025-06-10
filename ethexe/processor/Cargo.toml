@@ -19,7 +19,7 @@ gear-lazy-pages.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 core-processor.workspace = true
 
-anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
 wasmtime.workspace = true
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
