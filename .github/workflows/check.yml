@@ -54,7 +54,7 @@ jobs:
         with:
           target: "${{ matrix.target }}"
           token: ${{ secrets.GITHUB_TOKEN }}
-          fast-compile: true
+          no-vendored: true
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2

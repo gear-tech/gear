@@ -7,8 +7,8 @@ inputs:
   token:
     description: 'GitHub token'
     required: true
-  fast-compile:
-    description: "Compile '*-sys' packages instead of using precompiled ones"
+  no-vendored:
+    description: "Use precompiled C/C++ libs instead of vendored ones"
     required: true
 
 runs:
@@ -17,7 +17,7 @@ runs:
     - name: "Print inputs"
       run: |
         echo "target: ${{ inputs.target }}"
-        echo "fast-compile: ${{ inputs.fast-compile }}"
+        echo "no-vendored: ${{ inputs.no-vendored }}"
       shell: bash
 
     - name: "Install: Rust target"
@@ -38,8 +38,8 @@ runs:
         sudo apt install -y protobuf-compiler binaryen
       shell: bash
 
-    - name: "Install: macOS aarch64 fast-compile"
-      if: inputs.target == 'aarch64-apple-darwin' && inputs.fast-compile
+    - name: "Install: macOS aarch64 no-vendored"
+      if: inputs.target == 'aarch64-apple-darwin' && inputs.no-vendored
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'aarch64-apple-darwin' target"
@@ -62,8 +62,8 @@ runs:
         echo "LIBGIT2_NO_VENDOR=1" >> $GITHUB_ENV
       shell: bash
 
-    - name: "Install: macOS x86_64 fast-compile"
-      if: inputs.target == 'x86_64-apple-darwin' && inputs.fast-compile
+    - name: "Install: macOS x86_64 no-vendored"
+      if: inputs.target == 'x86_64-apple-darwin' && inputs.no-vendored
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'x86_64-apple-darwin' target"
@@ -113,8 +113,8 @@ runs:
         echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
       shell: bash
 
-    - name: "Install: Linux fast-compile"
-      if: inputs.target == 'x86_64-unknown-linux-gnu' && inputs.fast-compile
+    - name: "Install: Linux no-vendored"
+      if: inputs.target == 'x86_64-unknown-linux-gnu' && inputs.no-vendored
       run: |
         if ! [[ "${{ runner.os }}" == "Linux" ]]; then
           echo "Linux runner expected for 'x86_64-unknown-linux-gnu' target"
