@@ -27,19 +27,19 @@ runs:
       shell: bash
 
     - name: "Install: macOS aarch64 packages"
-      if: ${{ runner.os == 'macOS' }}
+      if: runner.os == 'macOS'
       run: brew install protobuf binaryen
       shell: bash
 
     - name: "Install: Linux packages"
-      if: ${{ runner.os == 'Linux' }}
+      if: runner.os == 'Linux'
       run: |
         sudo apt update
         sudo apt install -y protobuf-compiler binaryen
       shell: bash
 
     - name: "Install: macOS aarch64 fast-compile"
-      if: ${{ inputs.target == 'aarch64-apple-darwin' && inputs.fast-compile }}
+      if: inputs.target == 'aarch64-apple-darwin' && inputs.fast-compile
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'aarch64-apple-darwin' target"
@@ -63,7 +63,7 @@ runs:
       shell: bash
 
     - name: "Install: macOS x86_64 fast-compile"
-      if: ${{ inputs.target == 'x86_64-apple-darwin' && inputs.fast-compile }}
+      if: inputs.target == 'x86_64-apple-darwin' && inputs.fast-compile
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'x86_64-apple-darwin' target"
@@ -92,7 +92,7 @@ runs:
       shell: arch -x86_64 bash {0}
 
     - name: "Install: Linux cross compilers"
-      if: ${{ runner.arch == 'ARM64' && runner.os == 'Linux' }}
+      if: runner.arch == 'ARM64' && runner.os == 'Linux'
       run: |
         sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
         sudo dpkg --add-architecture amd64
@@ -114,7 +114,7 @@ runs:
       shell: bash
 
     - name: "Install: Linux fast-compile"
-      if: ${{ inputs.target == 'x86_64-unknown-linux-gnu' && inputs.fast-compile }}
+      if: inputs.target == 'x86_64-unknown-linux-gnu' && inputs.fast-compile
       run: |
         if ! [[ "${{ runner.os }}" == "Linux" ]]; then
           echo "Linux runner expected for 'x86_64-unknown-linux-gnu' target"
@@ -143,13 +143,13 @@ runs:
       shell: bash
 
     - name: "Install: cargo-xwin"
-      if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
+      if: inputs.target == 'x86_64-pc-windows-msvc'
       uses: ./.github/actions/install-cargo-xwin
       with:
         token: ${{ inputs.token }}
 
     - name: "Install: Windows packages"
-      if: ${{ inputs.target == 'x86_64-pc-windows-msvc' }}
+      if: inputs.target == 'x86_64-pc-windows-msvc'
       run: |
         if ! [[ "${{ runner.os }}" == "Linux" ]]; then
           echo "Linux runner expected for 'x86_64-pc-windows-msvc' target"
