@@ -21,7 +21,7 @@
 <a href=#21 id=21 data-nosnippet>21</a>//! This module contains components for depositing proper
 <a href=#22 id=22 data-nosnippet>22</a>//! and extensive data about actions happen.
 <a href=#23 id=23 data-nosnippet>23</a>
-<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span>gear_core::{env::MessageWaitedType, <a href="../../gear_common/struct.MessageId.html">ids::MessageId</a>};
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span>gear_core::{<a href="../../gear_core/env/enum.MessageWaitedType.html">env::MessageWaitedType</a>, <a href="../../gear_common/struct.MessageId.html">ids::MessageId</a>};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>sp_runtime::{
 <a href=#26 id=26 data-nosnippet>26</a>    codec::{<span class="self">self</span>, Decode, Encode},
 <a href=#27 id=27 data-nosnippet>27</a>    scale_info::{<span class="self">self</span>, TypeInfo},
@@ -115,13 +115,13 @@
 <a href=#115 id=115 data-nosnippet>115</a>    </span>WaitUpToCalledFull,
 <a href=#116 id=116 data-nosnippet>116</a>}
 <a href=#117 id=117 data-nosnippet>117</a>
-<a href=#118 id=118 data-nosnippet>118</a><span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;MessageWaitedType&gt; <span class="kw">for </span><a href="#105-116">MessageWaitedRuntimeReason</a> {
-<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">fn </span>from(src: MessageWaitedType) -&gt; <span class="self">Self </span>{
+<a href=#118 id=118 data-nosnippet>118</a><span class="kw">impl </span><a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="../../gear_core/env/enum.MessageWaitedType.html">MessageWaitedType</a>&gt; <span class="kw">for </span><a href="#105-116">MessageWaitedRuntimeReason</a> {
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">fn </span>from(src: <a href="../../gear_core/env/enum.MessageWaitedType.html">MessageWaitedType</a>) -&gt; <span class="self">Self </span>{
 <a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">match </span><a href="#119">src</a> {
-<a href=#121 id=121 data-nosnippet>121</a>            MessageWaitedType::Wait =&gt; <a href="#107">MessageWaitedRuntimeReason::WaitCalled</a>,
-<a href=#122 id=122 data-nosnippet>122</a>            MessageWaitedType::WaitFor =&gt; <a href="#109">MessageWaitedRuntimeReason::WaitForCalled</a>,
-<a href=#123 id=123 data-nosnippet>123</a>            MessageWaitedType::WaitUpTo =&gt; <a href="#112">MessageWaitedRuntimeReason::WaitUpToCalled</a>,
-<a href=#124 id=124 data-nosnippet>124</a>            MessageWaitedType::WaitUpToFull =&gt; <a href="#115">MessageWaitedRuntimeReason::WaitUpToCalledFull</a>,
+<a href=#121 id=121 data-nosnippet>121</a>            <a href="../../gear_core/env/enum.MessageWaitedType.html#variant.Wait">MessageWaitedType::Wait</a> =&gt; <a href="#107">MessageWaitedRuntimeReason::WaitCalled</a>,
+<a href=#122 id=122 data-nosnippet>122</a>            <a href="../../gear_core/env/enum.MessageWaitedType.html#variant.WaitFor">MessageWaitedType::WaitFor</a> =&gt; <a href="#109">MessageWaitedRuntimeReason::WaitForCalled</a>,
+<a href=#123 id=123 data-nosnippet>123</a>            <a href="../../gear_core/env/enum.MessageWaitedType.html#variant.WaitUpTo">MessageWaitedType::WaitUpTo</a> =&gt; <a href="#112">MessageWaitedRuntimeReason::WaitUpToCalled</a>,
+<a href=#124 id=124 data-nosnippet>124</a>            <a href="../../gear_core/env/enum.MessageWaitedType.html#variant.WaitUpToFull">MessageWaitedType::WaitUpToFull</a> =&gt; <a href="#115">MessageWaitedRuntimeReason::WaitUpToCalledFull</a>,
 <a href=#125 id=125 data-nosnippet>125</a>        }
 <a href=#126 id=126 data-nosnippet>126</a>    }
 <a href=#127 id=127 data-nosnippet>127</a>}
