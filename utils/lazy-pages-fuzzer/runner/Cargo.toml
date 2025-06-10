@@ -6,14 +6,11 @@ edition.workspace = true
 
 [dependencies]
 lazy-pages-fuzzer = { path = ".." }
-gear-utils.workspace = true
-
 arbitrary.workspace = true
 clap = { workspace = true, features = ["derive"] }
 core_affinity.workspace = true
 env_logger.workspace = true
 ipc-channel.workspace = true
-rand.workspace = true
 rand_chacha = { workspace = true, default-features = true }
 hex.workspace = true
 log.workspace = true
