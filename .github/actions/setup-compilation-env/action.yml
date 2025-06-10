@@ -40,7 +40,7 @@ runs:
           exit 1
         fi
         
-        brew install openssl rocksdb zstd jemalloc
+        brew install openssl rocksdb zstd jemalloc libgit2
         
         # Do not override include directory because system RocksDB is too new
         #echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
@@ -52,6 +52,8 @@ runs:
         
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "OPENSSL_DIR=/opt/homebrew/opt/openssl" >> $GITHUB_ENV
+        
+        echo "LIBGIT2_NO_VENDOR=1" >> $GITHUB_ENV
       shell: bash
 
     - name: "Install: macOS x86_64 fast-compile"
@@ -63,13 +65,14 @@ runs:
         fi
         
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-        /usr/local/bin/brew install openssl rocksdb zstd jemalloc pkgconf
+        /usr/local/bin/brew install openssl rocksdb zstd jemalloc libgit2 pkgconf
         
         # Do not override include directory because system RocksDB is too new
         #echo "ROCKSDB_INCLUDE_DIR=/usr/local/opt/rocksdb/include" >> $GITHUB_ENV
         echo "ROCKSDB_LIB_DIR=/usr/local/opt/rocksdb/lib" >> $GITHUB_ENV
         
         echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+        
         echo "PKG_CONFIG=/usr/local/bin/pkg-config" >> $GITHUB_ENV
         echo "HOST_PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig" >> $GITHUB_ENV
         echo "TARGET_PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
@@ -78,6 +81,8 @@ runs:
         
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "OPENSSL_DIR=/usr/local/opt/openssl" >> $GITHUB_ENV
+        
+        echo "LIBGIT2_NO_VENDOR=1" >> $GITHUB_ENV
       shell: arch -x86_64 bash {0}
 
     - name: "Install: Linux cross compilers"
@@ -112,13 +117,14 @@ runs:
         
         sudo apt update
         sudo apt install -y pkg-config \
-          libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64
+          libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64 libgit2-dev:amd64
         
         # Do not override include directory because system RocksDB is too new
         #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
         echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
         
         echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+        
         echo "TARGET_PKG_CONFIG_PATH=/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
         
         echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
@@ -126,6 +132,8 @@ runs:
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "OPENSSL_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
         echo "OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+        
+        echo "LIBGIT2_NO_VENDOR=1" >> $GITHUB_ENV
       shell: bash
 
     - name: "Install: cargo-xwin"
@@ -151,6 +159,7 @@ runs:
         
         # Custom ".pc" is required to be written
         #Add-Content -Path $Env:GITHUB_ENV -Value "ZSTD_SYS_USE_PKG_CONFIG=1"
+        #echo "LIBGIT2_NO_VENDOR=1" >> $GITHUB_ENV
         
         # Not used on Windows
         #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
