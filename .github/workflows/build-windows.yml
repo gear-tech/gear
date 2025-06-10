@@ -138,7 +138,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-release-x86_64-pc-windows-msvc
-          path: target/release
+          path: node-release
+
+      - name: "ACTIONS: Copy node to target directory"
+        run: cp ./node-release/* ./target/release/
 
       - name: "Test: gsdk tests"
         run: >-
