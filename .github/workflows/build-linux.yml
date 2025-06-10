@@ -72,7 +72,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
+          publish_dir: ./target/x86_64-unknown-linux-gnu/doc
           destination_dir: pr-${{ github.event.number }}
 
   workspace:
