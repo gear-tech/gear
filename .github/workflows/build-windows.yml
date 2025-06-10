@@ -141,6 +141,7 @@ jobs:
 
       - name: "ACTIONS: Copy node to target directory"
         run: cp ./node-release/* ./target/release/
+        shell: bash
 
       - name: "Test: gsdk tests"
         run: >-

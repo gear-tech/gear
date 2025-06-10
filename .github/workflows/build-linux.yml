@@ -35,7 +35,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: ./.github/actions/setup-linker
+
       - uses: ./.github/actions/install-rust
+
+      - uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fast-compile: true
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
