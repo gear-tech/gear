@@ -33,7 +33,7 @@ runs:
       shell: bash
 
     - name: "Install: macOS aarch64 fast-compile"
-      if: ${{ inputs.target == 'aarch64-apple-darwin' && inputs.fast-compile }}
+      if: ${{ inputs.target == 'aarch64-apple-darwin' && inputs.fast-compile == 'true' == 'true' }}
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'aarch64-apple-darwin' target"
@@ -55,7 +55,7 @@ runs:
       shell: bash
 
     - name: "Install: macOS x86_64 fast-compile"
-      if: ${{ inputs.target == 'x86_64-apple-darwin' && inputs.fast-compile }}
+      if: ${{ inputs.target == 'x86_64-apple-darwin' && inputs.fast-compile == 'true' }}
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'x86_64-apple-darwin' target"
@@ -103,7 +103,7 @@ runs:
       shell: bash
 
     - name: "Install: Linux fast-compile"
-      if: ${{ inputs.target == 'x86_64-unknown-linux-gnu' && inputs.fast-compile }}
+      if: ${{ inputs.target == 'x86_64-unknown-linux-gnu' && inputs.fast-compile == 'true' }}
       run: |
         if ! [[ "${{ runner.os }}" == "Linux" ]]; then
           echo "Linux runner expected for 'x86_64-unknown-linux-gnu' target"
