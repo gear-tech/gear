@@ -43,16 +43,15 @@ jobs:
           name: node-release-${{ matrix.arch.target }}
           path: target/release
 
-      - name: "Install: Packages"
-        run: brew install protobuf binaryen
-
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Install: Target"
-        run: |
-          rustup target add ${{ matrix.arch.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.arch.target }}" >> $GITHUB_ENV
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: "${{ matrix.arch.target }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fast-compile: false
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
