@@ -17,7 +17,7 @@ runs:
     - name: "Print inputs"
       run: |
         echo "target: ${{ inputs.target }}"
-        echo "no-vendored: ${{ inputs.no-vendored }}"
+        echo "no-vendored: ${{ inputs.no-vendored == 'true' }}"
       shell: bash
 
     - name: "Install: Rust target"
@@ -39,7 +39,7 @@ runs:
       shell: bash
 
     - name: "Install: macOS aarch64 no-vendored"
-      if: inputs.target == 'aarch64-apple-darwin' && inputs.no-vendored
+      if: inputs.target == 'aarch64-apple-darwin' && inputs.no-vendored == 'true'
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'aarch64-apple-darwin' target"
@@ -63,7 +63,7 @@ runs:
       shell: bash
 
     - name: "Install: macOS x86_64 no-vendored"
-      if: inputs.target == 'x86_64-apple-darwin' && inputs.no-vendored
+      if: inputs.target == 'x86_64-apple-darwin' && inputs.no-vendored == 'true'
       run: |
         if ! [[ "${{ runner.os }}" == "macOS" && "${{ runner.arch }}" == "ARM64" ]]; then
           echo "macOS-ARM64 runner expected for 'x86_64-apple-darwin' target"
@@ -114,7 +114,7 @@ runs:
       shell: bash
 
     - name: "Install: Linux no-vendored"
-      if: inputs.target == 'x86_64-unknown-linux-gnu' && inputs.no-vendored
+      if: inputs.target == 'x86_64-unknown-linux-gnu' && inputs.no-vendored == 'true'
       run: |
         if ! [[ "${{ runner.os }}" == "Linux" ]]; then
           echo "Linux runner expected for 'x86_64-unknown-linux-gnu' target"

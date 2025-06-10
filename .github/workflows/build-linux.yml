@@ -44,7 +44,7 @@ jobs:
         with:
           target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
-          no-vendored: true
+          no-vendored: 'true'
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
