@@ -21,7 +21,6 @@ use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     BatchCommitmentValidationReply, ConsensusEvent,
 };
-use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{gear::BatchCommitment, Address};
 use std::collections::BTreeSet;

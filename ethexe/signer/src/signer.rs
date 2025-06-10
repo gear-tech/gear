@@ -18,7 +18,7 @@
 
 use crate::{
     storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage},
-    Result, SignerError,
+    Result,
 };
 use ethexe_common::{
     ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},

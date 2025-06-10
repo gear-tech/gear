@@ -22,9 +22,8 @@
 
 use crate::{
     utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ConsensusEvent, ConsensusService,
+    ConsensusEvent, ConsensusService, Result,
 };
-use anyhow::Result;
 use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use futures::{stream::FusedStream, Stream};
@@ -110,7 +109,7 @@ impl ConsensusService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = anyhow::Result<ConsensusEvent>;
+    type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {

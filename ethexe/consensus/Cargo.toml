@@ -19,6 +19,7 @@ gprimitives = { workspace = true, features = ["codec"] }
 async-trait.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 log.workspace = true
+thiserror.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true

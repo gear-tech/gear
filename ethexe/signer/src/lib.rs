@@ -28,12 +28,26 @@
 mod signer;
 mod storage;
 
+use ethexe_common::ecdsa::PublicKey;
 pub use signer::Signer;
 pub use storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SignerError {
+    // `KeyStorage` errors
+    #[error("private key not found for public key: {0}")]
+    PrivateKeyNotFound(PublicKey),
+    #[error("invalid key length: {0:?}")]
+    InvalidKeyLength(Vec<u8>),
 
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Hex(#[from] hex::FromHexError),
+
+    #[error(transparent)]
+    ECDSA(#[from] ethexe_common::k256::ecdsa::Error),
 }
 
 pub(crate) type Result<T> = std::result::Result<T, SignerError>;

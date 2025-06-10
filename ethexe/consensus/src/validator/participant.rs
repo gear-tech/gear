@@ -25,9 +25,8 @@ use crate::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         BlockCommitmentValidationRequest,
     },
-    ConsensusEvent,
+    ConsensusEvent, ConsesusError,
 };
-use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
@@ -159,22 +158,26 @@ impl Participant {
 
         let local_timestamp = db
             .code_blob_info(id)
-            .ok_or_else(|| anyhow!("Code {id} blob info is not in storage"))?
+            .ok_or(ConsesusError::CodeBlobInfoNotFound(id))?
             .timestamp;
 
-        ensure!(
-            local_timestamp == timestamp,
-            "Requested and local code timestamps mismatch"
-        );
+        if local_timestamp == timestamp {
+            return Err(ConsesusError::CodesTimestampMismatch {
+                local_ts: local_timestamp,
+                requested_ts: timestamp,
+            });
+        }
 
         let local_valid = db
             .code_valid(id)
-            .ok_or_else(|| anyhow!("Code {id} is not validated by this node"))?;
+            .ok_or(ConsesusError::CodeNotValidated(id))?;
 
-        ensure!(
-            local_valid == valid,
-            "Requested and local code validation results mismatch"
-        );
+        if local_valid != valid {
+            return Err(ConsesusError::ValidationResultsMismatch {
+                local: local_valid,
+                requested: valid,
+            });
+        }
 
         Ok(())
     }
@@ -191,16 +194,20 @@ impl Participant {
             transitions_digest,
         } = request;
 
-        ensure!(
-            db.block_computed(block_hash),
-            "Requested block {block_hash} is not processed by this node"
-        );
+        if !db.block_computed(block_hash) {
+            return Err(ConsesusError::BlockNotComputed(block_hash));
+        }
 
-        let header = db.block_header(block_hash).ok_or_else(|| {
-            anyhow!("Requested block {block_hash} header wasn't found in storage")
-        })?;
+        let header = db
+            .block_header(block_hash)
+            .ok_or(ConsesusError::BlockHeaderNotFound(block_hash))?;
 
-        ensure!(header.timestamp == block_timestamp, "Timestamps mismatch");
+        if header.timestamp != block_timestamp {
+            return Err(ConsesusError::BlocksTimestamMismatch {
+                local_ts: header.timestamp,
+                requested_ts: block_timestamp,
+            });
+        }
 
         let local_outcome_digest = db
             .block_outcome(block_hash)
@@ -243,7 +250,7 @@ impl Participant {
 
         let block_header = db
             .block_header(block_hash)
-            .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?;
+            .ok_or(ConsesusError::BlockHeaderNotFound(block_hash))?;
 
         if block_header.parent_hash == pred_hash {
             return Ok(true);
@@ -251,7 +258,7 @@ impl Participant {
 
         let pred_height = db
             .block_header(pred_hash)
-            .ok_or_else(|| anyhow!("header not found for pred block: {pred_hash}"))?
+            .ok_or(ConsesusError::BlockHeaderNotFound(pred_hash))?
             .height;
 
         let distance = block_header.height.saturating_sub(pred_height);
@@ -266,7 +273,7 @@ impl Participant {
             }
             block_hash = db
                 .block_header(block_hash)
-                .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?
+                .ok_or(ConsesusError::BlockHeaderNotFound(block_hash))?
                 .parent_hash;
         }
 

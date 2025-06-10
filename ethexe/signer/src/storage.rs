@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{CliError, Result};
+use crate::{Result, SignerError};
 use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     Address,
@@ -100,7 +100,7 @@ impl KeyStorage for FSKeyStorage {
         let bytes = fs::read(key_path)?;
 
         if bytes.len() != 32 {
-            bail!("Invalid key length: {:?}", bytes);
+            return Err(SignerError::InvalidKeyLength(bytes));
         }
 
         buf.copy_from_slice(&bytes);
@@ -155,7 +155,7 @@ impl KeyStorage for MemoryKeyStorage {
         self.keys
             .get(&key)
             .cloned()
-            .ok_or_else(|| anyhow!("Key not found"))
+            .ok_or(SignerError::PrivateKeyNotFound(key))
     }
 
     fn add_key(&mut self, key: PrivateKey) -> Result<PublicKey> {

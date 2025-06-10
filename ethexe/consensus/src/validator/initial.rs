@@ -20,7 +20,6 @@ use super::{
     producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler,
     ValidatorContext, ValidatorState,
 };
-use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{Address, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;

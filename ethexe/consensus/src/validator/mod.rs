@@ -51,7 +51,6 @@ use crate::{
     },
     ConsensusEvent, ConsensusService,
 };
-use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{

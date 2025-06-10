@@ -21,7 +21,6 @@ use super::{
     ValidatorState,
 };
 use crate::{validator::participant::Participant, ConsensusEvent};
-use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{ecdsa::SignedData, Address, ProducerBlock, SimpleBlockData};
 use gprimitives::H256;

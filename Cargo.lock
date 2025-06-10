@@ -4715,6 +4715,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
+ "thiserror 1.0.62",
  "tokio",
 ]
 
@@ -4959,6 +4960,7 @@ dependencies = [
  "alloy",
  "derive_more 2.0.1",
  "ethexe-common",
+ "hex",
  "parity-scale-codec",
  "tempfile",
  "thiserror 1.0.62",

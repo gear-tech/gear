@@ -19,8 +19,7 @@
 use super::{
     coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
 };
-use crate::ConsensusEvent;
-use anyhow::{anyhow, Result};
+use crate::{ConsensusEvent, ConsesusError};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorage, CodesStorage, OnChainStorage},
@@ -156,7 +155,7 @@ impl Producer {
         let commitments_queue = ctx
             .db
             .block_commitment_queue(block_hash)
-            .ok_or_else(|| anyhow!("Block {block_hash} commitment queue is not in storage"))?;
+            .ok_or(ConsesusError::BlockCommitmentQueueNotFound(block_hash))?;
 
         let mut commitments = Vec::new();
 
@@ -171,19 +170,17 @@ impl Producer {
             let outcomes = ctx
                 .db
                 .block_outcome(block)
-                .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
+                .ok_or(ConsesusError::ComputedBlockOutcomeNotFound(block_hash))?;
 
-            let previous_committed_block =
-                ctx.db.previous_not_empty_block(block).ok_or_else(|| {
-                    anyhow!(
-                        "Cannot get from db previous committed block for computed block {block}"
-                    )
-                })?;
+            let previous_committed_block = ctx
+                .db
+                .previous_not_empty_block(block)
+                .ok_or(ConsesusError::PreviousCommittedBlockNotFound(block))?;
 
             let header = ctx
                 .db
                 .block_header(block)
-                .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block}"))?;
+                .ok_or(ConsesusError::ComputedBlockHeaderNotFound(block))?;
 
             commitments.push(BlockCommitment {
                 hash: block,
@@ -204,7 +201,7 @@ impl Producer {
         let codes_queue = ctx
             .db
             .block_codes_queue(block_hash)
-            .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
+            .ok_or(ConsesusError::ComputedBlockCodesQueueNotFound(block_hash))?;
 
         codes_queue
             .into_iter()
@@ -212,7 +209,7 @@ impl Producer {
             .map(|(id, valid)| {
                 ctx.db
                     .code_blob_info(id)
-                    .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))
+                    .ok_or_else(|| anyhow!())
                     .map(|CodeBlobInfo { timestamp, .. }| CodeCommitment {
                         id,
                         timestamp,

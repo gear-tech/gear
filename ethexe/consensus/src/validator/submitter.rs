@@ -18,7 +18,6 @@
 
 use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext, ValidatorState};
 use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
-use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
 use ethexe_ethereum::router::Router;
