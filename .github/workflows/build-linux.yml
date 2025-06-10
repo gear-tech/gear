@@ -63,13 +63,13 @@ jobs:
           publish_dir: ./target/doc
           destination_dir: pr-${{ github.event.number }}
 
-  linux:
+  workspace:
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
       fail-fast: false
-    name: linux (${{ matrix.profiles.name }})
+    name: workspace (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -116,7 +116,7 @@ jobs:
 
   sdk:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: linux
+    needs: workspace
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -163,7 +163,7 @@ jobs:
 
   benchmarks:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: linux
+    needs: workspace
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -203,7 +203,7 @@ jobs:
 
   try-runtime:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: linux
+    needs: workspace
     strategy:
       matrix:
         profiles: ${{ fromJson(inputs.profiles) }}
@@ -257,7 +257,7 @@ jobs:
 
   fuzzer:
     runs-on: [ kuberunner, github-runner-01 ]
-    needs: linux
+    needs: workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
     steps:
@@ -316,7 +316,7 @@ jobs:
 
   production:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: linux
+    needs: workspace
     if: ${{ inputs.production }}
     steps:
       - name: "ACTIONS: Checkout"
