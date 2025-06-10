@@ -18,6 +18,15 @@ on:
         type: boolean
         default: false
 
+env:
+  TERM: xterm-256color
+  RUST_BACKTRACE: short
+  RUST_LIB_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  NEXTEST_PROFILE: ci
+
 jobs:
   docs:
     runs-on: ubuntu-latest
@@ -37,8 +46,6 @@ jobs:
       - name: Build docs
         run: make doc
         shell: bash
-        env:
-          CARGO_PROFILE_DEV_DEBUG: 0
 
       - name: Copy logo image
         run: cp ./images/logo.svg ./target/doc/
