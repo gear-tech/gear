@@ -33,7 +33,7 @@ pub enum Commands {
 
 #[derive(Args)]
 pub struct RunArgs {
-    /// Don't run the fuzzer, just print the module and exit
-    #[arg(long, default_value_t = false)]
-    pub print_module_and_exit: bool,
+    /// Duration in seconds for which the fuzzer will run
+    #[arg(long)]
+    pub duration_seconds: Option<u64>,
 }

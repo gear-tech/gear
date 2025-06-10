@@ -15,7 +15,7 @@ use crate::{
     generate_or_read_seed,
     seeds::{derivate_seed, generate_instance_seed},
     ts,
-    uitls::{hex_to_string, simulate_panic},
+    uitls::hex_to_string,
 };
 
 pub struct Worker {
@@ -83,8 +83,6 @@ pub fn run(token: String, ttl_sec: u64, cpu_affinity: usize) {
             // Main process has exited, worker should stop too
             break;
         }
-
-        //simulate_panic(&derived_seed[0..16]);
 
         let mut u = Unstructured::new(&derived_seed);
         let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
@@ -155,7 +153,7 @@ impl Workers {
         (worker_pid, worker)
     }
 
-    pub fn run(&mut self, mut udpate_cb: impl FnMut(&Worker)) -> Option<UserReport> {
+    pub fn run(&mut self, mut udpate_cb: impl FnMut()) -> Option<UserReport> {
         let mut exited_workers = Vec::new();
 
         loop {
@@ -170,7 +168,7 @@ impl Workers {
                 loop {
                     if let Ok(report) = worker.receiver.try_recv() {
                         worker.last_report = report;
-                        udpate_cb(worker);
+                        udpate_cb();
                     } else {
                         continue 'outer; // No more reports to process, continue to next worker
                     }

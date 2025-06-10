@@ -23,7 +23,9 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use lazy_pages_fuzzer::GeneratedModule;
 use seeds::{derivate_seed, generate_seed};
-use uitls::{cast_slice, hex_to_string, simulate_panic, string_to_hex};
+use uitls::{cast_slice, hex_to_string, string_to_hex};
+
+use crate::cli::RunArgs;
 
 mod cli;
 mod seeds;
@@ -80,8 +82,10 @@ fn main() {
     let cli: Cli = Cli::parse();
 
     match cli.command {
-        Commands::Run(_) => {
-            run_fuzzer();
+        Commands::Run(RunArgs{
+            duration_seconds
+        }) => {
+            run_fuzzer(duration_seconds);
         }
         Commands::Reproduce { instance_seed } => {
             let instance_seed = string_to_hex(&instance_seed);
@@ -97,11 +101,16 @@ fn main() {
     }
 }
 
-fn run_fuzzer() {
+fn run_fuzzer(duration_seconds: Option<u64>) {
     log::info!("Starting lazy pages fuzzer");
+
+    if let Some(duration_seconds) = duration_seconds  {
+        log::info!("Fuzzer will run for {} seconds", duration_seconds);
+    }
 
     let _ = generate_or_read_seed(false);
     let mut status = FuzzerStats::default();
+    let start_ts = Instant::now();
     let mut stats_ts = Instant::now();
 
     let mut workers = worker::Workers::spawn(
@@ -109,7 +118,7 @@ fn run_fuzzer() {
         thread::available_parallelism().unwrap().try_into().unwrap(),
     );
 
-    let report = workers.run(|_| {
+    let report = workers.run(|| {
         status.instances_fuzzed += 1;
         let elapsed_sec = stats_ts.elapsed().as_secs();
 
@@ -120,6 +129,13 @@ fn run_fuzzer() {
             );
             status.instances_fuzzed = 0;
             stats_ts = Instant::now();
+        }
+
+        if let Some(duration_seconds) = duration_seconds {
+            if start_ts.elapsed().as_secs() >= duration_seconds {
+                log::info!("Fuzzer run completed after {} seconds", duration_seconds);
+                process::exit(0);
+            }
         }
     });
 
