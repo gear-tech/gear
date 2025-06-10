@@ -82,9 +82,7 @@ fn main() {
     let cli: Cli = Cli::parse();
 
     match cli.command {
-        Commands::Run(RunArgs{
-            duration_seconds
-        }) => {
+        Commands::Run(RunArgs { duration_seconds }) => {
             run_fuzzer(duration_seconds);
         }
         Commands::Reproduce { instance_seed } => {
@@ -104,7 +102,7 @@ fn main() {
 fn run_fuzzer(duration_seconds: Option<u64>) {
     log::info!("Starting lazy pages fuzzer");
 
-    if let Some(duration_seconds) = duration_seconds  {
+    if let Some(duration_seconds) = duration_seconds {
         log::info!("Fuzzer will run for {} seconds", duration_seconds);
     }
 
@@ -115,7 +113,7 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
 
     let mut workers = worker::Workers::spawn(
         WORKER_TTL_SEC,
-        thread::available_parallelism().unwrap().try_into().unwrap(),
+        thread::available_parallelism().unwrap().into(),
     );
 
     let report = workers.run(|| {
@@ -160,9 +158,8 @@ fn reproduce(instance_seed: [u8; 32]) {
     let m = m.enhance().unwrap();
     //log::info!("Generated module: {m:#?}");
 
-    match lazy_pages_fuzzer::run(m) {
-        Err(_) => panic!("failed to fuzz"),
-        Ok(_) => (),
+    if lazy_pages_fuzzer::run(m).is_err() {
+        panic!("failed to fuzz")
     }
 }
 

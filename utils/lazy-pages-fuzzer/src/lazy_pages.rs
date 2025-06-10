@@ -235,8 +235,8 @@ unsafe fn simulate_data_load(addr: usize) {
 }
 
 thread_local! {
-    static TLS_SIM_READ: RefCell<u32> = RefCell::new(0);
-    static TLS_SIM_WRITE: RefCell<u32> = RefCell::new(0);
+    static TLS_SIM_READ: RefCell<u32> = const { RefCell::new(0) };
+    static TLS_SIM_WRITE: RefCell<u32> = const { RefCell::new(0) };
 }
 
 fn simulate_tls_access() {

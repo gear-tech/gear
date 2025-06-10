@@ -34,14 +34,12 @@ pub fn cast_vec(mut input: Vec<u32>) -> Vec<u8> {
 
 pub fn cast_slice_mut(input: &mut [u32]) -> &mut [u8] {
     let ptr = input.as_mut_ptr();
-    let length = input.len();
-    unsafe { std::slice::from_raw_parts_mut(ptr as *mut u8, length * mem::size_of::<u32>()) }
+    unsafe { std::slice::from_raw_parts_mut(ptr as *mut u8, mem::size_of_val(input)) }
 }
 
 pub fn cast_slice(input: &[u32]) -> &[u8] {
     let ptr = input.as_ptr();
-    let length = input.len();
-    unsafe { std::slice::from_raw_parts(ptr as *const u8, length * mem::size_of::<u32>()) }
+    unsafe { std::slice::from_raw_parts(ptr as *const u8, mem::size_of_val(input)) }
 }
 
 #[allow(dead_code)]

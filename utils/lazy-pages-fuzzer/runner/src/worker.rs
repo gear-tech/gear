@@ -55,14 +55,14 @@ pub fn run(token: String, ttl_sec: u64, cpu_affinity: usize) {
     }
 
     let pid = process::id();
-    let tx: IpcSender<WorkerReport> =
-        IpcSender::connect(token.to_string()).expect(format!("connect failed, pid {pid}").as_str());
+    let tx: IpcSender<WorkerReport> = IpcSender::connect(token.to_string())
+        .unwrap_or_else(|_| panic!("connect failed, pid {pid}"));
 
     tx.send(WorkerReport {
         pid: process::id(),
         status: WorkerStatus::Started,
     })
-    .expect(format!("send failed, pid {pid}").as_str());
+    .unwrap_or_else(|_| panic!("send failed, pid {pid}"));
 
     let input_seed = generate_or_read_seed(true);
     let now = time::Instant::now();
@@ -88,9 +88,8 @@ pub fn run(token: String, ttl_sec: u64, cpu_affinity: usize) {
         let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
         let m = m.enhance().expect("cannot fail to enhance module");
 
-        match lazy_pages_fuzzer::run(m) {
-            Err(_) => panic!("failed to fuzz"),
-            Ok(_) => (),
+        if lazy_pages_fuzzer::run(m).is_err() {
+            panic!("failed to fuzz")
         }
     }
 }
@@ -153,7 +152,7 @@ impl Workers {
         (worker_pid, worker)
     }
 
-    pub fn run(&mut self, mut udpate_cb: impl FnMut()) -> Option<UserReport> {
+    pub fn run(&mut self, mut update_cb: impl FnMut()) -> Option<UserReport> {
         let mut exited_workers = Vec::new();
 
         loop {
@@ -168,7 +167,7 @@ impl Workers {
                 loop {
                     if let Ok(report) = worker.receiver.try_recv() {
                         worker.last_report = report;
-                        udpate_cb();
+                        update_cb();
                     } else {
                         continue 'outer; // No more reports to process, continue to next worker
                     }
@@ -193,7 +192,7 @@ impl Workers {
                         self.workers.insert(new_pid, new_worker);
                     } else {
                         return Some(UserReport {
-                            seed: worker.last_report.status.seed(),
+                            instance_seed: worker.last_report.status.seed(),
                             pid: worker.last_report.pid,
                             exit_code: output.status.code().unwrap_or(1),
                             output,
@@ -210,7 +209,7 @@ impl Workers {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct UserReport {
-    pub seed: String,
+    pub instance_seed: String,
     pub pid: u32,
     pub exit_code: i32,
     pub output: process::Output,

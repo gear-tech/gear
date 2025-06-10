@@ -65,7 +65,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_instace_seed() {
+    fn test_generate_instance_seed() {
         let seed = generate_instance_seed(ts());
         let seed2 = generate_instance_seed(ts());
         assert_ne!(seed, seed2, "Generated seeds should be different");
