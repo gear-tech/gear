@@ -122,12 +122,14 @@ jobs:
       - name: "Test: Workspace"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst --fail-fast 
-          -E 'not package(/fuzz$/)'
-          -E 'not package(gsdk)'
-          -E 'not package(gcli)'
-          -E 'not package(gclient)'
-          -E 'not test("*check_syscalls_integrity*")'
-          -E 'not test("*bench*")'
+          -E '
+          not package(/fuzz$/) and
+          not package(gsdk) and
+          not package(gcli) and
+          not package(gclient) and
+          not test("*check_syscalls_integrity*") and
+          not test("*bench*")
+          '
 
       - name: "ACTIONS: Upload nextest archive"
         uses: actions/upload-artifact@v4
