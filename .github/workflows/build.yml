@@ -134,7 +134,7 @@ jobs:
           mkdir -p ./target/release
           mv ./target/x86_64-unknown-linux-gnu/release/wbuild ./target/release/wbuild   
           mv ./target/x86_64-unknown-linux-gnu/release/gear ./target/release/gear
-          cargo nextest archive --archive-file=everything.tar.zst --workspace --all-targets --all-features
+          cargo nextest archive --archive-file=everything.tar.zst --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload nextest archive"
         uses: actions/upload-artifact@v4
