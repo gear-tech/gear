@@ -95,6 +95,54 @@ jobs:
           echo "Targets: ${targets}"
           echo "value=${targets}" >> $GITHUB_OUTPUT
 
+  build-everything:
+    runs-on: [ kuberunner, github-runner-02 ]
+    strategy:
+      matrix:
+        profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
+      fail-fast: false
+    name: build-everything (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "ACTIONS: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+          no-vendored: 'false'
+
+      - name: "Build: Test dependencies"
+        run: cargo build -p gear-cli -p vara-runtime --all-features --release
+
+      - name: "Build: everything"
+        run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+
+      - name: "Test: Pack everything"
+        run: |
+          mkdir -p ./target/release
+          mv ./target/x86_64-unknown-linux-gnu/release/wbuild ./target/release/wbuild   
+          mv ./target/x86_64-unknown-linux-gnu/release/gear ./target/release/gear
+          cargo nextest archive --archive-file=everything.tar.zst --workspace --all-targets --all-features
+
+      - name: "ACTIONS: Upload nextest archive"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-everything-debug
+          path: everything.tar.zst
+          retention-days: 1
+          overwrite: true
+
   node:
     needs: dynamic-matrix
     strategy:
