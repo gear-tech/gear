@@ -127,8 +127,7 @@ jobs:
           not package(gsdk) and
           not package(gcli) and
           not package(gclient) and
-          not test("*check_syscalls_integrity*") and
-          not test("*bench*")
+          not test(/bench/)
           '
 
       - name: "ACTIONS: Upload nextest archive"
