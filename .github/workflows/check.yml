@@ -67,9 +67,6 @@ jobs:
 
   wasm:
     runs-on: ubuntu-latest
-    env:
-      CARGO_PROFILE_DEV_DEBUG: 0
-      CARGO_PROFILE_TEST_DEBUG: 0
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -112,6 +109,32 @@ jobs:
       - run: cargo +stable check -p gstd --target wasm32v1-none
       - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
       - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+
+  vara-runtime-imports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.name }}"
+          #save-if: ${{ github.ref == 'refs/heads/master' }}
+
+      - name: "Build: Vara runtime and wasm-proc"
+        run: cargo build -p vara-runtime -p wasm-proc --release
+
+      - name: "Check: Vara runtime imports"
+        run: >-
+          ./target/release/wasm-proc 
+          --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
   stack-height:
     strategy:
