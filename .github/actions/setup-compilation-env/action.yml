@@ -186,3 +186,10 @@ runs:
       with:
         # cargo metadata used in `rust-cache` action, so it fails with this env var set
         run: echo "CARGO_ENCODED_RUSTFLAGS=" >> $GITHUB_ENV
+
+    - name: "Install: Dev Drive"
+      if: runner.os == 'Windows'
+      uses: samypr100/setup-dev-drive@v3
+      with:
+        drive-size: 50GB
+        mount-path: ${{ github.workspace }}/target
