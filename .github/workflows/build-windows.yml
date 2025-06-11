@@ -137,7 +137,7 @@ jobs:
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
         with:
-          name: node-release-x86_64-pc-windows-msvc
+          name: node-and-runtime-release-x86_64-pc-windows-msvc
           path: node-release
 
       - name: "ACTIONS: Copy node to target directory"

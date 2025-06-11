@@ -42,7 +42,7 @@ jobs:
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
         with:
-          name: node-release-${{ matrix.arch.target }}
+          name: node-and-runtime-release-${{ matrix.arch.target }}
           path: target/release
 
       - name: "Install: Rust toolchain"

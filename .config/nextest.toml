@@ -3,8 +3,8 @@ leak-timeout = { period = "500ms", result = "fail" }
 
 [profile.ci]
 archive.include = [
-  { path = "release/gear", relative-to = "target", on-missing = "error" },
-  { path = "release/wbuild/vara-runtime", relative-to = "target", on-missing = "error", depth = 1 }
+  { path = "release/gear", relative-to = "target", on-missing = "warn" },
+  { path = "release/wbuild/vara-runtime", relative-to = "target", on-missing = "warn", depth = 1 }
 ]
 
 [profile.ci.junit]
