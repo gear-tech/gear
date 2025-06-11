@@ -132,7 +132,7 @@ jobs:
         run: |
           mkdir -p artifact/wbuild/vara-runtime
           cp target/${{ matrix.targets.target }}/release/gear* artifact/
-          cp target/${{ matrix.targets.target }}/release/wbuild/*.wasm artifact/wbuild/vara-runtime/
+          cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
 
       - name: "ACTIONS: Upload node and VARA runtime"
         uses: actions/upload-artifact@v4
