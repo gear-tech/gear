@@ -96,6 +96,7 @@ jobs:
           echo "value=${targets}" >> $GITHUB_OUTPUT
 
   build-everything:
+    needs: dynamic-matrix
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
       matrix:
