@@ -122,6 +122,13 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+          no-vendored: 'true'
+
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2
         with:
