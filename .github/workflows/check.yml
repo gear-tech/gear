@@ -140,8 +140,9 @@ jobs:
 
       - name: "Check: Vara runtime imports"
         run: >-
-          ./target/release/wasm-proc 
-          --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
+          ./target/x86_64-unknown-linux-gnu/release/wasm-proc
+          --check-runtime-imports
+          target/x86_64-unknown-linux-gnu/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
   stack-height:
     strategy:
