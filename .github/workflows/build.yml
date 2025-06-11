@@ -97,11 +97,11 @@ jobs:
 
   build-everything:
     needs: dynamic-matrix
-    runs-on: [ kuberunner, github-runner-02 ]
     strategy:
-      matrix:
-        profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
       fail-fast: false
+      matrix:
+        profiles: ${{ fromJson(needs.dynamic-matrix.outputs.profiles) }}
+    runs-on: [ kuberunner, github-runner-02 ]
     name: build-everything (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
