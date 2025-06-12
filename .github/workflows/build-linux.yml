@@ -248,9 +248,6 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
-
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
@@ -269,9 +266,6 @@ jobs:
 
       - name: "Test: Create Vara Mainnet database snapshot"
         run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
-
-      - name: "Build: vara-runtime"
-        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: on-runtime-upgrage"
         run: >-
