@@ -123,7 +123,7 @@ jobs:
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst --fail-fast 
           -E '
-          not package(/fuzz$/) and
+          not package(/fuzz/) and
           not package(gsdk) and
           not package(gcli) and
           not package(gclient) and
@@ -166,15 +166,24 @@ jobs:
           name: nextest-workspace-${{ matrix.profiles.name }}
 
       - name: "Test: gsdk tests"
-        run: cargo nextest run --archive-file=workspace.tar.zst -E 'package(gsdk)' --no-fail-fast
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst -E 'package(gsdk)' --no-fail-fast
+          --extract-to=${{ github.workspace }}
+          --workspace-remap=${{ github.workspace }}
 
       - name: "Test: `gcli`"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --archive-file=workspace.tar.zst -E 'package(gcli)' --no-fail-fast --retries 3
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst -E 'package(gcli)' --no-fail-fast --retries 3
+          --extract-to=${{ github.workspace }}
+          --workspace-remap=${{ github.workspace }}
 
       - name: "Test: Client tests"
-        run: cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)' --no-fail-fast
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)' --no-fail-fast
+          --extract-to=${{ github.workspace }}
+          --workspace-remap=${{ github.workspace }}
 
   benchmarks:
     runs-on: [ kuberunner, github-runner-02 ]
