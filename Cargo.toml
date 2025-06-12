@@ -594,7 +594,7 @@ opt-level = "s"
 
 [profile.production]
 inherits = "release"
-strip = "all"
+strip = true
 
 # Sacrifice compile speed for execution speed by using optimization flags:
 
