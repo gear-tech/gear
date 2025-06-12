@@ -359,11 +359,11 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "ACTIONS: Download target"
+      - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
         with:
-          name: target-linux-release
-          path: target
+          name: node-and-runtime-release-x86_64-unknown-linux-gnu
+          path: node-release
 
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
@@ -371,14 +371,12 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p artifact
-          tar czvf artifact/examples.tar.gz target/wasm32-gear/release/*.wasm
+          tar czvf artifact/examples.tar.gz node-release/target/wasm32-gear/release/*.wasm
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
-          strip artifact/gear || true
-          strip artifact/wasm-proc || true
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}
