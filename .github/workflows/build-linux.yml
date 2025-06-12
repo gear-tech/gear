@@ -254,37 +254,27 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Test: Try runtime migrations"
+      - name: "Install: try-runtime CLI"
         run: |
-          echo "---------- Downloading try-runtime CLI ----------"
-          
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
-          
-          
-          echo "---------- Creating Vara Mainnet db snapshot [vara_ci.snap] ----------"
-          
-          time ./try-runtime \
-            create-snapshot \
-            --uri wss://rpc-private.vara-network.io \
-            vara_ci.snap
-          
-          
-          echo "---------- Building Vara Mainnet runtime ----------"
-          
-          time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
-          
-          
-          echo "---------- Executing on-runtime-upgrade for snapshot ----------"
-          
-          time ./try-runtime \
-            --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm \
-            on-runtime-upgrade \
-            --blocktime 3000 \
-            --checks all \
-            --disable-spec-version-check \
-            --no-weight-warnings \
-            snap -p vara_ci.snap
+
+      - name: "Test: Create Vara Mainnet database snapshot"
+        run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
+
+      - name: "Build: vara-runtime"
+        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
+
+      - name: "Test: on-runtime-upgrage"
+        run: >-
+          ./try-runtime
+          --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          on-runtime-upgrade
+          --blocktime 3000
+          --checks all
+          --disable-spec-version-check
+          --no-weight-warnings
+          snap -p vara_ci.snap
 
   fuzzer:
     runs-on: [ kuberunner, github-runner-01 ]
