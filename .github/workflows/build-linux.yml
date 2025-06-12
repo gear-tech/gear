@@ -233,7 +233,7 @@ jobs:
 
       - name: "Test: Syscalls Wasmi integrity"
         run: >-
-          cargo nextest --archive-file=workspace.tar.zst 
+          cargo nextest run --archive-file=workspace.tar.zst 
           -E 'package(pallet-gear)' check_syscalls_integrity --no-fail-fast
 
   try-runtime:
@@ -259,6 +259,14 @@ jobs:
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
 
+      - name: "ACTIONS: Download nextest archive"
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-workspace-${{ matrix.profiles.name }}
+
+      - name: "ACTIONS: Unpack vara-runtime"
+        run: tar xvf workspace.tar.zst target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+
       - name: "Test: Create Vara Mainnet database snapshot"
         run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
 
@@ -268,7 +276,7 @@ jobs:
       - name: "Test: on-runtime-upgrage"
         run: >-
           ./try-runtime
-          --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
           on-runtime-upgrade
           --blocktime 3000
           --checks all
