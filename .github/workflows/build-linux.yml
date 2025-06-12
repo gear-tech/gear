@@ -213,7 +213,7 @@ jobs:
 
       - name: "Test: Benchmarks in native"
         # fast benchmark tests before long run
-        run: cargo nextest --archive-file=workspace.tar.zst bench
+        run: cargo nextest run --archive-file=workspace.tar.zst bench
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
