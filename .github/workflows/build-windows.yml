@@ -28,7 +28,7 @@ jobs:
     runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: windows-build (${{ matrix.profiles.name }})
     steps:
@@ -105,7 +105,7 @@ jobs:
     needs: windows-build
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: windows-run (${{ matrix.profiles.name }})
     steps:

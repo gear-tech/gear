@@ -100,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        targets: ${{ fromJson(needs.dynamic-matrix.outputs.targets) }}
+        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.targets) }}
     runs-on: ${{ matrix.targets.runs-on }}
     name: node (${{ matrix.targets.name }})
     steps:

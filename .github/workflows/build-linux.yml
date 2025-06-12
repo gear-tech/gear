@@ -79,7 +79,7 @@ jobs:
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: workspace (${{ matrix.profiles.name }})
     steps:
@@ -144,7 +144,7 @@ jobs:
     needs: workspace
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: sdk (${{ matrix.profiles.name }})
     steps:
@@ -190,7 +190,7 @@ jobs:
     needs: workspace
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: benchmarks (${{ matrix.profiles.name }})
     steps:
@@ -241,7 +241,7 @@ jobs:
     needs: workspace
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: try-runtime (${{ matrix.profiles.name }})
     steps:

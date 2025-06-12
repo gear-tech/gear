@@ -26,7 +26,7 @@ jobs:
   macos:
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
         arch:
           - name: aarch64
             target: aarch64-apple-darwin
