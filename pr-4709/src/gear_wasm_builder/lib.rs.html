@@ -32,7 +32,7 @@
 <a href=#32 id=32 data-nosnippet>32</a><span class="kw">mod </span><a href="crate_info.rs.html#19-136">crate_info</a>;
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">mod </span><a href="multiple_crate_versions.rs.html#1-71">multiple_crate_versions</a>;
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">mod </span><a href="smart_fs.rs.html#19-73">smart_fs</a>;
-<a href=#35 id=35 data-nosnippet>35</a><span class="kw">mod </span><a href="wasm_project.rs.html#19-442">wasm_project</a>;
+<a href=#35 id=35 data-nosnippet>35</a><span class="kw">mod </span><a href="wasm_project.rs.html#19-449">wasm_project</a>;
 <a href=#36 id=36 data-nosnippet>36</a>
 <a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub const </span><a href="../../gear_wasm_builder/constant.TARGET.html">TARGET</a>: <span class="kw-2">&amp;</span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.env.html">env!</a>(<span class="string">"TARGET"</span>);
 <a href=#38 id=38 data-nosnippet>38</a>
@@ -46,7 +46,7 @@
 <a href=#46 id=46 data-nosnippet>46</a><span class="kw">impl </span><a href="#40-44">WasmBuilder</a> {
 <a href=#47 id=47 data-nosnippet>47</a>    <span class="doccomment">/// Create a new `WasmBuilder`.
 <a href=#48 id=48 data-nosnippet>48</a>    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-<a href=#49 id=49 data-nosnippet>49</a>        <a href="#52-58">WasmBuilder::create</a>(<a href="wasm_project.rs.html#77-124">WasmProject::new</a>())
+<a href=#49 id=49 data-nosnippet>49</a>        <a href="#52-58">WasmBuilder::create</a>(<a href="wasm_project.rs.html#77-131">WasmProject::new</a>())
 <a href=#50 id=50 data-nosnippet>50</a>    }
 <a href=#51 id=51 data-nosnippet>51</a>
 <a href=#52 id=52 data-nosnippet>52</a>    <span class="kw">fn </span>create(wasm_project: <a href="wasm_project.rs.html#34-43">WasmProject</a>) -&gt; <span class="self">Self </span>{
@@ -65,7 +65,7 @@
 <a href=#65 id=65 data-nosnippet>65</a>
 <a href=#66 id=66 data-nosnippet>66</a>    <span class="doccomment">/// Add pre-processor for wasm file.
 <a href=#67 id=67 data-nosnippet>67</a>    </span><span class="kw">pub fn </span>with_pre_processor(<span class="kw-2">mut </span><span class="self">self</span>, pre_processor: <a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html">Box</a>&lt;<span class="kw">dyn </span><a href="wasm_project.rs.html#62-73">PreProcessor</a>&gt;) -&gt; <span class="self">Self </span>{
-<a href=#68 id=68 data-nosnippet>68</a>        <a class="self" href="#67">self</a>.wasm_project.<a href="wasm_project.rs.html#127-129">add_preprocessor</a>(<a href="#67">pre_processor</a>);
+<a href=#68 id=68 data-nosnippet>68</a>        <a class="self" href="#67">self</a>.wasm_project.<a href="wasm_project.rs.html#134-136">add_preprocessor</a>(<a href="#67">pre_processor</a>);
 <a href=#69 id=69 data-nosnippet>69</a>        <span class="self"><a href="#67">self</a>
 <a href=#70 id=70 data-nosnippet>70</a>    </span>}
 <a href=#71 id=71 data-nosnippet>71</a>
@@ -94,7 +94,7 @@
 <a href=#94 id=94 data-nosnippet>94</a>    /// if the build was successful.
 <a href=#95 id=95 data-nosnippet>95</a>    </span><span class="kw">pub fn </span>build(<span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>, <a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>)&gt; {
 <a href=#96 id=96 data-nosnippet>96</a>        <span class="kw">if </span>env::var(<span class="string">"__GEAR_WASM_BUILDER_NO_BUILD"</span>).is_ok() || is_intellij_sync() {
-<a href=#97 id=97 data-nosnippet>97</a>            <span class="kw">_ </span>= <a class="self" href="#95">self</a>.wasm_project.<a href="wasm_project.rs.html#420-435">provide_dummy_wasm_binary_if_not_exist</a>();
+<a href=#97 id=97 data-nosnippet>97</a>            <span class="kw">_ </span>= <a class="self" href="#95">self</a>.wasm_project.<a href="wasm_project.rs.html#427-442">provide_dummy_wasm_binary_if_not_exist</a>();
 <a href=#98 id=98 data-nosnippet>98</a>            <span class="kw">return </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.None">None</a>;
 <a href=#99 id=99 data-nosnippet>99</a>        }
 <a href=#100 id=100 data-nosnippet>100</a>
@@ -111,18 +111,18 @@
 <a href=#111 id=111 data-nosnippet>111</a>    }
 <a href=#112 id=112 data-nosnippet>112</a>
 <a href=#113 id=113 data-nosnippet>113</a>    <span class="kw">fn </span>build_project(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>, <a href="https://doc.rust-lang.org/nightly/std/path/struct.PathBuf.html">PathBuf</a>)&gt;&gt; {
-<a href=#114 id=114 data-nosnippet>114</a>        <a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#155-239">generate</a>()<span class="question-mark">?</span>;
+<a href=#114 id=114 data-nosnippet>114</a>        <a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#162-246">generate</a>()<span class="question-mark">?</span>;
 <a href=#115 id=115 data-nosnippet>115</a>
 <a href=#116 id=116 data-nosnippet>116</a>        <a class="self" href="#113">self</a>.cargo
-<a href=#117 id=117 data-nosnippet>117</a>            .set_manifest_path(<a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#132-134">manifest_path</a>());
-<a href=#118 id=118 data-nosnippet>118</a>        <a class="self" href="#113">self</a>.cargo.set_target_dir(<a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#137-139">target_dir</a>());
-<a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">let </span>profile = <a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#142-144">profile</a>();
+<a href=#117 id=117 data-nosnippet>117</a>            .set_manifest_path(<a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#139-141">manifest_path</a>());
+<a href=#118 id=118 data-nosnippet>118</a>        <a class="self" href="#113">self</a>.cargo.set_target_dir(<a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#144-146">target_dir</a>());
+<a href=#119 id=119 data-nosnippet>119</a>        <span class="kw">let </span>profile = <a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#149-151">profile</a>();
 <a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">let </span>profile = <span class="kw">if </span>profile == <span class="string">"debug" </span>{ <span class="string">"dev" </span>} <span class="kw">else </span>{ <a href="#119">profile</a> };
 <a href=#121 id=121 data-nosnippet>121</a>        <a class="self" href="#113">self</a>.cargo.set_profile(<a href="#120">profile</a>.<a href="https://doc.rust-lang.org/nightly/alloc/string/trait.ToString.html#tymethod.to_string">to_string</a>());
 <a href=#122 id=122 data-nosnippet>122</a>        <a class="self" href="#113">self</a>.cargo.set_features(<span class="kw-2">&amp;</span><a class="self" href="#113">self</a>.<a href="#134-190">enabled_features</a>()<span class="question-mark">?</span>);
 <a href=#123 id=123 data-nosnippet>123</a>
 <a href=#124 id=124 data-nosnippet>124</a>        <a class="self" href="#113">self</a>.cargo.run()<span class="question-mark">?</span>;
-<a href=#125 id=125 data-nosnippet>125</a>        <a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#322-407">postprocess</a>()
+<a href=#125 id=125 data-nosnippet>125</a>        <a class="self" href="#113">self</a>.wasm_project.<a href="wasm_project.rs.html#329-414">postprocess</a>()
 <a href=#126 id=126 data-nosnippet>126</a>    }
 <a href=#127 id=127 data-nosnippet>127</a>
 <a href=#128 id=128 data-nosnippet>128</a>    <span class="kw">fn </span>manifest_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt; {
@@ -132,7 +132,7 @@
 <a href=#132 id=132 data-nosnippet>132</a>
 <a href=#133 id=133 data-nosnippet>133</a>    <span class="doccomment">/// Returns features enabled for the current build.
 <a href=#134 id=134 data-nosnippet>134</a>    </span><span class="kw">fn </span>enabled_features(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://docs.rs/anyhow/1.0.85/anyhow/type.Result.html">Result</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html">String</a>&gt;&gt; {
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">let </span>project_features = <a class="self" href="#134">self</a>.wasm_project.<a href="wasm_project.rs.html#147-151">features</a>();
+<a href=#135 id=135 data-nosnippet>135</a>        <span class="kw">let </span>project_features = <a class="self" href="#134">self</a>.wasm_project.<a href="wasm_project.rs.html#154-158">features</a>();
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">let </span>enabled_features_iter = <a href="https://doc.rust-lang.org/nightly/std/env/fn.vars.html">env::vars</a>().<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.filter_map">filter_map</a>(|(key, <span class="kw">_</span>)| {
 <a href=#137 id=137 data-nosnippet>137</a>            <a href="#136">key</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.str.html#method.strip_prefix">strip_prefix</a>(<span class="string">"CARGO_FEATURE_"</span>)
 <a href=#138 id=138 data-nosnippet>138</a>                .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.map">map</a>(|feature| <a href="#138">feature</a>.<a href="https://doc.rust-lang.org/nightly/alloc/foreigntype.str.html#method.to_lowercase">to_lowercase</a>())
