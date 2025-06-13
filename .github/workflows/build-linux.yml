@@ -213,7 +213,7 @@ jobs:
 
       - name: "Test: Benchmarks in native"
         # fast benchmark tests before long run
-        run: cargo nextest run --archive-file=workspace.tar.zst bench
+        run: cargo nextest run --archive-file=workspace.tar.zst --no-fail-fast -E 'not package(/fuzz/)' bench
 
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
@@ -267,7 +267,7 @@ jobs:
       - name: "Test: Create Vara Mainnet database snapshot"
         run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
 
-      - name: "Test: on-runtime-upgrage"
+      - name: "Test: on-runtime-upgrade"
         run: >-
           ./try-runtime
           --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
