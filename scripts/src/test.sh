@@ -77,7 +77,7 @@ run_fuzzer() {
 
   # Run fuzzer
   RUSTFLAGS="--cfg fuzz" RUST_LOG="$LOG_TARGETS" \
-    cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
+    cargo fuzz run --release --sanitizer=none runtime-fuzzer-fuzz $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
 run_lazy_pages_fuzzer() {
