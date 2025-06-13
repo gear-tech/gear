@@ -219,8 +219,9 @@ jobs:
         # unoptimized benchmarks take a few hours to run
         if: ${{ matrix.profiles.name == 'release' }}
         run: |
-          tar xvf workspace.tar.zst target/x86_64-unknown-linux-gnu/release/gear
-          cp target/x86_64-unknown-linux-gnu/release/gear ./gear
+          tar xvf workspace.tar.zst target/release/gear
+          cp target/release/gear ./gear
+          chmod +x ./gear
           
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
           ./gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
@@ -262,7 +263,7 @@ jobs:
           name: nextest-workspace-${{ matrix.profiles.name }}
 
       - name: "ACTIONS: Unpack vara-runtime"
-        run: tar xvf workspace.tar.zst target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+        run: tar xvf workspace.tar.zst target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
 
       - name: "Test: Create Vara Mainnet database snapshot"
         run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
@@ -270,7 +271,7 @@ jobs:
       - name: "Test: on-runtime-upgrade"
         run: >-
           ./try-runtime
-          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --runtime target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
           on-runtime-upgrade
           --blocktime 3000
           --checks all
