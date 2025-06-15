@@ -47,8 +47,3 @@ pub fn node_bin() -> String {
 pub fn bin(name: &str) -> String {
     bin_path(name, PROFILE, false)
 }
-
-/// path of wasm binaries
-pub fn wasm_bin(name: &str) -> String {
-    bin_path(name, PROFILE, true)
-}

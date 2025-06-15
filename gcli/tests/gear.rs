@@ -24,15 +24,11 @@ mod common;
 
 #[test]
 fn paths() {
-    [
-        env::node_bin(),
-        env::bin("gcli"),
-        env::wasm_bin("demo_fungible_token.opt.wasm"),
-    ]
-    .into_iter()
-    .for_each(|path| {
-        if !PathBuf::from(&path).exists() {
-            panic!("{path} not found.")
-        }
-    })
+    [env::node_bin(), env::bin("gcli")]
+        .into_iter()
+        .for_each(|path| {
+            if !PathBuf::from(&path).exists() {
+                panic!("{path} not found.")
+            }
+        })
 }
