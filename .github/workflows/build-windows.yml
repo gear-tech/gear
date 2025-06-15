@@ -80,8 +80,9 @@ jobs:
 
       - name: "Build: Cleanup target"
         run: |
-          rsync -av --include='*/' --include='*.exe' --include="*.wasm" --exclude='*' ./target/x86_64-pc-windows-msvc ./target-rsync
+          rsync -av --include='*/' --include='*.exe' --exclude='*' ./target/x86_64-pc-windows-msvc ./target-rsync
           mv ./target-rsync/x86_64-pc-windows-msvc ./target-cleaned
+          rsync -av --include='*/' --include="*.wasm" --exclude='*' ./target/wasm32-gear ./target-cleaned
 
       - name: "ACTIONS: Upload nextest archives"
         uses: actions/upload-artifact@v4
