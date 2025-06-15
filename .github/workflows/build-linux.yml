@@ -257,7 +257,7 @@ jobs:
       - name: "Install: Compilation environment"
         uses: ./.github/actions/setup-compilation-env
         with:
-          target: "${{ matrix.target }}"
+          target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
           no-vendored: 'true'
 
