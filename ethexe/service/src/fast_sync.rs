@@ -26,7 +26,6 @@ use ethexe_common::{
         OnChainStorageRead,
     },
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::CodeCommitment,
     ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -562,7 +561,7 @@ async fn prepare_codes(
     }
 
     while let Some(event) = compute.next().await {
-        if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
+        if let ComputeEvent::CodeProcessed(id) = event? {
             code_ids.remove(&id);
             if code_ids.is_empty() {
                 break;
