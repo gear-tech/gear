@@ -143,7 +143,7 @@ jobs:
       - name: "ACTIONS: Copy node to target directory"
         run: |
           mkdir -p ./target/release
-          cp ./node-release/* ./target/release/
+          cp ./node-release/gear.exe ./target/release/
         shell: bash
 
       - name: "Test: gsdk tests"
