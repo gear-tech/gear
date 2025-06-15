@@ -159,15 +159,6 @@ jobs:
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-      - name: "ACTIONS: Download node"
-        uses: actions/download-artifact@v4
-        with:
-          name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: target/release
-
-      - name: "Test: Set node binary permissions"
-        run: chmod +x target/release/gear
-
       - name: "ACTIONS: Download nextest archive"
         uses: actions/download-artifact@v4
         with:
