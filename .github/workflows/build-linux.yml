@@ -275,7 +275,7 @@ jobs:
       - name: "Test: on-runtime-upgrade"
         run: >-
           ./try-runtime
-          --runtime target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
           on-runtime-upgrade
           --blocktime 3000
           --checks all
