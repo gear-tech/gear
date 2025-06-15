@@ -18,32 +18,18 @@
 
 //! environment paths and binaries
 
-use std::env;
-
-/// target path from the root workspace
-const TARGET: &str = "target";
-const WASM_TARGET: &str = "target/wasm32-gear";
-
-pub const PROFILE: &str = if cfg!(debug_assertions) {
-    "debug"
-} else {
-    "release"
-};
-
-fn bin_path(name: &str, profile: &str, wasm: bool) -> String {
-    format!(
-        "{manifest_dir}/../{target_dir}/{profile}/{name}",
-        manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap(),
-        target_dir = if wasm { WASM_TARGET } else { TARGET }
-    )
-}
+use std::{env, path::PathBuf};
 
 /// path of gear node binary
-pub fn node_bin() -> String {
-    bin_path("gear", "release", false)
+pub fn node_bin() -> PathBuf {
+    let mut gcli = gcli_bin();
+    gcli.pop();
+    gcli.join("gear")
 }
 
 /// path of binaries
-pub fn bin(name: &str) -> String {
-    bin_path(name, PROFILE, false)
+pub fn gcli_bin() -> PathBuf {
+    let path =
+        env::var_os("NEXTEST_BIN_EXE_gcli").unwrap_or_else(|| env!("CARGO_BIN_EXE_gcli").into());
+    PathBuf::from(path)
 }

@@ -54,7 +54,7 @@ pub fn gcli(args: impl Into<Args>) -> Result<Output> {
     args_vec.extend(args.args);
     args_vec.extend(args.with);
 
-    let mut cmd = Command::new(env::bin("gcli"))
+    let mut cmd = Command::new(env::gcli_bin())
         .args(args_vec)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
