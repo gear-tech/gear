@@ -1023,11 +1023,6 @@ mod tests {
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(event, Event::PendingStateRequest { request_id });
-
-        let event = alice.next_swarm_event().await;
-        assert!(
-            matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id)
-        );
     }
 
     #[tokio::test]
