@@ -20,7 +20,9 @@
 //! for various pallets of Substrate.
 //! All used types should be in scope.
 
-use frame_support::{pallet_prelude::*, sp_runtime::Perbill, weights::RuntimeDbWeight};
+use frame_support::{
+    pallet_prelude::*, sp_runtime::Perbill, weights::RuntimeDbWeight,
+};
 use frame_system::limits::BlockWeights;
 
 #[macro_export]
@@ -53,6 +55,7 @@ macro_rules! impl_pallet_balances_inner {
             type RuntimeEvent = RuntimeEvent;
             type ExistentialDeposit = ExistentialDeposit;
             type AccountStore = System;
+            type DoneSlashHandler = ();
             type WeightInfo = ();
         }
     };
@@ -126,6 +129,7 @@ macro_rules! impl_pallet_system_inner {
             type PreInherents = ();
             type PostInherents = ();
             type PostTransactions = ();
+            type ExtensionsWeightInfo = ();
         }
     };
 
@@ -250,6 +254,7 @@ macro_rules! impl_pallet_staking {
 #[macro_export]
 macro_rules! impl_pallet_staking_inner {
     ($runtime:ty$(,)?) => {
+        use frame_support::derive_impl;
         parameter_types! {
             // 6 sessions in an era
             pub const SessionsPerEra: u32 = 6;
@@ -263,7 +268,8 @@ macro_rules! impl_pallet_staking_inner {
             pub const MaxControllersInDeprecationBatch: u32 = 5900;
         }
 
-        impl pallet_staking::Config for Test {
+        #[derive_impl(pallet_staking::config_preludes::TestDefaultConfig)]
+        impl pallet_staking::Config for $runtime {
             type Currency = Balances;
             type UnixTime = Timestamp;
             type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
@@ -271,27 +277,22 @@ macro_rules! impl_pallet_staking_inner {
             type ElectionProvider = StakingConfigElectionProvider;
             type GenesisElectionProvider = StakingConfigGenesisElectionProvider;
             type RewardRemainder = ();
-            type RuntimeEvent = RuntimeEvent;
             type Slash = StakingConfigSlash;
             type Reward = StakingConfigReward;
             type SessionsPerEra = SessionsPerEra;
             type BondingDuration = BondingDuration;
             type SlashDeferDuration = SlashDeferDuration;
-            type AdminOrigin = frame_system::EnsureRoot<AccountId>;
-            type SessionInterface = ();
+            type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
             type EraPayout = StakingConfigEraPayout;
             type NextNewSession = StakingConfigNextNewSession;
             type MaxExposurePageSize = MaxExposurePageSize;
             type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Self>;
             type TargetList = pallet_staking::UseValidatorsMap<Self>;
-            type NominationsQuota = pallet_staking::FixedNominationsQuota<16>;
-            type MaxUnlockingChunks = ConstU32<32>;
             type HistoryDepth = HistoryDepth;
             type EventListeners = ();
-            type WeightInfo = ();
             type BenchmarkingConfig = pallet_staking::TestBenchmarkingConfig;
             type MaxControllersInDeprecationBatch = MaxControllersInDeprecationBatch;
-            type DisablingStrategy = pallet_staking::UpToLimitDisablingStrategy;
+            type WeightInfo = ();
         }
     };
 
