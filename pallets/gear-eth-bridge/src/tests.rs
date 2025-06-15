@@ -429,6 +429,50 @@ fn bridge_updates_authorities_and_clears() {
 }
 
 #[test]
+fn bridge_queues_goveranance_messages_when_over_capacity() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let queue_capacity = effective_queue_capacity();
+
+        for _ in 0..queue_capacity {
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::zero(),
+                vec![]
+            ));
+        }
+
+        let msg_queue_len = Queue::get().len();
+        assert_eq!(msg_queue_len, queue_capacity);
+
+        GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
+            H160::zero(),
+            vec![],
+        )
+        .unwrap();
+
+        assert_eq!(Queue::get().len(), msg_queue_len + 1);
+
+        let _ = run_block_with_builtin_call(
+            <Test as crate::Config>::BridgePauser::get(),
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            None,
+            0,
+        );
+
+        assert_eq!(Queue::get().len(), msg_queue_len + 2);
+    })
+}
+
+#[test]
 fn bridge_is_not_yet_initialized_err() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -491,7 +535,7 @@ fn bridge_queue_capacity_exceeded_err() {
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        for _ in 0..<Test as crate::Config>::QueueCapacity::get() {
+        for _ in 0..effective_queue_capacity() {
             assert_ok!(GearEthBridge::send_eth_message(
                 RuntimeOrigin::signed(SIGNER),
                 H160::zero(),
@@ -730,5 +774,11 @@ mod utils {
             self.current = balance_of_author();
             spent
         }
+    }
+
+    pub(crate) fn effective_queue_capacity() -> usize {
+        let queue_capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+        let governance_reserve: u32 = <Test as crate::Config>::GovernanceMessageReserve::get();
+        (queue_capacity - governance_reserve) as usize
     }
 }

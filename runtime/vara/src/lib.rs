@@ -1295,6 +1295,7 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
+    type GovernanceMessageReserve = ConstU32<10>;
     type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;

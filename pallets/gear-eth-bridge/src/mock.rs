@@ -330,6 +330,7 @@ impl pallet_gear_eth_bridge::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
+    type GovernanceMessageReserve = ConstU32<2>;
     type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = MockBridgeAdminAccount;
     type BridgePauser = MockBridgePauserAccount;

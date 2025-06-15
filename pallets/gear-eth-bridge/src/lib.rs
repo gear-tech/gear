@@ -70,6 +70,7 @@ pub mod pallet {
     use sp_std::vec::Vec;
 
     type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
+    type GovernanceMessageReserveOf<T> = <T as Config>::GovernanceMessageReserve;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
@@ -113,9 +114,13 @@ pub mod pallet {
         type MaxPayloadSize: Get<u32>;
 
         /// Constant defining maximal amount of messages that are able to be
-        /// bridged within the single staking era.
+        /// bridged within the single staking era (including governance message reserve).
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
+
+        /// Constant defining amount of messages that are reserved for governance operations.
+        #[pallet::constant]
+        type GovernanceMessageReserve: Get<u32>;
 
         /// Constant defining amount of sessions in manager for keys rotation.
         /// Similar to `pallet_staking::SessionsPerEra`.
@@ -372,7 +377,10 @@ pub mod pallet {
             source: ActorId,
             destination: H160,
             payload: Vec<u8>,
-        ) -> Result<(U256, H256), Error<T>> {
+        ) -> Result<(U256, H256), Error<T>>
+        where
+            T::AccountId: Origin,
+        {
             // Ensuring that pallet is initialized.
             ensure!(
                 Initialized::<T>::get(),
@@ -388,10 +396,26 @@ pub mod pallet {
             // as well as checking payload size.
             let message = EthMessage::try_new(source, destination, payload)?;
 
+            // Check if the sender is eligible to use the governance capacity reserve
+            let check_queue_capacity = |current_len| {
+                let bridge_admin: ActorId = T::BridgeAdmin::get().cast();
+                let bridge_pauser: ActorId = T::BridgePauser::get().cast();
+                let governance_origin = bridge_admin == source || bridge_pauser == source;
+
+                let effective_capacity = QueueCapacityOf::<T>::get()
+                    - if governance_origin {
+                        0
+                    } else {
+                        GovernanceMessageReserveOf::<T>::get()
+                    };
+
+                current_len < effective_capacity as usize
+            };
+
             // Appending hash of the message into the queue
             // if it's capacity wasn't exceeded.
             let hash = Queue::<T>::mutate(|v| {
-                (v.len() < QueueCapacityOf::<T>::get() as usize)
+                check_queue_capacity(v.len())
                     .then(|| {
                         let hash = message.hash();
 
