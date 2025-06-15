@@ -1,0 +1,166 @@
+name: Build native Windows
+
+on:
+  workflow_call:
+    inputs:
+      profiles:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      profiles:
+        type: string
+        default: '[{ "name": "debug", "flags": "" }]'
+
+env:
+  TERM: xterm-256color
+  RUST_BACKTRACE: short
+  RUST_LIB_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  NEXTEST_PROFILE: ci
+  __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
+  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
+
+jobs:
+  windows-build:
+    runs-on: [kuberunner, github-runner-02]
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+      fail-fast: false
+    name: windows-build (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "ACTIONS: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-pc-windows-msvc
+          token: ${{ secrets.GITHUB_TOKEN }}
+          no-vendored: 'true'
+
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "Build: gsdk tests"
+        run: >-
+          cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
+
+      - name: "Build: Client tests"
+        run: >-
+          cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
+
+      - name: "Build: Lazy pages"
+        run: >-
+          cargo nextest archive --archive-file=lazy_pages_tests.tar.zst
+          -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
+
+      - name: "Build: Cleanup target"
+        run: |
+          rsync -av --include='*/' --include='*.exe' --exclude='*' ./target/x86_64-pc-windows-msvc ./target-rsync
+          mv ./target-rsync/x86_64-pc-windows-msvc ./target-cleaned
+          rsync -av --include='*/' --include="*.wasm" --exclude='*' ./target/wasm32-gear ./target-cleaned
+
+      - name: "ACTIONS: Upload nextest archives"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archives-${{ matrix.profiles.name }}
+          path: "*.tar.zst"
+          retention-days: 1
+          overwrite: true
+          compression-level: 0
+
+      - name: "ACTIONS: Upload target"
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-xwin-${{ matrix.profiles.name }}
+          path: target-cleaned
+          retention-days: 1
+          overwrite: true
+
+  windows-run:
+    runs-on: windows-latest
+    needs: windows-build
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+      fail-fast: false
+    name: windows-run (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: |
+          $tmp = "cargo-nextest.zip"
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+
+      - name: "ACTIONS: Download nextest archives"
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archives-${{ matrix.profiles.name }}
+
+      - name: "ACTIONS: Download target"
+        uses: actions/download-artifact@v4
+        with:
+          name: target-xwin-${{ matrix.profiles.name }}
+          path: target
+
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-pc-windows-msvc
+          path: node-release
+
+      - name: "ACTIONS: Copy node to target directory"
+        run: |
+          mkdir -p ./target/release
+          cp ./node-release/gear.exe ./target/release/
+        shell: bash
+
+      - name: "Test: gsdk tests"
+        run: >-
+          cargo nextest run --archive-file=gsdk_tests.tar.zst
+          -E 'platform(target)'
+          --workspace-remap=${{ github.workspace }}
+
+      - name: "Test: Client tests"
+        run: >-
+          cargo nextest run --archive-file=gclient_tests.tar.zst
+          -E 'platform(target)'
+          --workspace-remap=${{ github.workspace }}
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo nextest run --archive-file=lazy_pages_tests.tar.zst
+          -E 'platform(target)'
+          --workspace-remap=${{ github.workspace }}
