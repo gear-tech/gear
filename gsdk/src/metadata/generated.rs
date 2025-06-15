@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[allow(dead_code, unused_imports, non_camel_case_types)]
+#[allow(dead_code, unused_imports, non_camel_case_types, unreachable_patterns)]
 #[allow(clippy::all)]
 #[allow(rustdoc::broken_intra_doc_links)]
 pub mod runtime_types {
@@ -92,12 +92,6 @@ pub mod runtime_types {
                     Operational,
                     #[codec(index = 2)]
                     Mandatory,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct DispatchInfo {
-                    pub weight: runtime_types::sp_weights::weight_v2::Weight,
-                    pub class: runtime_types::frame_support::dispatch::DispatchClass,
-                    pub pays_fee: runtime_types::frame_support::dispatch::Pays,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum Pays {
@@ -409,13 +403,13 @@ pub mod runtime_types {
                     #[codec(index = 0)]
                     #[doc = "An extrinsic completed successfully."]
                     ExtrinsicSuccess {
-                        dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
+                        dispatch_info: runtime_types::frame_system::DispatchEventInfo,
                     },
                     #[codec(index = 1)]
                     #[doc = "An extrinsic failed."]
                     ExtrinsicFailed {
                         dispatch_error: runtime_types::sp_runtime::DispatchError,
-                        dispatch_info: runtime_types::frame_support::dispatch::DispatchInfo,
+                        dispatch_info: runtime_types::frame_system::DispatchEventInfo,
                     },
                     #[codec(index = 2)]
                     #[doc = "`:code` was updated."]
@@ -456,6 +450,12 @@ pub mod runtime_types {
             pub struct CodeUpgradeAuthorization {
                 pub code_hash: ::subxt::ext::subxt_core::utils::H256,
                 pub check_version: ::core::primitive::bool,
+            }
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct DispatchEventInfo {
+                pub weight: runtime_types::sp_weights::weight_v2::Weight,
+                pub class: runtime_types::frame_support::dispatch::DispatchClass,
+                pub pays_fee: runtime_types::frame_support::dispatch::Pays,
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct EventRecord<_0, _1> {
@@ -1799,6 +1799,28 @@ pub mod runtime_types {
                         bounty_id: ::core::primitive::u32,
                         remark: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
+                    #[codec(index = 9)]
+                    #[doc = "Approve bountry and propose a curator simultaneously."]
+                    #[doc = "This call is a shortcut to calling `approve_bounty` and `propose_curator` separately."]
+                    #[doc = ""]
+                    #[doc = "May only be called from `T::SpendOrigin`."]
+                    #[doc = ""]
+                    #[doc = "- `bounty_id`: Bounty ID to approve."]
+                    #[doc = "- `curator`: The curator account whom will manage this bounty."]
+                    #[doc = "- `fee`: The curator fee."]
+                    #[doc = ""]
+                    #[doc = "## Complexity"]
+                    #[doc = "- O(1)."]
+                    approve_bounty_with_curator {
+                        #[codec(compact)]
+                        bounty_id: ::core::primitive::u32,
+                        curator: ::subxt::ext::subxt_core::utils::MultiAddress<
+                            ::subxt::ext::subxt_core::utils::AccountId32,
+                            (),
+                        >,
+                        #[codec(compact)]
+                        fee: ::core::primitive::u128,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -1919,6 +1941,8 @@ pub mod runtime_types {
                     beneficiary: _0,
                     unlock_at: _1,
                 },
+                #[codec(index = 6)]
+                ApprovedWithCurator { curator: _0 },
             }
         }
         pub mod pallet_child_bounties {
@@ -4349,8 +4373,9 @@ pub mod runtime_types {
                     #[codec(index = 15)]
                     #[doc = "Add an `AccountId` with permission to grant usernames with a given `suffix` appended."]
                     #[doc = ""]
-                    #[doc = "The authority can grant up to `allocation` usernames. To top up their allocation, they"]
-                    #[doc = "should just issue (or request via governance) a new `add_username_authority` call."]
+                    #[doc = "The authority can grant up to `allocation` usernames. To top up the allocation or"]
+                    #[doc = "change the account used to grant usernames, this call can be used with the updated"]
+                    #[doc = "parameters to overwrite the existing configuration."]
                     add_username_authority {
                         authority: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4362,6 +4387,7 @@ pub mod runtime_types {
                     #[codec(index = 16)]
                     #[doc = "Remove `authority` from the username authorities."]
                     remove_username_authority {
+                        suffix: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         authority: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
                             (),
@@ -4370,7 +4396,11 @@ pub mod runtime_types {
                     #[codec(index = 17)]
                     #[doc = "Set the username for `who`. Must be called by a username authority."]
                     #[doc = ""]
-                    #[doc = "The authority must have an `allocation`. Users can either pre-sign their usernames or"]
+                    #[doc = "If `use_allocation` is set, the authority must have a username allocation available to"]
+                    #[doc = "spend. Otherwise, the authority will need to put up a deposit for registering the"]
+                    #[doc = "username."]
+                    #[doc = ""]
+                    #[doc = "Users can either pre-sign their usernames or"]
                     #[doc = "accept them later."]
                     #[doc = ""]
                     #[doc = "Usernames must:"]
@@ -4385,6 +4415,7 @@ pub mod runtime_types {
                         username: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                         signature:
                             ::core::option::Option<runtime_types::sp_runtime::MultiSignature>,
+                        use_allocation: ::core::primitive::bool,
                     },
                     #[codec(index = 18)]
                     #[doc = "Accept a given username that an `authority` granted. The call must include the full"]
@@ -4411,9 +4442,26 @@ pub mod runtime_types {
                         >,
                     },
                     #[codec(index = 21)]
-                    #[doc = "Remove a username that corresponds to an account with no identity. Exists when a user"]
-                    #[doc = "gets a username but then calls `clear_identity`."]
-                    remove_dangling_username {
+                    #[doc = "Start the process of removing a username by placing it in the unbinding usernames map."]
+                    #[doc = "Once the grace period has passed, the username can be deleted by calling"]
+                    #[doc = "[remove_username](crate::Call::remove_username)."]
+                    unbind_username {
+                        username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                            ::core::primitive::u8,
+                        >,
+                    },
+                    #[codec(index = 22)]
+                    #[doc = "Permanently delete a username which has been unbinding for longer than the grace period."]
+                    #[doc = "Caller is refunded the fee if the username expired and the removal was successful."]
+                    remove_username {
+                        username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                            ::core::primitive::u8,
+                        >,
+                    },
+                    #[codec(index = 23)]
+                    #[doc = "Call with [ForceOrigin](crate::Config::ForceOrigin) privileges which deletes a username"]
+                    #[doc = "and slashes any deposit associated with it."]
+                    kill_username {
                         username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                             ::core::primitive::u8,
                         >,
@@ -4500,6 +4548,19 @@ pub mod runtime_types {
                     #[codec(index = 25)]
                     #[doc = "The username cannot be forcefully removed because it can still be accepted."]
                     NotExpired,
+                    #[codec(index = 26)]
+                    #[doc = "The username cannot be removed because it's still in the grace period."]
+                    TooEarly,
+                    #[codec(index = 27)]
+                    #[doc = "The username cannot be removed because it is not unbinding."]
+                    NotUnbinding,
+                    #[codec(index = 28)]
+                    #[doc = "The username cannot be unbound because it is already unbinding."]
+                    AlreadyUnbinding,
+                    #[codec(index = 29)]
+                    #[doc = "The action cannot be performed because of insufficient privileges (e.g. authority"]
+                    #[doc = "trying to unbind a username provided by the system)."]
+                    InsufficientPrivileges,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Event` enum of this pallet"]
@@ -4552,13 +4613,26 @@ pub mod runtime_types {
                         deposit: ::core::primitive::u128,
                     },
                     #[codec(index = 8)]
+                    #[doc = "An account's sub-identities were set (in bulk)."]
+                    SubIdentitiesSet {
+                        main: ::subxt::ext::subxt_core::utils::AccountId32,
+                        number_of_subs: ::core::primitive::u32,
+                        new_deposit: ::core::primitive::u128,
+                    },
+                    #[codec(index = 9)]
+                    #[doc = "A given sub-account's associated name was changed by its super-identity."]
+                    SubIdentityRenamed {
+                        sub: ::subxt::ext::subxt_core::utils::AccountId32,
+                        main: ::subxt::ext::subxt_core::utils::AccountId32,
+                    },
+                    #[codec(index = 10)]
                     #[doc = "A sub-identity was removed from an identity and the deposit freed."]
                     SubIdentityRemoved {
                         sub: ::subxt::ext::subxt_core::utils::AccountId32,
                         main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
-                    #[codec(index = 9)]
+                    #[codec(index = 11)]
                     #[doc = "A sub-identity was cleared, and the given deposit repatriated from the"]
                     #[doc = "main identity account to the sub-identity account."]
                     SubIdentityRevoked {
@@ -4566,17 +4640,17 @@ pub mod runtime_types {
                         main: ::subxt::ext::subxt_core::utils::AccountId32,
                         deposit: ::core::primitive::u128,
                     },
-                    #[codec(index = 10)]
+                    #[codec(index = 12)]
                     #[doc = "A username authority was added."]
                     AuthorityAdded {
                         authority: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
-                    #[codec(index = 11)]
+                    #[codec(index = 13)]
                     #[doc = "A username authority was removed."]
                     AuthorityRemoved {
                         authority: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
-                    #[codec(index = 12)]
+                    #[codec(index = 14)]
                     #[doc = "A username was set for `who`."]
                     UsernameSet {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4584,7 +4658,7 @@ pub mod runtime_types {
                             ::core::primitive::u8,
                         >,
                     },
-                    #[codec(index = 13)]
+                    #[codec(index = 15)]
                     #[doc = "A username was queued, but `who` must accept it prior to `expiration`."]
                     UsernameQueued {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4593,12 +4667,12 @@ pub mod runtime_types {
                         >,
                         expiration: ::core::primitive::u32,
                     },
-                    #[codec(index = 14)]
+                    #[codec(index = 16)]
                     #[doc = "A queued username passed its expiration without being claimed and was removed."]
                     PreapprovalExpired {
                         whose: ::subxt::ext::subxt_core::utils::AccountId32,
                     },
-                    #[codec(index = 15)]
+                    #[codec(index = 17)]
                     #[doc = "A username was set as a primary and can be looked up from `who`."]
                     PrimaryUsernameSet {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
@@ -4606,11 +4680,32 @@ pub mod runtime_types {
                             ::core::primitive::u8,
                         >,
                     },
-                    #[codec(index = 16)]
+                    #[codec(index = 18)]
                     #[doc = "A dangling username (as in, a username corresponding to an account that has removed its"]
                     #[doc = "identity) has been removed."]
                     DanglingUsernameRemoved {
                         who: ::subxt::ext::subxt_core::utils::AccountId32,
+                        username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                            ::core::primitive::u8,
+                        >,
+                    },
+                    #[codec(index = 19)]
+                    #[doc = "A username has been unbound."]
+                    UsernameUnbound {
+                        username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                            ::core::primitive::u8,
+                        >,
+                    },
+                    #[codec(index = 20)]
+                    #[doc = "A username has been removed."]
+                    UsernameRemoved {
+                        username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
+                            ::core::primitive::u8,
+                        >,
+                    },
+                    #[codec(index = 21)]
+                    #[doc = "A username has been killed."]
+                    UsernameKilled {
                         username: runtime_types::bounded_collections::bounded_vec::BoundedVec<
                             ::core::primitive::u8,
                         >,
@@ -4621,7 +4716,7 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct AuthorityProperties<_0> {
-                    pub suffix: _0,
+                    pub account_id: _0,
                     pub allocation: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -4721,6 +4816,15 @@ pub mod runtime_types {
                     Erroneous,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum Provider<_0> {
+                    #[codec(index = 0)]
+                    Allocation,
+                    #[codec(index = 1)]
+                    AuthorityDeposit(_0),
+                    #[codec(index = 2)]
+                    System,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct RegistrarInfo<_0, _1, _2> {
                     pub account: _1,
                     pub fee: _0,
@@ -4734,6 +4838,11 @@ pub mod runtime_types {
                     )>,
                     pub deposit: _0,
                     pub info: _2,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct UsernameInformation<_0, _1> {
+                    pub owner: _0,
+                    pub provider: runtime_types::pallet_identity::types::Provider<_1>,
                 }
             }
         }
@@ -5475,8 +5584,10 @@ pub mod runtime_types {
                     #[doc = "Fails unless [`crate::pallet::Config::StakeAdapter`] is of strategy type:"]
                     #[doc = "[`adapter::StakeStrategyType::Delegate`]."]
                     #[doc = ""]
-                    #[doc = "This call can be dispatched permissionlessly (i.e. by any account). If the member has"]
-                    #[doc = "slash to be applied, caller may be rewarded with the part of the slash."]
+                    #[doc = "The pending slash amount of the member must be equal or more than `ExistentialDeposit`."]
+                    #[doc = "This call can be dispatched permissionlessly (i.e. by any account). If the execution"]
+                    #[doc = "is successful, fee is refunded and caller may be rewarded with a part of the slash"]
+                    #[doc = "based on the [`crate::pallet::Config::StakeAdapter`] configuration."]
                     apply_slash {
                         member_account: ::subxt::ext::subxt_core::utils::MultiAddress<
                             ::subxt::ext::subxt_core::utils::AccountId32,
@@ -5645,7 +5756,8 @@ pub mod runtime_types {
                     #[doc = "The pool or member delegation has not migrated yet to delegate stake."]
                     NotMigrated,
                     #[codec(index = 35)]
-                    #[doc = "This call is not allowed in the current state of the pallet."]
+                    #[doc = "This call is not allowed in the current state of the pallet or an unspecific error"]
+                    #[doc = "occurred."]
                     NotSupported,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -7409,7 +7521,7 @@ pub mod runtime_types {
                         #[codec(index = 2)]
                         #[doc = "Schedule a portion of the stash to be unlocked ready for transfer out after the bond"]
                         #[doc = "period ends. If this leaves an amount actively bonded less than"]
-                        #[doc = "T::Currency::minimum_balance(), then it is increased to the full amount."]
+                        #[doc = "[`asset::existential_deposit`], then it is increased to the full amount."]
                         #[doc = ""]
                         #[doc = "The dispatch origin for this call must be _Signed_ by the controller, not the stash."]
                         #[doc = ""]
@@ -7878,6 +7990,16 @@ pub mod runtime_types {
                                 >,
                             >,
                         },
+                        #[codec(index = 32)]
+                        #[doc = "Adjusts the staking ledger by withdrawing any excess staked amount."]
+                        #[doc = ""]
+                        #[doc = "This function corrects cases where a user's recorded stake in the ledger"]
+                        #[doc = "exceeds their actual staked funds. This situation can arise due to cases such as"]
+                        #[doc = "external slashing by another pallet, leading to an inconsistency between the ledger"]
+                        #[doc = "and the actual stake."]
+                        withdraw_overstake {
+                            stash: ::subxt::ext::subxt_core::utils::AccountId32,
+                        },
                     }
                     #[derive(
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
@@ -8075,10 +8197,12 @@ pub mod runtime_types {
                             stash: ::subxt::ext::subxt_core::utils::AccountId32,
                         },
                         #[codec(index = 12)]
-                        #[doc = "The stakers' rewards are getting paid."]
+                        #[doc = "A Page of stakers rewards are getting paid. `next` is `None` if all pages are claimed."]
                         PayoutStarted {
                             era_index: ::core::primitive::u32,
                             validator_stash: ::subxt::ext::subxt_core::utils::AccountId32,
+                            page: ::core::primitive::u32,
+                            next: ::core::option::Option<::core::primitive::u32>,
                         },
                         #[codec(index = 13)]
                         #[doc = "A validator has set their preferences."]
@@ -9269,8 +9393,6 @@ pub mod runtime_types {
                     }
                 }
             }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub enum Void {}
         }
         pub mod sp_npos_elections {
             use super::runtime_types;
@@ -9861,6 +9983,40 @@ pub mod runtime_types {
                     }
                 }
             }
+            pub mod proving_trie {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum TrieError {
+                    #[codec(index = 0)]
+                    InvalidStateRoot,
+                    #[codec(index = 1)]
+                    IncompleteDatabase,
+                    #[codec(index = 2)]
+                    ValueAtIncompleteKey,
+                    #[codec(index = 3)]
+                    DecoderError,
+                    #[codec(index = 4)]
+                    InvalidHash,
+                    #[codec(index = 5)]
+                    DuplicateKey,
+                    #[codec(index = 6)]
+                    ExtraneousNode,
+                    #[codec(index = 7)]
+                    ExtraneousValue,
+                    #[codec(index = 8)]
+                    ExtraneousHashReference,
+                    #[codec(index = 9)]
+                    InvalidChildReference,
+                    #[codec(index = 10)]
+                    ValueMismatch,
+                    #[codec(index = 11)]
+                    IncompleteProof,
+                    #[codec(index = 12)]
+                    RootMismatch,
+                    #[codec(index = 13)]
+                    DecodeError,
+                }
+            }
             pub mod traits {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -9896,6 +10052,8 @@ pub mod runtime_types {
                 Unavailable,
                 #[codec(index = 13)]
                 RootNotAllowed,
+                #[codec(index = 14)]
+                Trie(runtime_types::sp_runtime::proving_trie::TrieError),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub struct DispatchErrorWithPostInfo<_0> {
@@ -10016,7 +10174,7 @@ pub mod runtime_types {
                     ::core::primitive::u32,
                 )>,
                 pub transaction_version: ::core::primitive::u32,
-                pub state_version: ::core::primitive::u8,
+                pub system_version: ::core::primitive::u8,
             }
         }
         pub mod sp_weights {
@@ -10274,8 +10432,6 @@ pub mod runtime_types {
                 Origins(
                     runtime_types::vara_runtime::governance::origins::pallet_custom_origins::Origin,
                 ),
-                #[codec(index = 2)]
-                Void(runtime_types::sp_core::Void),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum ProxyType {
@@ -10607,6 +10763,7 @@ pub mod calls {
         ClaimBounty,
         CloseBounty,
         ExtendBountyExpiry,
+        ApproveBountyWithCurator,
     }
     impl CallInfo for BountiesCall {
         const PALLET: &'static str = "Bounties";
@@ -10621,6 +10778,7 @@ pub mod calls {
                 Self::ClaimBounty => "claim_bounty",
                 Self::CloseBounty => "close_bounty",
                 Self::ExtendBountyExpiry => "extend_bounty_expiry",
+                Self::ApproveBountyWithCurator => "approve_bounty_with_curator",
             }
         }
     }
@@ -10861,7 +11019,9 @@ pub mod calls {
         AcceptUsername,
         RemoveExpiredApproval,
         SetPrimaryUsername,
-        RemoveDanglingUsername,
+        UnbindUsername,
+        RemoveUsername,
+        KillUsername,
     }
     impl CallInfo for IdentityCall {
         const PALLET: &'static str = "Identity";
@@ -10888,7 +11048,9 @@ pub mod calls {
                 Self::AcceptUsername => "accept_username",
                 Self::RemoveExpiredApproval => "remove_expired_approval",
                 Self::SetPrimaryUsername => "set_primary_username",
-                Self::RemoveDanglingUsername => "remove_dangling_username",
+                Self::UnbindUsername => "unbind_username",
+                Self::RemoveUsername => "remove_username",
+                Self::KillUsername => "kill_username",
             }
         }
     }
@@ -11138,6 +11300,7 @@ pub mod calls {
         UpdatePayee,
         DeprecateControllerBatch,
         RestoreLedger,
+        WithdrawOverstake,
     }
     impl CallInfo for StakingCall {
         const PALLET: &'static str = "Staking";
@@ -11173,6 +11336,7 @@ pub mod calls {
                 Self::UpdatePayee => "update_payee",
                 Self::DeprecateControllerBatch => "deprecate_controller_batch",
                 Self::RestoreLedger => "restore_ledger",
+                Self::WithdrawOverstake => "withdraw_overstake",
             }
         }
     }
@@ -11484,8 +11648,10 @@ pub mod storage {
     pub enum ChildBountiesStorage {
         ChildBountyCount,
         ParentChildBounties,
+        ParentTotalChildBounties,
         ChildBounties,
-        ChildBountyDescriptions,
+        ChildBountyDescriptionsV1,
+        V0ToV1ChildBountyIds,
         ChildrenCuratorFees,
     }
     impl StorageInfo for ChildBountiesStorage {
@@ -11494,8 +11660,10 @@ pub mod storage {
             match self {
                 Self::ChildBountyCount => "ChildBountyCount",
                 Self::ParentChildBounties => "ParentChildBounties",
+                Self::ParentTotalChildBounties => "ParentTotalChildBounties",
                 Self::ChildBounties => "ChildBounties",
-                Self::ChildBountyDescriptions => "ChildBountyDescriptions",
+                Self::ChildBountyDescriptionsV1 => "ChildBountyDescriptionsV1",
+                Self::V0ToV1ChildBountyIds => "V0ToV1ChildBountyIds",
                 Self::ChildrenCuratorFees => "ChildrenCuratorFees",
             }
         }
@@ -11807,24 +11975,28 @@ pub mod storage {
     #[doc = "Storage of pallet `Identity`."]
     pub enum IdentityStorage {
         IdentityOf,
+        UsernameOf,
         SuperOf,
         SubsOf,
         Registrars,
-        UsernameAuthorities,
-        AccountOfUsername,
+        AuthorityOf,
+        UsernameInfoOf,
         PendingUsernames,
+        UnbindingUsernames,
     }
     impl StorageInfo for IdentityStorage {
         const PALLET: &'static str = "Identity";
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::IdentityOf => "IdentityOf",
+                Self::UsernameOf => "UsernameOf",
                 Self::SuperOf => "SuperOf",
                 Self::SubsOf => "SubsOf",
                 Self::Registrars => "Registrars",
-                Self::UsernameAuthorities => "UsernameAuthorities",
-                Self::AccountOfUsername => "AccountOfUsername",
+                Self::AuthorityOf => "AuthorityOf",
+                Self::UsernameInfoOf => "UsernameInfoOf",
                 Self::PendingUsernames => "PendingUsernames",
+                Self::UnbindingUsernames => "UnbindingUsernames",
             }
         }
     }
@@ -12224,6 +12396,7 @@ pub mod storage {
         Approvals,
         SpendCount,
         Spends,
+        LastSpendPeriod,
     }
     impl StorageInfo for TreasuryStorage {
         const PALLET: &'static str = "Treasury";
@@ -12235,6 +12408,7 @@ pub mod storage {
                 Self::Approvals => "Approvals",
                 Self::SpendCount => "SpendCount",
                 Self::Spends => "Spends",
+                Self::LastSpendPeriod => "LastSpendPeriod",
             }
         }
     }

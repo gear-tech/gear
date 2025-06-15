@@ -49,6 +49,7 @@ std = [
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",
+	"pallet-treasury/std",
 	"sp-io/std",
 	"sp-std/std",
 	"sp-core/std",
