@@ -214,13 +214,15 @@ jobs:
         # fast benchmark tests before long run
         run: cargo nextest run --archive-file=workspace.tar.zst --no-fail-fast -E 'not package(/fuzz/)' bench
 
+      - name: "Build: gear-cli with enabled benchmarks"
+        if: ${{ matrix.profiles.name == 'release' }}
+        run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
+
       - name: "Test: Benchmarks in WASM"
         # unoptimized benchmarks take a few hours to run
         if: ${{ matrix.profiles.name == 'release' }}
         run: |
-          tar xvf workspace.tar.zst target/release/gear
-          cp target/release/gear ./gear
-          chmod +x ./gear
+          cp ./target/release/gear ./gear
           
           # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
           ./gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
