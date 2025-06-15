@@ -584,7 +584,7 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
-    use libp2p::{futures::StreamExt, swarm::SwarmEvent, Swarm};
+    use libp2p::{futures::StreamExt, Swarm};
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
 
