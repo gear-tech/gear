@@ -248,21 +248,26 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: "${{ matrix.target }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          no-vendored: 'true'
 
       - name: "Install: try-runtime CLI"
         run: |
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
 
-      - name: "ACTIONS: Download nextest archive"
-        uses: actions/download-artifact@v4
-        with:
-          name: nextest-workspace-${{ matrix.profiles.name }}
-
-      - name: "ACTIONS: Unpack vara-runtime"
-        run: tar xvf workspace.tar.zst target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+      - name: "Build: Vara mainnet runtime"
+        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: Create Vara Mainnet database snapshot"
         run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
