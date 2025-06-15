@@ -1,3 +1,5 @@
+experimental = ["setup-scripts"]
+
 [profile.default]
 leak-timeout = { period = "500ms", result = "fail" }
 
