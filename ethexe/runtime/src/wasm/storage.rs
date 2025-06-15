@@ -157,4 +157,8 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
     fn storage(&self) -> &RuntimeInterfaceStorage {
         &self.storage
     }
+
+    fn update_state_hash(&self, hash: &H256) {
+        database_ri::update_state_hash(hash);
+    }
 }

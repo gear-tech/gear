@@ -27,11 +27,11 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, PrimitiveSignature, SignatureError, B256, U256},
+    primitives::{Address, Bytes, ChainId, Signature, SignatureError, B256, U256},
     providers::{
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            WalletFiller,
+            SimpleNonceManager, WalletFiller,
         },
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -67,15 +67,14 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
+type AlloyRecommendedFillers = JoinFill<
+    GasFiller,
+    JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+>;
 type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
 
-pub(crate) type ExeFiller = JoinFill<
-    JoinFill<
-        Identity,
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-    >,
-    WalletFiller<EthereumWallet>,
->;
+pub(crate) type ExeFiller =
+    JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
     router_address: Address,
@@ -193,7 +192,7 @@ impl Ethereum {
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
-        assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
+        assert_eq!(router.mirrorImpl().call().await?, *mirror.address());
 
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
@@ -238,7 +237,8 @@ async fn create_provider(
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
-    Ok(ProviderBuilder::new()
+    Ok(ProviderBuilder::default()
+        .filler(AlloyRecommendedFillers::default())
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
@@ -268,7 +268,7 @@ impl Sender {
 
 #[async_trait]
 impl Signer for Sender {
-    async fn sign_hash(&self, hash: &B256) -> SignerResult<PrimitiveSignature> {
+    async fn sign_hash(&self, hash: &B256) -> SignerResult<Signature> {
         self.sign_hash_sync(hash)
     }
 
@@ -286,21 +286,21 @@ impl Signer for Sender {
 }
 
 #[async_trait]
-impl TxSigner<PrimitiveSignature> for Sender {
+impl TxSigner<Signature> for Sender {
     fn address(&self) -> Address {
         self.sender.to_address().0.into()
     }
 
     async fn sign_transaction(
         &self,
-        tx: &mut dyn SignableTransaction<PrimitiveSignature>,
-    ) -> SignerResult<PrimitiveSignature> {
+        tx: &mut dyn SignableTransaction<Signature>,
+    ) -> SignerResult<Signature> {
         sign_transaction_with_chain_id!(self, tx, self.sign_hash_sync(&tx.signature_hash()))
     }
 }
 
 impl SignerSync for Sender {
-    fn sign_hash_sync(&self, hash: &B256) -> SignerResult<PrimitiveSignature> {
+    fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
         let (s, r) = self
             .signer
             .sign(self.sender, Digest::from(hash.0))
@@ -308,7 +308,7 @@ impl SignerSync for Sender {
             .map(|s| s.into_parts())?;
         let v = r.to_byte() as u64;
         let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
-        Ok(PrimitiveSignature::from_signature_and_parity(s, v))
+        Ok(Signature::from_signature_and_parity(s, v))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
@@ -356,7 +356,7 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
 }
 
 pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
-    E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
+    E::decode_raw_log(log.topics(), &log.data().data).map_err(Into::into)
 }
 
 macro_rules! signatures_consts {

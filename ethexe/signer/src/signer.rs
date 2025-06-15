@@ -126,7 +126,7 @@ impl Signer {
 mod tests {
     use super::*;
 
-    use alloy::primitives::{keccak256, PrimitiveSignature};
+    use alloy::primitives::{keccak256, Signature};
     use std::str::FromStr;
 
     #[test]
@@ -156,7 +156,7 @@ mod tests {
         let hash = keccak256(message);
 
         // Recover the address using the signature
-        let alloy_sig = PrimitiveSignature::try_from(signature.into_pre_eip155_bytes().as_ref())
+        let alloy_sig = Signature::try_from(signature.into_pre_eip155_bytes().as_ref())
             .expect("failed to parse sig");
 
         let recovered_address = alloy_sig
