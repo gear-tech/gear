@@ -159,8 +159,6 @@ macro_rules! impl_syscall_builder {
             fn build(self, ctx: &mut MemoryCallerContext<Caller>, args: &[Value]) -> Result<Call, HostError> {
                 let ARGS_AMOUNT: usize = 0 $( + $generic::REQUIRED_ARGS )+;
 
-                debug_assert_eq!(args.len(), ARGS_AMOUNT);
-
                 if args.len() != ARGS_AMOUNT {
                     return Err(HostError);
                 }
@@ -176,10 +174,6 @@ macro_rules! impl_syscall_builder {
                 )+
 
                 debug_assert_eq!(index, ARGS_AMOUNT);
-
-                if index != ARGS_AMOUNT {
-                    return Err(HostError);
-                }
 
                 if let Some(registry) = registry {
                     let io = registry.pre_process(&mut ctx.caller_wrap);
