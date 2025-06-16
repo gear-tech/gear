@@ -182,15 +182,15 @@ static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IM
 #[cfg(not(feature = "dev"))]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("vara"),
-    impl_name: create_runtime_str!("vara"),
+    spec_name: alloc::borrow::Cow::Borrowed("vara"),
+    impl_name: alloc::borrow::Cow::Borrowed("vara"),
 
     spec_version: 1810,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
     impl_version: 1,
-    state_version: 1,
+    system_version: 1,
     transaction_version: 1,
 };
 
