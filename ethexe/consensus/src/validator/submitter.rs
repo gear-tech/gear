@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext};
+use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext, ValidatorState};
 use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -38,10 +38,6 @@ pub struct Submitter {
 }
 
 impl StateHandler for Submitter {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -50,11 +46,11 @@ impl StateHandler for Submitter {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
-    fn poll_next_state(mut self: Box<Self>, cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
+    fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
                 self.output(ConsensusEvent::CommitmentSubmitted(tx));
@@ -67,7 +63,7 @@ impl StateHandler for Submitter {
 
                 Initial::create(self.ctx)
             }
-            Poll::Pending => Ok(self),
+            Poll::Pending => Ok(self.into()),
         }
     }
 }
@@ -76,9 +72,9 @@ impl Submitter {
     pub fn create(
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         let future = ctx.committer.clone_boxed().commit_batch(batch);
-        Ok(Box::new(Self { ctx, future }))
+        Ok(Self { ctx, future }.into())
     }
 }
 
@@ -108,7 +104,6 @@ mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::gear::BatchCommitment;
-    use std::any::TypeId;
 
     #[tokio::test]
     async fn submitter() {
@@ -121,18 +116,15 @@ mod tests {
             rewards_commitments: vec![],
         };
 
-        let multisigned_batch = MultisignedBatchCommitment::new(
-            batch,
-            &ctx.signer.contract_signer(ctx.router_address),
-            ctx.pub_key,
-        )
-        .unwrap();
+        let multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)
+                .unwrap();
 
         let submitter = Submitter::create(ctx, multisigned_batch.clone()).unwrap();
-        assert_eq!(submitter.type_id(), TypeId::of::<Submitter>());
+        assert!(submitter.is_submitter());
 
         let (initial, event) = submitter.wait_for_event().await.unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
         assert!(matches!(event, ConsensusEvent::CommitmentSubmitted(_)));
 
         with_batch(|submitted_batch| assert_eq!(submitted_batch, Some(&multisigned_batch)));

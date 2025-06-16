@@ -17,12 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database, OnChainStorage};
+use ethexe_common::{
+    db::{BlockMetaStorageRead, OnChainStorageRead},
+    BlockHeader,
+};
 use gprimitives::H256;
 use jsonrpsee::core::RpcResult;
 
-pub fn block_header_at_or_latest(
-    db: &Database,
+pub fn block_header_at_or_latest<DB: BlockMetaStorageRead + OnChainStorageRead>(
+    db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<(H256, BlockHeader)> {
     if let Some(hash) = at.into() {

@@ -19,12 +19,13 @@
 use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
+    db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
+    ScheduledTask,
 };
-use ethexe_db::{CodesStorage, ScheduledTask};
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
-use gear_core::{ids::ProgramId, message::SuccessReplyReason};
+use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
@@ -57,7 +58,7 @@ impl ProcessingHandler {
 
     pub(crate) fn handle_mirror_event(
         &mut self,
-        actor_id: ProgramId,
+        actor_id: ActorId,
         event: MirrorRequestEvent,
     ) -> Result<()> {
         if !self.transitions.is_program(&actor_id) {
@@ -77,6 +78,7 @@ impl ProcessingHandler {
                 source,
                 payload,
                 value,
+                call_reply,
             } => {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
@@ -89,10 +91,11 @@ impl ProcessingHandler {
                         value,
                         is_init,
                         Origin::Ethereum,
+                        call_reply,
                     )?;
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
 
                     Ok(())
@@ -139,10 +142,11 @@ impl ProcessingHandler {
                         payload,
                         value,
                         Origin::Ethereum,
+                        false,
                     )?;
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())
@@ -184,10 +188,11 @@ impl ProcessingHandler {
                         0,
                         SuccessReplyReason::Auto,
                         Origin::Ethereum,
+                        false,
                     );
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())

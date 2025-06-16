@@ -43,12 +43,12 @@ impl BatchCommitter for DummyCommitter {
 
 #[async_trait]
 pub trait WaitForEvent {
-    async fn wait_for_event(self) -> Result<(Box<dyn StateHandler>, ConsensusEvent)>;
+    async fn wait_for_event(self) -> Result<(ValidatorState, ConsensusEvent)>;
 }
 
 #[async_trait]
-impl WaitForEvent for Box<dyn StateHandler> {
-    async fn wait_for_event(self) -> Result<(Box<dyn StateHandler>, ConsensusEvent)> {
+impl WaitForEvent for ValidatorState {
+    async fn wait_for_event(self) -> Result<(ValidatorState, ConsensusEvent)> {
         wait_for_event_inner(self).await
     }
 }
@@ -71,10 +71,8 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
     (ctx, keys)
 }
 
-async fn wait_for_event_inner(
-    s: Box<dyn StateHandler>,
-) -> Result<(Box<dyn StateHandler>, ConsensusEvent)> {
-    struct Dummy(Option<Box<dyn StateHandler>>);
+async fn wait_for_event_inner(s: ValidatorState) -> Result<(ValidatorState, ConsensusEvent)> {
+    struct Dummy(Option<ValidatorState>);
 
     impl Future for Dummy {
         type Output = Result<ConsensusEvent>;

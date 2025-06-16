@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, Payload, StoredDispatch,
+        common::MessageDetails, ContextStore, DispatchKind, GasLimit, StoredDispatch,
         StoredMessage, Value,
     },
 };
@@ -37,7 +38,7 @@ pub struct IncomingMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message gas limit. Required here.
@@ -52,7 +53,7 @@ impl IncomingMessage {
     /// Create new IncomingMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
+        source: ActorId,
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
@@ -69,7 +70,7 @@ impl IncomingMessage {
     }
 
     /// Convert IncomingMessage into gasless StoredMessage.
-    pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
+    pub fn into_stored(self, destination: ActorId) -> StoredMessage {
         StoredMessage::new(
             self.id,
             self.source,
@@ -86,7 +87,7 @@ impl IncomingMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
@@ -158,7 +159,7 @@ impl IncomingDispatch {
     }
 
     /// Convert IncomingDispatch into gasless StoredDispatch with updated (or recently set) context.
-    pub fn into_stored(self, destination: ProgramId, context: ContextStore) -> StoredDispatch {
+    pub fn into_stored(self, destination: ActorId, context: ContextStore) -> StoredDispatch {
         StoredDispatch::new(
             self.kind,
             self.message.into_stored(destination),

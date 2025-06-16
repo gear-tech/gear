@@ -18,20 +18,23 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
+    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BlockCommitment, CodeCommitment, Message, StateTransition},
-    ProducerBlock, SimpleBlockData,
+    Address, BlockHeader, CodeBlobInfo, Digest, ProducerBlock, SimpleBlockData,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, CodeInfo, CodesStorage, Database, OnChainStorage};
-use ethexe_signer::{Address, Digest, PrivateKey, PublicKey, SignedData, Signer};
+use ethexe_db::Database;
+use ethexe_signer::Signer;
 use gprimitives::H256;
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
-    let signer = Signer::tmp();
-    let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey([i + 1; 32])).collect();
+    let signer = Signer::memory();
+
+    let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey::from([i + 1; 32])).collect();
     let public_keys = private_keys
         .iter()
-        .map(|&key| signer.add_key(key).unwrap())
+        .map(|&key| signer.storage_mut().add_key(key).unwrap())
         .collect();
     (signer, private_keys, public_keys)
 }
@@ -60,7 +63,7 @@ pub fn mock_producer_block(
         off_chain_transactions: vec![],
     };
 
-    let signed_pb = signer.create_signed_data(producer, pb.clone()).unwrap();
+    let signed_pb = signer.signed_data(producer, pb.clone()).unwrap();
 
     (pb, signed_pb)
 }
@@ -76,9 +79,7 @@ pub fn mock_validation_request(
         blocks: vec![],
         codes: vec![mock_code_commitment(), mock_code_commitment()],
     };
-    let signed = signer
-        .create_signed_data(public_key, request.clone())
-        .unwrap();
+    let signed = signer.signed_data(public_key, request.clone()).unwrap();
     (request, signed)
 }
 
@@ -91,8 +92,7 @@ pub fn mock_validation_reply(
     BatchCommitmentValidationReply {
         digest,
         signature: signer
-            .contract_signer(contract_address)
-            .sign_digest(public_key, digest)
+            .sign_for_contract(contract_address, public_key, digest)
             .unwrap(),
     }
 }
@@ -109,6 +109,7 @@ pub fn mock_state_transition() -> StateTransition {
     StateTransition {
         actor_id: H256::random().into(),
         new_state_hash: H256::random(),
+        exited: true,
         inheritor: H256::random().into(),
         value_to_receive: 123,
         value_claims: vec![],
@@ -118,6 +119,7 @@ pub fn mock_state_transition() -> StateTransition {
             payload: b"Hello, World!".to_vec(),
             value: 0,
             reply_details: None,
+            call: false,
         }],
     }
 }
@@ -147,7 +149,7 @@ pub fn mock_block_commitment(
 pub fn prepare_code_commitment(db: &Database, code: CodeCommitment) -> CodeCommitment {
     db.set_code_blob_info(
         code.id,
-        CodeInfo {
+        CodeBlobInfo {
             timestamp: code.timestamp,
             tx_hash: H256::random(),
         },

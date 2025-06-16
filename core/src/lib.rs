@@ -41,6 +41,7 @@ pub mod pages;
 pub mod percent;
 pub mod program;
 pub mod reservation;
+pub mod rpc;
 pub mod str;
 pub mod tasks;
 pub mod utils {

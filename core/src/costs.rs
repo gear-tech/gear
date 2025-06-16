@@ -331,7 +331,7 @@ pub enum CostToken {
     /// Cost of calling `gr_message_id`.
     MsgId,
     /// Cost of calling `gr_program_id`.
-    ProgramId,
+    ActorId,
     /// Cost of calling `gr_source`.
     Source,
     /// Cost of calling `gr_value`.
@@ -445,7 +445,7 @@ impl SyscallCosts {
             SystemReserveGas => self.gr_system_reserve_gas.cost_for_one(),
             GasAvailable => self.gr_gas_available.cost_for_one(),
             MsgId => self.gr_message_id.cost_for_one(),
-            ProgramId => self.gr_program_id.cost_for_one(),
+            ActorId => self.gr_program_id.cost_for_one(),
             Source => self.gr_source.cost_for_one(),
             Value => self.gr_value.cost_for_one(),
             ValueAvailable => self.gr_value_available.cost_for_one(),

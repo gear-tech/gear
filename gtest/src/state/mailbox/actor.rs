@@ -27,7 +27,7 @@ use gear_common::{
     storage::Interval,
 };
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, MessageId, ProgramId},
+    ids::{prelude::MessageIdExt as _, ActorId, MessageId},
     message::{ReplyMessage, ReplyPacket},
 };
 use parity_scale_codec::Encode;
@@ -39,11 +39,11 @@ use std::cell::RefCell;
 /// over a particular user mailbox.
 pub struct ActorMailbox<'a> {
     manager: &'a RefCell<ExtManager>,
-    user_id: ProgramId,
+    user_id: ActorId,
 }
 
 impl<'a> ActorMailbox<'a> {
-    pub(crate) fn new(user_id: ProgramId, manager: &'a RefCell<ExtManager>) -> ActorMailbox<'a> {
+    pub(crate) fn new(user_id: ActorId, manager: &'a RefCell<ExtManager>) -> ActorMailbox<'a> {
         ActorMailbox { user_id, manager }
     }
 
@@ -178,13 +178,13 @@ impl<'a> ActorMailbox<'a> {
 mod tests {
     use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
-    use gear_core::{gas_metering::RentWeights, ids::ProgramId};
+    use gear_core::{gas_metering::RentWeights, ids::ActorId};
     use parity_scale_codec::Encode;
 
     fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
 
-        let sender = ProgramId::from(DEFAULT_USER_ALICE).into_bytes();
+        let sender = ActorId::from(DEFAULT_USER_ALICE).into_bytes();
         let payload = b"sup!".to_vec();
         let log = Log::builder().dest(sender).payload_bytes(payload.clone());
 

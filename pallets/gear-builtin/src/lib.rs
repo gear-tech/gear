@@ -25,7 +25,7 @@
 //! ## Overview
 //!
 //! The pallet implements the `pallet_gear::BuiltinDispatcher` allowing to restore builtin actors
-//! claimed `BuiltinId`'s based on their corresponding `ProgramId` address.
+//! claimed `BuiltinId`'s based on their corresponding `ActorId` address.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
@@ -62,11 +62,10 @@ use core_processor::{
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
+    buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::ProgramId,
-    message::{
-        ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
-    },
+    ids::ActorId,
+    message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     str::LimitedStr,
     utils::hash,
 };
@@ -191,8 +190,8 @@ impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
 /// a in-memory collection of builtin actors.
 pub trait BuiltinCollection {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
-        id_converter: &dyn Fn(u64) -> ProgramId,
+        registry: &mut BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+        id_converter: &dyn Fn(u64) -> ActorId,
     );
 }
 
@@ -201,8 +200,8 @@ pub trait BuiltinCollection {
 #[tuple_types_custom_trait_bound(BuiltinActorWithId + 'static)]
 impl BuiltinCollection for Tuple {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
-        id_converter: &dyn Fn(u64) -> ProgramId,
+        registry: &mut BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+        id_converter: &dyn Fn(u64) -> ActorId,
     ) {
         for_tuples!(
             #(
@@ -284,12 +283,12 @@ pub mod pallet {
         ///
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
-        pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
+        pub fn generate_actor_id(builtin_id: u64) -> ActorId {
             hash((SEED, builtin_id).encode().as_slice()).into()
         }
 
         pub(crate) fn dispatch_call(
-            origin: ProgramId,
+            origin: ActorId,
             call: CallOf<T>,
             context: &mut BuiltinContext,
         ) -> Result<(), BuiltinActorError>
@@ -339,7 +338,7 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+    pub registry: BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -354,7 +353,7 @@ impl<T: Config> BuiltinRegistry<T> {
         }
     }
 
-    pub fn list(&self) -> Vec<ProgramId> {
+    pub fn list(&self) -> Vec<ActorId> {
         self.registry.keys().copied().collect()
     }
 }
@@ -363,7 +362,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type Context = BuiltinContext;
     type Error = BuiltinActorError;
 
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
+    fn lookup<'a>(&'a self, id: &ActorId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
         self.registry
             .get(id)
             .map(|(f, g)| BuiltinInfo::<'a, Self::Context, Self::Error> {

@@ -12,9 +12,17 @@ repository.workspace = true
 [dependencies]
 ethexe-processor.workspace = true
 ethexe-common.workspace = true
-ethexe-runtime.workspace = true
 ethexe-db.workspace = true
+ethexe-runtime.workspace = true
 gprimitives.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 tokio.workspace = true
+derive_more.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+gear-core.workspace = true
+gear-utils.workspace = true
+wat.workspace = true
+wasmparser.workspace = true

@@ -110,7 +110,7 @@ impl Api {
     }
 
     /// Get program pages from program id.
-    pub async fn program_pages(&self, program_id: ProgramId) -> Result<GearPages> {
+    pub async fn program_pages(&self, program_id: ActorId) -> Result<GearPages> {
         self.gpages(program_id, None).await
     }
 }
@@ -303,7 +303,7 @@ impl Api {
     #[storage_fetch]
     pub async fn gprog_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         block_hash: Option<H256>,
     ) -> Result<ActiveProgram<BlockNumber>> {
         match self.program_at(program_id, block_hash).await? {
@@ -316,7 +316,7 @@ impl Api {
     #[storage_fetch]
     pub async fn gpages_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: Option<u32>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
@@ -354,9 +354,9 @@ impl Api {
     #[storage_fetch]
     pub async fn inheritor_of_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         block_hash: Option<H256>,
-    ) -> Result<Option<ProgramId>> {
+    ) -> Result<Option<ActorId>> {
         Ok(match self.program_at(program_id, block_hash).await? {
             Program::Exited(p) => Some(p.into()),
             _ => None,
@@ -367,7 +367,7 @@ impl Api {
     #[storage_fetch]
     pub async fn specified_gpages_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: Option<u32>,
         page_numbers: impl Iterator<Item = u32>,
         block_hash: Option<H256>,
@@ -408,7 +408,7 @@ impl Api {
     #[storage_fetch]
     pub async fn program_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         block_hash: Option<H256>,
     ) -> Result<Program<BlockNumber>> {
         let addr = Self::storage(

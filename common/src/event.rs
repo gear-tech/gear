@@ -21,7 +21,7 @@
 //! This module contains components for depositing proper
 //! and extensive data about actions happen.
 
-use gear_core::{ids::MessageId, message::MessageWaitedType};
+use gear_core::{env::MessageWaitedType, ids::MessageId};
 use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},

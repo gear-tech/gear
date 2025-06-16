@@ -37,11 +37,11 @@ use alloc::{format, string::String};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::{Payload, PayloadSizeError, RuntimeBuffer, RuntimeBufferSizeError},
     costs::CostToken,
-    env::DropPayloadLockBound,
+    env::{DropPayloadLockBound, MessageWaitedType},
     gas::CounterType,
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{ActorId, MessageId, ProgramId, ReservationId},
     message::{HandlePacket, InitPacket, MessageWaitedType, Payload, ReplyPacket},
     pages::WasmPage,
 };
@@ -1189,7 +1189,7 @@ where
 
     pub fn program_id(program_id_write: WriteAs<ProgramId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
-            CostToken::ProgramId,
+            CostToken::ActorId,
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let program_id = ctx.caller_wrap.ext_mut().program_id()?;
 
@@ -1294,7 +1294,7 @@ where
         payload: ReadPayloadLimited,
         gas_limit: Option<u64>,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), RunFallibleError> {
+    ) -> Result<(MessageId, ActorId), RunFallibleError> {
         let HashWithValue {
             hash: code_id,
             value,

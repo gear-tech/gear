@@ -18,11 +18,13 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
+use crate::ToDigest;
 use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
+use sha3::Digest as _;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
@@ -60,6 +62,25 @@ pub struct BlockCommitment {
     pub transitions: Vec<StateTransition>,
 }
 
+impl ToDigest for BlockCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            hash,
+            timestamp,
+            previous_committed_block,
+            predecessor_block,
+            transitions,
+        } = self;
+
+        hasher.update(hash);
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+        hasher.update(previous_committed_block);
+        hasher.update(predecessor_block);
+        hasher.update(transitions.to_digest());
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
@@ -68,10 +89,34 @@ pub struct CodeCommitment {
     pub valid: bool,
 }
 
+impl ToDigest for CodeCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            id,
+            timestamp,
+            valid,
+        } = self;
+
+        hasher.update(id.into_bytes());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+        hasher.update([*valid as u8]);
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct OperatorRewardsCommitment {
     pub amount: U256,
     pub root: H256,
+}
+
+impl ToDigest for OperatorRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let OperatorRewardsCommitment { amount, root } = self;
+
+        hasher.update(<[u8; 32]>::from(*amount));
+        hasher.update(root);
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -87,6 +132,26 @@ pub struct StakerRewardsCommitment {
     pub token: Address,
 }
 
+impl ToDigest for StakerRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let StakerRewardsCommitment {
+            distribution,
+            total_amount,
+            token,
+        } = &self;
+
+        distribution
+            .iter()
+            .for_each(|StakerRewards { vault, amount }| {
+                hasher.update(vault);
+                hasher.update(<[u8; 32]>::from(*amount));
+            });
+
+        hasher.update(<[u8; 32]>::from(*total_amount));
+        hasher.update(token);
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct RewardsCommitment {
     pub operators: OperatorRewardsCommitment,
@@ -95,11 +160,41 @@ pub struct RewardsCommitment {
     pub timestamp: u64,
 }
 
+impl ToDigest for RewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            operators,
+            stakers,
+            timestamp,
+        } = self;
+
+        hasher.update(operators.to_digest());
+        hasher.update(stakers.to_digest());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitment {
     pub block_commitments: Vec<BlockCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
     pub rewards_commitments: Vec<RewardsCommitment>,
+}
+
+impl ToDigest for BatchCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            code_commitments,
+            block_commitments,
+            rewards_commitments,
+        } = self;
+
+        hasher.update(block_commitments.to_digest());
+        hasher.update(code_commitments.to_digest());
+        hasher.update(rewards_commitments.to_digest());
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
@@ -139,10 +234,35 @@ pub struct Message {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: Option<ReplyDetails>,
+    pub call: bool,
 }
 
-impl From<StoredMessage> for Message {
-    fn from(value: StoredMessage) -> Self {
+impl ToDigest for Message {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            id,
+            destination,
+            payload,
+            value,
+            reply_details,
+            call,
+        } = self;
+
+        let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
+
+        hasher.update(id);
+        hasher.update(destination.to_address_lossy());
+        hasher.update(payload);
+        hasher.update(value.to_be_bytes());
+        hasher.update(reply_details_to);
+        hasher.update(reply_details_code.to_bytes());
+        hasher.update([*call as u8]);
+    }
+}
+
+impl Message {
+    pub fn from_stored(value: StoredMessage, call: bool) -> Self {
         let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
             id,
@@ -150,6 +270,7 @@ impl From<StoredMessage> for Message {
             payload: payload.into_vec(),
             value,
             reply_details: details.and_then(|v| v.to_reply_details()),
+            call,
         }
     }
 }
@@ -167,10 +288,34 @@ pub struct ProtocolData {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub exited: bool,
     pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
+}
+
+impl ToDigest for StateTransition {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            actor_id,
+            new_state_hash,
+            exited,
+            inheritor,
+            value_to_receive,
+            value_claims,
+            messages,
+        } = self;
+
+        hasher.update(actor_id.to_address_lossy());
+        hasher.update(new_state_hash);
+        hasher.update([*exited as u8]);
+        hasher.update(inheritor.to_address_lossy());
+        hasher.update(value_to_receive.to_be_bytes());
+        hasher.update(value_claims.to_digest());
+        hasher.update(messages.to_digest());
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -186,6 +331,23 @@ pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,
     pub value: u128,
+}
+
+/// Note: `ValueClaim` is not `ToDigest`
+impl ToDigest for [ValueClaim] {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.iter().for_each(
+            |ValueClaim {
+                 message_id,
+                 destination,
+                 value,
+             }| {
+                hasher.update(message_id);
+                hasher.update(destination.to_address_lossy());
+                hasher.update(value.to_be_bytes());
+            },
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]

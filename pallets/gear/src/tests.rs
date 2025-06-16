@@ -44,21 +44,23 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
+    buffer::Payload,
     code::{
         self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
         InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-        ReplyInfo, StoredDispatch, UserStoredMessage,
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        StoredDispatch, UserStoredMessage,
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
         WasmPage,
     },
     program::ActiveProgram,
+    rpc::ReplyInfo,
     tasks::ScheduledTask,
 };
 use gear_core_backend::error::TrapExplanation;
@@ -324,7 +326,7 @@ fn calculate_gas_results_in_finite_wait() {
     // with wait up to 20 that is not rare case.
     let receiver_scheme = Scheme::with_handle(Calls::builder().wait_for(20));
 
-    let sender_scheme = |receiver_id: ProgramId| {
+    let sender_scheme = |receiver_id: ActorId| {
         Scheme::with_handle(Calls::builder().send_wgas(
             <[u8; 32]>::from(receiver_id),
             [],
@@ -2095,7 +2097,7 @@ fn delayed_user_replacement() {
     fn scenario(gas_limit_to_forward: u64, to_mailbox: bool) {
         let code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
         let future_program_address =
-            ProgramId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+            ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
 
         let (_init_mid, proxy) = init_constructor(demo_proxy_with_gas::scheme(
             future_program_address.into(),
@@ -4188,7 +4190,7 @@ fn block_gas_limit_works() {
 
         let (gas1, gas2) = calc_gas();
 
-        let send_with_min_limit_to = |pid: ProgramId, gas: &GasInfo| {
+        let send_with_min_limit_to = |pid: ActorId, gas: &GasInfo| {
             assert_ok!(Gear::send_message(
                 RuntimeOrigin::signed(USER_1),
                 pid,
@@ -6715,7 +6717,7 @@ fn test_sequence_inheritor_of() {
         }
 
         let indexed_programs: Vec<u64> = (1000..1100).collect();
-        let convert_holders = |holders: BTreeSet<ProgramId>| {
+        let convert_holders = |holders: BTreeSet<ActorId>| {
             let mut holders = holders
                 .into_iter()
                 .map(|x| u64::from_le_bytes(*x.into_bytes().split_first_chunk::<8>().unwrap().0))
@@ -6787,7 +6789,7 @@ fn test_cyclic_inheritor_of() {
         // cyclic inheritance
         let mut cyclic_programs = vec![];
         for i in 2000..2100 {
-            let program_id = ProgramId::from(i);
+            let program_id = ActorId::from(i);
             manager.set_program(
                 program_id,
                 &code_info,
@@ -6811,7 +6813,7 @@ fn test_cyclic_inheritor_of() {
             cyclic_programs.push(program_id);
         }
 
-        let cyclic_programs: BTreeSet<ProgramId> = cyclic_programs.into_iter().collect();
+        let cyclic_programs: BTreeSet<ActorId> = cyclic_programs.into_iter().collect();
 
         let res = Gear::inheritor_for(2000.into(), NonZero::<usize>::MAX);
         assert_eq!(
@@ -7407,7 +7409,7 @@ fn test_create_program_miscellaneous() {
             RuntimeOrigin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![
-                // duplicate in the next block: init is executed due to new ProgramId generation, replies are generated (+4 dequeue, +2 dispatched)
+                // duplicate in the next block: init is executed due to new ActorId generation, replies are generated (+4 dequeue, +2 dispatched)
                 (child2_code_hash, b"salt1".to_vec(), 200_000_000),
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
                 (child2_code_hash, b"salt3".to_vec(), 200_000_000),
@@ -9971,8 +9973,7 @@ fn program_generator_works() {
 
         assert_succeed(message_id);
         let expected_salt = [b"salt_generator", message_id.as_ref(), &0u64.to_be_bytes()].concat();
-        let expected_child_id =
-            ProgramId::generate_from_program(message_id, code_id, &expected_salt);
+        let expected_child_id = ActorId::generate_from_program(message_id, code_id, &expected_salt);
         assert!(ProgramStorageOf::<Test>::program_exists(expected_child_id))
     });
 }
@@ -13803,7 +13804,7 @@ fn reservation_manager() {
 
         run_to_next_block(None);
 
-        fn scenario(pid: ProgramId, payload: Action, expected: Vec<Assertion>) {
+        fn scenario(pid: ActorId, payload: Action, expected: Vec<Assertion>) {
             System::reset_events();
 
             assert_ok!(Gear::send_message(
@@ -15729,8 +15730,9 @@ pub(crate) mod utils {
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
-        ids::{prelude::*, CodeId, MessageId, ProgramId},
-        message::{Message, Payload, ReplyDetails, UserMessage, UserStoredMessage},
+        buffer::Payload,
+        ids::{prelude::*, ActorId, CodeId, MessageId},
+        message::{Message, ReplyDetails, UserMessage, UserStoredMessage},
         program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };
@@ -15772,7 +15774,7 @@ pub(crate) mod utils {
         salt: impl AsRef<[u8]>,
         scheme: Scheme,
         value: BalanceOf<Test>,
-    ) -> (MessageId, ProgramId) {
+    ) -> (MessageId, ActorId) {
         let GasInfo { min_limit, .. } = Gear::calculate_gas_info(
             origin.into_origin(),
             HandleKind::Init(DEMO_CONSTRUCTOR_WASM_BINARY.to_vec()),
@@ -15800,7 +15802,7 @@ pub(crate) mod utils {
     pub(crate) fn init_constructor_with_value(
         scheme: Scheme,
         value: BalanceOf<Test>,
-    ) -> (MessageId, ProgramId) {
+    ) -> (MessageId, ActorId) {
         let res = submit_constructor_with_args(USER_1, DEFAULT_SALT, scheme, value);
 
         run_to_next_block(None);
@@ -15809,14 +15811,14 @@ pub(crate) mod utils {
         res
     }
 
-    pub(crate) fn is_active(program_id: ProgramId) -> bool {
+    pub(crate) fn is_active(program_id: ActorId) -> bool {
         let (builtins, _) = <Test as crate::Config>::BuiltinDispatcherFactory::create();
 
         Gear::is_active(&builtins, program_id)
     }
 
     #[track_caller]
-    pub(crate) fn init_constructor(scheme: Scheme) -> (MessageId, ProgramId) {
+    pub(crate) fn init_constructor(scheme: Scheme) -> (MessageId, ActorId) {
         init_constructor_with_value(scheme, 0)
     }
 
@@ -15882,7 +15884,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn calculate_handle_and_send_with_extra(
         origin: AccountId,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: Option<u64>,
         value: BalanceOf<Test>,
@@ -15989,7 +15991,7 @@ pub(crate) mod utils {
     // Puts message from `prog_id` for the `user` in mailbox and returns its id
     #[track_caller]
     pub(super) fn populate_mailbox_from_program(
-        prog_id: ProgramId,
+        prog_id: ActorId,
         sender: AccountId,
         block_num: BlockNumber,
         gas_limit: u64,
@@ -16023,7 +16025,7 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: ProgramId) {
+    pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: ActorId) {
         let expected_code_hash: H256 = generate_code_hash(
             ProgramCodeKind::OutgoingWithValueInHandle
                 .to_bytes()
@@ -16057,7 +16059,7 @@ pub(crate) mod utils {
     pub(super) fn upload_program_default(
         user: AccountId,
         code_kind: ProgramCodeKind,
-    ) -> DispatchCustomResult<ProgramId> {
+    ) -> DispatchCustomResult<ActorId> {
         upload_program_default_with_salt(user, DEFAULT_SALT.to_vec(), code_kind)
     }
 
@@ -16067,7 +16069,7 @@ pub(crate) mod utils {
         user: AccountId,
         salt: Vec<u8>,
         code_kind: ProgramCodeKind,
-    ) -> DispatchCustomResult<ProgramId> {
+    ) -> DispatchCustomResult<ActorId> {
         let code = code_kind.to_bytes();
 
         Gear::upload_program(
@@ -16082,18 +16084,15 @@ pub(crate) mod utils {
         .map(|_| get_last_program_id())
     }
 
-    pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ProgramId {
-        ProgramId::generate_from_user(CodeId::generate(code), salt)
+    pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> ActorId {
+        ActorId::generate_from_user(CodeId::generate(code), salt)
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
         CodeId::generate(code).into()
     }
 
-    pub(super) fn send_default_message(
-        from: AccountId,
-        to: ProgramId,
-    ) -> DispatchResultWithPostInfo {
+    pub(super) fn send_default_message(from: AccountId, to: ActorId) -> DispatchResultWithPostInfo {
         Gear::send_message(
             RuntimeOrigin::signed(from),
             to,
@@ -16104,7 +16103,7 @@ pub(crate) mod utils {
         )
     }
 
-    pub(super) fn call_default_message(to: ProgramId) -> crate::mock::RuntimeCall {
+    pub(super) fn call_default_message(to: ActorId) -> crate::mock::RuntimeCall {
         crate::mock::RuntimeCall::Gear(crate::Call::<Test>::send_message {
             destination: to,
             payload: EMPTY_PAYLOAD.to_vec(),
@@ -16229,7 +16228,7 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_last_program_id() -> ProgramId {
+    pub(super) fn get_last_program_id() -> ActorId {
         let event = match System::events().last().map(|r| r.event.clone()) {
             Some(MockRuntimeEvent::Gear(e)) => e,
             _ => unreachable!("Should be one Gear event"),
@@ -16442,7 +16441,7 @@ pub(crate) mod utils {
     }
 
     #[track_caller]
-    pub(super) fn get_reservation_map(pid: ProgramId) -> Option<GasReservationMap> {
+    pub(super) fn get_reservation_map(pid: ActorId) -> Option<GasReservationMap> {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         if let Program::Active(ActiveProgram {
             gas_reservation_map,
@@ -16573,7 +16572,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn send_payloads(
         user_id: AccountId,
-        program_id: ProgramId,
+        program_id: ActorId,
         payloads: Vec<Vec<u8>>,
     ) -> Vec<MessageId> {
         payloads

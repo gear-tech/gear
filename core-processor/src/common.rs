@@ -27,12 +27,11 @@ use alloc::{
 };
 use gear_core::{
     code::InstrumentedCode,
+    env::MessageWaitedType,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
-    message::{
-        ContextStore, Dispatch, DispatchKind, IncomingDispatch, MessageWaitedType, StoredDispatch,
-    },
+    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
@@ -52,7 +51,7 @@ pub enum DispatchResultKind {
     /// Wait dispatch.
     Wait(Option<u32>, MessageWaitedType),
     /// Exit dispatch.
-    Exit(ProgramId),
+    Exit(ActorId),
     /// Gas allowance exceed.
     GasAllowanceExceed,
 }
@@ -64,7 +63,7 @@ pub struct DispatchResult {
     /// Original dispatch.
     pub dispatch: IncomingDispatch,
     /// Program id of actor which was executed.
-    pub program_id: ProgramId,
+    pub program_id: ActorId,
     /// Context store after execution.
     pub context_store: ContextStore,
     /// List of generated messages.
@@ -74,7 +73,7 @@ pub struct DispatchResult {
     /// List of reply deposits to be provided.
     pub reply_deposits: Vec<(MessageId, u64)>,
     /// New programs to be created with additional data (corresponding code hash and init message id).
-    pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ProgramId)>>,
+    pub program_candidates: BTreeMap<CodeId, Vec<(MessageId, ActorId)>>,
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
     /// Gas amount programs reserved.
@@ -96,12 +95,12 @@ impl DispatchResult {
     }
 
     /// Return program id.
-    pub fn program_id(&self) -> ProgramId {
+    pub fn program_id(&self) -> ActorId {
         self.program_id
     }
 
     /// Return dispatch source program id.
-    pub fn message_source(&self) -> ProgramId {
+    pub fn message_source(&self) -> ActorId {
         self.dispatch.source()
     }
 
@@ -112,11 +111,7 @@ impl DispatchResult {
 
     /// Create partially initialized instance with the kind
     /// representing Success.
-    pub fn success(
-        dispatch: IncomingDispatch,
-        program_id: ProgramId,
-        gas_amount: GasAmount,
-    ) -> Self {
+    pub fn success(dispatch: IncomingDispatch, program_id: ActorId, gas_amount: GasAmount) -> Self {
         let system_reservation_context = SystemReservationContext::from_dispatch(&dispatch);
 
         Self {
@@ -146,26 +141,26 @@ pub enum DispatchOutcome {
     /// Message was a exit.
     Exit {
         /// Id of the program that was successfully exited.
-        program_id: ProgramId,
+        program_id: ActorId,
     },
     /// Message was an initialization success.
     InitSuccess {
         /// Id of the program that was successfully initialized.
-        program_id: ProgramId,
+        program_id: ActorId,
     },
     /// Message was an initialization failure.
     InitFailure {
         /// Program that was failed initializing.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Source of the init message. Funds inheritor.
-        origin: ProgramId,
+        origin: ActorId,
         /// Reason of the fail.
         reason: String,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Reason of the fail.
         trap: String,
     },
@@ -183,7 +178,7 @@ pub enum JournalNote {
         /// Message id of dispatched message.
         message_id: MessageId,
         /// Source of the dispatched message.
-        source: ProgramId,
+        source: ActorId,
         /// Outcome of the processing.
         outcome: DispatchOutcome,
     },
@@ -197,10 +192,10 @@ pub enum JournalNote {
     /// Exit the program.
     ExitDispatch {
         /// Id of the program called `exit`.
-        id_exited: ProgramId,
+        id_exited: ActorId,
         /// Address where all remaining value of the program should
         /// be transferred to.
-        value_destination: ProgramId,
+        value_destination: ActorId,
     },
     /// Message was handled and no longer exists.
     ///
@@ -231,7 +226,7 @@ pub enum JournalNote {
         /// Message which has initiated wake.
         message_id: MessageId,
         /// Program which has initiated wake.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Message that should be woken.
         awakening_id: MessageId,
         /// Amount of blocks to wait before waking.
@@ -240,7 +235,7 @@ pub enum JournalNote {
     /// Update page.
     UpdatePage {
         /// Program that owns the page.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Number of the page.
         page_number: GearPage,
         /// New data of the page.
@@ -250,16 +245,16 @@ pub enum JournalNote {
     /// And also removes data for pages which is not in allocations set now.
     UpdateAllocations {
         /// Program id.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// New allocations set for the program.
         allocations: IntervalsTree<WasmPage>,
     },
     /// Send value
     SendValue {
         /// Value sender
-        from: ProgramId,
+        from: ActorId,
         /// Value beneficiary,
-        to: ProgramId,
+        to: ActorId,
         /// Value amount
         value: u128,
         /// If to send locked value.
@@ -268,11 +263,11 @@ pub enum JournalNote {
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
         /// Current program id.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Code hash used to create new programs with ids in `candidates` field
         code_id: CodeId,
         /// Collection of program candidate ids and their init message ids.
-        candidates: Vec<(MessageId, ProgramId)>,
+        candidates: Vec<(MessageId, ActorId)>,
     },
     /// Stop processing queue.
     StopProcessing {
@@ -288,7 +283,7 @@ pub enum JournalNote {
         /// Reservation ID
         reservation_id: ReservationId,
         /// Program which contains reservation.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Amount of reserved gas.
         amount: u64,
         /// How many blocks reservation will live.
@@ -299,14 +294,14 @@ pub enum JournalNote {
         /// Reservation ID
         reservation_id: ReservationId,
         /// Program which contains reservation.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Block number until reservation will live.
         expiration: u32,
     },
     /// Update gas reservation map in program.
     UpdateGasReservations {
         /// Program whose map will be updated.
-        program_id: ProgramId,
+        program_id: ActorId,
         /// Map with reservations.
         reserver: GasReserver,
     },
@@ -327,7 +322,7 @@ pub enum JournalNote {
         /// Message ID which system reservation was made from.
         message_id: MessageId,
         /// Program ID which signal will be sent to.
-        destination: ProgramId,
+        destination: ActorId,
         /// Simple signal error.
         code: SignalCode,
     },
@@ -350,13 +345,13 @@ pub trait JournalHandler {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        source: ProgramId,
+        source: ActorId,
         outcome: DispatchOutcome,
     );
     /// Process gas burned.
     fn gas_burned(&mut self, message_id: MessageId, amount: u64);
     /// Process exit dispatch.
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
+    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId);
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
     /// Process send dispatch.
@@ -378,24 +373,24 @@ pub trait JournalHandler {
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     );
     /// Process page update.
-    fn update_pages_data(&mut self, program_id: ProgramId, pages_data: BTreeMap<GearPage, PageBuf>);
+    fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>);
     /// Process [JournalNote::UpdateAllocations].
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>);
+    fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>);
     /// Send value.
-    fn send_value(&mut self, from: ProgramId, to: ProgramId, value: u128, locked: bool);
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, locked: bool);
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
     fn store_new_programs(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         code_id: CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
+        candidates: Vec<(MessageId, ActorId)>,
     );
     /// Stop processing queue.
     ///
@@ -406,7 +401,7 @@ pub trait JournalHandler {
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         amount: u64,
         bn: u32,
     );
@@ -414,17 +409,17 @@ pub trait JournalHandler {
     fn unreserve_gas(
         &mut self,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         expiration: u32,
     );
     /// Update gas reservations.
-    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver);
+    fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver);
     /// Do system reservation.
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64);
     /// Do system unreservation.
     fn system_unreserve_gas(&mut self, message_id: MessageId);
     /// Send system signal.
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode);
+    fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
 }
@@ -504,7 +499,7 @@ pub struct Actor {
     /// Program value balance.
     pub balance: u128,
     /// Destination program.
-    pub destination_program: ProgramId,
+    pub destination_program: ActorId,
     /// Executable actor data
     pub executable_data: ExecutableActorData,
 }
@@ -530,7 +525,7 @@ pub struct ExecutableActorData {
 #[derive(Clone, Debug)]
 pub(crate) struct Program {
     /// Program id.
-    pub id: ProgramId,
+    pub id: ActorId,
     /// Memory infix.
     pub memory_infix: MemoryInfix,
     /// Instrumented code.

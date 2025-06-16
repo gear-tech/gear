@@ -20,7 +20,7 @@
 
 use demo_custom::{InitMessage, WASM_BINARY};
 use gclient::{EventProcessor, GearApi};
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use parity_scale_codec::Encode;
 
 #[tokio::test]
@@ -28,7 +28,7 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
     // Creating gear api.
     let api = GearApi::dev_from_path("../target/release/gear").await?;
     let actor_id =
-        ProgramId::try_from(api.account_id().encode().as_ref()).expect("failed to create actor id");
+        ActorId::try_from(api.account_id().encode().as_ref()).expect("failed to create actor id");
     let voucher_initial_balance = 100_000_000_000_000;
 
     // Taking block gas limit constant.

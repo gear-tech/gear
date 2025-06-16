@@ -35,7 +35,7 @@ use common::{benchmarking, storage::*, Origin, ProgramStorage};
 use core::marker::PhantomData;
 use frame_system::RawOrigin;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
     pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
@@ -59,7 +59,7 @@ const RID_SIZE: u32 = size_of::<ReservationId>() as u32;
 /// Code id size
 const CID_SIZE: u32 = size_of::<CodeId>() as u32;
 /// Program id size
-const PID_SIZE: u32 = size_of::<ProgramId>() as u32;
+const PID_SIZE: u32 = size_of::<ActorId>() as u32;
 /// Message id size
 const MID_SIZE: u32 = size_of::<MessageId>() as u32;
 /// Random subject size
@@ -130,7 +130,7 @@ where
         let msg = Message::new(
             msg_id,
             instance.addr.as_bytes().try_into().unwrap(),
-            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
+            ActorId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -201,7 +201,7 @@ where
     ) -> Result<Exec<T>, &'static str> {
         let instance = Program::<T>::new(module.into(), vec![])?;
 
-        let program_id = ProgramId::from_origin(instance.addr);
+        let program_id = ActorId::from_origin(instance.addr);
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
 
         utils::prepare_exec::<T>(
@@ -1097,7 +1097,7 @@ where
         let msg = Message::new(
             msg_id,
             instance.addr.as_bytes().try_into().unwrap(),
-            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
+            ActorId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,
@@ -1322,7 +1322,7 @@ where
         let msg = Message::new(
             msg_id,
             instance.addr.as_bytes().try_into().unwrap(),
-            ProgramId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
+            ActorId::try_from(instance.caller.clone().into_origin().as_bytes()).unwrap(),
             Default::default(),
             Some(1_000_000),
             0,

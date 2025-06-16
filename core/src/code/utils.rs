@@ -20,7 +20,8 @@
 
 use crate::{
     code::{errors::*, GENERIC_OS_PAGE_SIZE},
-    message::{DispatchKind, WasmEntryPoint},
+    env::WasmEntryPoint,
+    message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;

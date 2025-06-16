@@ -19,8 +19,8 @@
 //! Requires node to be built in release mode
 
 use gear_core::{
-    ids::{prelude::*, CodeId, ProgramId},
-    message::ReplyInfo,
+    ids::{prelude::*, ActorId, CodeId},
+    rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Result};
@@ -115,7 +115,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -160,7 +160,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     let salt = vec![];
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
     let payload = demo_waiter::Command::SendUpTo(alice, 10);
 
     // 1. upload program.
@@ -304,7 +304,7 @@ async fn test_original_code_storage() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     let signer = Api::new(node.ws().as_str())
         .await?
@@ -365,7 +365,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -412,7 +412,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -518,7 +518,7 @@ async fn query_program_counters(
         let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
         count_program += 1;
 
-        let program_id = ProgramId::decode(&mut key.as_ref())?;
+        let program_id = ActorId::decode(&mut key.as_ref())?;
 
         if let Program::Active(_) = program {
             count_active_program += 1;

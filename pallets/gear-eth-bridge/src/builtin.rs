@@ -21,7 +21,8 @@ use common::Origin;
 use core::marker::PhantomData;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
-    message::{Payload, StoredDispatch, Value},
+    buffer::Payload,
+    message::{StoredDispatch, Value},
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};

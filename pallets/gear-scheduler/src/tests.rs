@@ -63,7 +63,7 @@ fn dispatch_from(src: impl Origin) -> StoredDispatch {
 fn populate_wl_from(
     src: <Test as frame_system::Config>::AccountId,
     bn: BlockNumberFor<Test>,
-) -> (MessageId, ProgramId) {
+) -> (MessageId, ActorId) {
     let dispatch = dispatch_from(src);
     let mid = dispatch.id();
     let pid = dispatch.destination();
@@ -90,7 +90,7 @@ fn populate_wl_from(
 #[track_caller]
 fn task_and_wl_message_exist(
     mid: impl Into<MessageId>,
-    pid: impl Into<ProgramId>,
+    pid: impl Into<ActorId>,
     bn: BlockNumberFor<Test>,
 ) -> bool {
     let mid = mid.into();
@@ -107,7 +107,7 @@ fn task_and_wl_message_exist(
 fn out_of_rent_reply_exists(
     user_id: <Test as frame_system::Config>::AccountId,
     mid: impl Into<MessageId>,
-    pid: impl Into<ProgramId>,
+    pid: impl Into<ActorId>,
 ) -> bool {
     let src = user_id.cast();
     let mid = mid.into();

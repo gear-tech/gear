@@ -130,7 +130,7 @@ impl ExtManager {
 
     pub(crate) fn wake_dispatch_impl(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         message_id: MessageId,
     ) -> Result<StoredDispatch, WaitlistErrorImpl> {
         self.waitlist

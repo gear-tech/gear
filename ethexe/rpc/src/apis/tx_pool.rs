@@ -19,12 +19,16 @@
 //! Transaction pool rpc interface.
 
 use crate::{errors, RpcEvent};
-use ethexe_common::tx_pool::{OffchainTransaction, SignedOffchainTransaction};
+use ethexe_common::{
+    ecdsa::Signature,
+    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
+};
 use gprimitives::H256;
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
 };
+use parity_scale_codec::Decode;
 use tokio::sync::{mpsc, oneshot};
 
 #[rpc(server)]
@@ -55,10 +59,17 @@ impl TransactionPoolServer for TransactionPoolApi {
         ethexe_tx: OffchainTransaction,
         signature: Vec<u8>,
     ) -> RpcResult<H256> {
-        let signed_ethexe_tx = SignedOffchainTransaction {
-            transaction: ethexe_tx,
-            signature,
-        };
+        let signature = Signature::decode(&mut signature.as_slice()).map_err(|e| {
+            log::error!("Failed to decode signature: {e}");
+            errors::internal()
+        })?;
+
+        let signed_ethexe_tx = SignedOffchainTransaction::try_from_parts(ethexe_tx, signature)
+            .map_err(|e| {
+                log::error!("{e}");
+                errors::internal()
+            })?;
+
         log::debug!("Called send_message with vars: {signed_ethexe_tx:#?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
