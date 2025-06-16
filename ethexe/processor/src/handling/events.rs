@@ -19,7 +19,7 @@
 use super::ProcessingHandler;
 use anyhow::{ensure, Result};
 use ethexe_common::{
-    db::CodesStorage,
+    db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
     ScheduledTask,
@@ -95,7 +95,7 @@ impl ProcessingHandler {
                     )?;
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
 
                     Ok(())
@@ -146,7 +146,7 @@ impl ProcessingHandler {
                     )?;
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())
@@ -192,7 +192,7 @@ impl ProcessingHandler {
                     );
 
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())

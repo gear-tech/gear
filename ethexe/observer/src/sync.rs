@@ -24,21 +24,28 @@ use crate::{
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
-use ethexe_common::{self, db::OnChainStorage, BlockData, BlockHeader};
-use ethexe_db::Database;
+use ethexe_common::{
+    self,
+    db::{OnChainStorageRead, OnChainStorageWrite},
+    events::{BlockEvent, RouterEvent},
+    BlockData, BlockHeader, CodeBlobInfo,
+};
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 use std::collections::HashMap;
 
+pub(crate) trait SyncDB: OnChainStorageRead + OnChainStorageWrite + Clone {}
+impl<T: OnChainStorageRead + OnChainStorageWrite + Clone> SyncDB for T {}
+
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
-pub(crate) struct ChainSync {
-    pub db: Database,
+pub(crate) struct ChainSync<DB: SyncDB> {
+    pub db: DB,
     pub config: RuntimeConfig,
     pub provider: RootProvider,
 }
 
-impl ChainSync {
+impl<DB: SyncDB> ChainSync<DB> {
     pub async fn sync(self, chain_head: Header) -> Result<BlockSyncedData> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
@@ -94,6 +101,18 @@ impl ChainSync {
                     "Expected data for block hash {hash}, got for {}",
                     block_data.hash
                 );
+            }
+
+            for event in block_data.events.iter() {
+                if let &BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    timestamp,
+                    tx_hash,
+                }) = event
+                {
+                    self.db
+                        .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
+                }
             }
 
             let parent_hash = block_data.header.parent_hash;

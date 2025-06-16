@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::collections::{BTreeMap, BTreeSet};
 use anyhow::Context;
-use ethexe_common::{gear::ValueClaim, Rfm, Schedule, ScheduledTask, Sd, Sum};
+use ethexe_common::{gear::ValueClaim, ProgramStates, Rfm, Schedule, ScheduledTask, Sd, Sum};
 use gear_core::tasks::TaskHandler;
 use gear_core_errors::SuccessReplyReason;
 use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
@@ -52,7 +52,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 );
 
                 state
-                    .queue_hash
+                    .queue
                     .modify_queue(storage, |queue| queue.queue(reply));
             });
 
@@ -62,7 +62,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_dispatch(&mut self, (program_id, message_id): (ActorId, MessageId)) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     let dispatch = state
                         .stash_hash
                         .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
@@ -120,7 +120,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         .expect("failed to find message in waitlist")
                 });
 
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 })
             });
@@ -173,14 +173,14 @@ impl Restorer {
     /// Tries to fully restore schedule
     pub fn from_storage<T: Storage>(
         storage: &T,
-        program_states: &BTreeMap<ActorId, H256>,
+        program_states: &ProgramStates,
         current_block: u32,
     ) -> anyhow::Result<Self> {
         let program_states: BTreeMap<H256, BTreeSet<ActorId>> =
             program_states
                 .iter()
-                .fold(BTreeMap::new(), |mut acc, (&program_id, &state)| {
-                    acc.entry(state).or_default().insert(program_id);
+                .fold(BTreeMap::new(), |mut acc, (&program_id, state)| {
+                    acc.entry(state.hash).or_default().insert(program_id);
                     acc
                 });
 

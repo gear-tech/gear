@@ -18,10 +18,9 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
-    gear::CodeCommitment,
-    CodeInfo, SimpleBlockData,
+    SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::{BlockProcessingResult, Processor};
@@ -39,10 +38,10 @@ pub struct BlockProcessed {
     pub block_hash: H256,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
-    CodeProcessed(CodeCommitment),
+    CodeProcessed(CodeId),
     BlockPrepared(H256),
     BlockProcessed(BlockProcessed),
 }
@@ -73,7 +72,7 @@ pub struct ComputeService {
     state: BlockPreparationState,
 
     process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
-    process_codes: JoinSet<Result<CodeCommitment>>,
+    process_codes: JoinSet<Result<CodeId>>,
 }
 
 impl Stream for ComputeService {
@@ -82,13 +81,13 @@ impl Stream for ComputeService {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
-                Ok(Ok(commitment)) => {
+                Ok(Ok(code_id)) => {
                     if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
                         &mut self.state
                     {
-                        waiting_codes.remove(&commitment.id);
+                        waiting_codes.remove(&code_id);
                     }
-                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(commitment))));
+                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(code_id))));
                 }
                 Ok(Err(e)) => return Poll::Ready(Some(Err(anyhow!("process code error: {e}")))),
                 Err(e) => return Poll::Ready(Some(Err(anyhow!("process codes join error: {e}")))),
@@ -172,16 +171,33 @@ impl ComputeService {
         }
     }
 
-    pub fn process_code(&mut self, code_id: CodeId, timestamp: u64, code: Vec<u8>) {
-        let mut processor = self.processor.clone();
-        self.process_codes.spawn_blocking(move || {
-            let valid = processor.process_upload_code_raw(code_id, code.as_slice())?;
-            Ok(CodeCommitment {
-                id: code_id,
-                timestamp,
-                valid,
-            })
-        });
+    pub fn process_code(&mut self, code_id: CodeId, _timestamp: u64, code: Vec<u8>) {
+        if let Some(valid) = self.db.code_valid(code_id) {
+            // TODO: #4712 test this case
+            log::warn!("Code {code_id:?} already processed");
+
+            if valid {
+                debug_assert!(
+                    self.db.original_code_exists(code_id),
+                    "Code {code_id:?} must exist in database"
+                );
+                debug_assert!(
+                    self.db
+                        .instrumented_code_exists(ethexe_runtime::VERSION, code_id),
+                    "Instrumented code {code_id:?} must exist in database"
+                );
+            }
+
+            self.process_codes.spawn(async move { Ok(code_id) });
+        } else {
+            let mut processor = self.processor.clone();
+
+            self.process_codes.spawn_blocking(move || {
+                processor
+                    .process_upload_code_raw(code_id, &code)
+                    .map(|_valid| code_id)
+            });
+        }
     }
 
     pub fn prepare_block(&mut self, block: H256) {
@@ -222,16 +238,7 @@ impl ComputeService {
 
         for event in &events {
             match event {
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id,
-                    timestamp,
-                    tx_hash,
-                }) => {
-                    let code_info = CodeInfo {
-                        timestamp: *timestamp,
-                        tx_hash: *tx_hash,
-                    };
-                    self.db.set_code_blob_info(*code_id, code_info.clone());
+                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
                     codes_to_load.insert(*code_id);
                 }
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
@@ -248,12 +255,16 @@ impl ComputeService {
     }
 }
 
-struct ChainHeadProcessContext {
-    db: Database,
+struct ChainHeadProcessContext<
+    DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead,
+> {
+    db: DB,
     processor: Processor,
 }
 
-impl ChainHeadProcessContext {
+impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
+    ChainHeadProcessContext<DB>
+{
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
         let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
 
@@ -270,35 +281,15 @@ impl ChainHeadProcessContext {
             header,
         } = block_data;
 
-        let events = OnChainStorage::block_events(&self.db, block)
+        let events = self
+            .db
+            .block_events(block)
             .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
 
-        for event in &events {
-            if let BlockEvent::Router(RouterEvent::CodeGotValidated {
-                code_id,
-                valid: true,
-            }) = event
-            {
-                // TODO: test branch
-                if !self
-                    .db
-                    .instrumented_code_exists(ethexe_runtime::VERSION, *code_id)
-                {
-                    let code = self
-                        .db
-                        .original_code(*code_id)
-                        .ok_or(anyhow!("code not found for validated code {code_id}"))?;
-                    self.processor.process_upload_code(*code_id, &code)?;
-                }
-            }
-        }
-
         let parent = header.parent_hash;
-
         if !self.db.block_computed(parent) {
             unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
-
         let mut commitments_queue =
             Self::propagate_data_from_parent(&self.db, block, parent, events.iter())?;
 
@@ -309,7 +300,8 @@ impl ChainHeadProcessContext {
 
         let processing_result = self
             .processor
-            .process_block_events(block, block_request_events)?;
+            .process_block_events(block, block_request_events)
+            .await?;
 
         let BlockProcessingResult {
             transitions,
@@ -320,23 +312,19 @@ impl ChainHeadProcessContext {
         if !transitions.is_empty() {
             commitments_queue.push_back(block);
         }
+
         self.db.set_block_commitment_queue(block, commitments_queue);
-
         self.db.set_block_outcome(block, transitions);
-
         self.db.set_block_program_states(block, states);
         self.db.set_block_schedule(block, schedule);
-
-        // Set block as valid - means state db has all states for the end of the block
         self.db.set_block_computed(block);
-
         self.db.set_latest_computed_block(block, header);
 
         Ok(())
     }
 
     fn propagate_data_from_parent<'a>(
-        db: &Database,
+        db: &DB,
         block: H256,
         parent: H256,
         events: impl Iterator<Item = &'a BlockEvent>,
@@ -391,10 +379,7 @@ impl ChainHeadProcessContext {
     }
 
     /// Collect a chain of blocks from the head to the last not computed block.
-    fn collect_not_computed_blocks_chain(
-        db: &Database,
-        head: H256,
-    ) -> Result<Vec<SimpleBlockData>> {
+    fn collect_not_computed_blocks_chain(db: &DB, head: H256) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
         while !db.block_computed(block) {
@@ -402,7 +387,8 @@ impl ChainHeadProcessContext {
                 return Err(anyhow!("Block {block} is not synced, but must be"));
             }
 
-            let header = OnChainStorage::block_header(db, block)
+            let header = db
+                .block_header(block)
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
 
             let parent = header.parent_hash;
@@ -421,7 +407,166 @@ impl ChainHeadProcessContext {
 
 #[cfg(test)]
 mod tests {
+    use ethexe_common::BlockHeader;
+    use futures::StreamExt;
+    use gear_core::ids::prelude::CodeIdExt;
+    use std::collections::HashMap;
+
     use super::*;
+    use ethexe_common::db::OnChainStorageWrite;
+
+    // Create new code with a unique nonce
+    fn create_new_code(nonce: u32) -> Vec<u8> {
+        let wat = format!(
+            r#"(module
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $init)
+            (func $ret_{nonce}))"#,
+        );
+
+        let code = wat::parse_str(&wat).unwrap();
+        wasmparser::validate(&code).unwrap();
+        code
+    }
+
+    // Generate codes for the given chain and store the events in the database
+    // Return a map with `CodeId` and corresponding code bytes
+    fn generate_codes(
+        db: Database,
+        chain: &VecDeque<H256>,
+        events_in_block: u32,
+    ) -> HashMap<CodeId, Vec<u8>> {
+        let mut nonce = 0;
+        let mut codes_storage = HashMap::new();
+        for block in chain.iter().copied() {
+            let events: Vec<BlockEvent> = (0..events_in_block)
+                .map(|_| {
+                    nonce += 1;
+                    let code = create_new_code(nonce);
+                    let code_id = CodeId::generate(&code);
+                    codes_storage.insert(code_id, code);
+
+                    BlockEvent::Router(RouterEvent::CodeGotValidated {
+                        code_id,
+                        valid: true,
+                    })
+                })
+                .collect();
+
+            db.set_block_events(block, &events);
+        }
+        codes_storage
+    }
+
+    // Generate a chain with the given length and setup the genesis block
+    fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
+        let genesis_hash = H256::random();
+        db.set_block_codes_queue(genesis_hash, Default::default());
+        db.set_block_computed(genesis_hash);
+        db.set_block_outcome(genesis_hash, vec![]);
+        db.set_previous_not_empty_block(genesis_hash, H256::random());
+        db.set_block_commitment_queue(genesis_hash, Default::default());
+        db.set_block_program_states(genesis_hash, Default::default());
+        db.set_block_schedule(genesis_hash, Default::default());
+
+        let mut chain = VecDeque::new();
+
+        let mut parent_hash = genesis_hash;
+        for block_num in 0..chain_len {
+            let block_hash = H256::random();
+            let block_header = BlockHeader {
+                height: block_num,
+                timestamp: (block_num * 10) as u64,
+                parent_hash,
+            };
+            db.set_block_header(block_hash, block_header);
+            db.set_block_is_synced(block_hash);
+            chain.push_back(block_hash);
+            parent_hash = block_hash;
+        }
+
+        chain
+    }
+
+    // A wrapper around the `ComputeService` to correctly handle code processing and block preparation
+    struct WrappedComputeService {
+        inner: ComputeService,
+        codes_storage: HashMap<CodeId, Vec<u8>>,
+    }
+
+    impl WrappedComputeService {
+        async fn prepare_and_assert_block(&mut self, block: H256) {
+            self.inner.prepare_block(block);
+
+            let event = self
+                .inner
+                .next()
+                .await
+                .unwrap()
+                .expect("expect compute service request codes to load");
+            let codes_to_load = event.unwrap_request_load_codes();
+
+            for code_id in codes_to_load {
+                // skip if code not validated
+                let Some(code) = self.codes_storage.remove(&code_id) else {
+                    continue;
+                };
+
+                self.inner.process_code(code_id, 0u64, code);
+
+                let event = self
+                    .inner
+                    .next()
+                    .await
+                    .unwrap()
+                    .expect("expect code will be processing");
+                let processed_code_id = event.unwrap_code_processed();
+
+                assert_eq!(processed_code_id, code_id);
+            }
+
+            let event = self
+                .inner
+                .next()
+                .await
+                .unwrap()
+                .expect("expect block prepared after processing all codes");
+            let prepared_block = event.unwrap_block_prepared();
+            assert_eq!(prepared_block, block);
+        }
+
+        async fn process_and_assert_block(&mut self, block: H256) {
+            self.inner.process_block(block);
+
+            let event = self
+                .inner
+                .next()
+                .await
+                .unwrap()
+                .expect("expect block will be processing");
+
+            let processed_block = event.unwrap_block_processed();
+            assert_eq!(processed_block.block_hash, block);
+        }
+    }
+
+    // Setup the chain and compute service.
+    // It is needed to reduce the copy-paste in tests.
+    fn setup_chain_and_compute(
+        db: Database,
+        chain_len: u32,
+        events_in_block: u32,
+    ) -> (VecDeque<H256>, WrappedComputeService) {
+        let chain = generate_chain(db.clone(), chain_len);
+        let codes_storage = generate_codes(db.clone(), &chain, events_in_block);
+
+        let compute = WrappedComputeService {
+            inner: ComputeService::new(db.clone(), Processor::new(db).unwrap()),
+            codes_storage,
+        };
+        (chain, compute)
+    }
 
     #[tokio::test]
     async fn test_codes_queue_propagation() {
@@ -471,5 +616,89 @@ mod tests {
         // Check for current block
         let codes_queue = db.block_codes_queue(current_block).unwrap();
         assert_eq!(codes_queue, VecDeque::from(vec![code_id_2]));
+    }
+
+    #[tokio::test]
+    async fn block_computation_basic() -> Result<()> {
+        gear_utils::init_default_logger();
+
+        let chain_len = 1;
+        let db = Database::memory();
+        let (mut chain, mut compute) = setup_chain_and_compute(db, chain_len, 3);
+
+        for _ in 0..chain_len {
+            let block = chain.pop_front().unwrap();
+            compute.prepare_and_assert_block(block).await;
+            compute.process_and_assert_block(block).await;
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn multiple_preparation_and_one_processing() -> Result<()> {
+        gear_utils::init_default_logger();
+
+        let chain_len = 3;
+        let db = Database::memory();
+        let (mut chain, mut compute) = setup_chain_and_compute(db, chain_len, 3);
+
+        let block1 = chain.pop_front().unwrap();
+        let block2 = chain.pop_front().unwrap();
+        let block3 = chain.pop_front().unwrap();
+
+        compute.prepare_and_assert_block(block1).await;
+        compute.prepare_and_assert_block(block2).await;
+        compute.prepare_and_assert_block(block3).await;
+
+        compute.process_and_assert_block(block3).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn one_preparation_and_multiple_processing() -> Result<()> {
+        gear_utils::init_default_logger();
+
+        let chain_len = 3;
+        let db = Database::memory();
+        let (mut chain, mut compute) = setup_chain_and_compute(db, chain_len, 3);
+
+        let block1 = chain.pop_front().unwrap();
+        let block2 = chain.pop_front().unwrap();
+        let block3 = chain.pop_front().unwrap();
+
+        compute.prepare_and_assert_block(block3).await;
+
+        compute.process_and_assert_block(block1).await;
+        compute.process_and_assert_block(block2).await;
+        compute.process_and_assert_block(block3).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn code_validation_request_does_not_block_preparation() -> Result<()> {
+        gear_utils::init_default_logger();
+
+        let chain_len = 1;
+        let db = Database::memory();
+        let (mut chain, mut compute) = setup_chain_and_compute(db.clone(), chain_len, 3);
+
+        let block = chain.pop_back().unwrap();
+        let mut block_events = db.block_events(block).unwrap();
+
+        // add invalid event which shouldn't stop block preparation
+        block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested {
+            code_id: CodeId::zero(),
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        }));
+        db.set_block_events(block, &block_events);
+
+        compute.prepare_and_assert_block(block).await;
+        compute.process_and_assert_block(block).await;
+
+        Ok(())
     }
 }

@@ -73,11 +73,11 @@ impl ToDigest for BlockCommitment {
             transitions,
         } = self;
 
-        hasher.update(hash.as_bytes());
-        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
-        hasher.update(previous_committed_block.as_bytes());
-        hasher.update(predecessor_block.as_bytes());
-        hasher.update(transitions.to_digest().as_ref());
+        hasher.update(hash);
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+        hasher.update(previous_committed_block);
+        hasher.update(predecessor_block);
+        hasher.update(transitions.to_digest());
     }
 }
 
@@ -98,8 +98,8 @@ impl ToDigest for CodeCommitment {
             valid,
         } = self;
 
-        hasher.update(id.into_bytes().as_slice());
-        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update(id.into_bytes());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
         hasher.update([*valid as u8]);
     }
 }
@@ -169,8 +169,8 @@ impl ToDigest for RewardsCommitment {
             timestamp,
         } = self;
 
-        hasher.update(operators.to_digest().as_ref());
-        hasher.update(stakers.to_digest().as_ref());
+        hasher.update(operators.to_digest());
+        hasher.update(stakers.to_digest());
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
     }
 }
@@ -251,12 +251,12 @@ impl ToDigest for Message {
 
         let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
 
-        hasher.update(id.as_ref());
-        hasher.update(destination.to_address_lossy().as_bytes());
-        hasher.update(payload.as_slice());
-        hasher.update(value.to_be_bytes().as_slice());
-        hasher.update(reply_details_to.as_ref());
-        hasher.update(reply_details_code.to_bytes().as_slice());
+        hasher.update(id);
+        hasher.update(destination.to_address_lossy());
+        hasher.update(payload);
+        hasher.update(value.to_be_bytes());
+        hasher.update(reply_details_to);
+        hasher.update(reply_details_code.to_bytes());
         hasher.update([*call as u8]);
     }
 }
@@ -308,13 +308,13 @@ impl ToDigest for StateTransition {
             messages,
         } = self;
 
-        hasher.update(actor_id.to_address_lossy().as_bytes());
-        hasher.update(new_state_hash.as_bytes());
+        hasher.update(actor_id.to_address_lossy());
+        hasher.update(new_state_hash);
         hasher.update([*exited as u8]);
-        hasher.update(inheritor.to_address_lossy().as_bytes());
-        hasher.update(value_to_receive.to_be_bytes().as_slice());
-        hasher.update(value_claims.to_digest().as_ref());
-        hasher.update(messages.to_digest().as_ref());
+        hasher.update(inheritor.to_address_lossy());
+        hasher.update(value_to_receive.to_be_bytes());
+        hasher.update(value_claims.to_digest());
+        hasher.update(messages.to_digest());
     }
 }
 
@@ -342,9 +342,9 @@ impl ToDigest for [ValueClaim] {
                  destination,
                  value,
              }| {
-                hasher.update(message_id.as_ref());
-                hasher.update(destination.to_address_lossy().as_bytes());
-                hasher.update(value.to_be_bytes().as_slice());
+                hasher.update(message_id);
+                hasher.update(destination.to_address_lossy());
+                hasher.update(value.to_be_bytes());
             },
         )
     }

@@ -385,9 +385,18 @@ impl MaybeHashOf<MemoryPages> {
     }
 }
 
-impl MaybeHashOf<MessageQueue> {
+// TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MessageQueueHashWithSize {
+    pub hash: MaybeHashOf<MessageQueue>,
+    // NOTE: only here to propagate queue size to the parent state (`StateHashWithQueueSize`).
+    pub cached_queue_size: u8,
+}
+
+impl MessageQueueHashWithSize {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.try_map_or_default(|hash| {
+        self.hash.try_map_or_default(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -403,9 +412,15 @@ impl MaybeHashOf<MessageQueue> {
 
         let r = f(&mut queue);
 
-        *self = queue.store(storage);
+        // Emulate saturating behavior for queue size.
+        self.cached_queue_size = queue.len().min(u8::MAX as usize) as u8;
+        self.hash = queue.store(storage);
 
         r
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.hash.is_empty()
     }
 }
 
@@ -488,8 +503,8 @@ impl Program {
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue, see [`MessageQueue`].
-    pub queue_hash: MaybeHashOf<MessageQueue>,
+    /// Hash of incoming message queue with its cached size, see [`MessageQueueHashWithSize`].
+    pub queue: MessageQueueHashWithSize,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
     /// Hash of dispatch stash, see [`DispatchStash`].
@@ -511,7 +526,10 @@ impl ProgramState {
                 memory_infix: MemoryInfix::new(0),
                 initialized: false,
             }),
-            queue_hash: MaybeHashOf::empty(),
+            queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
             waitlist_hash: MaybeHashOf::empty(),
             stash_hash: MaybeHashOf::empty(),
             mailbox_hash: MaybeHashOf::empty(),
@@ -535,7 +553,7 @@ impl ProgramState {
             return false;
         }
 
-        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
+        self.queue.hash.is_empty() && self.waitlist_hash.is_empty()
     }
 }
 
@@ -703,7 +721,16 @@ impl<T> From<(T, u32)> for Expiring<T> {
 }
 
 #[derive(
-    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    derive_more::Into,
+    derive_more::AsRef,
+    derive_more::IntoIterator,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
@@ -711,6 +738,10 @@ pub struct MessageQueue(VecDeque<Dispatch>);
 impl MessageQueue {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     pub fn queue(&mut self, dispatch: Dispatch) {

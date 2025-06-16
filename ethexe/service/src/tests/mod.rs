@@ -29,7 +29,7 @@ use crate::{
 };
 use alloy::providers::{ext::AnvilApi, Provider as _};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
     ScheduledTask,
@@ -68,8 +68,9 @@ async fn basics() {
         validator: Default::default(),
         validator_session: Default::default(),
         eth_max_sync_depth: 1_000,
-        worker_threads_override: None,
-        virtual_threads: 16,
+        worker_threads: None,
+        blocking_threads: None,
+        chunk_processing_threads: 16,
         dev: true,
         fast_sync: false,
     };
@@ -1097,7 +1098,6 @@ async fn fast_sync() {
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
 
-        assert_eq!(alice.db.program_ids(), bob.db.program_ids());
         assert_eq!(
             alice.db.latest_computed_block(),
             bob.db.latest_computed_block()

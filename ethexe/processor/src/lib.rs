@@ -20,10 +20,10 @@
 
 use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
-    db::CodesStorage,
+    db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    Schedule,
+    ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -31,7 +31,6 @@ use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
-use std::collections::BTreeMap;
 
 pub use common::LocalOutcome;
 
@@ -46,21 +45,19 @@ mod tests;
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
-    pub states: BTreeMap<ActorId, H256>,
+    pub states: ProgramStates,
     pub schedule: Schedule,
 }
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
-    pub worker_threads_override: Option<usize>,
-    pub virtual_threads: usize,
+    pub chunk_processing_threads: usize,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            worker_threads_override: None,
-            virtual_threads: 16,
+            chunk_processing_threads: 16,
         }
     }
 }
@@ -119,17 +116,17 @@ impl Processor {
         Ok(valid)
     }
 
-    pub fn process_block_events(
+    pub async fn process_block_events(
         &mut self,
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
         // Directly return the result from the raw processing function.
         // The caller (ComputeService) will now handle this result.
-        self.process_block_events_raw(block_hash, events)
+        self.process_block_events_raw(block_hash, events).await
     }
 
-    pub fn process_block_events_raw(
+    pub async fn process_block_events_raw(
         &mut self,
         block_hash: H256,
         events: Vec<BlockRequestEvent>,
@@ -153,7 +150,7 @@ impl Processor {
         }
 
         handler.run_schedule();
-        self.process_queue(&mut handler);
+        self.process_queue(&mut handler).await;
 
         let (transitions, states, schedule) = handler.transitions.finalize();
 
@@ -164,15 +161,16 @@ impl Processor {
         })
     }
 
-    pub fn process_queue(&mut self, handler: &mut ProcessingHandler) {
+    pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.config(),
+            self.config().chunk_processing_threads,
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
-        );
+        )
+        .await;
     }
 }
 
@@ -181,7 +179,7 @@ pub struct OverlaidProcessor(Processor);
 
 impl OverlaidProcessor {
     // TODO (breathx): optimize for one single program.
-    pub fn execute_for_reply(
+    pub async fn execute_for_reply(
         &mut self,
         block_hash: H256,
         source: ActorId,
@@ -196,7 +194,8 @@ impl OverlaidProcessor {
         let state_hash = handler
             .transitions
             .state_of(&program_id)
-            .ok_or_else(|| anyhow!("unknown program at specified block hash"))?;
+            .ok_or_else(|| anyhow!("unknown program at specified block hash"))?
+            .hash;
 
         let state = handler
             .db
@@ -219,7 +218,7 @@ impl OverlaidProcessor {
             },
         )?;
 
-        self.0.process_queue(&mut handler);
+        self.0.process_queue(&mut handler).await;
 
         let res = handler
             .transitions

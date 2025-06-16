@@ -317,9 +317,9 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(void) => void::unreachable(void),
+            BehaviourEvent::CustomConnectionLimits(infallible) => match infallible {},
             //
-            BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
+            BehaviourEvent::ConnectionLimits(infallible) => match infallible {},
             //
             BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
                 peer_id,

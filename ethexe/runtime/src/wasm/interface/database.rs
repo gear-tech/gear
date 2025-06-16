@@ -27,6 +27,14 @@ interface::declare! {
     pub(super) fn ext_database_write_version_1(data: *const u8, len: i32) -> *const H256;
     pub(super) fn ext_get_block_height_version_1() -> i32;
     pub(super) fn ext_get_block_timestamp_version_1() -> i64;
+    pub(super) fn ext_update_state_hash_version_1(hash: *const H256);
+}
+
+// TODO(romanm): consider to move into separate RI module
+pub fn update_state_hash(hash: &H256) {
+    unsafe {
+        sys::ext_update_state_hash_version_1(hash.as_ptr() as _);
+    }
 }
 
 pub fn read<D: Decode>(hash: &H256) -> Option<Result<D, CodecError>> {
