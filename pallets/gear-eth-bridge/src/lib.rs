@@ -70,7 +70,6 @@ pub mod pallet {
     use sp_std::vec::Vec;
 
     type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
-    type GovernanceMessageReserveOf<T> = <T as Config>::GovernanceMessageReserve;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
@@ -117,10 +116,6 @@ pub mod pallet {
         /// bridged within the single staking era (including governance message reserve).
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
-
-        /// Constant defining amount of messages that are reserved for governance operations.
-        #[pallet::constant]
-        type GovernanceMessageReserve: Get<u32>;
 
         /// Constant defining amount of sessions in manager for keys rotation.
         /// Similar to `pallet_staking::SessionsPerEra`.
@@ -222,7 +217,8 @@ pub mod pallet {
     ///
     /// Keeps bridge's queued messages keccak hashes.
     #[pallet::storage]
-    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, QueueCapacityOf<T>>, ValueQuery>;
+    #[pallet::unbounded]
+    pub(crate) type Queue<T> = StorageValue<_, Vec<H256>, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -400,16 +396,14 @@ pub mod pallet {
             let check_queue_capacity = |current_len| {
                 let bridge_admin: ActorId = T::BridgeAdmin::get().cast();
                 let bridge_pauser: ActorId = T::BridgePauser::get().cast();
-                let governance_origin = bridge_admin == source || bridge_pauser == source;
+                let is_governance_origin = bridge_admin == source || bridge_pauser == source;
 
-                let effective_capacity = QueueCapacityOf::<T>::get()
-                    - if governance_origin {
-                        0
-                    } else {
-                        GovernanceMessageReserveOf::<T>::get()
-                    };
-
-                current_len < effective_capacity as usize
+                // Skip queue capacity check if the message is sent by the governance
+                if is_governance_origin {
+                    true
+                } else {
+                    current_len < QueueCapacityOf::<T>::get() as usize
+                }
             };
 
             // Appending hash of the message into the queue
@@ -418,11 +412,10 @@ pub mod pallet {
                 check_queue_capacity(v.len())
                     .then(|| {
                         let hash = message.hash();
-
-                        // Always `Ok`: check performed above as in inner implementation.
-                        v.try_push(hash).map(|()| hash).ok()
+                        // Capacity check performed above as in inner implementation.
+                        v.push(hash);
+                        hash
                     })
-                    .flatten()
                     .ok_or(Error::<T>::QueueCapacityExceeded)
             })
             .inspect_err(|_| {
