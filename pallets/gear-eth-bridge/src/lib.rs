@@ -392,7 +392,7 @@ pub mod pallet {
             // as well as checking payload size.
             let message = EthMessage::try_new(source, destination, payload)?;
 
-            // Check if the sender is eligible to use the governance capacity reserve
+            // Check if the sender is eligible to skip capacity check.
             let check_queue_capacity = |current_len| {
                 let bridge_admin: ActorId = T::BridgeAdmin::get().cast();
                 let bridge_pauser: ActorId = T::BridgePauser::get().cast();
@@ -412,7 +412,7 @@ pub mod pallet {
                 check_queue_capacity(v.len())
                     .then(|| {
                         let hash = message.hash();
-                        // Capacity check performed above as in inner implementation.
+                        // Capacity check performed above.
                         v.push(hash);
                         hash
                     })
