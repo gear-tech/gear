@@ -93,7 +93,10 @@ impl WasmBuilder {
     /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
     /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
-        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() || is_intellij_sync() {
+        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok()
+            || env::var("SKIP_WASM_BUILD").is_ok()
+            || is_intellij_sync()
+        {
             _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
             return None;
         }
