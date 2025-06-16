@@ -429,7 +429,7 @@ fn bridge_updates_authorities_and_clears() {
 }
 
 #[test]
-fn bridge_queues_goveranance_messages_when_over_capacity() {
+fn bridge_queues_governance_messages_when_over_capacity() {
     init_logger();
     new_test_ext().execute_with(|| {
         run_to_block(WHEN_INITIALIZED);
