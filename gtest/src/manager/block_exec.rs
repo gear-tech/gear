@@ -135,7 +135,7 @@ impl ExtManager {
 
         BlockRunResult {
             block_info: self.blocks_manager.get(),
-            gas_allowance_spent: Gas(GAS_ALLOWANCE) - self.gas_allowance,
+            gas_allowance_spent: GAS_ALLOWANCE - self.gas_allowance,
             succeed: mem::take(&mut self.succeed),
             failed: mem::take(&mut self.failed),
             not_executed: mem::take(&mut self.not_executed),
@@ -157,13 +157,13 @@ impl ExtManager {
             .map(|block| {
                 self.gas_allowance = self
                     .gas_allowance
-                    .saturating_sub(Gas(db_weights.write.ref_time));
+                    .saturating_sub(db_weights.write.ref_time);
                 (block, false)
             })
             .unwrap_or_else(|| {
                 self.gas_allowance = self
                     .gas_allowance
-                    .saturating_sub(Gas(db_weights.read.ref_time));
+                    .saturating_sub(db_weights.read.ref_time);
                 (current_bn, true)
             });
 
@@ -172,7 +172,7 @@ impl ExtManager {
 
         let missing_blocks = first_incomplete_block..=current_bn;
         for bn in missing_blocks {
-            if self.gas_allowance.0 <= db_weights.write.ref_time.saturating_mul(2) {
+            if self.gas_allowance <= db_weights.write.ref_time.saturating_mul(2) {
                 stopped_at = Some(bn);
                 log::debug!(
                     "Stopped processing tasks at: {stopped_at:?} due to insufficient allowance"
@@ -190,14 +190,14 @@ impl ExtManager {
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );
 
-                if self.gas_allowance.saturating_sub(max_task_gas) <= Gas(db_weights.write.ref_time)
+                if self.gas_allowance.saturating_sub(max_task_gas) <= db_weights.write.ref_time
                 {
                     // Since the task is not processed write DB cost should be refunded.
                     // In the same time gas allowance should be charged for read DB cost.
                     self.gas_allowance = self
                         .gas_allowance
-                        .saturating_add(Gas(db_weights.write.ref_time))
-                        .saturating_sub(Gas(db_weights.read.ref_time));
+                        .saturating_add(db_weights.write.ref_time)
+                        .saturating_sub(db_weights.read.ref_time);
 
                     last_task = Some(task);
 
@@ -208,9 +208,9 @@ impl ExtManager {
 
                 let task_gas = task.process_with(self);
 
-                self.gas_allowance = self.gas_allowance.saturating_sub(Gas(task_gas));
+                self.gas_allowance = self.gas_allowance.saturating_sub(task_gas);
 
-                if self.gas_allowance <= Gas(db_weights.write.ref_time + db_weights.read.ref_time) {
+                if self.gas_allowance <= db_weights.write.ref_time + db_weights.read.ref_time {
                     stopped_at = Some(bn);
                     log::debug!("Stopping processing tasks at (read next): {stopped_at:?}");
                     break;
@@ -222,7 +222,7 @@ impl ExtManager {
 
                 self.gas_allowance = self
                     .gas_allowance
-                    .saturating_add(Gas(db_weights.write.ref_time));
+                    .saturating_add(db_weights.write.ref_time);
 
                 self.task_pool.add(bn, task.clone()).unwrap_or_else(|e| {
                     let err_msg = format!(
@@ -246,7 +246,7 @@ impl ExtManager {
                 // if we were reading it only (they were empty).
                 self.gas_allowance = self
                     .gas_allowance
-                    .saturating_sub(Gas(db_weights.write.ref_time));
+                    .saturating_sub(db_weights.write.ref_time);
             }
 
             self.first_incomplete_tasks_block = Some(stopped_at);
@@ -300,7 +300,7 @@ impl ExtManager {
 
         let context = match core_processor::precharge_for_program(
             block_config,
-            self.gas_allowance.0,
+            self.gas_allowance ,
             dispatch.into_incoming(gas_limit),
             destination_id,
         ) {

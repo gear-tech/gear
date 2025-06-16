@@ -18,8 +18,8 @@
 
 use crate::{
     error::usage_panic,
-    program::{Gas, ProgramIdWrapper},
-    Value, GAS_MULTIPLIER,
+    program::{ProgramIdWrapper},
+    Value, GAS_MULTIPLIER, Gas
 };
 use core_processor::configs::BlockInfo;
 use gear_core::{
@@ -467,9 +467,9 @@ impl BlockRunResult {
         let spent_gas = self
             .gas_burned
             .values()
-            .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+            .fold(0u64, |acc, &x| acc.saturating_add(x));
 
-        GAS_MULTIPLIER.gas_to_value(spent_gas.0)
+        GAS_MULTIPLIER.gas_to_value(spent_gas)
     }
 
     /// Trying to get the panic log.
