@@ -5,10 +5,7 @@ leak-timeout = { period = "500ms", result = "fail" }
 
 [profile.ci]
 archive.include = [
-  { path = "release/gear", relative-to = "target", on-missing = "warn" },
-  { path = "debug/wbuild/vara-runtime", relative-to = "target", on-missing = "warn", depth = 1 },
-  { path = "release/wbuild/vara-runtime", relative-to = "target", on-missing = "warn", depth = 1 },
-  { path = "wasm32-gear", relative-to = "target", on-missing = "warn" }
+  { path = "release/gear", relative-to = "target", on-missing = "error" },
 ]
 
 [profile.ci.junit]
