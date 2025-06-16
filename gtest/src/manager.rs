@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::{Value, Gas},
+    constants::{Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
-    program::{WasmProgram},
+    program::WasmProgram,
     state::{
         accounts::Accounts,
         actors::{Actors, GenuineProgram, Program, TestActor},

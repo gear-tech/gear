@@ -155,15 +155,11 @@ impl ExtManager {
             .first_incomplete_tasks_block
             .take()
             .map(|block| {
-                self.gas_allowance = self
-                    .gas_allowance
-                    .saturating_sub(db_weights.write.ref_time);
+                self.gas_allowance = self.gas_allowance.saturating_sub(db_weights.write.ref_time);
                 (block, false)
             })
             .unwrap_or_else(|| {
-                self.gas_allowance = self
-                    .gas_allowance
-                    .saturating_sub(db_weights.read.ref_time);
+                self.gas_allowance = self.gas_allowance.saturating_sub(db_weights.read.ref_time);
                 (current_bn, true)
             });
 
@@ -190,8 +186,7 @@ impl ExtManager {
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );
 
-                if self.gas_allowance.saturating_sub(max_task_gas) <= db_weights.write.ref_time
-                {
+                if self.gas_allowance.saturating_sub(max_task_gas) <= db_weights.write.ref_time {
                     // Since the task is not processed write DB cost should be refunded.
                     // In the same time gas allowance should be charged for read DB cost.
                     self.gas_allowance = self
@@ -220,9 +215,7 @@ impl ExtManager {
             if let Some(task) = last_task {
                 stopped_at = Some(bn);
 
-                self.gas_allowance = self
-                    .gas_allowance
-                    .saturating_add(db_weights.write.ref_time);
+                self.gas_allowance = self.gas_allowance.saturating_add(db_weights.write.ref_time);
 
                 self.task_pool.add(bn, task.clone()).unwrap_or_else(|e| {
                     let err_msg = format!(
@@ -244,9 +237,7 @@ impl ExtManager {
             if were_empty {
                 // Charging for inserting into storage of the first block of incomplete tasks,
                 // if we were reading it only (they were empty).
-                self.gas_allowance = self
-                    .gas_allowance
-                    .saturating_sub(db_weights.write.ref_time);
+                self.gas_allowance = self.gas_allowance.saturating_sub(db_weights.write.ref_time);
             }
 
             self.first_incomplete_tasks_block = Some(stopped_at);
@@ -300,7 +291,7 @@ impl ExtManager {
 
         let context = match core_processor::precharge_for_program(
             block_config,
-            self.gas_allowance ,
+            self.gas_allowance,
             dispatch.into_incoming(gas_limit),
             destination_id,
         ) {
