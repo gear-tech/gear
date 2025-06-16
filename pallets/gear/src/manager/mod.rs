@@ -411,9 +411,7 @@ where
         // dequeued. The other case is async init.
         Self::clean_waitlist(program_id);
 
-        let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
-            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(program_id));
-
+        let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, _bn| {
             if let Program::Active(program) = p {
                 Self::clean_inactive_program(program_id, program, origin);
             }

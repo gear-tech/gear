@@ -24,7 +24,7 @@ use core_processor::common::JournalHandler;
 use gear_common::{scheduler::StorageType, Gas as GearCommonGas};
 use gear_core::{
     gas_metering::TaskWeights,
-    ids::{ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId},
     message::{DispatchKind, ReplyMessage},
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
@@ -34,14 +34,8 @@ pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ActorId>) -> Gas {
     use ScheduledTask::*;
     let weights = TaskWeights::default();
     match task {
-        PauseProgram(_) => Gas(0),
-        #[allow(deprecated)]
-        RemoveResumeSession(_) => Gas(0),
-
         RemoveFromMailbox(_, _) => Gas(weights.remove_from_mailbox.ref_time),
         RemoveFromWaitlist(_, _) => Gas(weights.remove_from_waitlist.ref_time),
-        RemovePausedProgram(_) => todo!("#646"),
-        RemoveCode(_) => todo!("#646"),
         WakeMessage(_, _) => Gas(weights
             .wake_message
             .ref_time
@@ -56,16 +50,6 @@ pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ActorId>) -> Gas {
 }
 
 impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
-    fn pause_program(&mut self, _program_id: ActorId) -> GearCommonGas {
-        log::debug!("Program rent logic is disabled.");
-
-        0
-    }
-
-    fn remove_code(&mut self, _code_id: CodeId) -> GearCommonGas {
-        todo!("#646")
-    }
-
     fn remove_from_mailbox(&mut self, user_id: ActorId, message_id: MessageId) -> GearCommonGas {
         let message = ReplyMessage::auto(message_id);
 
@@ -151,10 +135,6 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
         TaskWeights::default().remove_from_waitlist.ref_time
     }
 
-    fn remove_paused_program(&mut self, _program_id: ActorId) -> GearCommonGas {
-        todo!("#646")
-    }
-
     fn wake_message(&mut self, program_id: ActorId, message_id: MessageId) -> GearCommonGas {
         if let Ok(dispatch) = self.wake_dispatch_impl(program_id, message_id) {
             self.dispatches.push_back(dispatch);
@@ -208,10 +188,5 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
     ) -> GearCommonGas {
         let _slot = self.remove_gas_reservation_impl(program_id, reservation_id);
         TaskWeights::default().remove_gas_reservation.ref_time
-    }
-
-    fn remove_resume_session(&mut self, _session_id: u32) -> GearCommonGas {
-        log::debug!("Program rent logic is disabled");
-        0
     }
 }

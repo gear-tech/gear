@@ -23,6 +23,8 @@ pub type Migrations = (
     BagsListMigrate<Runtime>,
     pallet_gear_bank::migrations::MigrateToV1<Runtime>,
     pallet_gear_builtin::migration::MigrateToV1<Runtime, TreasuryAccount>,
+    // migrate to v3 of the Gear Scheduler with removal of program pause tasks
+    pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
 );
 
 pub struct BagsListMigrate<T>(core::marker::PhantomData<T>);

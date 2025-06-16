@@ -27,6 +27,8 @@
 #[cfg(test)]
 mod mock;
 
+pub mod migrations;
+
 // Unit tests module.
 #[cfg(test)]
 mod tests;
@@ -73,7 +75,7 @@ pub mod pallet {
     pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
     /// The current storage version.
-    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
     // Gear Scheduler Pallet's `Config`.
     #[pallet::config]
@@ -169,7 +171,7 @@ pub mod pallet {
     // Value here is useless, so unit type used as space saver:
     // `assert_eq!(().encode().len(), 0)`
     #[pallet::storage]
-    type TaskPool<T: Config> =
+    pub(crate) type TaskPool<T: Config> =
         StorageDoubleMap<_, Identity, BlockNumberFor<T>, Identity, Task<T>, ()>;
 
     // Public wrap of the mailbox elements.
