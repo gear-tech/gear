@@ -64,6 +64,7 @@ contract DeploymentScript is Script {
 
         mirror = new Mirror(address(router));
 
+        // Don't deploy middleware in dev mode
         if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
