@@ -25,8 +25,8 @@ use crate::{
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
-        TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
-        UnrecoverableMemoryError,
+        SystemTerminationReason, TrapExplanation, UndefinedTerminationReason,
+        UnrecoverableExecutionError, UnrecoverableMemoryError,
     },
     memory::{BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry},
     runtime::MemoryCallerContext,
@@ -86,13 +86,7 @@ impl From<u32> for SyscallReturnValue {
 }
 
 pub(crate) trait SyscallContext: Sized + Copy {
-    fn from_args(args: &[Value]) -> Result<(Self, Option<Gas>, &[Value]), HostError>;
-}
-
-impl SyscallContext for () {
-    fn from_args(args: &[Value]) -> Result<(Self, Option<Gas>, &[Value]), HostError> {
-        Ok(((), None, args))
-    }
+    fn from_args(args: &[Value]) -> Result<(Self, Gas, &[Value]), HostError>;
 }
 
 pub(crate) trait Syscall<Caller, T = ()> {
@@ -198,35 +192,6 @@ impl_syscall_builder!(A, B, C, D, E);
 impl_syscall_builder!(A, B, C, D, E, F);
 impl_syscall_builder!(A, B, C, D, E, F, G);
 
-/// "raw" syscall without any argument parsing or without calling [`MemoryCallerContext`] helper methods
-struct RawSyscall<F>(F);
-
-impl<F> RawSyscall<F> {
-    fn new(f: F) -> Self {
-        Self(f)
-    }
-}
-
-impl<T, F, Caller, Ext> Syscall<Caller, T> for RawSyscall<F>
-where
-    F: FnOnce(&mut MemoryCallerContext<Caller>) -> Result<(Gas, T), HostError>,
-    Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
-    Ext: BackendExternalities + 'static,
-{
-    type Context = ();
-
-    fn execute(
-        self,
-        caller: &mut MemoryCallerContext<Caller>,
-        (): Self::Context,
-        syscall_name: SyscallName,
-    ) -> Result<(Gas, T), HostError> {
-        caller.check_func_forbiddenness(syscall_name)?;
-
-        (self.0)(caller)
-    }
-}
-
 /// Fallible syscall context that parses `gas` and `err_ptr` arguments.
 #[derive(Copy, Clone)]
 struct FallibleSyscallContext {
@@ -234,12 +199,12 @@ struct FallibleSyscallContext {
 }
 
 impl SyscallContext for FallibleSyscallContext {
-    fn from_args(args: &[Value]) -> Result<(Self, Option<Gas>, &[Value]), HostError> {
+    fn from_args(args: &[Value]) -> Result<(Self, Gas, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
         let gas: Gas = SyscallValue(*gas).try_into()?;
         let (res_ptr, args) = args.split_last().ok_or(HostError)?;
         let res_ptr: u32 = SyscallValue(*res_ptr).try_into()?;
-        Ok((FallibleSyscallContext { res_ptr }, Some(gas), args))
+        Ok((FallibleSyscallContext { res_ptr }, gas, args))
     }
 }
 
@@ -288,10 +253,10 @@ where
 pub struct InfallibleSyscallContext;
 
 impl SyscallContext for InfallibleSyscallContext {
-    fn from_args(args: &[Value]) -> Result<(Self, Option<Gas>, &[Value]), HostError> {
+    fn from_args(args: &[Value]) -> Result<(Self, Gas, &[Value]), HostError> {
         let (gas, args) = args.split_first().ok_or(HostError)?;
         let gas: Gas = SyscallValue(*gas).try_into()?;
-        Ok((Self, Some(gas), args))
+        Ok((Self, gas, args))
     }
 }
 
@@ -358,13 +323,11 @@ where
 
         let (ctx, gas, args) = Call::Context::from_args(args)?;
 
-        if let Some(gas) = gas {
-            memory_caller_context
-                .caller_wrap
-                .state_mut()
-                .ext
-                .decrease_current_counter_to(gas);
-        }
+        memory_caller_context
+            .caller_wrap
+            .state_mut()
+            .ext
+            .decrease_current_counter_to(gas);
 
         let syscall = builder.build(&mut memory_caller_context, args)?;
 
@@ -1362,26 +1325,29 @@ where
     }
 
     pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Caller> {
-        RawSyscall::new(move |ctx: &mut MemoryCallerContext<Caller>| {
-            // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
-            // so we should never reach `unreachable!("{err_msg}")`.
-            let termination_reason = SystemBreakCode::try_from(code)
-                .map(|system_break_code| match system_break_code {
-                    SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
-                    SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
-                })
-                .unwrap_or_else(|e| {
-                    let err_msg = format!(
-                        "system_break: Invalid system break code. \
+        InfallibleSyscall::new(
+            CostToken::Null,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                // At the instrumentation level, we can only use variants of the `SystemBreakCode`,
+                // so we should never reach `unreachable!("{err_msg}")`.
+                let termination_reason = SystemBreakCode::try_from(code)
+                    .map(|system_break_code| match system_break_code {
+                        SystemBreakCode::OutOfGas => Self::out_of_gas(ctx),
+                        SystemBreakCode::StackLimitExceeded => Self::stack_limit_exceeded(),
+                    })
+                    .unwrap_or_else(|e| {
+                        let err_msg = format!(
+                            "system_break: Invalid system break code. \
                         System break code - {code}. \
                         Got error - {e}"
-                    );
+                        );
 
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}")
-                });
-            ctx.caller_wrap.set_termination_reason(termination_reason);
-            Err(HostError)
-        })
+                        log::error!("{err_msg}");
+                        unreachable!("{err_msg}")
+                    });
+                ctx.caller_wrap.set_termination_reason(termination_reason);
+                Err(SystemTerminationReason.into())
+            },
+        )
     }
 }
