@@ -56,50 +56,30 @@ jobs:
         with:
           key: "${{ matrix.profiles.name }}"
 
-      - name: "Build: gsdk tests"
-        run: >-
-          cargo nextest archive --archive-file=gsdk_tests.tar.zst -p gsdk
-          --zstd-level=6
-          --target=x86_64-pc-windows-msvc
-          ${{ matrix.profiles.flags }}
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-pc-windows-msvc
+          path: target/release
 
-      - name: "Build: Client tests"
+      - name: "Build: Specific tests"
         run: >-
-          cargo nextest archive --archive-file=gclient_tests.tar.zst -p gclient
-          --zstd-level=6
-          --target=x86_64-pc-windows-msvc
-          ${{ matrix.profiles.flags }}
-
-      - name: "Build: Lazy pages"
-        run: >-
-          cargo nextest archive --archive-file=lazy_pages_tests.tar.zst
+          cargo nextest archive --archive-file=workspace.tar.zst 
+          -p gsdk
+          -p gclient
           -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
           --zstd-level=6
           --target=x86_64-pc-windows-msvc
           ${{ matrix.profiles.flags }}
 
-      - name: "Build: Cleanup target"
-        run: |
-          rsync -av --include='*/' --include='*.exe' --exclude='*' ./target/x86_64-pc-windows-msvc ./target-rsync
-          mv ./target-rsync/x86_64-pc-windows-msvc ./target-cleaned
-          rsync -av --include='*/' --include="*.wasm" --exclude='*' ./target/wasm32-gear ./target-cleaned
-
-      - name: "ACTIONS: Upload nextest archives"
+      - name: "ACTIONS: Upload workspace"
         uses: actions/upload-artifact@v4
         with:
-          name: nextest-archives-${{ matrix.profiles.name }}
-          path: "*.tar.zst"
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
+          path: workspace.tar.zst
           retention-days: 1
           overwrite: true
           compression-level: 0
-
-      - name: "ACTIONS: Upload target"
-        uses: actions/upload-artifact@v4
-        with:
-          name: target-xwin-${{ matrix.profiles.name }}
-          path: target-cleaned
-          retention-days: 1
-          overwrite: true
 
   windows-run:
     runs-on: windows-latest
@@ -124,43 +104,26 @@ jobs:
           $tmp | Expand-Archive -DestinationPath $outputDir -Force
           $tmp | Remove-Item
 
-      - name: "ACTIONS: Download nextest archives"
+      - name: "ACTIONS: Download workspace"
         uses: actions/download-artifact@v4
         with:
-          name: nextest-archives-${{ matrix.profiles.name }}
-
-      - name: "ACTIONS: Download target"
-        uses: actions/download-artifact@v4
-        with:
-          name: target-xwin-${{ matrix.profiles.name }}
-          path: target
-
-      - name: "ACTIONS: Download node"
-        uses: actions/download-artifact@v4
-        with:
-          name: node-and-runtime-release-x86_64-pc-windows-msvc
-          path: node-release
-
-      - name: "ACTIONS: Copy node to target directory"
-        run: |
-          mkdir -p ./target/release
-          cp ./node-release/gear.exe ./target/release/
-        shell: bash
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
 
       - name: "Test: gsdk tests"
         run: >-
-          cargo nextest run --archive-file=gsdk_tests.tar.zst
+          cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target)'
           --workspace-remap=${{ github.workspace }}
+          --extract-to=${{ github.workspace }}
 
       - name: "Test: Client tests"
         run: >-
-          cargo nextest run --archive-file=gclient_tests.tar.zst
+          cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target)'
           --workspace-remap=${{ github.workspace }}
 
       - name: "Test: Lazy pages"
         run: >-
-          cargo nextest run --archive-file=lazy_pages_tests.tar.zst
+          cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target)'
           --workspace-remap=${{ github.workspace }}

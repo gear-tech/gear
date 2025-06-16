@@ -7,8 +7,11 @@ command = "chmod +x target/release/gear"
 leak-timeout = { period = "500ms", result = "fail" }
 
 [profile.ci]
+fail-fast = false
 archive.include = [
-  { path = "release/gear", relative-to = "target", on-missing = "error" },
+  { path = "release/gear", relative-to = "target", on-missing = "warn" },
+  { path = "release/gear.exe", relative-to = "target", on-missing = "ignore" },
+  { path = "wasm32-gear", relative-to = "target", on-missing = "warm" },
 ]
 
 [profile.ci.junit]
