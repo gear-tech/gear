@@ -136,7 +136,7 @@ doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --manifest-path="$MANIFEST" --no-fail-fast "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 $CARGO test --doc --workspace --manifest-path="$MANIFEST" --no-fail-fast "$@"
 }
 
 time_consuming_tests() {

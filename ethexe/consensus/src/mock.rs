@@ -18,10 +18,10 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BlockCommitment, CodeCommitment, Message, StateTransition},
-    Address, BlockHeader, CodeInfo, Digest, ProducerBlock, SimpleBlockData,
+    Address, BlockHeader, CodeBlobInfo, Digest, ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;
@@ -109,6 +109,7 @@ pub fn mock_state_transition() -> StateTransition {
     StateTransition {
         actor_id: H256::random().into(),
         new_state_hash: H256::random(),
+        exited: true,
         inheritor: H256::random().into(),
         value_to_receive: 123,
         value_claims: vec![],
@@ -118,6 +119,7 @@ pub fn mock_state_transition() -> StateTransition {
             payload: b"Hello, World!".to_vec(),
             value: 0,
             reply_details: None,
+            call: false,
         }],
     }
 }
@@ -147,7 +149,7 @@ pub fn mock_block_commitment(
 pub fn prepare_code_commitment(db: &Database, code: CodeCommitment) -> CodeCommitment {
     db.set_code_blob_info(
         code.id,
-        CodeInfo {
+        CodeBlobInfo {
             timestamp: code.timestamp,
             tx_hash: H256::random(),
         },

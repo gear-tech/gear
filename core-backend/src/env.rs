@@ -29,18 +29,14 @@ use crate::{
     BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
-use core::{any::Any, fmt::Debug, marker::Send};
+use core::{fmt::Debug, marker::Send};
 use gear_core::{
     env::{Externalities, WasmEntryPoint},
     gas::GasAmount,
-    memory::HostPointer,
     message::DispatchKind,
     pages::WasmPagesAmount,
-    str::LimitedStr,
 };
-use gear_lazy_pages_common::{
-    GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor,
-};
+use gear_lazy_pages_common::{GlobalsAccessConfig, GlobalsAccessMod};
 use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
     AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
@@ -49,6 +45,11 @@ use gear_sandbox::{
 use gear_wasm_instrument::{
     syscalls::SyscallName::{self, *},
     GLOBAL_NAME_GAS,
+};
+#[cfg(feature = "std")]
+use {
+    gear_core::memory::HostPointer, gear_core::str::LimitedStr,
+    gear_lazy_pages_common::GlobalsAccessError, gear_lazy_pages_common::GlobalsAccessor,
 };
 
 // we have requirement to pass function pointer for `gear_sandbox`
@@ -228,11 +229,13 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 struct GlobalsAccessProvider<Ext: Externalities> {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
 }
 
+#[cfg(feature = "std")]
 impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
@@ -249,7 +252,7 @@ impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvi
             .map_err(|_| GlobalsAccessError)
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 }
