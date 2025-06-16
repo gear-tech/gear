@@ -113,7 +113,7 @@ pub mod pallet {
         type MaxPayloadSize: Get<u32>;
 
         /// Constant defining maximal amount of messages that are able to be
-        /// bridged within the single staking era (including governance message reserve).
+        /// bridged within the single staking era.
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
 
