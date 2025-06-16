@@ -104,7 +104,9 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use ethexe_common::{db::CodesStorageRead, StateHashWithQueueSize};
+use ethexe_common::{
+    db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT, StateHashWithQueueSize,
+};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
@@ -118,7 +120,6 @@ use crate::host::{InstanceCreator, InstanceWrapper};
 
 pub struct RunnerConfig {
     pub chunk_processing_threads: usize,
-    pub chunk_gas_limit: u64,
     pub block_gas_limit: u64,
 }
 
@@ -159,7 +160,8 @@ pub async fn run(
                     .instantiate()
                     .expect("Failed to instantiate executor");
 
-                let gas_allowance_for_chunk = allowance_counter.left().min(config.chunk_gas_limit);
+                let gas_allowance_for_chunk =
+                    allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
 
                 let _ = join_set.spawn_blocking(move || {
                     let (jn, new_state_hash, gas_spent) = run_runtime(
@@ -203,7 +205,7 @@ pub async fn run(
                             storage: &db,
                         },
                         gas_allowance_counter: &allowance_counter,
-                        chunk_gas_limit: config.chunk_gas_limit,
+                        chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
                         out_of_gas_for_block: &mut is_out_of_gas_for_block,
                     };
                     core_processor::handle_journal(journal, &mut journal_handler);

@@ -430,6 +430,7 @@ where
                         message_id: _,
                         amount,
                     } => {
+                        // TODO(romanm): reduce exec balance
                         self.gas_allowance_counter.charge(amount);
                     }
                     note @ JournalNote::StopProcessing {

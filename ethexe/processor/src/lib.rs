@@ -22,7 +22,7 @@ use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
     db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
-    gear::{StateTransition, CHUNK_PROCESSING_GAS_LIMIT},
+    gear::StateTransition,
     ProgramStates, Schedule,
 };
 use ethexe_db::Database;
@@ -45,6 +45,12 @@ mod handling;
 #[cfg(test)]
 mod tests;
 
+// Default amount of virtual threads to use for programs processing.
+pub const DEFAULT_CHUNK_PROCESSING_THREADS: u8 = 16;
+
+// Default block gas limit for the node.
+pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
+
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
@@ -61,8 +67,8 @@ pub struct ProcessorConfig {
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            chunk_processing_threads: 16,
-            block_gas_limit: 4_000_000_000_000,
+            chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
         }
     }
 }
@@ -175,7 +181,6 @@ impl Processor {
             &mut handler.transitions,
             RunnerConfig {
                 chunk_processing_threads: self.config().chunk_processing_threads,
-                chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
                 block_gas_limit: self.config().block_gas_limit,
             },
         )
