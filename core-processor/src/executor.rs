@@ -27,14 +27,11 @@ use crate::{
 use alloc::{format, string::String, vec::Vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    env::Externalities,
+    env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::ProgramId,
+    ids::ActorId,
     memory::AllocationsContext,
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
-        WasmEntryPoint,
-    },
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::MemoryInfix,
     reservation::GasReserver,
@@ -252,7 +249,7 @@ pub fn execute_for_reply<Ext, EP>(
     instrumented_code: InstrumentedCode,
     code_metadata: CodeMetadata,
     allocations: Option<IntervalsTree<WasmPage>>,
-    program_info: Option<(ProgramId, MemoryInfix)>,
+    program_info: Option<(ActorId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
     block_info: BlockInfo,

@@ -20,8 +20,9 @@ use super::utils;
 use crate::params::Params;
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use clap::{Parser, Subcommand};
+use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
-use ethexe_signer::{Address, Signer};
+use ethexe_signer::Signer;
 use gprimitives::H256;
 use std::{fs, path::PathBuf};
 
@@ -75,10 +76,17 @@ impl TxCommand {
     }
 
     /// Execute the command.
-    pub async fn exec(self) -> Result<()> {
+    pub fn exec(self) -> Result<()> {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+            .block_on(self.exec_inner())
+    }
+
+    async fn exec_inner(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::new(key_store).with_context(|| "failed to create signer")?;
+        let signer = Signer::fs(key_store);
 
         let rpc = self
             .ethereum_rpc

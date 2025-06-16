@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
+use super::{
+    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
+    ValidatorState,
+};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
@@ -26,9 +29,12 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
-use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
-use ethexe_signer::{Address, Digest, SignedData, ToDigest};
+use ethexe_common::{
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    ecdsa::SignedData,
+    gear::CodeCommitment,
+    Address, Digest, SimpleBlockData, ToDigest,
+};
 use gprimitives::H256;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -45,10 +51,6 @@ pub struct Participant {
 }
 
 impl StateHandler for Participant {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -57,15 +59,15 @@ impl StateHandler for Participant {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
     fn process_validation_request(
-        self: Box<Self>,
+        self,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn StateHandler>> {
-        if request.verify_address(self.producer).is_ok() {
+    ) -> Result<ValidatorState> {
+        if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
             DefaultProcessing::validation_request(self, request)
@@ -78,12 +80,11 @@ impl Participant {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
-                if earlier_validation_request.is_none()
-                    && signed_data.verify_address(producer).is_ok() =>
+                if earlier_validation_request.is_none() && signed_data.address() == producer =>
             {
                 earlier_validation_request = Some(signed_data.data().clone());
 
@@ -95,23 +96,23 @@ impl Participant {
             }
         });
 
-        let participant = Box::new(Self {
+        let participant = Self {
             ctx,
             block,
             producer,
-        });
+        };
 
         let Some(validation_request) = earlier_validation_request else {
-            return Ok(participant);
+            return Ok(participant.into());
         };
 
         participant.process_validation_request(validation_request)
     }
 
     fn process_validation_request(
-        mut self: Box<Self>,
+        mut self,
         request: BatchCommitmentValidationRequest,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         match self.process_validation_request_inner(request) {
             Ok(reply) => self.output(ConsensusEvent::PublishValidationReply(reply)),
             Err(err) => self.warning(format!("reject validation request: {err}")),
@@ -142,12 +143,11 @@ impl Participant {
 
         self.ctx
             .signer
-            .contract_signer(self.ctx.router_address)
-            .sign_digest(self.ctx.pub_key, digest)
+            .sign_for_contract(self.ctx.router_address, self.ctx.pub_key, digest)
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
     }
 
-    fn validate_code_commitment<DB: OnChainStorage + CodesStorage>(
+    fn validate_code_commitment<DB: OnChainStorageRead + CodesStorageRead>(
         db: &DB,
         request: CodeCommitment,
     ) -> Result<()> {
@@ -179,7 +179,7 @@ impl Participant {
         Ok(())
     }
 
-    fn validate_block_commitment<DB: BlockMetaStorage + OnChainStorage>(
+    fn validate_block_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>(
         db: &DB,
         request: BlockCommitmentValidationRequest,
     ) -> Result<()> {
@@ -232,7 +232,7 @@ impl Participant {
 
     /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
     fn verify_is_predecessor(
-        db: &impl OnChainStorage,
+        db: &impl OnChainStorageRead,
         block_hash: H256,
         pred_hash: H256,
         max_distance: Option<u32>,
@@ -278,8 +278,8 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_db::{BlockHeader, Database, OnChainStorage};
-    use std::any::TypeId;
+    use ethexe_common::{db::OnChainStorageWrite, BlockHeader};
+    use ethexe_db::Database;
 
     #[test]
     fn create() {
@@ -289,7 +289,7 @@ mod tests {
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
-        assert_eq!(participant.type_id(), TypeId::of::<Participant>());
+        assert!(participant.is_participant());
         assert_eq!(participant.context().pending_events.len(), 0);
     }
 
@@ -313,7 +313,7 @@ mod tests {
         ctx.pending(mock_producer_block(&ctx.signer, alice, H256::random()).1);
 
         let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
 
         let ctx = initial.into_context();
         assert_eq!(ctx.pending_events.len(), 3);
@@ -350,7 +350,7 @@ mod tests {
             .process_validation_request(signed_request)
             .unwrap();
 
-        assert_eq!(participant.type_id(), TypeId::of::<Initial>());
+        assert!(participant.is_initial());
         assert_eq!(participant.context().output.len(), 1);
         assert!(matches!(
             participant.context().output[0],
@@ -370,7 +370,7 @@ mod tests {
             .process_validation_request(signed_request)
             .unwrap();
 
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
         assert_eq!(initial.context().output.len(), 1);
         assert!(matches!(
             initial.context().output[0],
@@ -430,7 +430,7 @@ mod tests {
 
         // Incorrect transitions digest
         let mut incorrect_request = request.clone();
-        incorrect_request.transitions_digest = Digest::from([2; 32]);
+        incorrect_request.transitions_digest = Digest([2; 32]);
         Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
 
         // Block is not processed by this node

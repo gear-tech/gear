@@ -77,7 +77,7 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{prelude::*, ActorId, CodeId, MessageId},
     memory::Memory,
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
@@ -260,7 +260,7 @@ where
             .saturating_mul((API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE).into());
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
+        let addr = ActorId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -1163,7 +1163,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32 / 1024;
+        let n in 0 .. gear_core::buffer::MAX_PAYLOAD_SIZE as u32 / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {

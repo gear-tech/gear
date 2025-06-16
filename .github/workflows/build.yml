@@ -63,17 +63,22 @@ jobs:
       fail-fast: false
     name: linux (${{ matrix.profiles.name }})
     env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
       RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Mold"
+        uses: rui314/setup-mold@v1
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -100,7 +105,7 @@ jobs:
 
       - name: "Check: Stack height limit"
         # no need to run check twice
-        if: ${{ matrix.profiles.flags == 'release' }}
+        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Gear workspace"
@@ -209,13 +214,15 @@ jobs:
       fail-fast: false
     name: win-cross (${{ matrix.profiles.name }})
     env:
-      XWIN_ARCH: x86_64
       RUSTUP_HOME: /tmp/rustup_home
       WINEDEBUG: fixme-all
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
@@ -225,9 +232,6 @@ jobs:
 
       - name: "Install: MSVC target"
         run: rustup target add x86_64-pc-windows-msvc
-
-      - name: "Install: cargo config"
-        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
 
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
@@ -250,7 +254,7 @@ jobs:
 
       - name: "Install: cargo-xwin"
         run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.x86_64-unknown-linux-musl.tar.gz | tar zxf -
           mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
 
       - name: "Build: Node"

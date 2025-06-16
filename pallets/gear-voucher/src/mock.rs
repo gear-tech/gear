@@ -31,7 +31,7 @@ use frame_support::{
 };
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
 use gear_core::{
-    ids::{MessageId, ProgramId},
+    ids::{ActorId, MessageId},
     message::UserStoredMessage,
 };
 use primitive_types::H256;
@@ -91,7 +91,7 @@ impl crate::PrepaidCallsDispatcher for () {
     }
 }
 
-pub const MAILBOXED_PROGRAM: ProgramId = ProgramId::zero();
+pub const MAILBOXED_PROGRAM: ActorId = ActorId::zero();
 pub const MAILBOXED_MESSAGE: MessageId = MessageId::zero();
 
 pub struct MailboxMock;

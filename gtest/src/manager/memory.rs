@@ -24,7 +24,7 @@ impl ExtManager {
     pub(crate) fn read_state_bytes(
         &mut self,
         payload: Vec<u8>,
-        program_id: &ProgramId,
+        program_id: &ActorId,
     ) -> Result<Vec<u8>> {
         let executable_actor_data = Actors::modify(*program_id, |actor| {
             if let Some(actor) = actor {
@@ -56,7 +56,7 @@ impl ExtManager {
             Err(TestError::ActorIsNotExecutable(*program_id))
         }
     }
-    pub(crate) fn read_memory_pages(&self, program_id: &ProgramId) -> BTreeMap<GearPage, PageBuf> {
+    pub(crate) fn read_memory_pages(&self, program_id: &ActorId) -> BTreeMap<GearPage, PageBuf> {
         Actors::access(*program_id, |actor| {
             let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
             {

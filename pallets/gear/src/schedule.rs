@@ -28,7 +28,6 @@ use gear_core::{
         ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
         SyscallCosts,
     },
-    message,
     pages::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::{
@@ -830,7 +829,7 @@ impl Default for Limits {
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
-            payload_len: message::MAX_PAYLOAD_SIZE as u32,
+            payload_len: gear_core::buffer::MAX_PAYLOAD_SIZE as u32,
             code_len: 512 * 1024,
         }
     }

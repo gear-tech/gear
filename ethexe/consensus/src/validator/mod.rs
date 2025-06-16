@@ -40,31 +40,32 @@
 //! * [`Submitter`] switches to [`Initial`] after submitting the batch commitment to the blockchain.
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
-#[cfg(doc)]
-use self::{
-    coordinator::Coordinator, participant::Participant, producer::Producer, submitter::Submitter,
-    subordinate::Subordinate,
-};
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         MultisignedBatchCommitment,
+    },
+    validator::{
+        coordinator::Coordinator, participant::Participant, producer::Producer,
+        submitter::Submitter, subordinate::Subordinate,
     },
     ConsensusEvent, ConsensusService,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{
+    ecdsa::{PublicKey, SignedData},
+    Address, ProducerBlock, SimpleBlockData,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::{Address, PublicKey, SignedData, Signer};
+use ethexe_signer::Signer;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
-    any::Any,
     collections::VecDeque,
     fmt,
     pin::Pin,
@@ -86,7 +87,7 @@ mod mock;
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
 pub struct ValidatorService {
-    inner: Option<Box<dyn StateHandler>>,
+    inner: Option<ValidatorState>,
 }
 
 /// Configuration parameters for the validator service.
@@ -151,7 +152,7 @@ impl ValidatorService {
 
     fn update_inner(
         &mut self,
-        update: impl FnOnce(Box<dyn StateHandler>) -> Result<Box<dyn StateHandler>>,
+        update: impl FnOnce(ValidatorState) -> Result<ValidatorState>,
     ) -> Result<()> {
         let inner = self
             .inner
@@ -232,54 +233,15 @@ enum PendingEvent {
 }
 
 /// Trait defining the interface for validator inner state and events handler.
-trait StateHandler: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler>;
+trait StateHandler
+where
+    Self: Sized + Into<ValidatorState> + fmt::Display,
+{
     fn context(&self) -> &ValidatorContext;
+
     fn context_mut(&mut self) -> &mut ValidatorContext;
-    fn into_context(self: Box<Self>) -> ValidatorContext;
 
-    fn process_new_head(self: Box<Self>, block: SimpleBlockData) -> Result<Box<dyn StateHandler>> {
-        DefaultProcessing::new_head(self.into_dyn(), block)
-    }
-
-    fn process_synced_block(
-        self: Box<Self>,
-        data: BlockSyncedData,
-    ) -> Result<Box<dyn StateHandler>> {
-        DefaultProcessing::synced_block(self.into_dyn(), data)
-    }
-
-    fn process_computed_block(
-        self: Box<Self>,
-        computed_block: H256,
-    ) -> Result<Box<dyn StateHandler>> {
-        DefaultProcessing::computed_block(self.into_dyn(), computed_block)
-    }
-
-    fn process_block_from_producer(
-        self: Box<Self>,
-        block: SignedData<ProducerBlock>,
-    ) -> Result<Box<dyn StateHandler>> {
-        DefaultProcessing::block_from_producer(self.into_dyn(), block)
-    }
-
-    fn process_validation_request(
-        self: Box<Self>,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn StateHandler>> {
-        DefaultProcessing::validation_request(self.into_dyn(), request)
-    }
-
-    fn process_validation_reply(
-        self: Box<Self>,
-        reply: BatchCommitmentValidationReply,
-    ) -> Result<Box<dyn StateHandler>> {
-        DefaultProcessing::validation_reply(self.into_dyn(), reply)
-    }
-
-    fn poll_next_state(self: Box<Self>, _cx: &mut Context<'_>) -> Result<Box<dyn StateHandler>> {
-        Ok(self.into_dyn())
-    }
+    fn into_context(self) -> ValidatorContext;
 
     fn warning(&mut self, warning: String) {
         let warning = format!("{self} - {warning}");
@@ -289,66 +251,178 @@ trait StateHandler: fmt::Display + fmt::Debug + Any + Unpin + Send + 'static {
     fn output(&mut self, event: ConsensusEvent) {
         self.context_mut().output(event);
     }
+
+    fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
+        DefaultProcessing::new_head(self.into(), block)
+    }
+
+    fn process_synced_block(self, data: BlockSyncedData) -> Result<ValidatorState> {
+        DefaultProcessing::synced_block(self.into(), data)
+    }
+
+    fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
+        DefaultProcessing::computed_block(self.into(), computed_block)
+    }
+
+    fn process_block_from_producer(
+        self,
+        block: SignedData<ProducerBlock>,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::block_from_producer(self, block)
+    }
+
+    fn process_validation_request(
+        self,
+        request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::validation_request(self, request)
+    }
+
+    fn process_validation_reply(
+        self,
+        reply: BatchCommitmentValidationReply,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::validation_reply(self, reply)
+    }
+
+    fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<ValidatorState> {
+        Ok(self.into())
+    }
+}
+
+#[derive(Debug, derive_more::Display, derive_more::From, derive_more::IsVariant)]
+enum ValidatorState {
+    Initial(Initial),
+    Producer(Producer),
+    Coordinator(Coordinator),
+    Submitter(Submitter),
+    Subordinate(Subordinate),
+    Participant(Participant),
+}
+macro_rules! delegate_call {
+    ($this:ident => $func:ident( $( $arg:ident ),* )) => {
+        match $this {
+            ValidatorState::Initial(initial) => initial.$func($( $arg ),*),
+            ValidatorState::Producer(producer) => producer.$func($( $arg ),*),
+            ValidatorState::Coordinator(coordinator) => coordinator.$func($( $arg ),*),
+            ValidatorState::Submitter(submitter) => submitter.$func($( $arg ),*),
+            ValidatorState::Subordinate(subordinate) => subordinate.$func($( $arg ),*),
+            ValidatorState::Participant(participant) => participant.$func($( $arg ),*),
+        }
+    };
+}
+
+impl StateHandler for ValidatorState {
+    fn context(&self) -> &ValidatorContext {
+        delegate_call!(self => context())
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
+        delegate_call!(self => context_mut())
+    }
+
+    fn into_context(self) -> ValidatorContext {
+        delegate_call!(self => into_context())
+    }
+
+    fn warning(&mut self, warning: String) {
+        delegate_call!(self => warning(warning))
+    }
+
+    fn output(&mut self, event: ConsensusEvent) {
+        delegate_call!(self => output(event))
+    }
+
+    fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
+        delegate_call!(self => process_new_head(block))
+    }
+
+    fn process_synced_block(self, data: BlockSyncedData) -> Result<ValidatorState> {
+        delegate_call!(self => process_synced_block(data))
+    }
+
+    fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
+        delegate_call!(self => process_computed_block(computed_block))
+    }
+
+    fn process_block_from_producer(
+        self,
+        block: SignedData<ProducerBlock>,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_block_from_producer(block))
+    }
+
+    fn process_validation_request(
+        self,
+        request: SignedData<BatchCommitmentValidationRequest>,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_validation_request(request))
+    }
+
+    fn process_validation_reply(
+        self,
+        reply: BatchCommitmentValidationReply,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_validation_reply(reply))
+    }
+
+    fn poll_next_state(self, cx: &mut Context<'_>) -> Result<ValidatorState> {
+        delegate_call!(self => poll_next_state(cx))
+    }
 }
 
 struct DefaultProcessing;
 
 impl DefaultProcessing {
-    fn new_head(s: Box<dyn StateHandler>, block: SimpleBlockData) -> Result<Box<dyn StateHandler>> {
-        Initial::create_with_chain_head(s.into_context(), block)
+    fn new_head(s: impl Into<ValidatorState>, block: SimpleBlockData) -> Result<ValidatorState> {
+        Initial::create_with_chain_head(s.into().into_context(), block)
     }
 
-    fn synced_block(
-        mut s: Box<dyn StateHandler>,
-        data: BlockSyncedData,
-    ) -> Result<Box<dyn StateHandler>> {
+    fn synced_block(s: impl Into<ValidatorState>, data: BlockSyncedData) -> Result<ValidatorState> {
+        let mut s = s.into();
         s.warning(format!("unexpected synced block: {}", data.block_hash));
-
         Ok(s)
     }
 
     fn computed_block(
-        mut s: Box<dyn StateHandler>,
+        s: impl Into<ValidatorState>,
         computed_block: H256,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
         s.warning(format!("unexpected computed block: {computed_block}"));
-
         Ok(s)
     }
 
     fn block_from_producer(
-        mut s: Box<dyn StateHandler>,
+        s: impl Into<ValidatorState>,
         block: SignedData<ProducerBlock>,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
         s.warning(format!(
             "unexpected block from producer: {block:?}, saved for later."
         ));
-
         s.context_mut().pending(block);
-
         Ok(s)
     }
 
     fn validation_request(
-        mut s: Box<dyn StateHandler>,
+        s: impl Into<ValidatorState>,
         request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
         s.warning(format!(
             "unexpected validation request: {request:?}, saved for later."
         ));
-
         s.context_mut().pending(request);
-
         Ok(s)
     }
 
     fn validation_reply(
-        s: Box<dyn StateHandler>,
+        s: impl Into<ValidatorState>,
         reply: BatchCommitmentValidationReply,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         log::trace!("Skip validation reply: {reply:?}");
-
-        Ok(s)
+        Ok(s.into())
     }
 }
 

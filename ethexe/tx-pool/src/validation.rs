@@ -21,8 +21,6 @@
 use crate::SignedOffchainTransaction;
 use anyhow::{anyhow, bail, Context, Result};
 use ethexe_db::Database;
-use ethexe_signer::ToDigest;
-use parity_scale_codec::Encode;
 
 // TODO #4424
 
@@ -33,7 +31,6 @@ use parity_scale_codec::Encode;
 pub(crate) struct TxValidator {
     transaction: SignedOffchainTransaction,
     db: Database,
-    signature_check: bool,
     mortality_check: bool,
     uniqueness_check: bool,
 }
@@ -43,21 +40,13 @@ impl TxValidator {
         Self {
             transaction,
             db,
-            signature_check: false,
             mortality_check: false,
             uniqueness_check: false,
         }
     }
 
     pub(crate) fn with_all_checks(self) -> Self {
-        self.with_signature_check()
-            .with_mortality_check()
-            .with_uniqueness_check()
-    }
-
-    pub(crate) fn with_signature_check(mut self) -> Self {
-        self.signature_check = true;
-        self
+        self.with_mortality_check().with_uniqueness_check()
     }
 
     pub(crate) fn with_mortality_check(mut self) -> Self {
@@ -74,10 +63,6 @@ impl TxValidator {
 impl TxValidator {
     /// Runs all stateful and stateless sync validators for the transaction.
     pub(crate) fn validate(self) -> Result<SignedOffchainTransaction> {
-        if self.signature_check {
-            self.check_signature()?;
-        }
-
         if self.mortality_check && !self.check_mortality()? {
             bail!("Transaction reference block hash is out of recent blocks window");
         }
@@ -87,14 +72,6 @@ impl TxValidator {
         }
 
         Ok(self.transaction)
-    }
-
-    /// Validates transaction signature.
-    fn check_signature(&self) -> Result<()> {
-        let tx_digest = self.transaction.encode().to_digest();
-        let signature = crate::tx_signature(&self.transaction)?;
-
-        signature.verify_with_public_key_recover(tx_digest)
     }
 
     /// Validates transaction mortality.
@@ -127,7 +104,7 @@ impl TxValidator {
 mod tests {
     use super::*;
     use crate::tests::{self, BlocksManager};
-    use ethexe_db::{Database, MemDb};
+    use ethexe_db::Database;
     use gprimitives::H256;
 
     macro_rules! assert_ok {
@@ -143,16 +120,8 @@ mod tests {
     }
 
     #[test]
-    fn test_signature_validation() {
-        let signed_transaction = tests::generate_signed_ethexe_tx(H256::random());
-        let db = Database::from_one(&MemDb::default());
-        let validator = TxValidator::new(signed_transaction, db).with_signature_check();
-        assert_ok!(validator.validate());
-    }
-
-    #[test]
     fn test_valid_mortality() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let bm = BlocksManager::new(db.clone());
 
         // Test valid mortality
@@ -169,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_invalid_mortality_non_existent_block() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let non_window_block_hash = H256::random();
         let invalid_transaction = tests::generate_signed_ethexe_tx(non_window_block_hash);
 
@@ -180,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_invalid_mortality_rotten_tx() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let bm = BlocksManager::new(db.clone());
 
         let first_block_hash = bm.add_block().0;
@@ -221,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_uniqueness_validation() {
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let transaction = tests::generate_signed_ethexe_tx(H256::random());
 
         let transaction = TxValidator::new(transaction, db.clone())

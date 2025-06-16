@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{critical, debug, exec, msg, prelude::*, ActorId};
+use gstd::{debug, msg, prelude::*};
 
 #[gstd::async_main]
 async fn main() {
@@ -48,7 +48,7 @@ async fn main() {
 
             assert_eq!(msg::load_bytes().unwrap(), [3]);
 
-            msg::send_bytes(msg::source(), b"saw_reply_3", 0);
+            msg::send_bytes(msg::source(), b"saw_reply_3", 0).unwrap();
             for_reply_3_clone.replace(true);
         })
         .expect("Failed to set reply hook");
@@ -64,7 +64,7 @@ async fn main() {
 
             assert_eq!(msg::load_bytes().unwrap(), [4]);
 
-            msg::send_bytes(msg::source(), b"saw_reply_4", 0);
+            msg::send_bytes(msg::source(), b"saw_reply_4", 0).unwrap();
         })
         .expect("Failed to set reply hook");
 
@@ -84,5 +84,5 @@ async fn main() {
         gstd::errors::Error::Timeout(8, 8)
     );
 
-    msg::send_bytes(source, b"completed", 0);
+    msg::send_bytes(source, b"completed", 0).unwrap();
 }

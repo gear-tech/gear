@@ -22,9 +22,9 @@ use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
-    message::ReplyInfo,
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::{ActiveProgram, MemoryInfix},
+    rpc::ReplyInfo,
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
@@ -51,7 +51,7 @@ where
     // on calling `Gear::send_message(..)` with following arguments.
     pub(crate) fn calculate_reply_for_handle_impl(
         origin: H256,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -381,7 +381,7 @@ where
     }
 
     pub(crate) fn read_state_using_wasm_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         payload: Vec<u8>,
         function: impl Into<String>,
         wasm: Vec<u8>,
@@ -445,7 +445,7 @@ where
     }
 
     pub(crate) fn read_state_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         payload: Vec<u8>,
         allowance_multiplier: Option<u64>,
     ) -> Result<Vec<u8>, String> {
@@ -484,7 +484,7 @@ where
     }
 
     pub(crate) fn read_metahash_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         allowance_multiplier: Option<u64>,
     ) -> Result<H256, String> {
         Self::enable_lazy_pages();
@@ -525,7 +525,7 @@ where
     }
 
     // Returns code and allocations of the given program id.
-    fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
+    fn code_with_memory(program_id: ActorId) -> Result<CodeWithMemoryData, String> {
         // Load active program from storage.
         let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
             .ok_or(String::from("Program not found"))?
@@ -715,7 +715,7 @@ where
     }
 
     // Queries first element of the queue and extracts its message id and destination.
-    fn queue_head() -> Result<(MessageId, ProgramId), String> {
+    fn queue_head() -> Result<(MessageId, ActorId), String> {
         QueueOf::<T>::iter()
             .next()
             .ok_or_else(|| Self::internal_err_string("Failed to get last message from the queue"))

@@ -13,10 +13,13 @@ on:
         default: '[{ "name": "debug", "flags": "" }]'
 
 env:
+  TERM: xterm-256color
   CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  TERM: xterm-256color
+  RUSTUP_HOME: /tmp/rustup_home
 
 jobs:
   macos:
@@ -25,14 +28,12 @@ jobs:
         profiles: ${{ fromJson(inputs.profiles) }}
         arch:
           - name: aarch64
-            image: macos-14
+            target: aarch64-apple-darwin
           - name: x86
-            image: macos-13
+            target: x86_64-apple-darwin
       fail-fast: false
-    runs-on: ${{ matrix.arch.image }}
+    runs-on: macos-latest
     name: macos-${{ matrix.arch.name }} (${{ matrix.profiles.name }})
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -42,6 +43,11 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Target"
+        run: |
+          rustup target add ${{ matrix.arch.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.arch.target }}" >> $GITHUB_ENV
 
       - name: "ACTIONS: Setup caching"
         uses: Swatinem/rust-cache@v2

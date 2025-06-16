@@ -30,7 +30,7 @@ use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, SectionName},
     costs::{BytesAmount, ProcessCosts},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
-    ids::ProgramId,
+    ids::ActorId,
     message::IncomingDispatch,
 };
 
@@ -89,7 +89,7 @@ pub struct ForModuleInstantiation;
 
 /// Context charged gas for the program execution.
 pub struct ContextCharged<For = ForNothing> {
-    destination_id: ProgramId,
+    destination_id: ActorId,
     dispatch: IncomingDispatch,
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
@@ -102,7 +102,7 @@ pub struct ContextCharged<For = ForNothing> {
 impl ContextCharged {
     /// Creates a new empty instance of the context charged for the program execution.
     pub fn new(
-        destination_id: ProgramId,
+        destination_id: ActorId,
         dispatch: IncomingDispatch,
         gas_allowance: u64,
     ) -> ContextCharged<ForNothing> {
@@ -123,7 +123,7 @@ impl ContextCharged {
 
 impl<T> ContextCharged<T> {
     /// Splits the context into parts.
-    pub fn into_parts(self) -> (ProgramId, IncomingDispatch, GasCounter, GasAllowanceCounter) {
+    pub fn into_parts(self) -> (ActorId, IncomingDispatch, GasCounter, GasAllowanceCounter) {
         (
             self.destination_id,
             self.dispatch,
@@ -391,7 +391,7 @@ impl ContextCharged<ForModuleInstantiation> {
     pub fn into_final_parts(
         self,
     ) -> (
-        ProgramId,
+        ActorId,
         IncomingDispatch,
         GasCounter,
         GasAllowanceCounter,

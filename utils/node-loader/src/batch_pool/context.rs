@@ -1,11 +1,11 @@
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;
 
 use super::report::{MailboxReport, Report};
 
 #[derive(Debug, Default)]
 pub struct ContextUpdate {
-    program_ids: BTreeSet<ProgramId>,
+    program_ids: BTreeSet<ActorId>,
     codes: BTreeSet<CodeId>,
     added_mailbox: BTreeSet<MessageId>,
     removed_mailbox: BTreeSet<MessageId>,
@@ -13,7 +13,7 @@ pub struct ContextUpdate {
 
 #[derive(Debug, Clone, Default)]
 pub struct Context {
-    pub programs: BTreeSet<ProgramId>,
+    pub programs: BTreeSet<ActorId>,
     pub codes: BTreeSet<CodeId>,
     pub mailbox_state: BTreeSet<MessageId>,
 }

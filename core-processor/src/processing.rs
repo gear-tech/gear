@@ -31,12 +31,10 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
+    buffer::{Payload, PayloadSizeError},
     env::Externalities,
-    ids::{prelude::*, MessageId, ProgramId},
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
-        StoredDispatch,
-    },
+    ids::{prelude::*, ActorId, MessageId},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{
@@ -203,7 +201,7 @@ enum ProcessErrorCase {
     /// Program exited.
     ProgramExited {
         /// Inheritor of an exited program.
-        inheritor: ProgramId,
+        inheritor: ActorId,
     },
     /// Program failed during init.
     FailedInit,
@@ -252,13 +250,13 @@ impl ProcessErrorCase {
     fn to_payload(&self) -> Payload {
         match self {
             ProcessErrorCase::ProgramExited { inheritor } => {
-                const _: () = assert!(size_of::<ProgramId>() <= Payload::MAX_LEN);
+                const _: () = assert!(size_of::<ActorId>() <= Payload::MAX_LEN);
                 inheritor
                     .into_bytes()
                     .to_vec()
                     .try_into()
                     .unwrap_or_else(|PayloadSizeError| {
-                        unreachable!("`ProgramId` is always smaller than maximum payload size")
+                        unreachable!("`ActorId` is always smaller than maximum payload size")
                     })
             }
             ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
@@ -271,7 +269,7 @@ impl ProcessErrorCase {
 
 fn process_error(
     dispatch: IncomingDispatch,
-    program_id: ProgramId,
+    program_id: ActorId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     case: ProcessErrorCase,
@@ -394,7 +392,7 @@ fn process_error(
 /// Helper function for journal creation in trap/error case.
 pub fn process_execution_error(
     dispatch: IncomingDispatch,
-    program_id: ProgramId,
+    program_id: ActorId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     err: impl Into<ActorExecutionErrorReplyReason>,
@@ -411,7 +409,7 @@ pub fn process_execution_error(
 /// Helper function for journal creation in program exited case.
 pub fn process_program_exited(
     context: ContextCharged<ForProgram>,
-    inheritor: ProgramId,
+    inheritor: ActorId,
 ) -> Vec<JournalNote> {
     let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
@@ -697,7 +695,7 @@ pub fn process_success(
 /// Helper function for journal creation if the block gas allowance has been exceeded.
 pub fn process_allowance_exceed(
     dispatch: IncomingDispatch,
-    program_id: ProgramId,
+    program_id: ActorId,
     gas_burned: u64,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::with_capacity(1);

@@ -25,9 +25,8 @@ use crate::{
     ConsensusEvent, ConsensusService,
 };
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::SignedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 use std::{
@@ -87,14 +86,14 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
+    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
+        Ok(())
+    }
+
     fn receive_block_from_producer(
         &mut self,
         _block_hash: SignedData<ProducerBlock>,
     ) -> Result<()> {
-        Ok(())
-    }
-
-    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
         Ok(())
     }
 

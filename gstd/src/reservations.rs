@@ -235,7 +235,7 @@ impl Reservations {
                     let suitable = self
                         .0
                         .drain(search_from..=i)
-                        .last()
+                        .next_back()
                         .expect("At least one element in range");
 
                     return Some(suitable);

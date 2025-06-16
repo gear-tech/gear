@@ -36,11 +36,10 @@ use core::{
 use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, ProgramId},
+    buffer::Payload,
+    ids::prelude::MessageIdExt as _,
     memory::PageBuf,
-    message::{
-        ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, StoredDispatch, Value,
-    },
+    message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
 };
@@ -386,9 +385,18 @@ impl MaybeHashOf<MemoryPages> {
     }
 }
 
-impl MaybeHashOf<MessageQueue> {
+// TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MessageQueueHashWithSize {
+    pub hash: MaybeHashOf<MessageQueue>,
+    // NOTE: only here to propagate queue size to the parent state (`StateHashWithQueueSize`).
+    pub cached_queue_size: u8,
+}
+
+impl MessageQueueHashWithSize {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.try_map_or_default(|hash| {
+        self.hash.try_map_or_default(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -404,9 +412,15 @@ impl MaybeHashOf<MessageQueue> {
 
         let r = f(&mut queue);
 
-        *self = queue.store(storage);
+        // Emulate saturating behavior for queue size.
+        self.cached_queue_size = queue.len().min(u8::MAX as usize) as u8;
+        self.hash = queue.store(storage);
 
         r
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.hash.is_empty()
     }
 }
 
@@ -489,8 +503,8 @@ impl Program {
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue, see [`MessageQueue`].
-    pub queue_hash: MaybeHashOf<MessageQueue>,
+    /// Hash of incoming message queue with its cached size, see [`MessageQueueHashWithSize`].
+    pub queue: MessageQueueHashWithSize,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
     /// Hash of dispatch stash, see [`DispatchStash`].
@@ -512,7 +526,10 @@ impl ProgramState {
                 memory_infix: MemoryInfix::new(0),
                 initialized: false,
             }),
-            queue_hash: MaybeHashOf::empty(),
+            queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
             waitlist_hash: MaybeHashOf::empty(),
             stash_hash: MaybeHashOf::empty(),
             mailbox_hash: MaybeHashOf::empty(),
@@ -536,7 +553,7 @@ impl ProgramState {
             return false;
         }
 
-        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
+        self.queue.hash.is_empty() && self.waitlist_hash.is_empty()
     }
 }
 
@@ -548,7 +565,7 @@ pub struct Dispatch {
     /// Dispatch kind.
     pub kind: DispatchKind,
     /// Message source.
-    pub source: ProgramId,
+    pub source: ActorId,
     /// Message payload.
     pub payload: PayloadLookup,
     /// Message value.
@@ -559,9 +576,13 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
     /// Origin of the message.
     pub origin: Origin,
+    /// If to call on eth.
+    /// Currently only used for replies: assert_eq!(message.call, replyToThisMessage.call);
+    pub call: bool,
 }
 
 impl Dispatch {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<S: Storage>(
         storage: &S,
         id: MessageId,
@@ -570,6 +591,7 @@ impl Dispatch {
         value: u128,
         is_init: bool,
         origin: Origin,
+        call: bool,
     ) -> Result<Self> {
         let payload = storage.write_payload_raw(payload)?;
 
@@ -588,6 +610,7 @@ impl Dispatch {
             details: None,
             context: None,
             origin,
+            call,
         })
     }
 
@@ -598,6 +621,7 @@ impl Dispatch {
         payload: Vec<u8>,
         value: u128,
         origin: Origin,
+        call: bool,
     ) -> Result<Self> {
         let payload_hash = storage.write_payload_raw(payload)?;
 
@@ -608,6 +632,7 @@ impl Dispatch {
             value,
             SuccessReplyReason::Manual,
             origin,
+            call,
         ))
     }
 
@@ -618,6 +643,7 @@ impl Dispatch {
         value: u128,
         reply_code: impl Into<ReplyCode>,
         origin: Origin,
+        call: bool,
     ) -> Self {
         Self {
             id: MessageId::generate_reply(reply_to),
@@ -628,6 +654,7 @@ impl Dispatch {
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
             origin,
+            call,
         }
     }
 
@@ -635,6 +662,7 @@ impl Dispatch {
         storage: &S,
         value: StoredDispatch,
         origin: Origin,
+        call_reply: bool,
     ) -> Self {
         let (kind, message, context) = value.into_parts();
         let (id, source, _destination, payload, value, details) = message.into_parts();
@@ -652,6 +680,7 @@ impl Dispatch {
             details,
             context,
             origin,
+            call: call_reply,
         }
     }
 
@@ -661,6 +690,7 @@ impl Dispatch {
             payload,
             value,
             details,
+            call,
             ..
         } = self;
 
@@ -672,6 +702,7 @@ impl Dispatch {
             payload,
             value,
             reply_details: details.and_then(|d| d.to_reply_details()),
+            call,
         }
     }
 }
@@ -690,7 +721,16 @@ impl<T> From<(T, u32)> for Expiring<T> {
 }
 
 #[derive(
-    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    derive_more::Into,
+    derive_more::AsRef,
+    derive_more::IntoIterator,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
@@ -698,6 +738,10 @@ pub struct MessageQueue(VecDeque<Dispatch>);
 impl MessageQueue {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     pub fn queue(&mut self, dispatch: Dispatch) {

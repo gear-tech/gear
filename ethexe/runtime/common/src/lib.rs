@@ -31,16 +31,18 @@ use core_processor::{
 use ethexe_common::gear::Origin;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
-    ids::ProgramId,
+    ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
 use gear_lazy_pages_common::LazyPagesInterface;
+use gprimitives::H256;
 use gsys::{GasMultiplier, Percent};
+use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
 use gear_core::code::InstrumentedCodeAndMetadata;
-pub use journal::Handler as JournalHandler;
+pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{InBlockTransitions, NonFinalTransition};
 
@@ -54,6 +56,8 @@ pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
 pub const RUNTIME_ID: u32 = 0;
 
+pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin, bool)>;
+
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
 
@@ -61,6 +65,7 @@ pub trait RuntimeInterface<S: Storage> {
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn storage(&self) -> &S;
+    fn update_state_hash(&self, state_hash: &H256);
 }
 
 pub struct TransitionController<'a, S: Storage> {
@@ -71,13 +76,14 @@ pub struct TransitionController<'a, S: Storage> {
 impl<S: Storage> TransitionController<'_, S> {
     pub fn update_state<T>(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         f: impl FnOnce(&mut ProgramState, &S, &mut InBlockTransitions) -> T,
     ) -> T {
         let state_hash = self
             .transitions
             .state_of(&program_id)
-            .expect("failed to find program in known states");
+            .expect("failed to find program in known states")
+            .hash;
 
         let mut state = self
             .storage
@@ -86,21 +92,24 @@ impl<S: Storage> TransitionController<'_, S> {
 
         let res = f(&mut state, self.storage, self.transitions);
 
+        let queue_size = state.queue.cached_queue_size;
         let new_state_hash = self.storage.write_state(state);
 
-        self.transitions.modify_state(program_id, new_state_hash);
+        self.transitions
+            .modify_state(program_id, new_state_hash, queue_size);
 
         res
     }
 }
 
-pub fn process_next_message<S, RI>(
-    program_id: ProgramId,
-    program_state: ProgramState,
+// TODO(romanm): implement gas limit/allowance
+pub fn process_queue<S, RI>(
+    program_id: ActorId,
+    mut program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     ri: &RI,
-) -> (Vec<JournalNote>, Option<Origin>)
+) -> ProgramJournals
 where
     S: Storage,
     RI: RuntimeInterface<S>,
@@ -108,17 +117,22 @@ where
 {
     let block_info = ri.block_info();
 
-    log::trace!("Processing next message for program {program_id}");
+    log::trace!("Processing queue for program {program_id}");
 
-    let mut queue = program_state.queue_hash.map_or_default(|hash| {
-        ri.storage()
-            .read_queue(hash)
-            .expect("Cannot get message queue")
-    });
-
-    if queue.is_empty() {
-        return (Vec::new(), None);
+    if program_state.queue.hash.is_empty() {
+        // Queue is empty, nothing to process.
+        return Vec::new();
     }
+
+    let queue = program_state
+        .queue
+        .hash
+        .map(|hash| {
+            ri.storage()
+                .read_queue(hash)
+                .expect("Cannot get message queue")
+        })
+        .expect("Queue cannot be empty at this point");
 
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
@@ -162,29 +176,46 @@ where
         reserve_for: 0,
     };
 
-    let dispatch = queue.dequeue().unwrap();
-    let origin = dispatch.origin;
+    let mut mega_journal = Vec::new();
 
-    let journal = process_dispatch(
-        dispatch,
-        &block_config,
-        program_id,
-        program_state,
-        instrumented_code,
-        code_metadata,
-        ri,
-    );
+    ri.init_lazy_pages();
 
-    (journal, origin.into())
+    for dispatch in queue {
+        let origin = dispatch.origin;
+        let call_reply = dispatch.call;
+
+        let journal = process_dispatch(
+            dispatch,
+            &block_config,
+            program_id,
+            &program_state,
+            &instrumented_code,
+            &code_metadata,
+            ri,
+        );
+        let mut handler = RuntimeJournalHandler {
+            storage: ri.storage(),
+            program_state: &mut program_state,
+        };
+        let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
+        mega_journal.push((unhandled_journal_notes, origin, call_reply));
+
+        // Update state hash if it was changed.
+        if let Some(new_state_hash) = new_state_hash {
+            ri.update_state_hash(&new_state_hash);
+        }
+    }
+
+    mega_journal
 }
 
 fn process_dispatch<S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
-    program_id: ProgramId,
-    program_state: ProgramState,
-    instrumented_code: Option<InstrumentedCode>,
-    code_metadata: Option<CodeMetadata>,
+    program_id: ActorId,
+    program_state: &ProgramState,
+    instrumented_code: &Option<InstrumentedCode>,
+    code_metadata: &Option<CodeMetadata>,
     ri: &RI,
 ) -> Vec<JournalNote>
 where
@@ -222,7 +253,7 @@ where
         Err(journal) => return journal,
     };
 
-    let active_state = match program_state.program {
+    let active_state = match &program_state.program {
         state::Program::Active(state) => state,
         state::Program::Terminated(program_id) => {
             log::trace!("Program {program_id} has failed init");
@@ -230,7 +261,7 @@ where
         }
         state::Program::Exited(program_id) => {
             log::trace!("Program {program_id} has exited");
-            return core_processor::process_program_exited(context, program_id);
+            return core_processor::process_program_exited(context, *program_id);
         }
     };
 
@@ -255,8 +286,12 @@ where
         Err(journal) => return journal,
     };
 
-    let code = instrumented_code.expect("Instrumented code must be provided if program is active");
-    let code_metadata = code_metadata.expect("Code metadata must be provided if program is active");
+    let code = instrumented_code
+        .as_ref()
+        .expect("Instrumented code must be provided if program is active");
+    let code_metadata = code_metadata
+        .as_ref()
+        .expect("Code metadata must be provided if program is active");
 
     let context =
         match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
@@ -286,7 +321,7 @@ where
         block_config,
         actor_data,
         code.instantiated_section_sizes(),
-        &code_metadata,
+        code_metadata,
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
@@ -295,15 +330,13 @@ where
     let execution_context = ProcessExecutionContext::new(
         context,
         InstrumentedCodeAndMetadata {
-            instrumented_code: code,
-            metadata: code_metadata,
+            instrumented_code: code.clone(),
+            metadata: code_metadata.clone(),
         },
         program_state.balance,
     );
 
     let random_data = ri.random_data();
-
-    ri.init_lazy_pages();
 
     core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))

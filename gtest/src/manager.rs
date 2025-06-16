@@ -49,7 +49,7 @@ use gear_common::{
 use gear_core::{
     code::InstrumentedCode,
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
+    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
@@ -139,7 +139,7 @@ impl ExtManager {
 
     pub(crate) fn store_new_actor(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         program: Program,
         init_message_id: Option<MessageId>,
     ) -> Option<TestActor> {
@@ -184,7 +184,7 @@ impl ExtManager {
 
     pub(crate) fn update_storage_pages(
         &mut self,
-        program_id: &ProgramId,
+        program_id: &ActorId,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
         Actors::modify(*program_id, |actor| {
@@ -199,15 +199,15 @@ impl ExtManager {
         });
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ProgramId, value: Value) {
+    pub(crate) fn mint_to(&mut self, id: &ActorId, value: Value) {
         Accounts::increase(*id, value);
     }
 
-    pub(crate) fn balance_of(&self, id: &ProgramId) -> Value {
+    pub(crate) fn balance_of(&self, id: &ActorId) -> Value {
         Accounts::balance(*id)
     }
 
-    pub(crate) fn override_balance(&mut self, &id: &ProgramId, balance: Value) {
+    pub(crate) fn override_balance(&mut self, &id: &ActorId, balance: Value) {
         if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             usage_panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({}. \
@@ -224,7 +224,7 @@ impl ExtManager {
         self.gas_allowance = self.gas_allowance.saturating_sub(Gas(write));
     }
 
-    fn init_success(&mut self, program_id: ProgramId) {
+    fn init_success(&mut self, program_id: ActorId) {
         Actors::modify(program_id, |actor| {
             actor
                 .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
@@ -232,7 +232,7 @@ impl ExtManager {
         });
     }
 
-    fn init_failure(&mut self, program_id: ProgramId, origin: ProgramId) {
+    fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
         Actors::modify(program_id, |actor| {
             let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
             *actor = TestActor::FailedInit;
@@ -246,7 +246,7 @@ impl ExtManager {
 
     pub(crate) fn update_genuine_program<R, F: FnOnce(&mut GenuineProgram) -> R>(
         &mut self,
-        id: ProgramId,
+        id: ActorId,
         op: F,
     ) -> Option<R> {
         Actors::modify(id, |actor| {
@@ -256,7 +256,7 @@ impl ExtManager {
 
     pub(crate) fn read_mailbox_message(
         &mut self,
-        to: ProgramId,
+        to: ActorId,
         from_mid: MessageId,
     ) -> Result<UserStoredMessage, MailboxErrorImpl> {
         let (message, hold_interval) = self.mailbox.remove(to, from_mid)?;

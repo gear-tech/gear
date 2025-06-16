@@ -21,7 +21,7 @@
 use std::{cell::RefCell, collections::BTreeMap, fmt};
 
 use core_processor::common::ExecutableActorData;
-use gear_common::{GearPage, MessageId, PageBuf, ProgramId};
+use gear_common::{ActorId, GearPage, MessageId, PageBuf};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     pages::{numerated::tree::IntervalsTree, WasmPage},
@@ -31,7 +31,7 @@ use gear_core::{
 use crate::WasmProgram;
 
 thread_local! {
-    static ACTORS_STORAGE: RefCell<BTreeMap<ProgramId, TestActor>> = RefCell::new(Default::default());
+    static ACTORS_STORAGE: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
 }
 
 pub(crate) struct Actors;
@@ -40,7 +40,7 @@ impl Actors {
     // Accesses actor by program id.
 
     pub(crate) fn access<R>(
-        program_id: ProgramId,
+        program_id: ActorId,
         access: impl FnOnce(Option<&TestActor>) -> R,
     ) -> R {
         ACTORS_STORAGE.with_borrow(|storage| access(storage.get(&program_id)))
@@ -48,30 +48,30 @@ impl Actors {
 
     // Modifies actor by program id.
     pub(crate) fn modify<R>(
-        program_id: ProgramId,
+        program_id: ActorId,
         modify: impl FnOnce(Option<&mut TestActor>) -> R,
     ) -> R {
         ACTORS_STORAGE.with_borrow_mut(|storage| modify(storage.get_mut(&program_id)))
     }
 
     // Inserts actor by program id.
-    pub(crate) fn insert(program_id: ProgramId, actor: TestActor) -> Option<TestActor> {
+    pub(crate) fn insert(program_id: ActorId, actor: TestActor) -> Option<TestActor> {
         ACTORS_STORAGE.with_borrow_mut(|storage| storage.insert(program_id, actor))
     }
 
     // Checks if actor by program id exists.
-    pub(crate) fn contains_key(program_id: ProgramId) -> bool {
+    pub(crate) fn contains_key(program_id: ActorId) -> bool {
         ACTORS_STORAGE.with_borrow(|storage| storage.contains_key(&program_id))
     }
 
     // Checks if actor by program id is a user.
-    pub(crate) fn is_user(id: ProgramId) -> bool {
+    pub(crate) fn is_user(id: ActorId) -> bool {
         // Non-existent program is a user
         ACTORS_STORAGE.with_borrow(|storage| storage.get(&id).is_none())
     }
 
     // Checks if actor by program id is active.
-    pub(crate) fn is_active_program(id: ProgramId) -> bool {
+    pub(crate) fn is_active_program(id: ActorId) -> bool {
         ACTORS_STORAGE.with_borrow(|storage| {
             matches!(
                 storage.get(&id),
@@ -81,13 +81,13 @@ impl Actors {
     }
 
     // Checks if actor by program id is a program.
-    pub(crate) fn is_program(id: ProgramId) -> bool {
+    pub(crate) fn is_program(id: ActorId) -> bool {
         // if it's not a user, then it's a program
         !Self::is_user(id)
     }
 
     // Returns all program ids.
-    pub(crate) fn program_ids() -> Vec<ProgramId> {
+    pub(crate) fn program_ids() -> Vec<ActorId> {
         ACTORS_STORAGE.with_borrow(|storage| storage.keys().copied().collect())
     }
 
@@ -110,7 +110,7 @@ pub(crate) enum TestActor {
     Uninitialized(Option<MessageId>, Option<Program>),
     FailedInit,
     CodeNotExists,
-    Exited(ProgramId),
+    Exited(ActorId),
 }
 
 impl TestActor {

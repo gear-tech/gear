@@ -19,8 +19,7 @@
 //! An embedded WASM executor utilizing `wasmer`.
 
 use crate::{
-    AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore,
-    Value, TARGET,
+    AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore, Value,
 };
 use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
@@ -40,6 +39,9 @@ use wasmer::{
     Value as RuntimeValue,
 };
 use wasmer_types::ExternType;
+
+/// The target used for logging.
+const TARGET: &str = "runtime::sandbox";
 
 fn cache_base_path() -> PathBuf {
     static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();

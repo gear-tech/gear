@@ -27,7 +27,7 @@ use crate::{
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     gas_metering::Schedule,
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{Dispatch, DispatchKind, Message},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
@@ -128,7 +128,7 @@ pub trait WasmProgram: Debug {
 
 /// Wrapper for program id.
 #[derive(Clone, Debug)]
-pub struct ProgramIdWrapper(pub(crate) ProgramId);
+pub struct ProgramIdWrapper(pub(crate) ActorId);
 
 impl<T: Into<ProgramIdWrapper> + Clone> PartialEq<T> for ProgramIdWrapper {
     fn eq(&self, other: &T) -> bool {
@@ -136,8 +136,8 @@ impl<T: Into<ProgramIdWrapper> + Clone> PartialEq<T> for ProgramIdWrapper {
     }
 }
 
-impl From<ProgramId> for ProgramIdWrapper {
-    fn from(other: ProgramId) -> Self {
+impl From<ActorId> for ProgramIdWrapper {
+    fn from(other: ActorId) -> Self {
         Self(other)
     }
 }
@@ -156,9 +156,7 @@ impl From<[u8; 32]> for ProgramIdWrapper {
 
 impl From<&[u8]> for ProgramIdWrapper {
     fn from(other: &[u8]) -> Self {
-        ProgramId::try_from(other)
-            .expect("invalid identifier")
-            .into()
+        ActorId::try_from(other).expect("invalid identifier").into()
     }
 }
 
@@ -182,9 +180,7 @@ impl From<String> for ProgramIdWrapper {
 
 impl From<&str> for ProgramIdWrapper {
     fn from(other: &str) -> Self {
-        ProgramId::from_str(other)
-            .expect("invalid identifier")
-            .into()
+        ActorId::from_str(other).expect("invalid identifier").into()
     }
 }
 
@@ -351,7 +347,7 @@ impl ProgramBuilder {
 /// ```
 pub struct Program<'a> {
     pub(crate) manager: &'a RefCell<ExtManager>,
-    pub(crate) id: ProgramId,
+    pub(crate) id: ActorId,
 }
 
 impl<'a> Program<'a> {
@@ -567,7 +563,7 @@ impl<'a> Program<'a> {
     }
 
     /// Get program id.
-    pub fn id(&self) -> ProgramId {
+    pub fn id(&self) -> ActorId {
         self.id
     }
 
@@ -632,11 +628,11 @@ impl<'a> Program<'a> {
 }
 
 /// Calculate program id from code id and salt.
-pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ProgramId {
+pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>) -> ActorId {
     if let Some(id) = id {
-        ProgramId::generate_from_program(id, code_id, salt)
+        ActorId::generate_from_program(id, code_id, salt)
     } else {
-        ProgramId::generate_from_user(code_id, salt)
+        ActorId::generate_from_user(code_id, salt)
     }
 }
 

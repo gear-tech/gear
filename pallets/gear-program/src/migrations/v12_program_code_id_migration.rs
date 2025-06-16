@@ -132,7 +132,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateProgramCodeHashToCodeId<T> {
 
 mod v11 {
     use gear_core::{
-        ids::ProgramId,
+        ids::ActorId,
         message::DispatchKind,
         pages::WasmPage,
         program::{MemoryInfix, ProgramState},
@@ -165,8 +165,8 @@ mod v11 {
     #[scale_info(crate = scale_info)]
     pub enum Program<BlockNumber: Copy + Saturating> {
         Active(ActiveProgram<BlockNumber>),
-        Exited(ProgramId),
-        Terminated(ProgramId),
+        Exited(ActorId),
+        Terminated(ActorId),
     }
 
     #[cfg(feature = "try-runtime")]
@@ -197,7 +197,7 @@ mod v11 {
     pub type ProgramStorage<T> = StorageMap<
         ProgramStoragePrefix<T>,
         Identity,
-        ProgramId,
+        ActorId,
         Program<frame_system::pallet_prelude::BlockNumberFor<T>>,
     >;
 }
@@ -209,7 +209,7 @@ mod test {
     use crate::mock::*;
     use frame_support::traits::StorageVersion;
     use gear_core::{
-        ids::{CodeId, ProgramId},
+        ids::{ActorId, CodeId},
         program::ProgramState,
     };
     use primitive_types::H256;
@@ -223,7 +223,7 @@ mod test {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearProgram>();
 
             // add active program
-            let active_program_id = ProgramId::from(1u64);
+            let active_program_id = ActorId::from(1u64);
             let program = v11::Program::<BlockNumberFor<Test>>::Active(v11::ActiveProgram {
                 allocations_tree_len: 2,
                 gas_reservation_map: Default::default(),
@@ -238,12 +238,12 @@ mod test {
 
             // add exited program
             let program = v11::Program::<BlockNumberFor<Test>>::Exited(active_program_id);
-            let program_id = ProgramId::from(2u64);
+            let program_id = ActorId::from(2u64);
             v11::ProgramStorage::<Test>::insert(program_id, program);
 
             // add terminated program
             let program = v11::Program::<BlockNumberFor<Test>>::Terminated(program_id);
-            let program_id = ProgramId::from(3u64);
+            let program_id = ActorId::from(3u64);
             v11::ProgramStorage::<Test>::insert(program_id, program);
 
             let state = MigrateProgramCodeHashToCodeId::<Test>::pre_upgrade().unwrap();
@@ -264,12 +264,12 @@ mod test {
             assert_eq!(program.expiration_block, 100);
 
             assert_eq!(
-                ProgramStorage::<Test>::get(ProgramId::from(2u64)).unwrap(),
+                ProgramStorage::<Test>::get(ActorId::from(2u64)).unwrap(),
                 Program::Exited(active_program_id)
             );
             assert_eq!(
-                ProgramStorage::<Test>::get(ProgramId::from(3u64)).unwrap(),
-                Program::Terminated(ProgramId::from(2u64))
+                ProgramStorage::<Test>::get(ActorId::from(3u64)).unwrap(),
+                Program::Terminated(ActorId::from(2u64))
             );
 
             assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);

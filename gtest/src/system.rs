@@ -25,7 +25,7 @@ use crate::{
     Gas, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
-    ids::{prelude::CodeIdExt, CodeId, ProgramId},
+    ids::{prelude::CodeIdExt, ActorId, CodeId},
     pages::GearPage,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
@@ -46,7 +46,7 @@ thread_local! {
 #[derive(Decode)]
 struct PageKey {
     _page_storage_prefix: [u8; 32],
-    program_id: ProgramId,
+    program_id: ActorId,
     _memory_infix: u32,
     page: GearPage,
 }
@@ -294,10 +294,10 @@ impl System {
         Actors::is_active_program(program_id)
     }
 
-    /// Returns `Some(ProgramId)` if a program is exited with inheritor.
+    /// Returns `Some(ActorId)` if a program is exited with inheritor.
     ///
     /// Returns [`None`] otherwise.
-    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ProgramId> {
+    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
         Actors::access(program_id, |actor| {
             if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {

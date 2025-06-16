@@ -25,7 +25,7 @@ use crate::{
 use gear_core::{
     code::InstrumentedCodeAndMetadata,
     gas::{GasAllowanceCounter, GasCounter},
-    ids::ProgramId,
+    ids::ActorId,
     message::IncomingDispatch,
     pages::WasmPagesAmount,
     program::MemoryInfix,
@@ -86,7 +86,7 @@ impl ProcessExecutionContext {
     }
 
     /// Returns program id.
-    pub fn program_id(&self) -> ProgramId {
+    pub fn program_id(&self) -> ActorId {
         self.program.id
     }
 

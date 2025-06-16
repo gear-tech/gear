@@ -258,7 +258,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Poll::Ready(to_swarm) = self.block_list.poll(cx) {
-            return Poll::Ready(to_swarm.map_out(|void| void::unreachable(void)));
+            return Poll::Ready(to_swarm.map_out(|infallible| match infallible {}));
         }
 
         if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx) {
@@ -276,7 +276,7 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
-        let mut swarm = Swarm::new_ephemeral(|_keypair| Behaviour::new(config));
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| Behaviour::new(config));
         swarm.listen().with_memory_addr_external().await;
         swarm
     }
@@ -292,7 +292,6 @@ mod tests {
         let alice_config = Config::default().with_excessive_data(EXCESSIVE_DATA_ABS_DIFF);
         let mut alice = new_swarm_with_config(alice_config).await;
         let mut chad = new_swarm().await;
-        let alice_peer_id = *alice.local_peer_id();
         let chad_peer_id = *chad.local_peer_id();
         alice.connect(&mut chad).await;
 
@@ -332,7 +331,7 @@ mod tests {
             }
         );
 
-        let event = chad.next_swarm_event().await;
+        let event = alice.next_swarm_event().await;
         assert!(
             matches!(
                 event,
@@ -340,7 +339,7 @@ mod tests {
                     peer_id,
                     num_established: 0,
                     ..
-                } if peer_id == alice_peer_id
+                } if peer_id == chad_peer_id
             ),
             "{event:?}"
         );

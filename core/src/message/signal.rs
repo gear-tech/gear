@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId},
+    ids::{prelude::*, ActorId, MessageId},
     message::{Dispatch, DispatchKind, Message, SignalDetails},
 };
 use gear_core_errors::SignalCode;
@@ -44,10 +44,10 @@ impl SignalMessage {
     }
 
     /// Convert [`SignalMessage`] into [`Message`].
-    pub fn into_message(self, origin_msg_id: MessageId, destination: ProgramId) -> Message {
+    pub fn into_message(self, origin_msg_id: MessageId, destination: ActorId) -> Message {
         Message::new(
             self.id,
-            ProgramId::SYSTEM,
+            ActorId::SYSTEM,
             destination,
             Default::default(),
             None,
@@ -57,7 +57,7 @@ impl SignalMessage {
     }
 
     /// Convert [`SignalMessage`] into [`Dispatch`].
-    pub fn into_dispatch(self, origin_msg_id: MessageId, destination: ProgramId) -> Dispatch {
+    pub fn into_dispatch(self, origin_msg_id: MessageId, destination: ActorId) -> Dispatch {
         Dispatch::new(
             DispatchKind::Signal,
             self.into_message(origin_msg_id, destination),

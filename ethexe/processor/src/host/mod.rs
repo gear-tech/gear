@@ -20,10 +20,10 @@ use crate::Database;
 use anyhow::{anyhow, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
-use ethexe_runtime_common::unpack_i64_to_u32;
+use ethexe_runtime_common::{unpack_i64_to_u32, ProgramJournals};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    ids::ProgramId,
+    ids::ActorId,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
@@ -132,11 +132,11 @@ impl InstanceWrapper {
     pub fn run(
         &mut self,
         db: Database,
-        program_id: ProgramId,
+        program_id: ActorId,
         state_hash: H256,
         maybe_instrumented_code: Option<InstrumentedCode>,
         maybe_code_metadata: Option<CodeMetadata>,
-    ) -> Result<(Vec<JournalNote>, Option<Origin>)> {
+    ) -> Result<(ProgramJournals, H256)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
         threads::set(db, chain_head, state_hash);
 
@@ -148,16 +148,19 @@ impl InstanceWrapper {
         );
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let (ptr_lens, origin): (Vec<i64>, Option<Origin>) = self.call("run", arg.encode())?;
+        let ptr_lens: Vec<i64> = self.call("run", arg.encode())?;
 
-        let mut journal = Vec::new();
+        let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
         for ptr_len in ptr_lens {
-            let journal_chunk: Vec<JournalNote> = self.get_call_output(ptr_len)?;
-            journal.extend(journal_chunk);
+            let journal_and_origin: (Vec<JournalNote>, Origin, bool) =
+                self.get_call_output(ptr_len)?;
+            mega_journal.push(journal_and_origin);
         }
 
-        Ok((journal, origin))
+        let new_state_hash = threads::with_params(|params| params.state_hash);
+
+        Ok((mega_journal, new_state_hash))
     }
 
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {

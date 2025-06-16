@@ -225,7 +225,7 @@
 //!     - `[u8; 32]`
 //!     - `String`
 //!     - `&str`
-//!     - [`ProgramId`](https://docs.gear.rs/gear_core/ids/struct.ProgramId.html)
+//!     - [`ActorId`](https://docs.gear.rs/gear_core/ids/struct.ActorId.html)
 //!       (from `gear_core` one's, not from `gstd`).
 //!
 //!     `String` implementation means the input as hex (with or without "0x").

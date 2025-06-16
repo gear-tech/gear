@@ -24,7 +24,7 @@ use gear_common::{
     gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
     Gas, GasMultiplier, LockId, Origin,
 };
-use gear_core::ids::{MessageId, ProgramId, ReservationId};
+use gear_core::ids::{ActorId, MessageId, ReservationId};
 
 pub(crate) type PositiveImbalance = <GasTree as Tree>::PositiveImbalance;
 pub(crate) type NegativeImbalance = <GasTree as Tree>::NegativeImbalance;
@@ -47,7 +47,7 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `create` method.
     pub(crate) fn create(
         &self,
-        origin: ProgramId,
+        origin: ActorId,
         mid: MessageId,
         amount: Gas,
         is_reply: bool,

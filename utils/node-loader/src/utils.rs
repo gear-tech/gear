@@ -3,7 +3,7 @@ use futures::Future;
 use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::Seed;
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
@@ -115,7 +115,7 @@ pub async fn capture_mailbox_messages(
     api: &GearApi,
     event_source: &[gsdk::metadata::Event],
 ) -> Result<BTreeSet<MessageId>> {
-    let to = ProgramId::new(api.account_id().clone().into());
+    let to = ActorId::new(api.account_id().clone().into());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
     let bn_threshold = api.last_block_number().await? + 20;
     let mailbox_messages: Vec<_> = event_source
@@ -207,7 +207,7 @@ pub fn err_waited_or_succeed_batch(
 /// Returns configs bundle with a gear wasm generator config, which logs `seed`.
 pub fn get_wasm_gen_config(
     seed: Seed,
-    _existing_programs: impl Iterator<Item = ProgramId>,
+    _existing_programs: impl Iterator<Item = ActorId>,
 ) -> StandardGearWasmConfigsBundle {
     let initial_pages = 2;
     let mut injection_types = SyscallsInjectionTypes::all_once();

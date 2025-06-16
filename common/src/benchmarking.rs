@@ -97,7 +97,7 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program<ProgramStorage, BlockNumber>(program_id: ProgramId, code: Vec<u8>)
+pub fn set_program<ProgramStorage, BlockNumber>(program_id: ActorId, code: Vec<u8>)
 where
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
     BlockNumber: Zero + Copy + Saturating,

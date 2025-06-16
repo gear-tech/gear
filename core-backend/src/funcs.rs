@@ -36,14 +36,12 @@ use alloc::{format, string::String};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::{Payload, PayloadSizeError, RuntimeBuffer, RuntimeBufferSizeError},
     costs::CostToken,
-    env::DropPayloadLockBound,
+    env::{DropPayloadLockBound, MessageWaitedType},
     gas::CounterType,
-    ids::{MessageId, ProgramId},
-    message::{
-        HandlePacket, InitPacket, MessageWaitedType, Payload, PayloadSizeError, ReplyPacket,
-    },
+    ids::{ActorId, MessageId},
+    message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
@@ -1219,7 +1217,7 @@ where
     }
 
     pub fn program_id(program_id_ptr: u32) -> impl Syscall<Caller> {
-        InfallibleSyscall::new(CostToken::ProgramId, move |ctx: &mut CallerWrap<Caller>| {
+        InfallibleSyscall::new(CostToken::ActorId, move |ctx: &mut CallerWrap<Caller>| {
             let program_id = ctx.ext_mut().program_id()?;
 
             let mut registry = MemoryAccessRegistry::default();
@@ -1321,7 +1319,7 @@ where
         payload_len: u32,
         gas_limit: Option<u64>,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), RunFallibleError> {
+    ) -> Result<(MessageId, ActorId), RunFallibleError> {
         let mut registry = MemoryAccessRegistry::default();
         let read_cid_value = registry.register_read_as(cid_value_ptr);
         let read_salt = registry.register_read(salt_ptr, salt_len);

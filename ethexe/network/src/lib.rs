@@ -26,8 +26,9 @@ pub mod export {
 }
 
 use anyhow::{anyhow, Context};
+use ethexe_common::ecdsa::PublicKey;
 use ethexe_db::Database;
-use ethexe_signer::{PublicKey, Signer};
+use ethexe_signer::Signer;
 use futures::{future::Either, ready, stream::FusedStream, Stream};
 use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
@@ -247,8 +248,8 @@ impl NetworkService {
             }
         };
 
-        let mut key = signer.get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key.0)
+        let key = signer.storage().get_private_key(key)?;
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
@@ -316,9 +317,9 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(void) => void::unreachable(void),
+            BehaviourEvent::CustomConnectionLimits(infallible) => match infallible {},
             //
-            BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
+            BehaviourEvent::ConnectionLimits(infallible) => match infallible {},
             //
             BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
                 peer_id,
@@ -620,18 +621,17 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_db::MemDb;
-    use tempfile::TempDir;
+    use ethexe_signer::{FSKeyStorage, Signer};
     use tokio::time::{timeout, Duration};
 
-    fn new_service_with_db(db: Database) -> (TempDir, NetworkService) {
-        let tmp_dir = tempfile::tempdir().unwrap();
-        let config = NetworkConfig::new_test(tmp_dir.path().to_path_buf());
-        let signer = ethexe_signer::Signer::new(tmp_dir.path().join("key")).unwrap();
-        let service = NetworkService::new(config.clone(), &signer, db).unwrap();
-        (tmp_dir, service)
+    fn new_service_with_db(db: Database) -> NetworkService {
+        let key_storage = FSKeyStorage::tmp();
+        let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
+        let signer = Signer::new(key_storage);
+        NetworkService::new(config.clone(), &signer, db).unwrap()
     }
 
-    fn new_service() -> (TempDir, NetworkService) {
+    fn new_service() -> NetworkService {
         new_service_with_db(Database::from_one(&MemDb::default()))
     }
 
@@ -639,8 +639,8 @@ mod tests {
     async fn test_memory_transport() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service1 = new_service();
+        let mut service2 = new_service();
 
         service1.connect(&mut service2).await;
     }
@@ -649,7 +649,7 @@ mod tests {
     async fn request_db_data() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
+        let mut service1 = new_service();
 
         // second service
         let db = Database::from_one(&MemDb::default());
@@ -657,7 +657,7 @@ mod tests {
         let hello = db.write_hash(b"hello");
         let world = db.write_hash(b"world");
 
-        let (_tmp_dir, mut service2) = new_service_with_db(db);
+        let mut service2 = new_service_with_db(db);
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
@@ -685,11 +685,11 @@ mod tests {
     async fn peer_blocked_by_score() {
         init_logger();
 
-        let (_tmp_dir, mut service1) = new_service();
+        let mut service1 = new_service();
         let peer_score_handle = service1.score_handle();
 
         // second service
-        let (_tmp_dir, mut service2) = new_service();
+        let mut service2 = new_service();
         let service2_peer_id = service2.local_peer_id();
 
         service1.connect(&mut service2).await;
