@@ -11,7 +11,7 @@ fail-fast = false
 archive.include = [
   { path = "release/gear", relative-to = "target", on-missing = "warn" },
   { path = "release/gear.exe", relative-to = "target", on-missing = "ignore" },
-  { path = "wasm32-gear", relative-to = "target", on-missing = "warm" },
+  { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },
 ]
 
 [profile.ci.junit]
