@@ -64,7 +64,7 @@ contract DeploymentScript is Script {
 
         mirror = new Mirror(address(router));
 
-        if (!vm.envExists("DEV_MODE") || vm.envBool("DEV_MODE") != true) {
+        if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
             Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
