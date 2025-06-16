@@ -37,12 +37,12 @@ use alloc::{format, string::String};
 use blake2::{digest::typenum::U32, Blake2b, Digest};
 use core::marker::PhantomData;
 use gear_core::{
-    buffer::{Payload, PayloadSizeError, RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::{Payload, RuntimeBuffer, RuntimeBufferSizeError},
     costs::CostToken,
     env::{DropPayloadLockBound, MessageWaitedType},
     gas::CounterType,
-    ids::{ActorId, MessageId, ProgramId, ReservationId},
-    message::{HandlePacket, InitPacket, MessageWaitedType, Payload, ReplyPacket},
+    ids::{ActorId, MessageId, ReservationId},
+    message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
@@ -604,7 +604,7 @@ where
         )
     }
 
-    pub fn exit(inheritor_id: ReadDecoded<ProgramId>) -> impl Syscall<Caller> {
+    pub fn exit(inheritor_id: ReadDecoded<ActorId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Exit,
             move |_ctx: &mut MemoryCallerContext<Caller>| {
@@ -1181,7 +1181,7 @@ where
         )
     }
 
-    pub fn program_id(program_id_write: WriteAs<ProgramId>) -> impl Syscall<Caller> {
+    pub fn program_id(program_id_write: WriteAs<ActorId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::ActorId,
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -1192,7 +1192,7 @@ where
         )
     }
 
-    pub fn source(source_write: WriteAs<ProgramId>) -> impl Syscall<Caller> {
+    pub fn source(source_write: WriteAs<ActorId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Source,
             move |ctx: &mut MemoryCallerContext<Caller>| {

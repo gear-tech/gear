@@ -28,7 +28,7 @@ use crate::{
     BackendExternalities,
 };
 use alloc::vec::Vec;
-use gear_core::message::{Payload, PayloadSizeError};
+use gear_core::buffer::{Payload, PayloadSizeError};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 use parity_scale_codec::{Decode, MaxEncodedLen};
