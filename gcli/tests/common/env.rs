@@ -22,9 +22,7 @@ use std::{env, path::PathBuf};
 
 /// path of gear node binary
 pub fn node_bin() -> PathBuf {
-    let mut gcli = gcli_bin();
-    gcli.pop();
-    gcli.join("gear")
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../target/release/gear")
 }
 
 /// path of binaries
