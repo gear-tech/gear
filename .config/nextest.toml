@@ -1,5 +1,8 @@
 experimental = ["setup-scripts"]
 
+[scripts.setup.restore-node-permissions]
+command = "chmod +x target/release/gear"
+
 [profile.default]
 leak-timeout = { period = "500ms", result = "fail" }
 
@@ -11,23 +14,7 @@ archive.include = [
 [profile.ci.junit]
 path = "junit.xml"
 
-# sometimes fails on CI machine in debug profile
-# due to an inconsistent machine load and unoptimized code
-[[profile.ci.overrides]]
-filter = 'package(gear-authorship)'
-retries = 5
-threads-required = "num-test-threads"
-
-[[profile.ci.overrides]]
-filter = 'package(ethexe-service)'
-retries = 5
-threads-required = "num-test-threads"
-
-[[profile.ci.overrides]]
-filter = 'package(ethexe-observer)'
-retries = 5
-threads-required = "num-test-threads"
-
+# sdk
 [[profile.ci.overrides]]
 filter = 'package(gclient)'
 retries = 5
@@ -38,5 +25,25 @@ filter = 'package(gsdk)'
 platform = "cfg(unix)"
 setup = "restore-node-permissions"
 
-[scripts.setup.restore-node-permissions]
-command = "chmod +x target/release/gear"
+[[profile.ci.overrides]]
+filter = 'package(gsdk)'
+retries = 5
+threads-required = "num-test-threads"
+
+# sometimes fails on CI machine in debug profile
+# due to an inconsistent machine load and unoptimized code
+[[profile.ci.overrides]]
+filter = 'package(gear-authorship)'
+retries = 5
+threads-required = "num-test-threads"
+
+# ethexe
+[[profile.ci.overrides]]
+filter = 'package(ethexe-service)'
+retries = 5
+threads-required = "num-test-threads"
+
+[[profile.ci.overrides]]
+filter = 'package(ethexe-observer)'
+retries = 5
+threads-required = "num-test-threads"
