@@ -4648,6 +4648,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
+ "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",

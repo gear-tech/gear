@@ -28,9 +28,10 @@ use core_processor::{
     configs::{BlockConfig, SyscallName},
     ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
 };
-use ethexe_common::gear::Origin;
+use ethexe_common::gear::{Origin, CHUNK_PROCESSING_GAS_LIMIT};
 use gear_core::{
     code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
+    gas::GasAllowanceCounter,
     ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
@@ -50,8 +51,6 @@ pub mod state;
 mod journal;
 mod schedule;
 mod transitions;
-
-pub const BLOCK_GAS_LIMIT: u64 = 1_000_000_000_000;
 
 pub const RUNTIME_ID: u32 = 0;
 
@@ -101,14 +100,14 @@ impl<S: Storage> TransitionController<'_, S> {
     }
 }
 
-// TODO(romanm): implement gas limit/allowance
 pub fn process_queue<S, RI>(
     program_id: ActorId,
     mut program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
-) -> ProgramJournals
+    gas_allowance: u64,
+) -> (ProgramJournals, u64)
 where
     S: Storage,
     RI: RuntimeInterface<S>,
@@ -120,7 +119,7 @@ where
 
     if program_state.queue.hash.is_empty() {
         // Queue is empty, nothing to process.
-        return Vec::new();
+        return (Vec::new(), 0);
     }
 
     let queue = program_state
@@ -176,6 +175,7 @@ where
     };
 
     let mut mega_journal = Vec::new();
+    let mut queue_gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
 
     ri.init_lazy_pages();
 
@@ -191,10 +191,13 @@ where
             &instrumented_code,
             code_id,
             ri,
+            queue_gas_allowance_counter.left(),
         );
         let mut handler = RuntimeJournalHandler {
             storage: ri.storage(),
             program_state: &mut program_state,
+            gas_allowance_counter: &mut queue_gas_allowance_counter,
+            stop_processing: false,
         };
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
         mega_journal.push((unhandled_journal_notes, origin, call_reply));
@@ -203,11 +206,21 @@ where
         if let Some(new_state_hash) = new_state_hash {
             ri.update_state_hash(&new_state_hash);
         }
+
+        // 'Stop processing' journal note received.
+        if handler.stop_processing {
+            break;
+        }
     }
 
-    mega_journal
+    let gas_spent = gas_allowance
+        .checked_sub(queue_gas_allowance_counter.left())
+        .expect("cannot spend more gas than allowed");
+
+    (mega_journal, gas_spent)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_dispatch<S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
@@ -216,6 +229,7 @@ fn process_dispatch<S, RI>(
     instrumented_code: &Option<InstrumentedCode>,
     code_id: CodeId,
     ri: &RI,
+    gas_allowance: u64,
 ) -> Vec<JournalNote>
 where
     S: Storage,
@@ -238,7 +252,7 @@ where
     let gas_limit = block_config
         .gas_multiplier
         .value_to_gas(program_state.executable_balance)
-        .min(BLOCK_GAS_LIMIT);
+        .min(CHUNK_PROCESSING_GAS_LIMIT);
 
     let incoming_message =
         IncomingMessage::new(dispatch_id, source, payload, gas_limit, value, details);
@@ -247,7 +261,7 @@ where
 
     let context = match core_processor::precharge_for_program(
         block_config,
-        1_000_000_000_000,
+        gas_allowance,
         dispatch,
         program_id,
     ) {

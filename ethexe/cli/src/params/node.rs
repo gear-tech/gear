@@ -20,6 +20,8 @@ use super::MergeParams;
 use anyhow::{ensure, Context, Result};
 use clap::Parser;
 use directories::ProjectDirs;
+use ethexe_common::gear::MAX_BLOCK_GAS_LIMIT;
+use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_CHUNK_PROCESSING_THREADS};
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -75,6 +77,11 @@ pub struct NodeParams {
     #[serde(rename = "chunk-processing-threads")]
     pub chunk_processing_threads: Option<NonZero<u8>>,
 
+    /// Block gas limit for the node.
+    #[arg(long)]
+    #[serde(rename = "block-gas-limit")]
+    pub block_gas_limit: Option<u64>,
+
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
@@ -84,9 +91,6 @@ pub struct NodeParams {
 impl NodeParams {
     /// Default max allowed height diff from head for sync directly from Ethereum.
     pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
-
-    /// Default amount of virtual threads to use for programs processing.
-    pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<u8> = NonZero::new(16).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
@@ -107,8 +111,12 @@ impl NodeParams {
             blocking_threads: self.blocking_threads.map(|v| v.get() as usize),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(Self::DEFAULT_CHUNK_PROCESSING_THREADS)
+                .unwrap_or(NonZero::new(DEFAULT_CHUNK_PROCESSING_THREADS).unwrap())
                 .get() as usize,
+            block_gas_limit: self
+                .block_gas_limit
+                .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
+                .min(MAX_BLOCK_GAS_LIMIT),
             dev: self.dev,
             fast_sync: self.fast_sync,
         })
@@ -180,6 +188,8 @@ impl MergeParams for NodeParams {
             chunk_processing_threads: self
                 .chunk_processing_threads
                 .or(with.chunk_processing_threads),
+
+            block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
 
             fast_sync: self.fast_sync || with.fast_sync,
         }
