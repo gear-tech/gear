@@ -10985,6 +10985,7 @@ dependencies = [
  "demo-state-rollback",
  "demo-sync-duplicate",
  "demo-value-sender",
+ "demo-vec",
  "demo-wait",
  "demo-wait-timeout",
  "demo-waiter",
