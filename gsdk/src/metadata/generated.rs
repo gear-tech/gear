@@ -970,10 +970,6 @@ pub mod runtime_types {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ScheduledTask<_0, _1, _2> {
-                    #[codec(index = 0)]
-                    PauseProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 1)]
-                    RemoveCode(runtime_types::gprimitives::CodeId),
                     #[codec(index = 2)]
                     RemoveFromMailbox(_0, runtime_types::gprimitives::MessageId),
                     #[codec(index = 3)]
@@ -981,8 +977,6 @@ pub mod runtime_types {
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 4)]
-                    RemovePausedProgram(runtime_types::gprimitives::ActorId),
                     #[codec(index = 5)]
                     WakeMessage(
                         runtime_types::gprimitives::ActorId,
@@ -1000,8 +994,6 @@ pub mod runtime_types {
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::ReservationId,
                     ),
-                    #[codec(index = 9)]
-                    RemoveResumeSession(::core::primitive::u32),
                 }
             }
         }
