@@ -20,9 +20,7 @@
 //! for various pallets of Substrate.
 //! All used types should be in scope.
 
-use frame_support::{
-    pallet_prelude::*, sp_runtime::Perbill, weights::RuntimeDbWeight,
-};
+use frame_support::{pallet_prelude::*, sp_runtime::Perbill, weights::RuntimeDbWeight};
 use frame_system::limits::BlockWeights;
 
 #[macro_export]
@@ -43,7 +41,7 @@ macro_rules! impl_pallet_balances {
 macro_rules! impl_pallet_balances_inner {
     ($runtime:ty) => {
         impl pallet_balances::Config for $runtime {
-            type MaxLocks = ();
+            type MaxLocks = frame_support::traits::ConstU32<1024>;
             type MaxFreezes = ConstU32<1>;
             type MaxReserves = ();
             type RuntimeFreezeReason = RuntimeFreezeReason;

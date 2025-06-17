@@ -52,8 +52,8 @@ impl<T: Config + Send + Sync> Default for StakingBlackList<T> {
     }
 }
 
-impl<T: Config + Send + Sync + Send + Sync> TransactionExtension<<T as frame_system::Config>::RuntimeCall>
-    for StakingBlackList<T>
+impl<T: Config + Send + Sync + Send + Sync>
+    TransactionExtension<<T as frame_system::Config>::RuntimeCall> for StakingBlackList<T>
 where
     T::RuntimeCall: Dispatchable<
         Info = DispatchInfo,

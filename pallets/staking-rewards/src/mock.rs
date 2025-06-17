@@ -95,7 +95,9 @@ common::impl_pallet_authorship!(Test, EventHandler = Staking);
 common::impl_pallet_timestamp!(Test);
 common::impl_pallet_staking!(
     Test,
+    EraPayout = StakingRewards,
     Slash = Treasury,
+    Reward = StakingRewards,
     NextNewSession = Session,
     ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Test>>,
     GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen<Test>>,
@@ -349,7 +351,7 @@ impl multi_phase::Config for Test {
     type SignedMaxSubmissions = SignedMaxSubmissions;
     type SignedMaxRefunds = SignedMaxRefunds;
     type SlashHandler = Treasury;
-    type RewardHandler = ();
+    type RewardHandler = StakingRewards;
     type DataProvider = Staking;
     type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
     type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;

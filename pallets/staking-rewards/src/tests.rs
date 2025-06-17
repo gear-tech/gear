@@ -21,7 +21,7 @@
 use crate::{mock::*, *};
 use frame_support::{
     assert_noop, assert_ok, assert_storage_noop,
-    traits::{fungible, Currency, EstimateNextNewSession},
+    traits::{Currency, EstimateNextNewSession},
 };
 use sp_runtime::{traits::Convert, DispatchError, PerThing, Perbill};
 
