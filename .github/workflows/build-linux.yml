@@ -176,13 +176,15 @@ jobs:
           --extract-to=${{ github.workspace }}
           --workspace-remap=${{ github.workspace }}
 
-      - name: "Test: `gcli`"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Test: Copy runtime WASM before `gcli` tests"
         run: |
           mkdir -p target/release/wbuild/vara-runtime
           cp node-release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm target/release/wbuild/vara-runtime/
-          
+
+      - name: "Test: `gcli`"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gcli)'
           --run-ignored=all
           --workspace-remap=${{ github.workspace }}
