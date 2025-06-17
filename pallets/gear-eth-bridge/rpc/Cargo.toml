@@ -14,7 +14,6 @@ primitive-types.workspace = true
 # Substrate packages
 sp-api.workspace = true
 sp-blockchain.workspace = true
-sp-core.workspace = true
 sp-runtime.workspace = true
 
 # Local packages

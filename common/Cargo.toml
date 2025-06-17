@@ -27,7 +27,6 @@ gear-wasm-instrument = { workspace = true, optional = true }
 gsys.workspace = true
 
 # Substrate deps
-sp-core.workspace = true
 sp-io.workspace = true
 sp-std.workspace = true
 sp-arithmetic.workspace = true
@@ -47,7 +46,6 @@ gear-utils.workspace = true
 [features]
 default = ["std"]
 std = [
-    "sp-core/std",
     "sp-runtime/std",
     "sp-std/std",
     "sp-io/std",
