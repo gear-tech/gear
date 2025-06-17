@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    error::usage_panic,
-    program::{Gas, ProgramIdWrapper},
-    Value, GAS_MULTIPLIER,
-};
+use crate::{error::usage_panic, program::ProgramIdWrapper, Gas, Value, GAS_MULTIPLIER};
 use core_processor::configs::BlockInfo;
 use gear_core::{
     buffer::Payload,
@@ -467,9 +463,9 @@ impl BlockRunResult {
         let spent_gas = self
             .gas_burned
             .values()
-            .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+            .fold(0u64, |acc, &x| acc.saturating_add(x));
 
-        GAS_MULTIPLIER.gas_to_value(spent_gas.0)
+        GAS_MULTIPLIER.gas_to_value(spent_gas)
     }
 
     /// Trying to get the panic log.
