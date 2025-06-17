@@ -430,7 +430,7 @@ mod tests {
 
         // Incorrect transitions digest
         let mut incorrect_request = request.clone();
-        incorrect_request.transitions_digest = Digest::from([2; 32]);
+        incorrect_request.transitions_digest = Digest([2; 32]);
         Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
 
         // Block is not processed by this node

@@ -314,6 +314,19 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                 continue;
             }
 
+            if let Some(code) = self.db.original_code(code_id) {
+                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
+                self.futures.push(
+                    futures::future::ready(Ok(BlobData {
+                        code_id,
+                        timestamp,
+                        code,
+                    }))
+                    .boxed(),
+                );
+                continue;
+            }
+
             self.codes_loading.insert(code_id);
             self.futures.push(
                 self.blobs_reader
