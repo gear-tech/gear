@@ -186,12 +186,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gcli)'
-          --run-ignored=all
           --workspace-remap=${{ github.workspace }}
 
       - name: "Test: Client tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)'
+          --run-ignored=all
           --workspace-remap=${{ github.workspace }}
 
   benchmarks:
