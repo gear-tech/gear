@@ -25,8 +25,8 @@ use crate::{
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
-        SystemTerminationReason, TrapExplanation, UndefinedTerminationReason,
-        UnrecoverableExecutionError, UnrecoverableMemoryError,
+        TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
+        UnrecoverableMemoryError,
     },
     memory::{BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry},
     runtime::MemoryCallerContext,
@@ -1324,7 +1324,7 @@ where
         TrapExplanation::StackLimitExceeded.into()
     }
 
-    pub fn system_break(_gas: Gas, code: u32) -> impl Syscall<Caller> {
+    pub fn system_break(code: u32) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Null,
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -1345,8 +1345,7 @@ where
                         log::error!("{err_msg}");
                         unreachable!("{err_msg}")
                     });
-                ctx.caller_wrap.set_termination_reason(termination_reason);
-                Err(SystemTerminationReason.into())
+                Err(termination_reason)
             },
         )
     }
