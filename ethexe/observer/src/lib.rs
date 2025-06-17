@@ -25,15 +25,11 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{db::OnChainStorage, Address, BlockHeader, CodeInfo, SimpleBlockData};
+use ethexe_common::{Address, BlockHeader, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
-use futures::{
-    future::BoxFuture,
-    stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
-};
-use gprimitives::{CodeId, H256};
+use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
+use gprimitives::H256;
 use std::{
     collections::VecDeque,
     fmt,
@@ -42,19 +38,13 @@ use std::{
     time::Duration,
 };
 use sync::ChainSync;
-use utils::*;
 
-mod blobs;
 mod sync;
 mod utils;
 
 #[cfg(test)]
 mod tests;
 
-pub use blobs::*;
-
-type BlobDownloadFuture = BoxFuture<'static, Result<BlobData>>;
-type SyncFuture = BoxFuture<'static, Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)>>;
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
 
@@ -73,35 +63,18 @@ pub struct BlockSyncedData {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct BlobData {
-    pub code_id: CodeId,
-    pub timestamp: u64,
-    pub code: Vec<u8>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
-    Blob(BlobData),
     Block(SimpleBlockData),
     BlockSynced(BlockSyncedData),
-}
-
-impl fmt::Debug for BlobData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BlobData")
-            .field("code_id", &self.code_id)
-            .field("timestamp", &self.timestamp)
-            .field("code", &format_args!("{} bytes", self.code.len()))
-            .finish()
-    }
 }
 
 impl fmt::Debug for ObserverEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ObserverEvent::Blob(data) => data.fmt(f),
             ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
-            ObserverEvent::BlockSynced(hash) => f.debug_tuple("BlockSynced").field(hash).finish(),
+            ObserverEvent::BlockSynced(synced_block) => {
+                f.debug_tuple("BlockSynced").field(synced_block).finish()
+            }
         }
     }
 }
@@ -118,16 +91,14 @@ struct RuntimeConfig {
 // TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
-    db: Database,
-    blobs_reader: Box<dyn BlobReader>,
-
     config: RuntimeConfig,
+    chain_sync: ChainSync<Database>,
+
     last_block_number: u32,
     headers_stream: SubscriptionStream<Header>,
-    block_sync_queue: VecDeque<Header>,
 
-    sync_future: Option<SyncFuture>,
-    codes_futures: FuturesUnordered<BlobDownloadFuture>,
+    block_sync_queue: VecDeque<Header>,
+    sync_future: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -170,42 +141,24 @@ impl Stream for ObserverService {
             };
 
             log::trace!("Received a new block: {data:?}");
-
-            self.block_sync_queue.push_back(header);
+            self.block_sync_queue.push_front(header);
 
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
         if self.sync_future.is_none() {
-            if let Some(header) = self.block_sync_queue.pop_front() {
-                let sync = ChainSync {
-                    provider: self.provider.clone(),
-                    db: self.db.clone(),
-                    blobs_reader: self.blobs_reader.clone(),
-                    config: self.config.clone(),
-                };
-                self.sync_future = Some(Box::pin(sync.sync(header)));
+            if let Some(header) = self.block_sync_queue.pop_back() {
+                self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
             }
         }
 
         if let Some(fut) = self.sync_future.as_mut() {
-            if let Poll::Ready(res) = fut.poll_unpin(cx) {
+            if let Poll::Ready(result) = fut.poll_unpin(cx) {
                 self.sync_future = None;
 
-                let res = res.map(|(hash, codes)| {
-                    for (code_id, code_info) in codes {
-                        self.lookup_code(code_id, code_info.timestamp, code_info.tx_hash);
-                    }
-
-                    ObserverEvent::BlockSynced(hash)
-                });
-
-                return Poll::Ready(Some(res));
+                let maybe_event = result.map(ObserverEvent::BlockSynced);
+                return Poll::Ready(Some(maybe_event));
             }
-        }
-
-        if let Poll::Ready(Some(res)) = self.codes_futures.poll_next_unpin(cx) {
-            return Poll::Ready(Some(res.map(ObserverEvent::Blob)));
         }
 
         Poll::Pending
@@ -219,12 +172,7 @@ impl FusedStream for ObserverService {
 }
 
 impl ObserverService {
-    pub async fn new(
-        eth_cfg: &EthereumConfig,
-        max_sync_depth: u32,
-        db: Database,
-        blobs_reader: Box<dyn BlobReader>,
-    ) -> Result<Self> {
+    pub async fn new(eth_cfg: &EthereumConfig, max_sync_depth: u32, db: Database) -> Result<Self> {
         let EthereumConfig {
             rpc,
             router_address,
@@ -249,24 +197,32 @@ impl ObserverService {
             .context("failed to subscribe blocks")?
             .into_stream();
 
+        let config = RuntimeConfig {
+            router_address: *router_address,
+            wvara_address,
+            max_sync_depth,
+            // TODO #4562: make this configurable. Important: must be greater than 1.
+            batched_sync_depth: 2,
+            block_time: *block_time,
+        };
+
+        let chain_sync = ChainSync {
+            db,
+            provider: provider.clone(),
+            config: config.clone(),
+        };
+
         Ok(Self {
             provider,
-            db,
-            blobs_reader,
-            config: RuntimeConfig {
-                router_address: *router_address,
-                wvara_address,
-                max_sync_depth,
-                // TODO #4562: make this configurable. Important: must be greater than 1.
-                batched_sync_depth: 2,
-                block_time: *block_time,
-            },
+            config,
+
+            chain_sync,
+            sync_future: None,
+            block_sync_queue: VecDeque::new(),
+
             last_block_number: 0,
             subscription_future: None,
             headers_stream,
-            codes_futures: Default::default(),
-            block_sync_queue: Default::default(),
-            sync_future: Default::default(),
         })
     }
 
@@ -278,7 +234,7 @@ impl ObserverService {
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
-        use ethexe_common::db::BlockMetaStorage;
+        use ethexe_common::db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite};
 
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
@@ -301,7 +257,6 @@ impl ObserverService {
 
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);
-
         db.set_latest_synced_block_height(genesis_header.height);
         db.set_block_is_synced(genesis_block_hash);
 
@@ -311,9 +266,7 @@ impl ObserverService {
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
-
         db.set_block_computed(genesis_block_hash);
 
         Ok(())
@@ -323,11 +276,8 @@ impl ObserverService {
         &self.provider
     }
 
-    pub fn status(&self) -> ObserverStatus {
-        ObserverStatus {
-            eth_best_height: self.last_block_number,
-            pending_codes: self.codes_futures.len(),
-        }
+    pub fn last_block_number(&self) -> u32 {
+        self.last_block_number
     }
 
     pub fn block_time_secs(&self) -> u64 {
@@ -340,24 +290,8 @@ impl ObserverService {
             .get_block_by_hash(block.0.into())
             .await?
             .context("forced block not found")?;
+
         self.block_sync_queue.push_back(block.header);
         Ok(())
     }
-
-    fn lookup_code(&mut self, code_id: CodeId, timestamp: u64, tx_hash: H256) {
-        self.codes_futures
-            .push(Box::pin(utils::read_code_from_tx_hash(
-                self.blobs_reader.clone(),
-                code_id,
-                timestamp,
-                tx_hash,
-                Some(3),
-            )));
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ObserverStatus {
-    pub eth_best_height: u32,
-    pub pending_codes: usize,
 }

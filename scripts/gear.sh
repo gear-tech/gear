@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -e
 
@@ -14,7 +14,10 @@ EXE_EXTENSION=""
 
 . "$SCRIPTS"/common.sh
 
-if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
+if [[ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" && "$(uname -o)" != "Msys" ]]; then
+  export RUSTC_WRAPPER="" # cross compilation fails with sccache
+  export XWIN_CROSS_COMPILER="clang-cl"
+  export XWIN_ARCH="x86_64"
   TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
   CARGO="cargo xwin"
   EXE_RUNNER="wine"
@@ -169,6 +172,10 @@ case "$COMMAND" in
       examples)
         header "Invoking clippy on gear examples only"
         examples_clippy "$@"; ;;
+
+      no_std)
+        header "Invoking clippy on '#![no_std]' crates"
+        no_std_clippy "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

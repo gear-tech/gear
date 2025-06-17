@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::HandleAction;
-use gstd::{critical, exec, msg, prelude::*, ActorId};
+use gstd::{critical, msg, prelude::*, ActorId};
 
 static mut REPLY_SET_HOOK: bool = false;
 static mut SIGNAL_SET_HOOK: bool = false;

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::params::{MergeParams, Params};
+use crate::params::Params;
 use anyhow::Result;
 use clap::Subcommand;
 
@@ -50,13 +50,13 @@ impl Command {
     }
 
     /// Run the command.
-    pub async fn run(self, file_params: Params) -> Result<()> {
+    pub fn run(self, file_params: Params) -> Result<()> {
         let cmd = self.with_file_params(file_params);
 
         match cmd {
             Command::Key(key_cmd) => key_cmd.exec(),
-            Command::Tx(tx_cmd) => tx_cmd.exec().await,
-            Command::Run(run_cmd) => run_cmd.run().await,
+            Command::Tx(tx_cmd) => tx_cmd.exec(),
+            Command::Run(run_cmd) => run_cmd.run(),
         }
     }
 }
