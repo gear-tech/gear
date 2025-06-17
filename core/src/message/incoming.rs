@@ -68,17 +68,16 @@ impl IncomingMessage {
 
     /// Convert IncomingMessage into gasless StoredMessage.
     pub fn into_stored(self, destination: ActorId) -> StoredMessage {
-        if Arc::strong_count(&self.payload) > 1 {
-            log::error!(
-                "IncomingMessage payload has multiple references, this is unexpected behavior"
-            );
-        }
-
         StoredMessage::new(
             self.id,
             self.source,
             destination,
-            Arc::unwrap_or_clone(self.payload),
+            Arc::try_unwrap(self.payload).unwrap_or_else(|payload| {
+                log::error!(
+                    "IncomingMessage payload has multiple references, this is unexpected behavior"
+                );
+                Arc::unwrap_or_clone(payload)
+            }),
             self.value,
             self.details,
         )
