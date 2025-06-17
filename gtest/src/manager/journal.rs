@@ -18,7 +18,7 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
+use super::{ExtManager, GenuineProgram, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     program::ProgramBuilder,
@@ -80,7 +80,7 @@ impl JournalHandler for ExtManager {
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         log::debug!("Burned: {:?} from: {:?}", amount, message_id);
 
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
+        self.gas_allowance = self.gas_allowance.saturating_sub(amount);
         self.spend_burned(message_id, amount);
     }
 
@@ -335,7 +335,7 @@ impl JournalHandler for ExtManager {
             self.gas_allowance,
             gas_burned,
         );
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(gas_burned));
+        self.gas_allowance = self.gas_allowance.saturating_sub(gas_burned);
         self.messages_processing_enabled = false;
         self.dispatches.push_front(dispatch);
     }

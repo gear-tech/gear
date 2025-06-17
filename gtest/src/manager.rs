@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::Value,
+    constants::{Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
-    program::{Gas, WasmProgram},
+    program::WasmProgram,
     state::{
         accounts::Accounts,
         actors::{Actors, GenuineProgram, Program, TestActor},
@@ -221,7 +221,7 @@ impl ExtManager {
 
     pub(crate) fn on_task_pool_change(&mut self) {
         let write = DbWeights::default().write.ref_time;
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(write));
+        self.gas_allowance = self.gas_allowance.saturating_sub(write);
     }
 
     fn init_success(&mut self, program_id: ActorId) {
