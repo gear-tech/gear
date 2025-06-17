@@ -18,8 +18,6 @@
 
 //! Type definitions and helpers for error handling.
 
-use core::fmt;
-
 pub use gear_core_errors::*;
 pub use gprimitives::ConversionError;
 
@@ -27,27 +25,14 @@ pub use gprimitives::ConversionError;
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord, thiserror::Error)]
 pub enum Error {
     /// Syscall usage error.
+    #[error("syscall usage error")]
     SyscallUsage,
     /// API error (see [`ExtError`] for details).
-    Ext(ExtError),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::SyscallUsage => write!(f, "syscall usage error"),
-            Error::Ext(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-impl From<ExtError> for Error {
-    fn from(err: ExtError) -> Self {
-        Error::Ext(err)
-    }
+    #[error(transparent)]
+    Ext(#[from] ExtError),
 }
 
 /// Syscall executing result.

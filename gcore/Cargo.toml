@@ -15,6 +15,7 @@ gsys.workspace = true
 gprimitives.workspace = true
 gear-core-errors.workspace = true
 gear-stack-buffer.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true
