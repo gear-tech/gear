@@ -291,12 +291,12 @@ pub fn run() -> sc_cli::Result<()> {
                         unwrap_client!(
                             client,
                             cmd.run(
-							config.chain_spec.name().into(),
+                            config.chain_spec.name().into(),
                                 client.clone(),
                                 inherent_data,
                                 Vec::new(),
                                 &ext_builder,
-							    false,
+                                false,
                             )
                         )
                     }
