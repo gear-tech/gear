@@ -19,6 +19,8 @@
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
+use frame_support::traits::EnsureOrigin;
+use frame_system::RawOrigin;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
@@ -81,7 +83,11 @@ where
 
     context.try_charge_gas(gas_cost)?;
 
-    Pallet::<T>::queue_message(source, destination, payload)
+    let is_governance_origin =
+        <T as Config>::ControlOrigin::ensure_origin(RawOrigin::from(Some(source.cast())).into())
+            .is_ok();
+
+    Pallet::<T>::queue_message(source, destination, payload, is_governance_origin)
         .map(|(nonce, hash)| {
             Response::EthMessageQueued { nonce, hash }
                 .encode()

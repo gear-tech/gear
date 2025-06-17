@@ -335,10 +335,11 @@ pub mod pallet {
             T::AccountId: Origin,
         {
             let source: ActorId = ensure_signed(origin.clone())?.cast();
+            let is_governance_origin = T::ControlOrigin::ensure_origin(origin).is_ok();
 
-            // Transfer fee
+            // Transfer fee or skip it if it's zero or governance origin.
             let fee = TransportFee::<T>::get();
-            if !fee.is_zero() {
+            if !(fee.is_zero() || is_governance_origin) {
                 let builtin_id = T::BuiltinAddress::get();
                 CurrencyOf::<T>::transfer(
                     &source.cast(),
@@ -348,7 +349,7 @@ pub mod pallet {
                 )?;
             }
 
-            Self::queue_message(source, destination, payload)?;
+            Self::queue_message(source, destination, payload, is_governance_origin)?;
 
             Ok(().into())
         }
@@ -373,10 +374,8 @@ pub mod pallet {
             source: ActorId,
             destination: H160,
             payload: Vec<u8>,
-        ) -> Result<(U256, H256), Error<T>>
-        where
-            T::AccountId: Origin,
-        {
+            is_governance_origin: bool,
+        ) -> Result<(U256, H256), Error<T>> {
             // Ensuring that pallet is initialized.
             ensure!(
                 Initialized::<T>::get(),
@@ -392,27 +391,13 @@ pub mod pallet {
             // as well as checking payload size.
             let message = EthMessage::try_new(source, destination, payload)?;
 
-            // Check if the sender is eligible to skip capacity check.
-            let check_queue_capacity = |current_len| {
-                let bridge_admin: ActorId = T::BridgeAdmin::get().cast();
-                let bridge_pauser: ActorId = T::BridgePauser::get().cast();
-                let is_governance_origin = bridge_admin == source || bridge_pauser == source;
-
-                // Skip queue capacity check if the message is sent by the governance
-                if is_governance_origin {
-                    true
-                } else {
-                    current_len < QueueCapacityOf::<T>::get() as usize
-                }
-            };
-
-            // Appending hash of the message into the queue
-            // if it's capacity wasn't exceeded.
+            // Appending hash of the message into the queue,
+            // checks whether the queue capacity is exceeded,
+            // or skips the check when the origin is governance.
             let hash = Queue::<T>::mutate(|v| {
-                check_queue_capacity(v.len())
+                (is_governance_origin || v.len() < QueueCapacityOf::<T>::get() as usize)
                     .then(|| {
                         let hash = message.hash();
-                        // Capacity check performed above.
                         v.push(hash);
                         hash
                     })
