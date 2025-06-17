@@ -6046,7 +6046,6 @@ dependencies = [
  "tokio",
  "tracing-subscriber",
  "url",
- "vara-runtime",
  "wat",
 ]
 

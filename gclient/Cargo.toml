@@ -55,4 +55,3 @@ demo-proxy-relay.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
 demo-wat.workspace = true
 demo-bls381 = { workspace = true, features = ["std"] }
-vara-runtime = { workspace = true, features = ["std", "dev"] }

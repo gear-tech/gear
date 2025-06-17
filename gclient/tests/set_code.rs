@@ -16,34 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// The uncompressed Vara runtime WASM is too large to fit into a block.
-#![cfg(not(debug_assertions))]
-
 use gclient::{
     errors::{self, ModuleError},
     GearApi,
 };
 
+const RUNTIME_WASM: &str =
+    "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
+
+#[ignore = "Builds the runtime with specific feature set"]
 #[tokio::test]
 async fn set_code_succeed() {
     let api = GearApi::dev_from_path("../target/release/gear")
         .await
         .unwrap();
     let _block_hash = api
-        .set_code_without_checks(vara_runtime::WASM_BINARY.unwrap())
+        .set_code_without_checks_by_path(RUNTIME_WASM)
         .await
         .unwrap();
 }
 
+#[ignore = "Builds the runtime with specific feature set"]
 #[tokio::test]
 async fn set_code_failed() {
     let api = GearApi::dev_from_path("../target/release/gear")
         .await
         .unwrap();
-    let err = api
-        .set_code(vara_runtime::WASM_BINARY.unwrap())
-        .await
-        .unwrap_err();
+    let err = api.set_code_by_path(RUNTIME_WASM).await.unwrap_err();
 
     assert!(
         matches!(
