@@ -173,6 +173,7 @@ impl ComputeService {
 
     pub fn process_code(&mut self, code_id: CodeId, _timestamp: u64, code: Vec<u8>) {
         if let Some(valid) = self.db.code_valid(code_id) {
+            // TODO: #4712 test this case
             log::warn!("Code {code_id:?} already processed");
 
             if valid {
@@ -188,14 +189,15 @@ impl ComputeService {
             }
 
             self.process_codes.spawn(async move { Ok(code_id) });
-        }
+        } else {
+            let mut processor = self.processor.clone();
 
-        let mut processor = self.processor.clone();
-        self.process_codes.spawn_blocking(move || {
-            processor
-                .process_upload_code_raw(code_id, code.as_slice())
-                .map(|_valid| code_id)
-        });
+            self.process_codes.spawn_blocking(move || {
+                processor
+                    .process_upload_code_raw(code_id, &code)
+                    .map(|_valid| code_id)
+            });
+        }
     }
 
     pub fn prepare_block(&mut self, block: H256) {

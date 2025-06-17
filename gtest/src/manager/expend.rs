@@ -50,8 +50,8 @@ impl ExtManager {
     pub(crate) fn spend_burned(&mut self, id: MessageId, amount: u64) {
         self.gas_burned
             .entry(id)
-            .and_modify(|v| *v = v.saturating_sub(Gas(amount)))
-            .or_insert(Gas(amount));
+            .and_modify(|v| *v = v.saturating_sub(amount))
+            .or_insert(amount);
         self.spend_gas(id, amount);
     }
 

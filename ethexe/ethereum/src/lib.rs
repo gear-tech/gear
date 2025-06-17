@@ -303,7 +303,7 @@ impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
         let (s, r) = self
             .signer
-            .sign(self.sender, Digest::from(hash.0))
+            .sign(self.sender, Digest(hash.0))
             .map_err(|err| SignerError::Other(err.into()))
             .map(|s| s.into_parts())?;
         let v = r.to_byte() as u64;
