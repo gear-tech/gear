@@ -388,7 +388,7 @@ mod tests {
             5,
             3,
             frost::keys::IdentifierList::Default,
-            &mut rand::thread_rng(),
+            rand::thread_rng(),
         )
         .unwrap();
         let first_share = shares.values().next().unwrap();
