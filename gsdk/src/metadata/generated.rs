@@ -2892,16 +2892,6 @@ pub mod runtime_types {
                         program_id: runtime_types::gprimitives::ActorId,
                         depth: ::core::num::NonZeroU32,
                     },
-                    #[codec(index = 9)]
-                    #[doc = "A dummy extrinsic with programmatically set weight."]
-                    #[doc = ""]
-                    #[doc = "Used in tests to exhaust block resources."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `fraction`: the fraction of the `max_extrinsic` the extrinsic will use."]
-                    exhaust_block_resources {
-                        fraction: runtime_types::sp_arithmetic::per_things::Percent,
-                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -3355,47 +3345,8 @@ pub mod runtime_types {
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct DebugData {
-                    pub dispatch_queue: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                        runtime_types::gear_core::message::stored::StoredDispatch,
-                    >,
-                    pub programs: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                        runtime_types::pallet_gear_debug::pallet::ProgramDetails,
-                    >,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
                 pub enum Error {}
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "The `Event` enum of this pallet"]
-                pub enum Event {
-                    #[codec(index = 0)]
-                    DebugMode(::core::primitive::bool),
-                    #[codec(index = 1)]
-                    #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
-                    DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct ProgramDetails {
-                    pub id: runtime_types::gprimitives::ActorId,
-                    pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct ProgramInfo {
-                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
-                    pub persistent_pages: ::subxt::ext::subxt_core::utils::KeyedVec<
-                        runtime_types::gear_core::pages::Page,
-                        runtime_types::gear_core::memory::PageBuf,
-                    >,
-                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum ProgramState {
-                    #[codec(index = 0)]
-                    Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
-                    #[codec(index = 1)]
-                    Terminated,
-                }
             }
         }
         pub mod pallet_gear_eth_bridge {
@@ -10487,8 +10438,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
                 #[codec(index = 110)]
                 GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Event),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum RuntimeFreezeReason {
@@ -10734,7 +10683,6 @@ pub mod calls {
         Run,
         SetExecuteInherent,
         ClaimValueToInheritor,
-        ExhaustBlockResources,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -10749,7 +10697,6 @@ pub mod calls {
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
                 Self::ClaimValueToInheritor => "claim_value_to_inheritor",
-                Self::ExhaustBlockResources => "exhaust_block_resources",
             }
         }
     }
@@ -12312,8 +12259,5 @@ pub mod exports {
     }
     pub mod gear_eth_bridge {
         pub use super::runtime_types::pallet_gear_eth_bridge::pallet::Event;
-    }
-    pub mod gear_debug {
-        pub use super::runtime_types::pallet_gear_debug::pallet::Event;
     }
 }

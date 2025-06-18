@@ -1527,7 +1527,11 @@ mod runtime {
     pub type Sudo = pallet_sudo;
 
     // NOTE (!): `pallet_airdrop` used to be idx(198).
-    // NOTE (!): `pallet_gear_debug` used to be idx(199).
+
+    // Only available with "dev" feature on
+    // [DEPRECATED] Will be removed in the next release.
+    #[runtime::pallet_index(199)]
+    pub type GearDebug = pallet_gear_debug;
 }
 
 #[cfg(not(feature = "dev"))]

@@ -58,4 +58,8 @@ pub mod pallet {
     #[pallet::pallet]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
+
+    // GearSupport pallet error.
+    #[pallet::error]
+    pub enum Error<T> {}
 }
