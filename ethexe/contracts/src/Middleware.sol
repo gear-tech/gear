@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Gear} from "./libraries/Gear.sol";
@@ -45,6 +46,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     using EnumerableMap for EnumerableMap.AddressToAddressMap;
     using MapWithTimeData for EnumerableMap.AddressToAddressMap;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     using Subnetwork for address;
 
@@ -206,6 +208,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().operatorIdentifiers[operator];
     }
 
+    EnumerableSet.AddressSet private usedIdentifiers;
+
     // # Calls.
 
     function changeSlashRequester(address newRole) external {
@@ -238,15 +242,33 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.operators.append(msg.sender, 0);
     }
 
-    function registerIdentifier(address identifier) external {
+    modifier onlyOperator() {
+        require(_storage().operators.contains(msg.sender), "Operator not registered");
+        _;
+    }
+
+    function registerIdentifier(address identifier) external onlyOperator {
         Storage storage $ = _storage();
-        require($.operators.contains(msg.sender), "Operator not registered");
         require(identifier != address(0), "Invalid identifier");
+        require(!usedIdentifiers.contains(identifier), "Identifier already used");
+
+        address currentIdentifier = $.operatorIdentifiers[msg.sender];
+        if (currentIdentifier != address(0)) {
+            usedIdentifiers.remove(currentIdentifier);
+        }
+
         $.operatorIdentifiers[msg.sender] = identifier;
+        usedIdentifiers.add(identifier);
     }
 
     function disableOperator() external {
-        _storage().operators.disable(msg.sender);
+        Storage storage $ = _storage();
+        $.operators.disable(msg.sender);
+
+        address identifier = $.operatorIdentifiers[msg.sender];
+        if (identifier != address(0)) {
+            usedIdentifiers.remove(identifier);
+        }
     }
 
     function enableOperator() external {
@@ -260,6 +282,12 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         if (disabledTime == 0 || Time.timestamp() < disabledTime + $.operatorGracePeriod) {
             revert OperatorGracePeriodNotPassed();
+        }
+
+        address identifier = $.operatorIdentifiers[operator];
+        if (identifier != address(0)) {
+            usedIdentifiers.remove(identifier);
+            delete $.operatorIdentifiers[operator];
         }
 
         $.operators.remove(operator);
