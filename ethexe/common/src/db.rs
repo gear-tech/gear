@@ -23,7 +23,10 @@
 use crate::{
     events::BlockEvent, gear::StateTransition, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
 };
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::{
+    collections::{BTreeSet, VecDeque},
+    vec::Vec,
+};
 use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId},

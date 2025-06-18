@@ -334,7 +334,6 @@ impl Behaviour {
             request_response::Event::Message {
                 peer: _,
                 connection_id: _,
-                connection_id: _,
                 message:
                     Message::Response {
                         request_id,
@@ -490,7 +489,7 @@ mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::db::BlockMetaStorage;
+    use ethexe_common::{db::BlockMetaStorageWrite, StateHashWithQueueSize};
     use ethexe_db::MemDb;
     use libp2p::{
         core::{transport::MemoryTransport, upgrade::Version},
@@ -1157,7 +1156,14 @@ mod tests {
             .await;
         charlie_db.set_block_program_states(
             H256::zero(),
-            iter::zip(program_ids.clone(), iter::repeat_with(H256::random)).collect(),
+            iter::zip(
+                program_ids.clone(),
+                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
+                    hash,
+                    cached_queue_size: 0,
+                }),
+            )
+            .collect(),
         );
 
         let expected_response = Response::ProgramIds(iter::zip(program_ids, code_ids).collect());

@@ -22,11 +22,10 @@ use anyhow::{Context, Result};
 use ethexe_common::{
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
-    ProgramStates, StateHashWithQueueSize,
-    Address, BlockData,
+    Address, BlockData, ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -377,7 +376,7 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     code_ids: &BTreeSet<CodeId>,
-    program_states: ProgramStates,
+    program_states: BTreeMap<ActorId, H256>,
 ) -> ProgramStates {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
@@ -633,7 +632,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let program_states =
         collect_program_states(observer, finalized_block, &program_code_ids).await?;
 
-    sync_from_network(network, db, &code_ids, &program_states).await;
+    let program_states = sync_from_network(network, db, &code_ids, program_states).await;
 
     instrument_codes(compute, db, code_ids).await?;
 

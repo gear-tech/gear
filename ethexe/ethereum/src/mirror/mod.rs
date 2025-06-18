@@ -123,7 +123,7 @@ impl MirrorQuery {
             .block(BlockId::hash(block.0.into()))
             .call()
             .await
-            .map(|res| H256(*res._0))
+            .map(|res| H256(res.0))
             .map_err(Into::into)
     }
 

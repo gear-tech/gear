@@ -636,7 +636,7 @@ mod tests {
     use crate::{db_sync::ExternalDataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::{db::BlockMetaStorage, gear::CodeState};
+    use ethexe_common::{db::BlockMetaStorageWrite, gear::CodeState, StateHashWithQueueSize};
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
@@ -812,7 +812,14 @@ mod tests {
             .await;
         bob_db.set_block_program_states(
             H256::zero(),
-            iter::zip(program_ids.clone(), iter::repeat_with(H256::random)).collect(),
+            iter::zip(
+                program_ids.clone(),
+                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
+                    hash,
+                    cached_queue_size: 0,
+                }),
+            )
+            .collect(),
         );
 
         let expected_response =

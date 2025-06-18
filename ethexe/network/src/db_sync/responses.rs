@@ -23,7 +23,7 @@ use crate::{
     },
     export::PeerId,
 };
-use ethexe_common::db::{BlockMetaStorage, CodesStorage};
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite};
 use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};

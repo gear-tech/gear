@@ -327,7 +327,7 @@ impl RouterQuery {
             .codeState(code_id.into_bytes().into())
             .call()
             .await
-            .map(|res| res._0.into())
+            .map(|res| res.into())
             .map_err(Into::into)
     }
 
@@ -347,7 +347,7 @@ impl RouterQuery {
             .block(BlockId::hash(block.0.into()))
             .await
             // TODO: test case if code state does not exist
-            .map(|res| res._0.into_iter().map(CodeState::from).collect())
+            .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
 
@@ -389,7 +389,7 @@ impl RouterQuery {
             .block(BlockId::hash(block.0.into()))
             .await?;
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
-        let count: u64 = count._0.try_into().expect("infallible");
+        let count: u64 = count.try_into().expect("infallible");
         Ok(count)
     }
 
@@ -401,7 +401,7 @@ impl RouterQuery {
             .block(BlockId::hash(block.0.into()))
             .await?;
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
-        let count: u64 = count._0.try_into().expect("infallible");
+        let count: u64 = count.try_into().expect("infallible");
         Ok(count)
     }
 }
