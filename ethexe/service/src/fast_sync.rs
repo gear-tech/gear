@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Service;
+
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
 use ethexe_blob_loader::{BlobData, BlobLoaderEvent, BlobLoaderService};
