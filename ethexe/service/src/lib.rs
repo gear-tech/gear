@@ -47,8 +47,9 @@ use parity_scale_codec::{Decode, Encode};
 use std::pin::Pin;
 
 pub mod config;
-
 mod fast_sync;
+
+pub use fast_sync::{FastSyncEvent, FastSyncService, FastSyncServiceImpl};
 #[cfg(test)]
 mod tests;
 
@@ -61,6 +62,7 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
+    FastSync(FastSyncEvent),
 }
 
 /// ethexe service.
@@ -77,8 +79,7 @@ pub struct Service {
     network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcService>,
-
-    fast_sync: bool,
+    fast_sync: Option<Box<dyn FastSyncService>>,
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
@@ -105,7 +106,7 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
+        let (mut blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
             let storage = LocalBlobStorage::default();
             let blob_loader = LocalBlobLoader::new(db.clone(), storage.clone());
 
@@ -123,7 +124,7 @@ impl Service {
             (blob_loader.into_box(), None)
         };
 
-        let observer =
+        let mut observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
                 .context("failed to create observer service")?;
@@ -207,7 +208,7 @@ impl Service {
             None
         };
 
-        let network = if let Some(net_config) = &config.network {
+        let mut network = if let Some(net_config) = &config.network {
             Some(
                 NetworkService::new(net_config.clone(), &signer, db.clone())
                     .with_context(|| "failed to create network service")?,
@@ -223,9 +224,22 @@ impl Service {
 
         let tx_pool = TxPoolService::new(db.clone());
 
-        let compute = ComputeService::new(db.clone(), processor);
+        let mut compute = ComputeService::new(db.clone(), processor);
 
-        let fast_sync = config.node.fast_sync;
+        let fast_sync = if config.node.fast_sync {
+            let fast_sync_service = FastSyncServiceImpl::new(
+                &mut observer,
+                &mut blob_loader,
+                &mut compute,
+                &mut network,
+                &db,
+                #[cfg(test)]
+                &unreachable!(),
+            );
+            Some(Box::new(fast_sync_service) as Box<dyn FastSyncService>)
+        } else {
+            None
+        };
 
         #[allow(unreachable_code)]
         Ok(Self {
@@ -257,19 +271,34 @@ impl Service {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         db: Database,
-        observer: ObserverService,
-        blob_loader: Box<dyn BlobLoaderService>,
+        mut observer: ObserverService,
+        mut blob_loader: Box<dyn BlobLoaderService>,
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
         consensus: Pin<Box<dyn ConsensusService>>,
-        network: Option<NetworkService>,
+        mut network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
         sender: tests::utils::TestingEventSender,
-        fast_sync: bool,
+        enable_fast_sync: bool,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor);
+        let mut compute = ComputeService::new(db.clone(), processor);
+
+        let fast_sync = if enable_fast_sync {
+            let fast_sync_service = FastSyncServiceImpl::new(
+                &mut observer,
+                &mut blob_loader,
+                &mut compute,
+                &mut network,
+                &db,
+                #[cfg(test)]
+                &sender,
+            );
+            Some(Box::new(fast_sync_service) as Box<dyn FastSyncService>)
+        } else {
+            None
+        };
 
         Self {
             db,
@@ -282,14 +311,15 @@ impl Service {
             prometheus,
             rpc,
             tx_pool,
+            #[cfg(test)]
             sender,
             fast_sync,
         }
     }
 
     pub async fn run(mut self) -> Result<()> {
-        if self.fast_sync {
-            fast_sync::sync(&mut self).await?;
+        if let Some(ref mut fast_sync) = self.fast_sync {
+            fast_sync.start()?;
         }
 
         self.run_inner().await.inspect_err(|err| {
@@ -309,7 +339,7 @@ impl Service {
             tx_pool,
             mut prometheus,
             rpc,
-            fast_sync: _,
+            mut fast_sync,
             #[cfg(test)]
             sender,
         } = self;
@@ -341,6 +371,7 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
+                event = fast_sync.maybe_next_some() => event?.into(),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -520,6 +551,14 @@ impl Service {
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
+                    }
+                },
+                Event::FastSync(event) => match event {
+                    FastSyncEvent::Completed(block_hash) => {
+                        log::info!("Fast sync completed successfully for block: {block_hash}");
+                    }
+                    FastSyncEvent::Error(error) => {
+                        log::error!("Fast sync failed: {error}");
                     }
                 },
             }

@@ -40,10 +40,186 @@ use ethexe_runtime_common::{
     },
     ScheduleRestorer,
 };
-use futures::StreamExt;
+use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    pin::Pin,
+    task::{Context as TaskContext, Poll},
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FastSyncEvent {
+    Completed(H256),
+    Error(String),
+}
+
+pub trait FastSyncService:
+    Stream<Item = Result<FastSyncEvent>> + FusedStream + Unpin + Send + 'static
+{
+    fn start(&mut self) -> Result<()>;
+}
+
+enum FastSyncState {
+    Ready,
+    Running(BoxFuture<'static, Result<H256>>),
+    Completed,
+    Failed,
+}
+
+pub struct FastSyncServiceImpl {
+    state: FastSyncState,
+    observer: *mut ObserverService,
+    blob_loader: *mut Box<dyn BlobLoaderService>,
+    compute: *mut ComputeService,
+    network: *mut Option<NetworkService>,
+    db: *const Database,
+    #[cfg(test)]
+    sender: *const crate::tests::utils::TestingEventSender,
+}
+
+unsafe impl Send for FastSyncServiceImpl {}
+
+impl FastSyncServiceImpl {
+    pub fn new(
+        observer: &mut ObserverService,
+        blob_loader: &mut Box<dyn BlobLoaderService>,
+        compute: &mut ComputeService,
+        network: &mut Option<NetworkService>,
+        db: &Database,
+        #[cfg(test)] sender: &crate::tests::utils::TestingEventSender,
+    ) -> Self {
+        Self {
+            state: FastSyncState::Ready,
+            observer: observer as *mut _,
+            blob_loader: blob_loader as *mut _,
+            compute: compute as *mut _,
+            network: network as *mut _,
+            db: db as *const _,
+            #[cfg(test)]
+            sender: sender as *const _,
+        }
+    }
+}
+
+impl Stream for FastSyncServiceImpl {
+    type Item = Result<FastSyncEvent>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
+        match &mut self.state {
+            FastSyncState::Ready => Poll::Pending,
+            FastSyncState::Running(future) => match future.poll_unpin(cx) {
+                Poll::Ready(Ok(block_hash)) => {
+                    self.state = FastSyncState::Completed;
+                    Poll::Ready(Some(Ok(FastSyncEvent::Completed(block_hash))))
+                }
+                Poll::Ready(Err(e)) => {
+                    self.state = FastSyncState::Failed;
+                    Poll::Ready(Some(Ok(FastSyncEvent::Error(e.to_string()))))
+                }
+                Poll::Pending => Poll::Pending,
+            },
+            FastSyncState::Completed | FastSyncState::Failed => Poll::Ready(None),
+        }
+    }
+}
+
+impl FusedStream for FastSyncServiceImpl {
+    fn is_terminated(&self) -> bool {
+        matches!(self.state, FastSyncState::Completed | FastSyncState::Failed)
+    }
+}
+
+impl FastSyncService for FastSyncServiceImpl {
+    fn start(&mut self) -> Result<()> {
+        if !matches!(self.state, FastSyncState::Ready) {
+            return Err(anyhow!("Fast sync already started or completed"));
+        }
+
+        let observer = unsafe { &mut *self.observer };
+        let blob_loader = unsafe { &mut *self.blob_loader };
+        let compute = unsafe { &mut *self.compute };
+        let network = unsafe { &mut *self.network };
+        let db = unsafe { &*self.db };
+        #[cfg(test)]
+        let sender = unsafe { &*self.sender };
+
+        let future = async move {
+            let Some(network) = network else {
+                log::warn!("Network service is disabled. Skipping fast synchronization...");
+                return Err(anyhow!("Network service required for fast sync"));
+            };
+
+            log::info!("Fast synchronization is in progress...");
+
+            let finalized_block = sync_finalized_head(observer).await?;
+            let Some(EventData {
+                program_states,
+                program_code_ids,
+                needs_instrumentation_codes,
+                latest_committed_block,
+                previous_committed_block,
+            }) = EventData::collect(db, finalized_block).await?
+            else {
+                log::warn!("No any committed block found. Skipping fast synchronization...");
+                return Err(anyhow!("No committed block found"));
+            };
+
+            prepare_codes(
+                compute,
+                blob_loader,
+                finalized_block,
+                needs_instrumentation_codes,
+            )
+            .await?;
+
+            let latest_block_header = db
+                .block_header(latest_committed_block)
+                .expect("observer must fulfill database");
+
+            let program_states = sync_from_network(network, db, program_states).await;
+
+            let schedule =
+                ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?
+                    .restore();
+
+            for (program_id, code_id) in program_code_ids {
+                db.set_program_code_id(program_id, code_id);
+            }
+
+            db.set_block_commitment_queue(latest_committed_block, VecDeque::new());
+            db.set_block_codes_queue(latest_committed_block, VecDeque::new());
+
+            db.set_block_program_states(latest_committed_block, program_states);
+            db.set_block_schedule(latest_committed_block, schedule);
+            unsafe {
+                db.set_non_empty_block_outcome(latest_committed_block);
+            }
+            db.set_previous_not_empty_block(
+                latest_committed_block,
+                previous_committed_block.unwrap_or_else(H256::zero),
+            );
+            db.set_block_computed(latest_committed_block);
+            db.set_latest_computed_block(latest_committed_block, latest_block_header);
+
+            log::info!("Fast synchronization done");
+
+            #[cfg(test)]
+            sender
+                .send(crate::tests::utils::TestingEvent::FastSyncDone(
+                    latest_committed_block,
+                ))
+                .expect("failed to broadcast fast sync done event");
+
+            Ok(latest_committed_block)
+        }
+        .boxed();
+
+        self.state = FastSyncState::Running(future);
+        Ok(())
+    }
+}
 
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
@@ -573,82 +749,45 @@ async fn prepare_codes(
     Ok(())
 }
 
-pub(crate) async fn sync(service: &mut Service) -> Result<()> {
-    let Service {
-        observer,
-        blob_loader,
-        compute,
-        network,
-        db,
-        #[cfg(test)]
-        sender,
-        ..
-    } = service;
-    let Some(network) = network else {
-        log::warn!("Network service is disabled. Skipping fast synchronization...");
-        return Ok(());
-    };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::utils::env::TestEnv;
+    use futures::StreamExt;
 
-    log::info!("Fast synchronization is in progress...");
+    #[tokio::test]
+    async fn test_fast_sync_service_creation() {
+        let env = TestEnv::new().await;
+        let mut node = env.new_node().await;
 
-    let finalized_block = sync_finalized_head(observer).await?;
-    let Some(EventData {
-        program_states,
-        program_code_ids,
-        needs_instrumentation_codes,
-        latest_committed_block,
-        previous_committed_block,
-    }) = EventData::collect(db, finalized_block).await?
-    else {
-        log::warn!("No any committed block found. Skipping fast synchronization...");
-        return Ok(());
-    };
+        let service = &mut node.service;
 
-    prepare_codes(
-        compute,
-        blob_loader,
-        finalized_block,
-        needs_instrumentation_codes,
-    )
-    .await?;
-
-    let latest_block_header = db
-        .block_header(latest_committed_block)
-        .expect("observer must fulfill database");
-
-    let program_states = sync_from_network(network, db, program_states).await;
-
-    let schedule =
-        ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
-
-    for (program_id, code_id) in program_code_ids {
-        db.set_program_code_id(program_id, code_id);
+        if let Some(ref mut fast_sync) = service.fast_sync {
+            assert!(!fast_sync.is_terminated());
+        }
     }
 
-    // NOTE: there is no invariant that fast sync should recover queues
-    db.set_block_commitment_queue(latest_committed_block, VecDeque::new());
-    db.set_block_codes_queue(latest_committed_block, VecDeque::new());
+    #[tokio::test]
+    async fn test_fast_sync_service_without_network() {
+        let env = TestEnv::new().await;
+        let mut config = env.node_config(None, None);
+        config.fast_sync = true;
 
-    db.set_block_program_states(latest_committed_block, program_states);
-    db.set_block_schedule(latest_committed_block, schedule);
-    unsafe {
-        db.set_non_empty_block_outcome(latest_committed_block);
+        let mut node = env.new_node_with_config(config).await;
+        let service = &mut node.service;
+
+        if let Some(ref mut fast_sync) = service.fast_sync {
+            let result = fast_sync.start();
+            assert!(result.is_ok());
+
+            if let Some(event) = fast_sync.next().await {
+                match event.unwrap() {
+                    FastSyncEvent::Error(msg) => {
+                        assert!(msg.contains("Network service required"));
+                    }
+                    _ => panic!("Expected error event"),
+                }
+            }
+        }
     }
-    db.set_previous_not_empty_block(
-        latest_committed_block,
-        previous_committed_block.unwrap_or_else(H256::zero),
-    );
-    db.set_block_computed(latest_committed_block);
-    db.set_latest_computed_block(latest_committed_block, latest_block_header);
-
-    log::info!("Fast synchronization done");
-
-    #[cfg(test)]
-    sender
-        .send(crate::tests::utils::TestingEvent::FastSyncDone(
-            latest_committed_block,
-        ))
-        .expect("failed to broadcast fast sync done event");
-
-    Ok(())
 }
