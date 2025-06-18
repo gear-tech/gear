@@ -30,6 +30,7 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 log.workspace = true
 cargo_toml.workspace = true
 etc.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 demo-custom.workspace = true
