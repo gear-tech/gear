@@ -4958,9 +4958,14 @@ version = "1.8.1"
 dependencies = [
  "alloy",
  "anyhow",
+ "base64 0.21.7",
  "derive_more 2.0.1",
  "ethexe-common",
+ "nacl",
  "parity-scale-codec",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 

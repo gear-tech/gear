@@ -39,8 +39,8 @@ impl EncryptedKeyEntry {
         
         Ok(Self {
             encrypted_data: STANDARD.encode(&encrypted_data),
-            scrypt_params: STANDARD.encode(&scrypt_params.encode()),
-            nonce: STANDARD.encode(&nonce),
+            scrypt_params: STANDARD.encode(scrypt_params.encode()),
+            nonce: STANDARD.encode(nonce),
             public_key: public_key.to_hex(),
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
