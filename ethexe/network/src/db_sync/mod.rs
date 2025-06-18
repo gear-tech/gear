@@ -1044,7 +1044,7 @@ mod tests {
         // make request way heavier so there definitely will be a few simultaneous requests
         let request = Request::hashes(
             iter::from_fn(|| Some(H256::random()))
-                .take(16 * 1024)
+                .take(24 * 1024)
                 .collect::<BTreeSet<H256>>(),
         );
         bob.behaviour_mut().request(request.clone());
