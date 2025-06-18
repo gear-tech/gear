@@ -59,11 +59,11 @@ pub enum TestError {
     UnsupportedFunction(String),
 
     /// Wrapper for [`ExtError`].
-    #[error(transparent)]
+    #[error("Core execution error: `{0}`")]
     ExecutionError(#[from] ExtError),
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
-    #[error(transparent)]
+    #[error("Memory error: `{0}`")]
     MemoryError(#[from] gear_core_errors::MemoryError),
 
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
