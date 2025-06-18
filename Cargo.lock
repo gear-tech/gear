@@ -11269,7 +11269,6 @@ dependencies = [
  "gsys",
  "hex",
  "log",
- "mimalloc",
  "page_size",
  "pallet-authorship",
  "pallet-balances",

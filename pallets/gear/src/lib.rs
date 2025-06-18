@@ -37,11 +37,6 @@ mod schedule;
 pub mod manager;
 pub mod weights;
 
-// we have some tests copying a lot of memory
-#[cfg(test)]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
 #[cfg(test)]
 mod mock;
 

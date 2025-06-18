@@ -131,7 +131,6 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 pallet-gear-voucher = { workspace = true, features = ["std"] }
 rand.workspace = true
-mimalloc.workspace = true
 
 [features]
 default = ['std']
