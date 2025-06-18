@@ -219,7 +219,6 @@ impl From<u8> for CodeState {
             0 => Self::Unknown,
             1 => Self::ValidationRequested,
             2 => Self::Validated,
-            // FIXME: might be reachable actually
             _ => unreachable!(),
         }
     }

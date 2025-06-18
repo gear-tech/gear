@@ -337,7 +337,6 @@ impl RouterQuery {
             .call()
             .block(BlockId::hash(block.0.into()))
             .await
-            // TODO: test case if code state does not exist
             .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
@@ -370,5 +369,66 @@ impl RouterQuery {
             .await
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Ethereum;
+    use alloy::node_bindings::Anvil;
+    use ethexe_signer::Signer;
+    use roast_secp256k1_evm::frost;
+
+    #[tokio::test]
+    async fn inexistent_code_is_unknown() {
+        let anvil = Anvil::new().spawn();
+
+        let (shares, _pubkey_package) = frost::keys::generate_with_dealer(
+            5,
+            3,
+            frost::keys::IdentifierList::Default,
+            &mut rand::thread_rng(),
+        )
+        .unwrap();
+        let first_share = shares.values().next().unwrap();
+
+        let signer = Signer::memory();
+        let alice = signer
+            .storage_mut()
+            .add_key(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let ethereum = Ethereum::deploy(
+            anvil.endpoint_url().as_str(),
+            vec![],
+            signer,
+            alice.to_address(),
+            first_share.commitment().clone(),
+        )
+        .await
+        .unwrap();
+
+        let router =
+            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+
+        let latest_block = router
+            .instance
+            .provider()
+            .get_block(BlockId::latest())
+            .await
+            .expect("failed to get latest block")
+            .expect("latest block is None");
+        let latest_block = H256(latest_block.header.hash.0);
+
+        let states = router
+            .codes_states_at([CodeId::new([0xfe; 32])], latest_block)
+            .await
+            .unwrap();
+        assert_eq!(states, vec![CodeState::Unknown]);
     }
 }
