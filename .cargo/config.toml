@@ -1,6 +1,5 @@
 [env]
 GEAR_WORKSPACE_DIR = { value = "", relative = true }
-__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING = "1"
 
 [alias]
 gbuild = "run -p cargo-gbuild --"
