@@ -28,7 +28,7 @@ use crate::{
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableMemoryError,
     },
-    memory::{BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry},
+    memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
     runtime::MemoryCallerContext,
     state::HostState,
     BackendExternalities,
