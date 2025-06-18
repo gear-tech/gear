@@ -93,6 +93,14 @@ impl WasmBuilder {
     /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
     /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
+        println!("cargo:rerun-if-env-changed=__GEAR_WASM_BUILDER_NO_BUILD");
+        println!("cargo:rerun-if-env-changed=SKIP_WASM_BUILD");
+
+        // it means we are inside a runtime or demo build script
+        if env::var("CARGO_CFG_TARGET_ARCH").unwrap() == "wasm32" {
+            return None;
+        }
+
         if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok()
             || env::var("SKIP_WASM_BUILD").is_ok()
             || is_intellij_sync()
