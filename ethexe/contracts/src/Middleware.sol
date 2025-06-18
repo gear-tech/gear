@@ -202,9 +202,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().registries.operatorRegistry;
     }
 
-    function operatorPublicKeys(address operator) external view returns (uint256, uint256) {
-        Gear.AggregatedPublicKey memory key = _storage().operatorPublicKeys[operator];
-        return (key.x, key.y);
+    function operatorIdentifiers(address operator) external view returns (address) {
+        return _storage().operatorIdentifiers[operator];
     }
 
     // # Calls.
@@ -239,11 +238,11 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.operators.append(msg.sender, 0);
     }
 
-    function registerPublicKey(Gear.AggregatedPublicKey calldata publicKey) external {
+    function registerIdentifier(address identifier) external {
         Storage storage $ = _storage();
         require($.operators.contains(msg.sender), "Operator not registered");
-        require(FROST.isValidPublicKey(publicKey.x, publicKey.y), "Invalid public key");
-        $.operatorPublicKeys[msg.sender] = publicKey;
+        require(identifier != address(0), "Invalid identifier");
+        $.operatorIdentifiers[msg.sender] = identifier;
     }
 
     function disableOperator() external {

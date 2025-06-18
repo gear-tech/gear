@@ -114,7 +114,7 @@ interface IMiddleware {
         Gear.SymbioticRegistries registries;
         EnumerableMap.AddressToUintMap operators;
         EnumerableMap.AddressToUintMap vaults;
-        mapping(address => Gear.AggregatedPublicKey) operatorPublicKeys;
+        mapping(address => address) operatorIdentifiers;
     }
 
     struct VaultSlashData {
@@ -151,7 +151,7 @@ interface IMiddleware {
     function roleSlashRequester() external view returns (address);
     function roleSlashExecutor() external view returns (address);
     function operatorRegistry() external view returns (address);
-    function operatorPublicKeys(address operator) external view returns (uint256, uint256);
+    function operatorIdentifiers(address operator) external view returns (address);
 
     // # Calls.
     function changeSlashRequester(address newRole) external;
@@ -185,7 +185,7 @@ interface IMiddleware {
 
     /// @notice Registers a public key for an operator
     /// @param publicKey The aggregated public key to register
-    function registerPublicKey(Gear.AggregatedPublicKey calldata publicKey) external;
+    function registerIdentifier(address publicKey) external;
 
     /* Vaults managing */
 
