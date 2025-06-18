@@ -334,6 +334,7 @@ impl Behaviour {
             request_response::Event::Message {
                 peer: _,
                 connection_id: _,
+                connection_id: _,
                 message:
                     Message::Response {
                         request_id,

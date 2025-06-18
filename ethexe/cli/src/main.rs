@@ -20,9 +20,8 @@ use anyhow::Result;
 use clap::Parser;
 use ethexe_cli::Cli;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    cli.run().await
+    cli.run()
 }

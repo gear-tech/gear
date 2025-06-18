@@ -20,9 +20,12 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
+        OnChainStorageRead,
+    },
     events::{BlockEvent, RouterEvent},
-    gear::CodeCommitment,
+    ProgramStates, StateHashWithQueueSize,
     Address, BlockData,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -374,14 +377,16 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     code_ids: &BTreeSet<CodeId>,
-    program_states: &BTreeMap<ActorId, H256>,
-) {
+    program_states: ProgramStates,
+) -> ProgramStates {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
         PayloadLookup::Stored(hash) => {
             manager.add(hash.hash(), RequestMetadata::Data);
         }
     };
+
+    let mut restored_cached_queue_sizes = BTreeMap::new();
 
     let mut manager = RequestManager::default();
 
@@ -409,13 +414,17 @@ async fn sync_from_network(
 
                     let ProgramState {
                         program,
-                        queue_hash,
+                        queue,
                         waitlist_hash,
                         stash_hash,
                         mailbox_hash,
                         balance: _,
                         executable_balance: _,
                     } = &state;
+
+                    // Save restored cached queue sizes
+                    let program_state_hash = ethexe_db::hash(&data);
+                    restored_cached_queue_sizes.insert(program_state_hash, queue.cached_queue_size);
 
                     if let Program::Active(ActiveProgram {
                         allocations_hash,
@@ -432,7 +441,7 @@ async fn sync_from_network(
                         }
                     }
 
-                    if let Some(queue_hash) = queue_hash.hash() {
+                    if let Some(queue_hash) = queue.hash.hash() {
                         manager.add(queue_hash, RequestMetadata::MessageQueue);
                     }
                     if let Some(waitlist_hash) = waitlist_hash.hash() {
@@ -518,6 +527,23 @@ async fn sync_from_network(
     }
 
     log::info!("Network data getting is done");
+
+    // Enrich program states with cached queue size
+    program_states
+        .into_iter()
+        .map(|(program_id, hash)| {
+            let cached_queue_size = *restored_cached_queue_sizes
+                .get(&hash)
+                .expect("program state cached queue size must be restored");
+            (
+                program_id,
+                StateHashWithQueueSize {
+                    hash,
+                    cached_queue_size,
+                },
+            )
+        })
+        .collect()
 }
 
 async fn instrument_codes(
@@ -545,8 +571,7 @@ async fn instrument_codes(
     }
 
     while let Some(event) = compute.next().await {
-        if let ComputeEvent::CodeProcessed(CodeCommitment { id, timestamp, .. }) = event? {
-            debug_assert_eq!(timestamp, TIMESTAMP);
+        if let ComputeEvent::CodeProcessed(id) = event? {
             code_ids.remove(&id);
             if code_ids.is_empty() {
                 break;

@@ -50,7 +50,8 @@ use ethexe_processor::Processor;
 use ethexe_rpc::{test_utils::RpcClient, RpcConfig, RpcService};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
-use futures::{executor::block_on, StreamExt};
+use futures::StreamExt;
+use gear_core::ids::prelude::CodeIdExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use rand::{prelude::StdRng, SeedableRng};
@@ -210,7 +211,7 @@ impl TestEnv {
             .await
             .unwrap();
 
-        let blobs_storage = LocalBlobStorage::new(db.clone());
+        let blobs_storage = LocalBlobStorage::default();
 
         let provider = observer.provider().clone();
 
@@ -265,7 +266,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(config_path);
@@ -349,7 +350,6 @@ impl TestEnv {
             })
             .unzip();
 
-        self.blobs_storage.change_db(db.clone());
         Node {
             name,
             db,
@@ -376,14 +376,16 @@ impl TestEnv {
 
         let listener = self.observer_events_publisher().subscribe().await;
 
-        let pending_builder = block_on(
-            self.ethereum
-                .router()
-                .request_code_validation_with_sidecar(code),
-        )?;
-
-        let code_id = pending_builder.code_id();
+        // Lock the blob reader to lock any other threads that may use it
+        let code_id = CodeId::generate(code);
         self.blobs_storage.add_code(code_id, code.to_vec()).await;
+
+        let pending_builder = self
+            .ethereum
+            .router()
+            .request_code_validation_with_sidecar(code)
+            .await?;
+        assert_eq!(pending_builder.code_id(), code_id);
 
         Ok(WaitForUploadCode { listener, code_id })
     }
@@ -792,7 +794,7 @@ impl Node {
         let wait_for_network = self.network_bootstrap_address.is_some();
 
         let network = self.network_address.as_ref().map(|addr| {
-            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = addr.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(config_path);
@@ -840,7 +842,8 @@ impl Node {
             .await
             .unwrap();
 
-        let blob_loader = LocalBlobLoader::from_storage(self.blob_storage.clone()).into_box();
+        let blob_loader =
+            LocalBlobLoader::new(self.db.clone(), self.blob_storage.clone()).into_box();
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 

@@ -9,18 +9,16 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ethexe-db.workspace = true
 gear-core.workspace = true
 ethexe-common.workspace = true
 gprimitives.workspace = true
 
 alloy.workspace = true
-anyhow.workspace = true
+thiserror.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
 futures.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
-
 
 [lints]
 workspace = true
