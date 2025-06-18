@@ -1530,6 +1530,7 @@ mod runtime {
     // NOTE (!): `pallet_airdrop` used to be idx(198).
 
     // Only available with "dev" feature on
+    // [DEPRECATED] Will be removed in the next release.
     #[runtime::pallet_index(199)]
     pub type GearDebug = pallet_gear_debug;
 }
