@@ -5,6 +5,7 @@ import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
 
 import {IMiddleware} from "./IMiddleware.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
@@ -201,6 +202,11 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().registries.operatorRegistry;
     }
 
+    function operatorPublicKeys(address operator) external view returns (uint256, uint256) {
+        Gear.AggregatedPublicKey memory key = _storage().operatorPublicKeys[operator];
+        return (key.x, key.y);
+    }
+
     // # Calls.
 
     function changeSlashRequester(address newRole) external {
@@ -231,6 +237,13 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         }
 
         $.operators.append(msg.sender, 0);
+    }
+
+    function registerPublicKey(Gear.AggregatedPublicKey calldata publicKey) external {
+        Storage storage $ = _storage();
+        require($.operators.contains(msg.sender), "Operator not registered");
+        require(FROST.isValidPublicKey(publicKey.x, publicKey.y), "Invalid public key");
+        $.operatorPublicKeys[msg.sender] = publicKey;
     }
 
     function disableOperator() external {

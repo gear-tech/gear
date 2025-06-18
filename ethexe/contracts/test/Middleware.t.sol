@@ -7,6 +7,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 
 import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
@@ -27,13 +28,16 @@ import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
+import {Gear} from "../src/libraries/Gear.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 import {Base} from "./Base.t.sol";
 
 contract MiddlewareTest is Base {
     using MessageHashUtils for address;
+    using FROSTOffchain for SigningKey;
 
+    SigningKey signingKey;
     POCBaseTest private sym;
 
     function setUp() public override {
@@ -171,11 +175,62 @@ contract MiddlewareTest is Base {
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
+    }
+
+    function test_registerPublicKey() public {
+        address operator = address(0x1);
+
+        // Register operator first
+        vm.startPrank(operator);
+        sym.operatorRegistry().registerOperator();
+        sym.operatorNetworkOptInService().optIn(address(middleware));
+        middleware.registerOperator();
+        vm.stopPrank();
+
+        // Generate valid public key using FROSTOffchain
+        signingKey = FROSTOffchain.newSigningKey();
+        // Additional debug checks
+        require(signingKey.asScalar() != 0, "Invalid signing key generated");
+        Vm.Wallet memory wallet = vm.createWallet(signingKey.asScalar());
+
+        // Test successful public key registration
+        vm.startPrank(operator);
+        middleware.registerPublicKey(Gear.AggregatedPublicKey(wallet.publicKeyX, wallet.publicKeyY));
+        vm.stopPrank();
+
+        // Verify key was stored
+        (uint256 storedX, uint256 storedY) = middleware.operatorPublicKeys(operator);
+        assertEq(storedX, wallet.publicKeyX);
+        assertEq(storedY, wallet.publicKeyY);
+
+        // Test unregistered operator
+        address unregistered = address(0x2);
+        vm.startPrank(unregistered);
+        vm.expectRevert("Operator not registered");
+        middleware.registerPublicKey(Gear.AggregatedPublicKey(wallet.publicKeyX, wallet.publicKeyY));
+        vm.stopPrank();
+
+        // Test invalid public key
+        vm.startPrank(operator);
+        vm.expectRevert("Invalid public key");
+        middleware.registerPublicKey(Gear.AggregatedPublicKey(0, 0));
+        vm.stopPrank();
+
+        // Register operator 0x2 in Middleware
+        vm.startPrank(address(0x2));
+        {
+            sym.operatorRegistry().registerOperator();
+            sym.operatorNetworkOptInService().optIn(address(middleware));
+            middleware.registerOperator();
+            middleware.disableOperator();
+        }
+        vm.stopPrank();
 
         // Wait for grace period and unregister operator from other address
         vm.startPrank(address(0x3));
         {
-            vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
+            uint48 gracePeriod = middleware.operatorGracePeriod();
+            vm.warp(vm.getBlockTimestamp() + gracePeriod + 1);
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
