@@ -127,7 +127,8 @@ impl KeyStorage for FSKeyStorage {
         for entry in fs::read_dir(&self.path)? {
             let entry = entry?;
             let file_name = entry.file_name();
-            let key = PublicKey::from_str(file_name.to_string_lossy().as_ref())?;
+            let key = PublicKey::from_str(file_name.to_string_lossy().as_ref())
+                .map_err(|e| anyhow!("Failed to parse public key from filename: {e}"))?;
             keys.push(key);
         }
 

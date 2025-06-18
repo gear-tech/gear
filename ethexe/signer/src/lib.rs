@@ -25,8 +25,12 @@
 //! using [k256](https://crates.io/crates/k256) crate, but all the
 //! machinery used is wrapped in the crate's types.
 
+mod encrypted_storage;
+mod scrypt;
 mod signer;
 mod storage;
 
+pub use encrypted_storage::EncryptedFSKeyStorage;
+pub use scrypt::ScryptParams;
 pub use signer::Signer;
 pub use storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
