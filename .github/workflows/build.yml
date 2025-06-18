@@ -149,15 +149,15 @@ jobs:
       production: ${{ inputs.production }}
 
   windows:
-    needs: [dynamic-matrix, node]
-    if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.windows) }}
+    needs: [dynamic-matrix, node, linux]
+    if: ${{ inputs.windows }}
     uses: ./.github/workflows/build-windows.yml
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
 
   macos:
     needs: [dynamic-matrix, node, linux]
-    if: ${{ !cancelled() && inputs.macos }}
+    if: ${{ inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
