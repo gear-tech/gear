@@ -11,7 +11,7 @@ pub struct ScryptParams {
 
 impl ScryptParams {
     pub const ENCODED_LENGTH: usize = 44;
-    
+
     const SALT_LENGTH: usize = 32;
 
     pub fn new() -> Self {
@@ -74,7 +74,7 @@ impl ScryptParams {
             &|_: u32| {},
         )
         .map_err(|e| anyhow!("Scrypt key derivation failed: {e:?}"))?;
-        
+
         key.copy_from_slice(&output[..32]);
         Ok(key)
     }
