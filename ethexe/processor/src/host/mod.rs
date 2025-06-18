@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Database;
-use anyhow::{anyhow, Result};
+use crate::{Database, ProcessorError, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
 use ethexe_runtime_common::{unpack_i64_to_u32, ProgramJournals};
@@ -201,7 +200,7 @@ impl InstanceWrapper {
         })?;
 
         sp_wasm_interface::util::write_memory_from(&mut self.store, ptr, bytes)
-            .map_err(|e| anyhow!("failed to write call input: {e}"))?;
+            .map_err(ProcessorError::CallInputWrite)?;
 
         let ptr = ptr.into_value().as_i32().expect("must be i32");
 
@@ -237,7 +236,7 @@ impl InstanceWrapper {
             .data_mut()
             .host_state
             .take()
-            .ok_or_else(|| anyhow!("host state should be set before call and reset after"))?;
+            .ok_or(ProcessorError::HostStateNotSet)?;
 
         Ok(host_state.allocation_stats())
     }
@@ -251,7 +250,7 @@ impl InstanceWrapper {
             .host_state
             .as_mut()
             .and_then(|s| s.allocator.take())
-            .ok_or_else(|| anyhow!("allocator should be set after `set_host_state`"))?;
+            .ok_or(ProcessorError::AllocatorNotSet)?;
 
         let res = f(self, &mut allocator);
 
@@ -268,11 +267,11 @@ impl InstanceWrapper {
         let memory_export = self
             .instance
             .get_export(&mut self.store, "memory")
-            .ok_or_else(|| anyhow!("couldn't find `memory` export"))?;
+            .ok_or(ProcessorError::MemoryExportNotFound)?;
 
         let memory = memory_export
             .into_memory()
-            .ok_or_else(|| anyhow!("`memory` is not memory"))?;
+            .ok_or(ProcessorError::InvalidMemory)?;
 
         Ok(memory)
     }
@@ -281,11 +280,11 @@ impl InstanceWrapper {
         let table_export = self
             .instance
             .get_export(&mut self.store, "__indirect_function_table")
-            .ok_or_else(|| anyhow!("couldn't find `__indirect_function_table` export"))?;
+            .ok_or(ProcessorError::IndirectFunctionTableNotFound)?;
 
         let table = table_export
             .into_table()
-            .ok_or_else(|| anyhow!("`__indirect_function_table` is not table"))?;
+            .ok_or(ProcessorError::InvalidIndirectFunctionTable)?;
 
         Ok(table)
     }
@@ -294,16 +293,16 @@ impl InstanceWrapper {
         let heap_base_export = self
             .instance
             .get_export(&mut self.store, "__heap_base")
-            .ok_or_else(|| anyhow!("couldn't find `__heap_base` export"))?;
+            .ok_or(ProcessorError::HeapBaseNotFound)?;
 
         let heap_base_global = heap_base_export
             .into_global()
-            .ok_or_else(|| anyhow!("`__heap_base` is not global"))?;
+            .ok_or(ProcessorError::HeapBaseIsNotGlobal)?;
 
         let heap_base = heap_base_global
             .get(&mut self.store)
             .i32()
-            .ok_or_else(|| anyhow!("`__heap_base` is not i32"))?;
+            .ok_or(ProcessorError::HeapBaseIsNoti32)?;
 
         Ok(heap_base as u32)
     }
