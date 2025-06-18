@@ -73,11 +73,11 @@ impl ToDigest for BlockCommitment {
             transitions,
         } = self;
 
-        hasher.update(hash.as_bytes());
-        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
-        hasher.update(previous_committed_block.as_bytes());
-        hasher.update(predecessor_block.as_bytes());
-        hasher.update(transitions.to_digest().as_ref());
+        hasher.update(hash);
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+        hasher.update(previous_committed_block);
+        hasher.update(predecessor_block);
+        hasher.update(transitions.to_digest());
     }
 }
 
@@ -98,8 +98,8 @@ impl ToDigest for CodeCommitment {
             valid,
         } = self;
 
-        hasher.update(id.into_bytes().as_slice());
-        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp).as_slice());
+        hasher.update(id.into_bytes());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
         hasher.update([*valid as u8]);
     }
 }
@@ -169,8 +169,8 @@ impl ToDigest for RewardsCommitment {
             timestamp,
         } = self;
 
-        hasher.update(operators.to_digest().as_ref());
-        hasher.update(stakers.to_digest().as_ref());
+        hasher.update(operators.to_digest());
+        hasher.update(stakers.to_digest());
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
     }
 }
@@ -234,6 +234,7 @@ pub struct Message {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: Option<ReplyDetails>,
+    pub call: bool,
 }
 
 impl ToDigest for Message {
@@ -245,21 +246,23 @@ impl ToDigest for Message {
             payload,
             value,
             reply_details,
+            call,
         } = self;
 
         let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
 
-        hasher.update(id.as_ref());
-        hasher.update(destination.to_address_lossy().as_bytes());
-        hasher.update(payload.as_slice());
-        hasher.update(value.to_be_bytes().as_slice());
-        hasher.update(reply_details_to.as_ref());
-        hasher.update(reply_details_code.to_bytes().as_slice());
+        hasher.update(id);
+        hasher.update(destination.to_address_lossy());
+        hasher.update(payload);
+        hasher.update(value.to_be_bytes());
+        hasher.update(reply_details_to);
+        hasher.update(reply_details_code.to_bytes());
+        hasher.update([*call as u8]);
     }
 }
 
-impl From<StoredMessage> for Message {
-    fn from(value: StoredMessage) -> Self {
+impl Message {
+    pub fn from_stored(value: StoredMessage, call: bool) -> Self {
         let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
             id,
@@ -267,6 +270,7 @@ impl From<StoredMessage> for Message {
             payload: payload.into_vec(),
             value,
             reply_details: details.and_then(|v| v.to_reply_details()),
+            call,
         }
     }
 }
@@ -284,6 +288,7 @@ pub struct ProtocolData {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub exited: bool,
     pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
@@ -296,18 +301,20 @@ impl ToDigest for StateTransition {
         let Self {
             actor_id,
             new_state_hash,
+            exited,
             inheritor,
             value_to_receive,
             value_claims,
             messages,
         } = self;
 
-        hasher.update(actor_id.to_address_lossy().as_bytes());
-        hasher.update(new_state_hash.as_bytes());
-        hasher.update(inheritor.to_address_lossy().as_bytes());
-        hasher.update(value_to_receive.to_be_bytes().as_slice());
-        hasher.update(value_claims.to_digest().as_ref());
-        hasher.update(messages.to_digest().as_ref());
+        hasher.update(actor_id.to_address_lossy());
+        hasher.update(new_state_hash);
+        hasher.update([*exited as u8]);
+        hasher.update(inheritor.to_address_lossy());
+        hasher.update(value_to_receive.to_be_bytes());
+        hasher.update(value_claims.to_digest());
+        hasher.update(messages.to_digest());
     }
 }
 
@@ -335,9 +342,9 @@ impl ToDigest for [ValueClaim] {
                  destination,
                  value,
              }| {
-                hasher.update(message_id.as_ref());
-                hasher.update(destination.to_address_lossy().as_bytes());
-                hasher.update(value.to_be_bytes().as_slice());
+                hasher.update(message_id);
+                hasher.update(destination.to_address_lossy());
+                hasher.update(value.to_be_bytes());
             },
         )
     }

@@ -36,10 +36,11 @@ unsafe extern "system" fn exception_handler<H>(exception_info: *mut EXCEPTION_PO
 where
     H: UserSignalHandler,
 {
-    let exception_record = (*exception_info).ExceptionRecord;
+    let exception_record = unsafe { (*exception_info).ExceptionRecord };
 
-    let is_access_violation = (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION;
-    let num_params = (*exception_record).NumberParameters;
+    let is_access_violation =
+        unsafe { (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION };
+    let num_params = unsafe { (*exception_record).NumberParameters };
     if !is_access_violation || num_params != 2 {
         log::trace!(
             "Skip exception in handler: is access violation: {}, parameters: {}",
@@ -49,8 +50,8 @@ where
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
-    let addr = (*exception_record).ExceptionInformation[1];
-    let is_write = match (*exception_record).ExceptionInformation[0] {
+    let addr = unsafe { (*exception_record).ExceptionInformation[1] };
+    let is_write = match unsafe { (*exception_record).ExceptionInformation[0] } {
         0 /* read */ => Some(false),
         1 /* write */ => Some(true),
         // we work with WASM memory which is handled by WASM executor
@@ -70,11 +71,11 @@ where
         is_write,
     };
 
-    if let Err(err) = H::handle(info) {
+    if let Err(err) = unsafe { H::handle(info) } {
         if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet = err {
             return EXCEPTION_CONTINUE_SEARCH;
         } else {
-            panic!("Signal handler failed: {}", err);
+            panic!("Signal handler failed: {err}");
         }
     }
 
@@ -91,7 +92,8 @@ where
 {
     const CALL_FIRST: bool = true;
 
-    let handle = AddVectoredExceptionHandler(CALL_FIRST as _, Some(exception_handler::<H>));
+    let handle =
+        unsafe { AddVectoredExceptionHandler(CALL_FIRST as _, Some(exception_handler::<H>)) };
     if handle.is_null() {
         Err(io::Error::last_os_error())
     } else {

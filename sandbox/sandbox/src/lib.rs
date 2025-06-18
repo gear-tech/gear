@@ -36,7 +36,6 @@
 //! - implementing program runtimes that use Wasm for contract code
 //! - executing a wasm substrate runtime inside of a wasm parachain
 
-#![warn(missing_docs)]
 #![allow(clippy::needless_borrows_for_generic_args)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -63,9 +62,6 @@ use alloc::string::String;
 use sp_core::RuntimeDebug;
 use sp_std::prelude::*;
 use sp_wasm_interface_common::HostPointer;
-
-/// The target used for logging.
-const TARGET: &str = "runtime::sandbox";
 
 /// Error that can occur while using this crate.
 #[derive(RuntimeDebug)]

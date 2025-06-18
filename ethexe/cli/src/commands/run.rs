@@ -16,12 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::MergeParams;
-use crate::Params;
 use anyhow::{anyhow, Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
+
+use crate::{params::MergeParams, Params};
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -44,7 +45,7 @@ impl RunCommand {
     }
 
     /// Run the ethexe service (node).
-    pub async fn run(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
 
         tracing_subscriber::fmt()
@@ -65,16 +66,34 @@ impl RunCommand {
 
         config.log_info();
 
-        let service = Service::new(&config)
-            .await
-            .with_context(|| "failed to create ethexe primary service")?;
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
 
-        tokio::select! {
-            res = service.run() => res,
-            _ = tokio::signal::ctrl_c() => {
-                log::info!("Received SIGINT, shutting down");
-                Ok(())
-            }
+        if let Some(worker_threads) = config.node.worker_threads {
+            builder.worker_threads(worker_threads);
         }
+
+        if let Some(blocking_threads) = config.node.blocking_threads {
+            builder.max_blocking_threads(blocking_threads);
+        }
+
+        builder
+            // 30 seconds should be enough to keep blocking threads alive between block processing
+            .thread_keep_alive(Duration::from_secs(30))
+            .enable_all()
+            .build()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let service = Service::new(&config)
+                    .await
+                    .with_context(|| "failed to create ethexe primary service")?;
+
+                tokio::select! {
+                    res = service.run() => res,
+                    _ = tokio::signal::ctrl_c() => {
+                        log::info!("Received SIGINT, shutting down");
+                        Ok(())
+                    }
+                }
+            })
     }
 }
