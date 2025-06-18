@@ -198,7 +198,7 @@ wasmparser = { version = "0.230", default-features = false, features = ["validat
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
-tempfile = "3.20"
+tempfile = "3.19"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bls12-381 = { version = "0.4.0", default-features = false }
 ark-serialize = { version = "0.4", default-features = false }
