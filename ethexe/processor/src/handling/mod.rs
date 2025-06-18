@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Processor;
-use anyhow::{anyhow, Result};
+use crate::{Processor, ProcessorError, Result};
 use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -56,18 +55,16 @@ impl Processor {
         let header = self
             .db
             .block_header(block_hash)
-            .ok_or_else(|| anyhow!("failed to get block header for under-processing block"))?;
+            .ok_or(ProcessorError::BlockHeaderNotFound(block_hash))?;
 
-        let states = self
+        let states = self.db.block_program_states(header.parent_hash).ok_or(
+            ProcessorError::BlockProgramStatesNotFound(header.parent_hash),
+        )?;
+
+        let schedule = self
             .db
-            .block_program_states(header.parent_hash)
-            .ok_or_else(|| {
-                anyhow!("failed to get block start program states for under-processing block")
-            })?;
-
-        let schedule = self.db.block_schedule(header.parent_hash).ok_or_else(|| {
-            anyhow!("failed to get block start schedule for under-processing block")
-        })?;
+            .block_schedule(header.parent_hash)
+            .ok_or(ProcessorError::BlockScheduleNotFound(header.parent_hash))?;
 
         let transitions = InBlockTransitions::new(header, states, schedule);
 
