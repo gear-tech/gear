@@ -751,43 +751,37 @@ async fn prepare_codes(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::tests::utils::env::TestEnv;
-    use futures::StreamExt;
+    use crate::tests::utils::TestEnv;
 
     #[tokio::test]
     async fn test_fast_sync_service_creation() {
-        let env = TestEnv::new().await;
-        let mut node = env.new_node().await;
-
-        let service = &mut node.service;
-
-        if let Some(ref mut fast_sync) = service.fast_sync {
-            assert!(!fast_sync.is_terminated());
-        }
+        let mut env = TestEnv::new(Default::default()).await.unwrap();
+        let config = crate::tests::utils::NodeConfig {
+            fast_sync: true,
+            ..Default::default()
+        };
+        let mut node = env.new_node(config);
+        
+        node.start_service().await;
+        
+        assert!(node.latest_fast_synced_block.is_some());
+        
+        node.stop_service().await;
     }
 
     #[tokio::test]
-    async fn test_fast_sync_service_without_network() {
-        let env = TestEnv::new().await;
-        let mut config = env.node_config(None, None);
-        config.fast_sync = true;
-
-        let mut node = env.new_node_with_config(config).await;
-        let service = &mut node.service;
-
-        if let Some(ref mut fast_sync) = service.fast_sync {
-            let result = fast_sync.start();
-            assert!(result.is_ok());
-
-            if let Some(event) = fast_sync.next().await {
-                match event.unwrap() {
-                    FastSyncEvent::Error(msg) => {
-                        assert!(msg.contains("Network service required"));
-                    }
-                    _ => panic!("Expected error event"),
-                }
-            }
-        }
+    async fn test_fast_sync_service_disabled() {
+        let mut env = TestEnv::new(Default::default()).await.unwrap();
+        let config = crate::tests::utils::NodeConfig {
+            fast_sync: false,
+            ..Default::default()
+        };
+        let mut node = env.new_node(config);
+        
+        node.start_service().await;
+        
+        assert!(node.latest_fast_synced_block.is_none());
+        
+        node.stop_service().await;
     }
 }

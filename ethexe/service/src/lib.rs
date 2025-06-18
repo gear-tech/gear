@@ -234,7 +234,10 @@ impl Service {
                 &mut network,
                 &db,
                 #[cfg(test)]
-                &unreachable!(),
+                &{
+                    let (sender, _) = tokio::sync::broadcast::channel(1000);
+                    sender
+                },
             );
             Some(Box::new(fast_sync_service) as Box<dyn FastSyncService>)
         } else {
@@ -255,7 +258,10 @@ impl Service {
             tx_pool,
             fast_sync,
             #[cfg(test)]
-            sender: unreachable!(),
+            sender: {
+                let (sender, _) = tokio::sync::broadcast::channel(1000);
+                sender
+            },
         })
     }
 
