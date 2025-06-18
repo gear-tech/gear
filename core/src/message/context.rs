@@ -115,16 +115,18 @@ impl ContextOutcome {
 
     /// Destructs outcome after execution and returns provided dispatches and awaken message ids.
     pub fn drain(self) -> ContextOutcomeDrain {
-        let mut dispatches = Vec::new();
         let reply_sent = self.reply.is_some();
 
-        for (msg, delay, reservation) in self.init.into_iter() {
-            dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
-        }
-
-        for (msg, delay, reservation) in self.handle.into_iter() {
-            dispatches.push((msg.into_dispatch(self.program_id), delay, reservation));
-        }
+        let mut dispatches: Vec<_> = self
+            .init
+            .into_iter()
+            .map(|(msg, delay, reservation)| {
+                (msg.into_dispatch(self.program_id), delay, reservation)
+            })
+            .chain(self.handle.into_iter().map(|(msg, delay, reservation)| {
+                (msg.into_dispatch(self.program_id), delay, reservation)
+            }))
+            .collect();
 
         if let Some((msg, reservation)) = self.reply {
             dispatches.push((

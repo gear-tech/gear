@@ -291,7 +291,7 @@ where
         let code = program.build().serialize().unwrap();
         let hash = CodeId::generate(&code);
         Self {
-            code: code.to_vec(),
+            code,
             hash,
             memory: def.memory,
             _data: PhantomData,
