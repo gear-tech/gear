@@ -434,6 +434,11 @@ fn bridge_queues_governance_messages_when_over_capacity() {
     new_test_ext().execute_with(|| {
         run_to_block(WHEN_INITIALIZED);
 
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
+
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         let queue_capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
@@ -450,7 +455,8 @@ fn bridge_queues_governance_messages_when_over_capacity() {
         assert_eq!(msg_queue_len, queue_capacity as usize);
 
         GearEthBridge::send_eth_message(
-            RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
+            //RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
+            RuntimeOrigin::signed(<Test as crate::Config>::BridgePauser::get()),
             H160::zero(),
             vec![],
         )
