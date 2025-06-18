@@ -633,15 +633,17 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db_sync::ExternalDataProvider, utils::tests::init_logger};
+    use crate::{
+        db_sync::{tests::fill_data_provider, ExternalDataProvider},
+        utils::tests::init_logger,
+    };
     use async_trait::async_trait;
-    use ethexe_common::{db::BlockMetaStorageWrite, gear::CodeState, StateHashWithQueueSize};
+    use ethexe_common::gear::CodeState;
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
     use std::{
         collections::{BTreeSet, HashMap},
-        iter,
         sync::Arc,
     };
     use tokio::{
@@ -804,25 +806,7 @@ mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
-        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
-        alice_data_provider
-            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
-            .await;
-        bob_db.set_block_program_states(
-            H256::zero(),
-            iter::zip(
-                program_ids.clone(),
-                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
-                    hash,
-                    cached_queue_size: 0,
-                }),
-            )
-            .collect(),
-        );
-
-        let expected_response =
-            db_sync::Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
+        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
 
         let request_id = alice
             .db_sync()

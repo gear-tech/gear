@@ -485,7 +485,7 @@ impl NetworkBehaviour for Behaviour {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
@@ -1165,24 +1165,7 @@ mod tests {
         let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
-        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
-        alice_data_provider
-            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
-            .await;
-        charlie_db.set_block_program_states(
-            H256::zero(),
-            iter::zip(
-                program_ids.clone(),
-                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
-                    hash,
-                    cached_queue_size: 0,
-                }),
-            )
-            .collect(),
-        );
-
-        let expected_response = Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
+        let expected_response = fill_data_provider(alice_data_provider, charlie_db).await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
@@ -1217,5 +1200,31 @@ mod tests {
                 response: expected_response,
             }
         );
+    }
+
+    pub(crate) async fn fill_data_provider(
+        // data provider of the first peer
+        left_data_provider: DataProvider,
+        // database of the second peer
+        right_db: Database,
+    ) -> Response {
+        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
+        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
+        left_data_provider
+            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
+            .await;
+        right_db.set_block_program_states(
+            H256::zero(),
+            iter::zip(
+                program_ids.clone(),
+                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
+                    hash,
+                    cached_queue_size: 0,
+                }),
+            )
+            .collect(),
+        );
+
+        Response::ProgramIds(iter::zip(program_ids, code_ids).collect())
     }
 }
