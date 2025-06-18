@@ -7100,7 +7100,6 @@ dependencies = [
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
- "derive_more 2.0.1",
  "etc",
  "gear-common",
  "gear-core",
