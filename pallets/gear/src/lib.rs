@@ -1750,7 +1750,8 @@ pub mod pallet {
         ///
         /// Parameters:
         /// - `fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
-        #[pallet::call_index(9)]
+        #[cfg(feature = "dev")]
+        #[pallet::call_index(255)]
         #[pallet::weight({
             if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
                 *fraction * max

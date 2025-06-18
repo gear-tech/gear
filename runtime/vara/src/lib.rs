@@ -53,7 +53,7 @@ use pallet_grandpa::{
 };
 use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_session::historical::{self as pallet_session_historical};
+use pallet_session::historical as pallet_session_historical;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
@@ -1185,7 +1185,6 @@ impl pallet_gear::Config for Runtime {
 
 #[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
@@ -1528,11 +1527,7 @@ mod runtime {
     pub type Sudo = pallet_sudo;
 
     // NOTE (!): `pallet_airdrop` used to be idx(198).
-
-    // Only available with "dev" feature on
-    // [DEPRECATED] Will be removed in the next release.
-    #[runtime::pallet_index(199)]
-    pub type GearDebug = pallet_gear_debug;
+    // NOTE (!): `pallet_gear_debug` used to be idx(199).
 }
 
 #[cfg(not(feature = "dev"))]
