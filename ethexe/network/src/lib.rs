@@ -67,7 +67,7 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-//#[derive(Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
@@ -634,7 +634,6 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 mod tests {
     use super::*;
     use crate::{db_sync::ExternalDataProvider, utils::tests::init_logger};
-    use assert_matches::assert_matches;
     use async_trait::async_trait;
     use ethexe_common::{db::BlockMetaStorageWrite, gear::CodeState, StateHashWithQueueSize};
     use ethexe_db::MemDb;
@@ -759,14 +758,14 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_matches!(
+        assert_eq!(
             event,
             NetworkEvent::DbResponse {
-                request_id: rid,
-                result
-            } if rid == request_id && result == Ok(db_sync::Response::Hashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            ))
+                request_id,
+                result: Ok(db_sync::Response::Hashes(
+                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+                ))
+            }
         );
     }
 
@@ -790,7 +789,7 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_matches!(event, NetworkEvent::PeerBlocked(peer) if peer == service2_peer_id);
+        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
     }
 
     #[tokio::test]
@@ -833,12 +832,12 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_matches!(
+        assert_eq!(
             event,
             NetworkEvent::DbResponse {
-                request_id: rid,
-                result: Ok(response)
-            } if rid == request_id && response == expected_response
+                request_id,
+                result: Ok(expected_response)
+            }
         );
     }
 }
