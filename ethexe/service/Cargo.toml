@@ -40,6 +40,7 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 rand.workspace = true
 tempfile.workspace = true
 derive_more.workspace = true
+async-trait.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = [

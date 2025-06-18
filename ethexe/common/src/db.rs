@@ -23,7 +23,10 @@
 use crate::{
     events::BlockEvent, gear::StateTransition, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
 };
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::{
+    collections::{BTreeSet, VecDeque},
+    vec::Vec,
+};
 use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId},
@@ -69,6 +72,7 @@ pub trait CodesStorageWrite {
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
+    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 pub trait OnChainStorageRead {

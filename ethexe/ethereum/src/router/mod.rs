@@ -17,20 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
+    abi::{utils::uint256_to_u256, IRouter},
     wvara::WVara,
     AlloyEthereum, AlloyProvider, TryGetReceipt,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, B256, U256},
+    eips::BlockId,
+    primitives::{fixed_bytes, Address, Bytes, B256},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{eth::state::AccountOverride, Filter},
 };
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     ecdsa::ContractSignature,
-    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
+    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType},
     Address as LocalAddress,
 };
 use events::signatures;
@@ -321,16 +322,11 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn code_state(&self, code_id: CodeId) -> Result<CodeState> {
-        self.instance
-            .codeState(code_id.into_bytes().into())
-            .call()
-            .await
-            .map(CodeState::from)
-            .map_err(Into::into)
-    }
-
-    pub async fn codes_states(&self, code_ids: Vec<CodeId>) -> Result<Vec<CodeState>> {
+    pub async fn codes_states_at(
+        &self,
+        code_ids: impl IntoIterator<Item = CodeId>,
+        block: H256,
+    ) -> Result<Vec<CodeState>> {
         self.instance
             .codesStates(
                 code_ids
@@ -339,7 +335,9 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
+            // TODO: test case if code state does not exist
             .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
@@ -352,7 +350,11 @@ impl RouterQuery {
         Ok(code_id)
     }
 
-    pub async fn programs_code_ids(&self, program_ids: Vec<ActorId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids_at(
+        &self,
+        program_ids: impl IntoIterator<Item = ActorId>,
+        block: H256,
+    ) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids
@@ -364,18 +366,9 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
-    }
-
-    pub async fn programs_count(&self) -> Result<U256> {
-        let count = self.instance.programsCount().call().await?;
-        Ok(count)
-    }
-
-    pub async fn validated_codes_count(&self) -> Result<U256> {
-        let count = self.instance.validatedCodesCount().call().await?;
-        Ok(count)
     }
 }
