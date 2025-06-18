@@ -6955,6 +6955,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -7061,11 +7062,13 @@ dependencies = [
  "galloc",
  "gcore",
  "gear-core-errors",
+ "gprimitives",
  "gstd-codegen",
  "hashbrown 0.14.5",
  "hex",
  "parity-scale-codec",
  "scale-info",
+ "thiserror 2.0.12",
  "waker-fn",
 ]
 

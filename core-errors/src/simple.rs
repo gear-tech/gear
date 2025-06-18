@@ -142,7 +142,7 @@ impl SuccessReplyReason {
 
 #[repr(u8)]
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, thiserror::Error, Sequence,
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -334,7 +334,7 @@ impl SimpleUnavailableActorError {
 }
 
 #[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, thiserror::Error, Sequence,
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
