@@ -10,12 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # TODO: remove this placeholder
-  status:
-    runs-on: ubuntu-latest
-    steps:
-      - run: exit 0
-
   check:
     uses: ./.github/workflows/check.yml
 
