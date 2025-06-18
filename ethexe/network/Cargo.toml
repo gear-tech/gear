@@ -20,7 +20,6 @@ gprimitives = { workspace = true, features = ["codec"] }
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
 log.workspace = true
-tracing.workspace = true
 parity-scale-codec.workspace = true
 async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }

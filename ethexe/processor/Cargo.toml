@@ -22,7 +22,6 @@ core-processor.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 log.workspace = true
-tracing.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
