@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MemoryWrap;
-use anyhow::Result;
+use crate::Result;
 use log::Level;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
