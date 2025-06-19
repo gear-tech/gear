@@ -71,8 +71,6 @@ macro_rules! impl_args {
         flags: $($flag:tt),+;
         values: $($value:tt),+;
     ) => {
-        // FIXME: maybe some unused actually must be used
-        #[allow(unused)]
         impl Args {
             $(
                 pub fn $flag(mut self, value: impl fmt::Display) -> Self {
@@ -92,14 +90,12 @@ macro_rules! impl_args {
 }
 
 impl_args!(
-    flags: payload, gas_limit, value;
+    flags: payload, gas_limit;
     values:
         message_id,
         address,
         action,
         destination,
         amount,
-        meta,
-        flag,
-        derive;
+        flag;
 );
