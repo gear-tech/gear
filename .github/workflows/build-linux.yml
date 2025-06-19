@@ -202,7 +202,7 @@ jobs:
       - name: "Test: gclient tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)'
-          --partition hash:${{ matrix.partition }}:4
+          --partition hash:${{ matrix.partition }}/4
           --run-ignored=all
           --extract-to=${{ github.workspace }}
           --workspace-remap=${{ github.workspace }}
