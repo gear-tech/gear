@@ -90,7 +90,6 @@ substrate-frame-rpc-system.workspace = true
 substrate-state-trie-migration-rpc.workspace = true
 
 [build-dependencies]
-substrate-build-script-utils.workspace = true
 
 [features]
 vara-native = [
