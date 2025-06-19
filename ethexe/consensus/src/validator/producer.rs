@@ -282,7 +282,7 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, Result};
+    use crate::{mock::*, validator::mock::*};
     use ethexe_common::db::BlockMetaStorageWrite;
     use std::vec;
 
