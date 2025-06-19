@@ -203,17 +203,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: node-release
+          path: target/release
 
       - name: "ACTIONS: Download nextest archive"
         uses: actions/download-artifact@v4
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
-
-      - name: "Test: Copy runtime WASM before `gcli` tests"
-        run: |
-          mkdir -p target/release
-          mv node-release/* target/release/
 
       - name: "Test: gclient tests"
         run: >-
