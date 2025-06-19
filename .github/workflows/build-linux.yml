@@ -212,15 +212,14 @@ jobs:
 
       - name: "Test: Copy runtime WASM before `gcli` tests"
         run: |
-          mkdir -p target/release/wbuild/vara-runtime
-          cp node-release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm target/release/wbuild/vara-runtime/
+          mkdir -p target/release
+          mv node-release/* target/release/
 
       - name: "Test: gclient tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)'
           --partition hash:${{ matrix.partition }}/3
           --run-ignored=all
-          --extract-to=${{ github.workspace }}
           --workspace-remap=${{ github.workspace }}
 
   benchmarks:
