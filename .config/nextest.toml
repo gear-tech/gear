@@ -26,6 +26,9 @@ retries = 5
 filter = 'package(gsdk)'
 platform = "cfg(unix)"
 setup = "restore-node-permissions"
+
+[[profile.ci.overrides]]
+filter = 'package(gsdk)'
 retries = 5
 
 # sometimes fails on CI machine in debug profile
