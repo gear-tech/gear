@@ -19,7 +19,7 @@
 //! Integration tests for command `upload`
 
 use crate::common::{
-    self, env,
+    self,
     node::{Convert, NodeExec},
     Args, Result,
 };
@@ -44,7 +44,7 @@ async fn test_command_upload_works() -> Result<()> {
 
     let output = node.run(
         Args::new("upload")
-            .program(env::wasm_bin("demo_fungible_token.opt.wasm"))
+            .program_stdin(demo_fungible_token::WASM_BINARY)
             .payload(payload),
     )?;
     assert!(
@@ -52,7 +52,7 @@ async fn test_command_upload_works() -> Result<()> {
             .stdout
             .convert()
             .contains("Submitted Gear::upload_program"),
-        "code should be uploaded, but got: {}",
+        "code should be uploaded, but got: '{}'",
         output.stderr.convert()
     );
     assert!(
@@ -69,7 +69,7 @@ async fn test_command_upload_code_works() -> Result<()> {
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
-            .program(env::wasm_bin("demo_fungible_token.opt.wasm")),
+            .program_stdin(demo_fungible_token::WASM_BINARY),
     )?;
 
     assert!(
