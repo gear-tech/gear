@@ -584,7 +584,7 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
             let wasm_page: WasmPage = p.to_page();
             wasm_page < static_pages || allocations.contains(wasm_page)
         });
-        log::trace!("accessed pages numbers = {:?}", accessed_pages);
+        log::trace!("accessed pages numbers = {accessed_pages:?}");
 
         let mut pages_data = BTreeMap::new();
         for page in accessed_pages {
