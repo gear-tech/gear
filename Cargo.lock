@@ -6997,6 +6997,7 @@ dependencies = [
  "demo-messenger",
  "demo-vec",
  "demo-waiter",
+ "derive_more 2.0.1",
  "futures",
  "futures-util",
  "gear-core",
