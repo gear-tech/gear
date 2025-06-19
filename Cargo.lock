@@ -3619,7 +3619,6 @@ dependencies = [
 name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
- "gcli",
  "gear-wasm-builder",
  "gstd",
 ]
