@@ -2892,6 +2892,16 @@ pub mod runtime_types {
                         program_id: runtime_types::gprimitives::ActorId,
                         depth: ::core::num::NonZeroU32,
                     },
+                    #[codec(index = 255)]
+                    #[doc = "A dummy extrinsic with programmatically set weight."]
+                    #[doc = ""]
+                    #[doc = "Used in tests to exhaust block resources."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `fraction`: the fraction of the `max_extrinsic` the extrinsic will use."]
+                    exhaust_block_resources {
+                        fraction: runtime_types::sp_arithmetic::per_things::Percent,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "The `Error` enum of this pallet."]
@@ -10683,6 +10693,7 @@ pub mod calls {
         Run,
         SetExecuteInherent,
         ClaimValueToInheritor,
+        ExhaustBlockResources,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -10697,6 +10708,7 @@ pub mod calls {
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
                 Self::ClaimValueToInheritor => "claim_value_to_inheritor",
+                Self::ExhaustBlockResources => "exhaust_block_resources",
             }
         }
     }
