@@ -25,7 +25,7 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{db::OnChainStorage, Address, BlockHeader, SimpleBlockData};
+use ethexe_common::{Address, BlockHeader, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
@@ -234,7 +234,7 @@ impl ObserverService {
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
-        use ethexe_common::db::BlockMetaStorage;
+        use ethexe_common::db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite};
 
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
@@ -257,7 +257,6 @@ impl ObserverService {
 
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);
-
         db.set_latest_synced_block_height(genesis_header.height);
         db.set_block_is_synced(genesis_block_hash);
 
@@ -267,9 +266,7 @@ impl ObserverService {
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
-
         db.set_block_computed(genesis_block_hash);
 
         Ok(())

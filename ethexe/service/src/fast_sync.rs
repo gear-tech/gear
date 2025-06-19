@@ -21,10 +21,12 @@ use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
 use ethexe_blob_loader::{BlobData, BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
+        OnChainStorageRead,
+    },
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::CodeCommitment,
-    StateHashWithQueueSize,
+    ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -105,7 +107,8 @@ impl EventData {
                 }
             }
 
-            let header = OnChainStorage::block_header(db, block)
+            let header = db
+                .block_header(block)
                 .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
             let parent = header.parent_hash;
             block = parent;
@@ -131,9 +134,11 @@ impl EventData {
 
         #[cfg(debug_assertions)]
         if let Some(previous_committed_block) = previous_committed_block {
-            let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
+            let latest_block_header = db
+                .block_header(latest_committed_block)
                 .expect("observer must fulfill database");
-            let previous_block_header = OnChainStorage::block_header(db, previous_committed_block)
+            let previous_block_header = db
+                .block_header(previous_committed_block)
                 .expect("observer must fulfill database");
             assert!(previous_block_header.height < latest_block_header.height);
         }
@@ -347,7 +352,7 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     program_states: BTreeMap<ActorId, H256>,
-) -> BTreeMap<ActorId, StateHashWithQueueSize> {
+) -> ProgramStates {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
         PayloadLookup::Stored(hash) => {
@@ -556,7 +561,7 @@ async fn prepare_codes(
     }
 
     while let Some(event) = compute.next().await {
-        if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
+        if let ComputeEvent::CodeProcessed(id) = event? {
             code_ids.remove(&id);
             if code_ids.is_empty() {
                 break;
@@ -607,7 +612,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     )
     .await?;
 
-    let latest_block_header = OnChainStorage::block_header(db, latest_committed_block)
+    let latest_block_header = db
+        .block_header(latest_committed_block)
         .expect("observer must fulfill database");
 
     let program_states = sync_from_network(network, db, program_states).await;

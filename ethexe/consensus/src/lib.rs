@@ -40,7 +40,7 @@ mod mock;
 
 pub use connect::SimpleConnectService;
 pub use utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
-pub use validator::{ValidatorConfig, ValidatorService};
+pub use validator::{ValidatorConfig, ValidatorError, ValidatorService};
 
 use ethexe_common::{ecdsa::SignedData, Digest, ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
@@ -48,46 +48,20 @@ use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ConsesusError {
+pub enum ConsensusError {
+    #[error(transparent)]
+    Validator(#[from] ValidatorError),
+
+    ////////////
+
     // `MultisignedBatchCommitment` errors
     #[error("invalid reply digest: {0}")]
     InvalidReplyDigest(Digest),
-
     // `Participant` errors
-    #[error("code commitment timestamps mismatch: local {local_ts}, requested: {requested_ts}")]
-    CodesTimestampMismatch { local_ts: u64, requested_ts: u64 },
-    #[error("block commitment timestamps mismatch: local {local_ts}, requested: {requested_ts}")]
-    BlocksTimestamMismatch { local_ts: u64, requested_ts: u64 },
-    #[error("code validation results mismatch: local {local}, requested: {requested}")]
-    ValidationResultsMismatch { local: bool, requested: bool },
-    #[error("code {0} blob info is not in storage")]
-    CodeBlobInfoNotFound(CodeId),
-    #[error("code {0} is not validated by this node")]
-    CodeNotValidated(CodeId),
-    #[error("requested block {0} is not processed by this node")]
-    BlockNotComputed(H256),
-    #[error("requested block {0} header wasn't found in storage")]
-    BlockHeaderNotFound(H256),
-    #[error("header not found for pred block: {0}")]
-    PredBlockHeaderNotFound(H256),
-    #[error("block {block_hash} commitment queue is not in storage")]
-    BlockCommitmentQueueNotFound(H256),
-
     // `Producer` errors
-    #[error("cannot get from db previous committed block for computed block {0}")]
-    PreviousCommittedBlockNotFound(H256),
-    #[error("computed block {0} codes queue is not in storage")]
-    ComputedBlockCodesQueueNotFound(H256),
-    #[error("not found outcome for computed block {0}")]
-    ComputedBlockOutcomeNotFound(H256),
-    #[error("cannot get from db header for computed block {0}")]
-    ComputedBlockHeaderNotFound(H256),
-    #[error("validated code {id} blob info is not in storage")]
-    ValidatedCodeBlobInfoNotFound(CodeId),
-
 }
 
-type Result<T> = std::result::Result<T, ConsesusError>;
+type Result<T> = std::result::Result<T, ConsensusError>;
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static

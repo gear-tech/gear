@@ -16,13 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{submitter::Submitter, StateHandler, ValidatorContext, ValidatorState};
+use super::{
+    submitter::{Submitter, SubmitterError},
+    StateHandler, ValidatorContext, ValidatorState,
+};
 use crate::{
     utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
     BatchCommitmentValidationReply, ConsensusEvent,
 };
+// use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{gear::BatchCommitment, Address};
+use ethexe_signer::SignerError;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -35,6 +40,26 @@ pub struct Coordinator {
     validators: BTreeSet<Address>,
     multisigned_batch: MultisignedBatchCommitment,
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum CoordinatorError {
+    #[error("received validation reply is not known validator")]
+    UnknownValidator(Address),
+    #[error(
+        "number of validators is less than threshold: expected: {threshold}, got: {validators}"
+    )]
+    InsufficientValidators { threshold: u64, validators: usize },
+    #[error("signatures threshold should be greater then 0")]
+    ZeroThreshold,
+
+    #[error("submitter error: {0}")]
+    Submitter(#[from] SubmitterError),
+
+    #[error("signer error: {0}")]
+    Signer(#[from] SignerError),
+}
+
+type Result<T> = std::result::Result<T, CoordinatorError>;
 
 impl StateHandler for Coordinator {
     fn context(&self) -> &ValidatorContext {
@@ -59,14 +84,14 @@ impl StateHandler for Coordinator {
                 self.validators
                     .contains(&addr)
                     .then_some(())
-                    .ok_or_else(|| anyhow!("Received validation reply is not known validator"))
+                    .ok_or(CoordinatorError::UnknownValidator(addr))
             })
         {
             self.warning(format!("validation reply rejected: {err}"));
         }
 
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.signatures_threshold {
-            Submitter::create(self.ctx, self.multisigned_batch)
+            Ok(Submitter::create(self.ctx, self.multisigned_batch)?)
         } else {
             Ok(self.into())
         }
@@ -79,21 +104,22 @@ impl Coordinator {
         validators: Vec<Address>,
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
-        ensure!(
-            validators.len() as u64 >= ctx.signatures_threshold,
-            "Number of validators is less than threshold"
-        );
+        if validators.len() as u64 >= ctx.signatures_threshold {
+            return Err(CoordinatorError::InsufficientValidators {
+                threshold: ctx.signatures_threshold,
+                validators: validators.len(),
+            });
+        }
 
-        ensure!(
-            ctx.signatures_threshold > 0,
-            "Threshold should be greater than 0"
-        );
+        if ctx.signatures_threshold == 0 {
+            return Err(CoordinatorError::ZeroThreshold);
+        }
 
         let multisigned_batch =
             MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)?;
 
         if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
-            return Submitter::create(ctx, multisigned_batch);
+            return Ok(Submitter::create(ctx, multisigned_batch)?);
         }
 
         let validation_request = ctx.signer.signed_data(
@@ -116,7 +142,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{Digest, ToDigest};
     use gprimitives::H256;
 
     #[test]
@@ -175,7 +201,7 @@ mod tests {
             &ctx.signer,
             keys[1],
             ctx.router_address,
-            H256::random().0.into(),
+            Digest(H256::random().0),
         );
         let reply4 = mock_validation_reply(&ctx.signer, keys[2], ctx.router_address, digest);
 

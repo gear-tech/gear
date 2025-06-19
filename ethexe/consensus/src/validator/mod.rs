@@ -46,8 +46,12 @@ use crate::{
         MultisignedBatchCommitment,
     },
     validator::{
-        coordinator::Coordinator, participant::Participant, producer::Producer,
-        submitter::Submitter, subordinate::Subordinate,
+        self,
+        coordinator::{Coordinator, CoordinatorError},
+        participant::{Participant, ParticipantError},
+        producer::{Producer, ProducerError},
+        submitter::Submitter,
+        subordinate::Subordinate,
     },
     ConsensusEvent, ConsensusService,
 };
@@ -103,6 +107,20 @@ pub struct ValidatorConfig {
     /// Duration of ethexe slot (only to identify producer for the incoming blocks)
     pub slot_duration: Duration,
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum ValidatorError {
+    #[error("producer error: {0}")]
+    Producer(#[from] ProducerError),
+    #[error("participant error: {0}")]
+    Participant(#[from] ParticipantError),
+    #[error("coordinator error: {0}")]
+    Coordinator(#[from] CoordinatorError),
+    #[error("initial error: {0}")]
+    Initial(#[from] validator::initial::InitialError),
+}
+
+type Result<T> = std::result::Result<T, ValidatorError>;
 
 impl ValidatorService {
     /// Creates a new validator service instance.
@@ -374,7 +392,10 @@ struct DefaultProcessing;
 
 impl DefaultProcessing {
     fn new_head(s: impl Into<ValidatorState>, block: SimpleBlockData) -> Result<ValidatorState> {
-        Initial::create_with_chain_head(s.into().into_context(), block)
+        Ok(Initial::create_with_chain_head(
+            s.into().into_context(),
+            block,
+        )?)
     }
 
     fn synced_block(s: impl Into<ValidatorState>, data: BlockSyncedData) -> Result<ValidatorState> {

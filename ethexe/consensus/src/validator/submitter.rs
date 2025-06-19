@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext, ValidatorState};
+use super::{
+    initial::{Initial, InitialError},
+    BatchCommitter, StateHandler, ValidatorContext, ValidatorState,
+};
 use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
@@ -36,6 +39,14 @@ pub struct Submitter {
     future: BoxFuture<'static, Result<H256>>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum SubmitterError {
+    #[error("initial error: {0}")]
+    Initial(#[from] InitialError),
+}
+
+type Result<T> = std::result::Result<T, SubmitterError>;
+
 impl StateHandler for Submitter {
     fn context(&self) -> &ValidatorContext {
         &self.ctx
@@ -54,13 +65,13 @@ impl StateHandler for Submitter {
             Poll::Ready(Ok(tx)) => {
                 self.output(ConsensusEvent::CommitmentSubmitted(tx));
 
-                Initial::create(self.ctx)
+                Ok(Initial::create(self.ctx)?)
             }
             Poll::Ready(Err(err)) => {
                 // TODO: consider retries
                 self.warning(format!("failed to submit batch commitment: {err:?}"));
 
-                Initial::create(self.ctx)
+                Ok(Initial::create(self.ctx)?)
             }
             Poll::Pending => Ok(self.into()),
         }

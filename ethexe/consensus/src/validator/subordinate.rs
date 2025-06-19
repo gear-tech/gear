@@ -53,6 +53,9 @@ enum State {
     },
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum SubordinateError {}
+
 impl StateHandler for Subordinate {
     fn context(&self) -> &ValidatorContext {
         &self.ctx

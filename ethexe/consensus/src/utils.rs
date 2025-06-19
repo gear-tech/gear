@@ -24,16 +24,13 @@
 use ethexe_common::{
     ecdsa::{ContractSignature, PublicKey},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
-    k256::ecdsa::signature::Signer,
-    sha3::{self, digest::Update},
+    sha3::{self, Digest as _},
     Address, Digest, ToDigest,
 };
 use ethexe_signer::Signer;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeMap;
-
-use crate::ConsesusError;
 
 /// Represents a request for validating a batch of block commitments.
 /// This structure is used to verify the integrity and validity of multiple block commitments
@@ -61,9 +58,9 @@ impl BatchCommitmentValidationRequest {
 
 impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.blocks.to_digest().as_ref());
-        hasher.update(self.codes.to_digest().as_ref());
-        hasher.update([0u8; 0].to_digest().as_ref());
+        hasher.update(self.blocks.to_digest());
+        hasher.update(self.codes.to_digest());
+        hasher.update([0u8; 0].to_digest());
     }
 }
 
@@ -108,11 +105,13 @@ impl ToDigest for BlockCommitmentValidationRequest {
             transitions_digest,
         } = self;
 
-        hasher.update(block_hash.as_bytes());
-        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(*block_timestamp).as_slice());
-        hasher.update(previous_non_empty_block.as_bytes());
-        hasher.update(predecessor_block.as_bytes());
-        hasher.update(transitions_digest.as_ref());
+        hasher.update(block_hash);
+        hasher.update(ethexe_common::u64_into_uint48_be_bytes_lossy(
+            *block_timestamp,
+        ));
+        hasher.update(previous_non_empty_block);
+        hasher.update(predecessor_block);
+        hasher.update(transitions_digest);
     }
 }
 
@@ -137,6 +136,12 @@ pub struct MultisignedBatchCommitment {
     signatures: BTreeMap<Address, ContractSignature>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum MultisignedBatchCommitmentError {
+    #[error("invalid reply digest: {0}")]
+    InvalidReplyDigest(Digest),
+}
+
 impl MultisignedBatchCommitment {
     /// Creates a new multisigned batch commitment with an initial signature.
     ///
@@ -152,7 +157,7 @@ impl MultisignedBatchCommitment {
         signer: &Signer,
         router_address: Address,
         pub_key: PublicKey,
-    ) -> Result<Self> {
+    ) -> Result<Self, MultisignedBatchCommitmentError> {
         let batch_digest = batch.to_digest();
         let signature = signer.sign_for_contract(router_address, pub_key, batch_digest)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
@@ -177,11 +182,11 @@ impl MultisignedBatchCommitment {
         &mut self,
         reply: BatchCommitmentValidationReply,
         check_origin: impl FnOnce(Address) -> Result<()>,
-    ) -> Result<()> {
+    ) -> Result<(), MultisignedBatchCommitmentError> {
         let BatchCommitmentValidationReply { digest, signature } = reply;
 
         if digest != self.batch_digest {
-            return Err(ConsesusError::InvalidReplyDigest(digest));
+            return Err(MultisignedBatchCommitmentError::InvalidReplyDigest(digest));
         };
 
         let origin = signature
@@ -291,7 +296,7 @@ mod tests {
         let mut multisigned_batch =
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
-        let incorrect_digest = [1, 2, 3].as_slice().to_digest();
+        let incorrect_digest = [1, 2, 3].to_digest();
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
             signature: signer

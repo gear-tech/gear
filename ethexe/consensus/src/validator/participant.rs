@@ -17,24 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
-    ValidatorState,
+    initial::{Initial, InitialError},
+    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
 };
 use crate::{
     utils::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
         BlockCommitmentValidationRequest,
     },
-    ConsensusEvent, ConsesusError,
+    ConsensusEvent,
 };
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::SignedData,
     gear::CodeCommitment,
     Address, Digest, SimpleBlockData, ToDigest,
 };
-use gprimitives::H256;
+use ethexe_signer::SignerError;
+use gprimitives::{CodeId, H256};
 
 /// [`Participant`] is a state of the validator that processes validation requests,
 /// which are sent by the current block producer (from the coordinator state).
@@ -48,6 +49,56 @@ pub struct Participant {
     block: SimpleBlockData,
     producer: Address,
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum ParticipantError {
+    #[error("code commitment timestamps mismatch: local {local_ts}, requested: {requested_ts}")]
+    CodesTimestampMismatch { local_ts: u64, requested_ts: u64 },
+    #[error("block commitment timestamps mismatch: local {local_ts}, requested: {requested_ts}")]
+    BlocksTimestamMismatch { local_ts: u64, requested_ts: u64 },
+    #[error("code validation results mismatch: local {local}, requested: {requested}")]
+    ValidationResultsMismatch { local: bool, requested: bool },
+    #[error("code {0} blob info is not in storage")]
+    CodeBlobInfoNotFound(CodeId),
+    #[error("code {0} is not validated by this node")]
+    CodeNotValidated(CodeId),
+    #[error("requested block {0} is not processed by this node")]
+    BlockNotComputed(H256),
+    #[error("requested block {0} header wasn't found in storage")]
+    BlockHeaderNotFound(H256),
+    #[error("header not found for pred block: {0}")]
+    PredBlockHeaderNotFound(H256),
+    #[error("block {0} commitment queue is not in storage")]
+    BlockCommitmentQueueNotFound(H256),
+    #[error("cannot get from db previous not empty for block {0}")]
+    PreviousNotEmptyBlockNotFound(H256),
+    #[error("Cannot get from db outcome for block {0}")]
+    BlockOutcomeNotFound(H256),
+    #[error("requested and local transitions digests length mismatch: local - {local:?}, requested - {requested:?}")]
+    TransitionsDigestMismatch { local: Digest, requested: Digest },
+    #[error("requested and local previous commitment block hash mismatch")]
+    PreviousNotEmptyBlockMismatch { local: H256, requested: H256 },
+    #[error("{block_hash} is not a predecessor of {predecessor_block}")]
+    BlockNotPredecessor {
+        block_hash: H256,
+        predecessor_block: H256,
+    },
+    #[error(
+        "predecessor block {predecessor_block} is too far from {block_hash}, distance: {distance}"
+    )]
+    PredecessorBlockDistanceTooLarge {
+        block_hash: H256,
+        predecessor_block: H256,
+        distance: u32,
+    },
+
+    #[error("signer error: {0}")]
+    Signer(#[from] SignerError),
+
+    #[error("initial error: {0}")]
+    Initial(#[from] InitialError),
+}
+type Result<T> = std::result::Result<T, ParticipantError>;
 
 impl StateHandler for Participant {
     fn context(&self) -> &ValidatorContext {
@@ -120,7 +171,7 @@ impl Participant {
         // NOTE: In both cases it returns to the initial state,
         // means - even if producer publish incorrect validation request,
         // then participant does not wait for the next validation request from producer.
-        Initial::create(self.ctx)
+        Ok(Initial::create(self.ctx)?)
     }
 
     fn process_validation_request_inner(
@@ -140,13 +191,14 @@ impl Participant {
             Self::validate_block_commitment(&self.ctx.db, block_request)?;
         }
 
-        self.ctx
+        Ok(self
+            .ctx
             .signer
             .sign_for_contract(self.ctx.router_address, self.ctx.pub_key, digest)
-            .map(|signature| BatchCommitmentValidationReply { digest, signature })
+            .map(|signature| BatchCommitmentValidationReply { digest, signature })?)
     }
 
-    fn validate_code_commitment<DB: OnChainStorage + CodesStorage>(
+    fn validate_code_commitment<DB: OnChainStorageRead + CodesStorageRead>(
         db: &DB,
         request: CodeCommitment,
     ) -> Result<()> {
@@ -158,11 +210,11 @@ impl Participant {
 
         let local_timestamp = db
             .code_blob_info(id)
-            .ok_or(ConsesusError::CodeBlobInfoNotFound(id))?
+            .ok_or(ParticipantError::CodeBlobInfoNotFound(id))?
             .timestamp;
 
         if local_timestamp == timestamp {
-            return Err(ConsesusError::CodesTimestampMismatch {
+            return Err(ParticipantError::CodesTimestampMismatch {
                 local_ts: local_timestamp,
                 requested_ts: timestamp,
             });
@@ -170,10 +222,10 @@ impl Participant {
 
         let local_valid = db
             .code_valid(id)
-            .ok_or(ConsesusError::CodeNotValidated(id))?;
+            .ok_or(ParticipantError::CodeNotValidated(id))?;
 
         if local_valid != valid {
-            return Err(ConsesusError::ValidationResultsMismatch {
+            return Err(ParticipantError::ValidationResultsMismatch {
                 local: local_valid,
                 requested: valid,
             });
@@ -182,7 +234,7 @@ impl Participant {
         Ok(())
     }
 
-    fn validate_block_commitment<DB: BlockMetaStorage + OnChainStorage>(
+    fn validate_block_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>(
         db: &DB,
         request: BlockCommitmentValidationRequest,
     ) -> Result<()> {
@@ -195,15 +247,15 @@ impl Participant {
         } = request;
 
         if !db.block_computed(block_hash) {
-            return Err(ConsesusError::BlockNotComputed(block_hash));
+            return Err(ParticipantError::BlockNotComputed(block_hash));
         }
 
         let header = db
             .block_header(block_hash)
-            .ok_or(ConsesusError::BlockHeaderNotFound(block_hash))?;
+            .ok_or(ParticipantError::BlockHeaderNotFound(block_hash))?;
 
         if header.timestamp != block_timestamp {
-            return Err(ConsesusError::BlocksTimestamMismatch {
+            return Err(ParticipantError::BlocksTimestamMismatch {
                 local_ts: header.timestamp,
                 requested_ts: block_timestamp,
             });
@@ -211,35 +263,42 @@ impl Participant {
 
         let local_outcome_digest = db
             .block_outcome(block_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db outcome for block {block_hash}"))?
+            .ok_or(ParticipantError::BlockOutcomeNotFound(block_hash))?
             .iter()
             .collect::<Digest>();
-        ensure!(
-            local_outcome_digest == transitions_digest,
-            "Requested and local transitions digests length mismatch"
-        );
 
-        let local_previous_not_empty_block =
-            db.previous_not_empty_block(block_hash).ok_or_else(|| {
-                anyhow!("Cannot get from db previous not empty for block {block_hash}")
-            })?;
-        ensure!(
-            local_previous_not_empty_block == previous_non_empty_block,
-            "Requested and local previous commitment block hash mismatch"
-        );
+        if local_outcome_digest != transitions_digest {
+            return Err(ParticipantError::TransitionsDigestMismatch {
+                local: local_outcome_digest,
+                requested: transitions_digest,
+            });
+        }
+
+        let local_previous_not_empty_block = db
+            .previous_not_empty_block(block_hash)
+            .ok_or(ParticipantError::PreviousNotEmptyBlockNotFound(block_hash))?;
+
+        if local_previous_not_empty_block != previous_non_empty_block {
+            return Err(ParticipantError::PreviousNotEmptyBlockMismatch {
+                local: local_previous_not_empty_block,
+                requested: previous_non_empty_block,
+            });
+        }
 
         // TODO: #4579 rename max_distance and make it configurable
-        ensure!(
-            Self::verify_is_predecessor(db, predecessor_block, block_hash, None)?,
-            "{block_hash} is not a predecessor of {predecessor_block}"
-        );
+        if !Self::verify_is_predecessor(db, predecessor_block, block_hash, None)? {
+            return Err(ParticipantError::BlockNotPredecessor {
+                block_hash,
+                predecessor_block,
+            });
+        }
 
         Ok(())
     }
 
     /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
     fn verify_is_predecessor(
-        db: &impl OnChainStorage,
+        db: &impl OnChainStorageRead,
         block_hash: H256,
         pred_hash: H256,
         max_distance: Option<u32>,
@@ -250,7 +309,7 @@ impl Participant {
 
         let block_header = db
             .block_header(block_hash)
-            .ok_or(ConsesusError::BlockHeaderNotFound(block_hash))?;
+            .ok_or(ParticipantError::BlockHeaderNotFound(block_hash))?;
 
         if block_header.parent_hash == pred_hash {
             return Ok(true);
@@ -258,12 +317,16 @@ impl Participant {
 
         let pred_height = db
             .block_header(pred_hash)
-            .ok_or(ConsesusError::BlockHeaderNotFound(pred_hash))?
+            .ok_or(ParticipantError::BlockHeaderNotFound(pred_hash))?
             .height;
 
         let distance = block_header.height.saturating_sub(pred_height);
         if max_distance.map(|d| d < distance).unwrap_or(false) {
-            return Err(anyhow!("distance is too large: {distance}"));
+            return Err(ParticipantError::PredecessorBlockDistanceTooLarge {
+                block_hash,
+                predecessor_block: pred_hash,
+                distance,
+            });
         }
 
         let mut block_hash = block_hash;
@@ -273,7 +336,7 @@ impl Participant {
             }
             block_hash = db
                 .block_header(block_hash)
-                .ok_or(ConsesusError::BlockHeaderNotFound(block_hash))?
+                .ok_or(ParticipantError::BlockHeaderNotFound(block_hash))?
                 .parent_hash;
         }
 
@@ -285,7 +348,7 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{db::OnChainStorage, BlockHeader};
+    use ethexe_common::{db::OnChainStorageWrite, BlockHeader};
     use ethexe_db::Database;
 
     #[test]
@@ -437,7 +500,7 @@ mod tests {
 
         // Incorrect transitions digest
         let mut incorrect_request = request.clone();
-        incorrect_request.transitions_digest = Digest::from([2; 32]);
+        incorrect_request.transitions_digest = Digest([2; 32]);
         Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
 
         // Block is not processed by this node

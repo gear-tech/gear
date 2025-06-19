@@ -66,6 +66,10 @@ $ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc
 $ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 ```
 
+_Notes:_
+
+_- If environment variable `DEV_MODE` is set to `true` than `DeploymentScript` skips Middleware deployment_
+
 ### Upgrade
 
 > [!WARNING]
