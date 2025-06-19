@@ -540,18 +540,6 @@ unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(substrate_runtime)',
 ] }
 
-[workspace.metadata.cargo-machete]
-ignored = [
-    # used inside macros or provide macros
-    "frame-benchmarking",
-    "frame-system-benchmarking",
-    "parity-scale-codec",
-    "scale-info",
-    "pallet-authorship",
-    # unsupported name by `cargo-machete`
-    "sha-1",
-]
-
 [workspace.metadata.cargo-shear]
 ignored = [
     "frame-benchmarking",
