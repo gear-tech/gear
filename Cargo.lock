@@ -4715,6 +4715,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
+ "thiserror 2.0.12",
  "tokio",
 ]
 
@@ -4956,11 +4957,12 @@ name = "ethexe-signer"
 version = "1.8.1"
 dependencies = [
  "alloy",
- "anyhow",
  "derive_more 2.0.1",
  "ethexe-common",
+ "hex",
  "parity-scale-codec",
  "tempfile",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -13257,7 +13259,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.7",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -18164,9 +18166,15 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
+<<<<<<< HEAD
+version = "0.1.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81383ab64e72a7a8b8e13130c49e3dab29def6d0c7d76a03087b3cf71c5c6903"
+=======
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b1ffbcf9c6f6b99d386e7444eb608ba646ae452a36b39737deb9663b610f662"
+>>>>>>> master
 dependencies = [
  "proc-macro2",
  "quote",

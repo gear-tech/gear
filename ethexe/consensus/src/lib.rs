@@ -40,13 +40,28 @@ mod mock;
 
 pub use connect::SimpleConnectService;
 pub use utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
-pub use validator::{ValidatorConfig, ValidatorService};
+pub use validator::{ValidatorConfig, ValidatorError, ValidatorService};
 
-use anyhow::Result;
-use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
+use ethexe_common::{ecdsa::SignedData, Digest, ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConsensusError {
+    #[error(transparent)]
+    Validator(#[from] ValidatorError),
+
+    ////////////
+
+    // `MultisignedBatchCommitment` errors
+    #[error("invalid reply digest: {0}")]
+    InvalidReplyDigest(Digest),
+    // `Participant` errors
+    // `Producer` errors
+}
+
+type Result<T> = std::result::Result<T, ConsensusError>;
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static

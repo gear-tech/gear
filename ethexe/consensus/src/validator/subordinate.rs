@@ -21,7 +21,6 @@ use super::{
     ValidatorState,
 };
 use crate::{validator::participant::Participant, ConsensusEvent};
-use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{ecdsa::SignedData, Address, ProducerBlock, SimpleBlockData};
 use gprimitives::H256;
@@ -53,6 +52,9 @@ enum State {
         block_hash: H256,
     },
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum SubordinateError {}
 
 impl StateHandler for Subordinate {
     fn context(&self) -> &ValidatorContext {

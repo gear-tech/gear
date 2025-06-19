@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
+    coordinator::{Coordinator, CoordinatorError},
+    initial::Initial,
+    StateHandler, ValidatorContext, ValidatorState,
 };
 use crate::ConsensusEvent;
-use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
@@ -28,8 +29,9 @@ use ethexe_common::{
     Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
+use ethexe_signer::SignerError;
 use futures::FutureExt;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -53,6 +55,42 @@ enum State {
     WaitingBlockComputed(H256),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ProducerError {
+    #[error("cannot get from db previous committed block for computed block {0}")]
+    PreviousCommittedBlockNotFound(H256),
+    #[error("computed block {0} codes queue is not in storage")]
+    ComputedBlockCodesQueueNotFound(H256),
+    #[error("not found outcome for computed block {0}")]
+    ComputedBlockOutcomeNotFound(H256),
+    #[error("cannot get from db header for computed block {0}")]
+    ComputedBlockHeaderNotFound(H256),
+    #[error("validated code {0} blob info is not in storage")]
+    ValidatedCodeBlobInfoNotFound(CodeId),
+    #[error("aggregation error: {0}")]
+    CommitmentsAggregation(#[from] AggregationError),
+
+    #[error("coordinator error: {0}")]
+    Coordinator(#[from] CoordinatorError),
+
+    #[error("signer error: {0}")]
+    Signer(#[from] SignerError),
+
+    #[error("initial error: {0}")]
+    Initial(#[from] InitialError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AggregationError {
+    #[error("some blocks in queue are not computed for block {0}")]
+    SomeBlocksInQueueAreNotComputed(H256),
+
+    #[error("{0}")]
+    Any(#[from] anyhow::Error),
+}
+
+type Result<T> = std::result::Result<T, ProducerError>;
+
 impl StateHandler for Producer {
     fn context(&self) -> &ValidatorContext {
         &self.ctx
@@ -74,19 +112,19 @@ impl StateHandler for Producer {
         }
 
         let batch = match Self::aggregate_commitments_for_block(&self.ctx, computed_block) {
-            Err(AggregationError::SomeBlocksInQueueAreNotComputed(block)) => {
+            Err(ProducerError::SomeBlocksInQueueAreNotComputed(block)) => {
                 self.warning(format!(
                     "block {block} in queue for block {computed_block} is not computed"
                 ));
 
-                return Initial::create(self.ctx);
+                return Ok(Initial::create(self.ctx)?);
             }
-            Err(AggregationError::Any(err)) => return Err(err),
+            Err(err) => return Err(err),
             Ok(Some(batch)) => batch,
-            Ok(None) => return Initial::create(self.ctx),
+            Ok(None) => return Ok(Initial::create(self.ctx)?),
         };
 
-        Coordinator::create(self.ctx, self.validators, batch)
+        Ok(Coordinator::create(self.ctx, self.validators, batch)?)
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
@@ -152,11 +190,11 @@ impl Producer {
     fn aggregate_block_commitments_for_block(
         ctx: &ValidatorContext,
         block_hash: H256,
-    ) -> Result<Vec<BlockCommitment>, AggregationError> {
+    ) -> Result<Vec<BlockCommitment>> {
         let commitments_queue = ctx
             .db
             .block_commitment_queue(block_hash)
-            .ok_or_else(|| anyhow!("Block {block_hash} commitment queue is not in storage"))?;
+            .ok_or(ProducerError::ComputedBlockCodesQueueNotFound(block_hash))?;
 
         let mut commitments = Vec::new();
 
@@ -165,25 +203,25 @@ impl Producer {
         for block in commitments_queue {
             if !ctx.db.block_computed(block) {
                 // This can happen when validator syncs from p2p network and skips some old blocks.
-                return Err(AggregationError::SomeBlocksInQueueAreNotComputed(block));
+                return Err(ProducerError::CommitmentsAggregation(
+                    AggregationError::SomeBlocksInQueueAreNotComputed(block),
+                ));
             }
 
             let outcomes = ctx
                 .db
                 .block_outcome(block)
-                .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
+                .ok_or(ProducerError::ComputedBlockOutcomeNotFound(block_hash))?;
 
-            let previous_committed_block =
-                ctx.db.previous_not_empty_block(block).ok_or_else(|| {
-                    anyhow!(
-                        "Cannot get from db previous committed block for computed block {block}"
-                    )
-                })?;
+            let previous_committed_block = ctx
+                .db
+                .previous_not_empty_block(block)
+                .ok_or(ProducerError::PreviousCommittedBlockNotFound(block))?;
 
             let header = ctx
                 .db
                 .block_header(block)
-                .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block}"))?;
+                .ok_or(ProducerError::ComputedBlockHeaderNotFound(block))?;
 
             commitments.push(BlockCommitment {
                 hash: block,
@@ -204,20 +242,19 @@ impl Producer {
         let codes_queue = ctx
             .db
             .block_codes_queue(block_hash)
-            .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
+            .ok_or(ProducerError::ComputedBlockCodesQueueNotFound(block_hash))?;
 
         codes_queue
             .into_iter()
             .filter_map(|id| Some((id, ctx.db.code_valid(id)?)))
             .map(|(id, valid)| {
-                ctx.db
-                    .code_blob_info(id)
-                    .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))
-                    .map(|CodeBlobInfo { timestamp, .. }| CodeCommitment {
+                ctx.db.code_blob_info(id).ok_or_else(|| anyhow!()).map(
+                    |CodeBlobInfo { timestamp, .. }| CodeCommitment {
                         id,
                         timestamp,
                         valid,
-                    })
+                    },
+                )
             })
             .collect::<Result<Vec<CodeCommitment>>>()
             .map_err(Into::into)
@@ -240,13 +277,6 @@ impl Producer {
 
         Ok(())
     }
-}
-
-#[derive(Debug, derive_more::From)]
-enum AggregationError {
-    SomeBlocksInQueueAreNotComputed(H256),
-    #[from]
-    Any(anyhow::Error),
 }
 
 #[cfg(test)]

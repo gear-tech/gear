@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler,
-    ValidatorContext, ValidatorState,
+    producer::{Producer, ProducerError},
+    subordinate::Subordinate,
+    DefaultProcessing, StateHandler, ValidatorContext, ValidatorState,
 };
-use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{Address, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
@@ -40,6 +40,14 @@ enum State {
     WaitingForChainHead,
     WaitingForSyncedBlock(SimpleBlockData),
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum InitialError {
+    #[error("producer error: {0}")]
+    Producer(#[from] ProducerError),
+}
+
+type Result<T> = std::result::Result<T, InitialError>;
 
 impl StateHandler for Initial {
     fn context(&self) -> &ValidatorContext {
