@@ -318,9 +318,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|e| {
-                log::error!(
-                    "Failed to withdraw funds from the staking rewards pool: {e:?}"
-                );
+                log::error!("Failed to withdraw funds from the staking rewards pool: {e:?}");
                 Error::<T>::FailureToWithdrawFromPool
             })?;
             Self::deposit_event(Event::Withdrawn { amount: value });

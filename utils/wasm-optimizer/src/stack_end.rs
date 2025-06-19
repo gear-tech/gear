@@ -229,9 +229,7 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
             .get_mut(data_end_index as usize)
             .expect("We have already find data end global earlier"),
         |c| {
-            log::debug!(
-                "Change data end offset from {c:#x} to {global_data_offset:#x}"
-            );
+            log::debug!("Change data end offset from {c:#x} to {global_data_offset:#x}");
             *c = global_data_offset as i32;
         },
         |_| unreachable!("Data end global has i32 value, which has been already checked"),

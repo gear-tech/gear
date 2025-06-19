@@ -252,9 +252,7 @@ impl JournalHandler for ExtManager {
             return;
         }
 
-        log::debug!(
-            "Failed to wake unknown message {awakening_id:?} from {message_id:?}"
-        );
+        log::debug!("Failed to wake unknown message {awakening_id:?} from {message_id:?}");
     }
 
     fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {

@@ -89,9 +89,7 @@ where
                 DispatchStatus::Failed
             }
             InitSuccess { program_id, .. } => {
-                log::trace!(
-                    "Dispatch ({message_id:?}) init success for program {program_id:?}"
-                );
+                log::trace!("Dispatch ({message_id:?}) init success for program {program_id:?}");
 
                 let expiration =
                     ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
@@ -364,9 +362,7 @@ where
             return;
         }
 
-        log::debug!(
-            "Attempt to wake unknown message {awakening_id:?} from {message_id:?}"
-        );
+        log::debug!("Attempt to wake unknown message {awakening_id:?} from {message_id:?}");
     }
 
     fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
@@ -488,9 +484,7 @@ where
                 }
             }
         } else {
-            log::debug!(
-                "No referencing code with code hash {code_id:?} for candidate programs"
-            );
+            log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             // SAFETY:
             // Do not remove insertion into programs map as it gives guarantee
             // that init message for destination with no code won't enter

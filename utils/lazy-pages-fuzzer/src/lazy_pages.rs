@@ -141,9 +141,7 @@ fn user_signal_handler_internal(
         return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    log::trace!(
-        "SIG: Unprotect WASM memory at address: {native_addr:#x}, wr: {is_write}"
-    );
+    log::trace!("SIG: Unprotect WASM memory at address: {native_addr:#x}, wr: {is_write}");
 
     // On read, simulate data load to memory page
     if !is_write {

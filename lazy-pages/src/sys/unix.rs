@@ -194,9 +194,7 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
             return Err(ThreadInitError::SigAltStack(errno::errno()));
         }
 
-        log::debug!(
-            "Set new signal stack: ptr = {ptr:?}, size = {SIGNAL_STACK_SIZE:#x}"
-        );
+        log::debug!("Set new signal stack: ptr = {ptr:?}, size = {SIGNAL_STACK_SIZE:#x}");
 
         Ok(StackInfo::NewStack(ptr))
     }
