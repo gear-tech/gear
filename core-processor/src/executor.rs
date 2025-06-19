@@ -74,7 +74,7 @@ where
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program.id);
-    log::debug!("Executing dispatch {:?}", dispatch);
+    log::debug!("Executing dispatch {dispatch:?}");
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::try_new(
@@ -186,7 +186,7 @@ where
         }
     };
 
-    log::debug!("Termination reason: {:?}", termination);
+    log::debug!("Termination reason: {termination:?}");
 
     let info = ext
         .into_ext_info(&mut store, &memory)

@@ -87,7 +87,7 @@ fn init_lazy_pages(caller: Caller<'_, StoreData>, ctx: i64) -> i32 {
     let ctx: LazyPagesInitContext = memory.decode_by_val(&caller, ctx);
 
     gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), EthexeHostLazyPages)
-        .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+        .map_err(|err| log::error!("Cannot initialize lazy-pages: {err}"))
         .is_ok() as i32
 }
 

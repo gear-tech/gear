@@ -279,7 +279,7 @@ impl WasmProject {
             let mut optimizer = Optimizer::new(&original_copy_wasm_path)?;
             optimizer
                 .insert_stack_end_export()
-                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {err}"));
             optimizer.strip_custom_sections();
             optimizer.strip_exports();
             optimizer.flush_to_file(&opt_wasm_path);
