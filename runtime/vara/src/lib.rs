@@ -1185,7 +1185,6 @@ impl pallet_gear::Config for Runtime {
 
 #[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
-    type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;

@@ -23,10 +23,8 @@
 extern crate alloc;
 
 pub use pallet::*;
-pub use weights::WeightInfo;
 
 pub mod migrations;
-pub mod weights;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -41,9 +39,6 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// Weight information for extrinsics in this pallet.
-        type WeightInfo: WeightInfo;
-
         /// Storage with codes for programs.
         type CodeStorage: CodeStorage;
 
