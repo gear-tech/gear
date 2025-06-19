@@ -123,7 +123,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
             .map_err(|_| "`pre_upgrade` provided an invalid state")?
         {
             let new_count = TaskPool::<T>::iter_keys().count() as u64;
-            ensure!(old_count <= new_count, "incorrect count of elements");
+            ensure!(old_count >= new_count, "incorrect count of elements");
         }
 
         Ok(())
