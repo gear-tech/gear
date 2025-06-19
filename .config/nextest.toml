@@ -23,6 +23,11 @@ filter = 'package(gclient)'
 retries = 5
 
 [[profile.ci.scripts]]
+filter = 'package(gclient)'
+platform = "cfg(unix)"
+setup = "restore-node-permissions"
+
+[[profile.ci.scripts]]
 filter = 'package(gsdk)'
 platform = "cfg(unix)"
 setup = "restore-node-permissions"
