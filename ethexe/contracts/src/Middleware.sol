@@ -6,8 +6,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Gear} from "./libraries/Gear.sol";
-import {FROST} from "frost-secp256k1-evm/FROST.sol";
-
 import {IMiddleware} from "./IMiddleware.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
@@ -204,7 +202,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().registries.operatorRegistry;
     }
 
-    function operatorIdentifiers(address operator) external view returns (address) {
+    function operatorIdentifier(address operator) external view returns (address) {
         return _storage().operatorIdentifiers[operator];
     }
 

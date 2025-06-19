@@ -114,7 +114,7 @@ interface IMiddleware {
         Gear.SymbioticRegistries registries;
         EnumerableMap.AddressToUintMap operators;
         EnumerableMap.AddressToUintMap vaults;
-        mapping(address => address) operatorIdentifiers;
+        mapping(address operator => address identifier) operatorIdentifiers;
     }
 
     struct VaultSlashData {
@@ -151,7 +151,7 @@ interface IMiddleware {
     function roleSlashRequester() external view returns (address);
     function roleSlashExecutor() external view returns (address);
     function operatorRegistry() external view returns (address);
-    function operatorIdentifiers(address operator) external view returns (address);
+    function operatorIdentifier(address operator) external view returns (address);
 
     // # Calls.
     function changeSlashRequester(address newRole) external;
@@ -183,9 +183,9 @@ interface IMiddleware {
     /// @notice This function can be called only be operator themselves.
     function unregisterOperator(address operator) external;
 
-    /// @notice Registers a public key for an operator
-    /// @param publicKey The aggregated public key to register
-    function registerIdentifier(address publicKey) external;
+    /// @notice Registers an identifier for an operator
+    /// @param identifier The identifier to register
+    function registerIdentifier(address identifier) external;
 
     /* Vaults managing */
 

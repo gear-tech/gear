@@ -190,7 +190,7 @@ contract MiddlewareTest is Base {
         vm.stopPrank();
 
         // Verify key was stored
-        address storedKey = middleware.operatorIdentifiers(operator);
+        address storedKey = middleware.operatorIdentifier(operator);
         assertEq(storedKey, address(0x42));
 
         // Test unregistered operator
