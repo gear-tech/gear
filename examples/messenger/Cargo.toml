@@ -5,14 +5,8 @@ authors.workspace = true
 license.workspace = true
 edition.workspace = true
 
-[[bin]]
-name = "demo_messenger"
-path = "src/bin/demo_messenger.rs"
-required-features = ["gcli"]
-
 [dependencies]
 gstd.workspace = true
-gcli = { workspace = true, optional = true, features = ["embed"] }
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

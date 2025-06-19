@@ -21,10 +21,13 @@ use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{anyhow, Context, Result};
 use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
+        OnChainStorageRead,
+    },
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{CodeCommitment, GearBlock},
-    Digest, StateHashWithQueueSize,
+    Digest, ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -368,7 +371,7 @@ async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
     program_states: BTreeMap<ActorId, H256>,
-) -> BTreeMap<ActorId, StateHashWithQueueSize> {
+) -> ProgramStates {
     let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
         PayloadLookup::Direct(_) => {}
         PayloadLookup::Stored(hash) => {
@@ -573,7 +576,7 @@ async fn prepare_codes(
     }
 
     while let Some(event) = compute.next().await {
-        if let ComputeEvent::CodeProcessed(CodeCommitment { id, .. }) = event? {
+        if let ComputeEvent::CodeProcessed(id) = event? {
             code_ids.remove(&id);
             if code_ids.is_empty() {
                 break;

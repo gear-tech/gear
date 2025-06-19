@@ -36,8 +36,6 @@ use sha3::Digest as _;
     Hash,
     Encode,
     Decode,
-    derive_more::From,
-    derive_more::Into,
     derive_more::Debug,
     derive_more::Display,
 )]
@@ -67,7 +65,7 @@ where
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut hasher = sha3::Keccak256::new();
         for item in iter {
-            hasher.update(Digest::from(item).as_ref());
+            hasher.update(Digest::from(item));
         }
         Digest(hasher.finalize().into())
     }
@@ -99,7 +97,7 @@ impl<T: ToDigest> From<T> for Digest {
 impl<T: ToDigest> ToDigest for [T] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         for item in self {
-            hasher.update(item.to_digest().as_ref());
+            hasher.update(item.to_digest());
         }
     }
 }
@@ -118,7 +116,13 @@ impl ToDigest for [u8] {
 
 impl ToDigest for Vec<u8> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.as_slice());
+        hasher.update(self);
+    }
+}
+
+impl<const N: usize> ToDigest for [u8; N] {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self);
     }
 }
 

@@ -26,8 +26,12 @@ use crate::{
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{db::BlockMetaStorage, Address, SimpleBlockData, ToDigest};
-use std::collections::HashSet;
+use ethexe_common::{
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    ecdsa::SignedData,
+    gear::CodeCommitment,
+    Address, Digest, SimpleBlockData, ToDigest,
+};
 
 /// [`Participant`] is a state of the validator that processes validation requests,
 /// which are sent by the current block producer (from the coordinator state).
@@ -207,6 +211,7 @@ mod tests {
         validator::mock::*,
     };
     use ethexe_common::{
+        db::OnChainStorageWrite,
         gear::{CodeCommitment, GearBlock},
         Digest,
     };

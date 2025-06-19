@@ -18,12 +18,11 @@
 
 //! Program's execution service for eGPU.
 
-use anyhow::{anyhow, ensure, Result};
 use ethexe_common::{
-    db::CodesStorage,
+    db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    CodeAndIdUnchecked, Schedule, StateHashWithQueueSize,
+    CodeAndIdUnchecked, ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -31,7 +30,6 @@ use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use handling::{run, ProcessingHandler};
 use host::InstanceCreator;
-use std::collections::BTreeMap;
 
 pub use common::LocalOutcome;
 
@@ -43,10 +41,71 @@ mod handling;
 #[cfg(test)]
 mod tests;
 
+#[derive(thiserror::Error, Debug)]
+pub enum ProcessorError {
+    // `OverlaidProcessor` errors
+    #[error("program isn't yet initialized")]
+    ProgramNotInitialized,
+    #[error("reply wasn't found")]
+    ReplyNotFound,
+    #[error("not found state for program ({program_id}) at block ({block_hash})")]
+    StateNotFound {
+        program_id: ActorId,
+        block_hash: H256,
+    },
+    #[error("unreachable: state partially presents in storage")]
+    StatePartiallyPresentsInStorage,
+    #[error("not found header for processing block ({0})")]
+    BlockHeaderNotFound(H256),
+    #[error("not found program states for processing block ({0})")]
+    BlockProgramStatesNotFound(H256),
+    #[error("not found block start schedule for processing block ({0})")]
+    BlockScheduleNotFound(H256),
+
+    // `InstanceWrapper` errors
+    #[error("couldn't find 'memory' export")]
+    MemoryExportNotFound,
+    #[error("'memory' is not memory")]
+    InvalidMemory,
+    #[error("couldn't find `__indirect_function_table` export")]
+    IndirectFunctionTableNotFound,
+    #[error("`__indirect_function_table` is not table")]
+    InvalidIndirectFunctionTable,
+    #[error("couldn't find `__heap_base` export")]
+    HeapBaseNotFound,
+    #[error("`__heap_base` is not global")]
+    HeapBaseIsNotGlobal,
+    #[error("`__heap_base` is not i32")]
+    HeapBaseIsNoti32,
+    #[error("failed to write call input: {0}")]
+    CallInputWrite(String),
+    #[error("host state should be set before call and reset after")]
+    HostStateNotSet,
+    #[error("allocator should be set after `set_host_state`")]
+    AllocatorNotSet,
+
+    // `ProcessingHandler` errors
+    #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
+    MissingCode(CodeId),
+    #[error("db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}")]
+    DuplicatedProgram(ActorId),
+
+    #[error(transparent)]
+    Wasm(#[from] wasmtime::Error),
+
+    #[error(transparent)]
+    ParityScaleCodes(#[from] parity_scale_codec::Error),
+
+    #[error(transparent)]
+    SpAllocator(#[from] sp_allocator::Error),
+}
+
+pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
+
 #[derive(Clone, Debug)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
-    pub states: BTreeMap<ActorId, StateHashWithQueueSize>,
+    pub states: ProgramStates,
     pub schedule: Schedule,
 }
 
@@ -187,18 +246,20 @@ impl OverlaidProcessor {
         let state_hash = handler
             .transitions
             .state_of(&program_id)
-            .ok_or_else(|| anyhow!("unknown program at specified block hash"))?
+            .ok_or(ProcessorError::StateNotFound {
+                program_id,
+                block_hash,
+            })?
             .hash;
 
         let state = handler
             .db
             .read_state(state_hash)
-            .ok_or_else(|| anyhow!("unreachable: state partially presents in storage"))?;
+            .ok_or(ProcessorError::StatePartiallyPresentsInStorage)?;
 
-        ensure!(
-            !state.requires_init_message(),
-            "program isn't yet initialized"
-        );
+        if state.requires_init_message() {
+            return Err(ProcessorError::ProgramNotInitialized);
+        }
 
         handler.handle_mirror_event(
             program_id,
@@ -226,7 +287,7 @@ impl OverlaidProcessor {
                     })
                 })
             })
-            .ok_or_else(|| anyhow!("reply wasn't found"))?;
+            .ok_or(ProcessorError::ReplyNotFound)?;
 
         Ok(res)
     }

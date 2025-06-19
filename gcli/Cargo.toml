@@ -47,8 +47,5 @@ gear-node-wrapper.workspace = true
 [build-dependencies]
 which.workspace = true
 
-[features]
-embed = []
-
 [package.metadata.docs.rs]
 all-features = true

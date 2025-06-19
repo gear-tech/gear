@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_common::db::CodesStorage;
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageRead};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
@@ -145,10 +145,13 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
+        let block_hash = block_header_at_or_latest(&self.db, None)?.0;
+
         Ok(self
             .db
-            .program_ids()
-            .into_iter()
+            .block_program_states(block_hash)
+            .ok_or_else(|| errors::db("Failed to get program states"))?
+            .into_keys()
             .map(|id| id.try_into().unwrap())
             .collect())
     }

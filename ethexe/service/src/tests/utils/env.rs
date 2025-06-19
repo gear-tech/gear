@@ -209,7 +209,7 @@ impl TestEnv {
             .await
             .unwrap();
 
-        let blobs_storage = LocalBlobStorage::new(db.clone());
+        let blobs_storage = LocalBlobStorage::default();
 
         let provider = observer.provider().clone();
 
@@ -264,7 +264,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(config_path);
@@ -341,7 +341,6 @@ impl TestEnv {
             })
             .unzip();
 
-        self.blobs_storage.change_db(db.clone());
         Node {
             name,
             db,
@@ -375,6 +374,13 @@ impl TestEnv {
             .router()
             .request_code_validation_with_sidecar(code)
             .await?;
+
+        let pending_builder = self
+            .ethereum
+            .router()
+            .request_code_validation_with_sidecar(code)
+            .await?;
+        assert_eq!(pending_builder.code_id(), code_id);
 
         Ok(WaitForUploadCode { listener, code_id })
     }
@@ -782,7 +788,7 @@ impl Node {
         let wait_for_network = self.network_bootstrap_address.is_some();
 
         let network = self.network_address.as_ref().map(|addr| {
-            let config_path = tempfile::tempdir().unwrap().into_path();
+            let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = addr.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(config_path);
@@ -824,7 +830,7 @@ impl Node {
             .await
             .unwrap();
 
-        let blob_loader = LocalBlobLoader::from_storage(self.blob_storage.clone()).into_box();
+        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 

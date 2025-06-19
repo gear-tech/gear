@@ -117,7 +117,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{Digest, ToDigest};
     use gprimitives::H256;
 
     #[test]

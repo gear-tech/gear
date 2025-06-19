@@ -379,7 +379,7 @@ mod tests {
         let mut multisigned_batch =
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
-        let incorrect_digest = [1, 2, 3].as_slice().to_digest();
+        let incorrect_digest = [1, 2, 3].to_digest();
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
             signature: signer

@@ -102,12 +102,9 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let (blob_loader, local_blob_storage_for_rpc): (
-            Box<dyn BlobLoaderService>,
-            Option<LocalBlobStorage>,
-        ) = if config.node.dev {
-            let storage = LocalBlobStorage::new(db.clone());
-            let blob_loader = LocalBlobLoader::from_storage(storage.clone());
+        let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
+            let storage = LocalBlobStorage::default();
+            let blob_loader = LocalBlobLoader::new(db.clone(), storage.clone());
 
             (blob_loader.into_box(), Some(storage))
         } else {

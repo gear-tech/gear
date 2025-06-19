@@ -18,7 +18,10 @@
 
 use crate::*;
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorageRead, OnChainStorageWrite},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
     BlockHeader,
 };
@@ -415,7 +418,7 @@ async fn async_and_ping() {
 
     let message = &to_users[2].1;
     assert_eq!(message.destination, user_id);
-    assert_eq!(message.payload, wait_for_reply_to.into_bytes().as_slice());
+    assert_eq!(message.payload, wait_for_reply_to.into_bytes());
 }
 
 #[tokio::test(flavor = "multi_thread")]

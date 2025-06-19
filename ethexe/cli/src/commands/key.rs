@@ -155,7 +155,7 @@ impl KeyCommand {
                     utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
 
                 let signature = signer
-                    .sign(public, message.as_slice())
+                    .sign(public, message)
                     .with_context(|| "failed to sign message")?;
 
                 println!("Signature: {signature}");

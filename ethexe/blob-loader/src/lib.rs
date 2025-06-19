@@ -22,12 +22,10 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
-use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{CodesStorage, OnChainStorageRead},
-    CodeAndIdUnchecked, CodeInfo,
+    db::{CodesStorageRead, OnChainStorageRead},
+    CodeAndIdUnchecked, CodeBlobInfo,
 };
-use ethexe_db::Database;
 use futures::{
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
@@ -44,6 +42,41 @@ pub mod local;
 pub enum BlobLoaderEvent {
     BlobLoaded(CodeAndIdUnchecked),
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum BlobLoaderError {
+    // `ConsensusLayerBlobReader` errors
+    #[error("transport error: {0}")]
+    Transport(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    #[error("failed to found transaction by hash: {0}")]
+    TransactionNotFound(H256),
+    #[error("failed to get blob versioned hashes from transaction: {0}")]
+    BlobVersionedHashesNotFound(H256),
+    #[error("failed to get transaction block hash: {0}")]
+    TransactionBlockNotFound(H256),
+    #[error("failed to get block by hash: {0}")]
+    BlockNotFound(H256),
+    #[error("failed to read blob bundle: {0}")]
+    ReadBlob(#[from] reqwest::Error),
+    #[error("failed to decode blobs")]
+    DecodeBlobs,
+    #[error("expect code id {expected_code_id}, but got {code_id}, code: {code:?}")]
+    ReadUnexpectedCode {
+        code: Vec<u8>,
+        code_id: CodeId,
+        expected_code_id: CodeId,
+    },
+
+    // `BlobLoader` errors
+    #[error("failed to get code blob info for: {0}")]
+    CodeBlobInfoNotFound(CodeId),
+
+    // `LocalBlobLoader` errors
+    #[error("failed to get code from local storage: {0}")]
+    LocalCodeNotFound(CodeId),
+}
+
+type Result<T> = std::result::Result<T, BlobLoaderError>;
 
 // TODO (#4674): write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
@@ -79,16 +112,14 @@ struct ConsensusLayerBlobReader {
 }
 
 impl ConsensusLayerBlobReader {
+    /// Note: if `attempts` is `None`, it will be trying to read blob only once.
     async fn read_code_from_tx_hash(
         self,
         code_id: CodeId,
         tx_hash: H256,
         attempts: Option<u8>,
     ) -> Result<CodeAndIdUnchecked> {
-        let code = self
-            .read_blob_from_tx_hash(tx_hash, attempts)
-            .await
-            .map_err(|err| anyhow!("failed to read blob: {err}"))?;
+        let code = self.read_blob_from_tx_hash(tx_hash, attempts).await?;
 
         let code_and_id = CodeAndIdUnchecked { code, code_id };
 
@@ -103,39 +134,35 @@ impl ConsensusLayerBlobReader {
             .provider
             .get_transaction_by_hash(tx_hash.0.into())
             .await?
-            .ok_or_else(|| anyhow!("failed to get transaction"))?;
+            .ok_or(BlobLoaderError::TransactionNotFound(tx_hash))?;
 
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
-            .ok_or_else(|| anyhow!("failed to get versioned hashes"))?;
+            .ok_or(BlobLoaderError::BlobVersionedHashesNotFound(tx_hash))?;
         let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
         let block_hash = tx
             .block_hash
-            .ok_or_else(|| anyhow!("failed to get block hash"))?;
+            .ok_or(BlobLoaderError::TransactionBlockNotFound(tx_hash))?;
         let block = self
             .provider
             .get_block_by_hash(block_hash)
             .await?
-            .ok_or_else(|| anyhow!("failed to get block"))?;
+            .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
         let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
             / self.config.beacon_block_time.as_secs();
-        let blob_bundle_result = match attempts {
-            Some(attempts) => {
-                let mut count = 0;
-                loop {
-                    log::trace!("trying to get blob, attempt #{}", count + 1);
-                    let blob_bundle_result = self.read_blob_bundle(slot).await;
-                    if blob_bundle_result.is_ok() || count >= attempts {
-                        break blob_bundle_result;
-                    } else {
-                        time::sleep(self.config.beacon_block_time).await;
-                        count += 1;
-                    }
-                }
+
+        let attempts = attempts.unwrap_or(0);
+        let mut count = 0;
+        let blob_bundle = loop {
+            log::trace!("trying to get blob, attempt #{}", count + 1);
+            let blob_bundle_result = self.read_blob_bundle(slot).await;
+            if blob_bundle_result.is_ok() || count >= attempts {
+                break blob_bundle_result;
+            } else {
+                time::sleep(self.config.beacon_block_time).await;
+                count += 1;
             }
-            None => self.read_blob_bundle(slot).await,
-        };
-        let blob_bundle = blob_bundle_result?;
+        }?;
 
         let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());
         for blob_data in blob_bundle.into_iter().filter(|blob_data| {
@@ -148,7 +175,7 @@ impl ConsensusLayerBlobReader {
         let mut coder = SimpleCoder::default();
         let data = coder
             .decode_all(&blobs)
-            .ok_or_else(|| anyhow!("failed to decode blobs"))?
+            .ok_or(BlobLoaderError::DecodeBlobs)?
             .concat();
 
         Ok(data)
@@ -167,15 +194,18 @@ impl ConsensusLayerBlobReader {
     }
 }
 
-pub struct BlobLoader {
+pub trait Database: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static {}
+impl<T: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static> Database for T {}
+
+pub struct BlobLoader<DB: Database> {
     futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,
     codes_loading: HashSet<CodeId>,
 
     blobs_reader: ConsensusLayerBlobReader,
-    db: Database,
+    db: DB,
 }
 
-impl Stream for BlobLoader {
+impl<DB: Database> Stream for BlobLoader<DB> {
     type Item = Result<BlobLoaderEvent>;
 
     fn poll_next(
@@ -196,14 +226,14 @@ impl Stream for BlobLoader {
     }
 }
 
-impl FusedStream for BlobLoader {
+impl<DB: Database> FusedStream for BlobLoader<DB> {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl BlobLoader {
-    pub async fn new(db: Database, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
+impl<DB: Database> BlobLoader<DB> {
+    pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
         Ok(Self {
             futures: FuturesUnordered::new(),
             codes_loading: HashSet::new(),
@@ -220,7 +250,7 @@ impl BlobLoader {
     }
 }
 
-impl BlobLoaderService for BlobLoader {
+impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
     fn into_box(self) -> Box<dyn BlobLoaderService> {
         Box::new(self)
     }
@@ -231,14 +261,28 @@ impl BlobLoaderService for BlobLoader {
 
     fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()> {
         for code_id in codes {
-            if self.codes_loading.contains(&code_id) || self.db.original_code_exists(code_id) {
+            if self.codes_loading.contains(&code_id) {
                 continue;
             }
 
-            let CodeInfo { tx_hash, .. } = self
+            let CodeBlobInfo { tx_hash, .. } = self
                 .db
                 .code_blob_info(code_id)
-                .ok_or(anyhow!("not found code info for {code_id} in db"))?;
+                .ok_or(BlobLoaderError::CodeBlobInfoNotFound(code_id))?;
+
+            if let Some(code) = self.db.original_code(code_id) {
+                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
+                self.futures
+                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
+                continue;
+            }
+
+            if let Some(code) = self.db.original_code(code_id) {
+                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
+                self.futures
+                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
+                continue;
+            }
 
             self.codes_loading.insert(code_id);
             self.futures.push(
