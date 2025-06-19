@@ -186,7 +186,7 @@ jobs:
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
-        partition: [1, 2, 3, 4]
+        partition: [1, 2, 3]
       fail-fast: false
     name: gclient [${{ matrix.partition }}/4] (${{ matrix.profiles.name }})
     steps:
@@ -218,7 +218,7 @@ jobs:
       - name: "Test: gclient tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)'
-          --partition hash:${{ matrix.partition }}/4
+          --partition hash:${{ matrix.partition }}/3
           --run-ignored=all
           --extract-to=${{ github.workspace }}
           --workspace-remap=${{ github.workspace }}
