@@ -283,5 +283,5 @@ try-runtime = [
     "pallet-bags-list/try-runtime",
     "gear-runtime-common/try-runtime",
 ]
-dev = ["pallet-gear-eth-bridge", "pallet-sudo"]
+dev = ["pallet-gear-eth-bridge", "pallet-sudo", "pallet-gear/dev"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
