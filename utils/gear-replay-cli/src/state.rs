@@ -173,9 +173,7 @@ where
 
                 log::info!(
                     target: LOG_TARGET,
-                    "Preparing to fetch state from {:?} at {:?}",
-                    uri,
-                    at,
+                    "Preparing to fetch state from {uri:?} at {at:?}",
                 );
 
                 let hashed_prefixes = hashed_prefixes
