@@ -148,6 +148,9 @@ jobs:
       fail-fast: false
     name: sdk (${{ matrix.profiles.name }})
     steps:
+      - name: "ACTIONS: Free disk space"
+        uses: jlumbroso/free-disk-space@main
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
