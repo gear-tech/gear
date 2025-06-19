@@ -148,6 +148,11 @@ jobs:
       fail-fast: false
     name: gsdk & gcli (${{ matrix.profiles.name }})
     steps:
+      - name: "ACTIONS: Free disk space"
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
