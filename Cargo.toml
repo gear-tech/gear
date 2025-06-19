@@ -288,6 +288,8 @@ runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/prim
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
+
+# ethexe deps
 ethexe-observer = { path = "ethexe/observer", default-features = false }
 ethexe-db = { path = "ethexe/db", default-features = false }
 ethexe-network = { path = "ethexe/network", default-features = false }
@@ -307,7 +309,7 @@ ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
-wasmi = { package = "wasmi", version = "0.38" }
+wasmi = { version = "0.38" }
 
 # Substrate deps
 binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }

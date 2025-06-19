@@ -5992,6 +5992,7 @@ dependencies = [
  "gsdk",
  "gstd",
  "hex",
+ "hex-literal",
  "log",
  "parity-scale-codec",
  "subxt",
@@ -6006,10 +6007,12 @@ dependencies = [
 name = "gcore"
 version = "1.8.1"
 dependencies = [
+ "galloc",
  "gear-core-errors",
  "gear-stack-buffer",
  "gprimitives",
  "gsys",
+ "hex-literal",
 ]
 
 [[package]]
