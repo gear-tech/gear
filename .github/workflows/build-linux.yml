@@ -139,23 +139,17 @@ jobs:
           overwrite: true
           compression-level: 0
 
-  sdk:
+  gsdk-and-gcli:
     runs-on: ubuntu-latest
     needs: workspace
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
-    name: sdk (${{ matrix.profiles.name }})
+    name: gsdk & gcli (${{ matrix.profiles.name }})
     steps:
-      - name: "ACTIONS: Free disk space"
-        uses: jlumbroso/free-disk-space@main
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
-
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -192,10 +186,47 @@ jobs:
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gcli)'
           --workspace-remap=${{ github.workspace }}
 
-      - name: "Test: Client tests"
+  gclient:
+    runs-on: ubuntu-latest
+    needs: workspace
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+        partition: [1, 2, 3, 4]
+      fail-fast: false
+    name: gclient [${{ matrix.partition }}/4] (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "ACTIONS: Download node and runtime"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-unknown-linux-gnu
+          path: node-release
+
+      - name: "ACTIONS: Download nextest archive"
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
+
+      - name: "Test: Copy runtime WASM before `gclient` tests"
+        run: |
+          mkdir -p target/release/wbuild/vara-runtime
+          cp node-release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm target/release/wbuild/vara-runtime/
+
+      - name: "Test: gclient tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)'
+          --partition hash:${{ matrix.partition }}:4
           --run-ignored=all
+          --extract-to=${{ github.workspace }}
           --workspace-remap=${{ github.workspace }}
 
   benchmarks:
