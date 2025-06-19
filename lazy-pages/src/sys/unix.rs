@@ -195,9 +195,7 @@ fn init_for_thread_internal() -> Result<(), ThreadInitError> {
         }
 
         log::debug!(
-            "Set new signal stack: ptr = {:?}, size = {:#x}",
-            ptr,
-            SIGNAL_STACK_SIZE
+            "Set new signal stack: ptr = {ptr:?}, size = {SIGNAL_STACK_SIZE:#x}"
         );
 
         Ok(StackInfo::NewStack(ptr))
@@ -247,7 +245,7 @@ where
     let handler = old_sigaction.handler();
     let _ = OLD_SIG_HANDLER
         .set(handler)
-        .map(|_| log::trace!("Save old signal handler: {:?}", handler));
+        .map(|_| log::trace!("Save old signal handler: {handler:?}"));
 
     Ok(())
 }

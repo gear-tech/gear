@@ -120,7 +120,7 @@ struct FuzzerLazyPagesSignalHandler;
 
 impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
     unsafe fn handle(info: ExceptionInfo) -> std::result::Result<(), Error> {
-        log::debug!("Interrupted, exception info = {:?}", info);
+        log::debug!("Interrupted, exception info = {info:?}");
         FUZZER_LP_CONTEXT.with(|ctx| {
             let mut borrow = ctx.borrow_mut();
             let ctx = borrow.as_mut().ok_or(Error::WasmMemAddrIsNotSet)?;
@@ -142,8 +142,7 @@ fn user_signal_handler_internal(
     }
 
     log::trace!(
-        "SIG: Unprotect WASM memory at address: {:#x}, wr: {is_write}",
-        native_addr
+        "SIG: Unprotect WASM memory at address: {native_addr:#x}, wr: {is_write}"
     );
 
     // On read, simulate data load to memory page

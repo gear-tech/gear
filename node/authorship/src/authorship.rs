@@ -265,8 +265,7 @@ where
         let parent_hash = parent_header.hash();
 
         info!(
-            "🙌 Starting consensus session on top of parent {:?}",
-            parent_hash
+            "🙌 Starting consensus session on top of parent {parent_hash:?}"
         );
 
         Proposer::<_, _, _, PR> {
@@ -457,7 +456,7 @@ where
                 Err(e) => {
                     warn!(
                         target: LOG_TARGET,
-                        "❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e
+                        "❗️ Inherent extrinsic returned unexpected error: {e}. Dropping."
                     );
                 }
                 Ok(_) => {}
@@ -489,7 +488,7 @@ where
         let mut skipped = 0;
         let mut unqueue_invalid = Vec::new();
 
-        let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
+        let mut t1 = self.transaction_pool.ready_at(self.parent_hash).fuse();
         let mut t2 =
             futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
 
@@ -566,11 +565,11 @@ where
                 }
             }
 
-            trace!(target: LOG_TARGET, "[{:?}] Pushing to the block.", pending_tx_hash);
+            trace!(target: LOG_TARGET, "[{pending_tx_hash:?}] Pushing to the block.");
             match block_builder.push(pending_tx_data) {
                 Ok(()) => {
                     transaction_pushed = true;
-                    debug!(target: LOG_TARGET, "[{:?}] Pushed to the block.", pending_tx_hash);
+                    debug!(target: LOG_TARGET, "[{pending_tx_hash:?}] Pushed to the block.");
                 }
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
                     pending_iterator.report_invalid(&pending_tx);
@@ -597,7 +596,7 @@ where
                     pending_iterator.report_invalid(&pending_tx);
                     debug!(
                         target: LOG_TARGET,
-                        "[{:?}] Invalid transaction: {}", pending_tx_hash, e
+                        "[{pending_tx_hash:?}] Invalid transaction: {e}"
                     );
                     unqueue_invalid.push(pending_tx_hash);
                 }
@@ -607,7 +606,7 @@ where
         if matches!(end_reason, EndProposingReason::HitBlockSizeLimit) && !transaction_pushed {
             warn!(
                 target: LOG_TARGET,
-                "Hit block size limit of `{}` without including any transaction!", block_size_limit,
+                "Hit block size limit of `{block_size_limit}` without including any transaction!",
             );
         }
 
@@ -705,8 +704,7 @@ where
                     }
                     Err(e) => {
                         error!(target: "gear::authorship",
-                            "❗️ Terminal extrinsic returned an error: {}. Dropping.",
-                            e
+                            "❗️ Terminal extrinsic returned an error: {e}. Dropping."
                         );
                     }
                 };

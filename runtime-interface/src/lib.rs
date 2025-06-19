@@ -256,7 +256,7 @@ pub mod lazy_pages_detail {
         use gear_lazy_pages::LazyPagesVersion;
 
         gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), SpIoProgramStorage)
-            .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+            .map_err(|err| log::error!("Cannot initialize lazy-pages: {err}"))
             .is_ok()
     }
 

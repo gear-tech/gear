@@ -64,7 +64,7 @@ where
 
         let status = match outcome {
             Exit { program_id } => {
-                log::trace!("Dispatch outcome exit: {:?}", message_id);
+                log::trace!("Dispatch outcome exit: {message_id:?}");
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
@@ -74,12 +74,12 @@ where
                 DispatchStatus::Success
             }
             Success => {
-                log::trace!("Dispatch outcome success: {:?}", message_id);
+                log::trace!("Dispatch outcome success: {message_id:?}");
 
                 DispatchStatus::Success
             }
             MessageTrap { program_id, trap } => {
-                log::trace!("Dispatch outcome trap: {:?}", message_id);
+                log::trace!("Dispatch outcome trap: {message_id:?}");
                 log::debug!(
                     "🪤 Program {} terminated with a trap: {}",
                     program_id.into_origin(),
@@ -90,9 +90,7 @@ where
             }
             InitSuccess { program_id, .. } => {
                 log::trace!(
-                    "Dispatch ({:?}) init success for program {:?}",
-                    message_id,
-                    program_id
+                    "Dispatch ({message_id:?}) init success for program {program_id:?}"
                 );
 
                 let expiration =
@@ -142,7 +140,7 @@ where
                 DispatchStatus::Failed
             }
             NoExecution => {
-                log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
+                log::trace!("Dispatch ({message_id:?}) for program wasn't executed");
 
                 DispatchStatus::NotExecuted
             }
@@ -154,7 +152,7 @@ where
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
+        log::debug!("Burned: {amount:?} from: {message_id:?}");
 
         GasAllowanceOf::<T>::decrease(amount);
 
@@ -367,9 +365,7 @@ where
         }
 
         log::debug!(
-            "Attempt to wake unknown message {:?} from {:?}",
-            awakening_id,
-            message_id
+            "Attempt to wake unknown message {awakening_id:?} from {message_id:?}"
         );
     }
 
@@ -488,13 +484,12 @@ where
                         },
                     });
                 } else {
-                    log::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!("Program with id {candidate_id:?} already exists");
                 }
             }
         } else {
             log::debug!(
-                "No referencing code with code hash {:?} for candidate programs",
-                code_id
+                "No referencing code with code hash {code_id:?} for candidate programs"
             );
             // SAFETY:
             // Do not remove insertion into programs map as it gives guarantee
@@ -539,11 +534,7 @@ where
         duration: u32,
     ) {
         log::debug!(
-            "Reserved: {:?} from {:?} with {:?} for {} blocks",
-            amount,
-            message_id,
-            reservation_id,
-            duration
+            "Reserved: {amount:?} from {message_id:?} with {reservation_id:?} for {duration} blocks"
         );
 
         let hold = HoldBoundBuilder::<T>::new(StorageType::Reservation)
@@ -653,7 +644,7 @@ where
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Reserve {} of gas for system from {}", amount, message_id);
+        log::debug!("Reserve {amount} of gas for system from {message_id}");
 
         GasHandlerOf::<T>::system_reserve(message_id, amount).unwrap_or_else(|e| {
             let err_msg = format!(
@@ -678,11 +669,10 @@ where
         });
 
         if amount != 0 {
-            log::debug!("Unreserved {} gas for system from {}", amount, message_id);
+            log::debug!("Unreserved {amount} gas for system from {message_id}");
         } else {
             log::debug!(
-                "Gas for system was not unreserved from {} as there is no supply",
-                message_id
+                "Gas for system was not unreserved from {message_id} as there is no supply"
             );
         }
     }

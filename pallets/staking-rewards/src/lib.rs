@@ -270,7 +270,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|e| {
-                log::error!("Failed to replenish the staking rewards pool: {:?}", e);
+                log::error!("Failed to replenish the staking rewards pool: {e:?}");
                 Error::<T>::FailureToRefillPool
             })?;
             Self::deposit_event(Event::Deposited { amount: value });
@@ -294,7 +294,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|e| {
-                log::error!("Failed to replenish the staking rewards pool: {:?}", e);
+                log::error!("Failed to replenish the staking rewards pool: {e:?}");
                 Error::<T>::FailureToRefillPool
             })?;
             Self::deposit_event(Event::Deposited { amount: value });
@@ -319,8 +319,7 @@ pub mod pallet {
             )
             .map_err(|e| {
                 log::error!(
-                    "Failed to withdraw funds from the staking rewards pool: {:?}",
-                    e
+                    "Failed to withdraw funds from the staking rewards pool: {e:?}"
                 );
                 Error::<T>::FailureToWithdrawFromPool
             })?;
