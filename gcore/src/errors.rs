@@ -25,7 +25,7 @@ pub use gprimitives::ConversionError;
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord, thiserror::Error)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, thiserror::Error)]
 pub enum Error {
     /// Syscall usage error.
     #[error("syscall usage error")]

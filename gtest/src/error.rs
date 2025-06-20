@@ -59,7 +59,7 @@ pub enum TestError {
     UnsupportedFunction(String),
 
     /// Wrapper for [`ExtError`].
-    #[error("Core execution error: `{0}`")]
+    #[error("Execution error: `{0}`")]
     ExecutionError(#[from] ExtError),
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
