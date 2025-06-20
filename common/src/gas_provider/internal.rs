@@ -674,7 +674,7 @@ where
         }
 
         *node_value = node_value.saturating_sub(amount);
-        log::debug!("Spent {:?} of gas", amount);
+        log::debug!("Spent {amount:?} of gas");
 
         // Save node that delivers limit
         StorageMap::insert(node_id.unwrap_or(key), node);
