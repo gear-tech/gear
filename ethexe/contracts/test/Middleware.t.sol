@@ -27,6 +27,7 @@ import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
+import {Gear} from "../src/libraries/Gear.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 import {Base} from "./Base.t.sol";
@@ -171,11 +172,55 @@ contract MiddlewareTest is Base {
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
+    }
+
+    function test_operatorIdentifiers() public {
+        address operator = address(0x1);
+
+        // Register operator first
+        vm.startPrank(operator);
+        sym.operatorRegistry().registerOperator();
+        sym.operatorNetworkOptInService().optIn(address(middleware));
+        middleware.registerOperator();
+        vm.stopPrank();
+
+        // Test successful public key registration
+        vm.startPrank(operator);
+        middleware.registerIdentifier(address(0x42));
+        vm.stopPrank();
+
+        // Verify key was stored
+        address storedKey = middleware.operatorIdentifier(operator);
+        assertEq(storedKey, address(0x42));
+
+        // Test unregistered operator
+        address unregistered = address(0x2);
+        vm.startPrank(unregistered);
+        vm.expectRevert("Operator not registered");
+        middleware.registerIdentifier(address(0x43));
+        vm.stopPrank();
+
+        // Test invalid public key
+        vm.startPrank(operator);
+        vm.expectRevert("Invalid identifier");
+        middleware.registerIdentifier(address(0));
+        vm.stopPrank();
+
+        // Register operator 0x2 in Middleware
+        vm.startPrank(address(0x2));
+        {
+            sym.operatorRegistry().registerOperator();
+            sym.operatorNetworkOptInService().optIn(address(middleware));
+            middleware.registerOperator();
+            middleware.disableOperator();
+        }
+        vm.stopPrank();
 
         // Wait for grace period and unregister operator from other address
         vm.startPrank(address(0x3));
         {
-            vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
+            uint48 gracePeriod = middleware.operatorGracePeriod();
+            vm.warp(vm.getBlockTimestamp() + gracePeriod + 1);
             middleware.unregisterOperator(address(0x2));
         }
         vm.stopPrank();
