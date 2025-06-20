@@ -205,17 +205,29 @@ jobs:
         run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
 
       - name: "Test: Benchmarks in WASM"
-        run: |
-          cp ./target/release/gear ./gear
-          
-          # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-          ./gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
-          # check that read_big_state benchmarks works
-          ./gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="read_big_state" --heap-pages=4096 --extra
-          # check that signal_stack_limit_exceeded_works benchmarks works
-          ./gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
-          # check that check/test benchmarks works
-          ./gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
+        # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --steps=5 --repeat=0 --heap-pages=4096
+          --pallet="*" --extrinsic="*"
+
+      - name: "Test: Extra `read_big_state` benchmark"
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=4096
+          --pallet=pallet_gear --extrinsic="read_big_state" --extra
+
+      - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=4096
+          --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
+
+      - name: "Test: Extra `check_all` benchmark"
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=4096
+          --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
     runs-on: ubuntu-latest
