@@ -478,8 +478,7 @@ where
         match SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench, false) {
             Err(err) if role.is_authority() => {
                 log::warn!(
-                    "⚠️  The hardware does not meet the minimal requirements {} for role 'Authority'.",
-                    err
+                    "⚠️  The hardware does not meet the minimal requirements {err} for role 'Authority'."
                 );
             }
             _ => {}

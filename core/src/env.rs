@@ -101,9 +101,9 @@ impl PayloadSliceLock {
     /// error of the `Job` as it could have called fallible actions inside it. So,
     /// [`DropPayloadLockBound`] gives an opportunity to store the actual result of the job,
     /// but also gives guarantee that payload was reclaimed.
-    pub fn drop_with<JobErr, Job>(mut self, mut job: Job) -> DropPayloadLockBound<JobErr>
+    pub fn drop_with<JobErr, Job>(mut self, job: Job) -> DropPayloadLockBound<JobErr>
     where
-        Job: FnMut(PayloadSliceAccess<'_>) -> DropPayloadLockBound<JobErr>,
+        Job: FnOnce(PayloadSliceAccess<'_>) -> DropPayloadLockBound<JobErr>,
     {
         let held_range = PayloadSliceAccess(&mut self);
         job(held_range)

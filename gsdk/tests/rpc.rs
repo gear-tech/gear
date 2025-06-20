@@ -49,13 +49,13 @@ async fn pallet_errors_formatting() -> Result<()> {
         .await
         .expect_err("Must return error");
 
-    let expected_err = Error::Subxt(SubxtError::Rpc(RpcError::ClientError(Box::new(
+    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(RpcError::ClientError(Box::new(
         ErrorObject::owned(
             8000,
             "Runtime error",
             Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
         ),
-    ))));
+    )))));
 
     assert_eq!(format!("{err}"), format!("{expected_err}"));
 
@@ -272,31 +272,29 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
     let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
-    {
-        let no_method_block_hash = sp_core::H256::from_str(
-            "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
-        )
-        .unwrap();
+    let no_method_block_hash = sp_core::H256::from_str(
+        "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
+    )
+    .unwrap();
 
-        let wasm_blob_version_result = api
-            .runtime_wasm_blob_version(Some(no_method_block_hash))
-            .await;
+    let wasm_blob_version_err = api
+        .runtime_wasm_blob_version(Some(no_method_block_hash))
+        .await
+        .unwrap_err()
+        .unwrap_subxt();
 
-        let err = ErrorObject::owned(
-            9000,
-            "Unable to find WASM blob version in WASM blob",
-            None::<String>,
-        );
-        assert!(
-            matches!(
-                &wasm_blob_version_result,
-                Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string()
-            ),
-            "Error does not match: {wasm_blob_version_result:?}"
-        );
+    let err = ErrorObject::owned(
+        9000,
+        "Unable to find WASM blob version in WASM blob",
+        None::<String>,
+    );
+
+    if let SubxtError::Rpc(RpcError::ClientError(e)) = *wasm_blob_version_err {
+        assert_eq!(e.to_string(), err.to_string());
+        return Ok(());
     }
 
-    Ok(())
+    panic!("Error does not match: {wasm_blob_version_err:?}");
 }
 
 #[tokio::test]

@@ -186,7 +186,7 @@ pub type HostPointer = u64;
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 /// Core memory error.
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum MemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display("Trying to access memory outside wasm program memory")]
@@ -548,7 +548,7 @@ mod tests {
         let mut data = PageBufInner::filled_with(199u8);
         data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
-        log::debug!("page buff = {:?}", page_buf);
+        log::debug!("page buff = {page_buf:?}");
     }
 
     #[test]

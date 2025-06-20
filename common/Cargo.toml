@@ -39,7 +39,6 @@ frame-benchmarking = { workspace = true, optional = true }
 fail = { workspace = true, features = [ "failpoints" ] }
 
 [dev-dependencies]
-hex-literal.workspace = true
 proptest.workspace = true
 gear-utils.workspace = true
 

@@ -22,7 +22,6 @@ nonempty.workspace = true
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }
 wat.workspace = true
-indicatif.workspace = true
 proptest.workspace = true
 gear-utils.workspace = true
 

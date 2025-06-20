@@ -32,6 +32,7 @@ sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" , "full_crypto"] }
 gsdk-codegen.workspace = true
 parking_lot.workspace = true
+derive_more.workspace = true
 
 # Importing these two libraries for trimming
 # the the size of the generated file.

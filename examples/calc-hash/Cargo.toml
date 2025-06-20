@@ -12,4 +12,3 @@ parity-scale-codec.workspace = true
 sha2.workspace = true
 
 [build-dependencies]
-gear-wasm-builder.workspace = true
