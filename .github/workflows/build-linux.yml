@@ -76,7 +76,7 @@ jobs:
           publish_dir: ./target/x86_64-unknown-linux-gnu/doc
           destination_dir: pr-${{ github.event.number }}
 
-  workspace:
+  build-workspace:
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
       matrix:
@@ -107,28 +107,11 @@ jobs:
       - name: "Build: Workspace"
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
-      - name: "ACTIONS: Download node"
-        uses: actions/download-artifact@v4
-        with:
-          name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: target/release
-
       - name: "Test: Pack everything"
         run: >-
           cargo nextest archive
           --archive-file=workspace.tar.zst --zstd-level=6
           --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
-
-      - name: "Test: Workspace"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst --fail-fast 
-          -E '
-          not package(/fuzz/) and
-          not package(gsdk) and
-          not package(gcli) and
-          not package(gclient) and
-          not test(/bench/)
-          '
 
       - name: "ACTIONS: Upload nextest archive"
         uses: actions/upload-artifact@v4
@@ -139,56 +122,21 @@ jobs:
           overwrite: true
           compression-level: 0
 
-  gsdk-and-gcli:
+  test-workspace:
     runs-on: ubuntu-latest
-    needs: workspace
+    needs: build-workspace
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
+        partition: [1, 2, 3, 4]
       fail-fast: false
-    name: gsdk & gcli (${{ matrix.profiles.name }})
+    name: test-workspace [${{ matrix.partition }}/4] (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Free disk space"
         uses: jlumbroso/free-disk-space@main
         with:
           large-packages: false
 
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
-
-      - name: "Install: Rust toolchain"
-        uses: ./.github/actions/install-rust
-
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "ACTIONS: Download nextest archive"
-        uses: actions/download-artifact@v4
-        with:
-          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
-
-      - name: "Test: gsdk tests"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst -E 'package(gsdk)'
-          --extract-to=${{ github.workspace }}
-          --workspace-remap=${{ github.workspace }}
-
-      - name: "Test: `gcli`"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst -E 'package(gcli)'
-          --workspace-remap=${{ github.workspace }}
-
-  gclient:
-    runs-on: ubuntu-latest
-    needs: workspace
-    strategy:
-      matrix:
-        profiles: ${{ fromJSON(inputs.profiles) }}
-      fail-fast: false
-    name: gclient (${{ matrix.profiles.name }})
-    steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
@@ -209,20 +157,22 @@ jobs:
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
 
-      - name: "Test: gclient tests"
+      - name: "Test: Workspace"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          cargo nextest run --archive-file=workspace.tar.zst -E 'package(gclient)'
+          cargo nextest run --archive-file=workspace.tar.zst --fail-fast 
           --run-ignored=all
           --workspace-remap=${{ github.workspace }}
+          --partition hash:${{ matrix.partition }}/4
+          -E 'not package(/fuzz/)'
 
+  # unoptimized benchmark tests take a few hours to run,
+  # so we only run in release
   benchmarks:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: workspace
-    strategy:
-      matrix:
-        profiles: ${{ fromJSON(inputs.profiles) }}
-      fail-fast: false
-    name: benchmarks (${{ matrix.profiles.name }})
+    needs: build-workspace
+    name: benchmarks
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -239,19 +189,12 @@ jobs:
       - name: "ACTIONS: Download nextest archive"
         uses: actions/download-artifact@v4
         with:
-          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
-
-      - name: "Test: Benchmarks in native"
-        # fast benchmark tests before long run
-        run: cargo nextest run --archive-file=workspace.tar.zst -E 'not package(/fuzz/)' bench
+          name: nextest-workspace-release-x86_64-unknown-linux-gnu
 
       - name: "Build: gear-cli with enabled benchmarks"
-        if: ${{ matrix.profiles.name == 'release' }}
         run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
 
       - name: "Test: Benchmarks in WASM"
-        # unoptimized benchmarks take a few hours to run
-        if: ${{ matrix.profiles.name == 'release' }}
         run: |
           cp ./target/release/gear ./gear
           
@@ -264,14 +207,9 @@ jobs:
           # check that check/test benchmarks works
           ./gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
 
-      - name: "Test: Syscalls Wasmi integrity"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst 
-          -E 'package(pallet-gear)' check_syscalls_integrity
-
   try-runtime:
     runs-on: ubuntu-latest
-    needs: workspace
+    needs: build-workspace
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
@@ -318,7 +256,7 @@ jobs:
 
   fuzzer:
     runs-on: [ kuberunner, github-runner-01 ]
-    needs: workspace
+    needs: build-workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
     steps:
@@ -377,7 +315,7 @@ jobs:
 
   production:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: workspace
+    needs: build-workspace
     if: ${{ inputs.production }}
     steps:
       - name: "ACTIONS: Checkout"
