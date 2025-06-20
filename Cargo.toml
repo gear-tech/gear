@@ -114,7 +114,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = { version = "1.0", features = ["rpc-types-beacon"] }
+alloy = "1.0"
 alloy-primitives = { version = "1.1", default-features = false }
 alloy-sol-types = { version = "1.1", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
