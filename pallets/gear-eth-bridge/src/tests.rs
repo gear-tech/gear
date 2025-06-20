@@ -8,7 +8,7 @@ use frame_support::{
     assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
 };
 use gbuiltin_eth_bridge::{Request, Response};
-use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use pallet_gear::Event as GearEvent;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
@@ -222,7 +222,7 @@ fn bridge_send_eth_message_works() {
 
         queue.push(hash);
 
-        let (response, _) = run_block_with_builtin_call(
+        let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination,
@@ -526,7 +526,7 @@ fn bridge_incorrect_value_applied_err() {
         let signer_balance = balance_of(&SIGNER);
         let mut gas_meter = GasSpentMeter::start();
 
-        let (response, _) = run_block_with_builtin_call(
+        let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
@@ -547,6 +547,54 @@ fn bridge_incorrect_value_applied_err() {
 }
 
 #[test]
+fn bridge_value_returned() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ADDITIONAL_VALUE: u128 = 42;
+
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let builtin_id = AccountId::from_origin(builtin_id().into());
+        let mut builtin_balance = balance_of(&builtin_id);
+        let transfer_fee = MockTransportFee::get();
+
+        let destination = H160::random();
+        let payload = H256::random().as_bytes().to_vec();
+
+        let (response, value, err_code) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination,
+                payload,
+            },
+            None,
+            transfer_fee + ADDITIONAL_VALUE,
+        );
+
+        let _response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
+
+        signer_balance -= gas_meter.spent() + transfer_fee;
+        builtin_balance += transfer_fee;
+
+        run_for_n_blocks(40);
+
+        assert_eq!(err_code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+        assert_eq!(value, ADDITIONAL_VALUE);
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
+    })
+}
+
+#[test]
 fn bridge_insufficient_gas_err() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -558,7 +606,7 @@ fn bridge_insufficient_gas_err() {
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        let (_, code) = run_block_with_builtin_call(
+        let (_, _, code) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
@@ -613,7 +661,7 @@ mod utils {
             error
         );
 
-        let (response, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
+        let (response, _, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
 
         assert_eq!(String::from_utf8_lossy(&response), err_str);
     }
@@ -624,7 +672,7 @@ mod utils {
         request: Request,
         gas_limit: Option<u64>,
         value: u128,
-    ) -> (Vec<u8>, ReplyCode) {
+    ) -> (Vec<u8>, Value, ReplyCode) {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(source),
             builtin_id(),
@@ -646,6 +694,7 @@ mod utils {
 
         (
             message.payload_bytes().to_vec(),
+            message.value(),
             reply_details.to_reply_code(),
         )
     }
