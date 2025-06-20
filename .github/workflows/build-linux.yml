@@ -193,14 +193,6 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "ACTIONS: Download nextest archive"
-        uses: actions/download-artifact@v4
-        with:
-          name: nextest-workspace-release-x86_64-unknown-linux-gnu
-
       - name: "Build: gear-cli with enabled benchmarks"
         run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
 
