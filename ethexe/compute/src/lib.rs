@@ -447,13 +447,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
 
 #[cfg(test)]
 mod tests {
-    use ethexe_common::BlockHeader;
+    use super::*;
+    use ethexe_common::{db::OnChainStorageWrite, BlockHeader, Digest};
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use std::collections::HashMap;
-
-    use super::*;
-    use ethexe_common::{db::OnChainStorageWrite, Digest};
 
     // Create new code with a unique nonce
     fn create_new_code(nonce: u32) -> Vec<u8> {
@@ -506,6 +504,7 @@ mod tests {
         db.set_block_computed(genesis_hash);
         db.set_block_outcome(genesis_hash, vec![]);
         db.set_previous_not_empty_block(genesis_hash, H256::random());
+        db.set_last_committed_batch(genesis_hash, Digest::random());
         db.set_block_commitment_queue(genesis_hash, Default::default());
         db.set_block_program_states(genesis_hash, Default::default());
         db.set_block_schedule(genesis_hash, Default::default());
@@ -625,8 +624,8 @@ mod tests {
         db.set_block_codes_queue(parent_block, parent_codes_queue.clone());
         db.set_block_outcome(parent_block, Default::default());
         db.set_previous_not_empty_block(parent_block, H256::random());
-        db.set_block_commitment_queue(parent_block, Default::default());
         db.set_last_committed_batch(parent_block, Digest::random());
+        db.set_block_commitment_queue(parent_block, Default::default());
 
         // Simulate events for the current block
         let events = vec![

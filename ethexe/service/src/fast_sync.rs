@@ -654,9 +654,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         latest_committed_block,
         previous_committed_block.unwrap_or_else(H256::zero),
     );
+    db.set_last_committed_batch(latest_committed_block, latest_committed_batch);
     db.set_block_computed(latest_committed_block);
     db.set_latest_computed_block(latest_committed_block, latest_block_header);
-    db.set_last_committed_batch(latest_committed_block, latest_committed_batch);
 
     log::info!("Fast synchronization done");
 
