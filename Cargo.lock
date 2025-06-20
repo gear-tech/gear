@@ -4753,6 +4753,7 @@ name = "ethexe-network"
 version = "1.8.1"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "derive_more 2.0.1",
  "ethexe-common",
@@ -4761,12 +4762,14 @@ dependencies = [
  "ethexe-signer",
  "futures",
  "gprimitives",
+ "itertools 0.13.0",
  "libp2p 0.55.0",
  "libp2p-swarm-test",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
  "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 
@@ -4815,6 +4818,7 @@ dependencies = [
  "sp-wasm-interface",
  "thiserror 2.0.12",
  "tokio",
+ "tracing",
  "tracing-subscriber",
  "wasmtime",
  "wat",
@@ -4896,6 +4900,7 @@ version = "1.8.1"
 dependencies = [
  "alloy",
  "anyhow",
+ "async-trait",
  "demo-async",
  "demo-async-init",
  "demo-mul-by-const",

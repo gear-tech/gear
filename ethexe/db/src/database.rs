@@ -45,7 +45,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[repr(u64)]
 enum Key {
@@ -467,6 +467,24 @@ impl CodesStorageWrite for Database {
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
+    }
+
+    fn valid_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValid(Default::default()).prefix();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, valid)| {
+                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
+                let code_id =
+                    CodeId::try_from(code_id).expect("Failed to decode key into `ProgramId`");
+
+                #[cfg(debug_assertions)]
+                bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+
+                code_id
+            })
+            .collect()
     }
 }
 
