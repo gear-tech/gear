@@ -3442,7 +3442,6 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -4710,7 +4709,6 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
- "rand 0.8.5",
  "tokio",
 ]
 
@@ -4728,7 +4726,6 @@ dependencies = [
  "parity-scale-codec",
  "rocksdb",
  "scopeguard",
- "serde",
  "tempfile",
 ]
 
@@ -4769,7 +4766,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "tempfile",
  "tokio",
  "tracing-subscriber",
 ]
@@ -4924,7 +4920,6 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
- "gear-utils",
  "gprimitives",
  "log",
  "ntest",
@@ -5951,7 +5946,6 @@ dependencies = [
  "colored",
  "demo-fungible-token",
  "demo-messenger",
- "demo-waiter",
  "dirs",
  "etc",
  "gclient",
@@ -5963,7 +5957,6 @@ dependencies = [
  "hex",
  "keyring",
  "log",
- "rand 0.8.5",
  "reqwest",
  "scale-info",
  "serde",
@@ -5972,7 +5965,6 @@ dependencies = [
  "toml 0.8.14",
  "tracing-subscriber",
  "url",
- "which",
 ]
 
 [[package]]
@@ -5982,24 +5974,14 @@ dependencies = [
  "anyhow",
  "ark-bls12-381",
  "ark-ec",
- "ark-ff 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "async-trait",
- "demo-async-tester",
  "demo-bls381",
- "demo-calc-hash",
- "demo-calc-hash-in-one-block",
  "demo-constructor",
  "demo-custom",
- "demo-distributor",
- "demo-fungible-token",
  "demo-mul-by-const",
- "demo-node",
- "demo-program-factory",
- "demo-proxy",
- "demo-proxy-relay",
  "demo-reserve-gas",
  "demo-wat",
  "futures",
@@ -6039,17 +6021,13 @@ version = "1.8.1"
 dependencies = [
  "demo-constructor",
  "frame-support",
- "frame-system",
  "futures",
  "futures-timer",
  "gear-common",
  "gear-core",
  "gear-node-testing",
- "gear-runtime-common",
- "gear-runtime-interface",
  "gear-runtime-primitives",
  "log",
- "pallet-balances",
  "pallet-gear",
  "pallet-gear-builtin",
  "pallet-gear-debug",
@@ -6061,7 +6039,6 @@ dependencies = [
  "parking_lot 0.12.3",
  "sc-block-builder",
  "sc-client-api",
- "sc-executor",
  "sc-proposer-metrics",
  "sc-service",
  "sc-telemetry",
@@ -6152,7 +6129,6 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
- "hex-literal",
  "log",
  "primitive-types",
  "proptest",
@@ -6244,7 +6220,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6442,7 +6417,6 @@ dependencies = [
  "sp-io",
  "sp-runtime-interface",
  "sp-std",
- "winapi",
 ]
 
 [[package]]
@@ -6581,7 +6555,6 @@ dependencies = [
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
  "sp-trie",
- "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "substrate-state-trie-migration-rpc",
  "vara-runtime",
@@ -6669,7 +6642,6 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "indexmap 2.7.1",
- "indicatif",
  "log",
  "nonempty 0.8.1",
  "proptest",
@@ -6724,7 +6696,6 @@ dependencies = [
  "log",
  "loom",
  "tempfile",
- "tracing-subscriber",
  "uluru",
  "wasmer",
  "wasmer-cache",
@@ -10841,7 +10812,6 @@ dependencies = [
  "num-traits",
  "proptest",
  "scale-info",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -11244,7 +11214,6 @@ dependencies = [
  "gsys",
  "hex",
  "log",
- "page_size",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-bank",
@@ -11309,7 +11278,6 @@ dependencies = [
  "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
- "frame-executive",
  "frame-support",
  "frame-support-test",
  "frame-system",
@@ -11383,7 +11351,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
- "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11401,7 +11368,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "test-syscalls",
  "tracing-subscriber",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -11413,7 +11379,6 @@ version = "1.8.1"
 dependencies = [
  "binary-merkle-tree",
  "frame-benchmarking",
- "frame-election-provider-support",
  "frame-support",
  "frame-support-test",
  "frame-system",
@@ -11434,7 +11399,6 @@ dependencies = [
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-staking",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
@@ -11444,7 +11408,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-session",
- "sp-staking",
  "sp-std",
  "tracing-subscriber",
 ]
@@ -11502,10 +11465,8 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
- "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
- "rand 0.8.5",
  "scale-info",
  "sp-io",
  "sp-runtime",
@@ -11571,8 +11532,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
- "wat",
 ]
 
 [[package]]
@@ -11611,7 +11570,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-core-processor",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11654,7 +11612,6 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-authority-discovery",
  "sp-core",
  "sp-io",
  "sp-npos-elections",
@@ -11700,7 +11657,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -13865,7 +13821,6 @@ dependencies = [
  "pallet-im-online",
  "parity-scale-codec",
  "proptest",
- "rand 0.8.5",
  "sha-1 0.10.1",
  "sp-authority-discovery",
  "sp-consensus-babe",

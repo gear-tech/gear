@@ -122,7 +122,6 @@ demo-async-reply-hook = { workspace = true, features = ["debug"] }
 demo-create-program-reentrance = { workspace = true, features = ["debug"] }
 demo-value-sender.workspace = true
 test-syscalls = { workspace = true, features = ["debug"] }
-page_size.workspace = true
 frame-support-test = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
