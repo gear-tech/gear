@@ -171,7 +171,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          cargo nextest run --archive-file=workspace.tar.zst --fail-fast 
+          cargo nextest run --archive-file=workspace.tar.zst 
           --run-ignored=all
           --workspace-remap=${{ github.workspace }}
           --partition hash:${{ matrix.partition }}/4
