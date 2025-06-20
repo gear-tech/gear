@@ -26,7 +26,7 @@ use alloy::{
 };
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, OnChainStorageWrite},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
     Address, BlockHeader, SimpleBlockData,
 };
 use ethexe_db::Database;
@@ -232,13 +232,13 @@ impl ObserverService {
     // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db<DB: BlockMetaStorage + OnChainStorageWrite>(
+    async fn pre_process_genesis_for_db<
+        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageWrite,
+    >(
         db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
-        use ethexe_common::db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite};
-
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_computed(genesis_block_hash) {

@@ -27,7 +27,11 @@ use ethexe_common::{
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
-    }, events::BlockEvent, gear::StateTransition, tx_pool::{OffchainTransaction, SignedOffchainTransaction}, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule
+    },
+    events::BlockEvent,
+    gear::StateTransition,
+    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
+    BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -377,9 +381,7 @@ impl BlockMetaStorageWrite for Database {
 
     fn set_last_committed_batch(&self, block_hash: H256, batch: Digest) {
         log::trace!("For block {block_hash} set last committed batch: {batch:?}");
-        self.mutate_small_data(block_hash, |data| {
-            data.last_committed_batch = Some(batch)
-        });
+        self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {

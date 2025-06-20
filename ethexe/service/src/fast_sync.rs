@@ -26,7 +26,7 @@ use ethexe_common::{
         OnChainStorageRead,
     },
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::{CodeCommitment, GearBlock},
+    gear::GearBlock,
     Digest, ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};

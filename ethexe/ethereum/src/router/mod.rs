@@ -247,7 +247,7 @@ impl RouterQuery {
             .latestCommittedBatchHash()
             .call()
             .await
-            .map(|res| Digest(*res._0))
+            .map(|res| Digest(res.0))
             .map_err(Into::into)
     }
 

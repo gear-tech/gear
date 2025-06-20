@@ -38,6 +38,7 @@ pub(crate) trait SyncDB: OnChainStorageRead + OnChainStorageWrite + Clone {}
 impl<T: OnChainStorageRead + OnChainStorageWrite + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
+#[derive(Clone)]
 pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,

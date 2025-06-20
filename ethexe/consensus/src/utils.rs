@@ -23,7 +23,7 @@
 
 use anyhow::{anyhow, Result};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage},
+    db::{BlockMetaStorageRead, CodesStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock},
     sha3::{self, digest::Update},
@@ -201,7 +201,7 @@ impl MultisignedBatchCommitment {
     }
 }
 
-pub fn aggregate_code_commitments<DB: CodesStorage>(
+pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
@@ -221,7 +221,7 @@ pub fn aggregate_code_commitments<DB: CodesStorage>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<DB: BlockMetaStorage>(
+pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead>(
     db: &DB,
     blocks: impl IntoIterator<Item = H256>,
     fail_if_not_computed: bool,
@@ -257,7 +257,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorage>(
     Ok(squash_chain_commitments(chain_commitments))
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorage>(
+pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
@@ -316,7 +316,10 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::gear::StateTransition;
+    use ethexe_common::{
+        db::{BlockMetaStorageWrite, CodesStorageWrite},
+        gear::StateTransition,
+    };
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);

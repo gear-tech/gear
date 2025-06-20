@@ -23,7 +23,7 @@ use crate::{utils, ConsensusEvent};
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::BlockMetaStorage,
+    db::BlockMetaStorageRead,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -219,7 +219,7 @@ impl Producer {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*, SignedValidationRequest};
-    use ethexe_common::{Digest, ToDigest};
+    use ethexe_common::{db::BlockMetaStorageWrite, Digest, ToDigest};
     use std::vec;
 
     #[tokio::test]
