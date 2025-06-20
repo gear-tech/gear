@@ -24,12 +24,12 @@ use sp_runtime::traits::{Hash, Keccak256};
 use sp_std::vec::Vec;
 
 /// Extension trait for [`EthMessage`] that provides additional functionality.
-pub trait EthMessageExt {
+pub trait EthMessageExt: Sized {
     fn try_new<T: Config>(
         source: ActorId,
         destination: H160,
         payload: Vec<u8>,
-    ) -> Result<EthMessage, Error<T>>;
+    ) -> Result<Self, Error<T>>;
 
     fn hash(&self) -> H256;
 }
@@ -40,7 +40,7 @@ impl EthMessageExt for EthMessage {
         source: ActorId,
         destination: H160,
         payload: Vec<u8>,
-    ) -> Result<EthMessage, Error<T>> {
+    ) -> Result<Self, Error<T>> {
         ensure!(
             payload.len() <= T::MaxPayloadSize::get() as usize,
             Error::<T>::MaxPayloadSizeExceeded
