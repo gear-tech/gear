@@ -97,9 +97,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: "${{ matrix.profiles.name }}"
-          workspaces: |
-            . -> target
-            target/release/wbuild/vara-runtime -> target/release/wbuild/vara-runtime/target
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
