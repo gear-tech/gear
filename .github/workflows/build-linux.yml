@@ -125,6 +125,15 @@ jobs:
           path: workspace.tar.zst
           compression-level: 0
 
+      - name: "Test: Copy `.binpath` files"
+        run: rsync -avm --include='*/' --include='.binpath' --exclude='*' . binpath
+
+      - name: "ACTIONS: Upload `.binpath` files"
+        uses: actions/upload-artifact@v4
+        with:
+          name: binpath-files-${{ matrix.profiles.name }}
+          path: binpath
+
   test-workspace:
     runs-on: ubuntu-latest
     needs: build-workspace
@@ -161,6 +170,11 @@ jobs:
         with:
           name: node-and-runtime-release-x86_64-unknown-linux-gnu
           path: target/release
+
+      - name: "ACTIONS: Download `.binpath` files"
+        uses: actions/download-artifact@v4
+        with:
+          name: binpath-files-${{ matrix.profiles.name }}
 
       - name: "ACTIONS: Download nextest archive"
         uses: actions/download-artifact@v4
