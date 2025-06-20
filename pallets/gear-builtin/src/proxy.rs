@@ -78,14 +78,19 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinHandleResult, BuiltinActorError> {
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
 
         let origin = dispatch.source();
 
         let call = Self::cast(request)?;
-        Pallet::<T>::dispatch_call(origin, call, context).map(|_| Default::default())
+
+        Ok(BuiltinHandleResult {
+            payload: Pallet::<T>::dispatch_call(origin, call, context)
+                .map(|_| Default::default())?,
+            used_value: 0,
+        })
     }
 
     fn max_gas() -> u64 {
