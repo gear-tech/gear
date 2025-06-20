@@ -183,7 +183,7 @@ where
 }
 
 pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
-    log::error!(target: LOG_TARGET, "rpc error: {:?}", error);
+    log::error!(target: LOG_TARGET, "rpc error: {error:?}");
     "rpc error."
 }
 

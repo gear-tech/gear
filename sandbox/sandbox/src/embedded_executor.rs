@@ -549,7 +549,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         }
 
         let instance = wasmer::Instance::new(store, &module, &imports).map_err(|e| {
-            log::trace!(target: TARGET, "Error instantiating module: {:?}", e);
+            log::trace!(target: TARGET, "Error instantiating module: {e:?}");
             Error::Module
         })?;
 

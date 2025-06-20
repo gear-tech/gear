@@ -131,7 +131,7 @@ impl RpcService {
                         match res {
                             Ok((socket, _)) => socket,
                             Err(e) => {
-                                log::error!("Failed to accept connection: {:?}", e);
+                                log::error!("Failed to accept connection: {e:?}");
                                 continue;
                             }
                         }
