@@ -447,9 +447,9 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
                 process_success(
-                    dispatch,
-                    dispatch_result,
                     SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    dispatch,
                 )
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {

@@ -173,12 +173,12 @@ where
                     ActorExecutionErrorReplyReason::Trap(reason),
                 ),
 
-                DispatchResultKind::Success => process_success(dispatch, res, Success),
+                DispatchResultKind::Success => process_success(Success, res, dispatch),
                 DispatchResultKind::Wait(duration, ref waited_type) => {
-                    process_success(dispatch, res, Wait(duration, waited_type.clone()))
+                    process_success(Wait(duration, waited_type.clone()), res, dispatch)
                 }
                 DispatchResultKind::Exit(value_destination) => {
-                    process_success(dispatch, res, Exit(value_destination))
+                    process_success(Exit(value_destination), res, dispatch)
                 }
                 DispatchResultKind::GasAllowanceExceed => {
                     process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
@@ -508,9 +508,9 @@ pub fn process_reinstrumentation_error(
 
 /// Helper function for journal creation in success case
 pub fn process_success(
-    dispatch: IncomingDispatch,
-    dispatch_result: DispatchResult,
     kind: SuccessfulDispatchResultKind,
+    dispatch_result: DispatchResult,
+    dispatch: IncomingDispatch,
 ) -> Vec<JournalNote> {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 

@@ -514,9 +514,9 @@ impl ExtManager {
                 };
 
                 core_processor::process_success(
-                    dispatch,
-                    dispatch_result,
                     SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    dispatch,
                 )
             }
             Ok(Mocked::Signal) => {
@@ -529,9 +529,9 @@ impl ExtManager {
                 };
 
                 core_processor::process_success(
-                    dispatch,
-                    dispatch_result,
                     SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    dispatch,
                 )
             }
             Err(expl) => {
