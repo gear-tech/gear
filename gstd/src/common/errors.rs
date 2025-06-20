@@ -35,7 +35,7 @@ use parity_scale_codec::Decode;
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
-#[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /* Protocol under-hood errors */
     /// Error type from `gcore`.
@@ -172,7 +172,7 @@ impl fmt::Display for ErrorReplyPayload {
 }
 
 /// Error type returned by gstd API while using invalid arguments.
-#[derive(Debug, Clone, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum UsageError {
     /// This error occurs when providing zero duration to waiting functions
     /// (e.g. see `exactly` and `up_to` functions in

@@ -38,7 +38,7 @@ use {
 pub use simple::*;
 
 /// Execution error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum ExecutionError {
@@ -76,7 +76,7 @@ pub enum ExecutionError {
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum MemoryError {
@@ -89,7 +89,7 @@ pub enum MemoryError {
 }
 
 /// Error using messages.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum MessageError {
@@ -171,7 +171,7 @@ pub enum MessageError {
 }
 
 /// Reservation error.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 // TODO: refactor after multiple reservations are done
@@ -194,7 +194,7 @@ pub enum ReservationError {
 }
 
 /// An error occurred in API.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord, Sequence, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 pub enum ExtError {
     /// Execution error.

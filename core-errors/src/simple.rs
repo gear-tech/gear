@@ -24,9 +24,7 @@ use scale_info::{
 };
 
 #[repr(u8)]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
-)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
@@ -104,9 +102,7 @@ impl ReplyCode {
 }
 
 #[repr(u8)]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
-)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
@@ -141,9 +137,7 @@ impl SuccessReplyReason {
 }
 
 #[repr(u8)]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
-)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
@@ -221,9 +215,7 @@ impl ErrorReplyReason {
 }
 
 #[repr(u8)]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
-)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
@@ -280,9 +272,7 @@ impl SimpleExecutionError {
 }
 
 #[repr(u8)]
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
-)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred because of actor unavailability.
@@ -333,9 +323,7 @@ impl SimpleUnavailableActorError {
     }
 }
 
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Sequence, thiserror::Error,
-)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
