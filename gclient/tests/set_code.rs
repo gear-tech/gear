@@ -24,7 +24,6 @@ use gclient::{
 const RUNTIME_WASM: &str =
     "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
 
-#[ignore = "Requires the runtime with default feature set"]
 #[tokio::test]
 async fn set_code_succeed() {
     let api = GearApi::dev_from_path("../target/release/gear")
@@ -36,7 +35,6 @@ async fn set_code_succeed() {
         .unwrap();
 }
 
-#[ignore = "Requires the runtime with default feature set"]
 #[tokio::test]
 async fn set_code_failed() {
     let api = GearApi::dev_from_path("../target/release/gear")
