@@ -99,7 +99,7 @@ where
         _ => None,
     };
 
-    log::info!(target: LOG_TARGET, "Fetching block {:?} ", current_hash);
+    log::info!(target: LOG_TARGET, "Fetching block {current_hash:?} ");
     let block = fetch_block::<Block>(&rpc, current_hash).await?;
 
     let ext = match command.state {

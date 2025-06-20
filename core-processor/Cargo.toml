@@ -25,7 +25,6 @@ actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-tracing-subscriber.workspace = true
 enum-iterator.workspace = true
 
 [features]
