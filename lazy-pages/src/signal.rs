@@ -103,7 +103,7 @@ unsafe fn user_signal_handler_internal(
 /// User signal handler. Logic can depends on lazy-pages version.
 /// See also "user_signal_handler_internal".
 pub(crate) unsafe fn user_signal_handler(info: ExceptionInfo) -> Result<(), Error> {
-    log::debug!("Interrupted, exception info = {:?}", info);
+    log::debug!("Interrupted, exception info = {info:?}");
     LAZY_PAGES_CONTEXT.with(|ctx| {
         let mut ctx = ctx.borrow_mut();
         let (rt_ctx, exec_ctx) = ctx.contexts_mut()?;
