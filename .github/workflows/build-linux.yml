@@ -136,6 +136,7 @@ jobs:
         with:
           name: binpath-files-${{ matrix.profiles.name }}
           path: binpath
+          include-hidden-files: true
 
   test-workspace:
     runs-on: ubuntu-latest
