@@ -23,7 +23,9 @@
 #![allow(clippy::legacy_numeric_constants)]
 #![allow(non_local_definitions)]
 
-// Make the WASM binary available.
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking; // Make the WASM binary available.
 #[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
@@ -51,7 +53,7 @@ use pallet_grandpa::{
 };
 use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_session::historical::{self as pallet_session_historical};
+use pallet_session::historical as pallet_session_historical;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
@@ -1043,12 +1045,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => {
                 // Dev pallets.
                 #[cfg(feature = "dev")]
-                if matches!(
-                    c,
-                    RuntimeCall::GearDebug(..)
-                        | RuntimeCall::GearEthBridge(..)
-                        | RuntimeCall::Sudo(..)
-                ) {
+                if matches!(c, |RuntimeCall::GearEthBridge(..)| RuntimeCall::Sudo(..)) {
                     return false;
                 }
 
@@ -1161,7 +1158,6 @@ impl pallet_gear::Config for Runtime {
     type OutgoingLimit = OutgoingLimit;
     type OutgoingBytesLimit = OutgoingBytesLimit;
     type PerformanceMultiplier = PerformanceMultiplier;
-    type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
@@ -1189,8 +1185,6 @@ impl pallet_gear::Config for Runtime {
 
 #[cfg(feature = "dev")]
 impl pallet_gear_debug::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
     type Messenger = GearMessenger;
@@ -1534,6 +1528,7 @@ mod runtime {
     // NOTE (!): `pallet_airdrop` used to be idx(198).
 
     // Only available with "dev" feature on
+    // [DEPRECATED] Will be removed in the next release.
     #[runtime::pallet_index(199)]
     pub type GearDebug = pallet_gear_debug;
 }
@@ -1733,15 +1728,6 @@ mod tests;
 
 #[cfg(test)]
 mod integration_tests;
-
-#[cfg(feature = "dev")]
-type DebugInfo = GearDebug;
-#[cfg(not(feature = "dev"))]
-type DebugInfo = ();
-
-#[cfg(feature = "runtime-benchmarks")]
-#[macro_use]
-extern crate frame_benchmarking;
 
 #[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
 mod benches {
