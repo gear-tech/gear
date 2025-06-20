@@ -441,6 +441,10 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 let mut dispatch_result =
                     DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
 
+                debug_assert!(dispatch.value() >= handle_result.used_value,
+                    "BuiltinRegistry::run: Dispatch value should be greater than or equal to used value"
+                );
+
                 let unused_value = dispatch
                     .value()
                     .checked_sub(handle_result.used_value)
