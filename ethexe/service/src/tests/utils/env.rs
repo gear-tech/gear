@@ -370,11 +370,6 @@ impl TestEnv {
         let code_id = code_and_id.code_id();
         self.blobs_storage.add_code(code_and_id).await;
 
-        self.ethereum
-            .router()
-            .request_code_validation_with_sidecar(code)
-            .await?;
-
         let pending_builder = self
             .ethereum
             .router()
