@@ -267,6 +267,7 @@ actor-system-error = { path = "utils/actor-system-error" }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
+pallet-gear-eth-bridge-primitives = { path = "pallets/gear-eth-bridge/primitives", default-features = false }
 pallet-gear-eth-bridge-rpc = { path = "pallets/gear-eth-bridge/rpc", default-features = false }
 pallet-gear-eth-bridge-rpc-runtime-api = { path = "pallets/gear-eth-bridge/rpc/runtime-api", default-features = false }
 pallet-gear-gas = { path = "pallets/gas", default-features = false }

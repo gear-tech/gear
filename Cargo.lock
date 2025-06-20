@@ -11393,6 +11393,7 @@ dependencies = [
  "pallet-gear",
  "pallet-gear-bank",
  "pallet-gear-builtin",
+ "pallet-gear-eth-bridge-primitives",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -11402,7 +11403,6 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "serde",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-io",
@@ -11410,6 +11410,17 @@ dependencies = [
  "sp-session",
  "sp-std",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-primitives"
+version = "1.8.1"
+dependencies = [
+ "binary-merkle-tree",
+ "gprimitives",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
 ]
 
 [[package]]
