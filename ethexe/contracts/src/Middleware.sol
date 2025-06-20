@@ -96,7 +96,10 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _validateStorage($);
     }
 
+    /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize() public onlyOwner reinitializer(2) {
+        __Ownable_init(owner());
+
         Storage storage oldStorage = _storage();
 
         _setStorageSlot("middleware.storage.MiddlewareV2");

@@ -70,7 +70,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     // TODO #4558: make reinitialization test.
+    /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize() public onlyOwner reinitializer(2) {
+        __Ownable_init(owner());
+
         Storage storage oldRouter = _router();
 
         _setStorageSlot("router.storage.RouterV2");
