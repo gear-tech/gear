@@ -48,7 +48,7 @@ use gear_core_backend::{
 /// Execute wasm with dispatch and return dispatch result.
 pub(crate) fn execute_wasm<Ext>(
     balance: u128,
-    dispatch: &IncomingDispatch,
+    dispatch: IncomingDispatch,
     context: WasmExecutionContext,
     settings: ExecutionSettings,
     msg_ctx_settings: ContextSettings,
@@ -231,8 +231,6 @@ where
     // Output
     Ok(DispatchResult {
         kind,
-        // dispatch clone is cheap because is uses `Arc` for payload
-        dispatch: dispatch.clone(),
         program_id: program.id,
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,

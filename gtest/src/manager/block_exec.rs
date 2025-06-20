@@ -506,7 +506,6 @@ impl ExtManager {
                     .unwrap_or_default();
                 let dispatch_result = DispatchResult {
                     kind,
-                    dispatch,
                     program_id,
                     generated_dispatches,
                     gas_amount: gas_counter.to_amount(),
@@ -515,23 +514,24 @@ impl ExtManager {
                 };
 
                 core_processor::process_success(
-                    SuccessfulDispatchResultKind::Success,
+                    dispatch,
                     dispatch_result,
+                    SuccessfulDispatchResultKind::Success,
                 )
             }
             Ok(Mocked::Signal) => {
                 let kind = DispatchResultKind::Success;
                 let dispatch_result = DispatchResult {
                     kind,
-                    dispatch,
                     program_id,
                     gas_amount: gas_counter.to_amount(),
                     ..default_dispatch_result()
                 };
 
                 core_processor::process_success(
-                    SuccessfulDispatchResultKind::Success,
+                    dispatch,
                     dispatch_result,
+                    SuccessfulDispatchResultKind::Success,
                 )
             }
             Err(expl) => {
@@ -541,7 +541,7 @@ impl ExtManager {
                     TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
                 );
                 core_processor::process_execution_error(
-                    &dispatch,
+                    dispatch,
                     program_id,
                     gas_counter.burned(),
                     Default::default(),
@@ -573,7 +573,6 @@ impl ExtManager {
 fn default_dispatch_result() -> DispatchResult {
     DispatchResult {
         kind: DispatchResultKind::Success,
-        dispatch: Default::default(),
         program_id: Default::default(),
         context_store: Default::default(),
         generated_dispatches: Default::default(),

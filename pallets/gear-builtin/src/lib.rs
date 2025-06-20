@@ -422,13 +422,12 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
-                let mut dispatch_result =
-                    DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
+                let mut dispatch_result = DispatchResult::success(&dispatch, actor_id, gas_amount);
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
-                    MessageContext::new(dispatch, actor_id, Default::default());
+                    MessageContext::new(dispatch.clone(), actor_id, Default::default());
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent
@@ -447,7 +446,11 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
-                process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
+                process_success(
+                    dispatch,
+                    dispatch_result,
+                    SuccessfulDispatchResultKind::Success,
+                )
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
                 // Ideally, this should never happen, as we should have checked the gas allowance
@@ -462,7 +465,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(
-                    &dispatch,
+                    dispatch,
                     actor_id,
                     gas_amount.burned(),
                     system_reservation_ctx,

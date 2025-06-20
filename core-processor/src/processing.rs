@@ -128,7 +128,7 @@ where
 
     let exec_result = executor::execute_wasm::<Ext>(
         balance,
-        &dispatch,
+        dispatch.clone(),
         execution_context,
         execution_settings,
         msg_ctx_settings,
@@ -166,27 +166,27 @@ where
             }
             Ok(match res.kind {
                 DispatchResultKind::Trap(reason) => process_execution_error(
-                    &dispatch,
+                    dispatch,
                     program_id,
                     res.gas_amount.burned(),
                     res.system_reservation_context,
                     ActorExecutionErrorReplyReason::Trap(reason),
                 ),
 
-                DispatchResultKind::Success => process_success(Success, res),
+                DispatchResultKind::Success => process_success(dispatch, res, Success),
                 DispatchResultKind::Wait(duration, ref waited_type) => {
-                    process_success(Wait(duration, waited_type.clone()), res)
+                    process_success(dispatch, res, Wait(duration, waited_type.clone()))
                 }
                 DispatchResultKind::Exit(value_destination) => {
-                    process_success(Exit(value_destination), res)
+                    process_success(dispatch, res, Exit(value_destination))
                 }
                 DispatchResultKind::GasAllowanceExceed => {
-                    process_allowance_exceed(res.dispatch, program_id, res.gas_amount.burned())
+                    process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
                 }
             })
         }
         Err(ExecutionError::Actor(e)) => Ok(process_execution_error(
-            &dispatch,
+            dispatch,
             program_id,
             e.gas_amount.burned(),
             system_reservation_ctx,
@@ -267,7 +267,7 @@ impl ProcessErrorCase {
 }
 
 fn process_error(
-    dispatch: &IncomingDispatch,
+    dispatch: IncomingDispatch,
     program_id: ActorId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
@@ -390,7 +390,7 @@ fn process_error(
 
 /// Helper function for journal creation in trap/error case.
 pub fn process_execution_error(
-    dispatch: &IncomingDispatch,
+    dispatch: IncomingDispatch,
     program_id: ActorId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
@@ -420,7 +420,7 @@ pub fn process_program_exited(
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        &dispatch,
+        dispatch,
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -440,7 +440,7 @@ pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        &dispatch,
+        dispatch,
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -460,7 +460,7 @@ pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNo
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        &dispatch,
+        dispatch,
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -480,7 +480,7 @@ pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<Journal
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        &dispatch,
+        dispatch,
         destination_id,
         gas_counter.burned(),
         system_reservation_ctx,
@@ -498,7 +498,7 @@ pub fn process_reinstrumentation_error(
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
-        &dispatch,
+        dispatch,
         program_id,
         gas_burned,
         system_reservation_ctx,
@@ -508,13 +508,13 @@ pub fn process_reinstrumentation_error(
 
 /// Helper function for journal creation in success case
 pub fn process_success(
-    kind: SuccessfulDispatchResultKind,
+    dispatch: IncomingDispatch,
     dispatch_result: DispatchResult,
+    kind: SuccessfulDispatchResultKind,
 ) -> Vec<JournalNote> {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
-        dispatch,
         generated_dispatches,
         awakening,
         program_candidates,
