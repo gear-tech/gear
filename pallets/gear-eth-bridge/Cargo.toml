@@ -16,15 +16,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
-serde = { workspace = true, features = ["derive"], optional = true }
 
 # Gear deps.
 common.workspace = true
 gbuiltin-eth-bridge.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
-pallet-gear-builtin.workspace = true
 pallet-gear-bank.workspace = true
+pallet-gear-builtin.workspace = true
+pallet-gear-eth-bridge-primitives.workspace = true
 
 # Substrate deps.
 binary-merkle-tree.workspace = true
@@ -50,6 +50,7 @@ pallet-gear = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear-builtin = { workspace = true, features = ["std"] }
+pallet-gear-eth-bridge-primitives = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
@@ -57,18 +58,18 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 tracing-subscriber.workspace = true
 
 [features]
-default = ['std']
+default = ["std"]
 std = [
     # Operational deps.
     "log/std",
     "parity-scale-codec/std",
     "scale-info/std",
-    "dep:serde",
 
     # Gear deps.
     "common/std",
     "gear-core/std",
     "pallet-gear-builtin/std",
+    "pallet-gear-eth-bridge-primitives/std",
 
     # Substrate deps.
     "binary-merkle-tree/std",
