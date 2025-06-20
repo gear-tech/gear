@@ -477,7 +477,7 @@ impl ExtManager {
         }
 
         let (dispatch, program_id, gas_counter) = context.into_inner();
-        let payload = dispatch.payload_bytes().to_vec();
+        let payload = dispatch.payload().to_vec();
 
         let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
@@ -506,7 +506,6 @@ impl ExtManager {
                     .unwrap_or_default();
                 let dispatch_result = DispatchResult {
                     kind,
-                    dispatch,
                     program_id,
                     generated_dispatches,
                     gas_amount: gas_counter.to_amount(),
@@ -517,13 +516,13 @@ impl ExtManager {
                 core_processor::process_success(
                     SuccessfulDispatchResultKind::Success,
                     dispatch_result,
+                    dispatch,
                 )
             }
             Ok(Mocked::Signal) => {
                 let kind = DispatchResultKind::Success;
                 let dispatch_result = DispatchResult {
                     kind,
-                    dispatch,
                     program_id,
                     gas_amount: gas_counter.to_amount(),
                     ..default_dispatch_result()
@@ -532,6 +531,7 @@ impl ExtManager {
                 core_processor::process_success(
                     SuccessfulDispatchResultKind::Success,
                     dispatch_result,
+                    dispatch,
                 )
             }
             Err(expl) => {
@@ -573,7 +573,6 @@ impl ExtManager {
 fn default_dispatch_result() -> DispatchResult {
     DispatchResult {
         kind: DispatchResultKind::Success,
-        dispatch: Default::default(),
         program_id: Default::default(),
         context_store: Default::default(),
         generated_dispatches: Default::default(),

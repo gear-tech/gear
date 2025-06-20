@@ -60,8 +60,6 @@ pub enum DispatchResultKind {
 pub struct DispatchResult {
     /// Kind of the dispatch.
     pub kind: DispatchResultKind,
-    /// Original dispatch.
-    pub dispatch: IncomingDispatch,
     /// Program id of actor which was executed.
     pub program_id: ActorId,
     /// Context store after execution.
@@ -89,34 +87,17 @@ pub struct DispatchResult {
 }
 
 impl DispatchResult {
-    /// Return dispatch message id.
-    pub fn message_id(&self) -> MessageId {
-        self.dispatch.id()
-    }
-
-    /// Return program id.
-    pub fn program_id(&self) -> ActorId {
-        self.program_id
-    }
-
-    /// Return dispatch source program id.
-    pub fn message_source(&self) -> ActorId {
-        self.dispatch.source()
-    }
-
-    /// Return dispatch message value.
-    pub fn message_value(&self) -> u128 {
-        self.dispatch.value()
-    }
-
     /// Create partially initialized instance with the kind
     /// representing Success.
-    pub fn success(dispatch: IncomingDispatch, program_id: ActorId, gas_amount: GasAmount) -> Self {
-        let system_reservation_context = SystemReservationContext::from_dispatch(&dispatch);
+    pub fn success(
+        dispatch: &IncomingDispatch,
+        program_id: ActorId,
+        gas_amount: GasAmount,
+    ) -> Self {
+        let system_reservation_context = SystemReservationContext::from_dispatch(dispatch);
 
         Self {
             kind: DispatchResultKind::Success,
-            dispatch,
             program_id,
             context_store: Default::default(),
             generated_dispatches: Default::default(),
