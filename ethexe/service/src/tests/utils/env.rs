@@ -113,13 +113,12 @@ impl TestEnv {
         } = config;
 
         log::info!(
-            "📗 Starting new test environment. Continuous block generation: {}",
-            continuous_block_generation
+            "📗 Starting new test environment. Continuous block generation: {continuous_block_generation}"
         );
 
         let (rpc_url, anvil) = match rpc {
             EnvRpcConfig::ProvidedURL(rpc_url) => {
-                log::info!("📍 Using provided RPC URL: {}", rpc_url);
+                log::info!("📍 Using provided RPC URL: {rpc_url}");
                 (rpc_url, None)
             }
             EnvRpcConfig::CustomAnvil {
@@ -170,7 +169,7 @@ impl TestEnv {
         let sender_address = wallets.next().to_address();
 
         let ethereum = if let Some(router_address) = router_address {
-            log::info!("📗 Connecting to existing router at {}", router_address);
+            log::info!("📗 Connecting to existing router at {router_address}");
             Ethereum::new(
                 &rpc_url,
                 router_address.parse().unwrap(),
@@ -225,7 +224,7 @@ impl TestEnv {
                     send_subscription_created.send(()).unwrap();
 
                     while let Ok(event) = observer.select_next_some().await {
-                        log::trace!(target: "test-event", "📗 Event: {:?}", event);
+                        log::trace!(target: "test-event", "📗 Event: {event:?}");
 
                         cloned_sender
                             .send(event)

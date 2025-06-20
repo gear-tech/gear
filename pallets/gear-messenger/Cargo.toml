@@ -33,10 +33,8 @@ sp-io.workspace = true
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
-pallet-timestamp = { workspace = true, features = ["std"] }
 tracing-subscriber.workspace = true
 common = { workspace = true, features = ["std"] }
-rand.workspace = true
 
 [features]
 default = ['std']
