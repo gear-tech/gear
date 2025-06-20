@@ -144,6 +144,13 @@ jobs:
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+          no-vendored: 'false'
+
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
