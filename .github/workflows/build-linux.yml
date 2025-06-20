@@ -82,7 +82,7 @@ jobs:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
-    name: workspace (${{ matrix.profiles.name }})
+    name: build-workspace (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
