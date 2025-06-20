@@ -64,7 +64,8 @@ contract DeploymentScript is Script {
 
         mirror = new Mirror(address(router));
 
-        if (vm.envBool("DEV_MODE") == false) {
+        // Don't deploy middleware in dev mode
+        if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
             Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
@@ -102,6 +103,8 @@ contract DeploymentScript is Script {
                     "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
                 )
             );
+
+            vm.assertEq(middlewareAddress, address(middleware));
         }
 
         wrappedVara.approve(address(router), type(uint256).max);
@@ -115,7 +118,6 @@ contract DeploymentScript is Script {
         router.lookupGenesisHash();
 
         vm.assertEq(router.mirrorImpl(), address(mirror));
-        vm.assertEq(middlewareAddress, address(middleware));
         vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();
@@ -127,6 +129,7 @@ contract DeploymentScript is Script {
 
     function printContractInfo(string memory contractName, address contractAddress, address expectedImplementation)
         public
+        view
     {
         console.log("================================================================================================");
         console.log("[ CONTRACT  ]", contractName);

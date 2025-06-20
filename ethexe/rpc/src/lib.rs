@@ -21,9 +21,9 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
 };
+use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
-use ethexe_observer::MockBlobReader;
 use futures::{stream::FusedStream, FutureExt, Stream};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -73,15 +73,15 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blob_reader: Option<MockBlobReader>,
+    blobs_storage: Option<LocalBlobStorage>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blob_reader: Option<MockBlobReader>) -> Self {
+    pub fn new(config: RpcConfig, db: Database, blobs_storage: Option<LocalBlobStorage>) -> Self {
         Self {
             config,
             db,
-            blob_reader,
+            blobs_storage,
         }
     }
 
@@ -112,7 +112,7 @@ impl RpcService {
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(
-                self.blob_reader.unwrap().clone(),
+                self.blobs_storage.unwrap().clone(),
             )))?;
         }
 
@@ -131,7 +131,7 @@ impl RpcService {
                         match res {
                             Ok((socket, _)) => socket,
                             Err(e) => {
-                                log::error!("Failed to accept connection: {:?}", e);
+                                log::error!("Failed to accept connection: {e:?}");
                                 continue;
                             }
                         }
@@ -209,24 +209,4 @@ pub enum RpcEvent {
         transaction: SignedOffchainTransaction,
         response_sender: Option<oneshot::Sender<Result<H256>>>,
     },
-}
-
-/// `Clone` impl is a mechanical (blanket) implementation.
-/// That is done for a future compatibility with centralized
-/// events broadcasting system, which requires events to be clonable.
-///
-///
-/// The response sender of `oneshot::Sender` type can't be cloned, so `Option`
-/// wraps the type and the field will be set to `None` in case the event is cloned.
-///
-/// The event receiver expects response sender to be `Some` and will panic otherwise.  
-impl Clone for RpcEvent {
-    fn clone(&self) -> Self {
-        match self {
-            Self::OffchainTransaction { transaction, .. } => Self::OffchainTransaction {
-                transaction: transaction.clone(),
-                response_sender: None,
-            },
-        }
-    }
 }

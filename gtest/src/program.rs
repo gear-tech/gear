@@ -44,55 +44,6 @@ use std::{
     str::FromStr,
 };
 
-/// Gas for gear programs.
-#[derive(
-    Default,
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    derive_more::Add,
-    derive_more::AddAssign,
-    derive_more::Sub,
-    derive_more::SubAssign,
-    derive_more::Mul,
-    derive_more::MulAssign,
-    derive_more::Div,
-    derive_more::DivAssign,
-    derive_more::Display,
-)]
-pub struct Gas(pub(crate) u64);
-
-impl Gas {
-    /// Gas with value zero.
-    pub const fn zero() -> Self {
-        Self(0)
-    }
-
-    /// Computes a + b, saturating at numeric bounds.
-    pub const fn saturating_add(self, rhs: Self) -> Self {
-        Self(self.0.saturating_add(rhs.0))
-    }
-
-    /// Computes a - b, saturating at numeric bounds.
-    pub const fn saturating_sub(self, rhs: Self) -> Self {
-        Self(self.0.saturating_sub(rhs.0))
-    }
-
-    /// Computes a * b, saturating at numeric bounds.
-    pub const fn saturating_mul(self, rhs: Self) -> Self {
-        Self(self.0.saturating_mul(rhs.0))
-    }
-
-    /// Computes a / b, saturating at numeric bounds.
-    pub const fn saturating_div(self, rhs: Self) -> Self {
-        Self(self.0.saturating_div(rhs.0))
-    }
-}
-
 /// Trait for mocking gear programs.
 ///
 /// See [`Program`] and [`Program::mock`] for the usages.

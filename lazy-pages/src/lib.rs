@@ -183,7 +183,7 @@ pub fn initialize_for_program(
 
         ctx.set_execution_context(execution_ctx);
 
-        log::trace!("Initialize lazy-pages for current program: {:?}", ctx);
+        log::trace!("Initialize lazy-pages for current program: {ctx:?}");
 
         Ok(())
     })
@@ -347,7 +347,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         }
 
         #[cfg(target_arch = "x86_64")]
-        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64 as i32;
+        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64;
 
         // Took const value from https://opensource.apple.com/source/cctools/cctools-870/include/mach/arm/thread_status.h
         // ```

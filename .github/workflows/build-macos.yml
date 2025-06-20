@@ -13,10 +13,13 @@ on:
         default: '[{ "name": "debug", "flags": "" }]'
 
 env:
+  TERM: xterm-256color
   CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  TERM: xterm-256color
+  RUSTUP_HOME: /tmp/rustup_home
 
 jobs:
   macos:
@@ -31,8 +34,6 @@ jobs:
       fail-fast: false
     runs-on: macos-latest
     name: macos-${{ matrix.arch.name }} (${{ matrix.profiles.name }})
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4

@@ -25,6 +25,8 @@ use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
+pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
+
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
@@ -77,14 +79,30 @@ pub struct ProducerBlock {
 
 impl ToDigest for ProducerBlock {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.block_hash.as_bytes());
-        hasher.update(self.gas_allowance.encode().as_slice());
-        hasher.update(self.off_chain_transactions.encode().as_slice());
+        hasher.update(self.block_hash);
+        hasher.update(self.gas_allowance.encode());
+        hasher.update(self.off_chain_transactions.encode());
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+pub struct StateHashWithQueueSize {
+    pub hash: H256,
+    pub cached_queue_size: u8,
+}
+
+impl StateHashWithQueueSize {
+    pub fn zero() -> Self {
+        Self {
+            hash: H256::zero(),
+            cached_queue_size: 0,
+        }
     }
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct CodeInfo {
+pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
 }

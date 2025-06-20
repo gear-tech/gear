@@ -134,7 +134,7 @@ where
         msg_ctx_settings,
     )
     .map_err(|err| {
-        log::debug!("Wasm execution error: {}", err);
+        log::debug!("Wasm execution error: {err}");
         err
     });
 
