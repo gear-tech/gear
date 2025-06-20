@@ -170,7 +170,6 @@ serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = [
     "alloc",
 ] }
-serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
 static_init = "1.0.3"
 subxt = "0.38.0"
@@ -370,7 +369,6 @@ sc-block-builder = { version = "0.43.0", git = "https://github.com/gear-tech/pol
 sc-consensus = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-consensus-babe = { version = "0.48.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-consensus-babe-rpc = { version = "0.48.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
-sc-consensus-epochs = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-consensus-slots = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sp-crypto-ec-utils = { version = "0.15.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
 sp-debug-derive = { version = "14.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
@@ -381,18 +379,13 @@ sc-executor = { version = "0.41.0", git = "https://github.com/gear-tech/polkadot
 sc-executor-common = { version = "0.36.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-consensus-grandpa = { version = "0.33.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-consensus-grandpa-rpc = { version = "0.33.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
-sc-keystore = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-network = { version = "0.48.3", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
-sc-network-common = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-network-sync = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
-sc-network-statement = { version = "0.30.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-offchain = { version = "43.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-proposer-metrics = { version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-service = { version = "0.49.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-telemetry = { version = "28.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-rpc = { version = "43.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
-sc-rpc-api = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
-sc-rpc-spec-v2 = { version = "0.48.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-sync-state-rpc = { version = "0.48.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-sysinfo = { version = "41.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }
 sc-transaction-pool = { version = "38.1.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412" }

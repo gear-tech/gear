@@ -11980,7 +11980,6 @@ version = "1.8.1"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
- "frame-executive",
  "frame-support",
  "frame-system",
  "gear-common",
