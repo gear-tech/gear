@@ -140,8 +140,6 @@ jobs:
         with:
           name: node-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
-          retention-days: 1
-          overwrite: true
 
   linux:
     needs: [dynamic-matrix, node]

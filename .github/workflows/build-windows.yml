@@ -78,8 +78,6 @@ jobs:
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
           path: workspace.tar.zst
-          retention-days: 1
-          overwrite: true
           compression-level: 0
 
   windows-run:

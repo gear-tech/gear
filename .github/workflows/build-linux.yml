@@ -118,8 +118,6 @@ jobs:
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
           path: workspace.tar.zst
-          retention-days: 1
-          overwrite: true
           compression-level: 0
 
   test-workspace:
