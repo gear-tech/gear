@@ -86,6 +86,8 @@ impl WasmProject {
             .expect("`OUT_DIR` is always set in build scripts")
             .into();
 
+        // `SKIP_WASM_BUILD` can be set during `cargo check`,
+        // so we never fall into `wbuild/target` directory and thus profile is never found
         let substrate_runtime =
             env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok() && env::var("SKIP_WASM_BUILD").is_err();
         let mut first_target_reached = false;
