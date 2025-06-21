@@ -29,8 +29,8 @@ gear-sandbox-interface.workspace = true
 gear-sandbox-env.workspace = true
 
 [dev-dependencies]
-assert_matches = "1.3.0"
-wat = "1.0"
+assert_matches.workspace = true
+wat.workspace = true
 
 [features]
 default = ["std"]
