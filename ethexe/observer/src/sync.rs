@@ -20,7 +20,7 @@
 
 use crate::{
     utils::{load_block_data, load_blocks_data_batched},
-    BlockSyncedData, RuntimeConfig,
+    BlockSyncedData, RouterConfig, RuntimeConfig,
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
@@ -42,6 +42,7 @@ impl<T: OnChainStorageRead + OnChainStorageWrite + Clone> SyncDB for T {}
 pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,
+    pub router_config: RouterConfig,
     pub provider: RootProvider,
 }
 
@@ -53,13 +54,15 @@ impl<DB: SyncDB> ChainSync<DB> {
             timestamp: chain_head.timestamp,
             parent_hash: H256(chain_head.parent_hash.0),
         };
+        let era_index = (chain_head.timestamp - self.router_config.genesis_block.timestamp)
+            / self.router_config.timelines.era_duration;
 
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        let validators = if let Some(validators) = self.db.current_validator_set() {
+        let validators = if let Some(validators) = self.db.validator_set_at(era_index) {
             validators
         } else {
             let validators = RouterQuery::from_provider(
@@ -68,7 +71,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             )
             .validators_at(block)
             .await?;
-            self.db.set_current_validator_set(validators.clone());
+            self.db.set_validator_set(era_index, validators.clone());
             validators
         };
 
@@ -97,7 +100,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                         self.provider.clone(),
                         hash,
                         self.config.router_address,
-                        self.config.wvara_address,
+                        self.config.router_config.wvara_address,
                         (hash == block).then_some(header.clone()),
                     )
                     .await?
@@ -121,7 +124,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                     self.db
                         .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
                 } else if let BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted {
-                    next_era_start: _,
+                    next_era_start,
                 }) = event
                 {
                     log::trace!(
@@ -133,7 +136,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                     )
                     .validators()
                     .await?;
-                    self.db.set_current_validator_set(validators);
+                    self.db.set_validator_set(*next_era_start, validators);
                 }
             }
 
@@ -185,7 +188,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             latest_synced_block_height as u64,
             header.height as u64,
             self.config.router_address,
-            self.config.wvara_address,
+            self.config.router_config.wvara_address,
         )
         .await
     }

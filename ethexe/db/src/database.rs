@@ -64,7 +64,7 @@ enum Key {
 
     LatestComputedBlock = 10,
     LatestSyncedBlockHeight = 11,
-    CurrentValidatorSet = 12,
+    ValidatorSet(u64) = 12,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -105,9 +105,12 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::LatestComputedBlock
-            | Self::LatestSyncedBlockHeight
-            | Self::CurrentValidatorSet => prefix.as_ref().to_vec(),
+
+            Self::ValidatorSet(era_index) => {
+                [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
+            }
+
+            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -636,9 +639,9 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn current_validator_set(&self) -> Option<Vec<Address>> {
+    fn validator_set_at(&self, era_index: u64) -> Option<Vec<Address>> {
         self.kv
-            .get(&Key::CurrentValidatorSet.to_bytes())
+            .get(&Key::ValidatorSet(era_index).to_bytes())
             .map(|data| {
                 Vec::<Address>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<Address>`")
@@ -670,10 +673,11 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_current_validator_set(&self, validator_set: Vec<Address>) {
-        log::trace!("Storing current validator set");
-        self.kv
-            .put(&Key::CurrentValidatorSet.to_bytes(), validator_set.encode());
+    fn set_validator_set(&self, era_index: u64, validator_set: Vec<Address>) {
+        self.kv.put(
+            &Key::ValidatorSet(era_index).to_bytes(),
+            validator_set.encode(),
+        );
     }
 }
 
