@@ -238,7 +238,7 @@ impl ObserverService {
 
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_computed(genesis_block_hash) {
+        if db.block_meta(genesis_block_hash).computed {
             return Ok(());
         }
 
@@ -258,7 +258,10 @@ impl ObserverService {
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
-        db.set_block_is_synced(genesis_block_hash);
+        db.mutate_block_meta(genesis_block_hash, |meta| {
+            meta.computed = true;
+            meta.synced = true;
+        });
 
         db.set_block_commitment_queue(genesis_block_hash, Default::default());
         db.set_block_codes_queue(genesis_block_hash, Default::default());
@@ -267,7 +270,6 @@ impl ObserverService {
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_block_computed(genesis_block_hash);
 
         Ok(())
     }
