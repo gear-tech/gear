@@ -107,7 +107,7 @@ type Gas = <AuxiliaryGasProvider as Provider>::GasTree;
 
 fn gas_tree_node_clone() -> BTreeMap<NodeId, Node> {
     GAS_NODES.with(|tree| {
-        tree.borrow()
+        tree.data()
             .iter()
             .map(|(k, v)| (*k, v.clone()))
             .collect::<BTreeMap<_, _>>()
@@ -549,6 +549,6 @@ proptest! {
             }
         }
 
-        assert!(GAS_NODES.with(|tree| tree.borrow().iter().count()) == 0);
+        assert!(GAS_NODES.with(|tree| tree.data().iter().count()) == 0);
     }
 }

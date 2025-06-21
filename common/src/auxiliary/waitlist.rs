@@ -19,12 +19,12 @@
 //! Auxiliary implementation of the waitlist.
 
 use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
-use crate::storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen};
-use core::cell::RefCell;
+use crate::{auxiliary::overlay::WithOverlay, storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen}};
 use gear_core::{
     ids::{ActorId, MessageId},
     message::StoredDispatch,
 };
+use std::thread::LocalKey;
 
 /// Waitlist implementation that can be used in a native, non-wasm runtimes.
 pub type AuxiliaryWaitlist<WaitListCallbacks> = WaitlistImpl<
@@ -39,9 +39,15 @@ pub type AuxiliaryWaitlist<WaitListCallbacks> = WaitlistImpl<
 /// Type represents message stored in the waitlist.
 pub type WaitlistedMessage = StoredDispatch;
 
+pub(crate) type WaitlistStorage =
+    WithOverlay<DoubleBTreeMap<ActorId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>>;
 std::thread_local! {
     // Definition of the waitlist (`StorageDoubleMap`) global storage, accessed by the `Waitlist` trait implementor.
-    pub(crate) static WAITLIST_STORAGE: RefCell<DoubleBTreeMap<ActorId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>> = const { RefCell::new(DoubleBTreeMap::new()) };
+    pub(crate) static WAITLIST_STORAGE: WaitlistStorage = Default::default();
+}
+
+fn storage() -> &'static LocalKey<WaitlistStorage> {
+    &WAITLIST_STORAGE
 }
 
 /// `Waitlist` double storage map manager.
@@ -56,14 +62,14 @@ impl AuxiliaryDoubleStorageWrap for WaitlistStorageWrap {
     where
         F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        WAITLIST_STORAGE.with_borrow(f)
+        storage().with(|wls| f(&wls.data()))
     }
 
     fn with_storage_mut<F, R>(f: F) -> R
     where
         F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        WAITLIST_STORAGE.with_borrow_mut(f)
+        storage().with(|wls| f(&mut wls.data_mut()))
     }
 }
 
