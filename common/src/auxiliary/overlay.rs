@@ -22,31 +22,80 @@
 //! inside the overlay, which won't modify the real storage. Same functionality
 //! is provided within the module
 
-use crate::auxiliary::{
-    gas_provider::{Balance, Node, NodeId, GAS_NODES, TOTAL_ISSUANCE},
-    mailbox::{MailboxStorage, MAILBOX_STORAGE},
-    task_pool::{TaskPoolStorage, TASKPOOL_STORAGE},
-    waitlist::{WaitlistStorage, WAITLIST_STORAGE},
-    DoubleBTreeMap,
-};
 use std::{
-    cell::{Cell, RefCell},
-    collections::BTreeMap,
+    cell::{Cell, Ref, RefMut, RefCell},
 };
 
 std::thread_local! {
     /// Overlay mode enabled flag.
     static OVERLAY_ENABLED: Cell<bool> = const { Cell::new(false) };
-    /// Overlay copy of the `TOTAL_ISSUANCE` of gas tree storage.
-    pub(crate) static TOTAL_ISSUANCE_OVERLAY: RefCell<Option<Balance>> = const { RefCell::new(None) };
-    /// Overlay copy of the `GAS_NODES` of gas tree storage.
-    pub(crate) static GAS_NODES_OVERLAY: RefCell<BTreeMap<NodeId, Node>> = const { RefCell::new(BTreeMap::new()) };
-    /// Overlay copy of the mailbox storage.
-    pub(crate) static MAILBOX_OVERLAY: MailboxStorage = const { RefCell::new(DoubleBTreeMap::new()) };
-    /// Overlay copy of the task pool storage.
-    pub(crate) static TASKPOOL_OVERLAY: TaskPoolStorage = const { RefCell::new(DoubleBTreeMap::new()) };
-    /// Overlay copy of the waitlist storage.
-    pub(crate) static WAITLIST_OVERLAY: WaitlistStorage = const { RefCell::new(DoubleBTreeMap::new()) };
+}
+
+// todo [sab] clear
+pub struct WithOverlay<T> {
+    original: RefCell<T>,
+    overlay: RefCell<T>,
+    set_overlay: Cell<bool>,
+}
+
+impl<T: Default> Default for WithOverlay<T> {
+    fn default() -> Self {
+        Self {
+            original: Default::default(),
+            overlay: Default::default(),
+            set_overlay: Default::default(),
+        }
+    }
+}
+
+impl<T: Clone> WithOverlay<T> {
+    pub fn new(original: T) -> Self
+    where 
+        T: Default,
+    {
+        Self {
+            original: RefCell::new(original.clone()),
+            overlay: RefCell::new(Default::default()),
+            set_overlay: Cell::new(false),
+        }
+    }
+
+    pub fn data(&self) -> Ref<'_, T> {
+        self.prepare_data();
+        
+        if overlay_enabled() {
+            self.overlay.borrow()
+        } else {
+            self.original.borrow()
+        }
+    }
+
+    pub fn data_mut(&self) -> RefMut<'_, T> {
+        self.prepare_data();
+        
+        if overlay_enabled() {
+            self.overlay.borrow_mut()
+        } else {
+            self.original.borrow_mut()
+        }
+    }
+
+    fn prepare_data(&self) {
+        if overlay_enabled() {
+            let overlay_is_set = self.set_overlay.get();
+            if !overlay_is_set {
+                let original = self.original.borrow().clone();
+                self.overlay.replace(original);
+
+                self.set_overlay.set(true);
+            }
+        } else {
+            let overlay_is_set = self.set_overlay.get();
+            if overlay_is_set {
+                self.set_overlay.set(false);
+            }
+        }
+    }
 }
 
 /// Enables overlay mode for the storage.
@@ -58,34 +107,6 @@ pub fn enable_overlay() {
     }
 
     OVERLAY_ENABLED.with(|oe| oe.set(true));
-
-    // Enable overlay for the gas tree.
-    TOTAL_ISSUANCE_OVERLAY.with(|tio| {
-        let ti_value = TOTAL_ISSUANCE.with_borrow(|i| *i);
-        tio.replace(ti_value);
-    });
-    GAS_NODES_OVERLAY.with(|gn_overlay| {
-        let gn_map = GAS_NODES.with_borrow(|gn| gn.clone());
-        gn_overlay.replace(gn_map);
-    });
-
-    // Enable overlay for the mailbox.
-    MAILBOX_OVERLAY.with(|mo| {
-        let original = MAILBOX_STORAGE.with_borrow(|m| m.clone());
-        mo.replace(original);
-    });
-
-    // Enable overlay for the task pool.
-    TASKPOOL_OVERLAY.with(|tpo| {
-        let original = TASKPOOL_STORAGE.with_borrow(|t| t.clone());
-        tpo.replace(original);
-    });
-
-    // Enable overlay for the waitlist.
-    WAITLIST_OVERLAY.with(|wo| {
-        let original = WAITLIST_STORAGE.with_borrow(|w| w.clone());
-        wo.replace(original);
-    });
 }
 
 /// Disables overlay mode for the storage.
@@ -97,29 +118,6 @@ pub fn disable_overlay() {
     }
 
     OVERLAY_ENABLED.with(|oe| oe.set(false));
-
-    // Disable overlay for the gas tree.
-    TOTAL_ISSUANCE_OVERLAY.with_borrow_mut(|tio| {
-        *tio = None;
-    });
-    GAS_NODES_OVERLAY.with_borrow_mut(|gno| {
-        gno.clear();
-    });
-
-    // Disable overlay for the mailbox.
-    MAILBOX_OVERLAY.with_borrow_mut(|mo| {
-        mo.clear();
-    });
-
-    // Disable overlay for the task pool.
-    TASKPOOL_OVERLAY.with_borrow_mut(|tpo| {
-        tpo.clear();
-    });
-
-    // Disable overlay for the waitlist.
-    WAITLIST_OVERLAY.with_borrow_mut(|wo| {
-        wo.clear();
-    });
 }
 
 /// Checks if overlay mode is enabled.
@@ -131,10 +129,9 @@ pub fn overlay_enabled() -> bool {
 mod tests {
     use gear_core::{message::DispatchKind, tasks::VaraScheduledTask};
     use sp_core::H256;
-
     use crate::{
         auxiliary::{
-            gas_provider::{GasNodesWrap, TotalIssuanceWrap},
+            gas_provider::{GasNodesWrap, TotalIssuanceWrap, Node, NodeId},
             mailbox::{MailboxStorageWrap, MailboxedMessage},
             task_pool::TaskPoolStorageWrap,
             waitlist::{WaitlistStorageWrap, WaitlistedMessage},
@@ -142,7 +139,6 @@ mod tests {
         storage::{DoubleMapStorage, Interval, MapStorage, ValueStorage},
         GasMultiplier, Origin,
     };
-
     use super::*;
 
     #[test]

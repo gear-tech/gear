@@ -44,39 +44,6 @@ use std::{
     str::FromStr,
 };
 
-/// Trait for mocking gear programs.
-///
-/// See [`Program`] and [`Program::mock`] for the usages.
-pub trait WasmProgram: Debug {
-    /// Init wasm program with given `payload`.
-    ///
-    /// Returns `Ok(Some(payload))` if program has reply logic
-    /// with given `payload`.
-    ///
-    /// If error occurs, the program will be terminated which
-    /// means that `handle` and `handle_reply` will not be
-    /// called.
-    fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Message handler with given `payload`.
-    ///
-    /// Returns `Ok(Some(payload))` if program has reply logic.
-    fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Reply message handler with given `payload`.
-    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// Signal handler with given `payload`.
-    fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// State of wasm program.
-    ///
-    /// See [`Program::read_state`] for the usage.
-    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
-    /// Emit debug message in program with given `data`.
-    ///
-    /// Logging target `gwasm` is used in this method.
-    fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "{data}");
-    }
-}
-
 /// Wrapper for program id.
 #[derive(Clone, Debug)]
 pub struct ProgramIdWrapper(pub(crate) ActorId);

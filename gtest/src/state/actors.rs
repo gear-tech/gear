@@ -19,26 +19,22 @@
 //! Actors storage.
 
 use core_processor::common::ExecutableActorData;
-use gear_common::{ActorId, CodeId, GearPage, MessageId, PageBuf};
+use gear_common::{auxiliary::overlay::WithOverlay, ActorId, CodeId, GearPage, MessageId, PageBuf};
 use gear_core::{
     code::InstrumentedCode,
     pages::{numerated::tree::IntervalsTree, WasmPage},
     reservation::GasReservationMap,
 };
-use std::{cell::RefCell, collections::BTreeMap, fmt, thread::LocalKey};
+use std::{collections::BTreeMap, fmt};
 
 use crate::WasmProgram;
 
 thread_local! {
-    pub(super) static ACTORS_STORAGE: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
+    pub(super) static ACTORS_STORAGE: WithOverlay<BTreeMap<ActorId, TestActor>> = Default::default();
 }
 
-fn storage() -> &'static LocalKey<RefCell<BTreeMap<ActorId, TestActor>>> {
-    if super::overlay_enabled() {
-        &super::ACTORS_STORAGE_OVERLAY
-    } else {
-        &ACTORS_STORAGE
-    }
+fn storage() -> &'static std::thread::LocalKey<WithOverlay<BTreeMap<ActorId, TestActor>>> {
+    &ACTORS_STORAGE
 }
 
 pub(crate) struct Actors;
@@ -49,7 +45,7 @@ impl Actors {
         program_id: ActorId,
         access: impl FnOnce(Option<&TestActor>) -> R,
     ) -> R {
-        storage().with_borrow(|storage| access(storage.get(&program_id)))
+        storage().with(|storage| access(storage.data().get(&program_id)))
     }
 
     // Modifies actor by program id.
@@ -57,30 +53,30 @@ impl Actors {
         program_id: ActorId,
         modify: impl FnOnce(Option<&mut TestActor>) -> R,
     ) -> R {
-        storage().with_borrow_mut(|storage| modify(storage.get_mut(&program_id)))
+        storage().with(|storage| modify(storage.data_mut().get_mut(&program_id)))
     }
 
     // Inserts actor by program id.
     pub(crate) fn insert(program_id: ActorId, actor: TestActor) -> Option<TestActor> {
-        storage().with_borrow_mut(|storage| storage.insert(program_id, actor))
+        storage().with(|storage| storage.data_mut().insert(program_id, actor))
     }
 
     // Checks if actor by program id exists.
     pub(crate) fn contains_key(program_id: ActorId) -> bool {
-        storage().with_borrow(|storage| storage.contains_key(&program_id))
+        storage().with(|storage| storage.data().contains_key(&program_id))
     }
 
     // Checks if actor by program id is a user.
     pub(crate) fn is_user(id: ActorId) -> bool {
         // Non-existent program is a user
-        storage().with_borrow(|storage| storage.get(&id).is_none())
+        storage().with(|storage| storage.data().get(&id).is_none())
     }
 
     // Checks if actor by program id is active.
     pub(crate) fn is_active_program(id: ActorId) -> bool {
-        storage().with_borrow(|storage| {
+        storage().with(|storage| {
             matches!(
-                storage.get(&id),
+                storage.data().get(&id),
                 Some(TestActor::Initialized(_) | TestActor::Uninitialized(_, _))
             )
         })
@@ -94,22 +90,23 @@ impl Actors {
 
     // Returns all program ids.
     pub(crate) fn program_ids() -> Vec<ActorId> {
-        storage().with_borrow(|storage| storage.keys().copied().collect())
+        storage().with(|storage| storage.data().keys().copied().collect())
     }
 
     // Clears actors storage.
     pub(crate) fn clear() {
-        storage().with_borrow_mut(|storage| storage.clear())
+        storage().with(|storage| storage.data_mut().clear())
     }
 }
 
 impl fmt::Debug for Actors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        storage().with_borrow(|storage| f.debug_map().entries(storage.iter()).finish())
+        storage().with(|storage| f.debug_map().entries(storage.data().iter()).finish())
     }
 }
 
-#[derive(Debug)]
+
+#[derive(Debug, Clone)]
 pub(crate) enum TestActor {
     Initialized(Program),
     // Contract: program is always `Some`, option is used to take ownership
@@ -272,7 +269,7 @@ impl GenuineProgram {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Program {
     Genuine(GenuineProgram),
     // Contract: is always `Some`, option is used to take ownership

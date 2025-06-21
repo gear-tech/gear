@@ -18,10 +18,10 @@
 
 //! Auxiliary implementation of the task pool.
 
-use super::{overlay, AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
-use crate::scheduler::TaskPoolImpl;
+use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
+use crate::{auxiliary::overlay::WithOverlay, scheduler::TaskPoolImpl};
 use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
-use std::{cell::RefCell, thread::LocalKey};
+use std::thread::LocalKey;
 
 /// Task pool implementation that can be used in a native, non-wasm runtimes.
 pub type AuxiliaryTaskpool<TaskPoolCallbacks> = TaskPoolImpl<
@@ -33,17 +33,13 @@ pub type AuxiliaryTaskpool<TaskPoolCallbacks> = TaskPoolImpl<
 >;
 
 pub(crate) type TaskPoolStorage =
-    RefCell<DoubleBTreeMap<BlockNumber, VaraScheduledTask<ActorId>, ()>>;
+    WithOverlay<DoubleBTreeMap<BlockNumber, VaraScheduledTask<ActorId>, ()>>;
 std::thread_local! {
-    pub(crate) static TASKPOOL_STORAGE: TaskPoolStorage = const { RefCell::new(DoubleBTreeMap::new()) };
+    pub(crate) static TASKPOOL_STORAGE: TaskPoolStorage = Default::default();
 }
 
 fn storage() -> &'static LocalKey<TaskPoolStorage> {
-    if overlay::overlay_enabled() {
-        &overlay::TASKPOOL_OVERLAY
-    } else {
-        &TASKPOOL_STORAGE
-    }
+    &TASKPOOL_STORAGE
 }
 
 /// `TaskPool` double storage map manager
@@ -58,14 +54,14 @@ impl AuxiliaryDoubleStorageWrap for TaskPoolStorageWrap {
     where
         F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with_borrow(f)
+        storage().with(|tps| f(& tps.data()))
     }
 
     fn with_storage_mut<F, R>(f: F) -> R
     where
         F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with_borrow_mut(f)
+        storage().with(|tps| f(&mut tps.data_mut()))
     }
 }
 

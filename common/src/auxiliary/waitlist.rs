@@ -18,9 +18,8 @@
 
 //! Auxiliary implementation of the waitlist.
 
-use super::{overlay, AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
-use crate::storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen};
-use core::cell::RefCell;
+use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
+use crate::{auxiliary::overlay::WithOverlay, storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen}};
 use gear_core::{
     ids::{ActorId, MessageId},
     message::StoredDispatch,
@@ -41,18 +40,14 @@ pub type AuxiliaryWaitlist<WaitListCallbacks> = WaitlistImpl<
 pub type WaitlistedMessage = StoredDispatch;
 
 pub(crate) type WaitlistStorage =
-    RefCell<DoubleBTreeMap<ActorId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>>;
+    WithOverlay<DoubleBTreeMap<ActorId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>>;
 std::thread_local! {
     // Definition of the waitlist (`StorageDoubleMap`) global storage, accessed by the `Waitlist` trait implementor.
-    pub(crate) static WAITLIST_STORAGE: WaitlistStorage = const { RefCell::new(DoubleBTreeMap::new()) };
+    pub(crate) static WAITLIST_STORAGE: WaitlistStorage = Default::default();
 }
 
 fn storage() -> &'static LocalKey<WaitlistStorage> {
-    if overlay::overlay_enabled() {
-        &overlay::WAITLIST_OVERLAY
-    } else {
-        &WAITLIST_STORAGE
-    }
+    &WAITLIST_STORAGE
 }
 
 /// `Waitlist` double storage map manager.
@@ -67,14 +62,14 @@ impl AuxiliaryDoubleStorageWrap for WaitlistStorageWrap {
     where
         F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with_borrow(f)
+        storage().with(|wls| f(&wls.data()))
     }
 
     fn with_storage_mut<F, R>(f: F) -> R
     where
         F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with_borrow_mut(f)
+        storage().with(|wls| f(&mut wls.data_mut()))
     }
 }
 

@@ -17,12 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Auxiliary implementation of the mailbox.
-use super::overlay;
 use crate::{
-    auxiliary::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap},
+    auxiliary::{overlay::WithOverlay, AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap},
     storage::{Interval, MailboxError, MailboxImpl, MailboxKeyGen},
 };
-use core::cell::RefCell;
 use gear_core::{
     ids::{ActorId, MessageId},
     message::UserStoredMessage,
@@ -43,18 +41,14 @@ pub type AuxiliaryMailbox<MailboxCallbacks> = MailboxImpl<
 pub type MailboxedMessage = UserStoredMessage;
 
 pub(crate) type MailboxStorage =
-    RefCell<DoubleBTreeMap<ActorId, MessageId, (MailboxedMessage, Interval<BlockNumber>)>>;
+    WithOverlay<DoubleBTreeMap<ActorId, MessageId, (MailboxedMessage, Interval<BlockNumber>)>>;
 std::thread_local! {
     // Definition of the mailbox (`StorageDoubleMap`) global storage, accessed by the `Mailbox` trait implementor.
-    pub(crate) static MAILBOX_STORAGE: MailboxStorage = const { RefCell::new(DoubleBTreeMap::new()) };
+    pub(crate) static MAILBOX_STORAGE: MailboxStorage = Default::default();
 }
 
 fn storage() -> &'static LocalKey<MailboxStorage> {
-    if overlay::overlay_enabled() {
-        &overlay::MAILBOX_OVERLAY
-    } else {
-        &MAILBOX_STORAGE
-    }
+    &MAILBOX_STORAGE
 }
 
 /// `Mailbox` double storage map manager.
@@ -69,14 +63,18 @@ impl AuxiliaryDoubleStorageWrap for MailboxStorageWrap {
     where
         F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with_borrow(f)
+        storage().with(|ms| {
+            f(&ms.data())
+        })
     }
 
     fn with_storage_mut<F, R>(f: F) -> R
     where
         F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with_borrow_mut(f)
+        storage().with(|ms| {
+            f(&mut ms.data_mut())
+        })
     }
 }
 

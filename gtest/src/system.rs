@@ -469,7 +469,7 @@ impl System {
         while let Some(dispatch) = manager_mut.dispatches.pop_front() {
             // For testing purposes, we set the gas allowance to the maximum for each
             // message
-            manager_mut.gas_allowance = Gas(GAS_ALLOWANCE);
+            manager_mut.gas_allowance = GAS_ALLOWANCE;
             // No need to check the flag after the execution, as we give infinite
             // allowance for the reply calculation.
             manager_mut.messages_processing_enabled = true;
