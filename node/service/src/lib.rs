@@ -29,6 +29,7 @@ use sc_service::{
     TaskManager,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
+use sc_transaction_pool::TransactionPoolHandle;
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ConstructRuntimeApi;
 use sp_runtime::{
@@ -73,7 +74,8 @@ type FullGrandpaBlockImport<RuntimeApi, ChainSelection = FullSelectChain> =
     >;
 
 /// The transaction pool type definition.
-type TransactionPool<RuntimeApi> = sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>;
+pub type TransactionPool =
+    sc_transaction_pool::TransactionPoolHandle<Block, FullClient<crate::vara_runtime::RuntimeApi>>;
 
 /// The minimum period of blocks on which justifications will be
 /// imported and generated.
@@ -145,7 +147,7 @@ pub fn new_partial<RuntimeApi>(
         FullBackend,
         FullSelectChain,
         sc_consensus::DefaultImportQueue<Block>,
-        sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi>>,
+        sc_transaction_pool::TransactionPoolHandle<Block, FullClient<RuntimeApi>>,
         (
             impl Fn(
                     sc_rpc::SubscriptionTaskExecutor,
@@ -215,12 +217,15 @@ where
 
     let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-    let transaction_pool = sc_transaction_pool::BasicPool::new_full(
-        config.transaction_pool.clone(),
-        config.role.is_authority().into(),
-        config.prometheus_registry(),
-        task_manager.spawn_essential_handle(),
-        client.clone(),
+    let transaction_pool = Arc::from(
+        sc_transaction_pool::Builder::new(
+            task_manager.spawn_essential_handle(),
+            client.clone(),
+            config.role.is_authority().into(),
+        )
+        .with_options(config.transaction_pool.clone())
+        .with_prometheus(config.prometheus_registry())
+        .build(),
     );
 
     let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
@@ -345,7 +350,7 @@ where
     /// The syncing service of the node.
     pub sync: Arc<SyncingService<Block>>,
     /// The transaction pool of the node.
-    pub transaction_pool: Arc<TransactionPool<RuntimeApi>>,
+    pub transaction_pool: Arc<TransactionPoolHandle<Block, FullClient<RuntimeApi>>>,
     /// The rpc handlers of the node.
     pub rpc_handlers: RpcHandlers,
 }
@@ -637,23 +642,25 @@ where
     }
 
     if enable_offchain_worker {
-        task_manager.spawn_handle().spawn(
-            "offchain-workers-runner",
-            "offchain-worker",
+        let offchain_workers =
             sc_offchain::OffchainWorkers::new(sc_offchain::OffchainWorkerOptions {
                 runtime_api_provider: client.clone(),
-                is_validator: role.is_authority(),
                 keystore: Some(keystore_container.keystore()),
                 offchain_db: backend.offchain_storage(),
                 transaction_pool: Some(OffchainTransactionPoolFactory::new(
                     transaction_pool.clone(),
                 )),
                 network_provider: Arc::new(network.clone()),
+                is_validator: role.is_authority(),
                 enable_http_requests: true,
                 custom_extensions: |_| vec![],
-            })
-            .run(client.clone(), task_manager.spawn_handle())
-            .boxed(),
+            })?;
+        task_manager.spawn_handle().spawn(
+            "offchain-workers-runner",
+            "offchain-work",
+            offchain_workers
+                .run(client.clone(), task_manager.spawn_handle())
+                .boxed(),
         );
     }
 

@@ -25,7 +25,7 @@ use crate::{
 };
 use alloc::collections::BTreeMap;
 use core::{cell::RefCell, ops::DerefMut};
-use sp_core::H256;
+use primitive_types::H256;
 
 /// Balance type used in the gas tree.
 pub(crate) type Balance = u64;
