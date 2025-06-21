@@ -287,10 +287,7 @@ where
         });
         if reserved != 0 {
             log::debug!(
-                "Send signal issued by {} to {} with {} supply",
-                message_id,
-                destination,
-                reserved
+                "Send signal issued by {message_id} to {destination} with {reserved} supply"
             );
 
             // Creating signal message.

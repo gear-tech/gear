@@ -142,12 +142,12 @@ fn main() -> anyhow::Result<()> {
 
                 stack_height = mid;
 
-                log::info!("Unreachable at {} height", mid);
+                log::info!("Unreachable at {mid} height");
             }
             Some(TrapCode::StackOverflow) => {
                 high = mid - 1;
 
-                log::info!("Overflow at {} height", mid);
+                log::info!("Overflow at {mid} height");
             }
             code => panic!("unexpected trap code: {code:?}"),
         }

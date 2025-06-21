@@ -548,7 +548,7 @@ mod tests {
         let mut data = PageBufInner::filled_with(199u8);
         data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
-        log::debug!("page buff = {:?}", page_buf);
+        log::debug!("page buff = {page_buf:?}");
     }
 
     #[test]

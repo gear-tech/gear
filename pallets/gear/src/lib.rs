@@ -580,7 +580,7 @@ pub mod pallet {
                 },
             )
             .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
+                log::debug!("Code failed to load: {e:?}");
                 Error::<T>::ProgramConstructionFailed
             })?;
 
@@ -1685,7 +1685,7 @@ pub mod pallet {
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
 
-            log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {}", value);
+            log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {value}");
             ExecuteInherent::<T>::put(value);
 
             Ok(())

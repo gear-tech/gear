@@ -318,7 +318,7 @@ pub mod pallet {
             })
             .map(|_| ())
             .inspect_err(|e| {
-                log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
+                log::debug!(target: LOG_TARGET, "Error dispatching call: {e:?}");
             })
             .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(e.into())))
         }
@@ -461,7 +461,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             }
             Err(err) => {
                 // Builtin actor call failed.
-                log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
+                log::debug!(target: LOG_TARGET, "Builtin actor error: {err:?}");
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(

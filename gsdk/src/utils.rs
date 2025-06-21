@@ -38,7 +38,7 @@ impl Api {
     pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
         if let Ok(limit) = self.gas_limit() {
             Ok(if gas > limit {
-                log::warn!("gas limit too high, use {} from the chain config", limit);
+                log::warn!("gas limit too high, use {limit} from the chain config");
                 limit
             } else {
                 gas

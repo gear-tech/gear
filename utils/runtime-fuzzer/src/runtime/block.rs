@@ -70,7 +70,7 @@ fn run_to_block(n: u32) {
 
 /// Initialize a new block.
 pub fn initialize(new_bn: BlockNumberFor<Runtime>) {
-    log::debug!("📦 Initializing block {}", new_bn);
+    log::debug!("📦 Initializing block {new_bn}");
 
     // All blocks are to be authored by validator at index 0
     let slot = Slot::from(0);
