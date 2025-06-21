@@ -31,7 +31,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    Address, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -64,6 +64,7 @@ enum Key {
 
     LatestComputedBlock = 10,
     LatestSyncedBlockHeight = 11,
+    CurrentValidatorSet = 12,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -104,7 +105,9 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestComputedBlock
+            | Self::LatestSyncedBlockHeight
+            | Self::CurrentValidatorSet => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -632,6 +635,15 @@ impl OnChainStorageRead for Database {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
+
+    fn current_validator_set(&self) -> Option<Vec<Address>> {
+        self.kv
+            .get(&Key::CurrentValidatorSet.to_bytes())
+            .map(|data| {
+                Vec::<Address>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<Address>`")
+            })
+    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -656,6 +668,12 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    }
+
+    fn set_current_validator_set(&self, validator_set: Vec<Address>) {
+        log::trace!("Storing current validator set");
+        self.kv
+            .put(&Key::CurrentValidatorSet.to_bytes(), validator_set.encode());
     }
 }
 

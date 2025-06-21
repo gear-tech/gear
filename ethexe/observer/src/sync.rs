@@ -59,10 +59,18 @@ impl<DB: SyncDB> ChainSync<DB> {
 
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        let validators =
-            RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
-                .validators_at(block)
-                .await?;
+        let validators = if let Some(validators) = self.db.current_validator_set() {
+            validators
+        } else {
+            let validators = RouterQuery::from_provider(
+                self.config.router_address.0.into(),
+                self.provider.clone(),
+            )
+            .validators()
+            .await?;
+            self.db.set_current_validator_set(validators.clone());
+            validators
+        };
 
         let synced_data = BlockSyncedData {
             block_hash: block,
@@ -112,6 +120,20 @@ impl<DB: SyncDB> ChainSync<DB> {
                 {
                     self.db
                         .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
+                } else if let BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted {
+                    next_era_start: _,
+                }) = event
+                {
+                    log::trace!(
+                        "NextEraValidatorsCommitted event detected. Setting a new validator set."
+                    );
+                    let validators = RouterQuery::from_provider(
+                        self.config.router_address.0.into(),
+                        self.provider.clone(),
+                    )
+                    .validators()
+                    .await?;
+                    self.db.set_current_validator_set(validators);
                 }
             }
 

@@ -21,7 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition, Address, BlockHeader, CodeBlobInfo, ProgramStates,
+    Schedule,
 };
 use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
@@ -77,6 +78,7 @@ pub trait OnChainStorageRead {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_is_synced(&self, block_hash: H256) -> bool;
     fn latest_synced_block_height(&self) -> Option<u32>;
+    fn current_validator_set(&self) -> Option<Vec<Address>>;
 }
 
 pub trait OnChainStorageWrite {
@@ -85,4 +87,5 @@ pub trait OnChainStorageWrite {
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_block_is_synced(&self, block_hash: H256);
     fn set_latest_synced_block_height(&self, height: u32);
+    fn set_current_validator_set(&self, validator_set: Vec<Address>);
 }
