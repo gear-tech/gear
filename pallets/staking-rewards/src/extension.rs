@@ -95,15 +95,14 @@ where
     ) -> ValidateResult<Self::Val, T::RuntimeCall> {
         let maybe_who: Option<T::AccountId> = origin.clone().into_signer();
 
-        if T::BondCallFilter::contains(call) {
-            if let Some(ref who) = maybe_who {
-                if T::AccountFilter::contains(who) {
-                    return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
-                }
-            }
-            // If `maybe_who` is `None`, it's not a signed extrinsic from a regular account,
-            // so the account-based blacklist doesn't apply.
+        if T::BondCallFilter::contains(call)
+            && let Some(ref who) = maybe_who
+            && T::AccountFilter::contains(who)
+        {
+            return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
         }
+        // If `maybe_who` is `None`, it's not a signed extrinsic from a regular account,
+        // so the account-based blacklist doesn't apply.
         Ok((Default::default(), (), origin))
     }
 

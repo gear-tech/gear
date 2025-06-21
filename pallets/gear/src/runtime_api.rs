@@ -306,10 +306,9 @@ where
                             ref dispatch,
                             ..
                         } = note
+                            && from_main_chain(dispatch.id())?
                         {
-                            if from_main_chain(dispatch.id())? {
-                                gas_info.min_limit = initial_gas;
-                            }
+                            gas_info.min_limit = initial_gas;
                         }
                     }
                 }

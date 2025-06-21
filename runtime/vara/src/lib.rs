@@ -29,7 +29,7 @@ extern crate alloc;
 #[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::{storage::Messenger, DelegateFee, Origin};
+use common::{storage::Messenger, DelegateFee};
 use frame_election_provider_support::{
     bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
     VoteWeight,
@@ -77,6 +77,9 @@ use sp_std::{
     prelude::*,
 };
 use sp_version::RuntimeVersion;
+
+#[cfg(feature = "dev")]
+use common::Origin;
 
 #[cfg(not(feature = "dev"))]
 use sp_runtime::traits::OpaqueKeys;
