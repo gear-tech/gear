@@ -388,13 +388,13 @@ impl NetworkService {
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
-                if let Some(mdns4) = behaviour.mdns4.as_ref() {
-                    if mdns4.discovered_nodes().any(|&p| p == peer) {
-                        // we don't want local peers to appear in KadDHT.
-                        // event can be emitted few times in a row for
-                        // the same peer, so we just ignore `None`
-                        let _res = behaviour.kad.remove_peer(&peer);
-                    }
+                if let Some(mdns4) = behaviour.mdns4.as_ref()
+                    && mdns4.discovered_nodes().any(|&p| p == peer)
+                {
+                    // we don't want local peers to appear in KadDHT.
+                    // event can be emitted few times in a row for
+                    // the same peer, so we just ignore `None`
+                    let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
             BehaviourEvent::Kad(_) => {}
