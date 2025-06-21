@@ -20,8 +20,11 @@ use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
+use itertools::Itertools;
 use std::{
-    env, fs,
+    env,
+    ffi::OsStr,
+    fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
@@ -112,7 +115,7 @@ impl WasmProject {
 
         let mut target_dir = out_dir
             .ancestors()
-            .find(|path| path.ends_with(&profile))
+            .find(|path| path.ends_with(&profile) && !path.iter().contains(&OsStr::new("wbuild")))
             .and_then(|path| path.parent())
             .expect("Could not find target directory")
             .to_owned();
@@ -302,8 +305,14 @@ impl WasmProject {
         let (original_copy_wasm_path, opt_wasm_path) = self.wasm_paths(file_base_name);
 
         // Copy original file to `self.wasm_target_dir`
-        smart_fs::copy_if_newer(&original_wasm_path, &original_copy_wasm_path)
-            .context("unable to copy WASM file")?;
+        smart_fs::copy_if_newer(&original_wasm_path, &original_copy_wasm_path).with_context(
+            || {
+                format!(
+                    "unable to copy WASM file from {}",
+                    original_copy_wasm_path.display()
+                )
+            },
+        )?;
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {

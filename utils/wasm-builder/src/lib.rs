@@ -117,11 +117,6 @@ impl WasmBuilder {
     fn build_project(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
         self.wasm_project.generate()?;
 
-        if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok() {
-            let file_base_name = self.wasm_project.file_base_name();
-            return Ok(Some(self.wasm_project.wasm_paths(file_base_name)));
-        }
-
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
         self.cargo.set_target_dir(self.wasm_project.target_dir());
@@ -130,7 +125,10 @@ impl WasmBuilder {
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&self.enabled_features()?);
 
-        self.cargo.run()?;
+        if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_err() {
+            self.cargo.run()?;
+        }
+
         self.wasm_project.postprocess()
     }
 
