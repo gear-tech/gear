@@ -19,7 +19,7 @@
 use super::{
     coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
 };
-use crate::ConsensusEvent;
+use crate::{rewards::RewardsManager, ConsensusEvent};
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -137,9 +137,9 @@ impl Producer {
     ) -> Result<Option<BatchCommitment>, AggregationError> {
         let block_commitments = Self::aggregate_block_commitments_for_block(ctx, block_hash)?;
         let code_commitments = Self::aggregate_code_commitments_for_block(ctx, block_hash)?;
-
-        // TODO: add the appropriate functionality
-        let rewards_commitments = Self::aggregate_rewards_commitments_for_block(ctx, block_hash)?;
+        let rewards_commitments = RewardsManager::new(ctx.db.clone())
+            .create_commitment()
+            .unwrap();
 
         Ok(
             (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(
@@ -224,32 +224,6 @@ impl Producer {
             })
             .collect::<Result<Vec<CodeCommitment>>>()
             .map_err(Into::into)
-    }
-
-    fn aggregate_rewards_commitments_for_block(
-        ctx: &ValidatorContext,
-        _block_hash: H256,
-    ) -> Result<Vec<RewardsCommitment>, AggregationError> {
-        // TODO: check if rewards already distributed
-        let _rewards_required = false;
-
-        let operators_rewards = OperatorRewardsCommitment {
-            amount: 0,
-            root: H256::zero(),
-        };
-
-        let stakers_rewards = StakerRewardsCommitment {
-            distribution: Vec::new(),
-            total_amount: 0,
-            token: H256::zero(),
-        };
-
-        let rewards_commitment = RewardsCommitment {
-            operators: operators_rewards,
-            stakers: stakers_rewards,
-            timestamp: ctx.jjjj,
-        };
-        todo!()
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
