@@ -217,6 +217,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().protocolData.validatedCodesCount;
     }
 
+    function timelines() public view returns (Gear.Timelines memory) {
+        return _router().timelines;
+    }
+
     // Owner calls.
     function setMirror(address newMirror) external onlyOwner {
         _router().implAddresses.mirror = newMirror;

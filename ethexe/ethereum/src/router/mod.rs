@@ -378,4 +378,8 @@ impl RouterQuery {
         let count = self.instance.validatedCodesCount().call().await?;
         Ok(count)
     }
+
+    pub async fn timelines(&self) -> Result<crate::abi::Gear::Timelines> {
+        self.instance.timelines().call().await.map_err(Into::into)
+    }
 }
