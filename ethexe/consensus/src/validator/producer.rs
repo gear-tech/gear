@@ -146,11 +146,11 @@ impl Producer {
 
         assert!(
             validators_commitment.is_none(),
-            "TODO +_+_+: validators commitment is not supported yet"
+            "TODO #4741: validators commitment is not supported yet"
         );
         assert!(
             rewards_commitment.is_none(),
-            "TODO +_+_+: rewards commitment is not supported yet"
+            "TODO #4742: rewards commitment is not supported yet"
         );
 
         utils::create_batch_commitment(&ctx.db, block, chain_commitment, code_commitments)
@@ -180,7 +180,7 @@ impl Producer {
         utils::aggregate_code_commitments(&ctx.db, queue, false)
     }
 
-    // TODO +_+_+
+    // TODO #4741
     fn aggregate_validators_commitment(
         _ctx: &ValidatorContext,
         _block_hash: H256,
@@ -188,7 +188,7 @@ impl Producer {
         Ok(None)
     }
 
-    // TODO +_+_+
+    // TODO #4742
     fn aggregate_rewards_commitment(
         _ctx: &ValidatorContext,
         _block_hash: H256,

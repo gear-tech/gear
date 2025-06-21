@@ -285,7 +285,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     }))
 }
 
-// TODO +_+_+: improve squashing - removing redundant state transitions
+// TODO #4744: improve squashing - removing redundant state transitions
 pub fn squash_chain_commitments(
     chain_commitments: Vec<ChainCommitment>,
 ) -> Option<ChainCommitment> {

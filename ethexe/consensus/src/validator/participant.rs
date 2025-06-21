@@ -125,10 +125,10 @@ impl Participant {
             codes,
         } = request;
 
-        // TODO +_+_+: change this check.
-        // Presently we do not support batch with no blocks and codes,
-        // but it is possible when rewarding and election is implemented.
-        ensure!(!(blocks.is_empty() && codes.is_empty()), "Empty batch");
+        ensure!(
+            !(blocks.is_empty() && codes.is_empty()),
+            "Empty batch (change when other commitments are supported)"
+        );
 
         ensure!(
             !utils::has_duplicates(blocks.as_slice()),
