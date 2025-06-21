@@ -70,6 +70,13 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct BlockMeta {
+    pub synced: bool,
+    pub prepared: bool,
+    pub computed: bool,
+}
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ProducerBlock {
     pub block_hash: H256,

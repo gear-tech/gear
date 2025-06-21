@@ -163,7 +163,7 @@ impl Producer {
         let predecessor_block = block_hash;
 
         for block in commitments_queue {
-            if !ctx.db.block_computed(block) {
+            if !ctx.db.block_meta(block).computed {
                 // This can happen when validator syncs from p2p network and skips some old blocks.
                 return Err(AggregationError::SomeBlocksInQueueAreNotComputed(block));
             }
