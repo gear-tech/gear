@@ -32,7 +32,9 @@ use gear_core::{
 use gprimitives::H256;
 
 pub trait BlockMetaStorageRead {
+    /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
+
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
@@ -44,9 +46,12 @@ pub trait BlockMetaStorageRead {
 }
 
 pub trait BlockMetaStorageWrite {
+    /// NOTE: if `BlockMeta` doesn't exist in the database,
+    /// it will be created with default values and then will be mutated.
     fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
     where
         F: FnOnce(&mut BlockMeta);
+
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
     fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);

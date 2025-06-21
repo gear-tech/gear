@@ -412,8 +412,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
     fn collect_not_computed_blocks_chain(db: &DB, head: H256) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
-        while !db.block_meta(block).computed {
-            if !db.block_meta(block).synced {
+
+        // Optimization to avoid double fetching of block meta.
+        let mut block_meta = db.block_meta(block);
+        while !block_meta.computed {
+            if !block_meta.synced {
                 return Err(ComputeError::BlockNotSynced(block));
             }
 
@@ -429,6 +432,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
             });
 
             block = parent;
+            block_meta = db.block_meta(block);
         }
 
         Ok(chain)

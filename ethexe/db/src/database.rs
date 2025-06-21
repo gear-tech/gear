@@ -277,7 +277,6 @@ struct BlockSmallData {
 
 impl BlockMetaStorageRead for Database {
     fn block_meta(&self, block_hash: H256) -> BlockMeta {
-        // self.block_small_data(block_hash).unwrap_or_default().meta
         self.with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
