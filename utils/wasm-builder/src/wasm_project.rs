@@ -122,8 +122,11 @@ impl WasmProject {
         let mut wasm_target_dir = target_dir.clone();
 
         // remove component to avoid creating a directory inside
-        // `target/x86_64-unknown-linux-gnu` and so on when cross-compiling
-        if env::var("HOST") != env::var("TARGET") {
+        // `target/x86_64-unknown-linux-gnu` and so on when cross-compiling.
+        //
+        // also don't change the directory if we are inside a substrate runtime build script
+        // because the branch is always true in such case
+        if !substrate_runtime && env::var("HOST") != env::var("TARGET") {
             wasm_target_dir.pop();
         }
 
