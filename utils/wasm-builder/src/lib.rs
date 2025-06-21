@@ -93,10 +93,14 @@ impl WasmBuilder {
     /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
     /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
-        let gear_wasm_builder_no_build = env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok();
-        let skip_wasm_build =
-            env::var("SKIP_WASM_BUILD").is_ok() && env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_err();
+        if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok() {
+            return self
+                .provide_paths_for_substrate_runtime()
+                .expect("failed to provide paths");
+        }
 
+        let gear_wasm_builder_no_build = env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok();
+        let skip_wasm_build = env::var("SKIP_WASM_BUILD").is_ok();
         if gear_wasm_builder_no_build || skip_wasm_build || is_intellij_sync() {
             let _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
             return None;
@@ -114,6 +118,11 @@ impl WasmBuilder {
         }
     }
 
+    fn provide_paths_for_substrate_runtime(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
+        self.wasm_project.generate()?;
+        self.wasm_project.postprocess()
+    }
+
     fn build_project(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
         self.wasm_project.generate()?;
 
@@ -125,10 +134,7 @@ impl WasmBuilder {
         self.cargo.set_profile(profile.to_string());
         self.cargo.set_features(&self.enabled_features()?);
 
-        if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_err() {
-            self.cargo.run()?;
-        }
-
+        self.cargo.run()?;
         self.wasm_project.postprocess()
     }
 
