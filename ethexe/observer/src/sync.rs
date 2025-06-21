@@ -66,7 +66,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                 self.config.router_address.0.into(),
                 self.provider.clone(),
             )
-            .validators()
+            .validators_at(block)
             .await?;
             self.db.set_current_validator_set(validators.clone());
             validators
