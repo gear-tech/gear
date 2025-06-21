@@ -19,12 +19,15 @@
 use super::{
     coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
 };
-use crate::ConsensusEvent;
+use crate::{rewards::RewardsManager, ConsensusEvent};
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
-    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    gear::{
+        BatchCommitment, BlockCommitment, CodeCommitment, OperatorRewardsCommitment,
+        RewardsCommitment, StakerRewardsCommitment,
+    },
     Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
@@ -134,9 +137,9 @@ impl Producer {
     ) -> Result<Option<BatchCommitment>, AggregationError> {
         let block_commitments = Self::aggregate_block_commitments_for_block(ctx, block_hash)?;
         let code_commitments = Self::aggregate_code_commitments_for_block(ctx, block_hash)?;
-
-        // TODO: add the appropriate functionality
-        let rewards_commitments = vec![];
+        let rewards_commitments = RewardsManager::new(ctx.db.clone())
+            .create_commitment()
+            .unwrap();
 
         Ok(
             (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(
