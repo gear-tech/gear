@@ -23,6 +23,51 @@ jobs:
       - run: cargo binstall --no-confirm cargo-shear
       - run: cargo shear
 
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Check formatting: Gear"
+        run: ./scripts/gear.sh format gear --check
+
+      - name: "Check formatting: Doc"
+        run: ./scripts/gear.sh format doc --check
+
+  ethexe-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: "Show: Versioning"
+        run: forge --version
+
+      - name: "Check: ethexe contracts"
+        run: |
+          npm cache clean --force
+          # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
+          npx @openzeppelin/upgrades-core@^1.37.0
+
+          cd ethexe/contracts
+          forge fmt --check
+          forge build --sizes
+          forge test -vvv
+
   clippy:
     strategy:
       fail-fast: false
@@ -115,6 +160,7 @@ jobs:
 
   vara-runtime-imports:
     runs-on: ubuntu-latest
+    needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -165,6 +211,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             runs-on: windows-latest
     runs-on: ${{ matrix.runs-on }}
+    needs: [clippy, wasm]
     name: stack-height (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
@@ -184,53 +231,9 @@ jobs:
 
       - run: cargo run -p calc-stack-height --release --locked
 
-  fmt:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
-
-      - name: "Install: Rust toolchain"
-        uses: ./.github/actions/install-rust
-
-      - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
-
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
-
-  ethexe-contracts:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: "Install: Foundry"
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: "Install: Node.js"
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-
-      - name: "Show: Versioning"
-        run: forge --version
-
-      - name: "Check: ethexe contracts"
-        run: |
-          npm cache clean --force
-          # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
-          npx @openzeppelin/upgrades-core@^1.37.0
-
-          cd ethexe/contracts
-          forge fmt --check
-          forge build --sizes
-          forge test -vvv
-
   crates-io:
     runs-on: [ kuberunner, github-runner-02 ]
+    needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -248,6 +251,7 @@ jobs:
 
   gsdk-metadata:
     runs-on: ubuntu-latest
+    needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
