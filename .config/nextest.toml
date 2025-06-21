@@ -19,22 +19,13 @@ path = "junit.xml"
 
 # sdk
 [[profile.ci.overrides]]
-filter = 'package(gclient)'
+filter = 'package(gclient) or package(gsdk)'
 retries = 5
 
 [[profile.ci.scripts]]
-filter = 'package(gclient)'
+filter = 'package(gclient) or package(gsdk)'
 platform = "cfg(unix)"
 setup = "restore-node-permissions"
-
-[[profile.ci.scripts]]
-filter = 'package(gsdk)'
-platform = "cfg(unix)"
-setup = "restore-node-permissions"
-
-[[profile.ci.overrides]]
-filter = 'package(gsdk)'
-retries = 5
 
 # sometimes fails on CI machine in debug profile
 # due to an inconsistent machine load and unoptimized code
@@ -44,9 +35,6 @@ retries = 5
 
 # ethexe
 [[profile.ci.overrides]]
-filter = 'package(ethexe-service)'
+filter = 'package(ethexe-service) or package(ethexe-observer) or package(ethexe-processor)'
 retries = 5
-
-[[profile.ci.overrides]]
-filter = 'package(ethexe-observer)'
-retries = 5
+threads-required = 4
