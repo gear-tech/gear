@@ -78,18 +78,12 @@ async fn process_observer_event() {
 
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
+    let code_and_id = CodeAndIdUnchecked { code, code_id };
 
-    let outcomes = processor
-        .process_upload_code(code_id, &code)
+    let valid = processor
+        .process_upload_code(code_and_id)
         .expect("failed to upload code");
-    log::debug!("\n\nUpload code outcomes: {outcomes:?}\n\n");
-    assert_eq!(
-        outcomes,
-        vec![LocalOutcome::CodeValidated {
-            id: code_id,
-            valid: true
-        }]
-    );
+    assert!(valid);
 
     // Process ch0 and save results
     let result0 = processor.process_block_events(ch0, vec![]).await.unwrap();
