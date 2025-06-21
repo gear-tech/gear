@@ -93,8 +93,12 @@ impl WasmBuilder {
     /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
     /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
-        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() || is_intellij_sync() {
-            _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
+        let gear_wasm_builder_no_build = env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok();
+        let skip_wasm_build =
+            env::var("SKIP_WASM_BUILD").is_ok() && env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_err();
+
+        if gear_wasm_builder_no_build || skip_wasm_build || is_intellij_sync() {
+            let _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
             return None;
         }
 
@@ -112,6 +116,11 @@ impl WasmBuilder {
 
     fn build_project(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
         self.wasm_project.generate()?;
+
+        if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok() {
+            let file_base_name = self.wasm_project.file_base_name();
+            return Ok(Some(self.wasm_project.wasm_paths(file_base_name)));
+        }
 
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());

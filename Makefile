@@ -282,7 +282,11 @@ doc:
 		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
 	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
 		-p gstd -F document-features
-	@ cp -f images/logo.svg target/doc/rust-logo.svg
+	@if [ -z CARGO_BUILD_TARGET ]; then \
+		cp -f images/logo.svg target/doc/logo.svg; \
+	else \
+		cp -f images/logo.svg target/${CARGO_BUILD_TARGET}/doc/logo.svg; \
+	fi
 
 .PHONY: kill-gear
 kill:
