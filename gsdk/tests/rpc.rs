@@ -324,7 +324,7 @@ async fn test_original_code_storage() -> Result<()> {
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_hash.0.into(), Some(block_hash))
+        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
         .await?;
 
     assert_eq!(
