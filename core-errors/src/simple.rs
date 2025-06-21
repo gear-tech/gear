@@ -25,35 +25,24 @@ use scale_info::{
 
 #[repr(u8)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    derive_more::From,
-    Sequence,
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
 pub enum ReplyCode {
     /// Success reply.
-    #[display("Success reply sent due to {_0}")]
-    Success(SuccessReplyReason) = 0,
+    #[error("Success reply sent due to {0}")]
+    Success(#[from] SuccessReplyReason) = 0,
 
     /// Error reply.
-    #[display("Error reply sent due to {_0}")]
-    Error(ErrorReplyReason) = 1,
+    #[error("Error reply sent due to {0}")]
+    Error(#[from] ErrorReplyReason) = 1,
 
     /// Unsupported code.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display("<unsupported reply code>")]
+    #[error("<unsupported reply code>")]
     Unsupported = 255,
 }
 
@@ -116,34 +105,24 @@ impl ReplyCode {
 
 #[repr(u8)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    Sequence,
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
-    #[display("automatic sending")]
+    #[error("automatic sending")]
     Auto = 0,
 
     /// Success reply was created by actor manually.
-    #[display("manual sending")]
+    #[error("manual sending")]
     Manual = 1,
 
     /// Unsupported reason of success reply.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display("<unsupported reason>")]
+    #[error("<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -163,18 +142,7 @@ impl SuccessReplyReason {
 
 #[repr(u8)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    derive_more::From,
-    Sequence,
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -183,21 +151,21 @@ impl SuccessReplyReason {
 // `ErrorReplyReason::from_bytes` methods.
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
-    #[display("execution error ({_0})")]
-    Execution(SimpleExecutionError) = 0,
+    #[error("execution error ({0})")]
+    Execution(#[from] SimpleExecutionError) = 0,
 
     /// Destination actor is unavailable, so it can't process the message.
-    #[display("destination actor is unavailable ({_0})")]
-    UnavailableActor(SimpleUnavailableActorError) = 2,
+    #[error("destination actor is unavailable ({0})")]
+    UnavailableActor(#[from] SimpleUnavailableActorError) = 2,
 
     /// Message has died in Waitlist as out of rent one.
-    #[display("removal from waitlist")]
+    #[error("removal from waitlist")]
     RemovedFromWaitlist = 3,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display("<unsupported reason>")]
+    #[error("<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -254,52 +222,42 @@ impl ErrorReplyReason {
 
 #[repr(u8)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    Sequence,
+    Debug, Default, Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
-    #[display("Message ran out of gas")]
+    #[error("Message ran out of gas")]
     RanOutOfGas = 0,
 
     /// Program has reached memory limit while executing.
-    #[display("Program reached memory limit")]
+    #[error("Program reached memory limit")]
     MemoryOverflow = 1,
 
     /// Execution failed with backend error that couldn't been caught.
-    #[display("Message ran into uncatchable error")]
+    #[error("Message ran into uncatchable error")]
     BackendError = 2,
 
     /// Execution failed with userspace panic.
     ///
     /// **PAYLOAD**: Arbitrary payload given by the program as `gr_panic` argument.
-    #[display("Message panicked")]
+    #[error("Message panicked")]
     UserspacePanic = 3,
 
     /// Execution failed with `unreachable` instruction call.
-    #[display("Program called WASM `unreachable` instruction")]
+    #[error("Program called WASM `unreachable` instruction")]
     UnreachableInstruction = 4,
 
     /// Program has reached stack limit while executing.
-    #[display("Program reached stack limit")]
+    #[error("Program reached stack limit")]
     StackLimitExceeded = 5,
 
     /// Unsupported reason of execution error.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display("<unsupported error>")]
+    #[error("<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -323,17 +281,7 @@ impl SimpleExecutionError {
 
 #[repr(u8)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    Sequence,
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -342,29 +290,29 @@ pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
     ///
     /// **PAYLOAD**: `ActorId` of the exited program's inheritor (`gr_exit` argument).
-    #[display("Program exited")]
+    #[error("Program exited")]
     ProgramExited = 0,
 
     /// Program was terminated due to failed initialization.
-    #[display("Program was terminated due failed initialization")]
+    #[error("Program was terminated due failed initialization")]
     InitializationFailure = 1,
 
     /// Program is not initialized yet.
-    #[display("Program is not initialized yet")]
+    #[error("Program is not initialized yet")]
     Uninitialized = 2,
 
     /// Program was not created.
-    #[display("Program was not created")]
+    #[error("Program was not created")]
     ProgramNotCreated = 3,
 
     /// Program re-instrumentation failed.
-    #[display("Program re-instrumentation failed")]
+    #[error("Program re-instrumentation failed")]
     ReinstrumentationFailure = 4,
 
     /// Unsupported reason of inactive actor error.
     /// Variant exists for backward compatibility.
     #[default]
-    #[display("<unsupported error>")]
+    #[error("<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -386,18 +334,7 @@ impl SimpleUnavailableActorError {
 }
 
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    derive_more::From,
-    Sequence,
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
 )]
 #[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -407,12 +344,12 @@ impl SimpleUnavailableActorError {
 /// See [this document](../signal-code-testing.md).
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
-    #[display("Signal message sent due to execution error ({_0})")]
-    Execution(SimpleExecutionError),
+    #[error("Signal message sent due to execution error ({0})")]
+    Execution(#[from] SimpleExecutionError),
 
     /// Signal was sent due to removal from waitlist as out of rent.
     #[default]
-    #[display("Signal message sent due to removal from waitlist")]
+    #[error("Signal message sent due to removal from waitlist")]
     RemovedFromWaitlist,
 }
 

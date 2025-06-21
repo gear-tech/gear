@@ -38,202 +38,183 @@ use {
 pub use simple::*;
 
 /// Execution error.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available for operation.
-    #[display("Not enough gas for operation")]
+    #[error("Not enough gas for operation")]
     NotEnoughGas = 100,
 
     /// The error occurs when balance is less than required by operation.
-    #[display("Not enough value for operation")]
+    #[error("Not enough value for operation")]
     NotEnoughValue = 101,
 
     /// Overflow in 'gr_read'
-    #[display("Length is overflowed to read payload")]
+    #[error("Length is overflowed to read payload")]
     TooBigReadLen = 103,
 
     /// Cannot take data in payload range
-    #[display("Cannot take data in payload range from message with size")]
+    #[error("Cannot take data in payload range from message with size")]
     ReadWrongRange = 104,
 
     /// The error occurs when functions related to reply context, used without it.
-    #[display("Not running in reply context")]
+    #[error("Not running in reply context")]
     NoReplyContext = 105,
 
     /// The error occurs when functions related to signal context, used without it.
-    #[display("Not running in signal context")]
+    #[error("Not running in signal context")]
     NoSignalContext = 106,
 
     /// The error occurs when functions related to status code, used without required context.
-    #[display("No status code in reply/signal context")]
+    #[error("No status code in reply/signal context")]
     NoStatusCodeContext = 107,
 
     /// An error occurs in attempt to send or push reply while reply function is banned.
-    #[display("Reply sending is only allowed in `init` and `handle` functions")]
+    #[error("Reply sending is only allowed in `init` and `handle` functions")]
     IncorrectEntryForReply = 108,
 }
 
 /// Memory error.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum MemoryError {
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
-    #[display("Trying to allocate more memory in block-chain runtime than allowed")]
+    #[error("Trying to allocate more memory in block-chain runtime than allowed")]
     RuntimeAllocOutOfBounds = 200,
     /// The error occurs in attempt to access memory outside wasm program memory.
-    #[display("Trying to access memory outside wasm program memory")]
+    #[error("Trying to access memory outside wasm program memory")]
     AccessOutOfBounds = 201,
 }
 
 /// Error using messages.
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Sequence, derive_more::Display,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum MessageError {
     /// Message has bigger then allowed one message size
-    #[display("Max message size exceed")]
+    #[error("Max message size exceed")]
     MaxMessageSizeExceed = 300,
 
     /// The error "Message limit exceeded" occurs when a program attempts to
     /// send more than the maximum amount of messages allowed within a single
     /// execution (current setting - 1024).
-    #[display("Message limit exceeded")]
+    #[error("Message limit exceeded")]
     OutgoingMessagesAmountLimitExceeded = 301,
 
     /// The error occurs in case of attempt to send more than one replies.
-    #[display("Duplicate reply message")]
+    #[error("Duplicate reply message")]
     DuplicateReply = 302,
 
     /// The error occurs in attempt to get the same message from the waitlist
     /// again (which is waked already).
-    #[display("Duplicate waking message")]
+    #[error("Duplicate waking message")]
     DuplicateWaking = 303,
 
     /// An attempt to commit or push a payload into an already formed message.
-    #[display("An attempt to commit or push a payload into an already formed message")]
+    #[error("An attempt to commit or push a payload into an already formed message")]
     LateAccess = 304,
 
     /// The error occurs in case of not valid identifier specified.
-    #[display("Message with given handle is not found")]
+    #[error("Message with given handle is not found")]
     OutOfBounds = 305,
 
     /// The error occurs in attempt to initialize the same program twice within
     /// a single execution.
-    #[display("Duplicated program initialization message")]
+    #[error("Duplicated program initialization message")]
     DuplicateInit = 306,
 
     /// Everything less than existential deposit but greater than 0 is not considered as available balance and not saved in DB.
     /// Value between 0 and existential deposit cannot be sent in message.
-    #[display("In case of non-zero message value must be greater than existential deposit")]
+    #[error("In case of non-zero message value must be greater than existential deposit")]
     InsufficientValue = 307,
 
     /// Everything less than mailbox threshold but greater than 0 is not considered as available gas limit and
     /// not inserted in mailbox.
     ///
     /// Gas limit between 0 and mailbox threshold cannot be inserted in mailbox.
-    #[display("In case of non-zero message gas limit must be greater than mailbox threshold")]
+    #[error("In case of non-zero message gas limit must be greater than mailbox threshold")]
     InsufficientGasLimit = 308,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that already been created within the execution.
-    #[display("Reply deposit already exists for given message")]
+    #[error("Reply deposit already exists for given message")]
     DuplicateReplyDeposit = 309,
 
     /// The error occurs when program tries to create reply deposit for message
     /// that wasn't sent within the execution or for reply.
-    #[display(
+    #[error(
         "Reply deposit could be only created for init or handle message sent within the execution"
     )]
     IncorrectMessageForReplyDeposit = 310,
 
     /// The error occurs when program tries to send messages
     /// with total size bigger than allowed.
-    #[display("Outgoing messages bytes limit exceeded")]
+    #[error("Outgoing messages bytes limit exceeded")]
     OutgoingMessagesBytesLimitExceeded = 311,
 
     /// The error occurs when a wrong offset of the input buffer (currently executing message payload)
     /// is provided.
-    #[display("Offset value for the input payload is out of it's size bounds")]
+    #[error("Offset value for the input payload is out of it's size bounds")]
     OutOfBoundsInputSliceOffset = 312,
 
     /// The error occurs when a too big length value to form a slice (range) of the input buffer
     /// (currently executing message payload) is provided.
-    #[display("Too big length value is set to form a slice (range) of the input buffer")]
+    #[error("Too big length value is set to form a slice (range) of the input buffer")]
     OutOfBoundsInputSliceLength = 313,
 
     // TODO: remove after delay refactoring is done
     /// An error occurs in attempt to charge gas for dispatch stash hold.
-    #[display("Not enough gas to hold dispatch message")]
+    #[error("Not enough gas to hold dispatch message")]
     InsufficientGasForDelayedSending = 399,
 }
 
 /// Reservation error.
-#[derive(
-    Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash, Sequence, derive_more::Display,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 #[repr(u32)]
 // TODO: refactor after multiple reservations are done
 pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
-    #[display("Invalid reservation ID")]
+    #[error("Invalid reservation ID")]
     InvalidReservationId = 500,
     /// An error occurs in attempt to reserve more times than allowed.
-    #[display("Reservation limit has reached")]
+    #[error("Reservation limit has reached")]
     ReservationsLimitReached = 501,
     /// An error occurs in attempt to create reservation for 0 blocks.
-    #[display("Reservation duration cannot be zero")]
+    #[error("Reservation duration cannot be zero")]
     ZeroReservationDuration = 502,
     /// An error occurs in attempt to reserve zero gas.
-    #[display("Reservation amount cannot be zero")]
+    #[error("Reservation amount cannot be zero")]
     ZeroReservationAmount = 503,
     /// An error occurs in attempt to reserve gas less than mailbox threshold.
-    #[display("Reservation amount cannot be below mailbox threshold")]
+    #[error("Reservation amount cannot be below mailbox threshold")]
     ReservationBelowMailboxThreshold = 504,
 }
 
 /// An error occurred in API.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    Hash,
-    PartialOrd,
-    Ord,
-    Sequence,
-    derive_more::Display,
-    derive_more::From,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 pub enum ExtError {
     /// Execution error.
-    #[display("Execution error: {_0}")]
-    Execution(ExecutionError),
+    #[error("Execution error: {0}")]
+    Execution(#[from] ExecutionError),
 
     /// Memory error.
-    #[display("Memory error: {_0}")]
-    Memory(MemoryError),
+    #[error("Memory error: {0}")]
+    Memory(#[from] MemoryError),
 
     /// Message error.
-    #[display("Message error: {_0}")]
-    Message(MessageError),
+    #[error("Message error: {0}")]
+    Message(#[from] MessageError),
 
     /// Reservation error.
-    #[display("Reservation error: {_0}")]
-    Reservation(ReservationError),
+    #[error("Reservation error: {0}")]
+    Reservation(#[from] ReservationError),
 
     /// There is a new error variant old program don't support.
+    #[error("Unsupported error")]
     Unsupported,
 }
 

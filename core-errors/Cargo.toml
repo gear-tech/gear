@@ -13,8 +13,8 @@ rust-version.workspace = true
 [dependencies]
 scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
-derive_more.workspace = true
 enum-iterator.workspace = true
+thiserror.workspace = true
 
 [features]
 codec = ["scale-info"]

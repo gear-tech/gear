@@ -29,7 +29,7 @@
 //!
 //! # Examples
 //!
-//! ```
+//! ```rust,ignore
 //! #![no_std]
 //! #![feature(alloc_error_handler)]
 //!
