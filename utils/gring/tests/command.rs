@@ -21,19 +21,11 @@ use anyhow::{anyhow, Result};
 use gring::{cmd::Command, Keystore};
 use std::{env, path::PathBuf, process};
 
-fn bin() -> PathBuf {
-    let target = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../target");
-    let profile = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
+fn gring(args: &[&str]) -> Result<String> {
+    let path =
+        env::var_os("NEXTEST_BIN_EXE_gring").unwrap_or_else(|| env!("CARGO_BIN_EXE_gring").into());
 
-    target.join(profile).join("gring")
-}
-
-fn gring(bin: &PathBuf, args: &[&str]) -> Result<String> {
-    let output = process::Command::new(bin).args(args).output()?;
+    let output = process::Command::new(path).args(args).output()?;
     if output.stdout.is_empty() {
         return Err(anyhow!(
             "stderr: {}",
@@ -69,11 +61,10 @@ fn sign_and_verify() -> Result<()> {
     let key = "_gring_sig";
     let key2 = "_gring_sig_2";
     let message = "vara";
-    let bin = bin();
 
-    gring(&bin, &["new", key, "-p", "test"])?;
-    gring(&bin, &["use", key])?;
-    let sign = gring(&bin, &["sign", message, "-p", "test"])?;
+    gring(&["new", key, "-p", "test"])?;
+    gring(&["use", key])?;
+    let sign = gring(&["sign", message, "-p", "test"])?;
     let signature = sign
         .lines()
         .find(|line| line.contains("Signature"))
@@ -81,11 +72,11 @@ fn sign_and_verify() -> Result<()> {
         .split("Signature:")
         .collect::<Vec<&str>>()[1]
         .trim();
-    assert!(gring(&bin, &["verify", message, signature])?.contains("Verified"));
+    assert!(gring(&["verify", message, signature])?.contains("Verified"));
 
     // `key2` can not verify this signature bcz it is signed by `key`.
-    gring(&bin, &["new", key2, "-p", "test"])?;
-    gring(&bin, &["use", key2])?;
-    assert!(gring(&bin, &["verify", message, signature])?.contains("Not Verified"));
+    gring(&["new", key2, "-p", "test"])?;
+    gring(&["use", key2])?;
+    assert!(gring(&["verify", message, signature])?.contains("Not Verified"));
     Ok(())
 }
