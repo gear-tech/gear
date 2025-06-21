@@ -19,7 +19,7 @@
 
 use anyhow::{anyhow, Result};
 use gring::{cmd::Command, Keystore};
-use std::{env, path::PathBuf, process};
+use std::{env, process};
 
 fn gring(args: &[&str]) -> Result<String> {
     let path =
