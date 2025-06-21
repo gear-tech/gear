@@ -24,7 +24,10 @@ use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
-    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
+    gear::{
+        BatchCommitment, BlockCommitment, CodeCommitment, OperatorRewardsCommitment,
+        RewardsCommitment, StakerRewardsCommitment,
+    },
     Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
@@ -136,7 +139,7 @@ impl Producer {
         let code_commitments = Self::aggregate_code_commitments_for_block(ctx, block_hash)?;
 
         // TODO: add the appropriate functionality
-        let rewards_commitments = vec![];
+        let rewards_commitments = Self::aggregate_rewards_commitments_for_block(ctx, block_hash)?;
 
         Ok(
             (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(
@@ -221,6 +224,32 @@ impl Producer {
             })
             .collect::<Result<Vec<CodeCommitment>>>()
             .map_err(Into::into)
+    }
+
+    fn aggregate_rewards_commitments_for_block(
+        ctx: &ValidatorContext,
+        _block_hash: H256,
+    ) -> Result<Vec<RewardsCommitment>, AggregationError> {
+        // TODO: check if rewards already distributed
+        let _rewards_required = false;
+
+        let operators_rewards = OperatorRewardsCommitment {
+            amount: 0,
+            root: H256::zero(),
+        };
+
+        let stakers_rewards = StakerRewardsCommitment {
+            distribution: Vec::new(),
+            total_amount: 0,
+            token: H256::zero(),
+        };
+
+        let rewards_commitment = RewardsCommitment {
+            operators: operators_rewards,
+            stakers: stakers_rewards,
+            timestamp: ctx.jjjj,
+        };
+        todo!()
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
