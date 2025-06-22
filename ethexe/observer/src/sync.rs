@@ -66,7 +66,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             validators
         } else {
             let validators = RouterQuery::from_provider(
-                self.config.router_address.0.into(),
+                self.config.router_config.router_address.0.into(),
                 self.provider.clone(),
             )
             .validators_at(block)
@@ -99,7 +99,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                     load_block_data(
                         self.provider.clone(),
                         hash,
-                        self.config.router_address,
+                        self.config.router_config.router_address,
                         self.config.router_config.wvara_address,
                         (hash == block).then_some(header.clone()),
                     )
@@ -131,7 +131,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                         "NextEraValidatorsCommitted event detected. Setting a new validator set."
                     );
                     let validators = RouterQuery::from_provider(
-                        self.config.router_address.0.into(),
+                        self.config.router_config.router_address.0.into(),
                         self.provider.clone(),
                     )
                     .validators()
@@ -187,7 +187,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             self.provider.clone(),
             latest_synced_block_height as u64,
             header.height as u64,
-            self.config.router_address,
+            self.config.router_config.router_address,
             self.config.router_config.wvara_address,
         )
         .await

@@ -81,6 +81,7 @@ impl fmt::Debug for ObserverEvent {
 
 #[derive(Clone, Debug)]
 struct RouterConfig {
+    router_address: Address,
     wvara_address: Address,
     genesis_block: BlockHeader,
     timelines: Timelines,
@@ -88,7 +89,6 @@ struct RouterConfig {
 
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
-    router_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
@@ -207,14 +207,13 @@ impl ObserverService {
             .into_stream();
 
         let router_config = RouterConfig {
+            router_address: *router_address,
             wvara_address,
             genesis_block: genesis_header,
             timelines,
         };
 
         let config = RuntimeConfig {
-            router_address: *router_address,
-            // wvara_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
