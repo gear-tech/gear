@@ -20,7 +20,7 @@ use crate::{
     default_users_list,
     error::usage_panic,
     manager::ExtManager,
-    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
+    state::actors::{Actors, Program as InnerProgram, TestActor},
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
@@ -43,39 +43,6 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
-
-/// Trait for mocking gear programs.
-///
-/// See [`Program`] and [`Program::mock`] for the usages.
-pub trait WasmProgram: Debug {
-    /// Init wasm program with given `payload`.
-    ///
-    /// Returns `Ok(Some(payload))` if program has reply logic
-    /// with given `payload`.
-    ///
-    /// If error occurs, the program will be terminated which
-    /// means that `handle` and `handle_reply` will not be
-    /// called.
-    fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Message handler with given `payload`.
-    ///
-    /// Returns `Ok(Some(payload))` if program has reply logic.
-    fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Reply message handler with given `payload`.
-    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// Signal handler with given `payload`.
-    fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// State of wasm program.
-    ///
-    /// See [`Program::read_state`] for the usage.
-    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
-    /// Emit debug message in program with given `data`.
-    ///
-    /// Logging target `gwasm` is used in this method.
-    fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "{data}");
-    }
-}
 
 /// Wrapper for program id.
 #[derive(Clone, Debug)]
@@ -252,13 +219,13 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Genuine(GenuineProgram {
+            InnerProgram {
                 code,
                 code_id,
                 allocations: Default::default(),
                 pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
-            }),
+            },
         )
     }
 
@@ -374,27 +341,6 @@ impl<'a> Program<'a> {
         ProgramBuilder::from_binary(binary)
             .with_id(id)
             .build(system)
-    }
-
-    /// Mock a program with provided `system` and `mock`.
-    ///
-    /// See [`WasmProgram`] for more details.
-    pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-
-        Self::mock_with_id(system, nonce, mock)
-    }
-
-    /// Create a mock program with provided `system` and `mock`,
-    /// and initialize it with provided `id`.
-    ///
-    /// See also [`Program::mock`].
-    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
-    where
-        T: WasmProgram + 'static,
-        ID: Into<ProgramIdWrapper> + Clone + Debug,
-    {
-        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
     /// Send message to the program.

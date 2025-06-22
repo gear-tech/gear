@@ -3360,7 +3360,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
 ]
 
 [[package]]
@@ -3396,7 +3395,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
  "parity-scale-codec",
 ]
 
@@ -3759,7 +3757,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
  "parity-scale-codec",
 ]
 
@@ -3788,7 +3785,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
  "parity-scale-codec",
 ]
 

@@ -45,12 +45,6 @@ impl ExtManager {
                 self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
-        } else if let Some(mut program_mock) = Actors::modify(*program_id, |actor| {
-            actor.expect("Checked before").take_mock()
-        }) {
-            program_mock
-                .state()
-                .map_err(|err| TestError::ReadStateError(err.into()))
         } else {
             Err(TestError::ActorIsNotExecutable(*program_id))
         }
@@ -66,10 +60,7 @@ impl ExtManager {
                 TestActor::CodeNotExists => panic!("Actor {program_id} code not exists"),
             };
 
-            match program {
-                Program::Genuine(program) => program.pages_data.clone(),
-                Program::Mock(_) => panic!("Can't read memory of mock program"),
-            }
+            program.pages_data.clone()
         })
     }
 }

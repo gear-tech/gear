@@ -18,7 +18,7 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use super::{ExtManager, GenuineProgram, Program, TestActor};
+use super::{ExtManager, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     program::ProgramBuilder,
@@ -99,7 +99,7 @@ impl JournalHandler for ExtManager {
             let actor =
                 actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
 
-            if let TestActor::Initialized(Program::Genuine(program)) =
+            if let TestActor::Initialized(program) =
                 std::mem::replace(actor, TestActor::Exited(value_destination))
             {
                 for (reservation_id, slot) in program.gas_reservation_map {
@@ -300,13 +300,13 @@ impl JournalHandler for ExtManager {
                         ProgramBuilder::build_instrumented_code_and_id(code.clone());
                     self.store_new_actor(
                         candidate_id,
-                        Program::Genuine(GenuineProgram {
+                        Program {
                             code: instrumented,
                             code_id,
                             allocations: Default::default(),
                             pages_data: Default::default(),
                             gas_reservation_map: Default::default(),
-                        }),
+                        },
                         Some(init_message_id),
                     );
 

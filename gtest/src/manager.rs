@@ -20,10 +20,9 @@ use crate::{
     constants::{Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
-    program::WasmProgram,
     state::{
         accounts::Accounts,
-        actors::{Actors, GenuineProgram, Program, TestActor},
+        actors::{Actors, Program, TestActor},
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
@@ -55,8 +54,8 @@ use gear_core::{
     ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
-        StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
+        Dispatch, DispatchKind, Message, ReplyMessage, StoredDelayedDispatch, StoredDispatch,
+        StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
     tasks::ScheduledTask,
@@ -247,7 +246,7 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn update_genuine_program<R, F: FnOnce(&mut GenuineProgram) -> R>(
+    pub(crate) fn update_genuine_program<R, F: FnOnce(&mut Program) -> R>(
         &mut self,
         id: ActorId,
         op: F,
