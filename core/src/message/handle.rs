@@ -110,7 +110,7 @@ impl HandleMessage {
 ///
 /// This structure is preparation for future HandleMessage sending. Has no message id.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct HandlePacket {
     /// Packet destination.
     destination: ActorId,

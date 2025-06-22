@@ -16,16 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::SuccessfulDispatchResultKind;
-use gear_core::{
-    code::MAX_WASM_PAGES_AMOUNT,
-    gas::GasCounter,
-    message::{IncomingDispatch, IncomingMessage},
-    str::LimitedStr,
-};
-use task::get_maximum_task_gas;
-
 use super::*;
+use core_processor::SuccessfulDispatchResultKind;
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -186,7 +179,7 @@ impl ExtManager {
                 // decreasing allowance due to DB deletion
                 self.on_task_pool_change();
 
-                let max_task_gas = get_maximum_task_gas(&task);
+                let max_task_gas = task::get_maximum_task_gas(&task);
                 log::debug!(
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );
@@ -576,22 +569,9 @@ impl ExtManager {
 }
 
 fn default_dispatch_result() -> DispatchResult {
-    let incoming_dispatch = IncomingDispatch::new(
-        Default::default(),
-        IncomingMessage::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        ),
-        Default::default(),
-    );
-
     DispatchResult {
         kind: DispatchResultKind::Success,
-        dispatch: incoming_dispatch,
+        dispatch: Default::default(),
         program_id: Default::default(),
         context_store: Default::default(),
         generated_dispatches: Default::default(),

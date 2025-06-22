@@ -112,7 +112,7 @@ impl InitMessage {
 ///
 /// This structure is preparation for future init message sending. Has no message id.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct InitPacket {
     /// Newly created program id.
     program_id: ActorId,

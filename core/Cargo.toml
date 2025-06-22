@@ -56,3 +56,4 @@ std = [
     "gear-wasm-instrument/std",
     "gprimitives/serde",
 ]
+mock = []

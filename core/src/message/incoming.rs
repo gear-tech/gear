@@ -30,7 +30,7 @@ use core::ops::Deref;
 ///
 /// Used for program execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct IncomingMessage {
     /// Message id.
     id: MessageId,
@@ -126,7 +126,7 @@ impl IncomingMessage {
 
 /// Incoming message with entry point and previous execution context, if exists.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,
