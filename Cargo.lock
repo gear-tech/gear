@@ -6029,6 +6029,7 @@ dependencies = [
  "gear-node-testing",
  "gear-runtime-primitives",
  "log",
+ "pallet-balances",
  "pallet-gear",
  "pallet-gear-builtin",
  "pallet-gear-messenger",
@@ -11340,25 +11341,6 @@ version = "1.8.1"
 dependencies = [
  "sp-api",
  "sp-core",
-]
-
-[[package]]
-name = "pallet-gear-debug"
-version = "1.8.1"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-support-test",
- "frame-system",
- "gear-common",
- "gear-core",
- "gear-wasm-instrument",
- "pallet-authorship",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
- "sp-std",
- "test-syscalls",
 ]
 
 [[package]]
@@ -18608,7 +18590,6 @@ dependencies = [
  "pallet-gear-bank",
  "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
- "pallet-gear-debug",
  "pallet-gear-eth-bridge",
  "pallet-gear-eth-bridge-rpc-runtime-api",
  "pallet-gear-gas",

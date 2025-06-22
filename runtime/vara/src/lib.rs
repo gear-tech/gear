@@ -90,9 +90,6 @@ pub use pallet_gear;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
 
-#[cfg(feature = "dev")]
-pub use pallet_gear_debug;
-
 pub use frame_support::{
     construct_runtime, derive_impl,
     dispatch::{DispatchClass, WeighData},
@@ -1183,13 +1180,6 @@ impl pallet_gear::Config for Runtime {
     type RentPoolId = pallet_gear_staking_rewards::RentPoolId<Self>;
 }
 
-#[cfg(feature = "dev")]
-impl pallet_gear_debug::Config for Runtime {
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type Messenger = GearMessenger;
-}
-
 impl pallet_gear_scheduler::Config for Runtime {
     type BlockLimiter = GearGas;
     type ReserveThreshold = ReserveThreshold;
@@ -1526,11 +1516,7 @@ mod runtime {
     pub type Sudo = pallet_sudo;
 
     // NOTE (!): `pallet_airdrop` used to be idx(198).
-
-    // Only available with "dev" feature on
-    // [DEPRECATED] Will be removed in the next release.
-    #[runtime::pallet_index(199)]
-    pub type GearDebug = pallet_gear_debug;
+    // NOTE (!): `pallet_gear_debug` used to be idx(199).
 }
 
 #[cfg(not(feature = "dev"))]

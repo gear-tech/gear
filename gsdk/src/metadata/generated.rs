@@ -3350,15 +3350,6 @@ pub mod runtime_types {
                 }
             }
         }
-        pub mod pallet_gear_debug {
-            use super::runtime_types;
-            pub mod pallet {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "The `Error` enum of this pallet."]
-                pub enum Error {}
-            }
-        }
         pub mod pallet_gear_eth_bridge {
             use super::runtime_types;
             pub mod pallet {
@@ -10379,8 +10370,6 @@ pub mod runtime_types {
                 GearBank(runtime_types::pallet_gear_bank::pallet::Error),
                 #[codec(index = 110)]
                 GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Error),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Error),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum RuntimeEvent {

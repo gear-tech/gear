@@ -19,14 +19,6 @@
 use crate::*;
 
 /// All migrations that will run on the next runtime upgrade.
-#[cfg(feature = "dev")]
-pub type Migrations = (
-    BagsListMigrate<Runtime>,
-    pallet_gear_bank::migrations::MigrateToV1<Runtime>,
-    pallet_gear_builtin::migration::MigrateToV1<Runtime, TreasuryAccount>,
-    pallet_gear_debug::migrations::MigrateRemoveAllStorages<Runtime>,
-);
-#[cfg(not(feature = "dev"))]
 pub type Migrations = (
     BagsListMigrate<Runtime>,
     pallet_gear_bank::migrations::MigrateToV1<Runtime>,
