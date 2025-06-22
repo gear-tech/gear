@@ -28,7 +28,7 @@ impl ExtManager {
     ) -> Result<Vec<u8>> {
         let executable_actor_data = Actors::modify(*program_id, |actor| {
             if let Some(actor) = actor {
-                Ok(actor.get_executable_actor_data())
+                Ok(actor.executable_actor_data())
             } else {
                 Err(TestError::ActorNotFound(*program_id))
             }
@@ -46,12 +46,6 @@ impl ExtManager {
                 self.blocks_manager.get(),
             )
             .map_err(TestError::ReadStateError)
-        } else if let Some(mut program_mock) = Actors::modify(*program_id, |actor| {
-            actor.expect("Checked before").take_mock()
-        }) {
-            program_mock
-                .state()
-                .map_err(|err| TestError::ReadStateError(err.into()))
         } else {
             Err(TestError::ActorIsNotExecutable(*program_id))
         }
@@ -64,13 +58,9 @@ impl ExtManager {
                 TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
                 TestActor::Exited(_) => panic!("Actor {program_id} is exited"),
                 TestActor::FailedInit => panic!("Actor {program_id} failed to init"),
-                TestActor::CodeNotExists => panic!("Actor {program_id} code not exists"),
             };
 
-            match program {
-                Program::Genuine(program) => program.pages_data.clone(),
-                Program::Mock(_) => panic!("Can't read memory of mock program"),
-            }
+            program.pages_data.clone()
         })
     }
 }
