@@ -21,7 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates,
+    Schedule,
 };
 use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
@@ -31,8 +32,9 @@ use gear_core::{
 use gprimitives::H256;
 
 pub trait BlockMetaStorageRead {
-    fn block_prepared(&self, block_hash: H256) -> bool;
-    fn block_computed(&self, block_hash: H256) -> bool;
+    /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
+    fn block_meta(&self, block_hash: H256) -> BlockMeta;
+
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
@@ -44,8 +46,12 @@ pub trait BlockMetaStorageRead {
 }
 
 pub trait BlockMetaStorageWrite {
-    fn set_block_prepared(&self, block_hash: H256);
-    fn set_block_computed(&self, block_hash: H256);
+    /// NOTE: if `BlockMeta` doesn't exist in the database,
+    /// it will be created with default values and then will be mutated.
+    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
+    where
+        F: FnOnce(&mut BlockMeta);
+
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
     fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
@@ -77,7 +83,6 @@ pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn block_is_synced(&self, block_hash: H256) -> bool;
     fn latest_synced_block_height(&self) -> Option<u32>;
 }
 
@@ -85,6 +90,5 @@ pub trait OnChainStorageWrite {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_block_is_synced(&self, block_hash: H256);
     fn set_latest_synced_block_height(&self, height: u32);
 }
