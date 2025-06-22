@@ -32,6 +32,7 @@ setup = "restore-node-permissions"
 [[profile.ci.overrides]]
 filter = 'package(gear-authorship)'
 retries = 5
+threads-required = 4
 
 # ethexe
 [[profile.ci.overrides]]
