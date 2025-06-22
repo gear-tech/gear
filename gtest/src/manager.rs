@@ -112,6 +112,7 @@ pub(crate) struct ExtManager {
     pub(crate) not_executed: BTreeSet<MessageId>,
     pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
     pub(crate) log: Vec<StoredMessage>,
+    pub(crate) no_code_program: BTreeSet<ActorId>,
 }
 
 impl ExtManager {
@@ -192,7 +193,7 @@ impl ExtManager {
         Actors::modify(*program_id, |actor| {
             let pages_data = actor
                 .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .pages_data_mut()
+                .pages_mut()
                 .expect("No pages data found for program");
 
             for (page, buf) in memory_pages {
@@ -236,8 +237,14 @@ impl ExtManager {
 
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
         Actors::modify(program_id, |actor| {
-            let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
-            *actor = TestActor::FailedInit;
+            if let Some(actor) = actor {
+                *actor = TestActor::FailedInit;
+            } else {
+                // That's a case if no code exists for the program
+                // requested to be created from another program and
+                // there was not enough to get program from storage.
+                log::debug!("Failed init is set for non-existing actor");
+            }
         });
 
         let value = Accounts::balance(program_id);

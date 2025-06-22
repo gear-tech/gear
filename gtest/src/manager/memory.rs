@@ -57,7 +57,6 @@ impl ExtManager {
                 TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
                 TestActor::Exited(_) => panic!("Actor {program_id} is exited"),
                 TestActor::FailedInit => panic!("Actor {program_id} failed to init"),
-                TestActor::CodeNotExists => panic!("Actor {program_id} code not exists"),
             };
 
             program.pages_data.clone()
