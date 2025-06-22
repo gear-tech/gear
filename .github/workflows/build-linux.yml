@@ -191,6 +191,8 @@ jobs:
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst 
           --workspace-remap=${{ github.workspace }}
+          --extract-to=${{ github.workspace }}
+          --extract-overwrite
           --partition hash:${{ matrix.partition }}/4
           -E 'not package(/fuzz/)'
 
