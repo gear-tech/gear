@@ -6013,6 +6013,7 @@ dependencies = [
  "gprimitives",
  "gsys",
  "hex-literal",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -6199,10 +6200,10 @@ dependencies = [
 name = "gear-core-errors"
 version = "1.8.1"
 dependencies = [
- "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "scale-info",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -6920,6 +6921,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -7027,11 +7029,13 @@ dependencies = [
  "galloc",
  "gcore",
  "gear-core-errors",
+ "gprimitives",
  "gstd-codegen",
  "hashbrown 0.14.5",
  "hex",
  "parity-scale-codec",
  "scale-info",
+ "thiserror 2.0.12",
  "waker-fn",
 ]
 
@@ -7063,7 +7067,6 @@ dependencies = [
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
- "derive_more 2.0.1",
  "etc",
  "gear-common",
  "gear-core",
@@ -7078,6 +7081,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "thiserror 2.0.12",
  "tracing-subscriber",
 ]
 
@@ -11393,6 +11397,7 @@ dependencies = [
  "pallet-gear",
  "pallet-gear-bank",
  "pallet-gear-builtin",
+ "pallet-gear-eth-bridge-primitives",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
@@ -11402,7 +11407,6 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "serde",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-io",
@@ -11410,6 +11414,17 @@ dependencies = [
  "sp-session",
  "sp-std",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-primitives"
+version = "1.8.1"
+dependencies = [
+ "binary-merkle-tree",
+ "gprimitives",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
 ]
 
 [[package]]
