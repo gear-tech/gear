@@ -107,7 +107,6 @@ pub(crate) enum TestActor {
     // Contract: program is always `Some`, option is used to take ownership
     Uninitialized(Option<MessageId>, Option<Program>),
     FailedInit,
-    CodeNotExists,
     Exited(ActorId),
 }
 
@@ -165,12 +164,12 @@ impl TestActor {
     }
 
     // Returns pages data of genuine program.
-    pub(crate) fn pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
+    pub(crate) fn pages(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
         self.program().map(|program| &program.pages_data)
     }
 
     // Returns pages data of genuine program but mutable.
-    pub(crate) fn pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+    pub(crate) fn pages_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
         self.program_mut().map(|program| &mut program.pages_data)
     }
 

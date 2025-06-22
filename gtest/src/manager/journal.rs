@@ -133,7 +133,8 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = Actors::is_user(dispatch.destination());
+        let to_user = Actors::is_user(dispatch.destination())
+            && !self.no_code_program.contains(&dispatch.destination());
         if delay > 0 {
             log::debug!(
                 "[{message_id}] new delayed dispatch#{} with delay for {delay} blocks",
@@ -147,7 +148,8 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = Actors::is_program(dispatch.destination());
+        let is_program = Actors::is_program(dispatch.destination())
+            || self.no_code_program.contains(&dispatch.destination());
 
         if is_program {
             let gas_limit = dispatch.gas_limit();
@@ -319,7 +321,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                Actors::insert(invalid_candidate_id, TestActor::CodeNotExists);
+                self.no_code_program.insert(invalid_candidate_id);
             }
         }
     }

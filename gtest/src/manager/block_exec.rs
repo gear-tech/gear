@@ -313,30 +313,31 @@ impl ExtManager {
         let exec = Actors::modify(destination_id, |actor| {
             use TestActor::*;
 
-            let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
-
-            match actor {
-                Initialized(_) => {}
-                Uninitialized(_, _) => { /* uninit case is checked further */ }
-                FailedInit => {
+            let actor = match actor {
+                Some(existing_actor) => match existing_actor {
+                    Initialized(_) | Uninitialized(_, _) => existing_actor,
+                    FailedInit => {
+                        log::debug!(
+                            "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
+                        );
+                        return Exec::Notes(core_processor::process_failed_init(context));
+                    }
+                    Exited(inheritor) => {
+                        log::debug!(
+                            "Message {dispatch_id} is sent to exited program {destination_id}"
+                        );
+                        return Exec::Notes(core_processor::process_program_exited(
+                            context, *inheritor,
+                        ));
+                    }
+                },
+                None => {
                     log::debug!(
-                        "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
-                    );
-                    return Exec::Notes(core_processor::process_failed_init(context));
-                }
-                CodeNotExists => {
-                    log::debug!(
-                        "Message {dispatch_id} is sent to program {destination_id} which code does not exist"
+                        "Message {dispatch_id} is sent to program {destination_id} which does not exist"
                     );
                     return Exec::Notes(core_processor::process_code_not_exists(context));
                 }
-                Exited(inheritor) => {
-                    log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
-                    return Exec::Notes(core_processor::process_program_exited(
-                        context, *inheritor,
-                    ));
-                }
-            }
+            };
 
             if actor.is_initialized() && dispatch_kind.is_init() {
                 // Panic is impossible, because gear protocol does not provide functionality
