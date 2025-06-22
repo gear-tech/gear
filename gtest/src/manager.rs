@@ -22,7 +22,7 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     state::{
         accounts::Accounts,
-        actors::{Actors, Program, TestActor},
+        actors::Actors,
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
@@ -59,6 +59,7 @@ use gear_core::{
     },
     pages::{num_traits::Zero, GearPage},
     tasks::ScheduledTask,
+    program::{Program, ActiveProgram},
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
@@ -145,8 +146,17 @@ impl ExtManager {
         program_id: ActorId,
         program: Program,
         init_message_id: Option<MessageId>,
-    ) -> Option<TestActor> {
-        Actors::insert(program_id, TestActor::new(init_message_id, program))
+    ) -> Option<Program> {
+        Actors::insert(program_id, Program::Active(ActiveProgram {
+            allocations_tree_len: 0,
+            memory_infix: Default::default(),
+            gas_reservation_map: GasReservationMap::default(),
+            code_hash: todo!(),
+            code_exports: todo!(),
+            static_pages: todo!(),
+            state: todo!(),
+            expiration_block: todo!(),
+        }))
     }
 
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {

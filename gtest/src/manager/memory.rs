@@ -53,13 +53,10 @@ impl ExtManager {
         Actors::access(*program_id, |actor| {
             let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
             {
-                TestActor::Initialized(program) => program,
-                TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
-                TestActor::Exited(_) => panic!("Actor {program_id} is exited"),
-                TestActor::FailedInit => panic!("Actor {program_id} failed to init"),
+                _ => todo!(),
             };
 
-            program.pages_data.clone()
+            todo!()
         })
     }
 }

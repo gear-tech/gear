@@ -19,17 +19,17 @@
 //! Actors storage.
 
 use std::{cell::RefCell, collections::BTreeMap, fmt};
-
 use core_processor::common::ExecutableActorData;
-use gear_common::{ActorId, CodeId, GearPage, MessageId, PageBuf};
+use gear_common::{auxiliary::BlockNumber, ActorId, CodeId, GearPage, MessageId, PageBuf};
 use gear_core::{
     code::InstrumentedCode,
     pages::{numerated::tree::IntervalsTree, WasmPage},
     reservation::GasReservationMap,
+    program::Program
 };
 
 thread_local! {
-    static ACTORS_STORAGE: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
+    static ACTORS_STORAGE: RefCell<BTreeMap<ActorId, Program<BlockNumber>>> = RefCell::new(Default::default());
 }
 
 pub(crate) struct Actors;
@@ -39,7 +39,7 @@ impl Actors {
 
     pub(crate) fn access<R>(
         program_id: ActorId,
-        access: impl FnOnce(Option<&TestActor>) -> R,
+        access: impl FnOnce(Option<&Program<BlockNumber>>) -> R,
     ) -> R {
         ACTORS_STORAGE.with_borrow(|storage| access(storage.get(&program_id)))
     }
@@ -47,13 +47,13 @@ impl Actors {
     // Modifies actor by program id.
     pub(crate) fn modify<R>(
         program_id: ActorId,
-        modify: impl FnOnce(Option<&mut TestActor>) -> R,
+        modify: impl FnOnce(Option<&mut Program<BlockNumber>>) -> R,
     ) -> R {
         ACTORS_STORAGE.with_borrow_mut(|storage| modify(storage.get_mut(&program_id)))
     }
 
     // Inserts actor by program id.
-    pub(crate) fn insert(program_id: ActorId, actor: TestActor) -> Option<TestActor> {
+    pub(crate) fn insert(program_id: ActorId, actor: Program<BlockNumber>) -> Option<Program<BlockNumber>> {
         ACTORS_STORAGE.with_borrow_mut(|storage| storage.insert(program_id, actor))
     }
 
@@ -73,7 +73,7 @@ impl Actors {
         ACTORS_STORAGE.with_borrow(|storage| {
             matches!(
                 storage.get(&id),
-                Some(TestActor::Initialized(_) | TestActor::Uninitialized(_, _))
+                Some(Program::Initialized(_) | Program::Uninitialized(_, _))
             )
         })
     }
@@ -98,108 +98,5 @@ impl Actors {
 impl fmt::Debug for Actors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         ACTORS_STORAGE.with_borrow(|storage| f.debug_map().entries(storage.iter()).finish())
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum TestActor {
-    Initialized(Program),
-    // Contract: program is always `Some`, option is used to take ownership
-    Uninitialized(Option<MessageId>, Option<Program>),
-    FailedInit,
-    Exited(ActorId),
-}
-
-impl TestActor {
-    // Creates a new uninitialized actor.
-    pub(crate) fn new(init_message_id: Option<MessageId>, program: Program) -> Self {
-        TestActor::Uninitialized(init_message_id, Some(program))
-    }
-
-    // # Panics
-    // If actor is initialized or dormant
-    pub(crate) fn set_initialized(&mut self) {
-        assert!(
-            self.is_uninitialized(),
-            "can't transmute actor, which isn't uninitialized"
-        );
-
-        if let TestActor::Uninitialized(_, maybe_prog) = self {
-            *self = TestActor::Initialized(
-                maybe_prog
-                    .take()
-                    .expect("actor storage contains only `Some` values by contract"),
-            );
-        }
-    }
-
-    // Checks if actor is uninitialized.
-    pub(crate) fn is_uninitialized(&self) -> bool {
-        matches!(self, TestActor::Uninitialized(..))
-    }
-
-    // Checks if actor is initialized.
-    pub(crate) fn is_initialized(&self) -> bool {
-        matches!(self, TestActor::Initialized(..))
-    }
-
-    // Returns `Some` if actor contains genuine program.
-    pub(crate) fn program(&self) -> Option<&Program> {
-        match self {
-            TestActor::Initialized(program) | TestActor::Uninitialized(_, Some(program)) => {
-                Some(program)
-            }
-            _ => None,
-        }
-    }
-
-    // Returns `Some` if actor contains genuine program but mutable.
-    pub(crate) fn program_mut(&mut self) -> Option<&mut Program> {
-        match self {
-            TestActor::Initialized(program) | TestActor::Uninitialized(_, Some(program)) => {
-                Some(program)
-            }
-            _ => None,
-        }
-    }
-
-    // Returns pages data of genuine program.
-    pub(crate) fn pages(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
-        self.program().map(|program| &program.pages_data)
-    }
-
-    // Returns pages data of genuine program but mutable.
-    pub(crate) fn pages_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
-        self.program_mut().map(|program| &mut program.pages_data)
-    }
-
-    // Gets a new executable actor derived from the inner program.
-    pub(crate) fn executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
-        self.program().map(Program::executable_actor_data)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct Program {
-    pub code_id: CodeId,
-    pub code: InstrumentedCode,
-    pub allocations: IntervalsTree<WasmPage>,
-    pub pages_data: BTreeMap<GearPage, PageBuf>,
-    pub gas_reservation_map: GasReservationMap,
-}
-
-impl Program {
-    pub(crate) fn executable_actor_data(&self) -> (ExecutableActorData, InstrumentedCode) {
-        (
-            ExecutableActorData {
-                allocations: self.allocations.clone(),
-                code_id: self.code_id,
-                code_exports: self.code.exports().clone(),
-                static_pages: self.code.static_pages(),
-                gas_reservation_map: self.gas_reservation_map.clone(),
-                memory_infix: Default::default(),
-            },
-            self.code.clone(),
-        )
     }
 }

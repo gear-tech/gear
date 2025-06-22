@@ -20,7 +20,7 @@ use crate::{
     default_users_list,
     error::usage_panic,
     manager::ExtManager,
-    state::actors::{Actors, Program as InnerProgram, TestActor},
+    state::actors::Actors,
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
