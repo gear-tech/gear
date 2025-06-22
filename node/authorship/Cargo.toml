@@ -47,7 +47,6 @@ sp-timestamp = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
 pallet-sudo = { workspace = true, features = ["std"] }
-pallet-balances = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std", "dev"] }
 pallet-gear-builtin = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
