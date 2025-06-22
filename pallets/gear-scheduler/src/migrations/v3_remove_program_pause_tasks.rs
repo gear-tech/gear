@@ -62,19 +62,17 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
             let mut total_counter = 0;
             let mut removed_tasks = 0;
 
-            v2::OldTaskPool::<T>::translate(
-                |_,
-                 task: v2::OldVaraScheduledTask<<T as frame_system::Config>::AccountId>,
-                 value| {
+            v2::TaskPool::<T>::translate(
+                |_, task: v2::VaraScheduledTask<<T as frame_system::Config>::AccountId>, value| {
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
                     total_counter += 1;
 
                     match task {
-                        v2::OldVaraScheduledTask::PauseProgram(_)
-                        | v2::OldVaraScheduledTask::RemoveCode(_)
-                        | v2::OldVaraScheduledTask::RemovePausedProgram(_)
-                        | v2::OldVaraScheduledTask::RemoveResumeSession(_) => {
+                        v2::VaraScheduledTask::PauseProgram(_)
+                        | v2::VaraScheduledTask::RemoveCode(_)
+                        | v2::VaraScheduledTask::RemovePausedProgram(_)
+                        | v2::VaraScheduledTask::RemoveResumeSession(_) => {
                             removed_tasks += 1;
 
                             // We need to remove these tasks, so we return None.
@@ -109,7 +107,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
                 "Current storage version is not allowed for migration, check migration code in order to allow it."
             );
 
-            Some(v2::OldTaskPool::<T>::iter().count() as u64)
+            Some(v2::TaskPool::<T>::iter().count() as u64)
         } else {
             None
         };
@@ -132,7 +130,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
 
 mod v2 {
     use common::{ActorId, MessageId, ReservationId};
-    use frame_support::{pallet_prelude::StorageDoubleMap, Identity};
+    use frame_support::Identity;
     use gear_core::ids::CodeId;
     use parity_scale_codec::MaxEncodedLen;
     use sp_runtime::{
@@ -170,32 +168,20 @@ mod v2 {
         RemoveResumeSession(u32),
     }
 
-    pub type OldVaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool>;
+    pub type VaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool>;
 
     use crate::{Config, Pallet};
-
-    use frame_support::traits::{PalletInfo, StorageInstance};
     use frame_system::pallet_prelude::BlockNumberFor;
-    use sp_std::marker::PhantomData;
 
-    pub type OldTaskPool<T> = StorageDoubleMap<
-        _GeneratedPrefixForTaskPoolStorage<T>,
+    #[frame_support::storage_alias]
+    pub type TaskPool<T: Config> = StorageDoubleMap<
+        Pallet<T>,
         Identity,
         BlockNumberFor<T>,
         Identity,
-        OldVaraScheduledTask<<T as frame_system::Config>::AccountId>,
+        VaraScheduledTask<<T as frame_system::Config>::AccountId>,
         (),
     >;
-
-    #[doc(hidden)]
-    pub struct _GeneratedPrefixForTaskPoolStorage<T>(PhantomData<(T,)>);
-
-    impl<T: Config> StorageInstance for _GeneratedPrefixForTaskPoolStorage<T> {
-        fn pallet_prefix() -> &'static str {
-            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>().expect("No name found for the pallet in the runtime! This usually means that the pallet wasn't added to `construct_runtime!`.")
-        }
-        const STORAGE_PREFIX: &'static str = "TaskPool";
-    }
 }
 
 #[cfg(test)]
@@ -216,31 +202,31 @@ mod test {
             StorageVersion::new(MIGRATE_FROM_VERSION).put::<GearScheduler>();
 
             // Insert some old tasks into the task pool that will be removed during migration
-            v2::OldTaskPool::<Test>::insert(
+            v2::TaskPool::<Test>::insert(
                 BlockNumberFor::<Test>::from(0u64),
-                v2::OldVaraScheduledTask::PauseProgram(0u64.into()),
+                v2::VaraScheduledTask::PauseProgram(0u64.into()),
                 (),
             );
-            v2::OldTaskPool::<Test>::insert(
+            v2::TaskPool::<Test>::insert(
                 BlockNumberFor::<Test>::from(0u64),
-                v2::OldVaraScheduledTask::RemoveCode([0u8; 32].into()),
+                v2::VaraScheduledTask::RemoveCode([0u8; 32].into()),
                 (),
             );
-            v2::OldTaskPool::<Test>::insert(
+            v2::TaskPool::<Test>::insert(
                 BlockNumberFor::<Test>::from(0u64),
-                v2::OldVaraScheduledTask::RemovePausedProgram(0u64.into()),
+                v2::VaraScheduledTask::RemovePausedProgram(0u64.into()),
                 (),
             );
-            v2::OldTaskPool::<Test>::insert(
+            v2::TaskPool::<Test>::insert(
                 BlockNumberFor::<Test>::from(0u64),
-                v2::OldVaraScheduledTask::RemoveResumeSession(0u32),
+                v2::VaraScheduledTask::RemoveResumeSession(0u32),
                 (),
             );
 
             // Insert some tasks that will remain after migration
-            v2::OldTaskPool::<Test>::insert(
+            v2::TaskPool::<Test>::insert(
                 BlockNumberFor::<Test>::from(0u64),
-                v2::OldVaraScheduledTask::RemoveFromWaitlist(0u64.into(), [0u8; 32].into()),
+                v2::VaraScheduledTask::RemoveFromWaitlist(0u64.into(), [0u8; 32].into()),
                 (),
             );
 
