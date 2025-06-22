@@ -224,6 +224,21 @@ pub fn local_testnet_genesis() -> RuntimeGenesisConfig {
     )
 }
 
+/// Provides the JSON representation of predefined genesis config for given `id`.
+pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
+    let patch = match id.as_str() {
+        DEV_RUNTIME_PRESET => development_genesis(),
+        LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
+        _ => return None,
+    };
+
+    Some(
+        serde_json_wasm::to_string(&patch)
+            .expect("serialization to json works.")
+            .into_bytes(),
+    )
+}
+
 /// List of supported presets.
 pub fn preset_names() -> Vec<PresetId> {
     vec![

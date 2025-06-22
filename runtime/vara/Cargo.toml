@@ -30,6 +30,7 @@ const-str.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+serde-json-wasm.workspace = true
 
 # Frame deps
 frame-support.workspace = true
@@ -200,6 +201,7 @@ std = [
 	"gear-wasm-instrument/std",
 	"runtime-primitives/std",
 	"scale-info/std",
+	"serde-json-wasm/std",
 	"sp-api/std",
 	"sp-arithmetic/std",
 	"sp-authority-discovery/std",

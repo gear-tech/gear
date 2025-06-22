@@ -19498,6 +19498,7 @@ dependencies = [
  "pallet-whitelist",
  "parity-scale-codec",
  "scale-info",
+ "serde-json-wasm",
  "sp-api",
  "sp-arithmetic",
  "sp-authority-discovery",
