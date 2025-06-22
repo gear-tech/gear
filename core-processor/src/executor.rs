@@ -101,12 +101,7 @@ where
     let value_counter = ValueCounter::new(value_available);
 
     // Creating message context.
-    let message_context = MessageContext::new(
-        // dispatch clone is cheap because is uses `Arc` for payload
-        dispatch.clone(),
-        program.id,
-        msg_ctx_settings,
-    );
+    let message_context = MessageContext::new(dispatch, program.id, msg_ctx_settings);
 
     let context = ProcessorContext {
         gas_counter,
