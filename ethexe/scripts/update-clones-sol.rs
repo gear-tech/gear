@@ -104,9 +104,11 @@ fn generate_to_file(mut file: File, bytecode: Vec<u8>) -> Result<()> {
     ))?;
 
     file.write_fmt(format_args!(
-        "{}uint256 memPtr = Memory.allocate(size);\n",
+        "{}uint256 memPtr = Memory.allocate(size);\n\n",
         INDENTATION
     ))?;
+
+    file.write(b"        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r \".bytecode.object\"`\n")?;
 
     for (i, chunk) in bytecode.chunks(CHUNK_SIZE).enumerate() {
         let offset = i * 32;

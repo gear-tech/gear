@@ -11,6 +11,8 @@ library Clones {
     function cloneDeterministic(address router, bytes32 salt, uint256 value) internal returns (address instance) {
         uint256 size = 0x02c4;
         uint256 memPtr = Memory.allocate(size);
+
+        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
         Memory.writeWord(memPtr, 0x0000, 0x6080806040526102b290816100128239f3fe608060405260043610610268575f);
         Memory.writeWord(memPtr, 0x0020, 0x3560e01c806329336f391461009b5780632a68e35d1461009657806336a52a18);
         Memory.writeWord(memPtr, 0x0040, 0x14610091578063701da98e1461008c578063704ed5421461008757806391d5a6);
