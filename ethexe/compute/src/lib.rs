@@ -157,24 +157,23 @@ impl Stream for ComputeService {
             chain,
             waiting_codes,
         } = &self.state
+            && waiting_codes.is_empty()
         {
-            if waiting_codes.is_empty() {
-                for block_data in chain {
-                    self.db
-                        .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
-                }
-
-                let event = ComputeEvent::BlockPrepared(*block);
-                self.state = BlockPreparationState::WaitForBlock;
-                return Poll::Ready(Some(Ok(event)));
+            for block_data in chain {
+                self.db
+                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
             }
+
+            let event = ComputeEvent::BlockPrepared(*block);
+            self.state = BlockPreparationState::WaitForBlock;
+            return Poll::Ready(Some(Ok(event)));
         }
 
-        if let Some(fut) = self.process_block.as_mut() {
-            if let Poll::Ready(res) = fut.poll_unpin(cx) {
-                self.process_block = None;
-                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
-            }
+        if let Some(fut) = self.process_block.as_mut()
+            && let Poll::Ready(res) = fut.poll_unpin(cx)
+        {
+            self.process_block = None;
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         Poll::Pending

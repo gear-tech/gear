@@ -146,19 +146,19 @@ impl Stream for ObserverService {
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        if self.sync_future.is_none() {
-            if let Some(header) = self.block_sync_queue.pop_back() {
-                self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
-            }
+        if self.sync_future.is_none()
+            && let Some(header) = self.block_sync_queue.pop_back()
+        {
+            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
         }
 
-        if let Some(fut) = self.sync_future.as_mut() {
-            if let Poll::Ready(result) = fut.poll_unpin(cx) {
-                self.sync_future = None;
+        if let Some(fut) = self.sync_future.as_mut()
+            && let Poll::Ready(result) = fut.poll_unpin(cx)
+        {
+            self.sync_future = None;
 
-                let maybe_event = result.map(ObserverEvent::BlockSynced);
-                return Poll::Ready(Some(maybe_event));
-            }
+            let maybe_event = result.map(ObserverEvent::BlockSynced);
+            return Poll::Ready(Some(maybe_event));
         }
 
         Poll::Pending
