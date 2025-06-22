@@ -487,8 +487,10 @@ pub fn process_reinstrumentation_error(
     )
 }
 
-/// Helper function for journal creation in case of metadata verification error.
-pub fn process_code_metadata_error(context: ContextCharged<ForCodeMetadata>) -> Vec<JournalNote> {
+/// Helper function for journal creation in case of instrumentation failure.
+pub fn process_instrumentation_failed(
+    context: ContextCharged<ForCodeMetadata>,
+) -> Vec<JournalNote> {
     let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let gas_burned = gas_counter.burned();

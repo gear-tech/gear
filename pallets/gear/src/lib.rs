@@ -1417,7 +1417,7 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            if !T::CodeStorage::exists(code_id) {
+            if !T::CodeStorage::original_code_exists(code_id) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
                 // if there's code in storage, there's also metadata for it.
                 let code_hash = Self::set_code(code_and_id)?;
@@ -1466,8 +1466,9 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let _ = T::CodeStorage::get_instrumented_code(code_id)
-                .ok_or(Error::<T>::CodeDoesntExist)?;
+            if !T::CodeStorage::original_code_exists(code_id) {
+                return Err(Error::<T>::CodeDoesntExist.into());
+            }
 
             // Check `gas_limit`
             Self::check_gas_limit(gas_limit)?;

@@ -192,7 +192,7 @@ where
         //
         // Code can exist without program, but the latter can't exist without code.
         debug_assert!(
-            T::CodeStorage::exists(code_id),
+            T::CodeStorage::original_code_exists(code_id),
             "Program set must be called only when code exists",
         );
 

@@ -1,21 +1,41 @@
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+// This file is part of Gear.
+
+// Copyright (C) 2021-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Module code metadata
 
 use crate::{
     message::DispatchKind,
     pages::{WasmPage, WasmPagesAmount},
 };
-
 use alloc::collections::BTreeSet;
+use scale_info::{
+    scale::{Decode, Encode},
+    TypeInfo,
+};
 
 /// Status of the instrumentation.
 #[derive(Clone, Copy, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
 pub enum InstrumentationStatus {
-    /// Code is instrumented.
+    /// Code is not instrumented yet.
+    NotInstrumented,
+    /// Code is instrumented on weights version.
     Instrumented(u32),
-    /// Failed to instrument code.
+    /// Failed to instrument code on weights version.
     InstrumentationFailed(u32),
 }
 
@@ -32,7 +52,7 @@ pub struct CodeMetadata {
     static_pages: WasmPagesAmount,
     /// Stack end page.
     stack_end: Option<WasmPage>,
-    /// Instrumentation status, contains version of the instructions.
+    /// Instrumentation status, contains version of the instructions in case of instrumentation.
     instrumentation_status: InstrumentationStatus,
 }
 
@@ -99,6 +119,7 @@ impl CodeMetadata {
     /// Returns the version of the instructions.
     pub fn instruction_weights_version(&self) -> u32 {
         match self.instrumentation_status {
+            InstrumentationStatus::NotInstrumented => 0,
             InstrumentationStatus::Instrumented(version) => version,
             InstrumentationStatus::InstrumentationFailed(version) => version,
         }

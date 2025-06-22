@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        ActorExecutionErrorReplyReason, ExecutableActorData, ExecutableAllocationsData, JournalNote,
+        ActorExecutionErrorReplyReason, ExecutableActorData, JournalNote, ReservationsAndMemorySize,
     },
     configs::BlockConfig,
     context::SystemReservationContext,
@@ -94,7 +94,7 @@ pub struct ContextCharged<For = ForNothing> {
     gas_counter: GasCounter,
     gas_allowance_counter: GasAllowanceCounter,
     actor_data: Option<ExecutableActorData>,
-    allocations_data: Option<ExecutableAllocationsData>,
+    reservations_and_memory_size: Option<ReservationsAndMemorySize>,
 
     _phantom: PhantomData<For>,
 }
@@ -115,7 +115,7 @@ impl ContextCharged {
             gas_counter,
             gas_allowance_counter,
             actor_data: None,
-            allocations_data: None,
+            reservations_and_memory_size: None,
             _phantom: PhantomData,
         }
     }
@@ -177,7 +177,7 @@ impl<T> ContextCharged<T> {
             gas_counter: self.gas_counter,
             gas_allowance_counter: self.gas_allowance_counter,
             actor_data: self.actor_data,
-            allocations_data: self.allocations_data,
+            reservations_and_memory_size: self.reservations_and_memory_size,
             _phantom: PhantomData,
         })
     }
@@ -272,7 +272,7 @@ impl ContextCharged<ForInstrumentedCode> {
                 gas_counter: self.gas_counter,
                 gas_allowance_counter: self.gas_allowance_counter,
                 actor_data: self.actor_data,
-                allocations_data: self.allocations_data,
+                reservations_and_memory_size: self.reservations_and_memory_size,
                 _phantom: PhantomData,
             });
         }
@@ -303,13 +303,13 @@ impl ContextCharged<ForAllocations> {
             code_metadata.static_pages()
         };
 
-        let allocations_data = ExecutableAllocationsData {
+        let reservations_and_memory_size = ReservationsAndMemorySize {
             max_reservations: block_config.max_reservations,
             memory_size,
         };
 
         self.actor_data = Some(actor_data);
-        self.allocations_data = Some(allocations_data);
+        self.reservations_and_memory_size = Some(reservations_and_memory_size);
 
         self = self.charge_gas_for_section_instantiation(
             &block_config.costs,
@@ -353,7 +353,7 @@ impl ContextCharged<ForAllocations> {
             gas_counter: self.gas_counter,
             gas_allowance_counter: self.gas_allowance_counter,
             actor_data: self.actor_data,
-            allocations_data: self.allocations_data,
+            reservations_and_memory_size: self.reservations_and_memory_size,
             _phantom: PhantomData,
         })
     }
@@ -396,7 +396,7 @@ impl ContextCharged<ForModuleInstantiation> {
         GasCounter,
         GasAllowanceCounter,
         ExecutableActorData,
-        ExecutableAllocationsData,
+        ReservationsAndMemorySize,
     ) {
         (
             self.destination_id,
@@ -404,7 +404,7 @@ impl ContextCharged<ForModuleInstantiation> {
             self.gas_counter,
             self.gas_allowance_counter,
             self.actor_data.unwrap(),
-            self.allocations_data.unwrap(),
+            self.reservations_and_memory_size.unwrap(),
         )
     }
 }

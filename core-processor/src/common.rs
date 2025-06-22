@@ -52,15 +52,6 @@ pub enum DispatchResultKind {
     GasAllowanceExceed,
 }
 
-/// Possible variants of the [`DispatchResult`] if the latter contains value.
-#[allow(missing_docs)]
-#[derive(Debug)]
-pub enum SuccessfulDispatchResultKind {
-    Exit(ActorId),
-    Wait(Option<u32>, MessageWaitedType),
-    Success,
-}
-
 /// Result of the specific dispatch.
 pub struct DispatchResult {
     /// Kind of the dispatch.
@@ -138,6 +129,17 @@ impl DispatchResult {
             reply_sent: false,
         }
     }
+}
+
+/// Possible variants of the [`DispatchResult`] if the latter contains value.
+#[derive(Debug)]
+pub enum SuccessfulDispatchResultKind {
+    /// Process dispatch as exit
+    Exit(ActorId),
+    /// Process dispatch as wait
+    Wait(Option<u32>, MessageWaitedType),
+    /// Process dispatch as success
+    Success,
 }
 
 /// Dispatch outcome of the specific message.
@@ -522,7 +524,7 @@ pub struct ExecutableActorData {
 
 /// Executable allocations data.
 #[derive(Clone, Debug)]
-pub struct ExecutableAllocationsData {
+pub struct ReservationsAndMemorySize {
     /// Amount of reservations can exist for 1 program.
     pub max_reservations: u64,
     /// Size of wasm memory buffer which must be created in execution environment

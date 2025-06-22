@@ -60,8 +60,6 @@ where
             Err(journal) => return journal,
         };
 
-        log::debug!("Gas burned after Program {:?}", context.gas_burned());
-
         let program = match ProgramStorageOf::<T>::get_program(destination_id) {
             Some(Program::Active(program)) => program,
             Some(Program::Terminated(_)) => {
@@ -121,8 +119,6 @@ where
             Err(journal) => return journal,
         };
 
-        log::debug!("Gas burned after CodeMetadata {:?}", context.gas_burned());
-
         let code_id = program.code_id;
 
         // The second step is to load code metadata
@@ -150,6 +146,15 @@ where
 
         // Check if the code needs to be reinstrumented.
         let needs_reinstrumentation = match code_metadata.instrumentation_status() {
+            InstrumentationStatus::NotInstrumented => {
+                log::debug!(
+                    "Instrumented code doesn't exists for program '{destination_id:?}' \
+                     we need to instrument it with instructions weights version {}",
+                    schedule.instruction_weights.version
+                );
+
+                true
+            }
             InstrumentationStatus::Instrumented(weights_version) => {
                 weights_version != schedule.instruction_weights.version
             }
@@ -160,7 +165,7 @@ where
                         with instructions weights version {weights_version}"
                     );
 
-                    return core_processor::process_code_metadata_error(context);
+                    return core_processor::process_instrumentation_failed(context);
                 }
 
                 true
@@ -178,19 +183,13 @@ where
                 Err(journal) => return journal,
             };
 
-            log::debug!("Gas burned after Original Code {:?}", context.gas_burned());
-
+            // TODO: Instrumentation cost should have "write-to-storage" cost inside
             let context = match context
                 .charge_for_instrumentation(block_config, code_metadata.original_code_len())
             {
                 Ok(code) => code,
                 Err(journal) => return journal,
             };
-
-            log::debug!(
-                "Gas burned after Instrumentation {:?}",
-                context.gas_burned()
-            );
 
             let instrumented_code_and_metadata =
                 match Pallet::<T>::reinstrument_code(code_id, code_metadata, &schedule) {
@@ -215,13 +214,8 @@ where
                 Err(journal) => return journal,
             };
 
-            log::debug!(
-                "Gas burned after Instrumented Code {:?}",
-                context.gas_burned()
-            );
-
             let code = T::CodeStorage::get_instrumented_code(code_id).unwrap_or_else(|| {
-                // `Program` exists, so do code and code len.
+                // `Program` exists, so instrumented code must exist as well.
                 let err_msg = format!(
                     "run_queue_step: failed to get code for the existing program. \
                     Program id -'{destination_id:?}', Code id - '{code_id:?}'."
@@ -239,8 +233,6 @@ where
                 Ok(context) => context,
                 Err(journal) => return journal,
             };
-
-        log::debug!("Gas burned after Allocations {:?}", context.gas_burned());
 
         let allocations = if program.allocations_tree_len != 0 {
             {
@@ -271,13 +263,6 @@ where
             Ok(context) => context,
             Err(journal) => return journal,
         };
-
-        log::debug!(
-            "Gas burned after Module Instantiation {:?}",
-            context.gas_burned()
-        );
-
-        log::debug!("Gas left after Instantiation {:?}", context.gas_left());
 
         let (random, bn) = T::Randomness::random(dispatch_id.as_ref());
 

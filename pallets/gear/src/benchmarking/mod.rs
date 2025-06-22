@@ -488,7 +488,8 @@ benchmarks! {
         init_block::<T>(None);
     }: _(origin, code)
     verify {
-        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
     }
 
     // The size of the salt influences the runtime because it is hashed in order to
@@ -513,7 +514,8 @@ benchmarks! {
         init_block::<T>(None);
     }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
     verify {
-        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.

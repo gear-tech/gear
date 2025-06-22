@@ -42,8 +42,8 @@ pub use ext::{
 pub use handler::handle_journal;
 pub use precharge::*;
 pub use processing::{
-    process, process_allowance_exceed, process_code_metadata_error, process_code_not_exists,
-    process_execution_error, process_failed_init, process_program_exited,
+    process, process_allowance_exceed, process_code_not_exists, process_execution_error,
+    process_failed_init, process_instrumentation_failed, process_program_exited,
     process_reinstrumentation_error, process_success, process_uninitialized,
 };
 

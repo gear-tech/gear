@@ -16,17 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{CodeMetadataStorage, Config, InstrumentedCodeStorage, Pallet};
+use crate::{CodeMetadataStorage, Config, Pallet};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
-use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_core::code::CodeMetadata;
 use sp_std::marker::PhantomData;
 
 use gear_core::code::InstrumentationStatus;
 #[cfg(feature = "try-runtime")]
 use {
+    crate::InstrumentedCodeStorage,
     frame_support::ensure,
     sp_runtime::{
         codec::{Decode, Encode},
@@ -62,24 +63,19 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
             v12::CodeStorage::<T>::drain().for_each(|(code_id, instrumented_code)| {
-                // 1 read for instrumented code, 1 write for instrumented code and 1 write for code metadata
-                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
+                // 1 read for instrumented code and 1 write for code metadata
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
+                // We skip writing instrumented code into storage, as it will be written in the next reinstrumentation
                 let code_metadata = CodeMetadata::new(
                     instrumented_code.original_code_len,
                     instrumented_code.code.len() as u32,
                     instrumented_code.exports,
                     instrumented_code.static_pages,
                     instrumented_code.stack_end,
-                    InstrumentationStatus::Instrumented(instrumented_code.version),
+                    InstrumentationStatus::NotInstrumented,
                 );
 
-                let instrumented_code = InstrumentedCode::new(
-                    instrumented_code.code,
-                    instrumented_code.instantiated_section_sizes,
-                );
-
-                InstrumentedCodeStorage::<T>::insert(code_id, instrumented_code);
                 CodeMetadataStorage::<T>::insert(code_id, code_metadata);
 
                 counter += 1;
@@ -139,8 +135,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
         {
             let count_instrumented_code = InstrumentedCodeStorage::<T>::iter_keys().count() as u64;
             let count_code_metadata = CodeMetadataStorage::<T>::iter_keys().count() as u64;
+
             ensure!(
-                old_count == count_instrumented_code && old_count == count_code_metadata,
+                count_instrumented_code == 0 && count_code_metadata == old_count,
                 "incorrect count of elements"
             );
         }
@@ -175,40 +172,14 @@ mod v12 {
     }
 
     use crate::{Config, Pallet};
-    use frame_support::{
-        storage::types::StorageMap,
-        traits::{PalletInfo, StorageInstance},
-        Identity,
-    };
+    use frame_support::Identity;
     use gear_core::ids::CodeId;
-    use sp_std::marker::PhantomData;
 
-    pub struct CodeStorageStoragePrefix<T>(PhantomData<T>);
+    #[frame_support::storage_alias]
+    pub type CodeStorage<T: Config> = StorageMap<Pallet<T>, Identity, CodeId, InstrumentedCode>;
 
-    impl<T: Config> StorageInstance for CodeStorageStoragePrefix<T> {
-        fn pallet_prefix() -> &'static str {
-            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>()
-                .expect("No name found for the pallet in the runtime!")
-        }
-
-        const STORAGE_PREFIX: &'static str = "CodeStorage";
-    }
-
-    pub type CodeStorage<T> =
-        StorageMap<CodeStorageStoragePrefix<T>, Identity, CodeId, InstrumentedCode>;
-
-    pub struct CodeLenStoragePrefix<T>(PhantomData<T>);
-
-    impl<T: Config> StorageInstance for CodeLenStoragePrefix<T> {
-        fn pallet_prefix() -> &'static str {
-            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>()
-                .expect("No name found for the pallet in the runtime!")
-        }
-
-        const STORAGE_PREFIX: &'static str = "CodeLenStorage";
-    }
-
-    pub type CodeLenStorage<T> = StorageMap<CodeLenStoragePrefix<T>, Identity, CodeId, u32>;
+    #[frame_support::storage_alias]
+    pub type CodeLenStorage<T: Config> = StorageMap<Pallet<T>, Identity, CodeId, u32>;
 }
 
 #[cfg(test)]
@@ -250,7 +221,6 @@ mod test {
             MigrateSplitInstrumentedCode::<Test>::post_upgrade(state).unwrap();
 
             let code_metadata = CodeMetadataStorage::<Test>::get(code_id).unwrap();
-            let new_instrumented_code = InstrumentedCodeStorage::<Test>::get(code_id).unwrap();
 
             assert_eq!(
                 code_metadata.original_code_len(),
@@ -265,13 +235,7 @@ mod test {
             assert_eq!(code_metadata.stack_end(), instrumented_code.stack_end);
             assert_eq!(
                 code_metadata.instrumentation_status(),
-                InstrumentationStatus::Instrumented(instrumented_code.version)
-            );
-
-            assert_eq!(new_instrumented_code.bytes(), &instrumented_code.code);
-            assert_eq!(
-                new_instrumented_code.instantiated_section_sizes(),
-                &instrumented_code.instantiated_section_sizes
+                InstrumentationStatus::NotInstrumented
             );
 
             assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);

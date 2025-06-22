@@ -16,9 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// pub mod add_section_sizes;
-// pub mod allocations;
-
 pub mod v11_code_metadata_delete_migration;
 pub mod v12_program_code_id_migration;
 pub mod v13_split_instrumented_code_migration;

@@ -50,7 +50,7 @@ pub struct TryNewCodeConfig {
     /// Limit of data section amount
     pub data_segments_amount_limit: Option<u32>,
     /// Limit on the number of tables.
-    pub table_number_limit: Option<u32>,
+    pub table_amount_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -87,7 +87,7 @@ impl Default for TryNewCodeConfig {
             version: 1,
             stack_height: None,
             data_segments_amount_limit: None,
-            table_number_limit: None,
+            table_amount_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -104,8 +104,8 @@ impl Default for TryNewCodeConfig {
 /// Contains original and instrumented binary code of a program.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Code {
-    original_code: Vec<u8>,
-    instrumented_code: InstrumentedCode,
+    original: Vec<u8>,
+    instrumented: InstrumentedCode,
     metadata: CodeMetadata,
 }
 
@@ -206,8 +206,8 @@ impl Code {
         );
 
         Ok(Self {
-            original_code,
-            instrumented_code,
+            original: original_code,
+            instrumented: instrumented_code,
             metadata,
         })
     }
@@ -337,12 +337,12 @@ impl Code {
 
     /// Returns the original code.
     pub fn original_code(&self) -> &[u8] {
-        &self.original_code
+        &self.original
     }
 
     /// Returns the instrumented code.
     pub fn instrumented_code(&self) -> &InstrumentedCode {
-        &self.instrumented_code
+        &self.instrumented
     }
 
     /// Returns the code metadata.
@@ -352,13 +352,13 @@ impl Code {
 
     /// Consumes this instance and returns the instrumented and raw binary codes.
     pub fn into_parts(self) -> (Vec<u8>, InstrumentedCode, CodeMetadata) {
-        (self.original_code, self.instrumented_code, self.metadata)
+        (self.original, self.instrumented, self.metadata)
     }
 
     /// Consumes this instance and returns the instrumented code and metadata struct.
     pub fn into_instrumented_code_and_metadata(self) -> InstrumentedCodeAndMetadata {
         InstrumentedCodeAndMetadata {
-            instrumented_code: self.instrumented_code,
+            instrumented_code: self.instrumented,
             metadata: self.metadata,
         }
     }

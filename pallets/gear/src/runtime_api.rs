@@ -541,6 +541,15 @@ where
 
         // Check if the code needs to be reinstrumented.
         let needs_reinstrumentation = match code_metadata.instrumentation_status() {
+            InstrumentationStatus::NotInstrumented => {
+                log::debug!(
+                    "Instrumented code doesn't exists for program '{program_id:?}' \
+                     we need to instrument it with instructions weights version {}",
+                    schedule.instruction_weights.version
+                );
+
+                true
+            }
             InstrumentationStatus::Instrumented(weights_version) => {
                 weights_version != schedule.instruction_weights.version
             }

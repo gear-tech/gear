@@ -436,7 +436,7 @@ where
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if T::CodeStorage::exists(code_id) {
+        if T::CodeStorage::original_code_exists(code_id) {
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();

@@ -5010,7 +5010,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             }
             .into(),
         );
-        assert!(<Test as Config>::CodeStorage::exists(code_id));
+        assert!(<Test as Config>::CodeStorage::original_code_exists(code_id));
 
         // Trying to set the same code twice.
         assert_noop!(
@@ -6162,7 +6162,9 @@ fn test_message_processing_for_non_existing_destination() {
         assert!(user_balance_before <= Balances::free_balance(USER_1));
 
         assert!(!utils::is_active(program_id));
-        assert!(<Test as Config>::CodeStorage::exists(code_hash));
+        assert!(<Test as Config>::CodeStorage::original_code_exists(
+            code_hash
+        ));
     })
 }
 
@@ -7442,7 +7444,7 @@ fn exit_handle() {
         assert!(!Gear::is_initialized(program_id));
         assert!(!utils::is_active(program_id));
 
-        assert!(<Test as Config>::CodeStorage::exists(code_id));
+        assert!(<Test as Config>::CodeStorage::original_code_exists(code_id));
 
         // Program is not removed and can't be submitted again
         assert_noop!(

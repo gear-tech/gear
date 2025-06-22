@@ -44,15 +44,15 @@ pub trait CodeStorage {
         let (code, code_id) = code_and_id.into_parts();
         let (original_code, instrumented_code, code_metadata) = code.into_parts();
 
-        Self::InstrumentedCodeMap::mutate(code_id, |maybe| {
+        Self::OriginalCodeMap::mutate(code_id, |maybe| {
             if maybe.is_some() {
                 return Err(CodeStorageError::DuplicateItem);
             }
 
-            Self::OriginalCodeMap::insert(code_id, original_code);
+            Self::InstrumentedCodeMap::insert(code_id, instrumented_code);
             Self::CodeMetadataMap::insert(code_id, code_metadata);
 
-            *maybe = Some(instrumented_code);
+            *maybe = Some(original_code);
             Ok(())
         })
     }
@@ -74,8 +74,13 @@ pub trait CodeStorage {
         Self::CodeMetadataMap::insert(code_id, metadata);
     }
 
-    /// Returns true if the code associated with given id exists.
-    fn exists(code_id: CodeId) -> bool {
+    /// Returns true if the original code associated with given id exists.
+    fn original_code_exists(code_id: CodeId) -> bool {
+        Self::OriginalCodeMap::contains_key(&code_id)
+    }
+
+    /// Returns true if the instrumented code associated with given id exists.
+    fn instrumented_code_exists(code_id: CodeId) -> bool {
         Self::InstrumentedCodeMap::contains_key(&code_id)
     }
 
@@ -83,12 +88,12 @@ pub trait CodeStorage {
     ///
     /// If there is no code for the given id then false is returned.
     fn remove_code(code_id: CodeId) -> bool {
-        Self::InstrumentedCodeMap::mutate(code_id, |maybe| {
+        Self::OriginalCodeMap::mutate(code_id, |maybe| {
             if maybe.is_none() {
                 return false;
             }
 
-            Self::OriginalCodeMap::remove(code_id);
+            Self::InstrumentedCodeMap::remove(code_id);
             Self::CodeMetadataMap::remove(code_id);
 
             *maybe = None;

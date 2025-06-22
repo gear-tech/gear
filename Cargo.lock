@@ -11548,6 +11548,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]

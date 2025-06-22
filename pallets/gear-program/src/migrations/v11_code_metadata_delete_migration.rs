@@ -144,27 +144,11 @@ mod v10 {
     }
 
     use crate::{Config, Pallet};
-    use frame_support::{
-        storage::types::StorageMap,
-        traits::{PalletInfo, StorageInstance},
-        Identity,
-    };
+    use frame_support::Identity;
     use gear_core::ids::CodeId;
-    use sp_std::marker::PhantomData;
 
-    pub struct MetadataStoragePrefix<T>(PhantomData<T>);
-
-    impl<T: Config> StorageInstance for MetadataStoragePrefix<T> {
-        fn pallet_prefix() -> &'static str {
-            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>()
-                .expect("No name found for the pallet in the runtime!")
-        }
-
-        const STORAGE_PREFIX: &'static str = "MetadataStorage";
-    }
-
-    pub type MetadataStorage<T> =
-        StorageMap<MetadataStoragePrefix<T>, Identity, CodeId, CodeMetadata>;
+    #[frame_support::storage_alias]
+    pub type MetadataStorage<T: Config> = StorageMap<Pallet<T>, Identity, CodeId, CodeMetadata>;
 }
 
 #[cfg(test)]

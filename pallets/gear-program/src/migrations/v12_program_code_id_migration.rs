@@ -172,30 +172,13 @@ mod v11 {
     #[cfg(feature = "try-runtime")]
     use {
         crate::{Config, Pallet},
-        frame_support::{
-            storage::types::StorageMap,
-            traits::{PalletInfo, StorageInstance},
-            Identity,
-        },
-        sp_std::marker::PhantomData,
+        frame_support::Identity,
     };
 
     #[cfg(feature = "try-runtime")]
-    pub struct ProgramStoragePrefix<T>(PhantomData<T>);
-
-    #[cfg(feature = "try-runtime")]
-    impl<T: Config> StorageInstance for ProgramStoragePrefix<T> {
-        fn pallet_prefix() -> &'static str {
-            <<T as frame_system::Config>::PalletInfo as PalletInfo>::name::<Pallet<T>>()
-                .expect("No name found for the pallet in the runtime!")
-        }
-
-        const STORAGE_PREFIX: &'static str = "ProgramStorage";
-    }
-
-    #[cfg(feature = "try-runtime")]
-    pub type ProgramStorage<T> = StorageMap<
-        ProgramStoragePrefix<T>,
+    #[frame_support::storage_alias]
+    pub type ProgramStorage<T: Config> = StorageMap<
+        Pallet<T>,
         Identity,
         ActorId,
         Program<frame_system::pallet_prelude::BlockNumberFor<T>>,
