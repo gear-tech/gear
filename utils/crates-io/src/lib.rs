@@ -68,6 +68,7 @@ pub const SAFE_DEPENDENCIES: &[&str] = &[
 pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gprimitives",
     "gbuiltin-eth-bridge",
+    "pallet-gear-eth-bridge-primitives",
     "gbuiltin-proxy",
     "gbuiltin-staking",
     "gstd-codegen",
