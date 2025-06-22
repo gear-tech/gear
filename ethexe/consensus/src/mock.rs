@@ -181,7 +181,7 @@ impl Prepare for SimpleBlockData {
 
     fn prepare(self, db: &Database, _args: ()) -> Self {
         db.set_block_header(self.hash, self.header.clone());
-        db.set_block_computed(self.hash);
+        db.mutate_block_meta(self.hash, |meta| meta.computed = true);
         db.set_block_outcome(self.hash, Default::default());
         db.set_block_codes_queue(self.hash, Default::default());
         db.set_block_commitment_queue(self.hash, Default::default());

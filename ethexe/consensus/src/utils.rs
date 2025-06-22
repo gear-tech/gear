@@ -229,7 +229,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead>(
     let mut chain_commitments = Vec::new();
 
     for block in blocks {
-        if !db.block_computed(block) {
+        if !db.block_meta(block).computed {
             // This can happen when validator syncs from p2p network and skips some old blocks.
             if fail_if_not_computed {
                 return Err(anyhow!("Block {block} is not computed"));
@@ -435,8 +435,8 @@ mod tests {
         let block3 = H256([3; 32]);
 
         // Set up the database with computed blocks and outcomes
-        db.set_block_computed(block1);
-        db.set_block_computed(block2);
+        db.mutate_block_meta(block1, |meta| meta.computed = true);
+        db.mutate_block_meta(block2, |meta| meta.computed = true);
         db.set_block_outcome(block1, vec![]);
         db.set_block_outcome(block2, vec![]);
 
