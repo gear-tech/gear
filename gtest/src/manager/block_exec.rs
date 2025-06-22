@@ -48,6 +48,11 @@ impl ExtManager {
             );
         }
 
+        assert!(
+            self.no_code_program.is_empty(),
+            "internal error: no code programs set is not empty"
+        );
+
         // User must exist
         if !Accounts::exists(source) {
             usage_panic!("User's {source} balance is zero; mint value to it first.");
@@ -131,6 +136,9 @@ impl ExtManager {
         let total_processed = self.process_messages();
 
         log::debug!("⚙️  Finalization of block #{new_block_bn}");
+
+        // Clean up no code programs for the next block
+        self.no_code_program.clear();
 
         BlockRunResult {
             block_info: self.blocks_manager.get(),
