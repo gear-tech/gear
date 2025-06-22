@@ -30,7 +30,7 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     ecdsa::ContractSignature,
-    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
+    gear::{AggregatedPublicKey, BatchCommitment, SignatureType, Timelines},
     Address as LocalAddress,
 };
 use events::signatures;
@@ -377,5 +377,18 @@ impl RouterQuery {
     pub async fn validated_codes_count(&self) -> Result<U256> {
         let count = self.instance.validatedCodesCount().call().await?;
         Ok(count)
+    }
+
+    pub async fn timelines(&self) -> Result<Timelines> {
+        self.instance
+            .timelines()
+            .call()
+            .await
+            .map(|res| Timelines {
+                era: res.era.to::<u64>(),
+                election: res.election.to::<u64>(),
+                validation_delay: res.validationDelay.to::<u64>(),
+            })
+            .map_err(Into::into)
     }
 }
