@@ -427,7 +427,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
-                    MessageContext::new(dispatch.clone(), actor_id, Default::default());
+                    MessageContext::new(dispatch, actor_id, Default::default());
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent
