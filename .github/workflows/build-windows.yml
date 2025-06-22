@@ -25,13 +25,13 @@ env:
   CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
 
 jobs:
-  windows-build:
+  build-windows:
     runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
-    name: windows-build (${{ matrix.profiles.name }})
+    name: build-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -80,14 +80,14 @@ jobs:
           path: workspace.tar.zst
           compression-level: 0
 
-  windows-run:
+  test-windows:
     runs-on: windows-latest
-    needs: windows-build
+    needs: build-windows
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
-    name: windows-run (${{ matrix.profiles.name }})
+    name: test-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
