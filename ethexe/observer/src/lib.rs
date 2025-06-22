@@ -25,7 +25,7 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{Address, BlockHeader, SimpleBlockData};
+use ethexe_common::{gear::Timelines, Address, BlockHeader, SimpleBlockData};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
@@ -77,14 +77,6 @@ impl fmt::Debug for ObserverEvent {
             }
         }
     }
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug)]
-struct Timelines {
-    era_duration: u64,
-    election_duration: u64,
-    validation_delay: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -217,11 +209,7 @@ impl ObserverService {
         let router_config = RouterConfig {
             wvara_address,
             genesis_block: genesis_header,
-            timelines: Timelines {
-                era_duration: timelines.era.to::<u64>(),
-                election_duration: timelines.election.to::<u64>(),
-                validation_delay: timelines.validationDelay.to::<u64>(),
-            },
+            timelines,
         };
 
         let config = RuntimeConfig {

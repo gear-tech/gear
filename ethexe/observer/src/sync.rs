@@ -55,7 +55,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             parent_hash: H256(chain_head.parent_hash.0),
         };
         let era_index = (chain_head.timestamp - self.router_config.genesis_block.timestamp)
-            / self.router_config.timelines.era_duration;
+            / self.router_config.timelines.era;
 
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
