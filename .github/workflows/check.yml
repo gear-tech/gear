@@ -235,6 +235,11 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+        
+      - name: "Install: rustup stable"
+        run: |
+          rustup show
+          rustup install stable
       
       - name: "Install rust-script"
         run: cargo install rust-script
