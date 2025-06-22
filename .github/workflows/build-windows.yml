@@ -108,21 +108,21 @@ jobs:
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
 
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst
+          -E 'platform(target) and (rdeps(pallet-*) or package(gear-lazy-pages) or package(gear-runtime-interface))'
+          --workspace-remap=${{ github.workspace }}
+          --extract-to=${{ github.workspace }}
+
       - name: "Test: gsdk tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target) and package(gsdk)'
           --workspace-remap=${{ github.workspace }}
-          --extract-to=${{ github.workspace }}
 
       - name: "Test: Client tests"
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target) and package(gclient)'
-          --workspace-remap=${{ github.workspace }}
-
-      - name: "Test: Lazy pages"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst
-          -E 'platform(target) and (rdeps(pallet-*) or package(gear-lazy-pages) or package(gear-runtime-interface))'
           --workspace-remap=${{ github.workspace }}
