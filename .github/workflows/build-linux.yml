@@ -139,7 +139,7 @@ jobs:
           mv node-release/* nextest-archive/target/release/
           
           echo ">> Compress archive"
-          tar -C nextest-archive --use-compress-program="zstd -6" -cvf workspace2.tar.zst .
+          tar -C nextest-archive --use-compress-program="zstd -6" -cvf workspace.tar.zst .
 
       - name: "ACTIONS: Upload nextest archive"
         uses: actions/upload-artifact@v4
