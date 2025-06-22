@@ -183,10 +183,10 @@ impl Externalities for MockExt {
         Ok(ActorId::from(0))
     }
     fn reply_code(&self) -> Result<ReplyCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(ReplyCode::Unsupported)
     }
     fn signal_code(&self) -> Result<SignalCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(SignalCode::RemovedFromWaitlist)
     }
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())

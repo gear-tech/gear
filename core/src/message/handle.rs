@@ -23,14 +23,10 @@ use crate::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
 };
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Message for Handle entry point.
 /// Represents a standard message that sends between actors.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HandleMessage {
     /// Message id.
     id: MessageId,
@@ -113,7 +109,8 @@ impl HandleMessage {
 /// Handle message packet.
 ///
 /// This structure is preparation for future HandleMessage sending. Has no message id.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Default))]
 pub struct HandlePacket {
     /// Packet destination.
     destination: ActorId,

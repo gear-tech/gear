@@ -106,13 +106,28 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::{IncomingDispatch, IncomingMessage};
+
         const MAX_RESERVATIONS: u64 = 256;
+
+        let incoming_dispatch = IncomingDispatch::new(
+            Default::default(),
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            Default::default(),
+        );
 
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
             gas_reserver: GasReserver::new(
-                &Default::default(),
+                &incoming_dispatch,
                 Default::default(),
                 MAX_RESERVATIONS,
             ),
@@ -127,7 +142,7 @@ impl ProcessorContext {
             )
             .unwrap(),
             message_context: MessageContext::new(
-                Default::default(),
+                incoming_dispatch,
                 Default::default(),
                 Default::default(),
             ),
@@ -1433,7 +1448,7 @@ mod tests {
     use gear_core::{
         buffer::{Payload, MAX_PAYLOAD_SIZE},
         costs::{CostOf, RentCosts, SyscallCosts},
-        message::{ContextSettings, IncomingDispatch},
+        message::{ContextSettings, IncomingDispatch, IncomingMessage},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
     };
 
@@ -1448,7 +1463,7 @@ mod tests {
     impl MessageContextBuilder {
         fn new() -> Self {
             Self {
-                incoming_dispatch: Default::default(),
+                incoming_dispatch: incoming_dispatch(),
                 program_id: Default::default(),
                 context_settings: ContextSettings::with_outgoing_limits(u32::MAX, u32::MAX),
             }
@@ -1523,10 +1538,25 @@ mod tests {
         }
 
         fn with_reservations_map(mut self, map: GasReservationMap) -> Self {
-            self.0.gas_reserver = GasReserver::new(&Default::default(), map, 256);
+            self.0.gas_reserver = GasReserver::new(&incoming_dispatch(), map, 256);
 
             self
         }
+    }
+
+    fn incoming_dispatch() -> IncomingDispatch {
+        IncomingDispatch::new(
+            Default::default(),
+            IncomingMessage::new(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            Default::default(),
+        )
     }
 
     // Invariant: Refund never occurs in `free` call.
@@ -1647,7 +1677,7 @@ mod tests {
                 .build(),
         );
 
-        let data = HandlePacket::default();
+        let data = HandlePacket::new(ActorId::zero(), Default::default(), 0);
 
         let fake_handle = 0;
 
@@ -1692,7 +1722,7 @@ mod tests {
                 .build(),
         );
 
-        let data = HandlePacket::default();
+        let data = HandlePacket::new(ActorId::zero(), Default::default(), 0);
 
         let fake_handle = 0;
 
@@ -1803,7 +1833,8 @@ mod tests {
             ))
         );
 
-        let msg = ext.send_commit(handle, HandlePacket::default(), 0);
+        let data = HandlePacket::new(ActorId::zero(), Default::default(), 0);
+        let msg = ext.send_commit(handle, data, 0);
         assert!(msg.is_ok());
 
         let res = ext.send_push_input(handle, 0, 1);
@@ -2049,10 +2080,12 @@ mod tests {
         // creating reservation to be used
         let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
 
+        let data = HandlePacket::new(ActorId::zero(), Default::default(), 0);
+
         // this one fails due to absence of init nonce, BUT [bug] marks reservation used,
         // so another `reservation_send_commit` fails due to used reservation.
         assert_eq!(
-            ext.reservation_send_commit(reservation_id, u32::MAX, Default::default(), 0)
+            ext.reservation_send_commit(reservation_id, u32::MAX, data, 0)
                 .unwrap_err(),
             MessageError::OutOfBounds.into()
         );
@@ -2060,7 +2093,8 @@ mod tests {
         // initializing send message
         let i = ext.send_init().expect("Shouldn't fail");
 
-        let res = ext.reservation_send_commit(reservation_id, i, Default::default(), 0);
+        let data = HandlePacket::new(ActorId::zero(), Default::default(), 0);
+        let res = ext.reservation_send_commit(reservation_id, i, data, 0);
         assert!(res.is_ok());
     }
 
@@ -2178,7 +2212,14 @@ mod tests {
                 .build(),
         );
 
-        let data = InitPacket::default();
+        let data = InitPacket::new_from_program(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            None,
+            0,
+        );
 
         let msg = ext.create_program(data.clone(), 0);
         assert_eq!(

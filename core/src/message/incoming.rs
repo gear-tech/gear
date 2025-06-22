@@ -25,15 +25,12 @@ use crate::{
     },
 };
 use core::ops::Deref;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Incoming message.
 ///
 /// Used for program execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Default))]
 pub struct IncomingMessage {
     /// Message id.
     id: MessageId,
@@ -128,7 +125,8 @@ impl IncomingMessage {
 }
 
 /// Incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Default))]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,

@@ -294,10 +294,23 @@ where
         Default::default(),
     );
 
+    let incoming_dispatch = IncomingDispatch::new(
+        Default::default(),
+        IncomingMessage::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        Default::default(),
+    );
+
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
-        gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
+        gas_reserver: GasReserver::new(&incoming_dispatch, Default::default(), Default::default()),
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::try_new(
             memory_size,

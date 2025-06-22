@@ -17,7 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::SuccessfulDispatchResultKind;
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
+use gear_core::{
+    code::MAX_WASM_PAGES_AMOUNT,
+    gas::GasCounter,
+    message::{IncomingDispatch, IncomingMessage},
+    str::LimitedStr,
+};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -571,9 +576,22 @@ impl ExtManager {
 }
 
 fn default_dispatch_result() -> DispatchResult {
+    let incoming_dispatch = IncomingDispatch::new(
+        Default::default(),
+        IncomingMessage::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        ),
+        Default::default(),
+    );
+
     DispatchResult {
         kind: DispatchResultKind::Success,
-        dispatch: Default::default(),
+        dispatch: incoming_dispatch,
         program_id: Default::default(),
         context_store: Default::default(),
         generated_dispatches: Default::default(),
