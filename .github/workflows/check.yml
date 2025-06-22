@@ -266,7 +266,8 @@ jobs:
           ../scripts/update-clones-sol.rs \
             --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
             --clones src/libraries/Clones.sol
-            git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
+          forge fmt
+          git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
