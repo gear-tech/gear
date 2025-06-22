@@ -56,9 +56,7 @@ use gear_core::{
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
-    message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, StoredMessage, UserStoredMessage,
-    },
+    message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredMessage, UserStoredMessage},
     pages::{num_traits::Zero, GearPage},
     tasks::ScheduledTask,
 };

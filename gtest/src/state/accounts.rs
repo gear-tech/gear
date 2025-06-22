@@ -20,7 +20,7 @@
 
 use crate::{default_users_list, Value, DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT};
 use gear_common::{auxiliary::overlay::WithOverlay, ActorId};
-use std::{cell::RefCell, collections::HashMap, fmt, thread::LocalKey};
+use std::{collections::HashMap, fmt, thread::LocalKey};
 
 fn init_default_accounts(storage: &mut HashMap<ActorId, Balance>) {
     for &id in default_users_list() {

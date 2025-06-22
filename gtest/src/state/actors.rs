@@ -103,7 +103,6 @@ impl fmt::Debug for Actors {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub(crate) enum TestActor {
     Initialized(Program),
@@ -179,44 +178,6 @@ impl TestActor {
     // Gets a new executable actor derived from the inner program.
     pub(crate) fn executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
         self.program().map(Program::executable_actor_data)
-    }
-
-    pub(crate) fn is_mock_actor(&self) -> bool {
-        matches!(self, TestActor::Initialized(Program::Mock(_)))
-            || matches!(self, TestActor::Uninitialized(_, Some(Program::Mock(_))))
-    }
-}
-
-impl TestActor {
-    /// Clones actors.
-    ///
-    /// If the actor is a mock program, takes the value, leaving `None` in its
-    /// place. This is an intended impl, aimed to be used when overlay mode
-    /// is enabled. So, overlay storage clones/takes values from the
-    /// original storage.
-    ///
-    /// # Warning
-    /// The latter is a reason for marking function as `unsafe`. Caller must be
-    /// cautious about consequences of such custom cloning. The cloned/taken
-    /// values must be returned back.
-    pub(crate) unsafe fn clone_exhausting(&mut self) -> Self {
-        let clone_exhausting_program = |program: &mut Program| match program {
-            Program::Genuine(genuine_program) => Program::Genuine(genuine_program.clone()),
-            Program::Mock(mock) => Program::Mock(mock.take()),
-        };
-
-        match self {
-            TestActor::Initialized(program) => {
-                TestActor::Initialized(clone_exhausting_program(program))
-            }
-            TestActor::Uninitialized(message_id, program) => {
-                let program_clone = program.as_mut().map(clone_exhausting_program);
-                TestActor::Uninitialized(*message_id, program_clone)
-            }
-            TestActor::FailedInit => TestActor::FailedInit,
-            TestActor::CodeNotExists => TestActor::CodeNotExists,
-            TestActor::Exited(id) => TestActor::Exited(*id),
-        }
     }
 }
 

@@ -19,20 +19,16 @@
 //! `gtest` bank
 
 use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
-use gear_common::{ActorId, Gas, GasMultiplier};
-use std::{cell::RefCell, collections::HashMap, thread::LocalKey};
+use gear_common::{auxiliary::overlay::WithOverlay, ActorId, Gas, GasMultiplier};
+use std::{collections::HashMap, thread::LocalKey};
 
 thread_local! {
     /// Bank storage.
-    pub(super) static BANK_ACCOUNTS: RefCell<HashMap<ActorId, BankBalance>> = RefCell::new(Default::default());
+    pub(super) static BANK_ACCOUNTS: WithOverlay<HashMap<ActorId, BankBalance>> = Default::default();
 }
 
-fn storage() -> &'static LocalKey<RefCell<HashMap<ActorId, BankBalance>>> {
-    if super::overlay_enabled() {
-        &super::BANK_ACCOUNTS_OVERLAY
-    } else {
-        &BANK_ACCOUNTS
-    }
+fn storage() -> &'static LocalKey<WithOverlay<HashMap<ActorId, BankBalance>>> {
+    &BANK_ACCOUNTS
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -49,8 +45,9 @@ impl Bank {
     // Create a new bank.
     pub(crate) fn deposit_value(&self, id: ActorId, value: Value, keep_alive: bool) {
         Accounts::decrease(id, value, keep_alive);
-        storage().with_borrow_mut(|accs| {
-            accs.entry(id)
+        storage().with(|accs| {
+            accs.data_mut()
+                .entry(id)
                 .or_insert(BankBalance { gas: 0, value: 0 })
                 .value += value;
         });
@@ -60,8 +57,9 @@ impl Bank {
     pub(crate) fn deposit_gas(&self, id: ActorId, gas: Gas, keep_alive: bool) {
         let gas_value = GAS_MULTIPLIER.gas_to_value(gas);
         Accounts::decrease(id, gas_value, keep_alive);
-        storage().with_borrow_mut(|accs| {
-            accs.entry(id)
+        storage().with(|accs| {
+            accs.data_mut()
+                .entry(id)
                 .or_insert(BankBalance { gas: 0, value: 0 })
                 .gas += gas_value;
         });
@@ -70,8 +68,9 @@ impl Bank {
     // Withdraw gas.
     pub(crate) fn spend_gas(&self, id: ActorId, gas: Gas, multiplier: GasMultiplier<Value, Gas>) {
         let gas_value = multiplier.gas_to_value(gas);
-        storage().with_borrow_mut(|accs| {
-            accs.get_mut(&id)
+        storage().with(|accs| {
+            accs.data_mut()
+                .get_mut(&id)
                 .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {id:?} not found in bank"))
                 .gas -= gas_value;
         });
@@ -85,8 +84,9 @@ impl Bank {
         multiplier: GasMultiplier<Value, Gas>,
     ) {
         let gas_left_value = multiplier.gas_to_value(gas_left);
-        storage().with_borrow_mut(|accs| {
-            accs.get_mut(&id)
+        storage().with(|accs| {
+            accs.data_mut()
+                .get_mut(&id)
                 .unwrap_or_else(|| panic!("Bank::spend_gas: actor id {id:?} not found in bank"))
                 .gas -= gas_left_value;
         });
@@ -106,8 +106,9 @@ impl Bank {
             return;
         }
 
-        storage().with_borrow_mut(|accs| {
-            accs.get_mut(&from)
+        storage().with(|accs| {
+            accs.data_mut()
+                .get_mut(&from)
                 .unwrap_or_else(|| {
                     panic!("Bank::transfer_value: actor id {from:?} not found in bank")
                 })
@@ -129,16 +130,18 @@ impl Bank {
             return;
         }
 
-        storage().with_borrow_mut(|accs| {
-            accs.get_mut(&from)
+        storage().with(|accs| {
+            accs.data_mut()
+                .get_mut(&from)
                 .unwrap_or_else(|| {
                     panic!("Bank::transfer_value: actor id {from:?} not found in bank")
                 })
                 .value -= value;
         });
 
-        storage().with_borrow_mut(|accs| {
-            accs.entry(to)
+        storage().with(|accs| {
+            accs.data_mut()
+                .entry(to)
                 .or_insert(BankBalance { gas: 0, value: 0 })
                 .value += value;
         });

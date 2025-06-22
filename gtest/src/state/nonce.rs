@@ -18,29 +18,23 @@
 
 //! Nonce manager.
 
-use std::{cell::Cell, thread::LocalKey};
+use std::thread::LocalKey;
+
+use gear_common::auxiliary::overlay::WithOverlay;
 
 thread_local! {
     /// Definition of the storage value storing message nonce.
-    pub(super) static MSG_NONCE: Cell<u64> = const { Cell::new(1) };
+    pub(super) static MSG_NONCE: WithOverlay<u64> = WithOverlay::new(1);
     /// Definition of the storage value storing id nonce.
-    pub(super) static ID_NONCE: Cell<u64> = const { Cell::new(1) };
+    pub(super) static ID_NONCE: WithOverlay<u64> = WithOverlay::new(1);
 }
 
-fn msg_nonce_storage() -> &'static LocalKey<Cell<u64>> {
-    if super::overlay_enabled() {
-        &super::MSG_NONCE_OVERLAY
-    } else {
-        &MSG_NONCE
-    }
+fn msg_nonce_storage() -> &'static LocalKey<WithOverlay<u64>> {
+    &MSG_NONCE
 }
 
-fn id_nonce_storage() -> &'static LocalKey<Cell<u64>> {
-    if super::overlay_enabled() {
-        &super::ID_NONCE_OVERLAY
-    } else {
-        &ID_NONCE
-    }
+fn id_nonce_storage() -> &'static LocalKey<WithOverlay<u64>> {
+    &ID_NONCE
 }
 
 #[derive(Debug, Clone, Default)]
@@ -49,20 +43,20 @@ pub(crate) struct NonceManager;
 impl NonceManager {
     pub(crate) fn fetch_inc_message_nonce(&self) -> u64 {
         msg_nonce_storage().with(|nonce| {
-            let value = nonce.get();
-            nonce.set(value + 1);
+            let value = *nonce.data();
+            *nonce.data_mut() = value + 1;
             value
         })
     }
 
     pub(crate) fn id_nonce(&self) -> u64 {
-        id_nonce_storage().with(|nonce| nonce.get())
+        id_nonce_storage().with(|nonce| *nonce.data())
     }
 
     pub(crate) fn inc_id_nonce(&self) {
         id_nonce_storage().with(|nonce| {
-            let value = nonce.get();
-            nonce.set(value + 1);
+            let value = *nonce.data();
+            *nonce.data_mut() = value + 1;
         });
     }
 }

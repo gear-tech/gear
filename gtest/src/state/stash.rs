@@ -18,23 +18,22 @@
 
 //! Stash manager.
 
-use gear_common::{auxiliary::BlockNumber, storage::Interval};
+use gear_common::{
+    auxiliary::{overlay::WithOverlay, BlockNumber},
+    storage::Interval,
+};
 use gear_core::{ids::MessageId, message::StoredDelayedDispatch};
-use std::{cell::RefCell, collections::HashMap, thread::LocalKey};
+use std::{collections::HashMap, thread::LocalKey};
 
 pub(super) type DispatchStashType =
-    RefCell<HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>>;
+    WithOverlay<HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>>;
 thread_local! {
     /// Definition of the storage value storing stash.
-    pub(super) static DISPATCHES_STASH: DispatchStashType = RefCell::new(HashMap::new());
+    pub(super) static DISPATCHES_STASH: DispatchStashType = Default::default();
 }
 
 fn storage() -> &'static LocalKey<DispatchStashType> {
-    if super::overlay_enabled() {
-        &super::DISPATCHES_STASH_OVERLAY
-    } else {
-        &DISPATCHES_STASH
-    }
+    &DISPATCHES_STASH
 }
 
 #[derive(Debug, Clone, Default)]
@@ -42,7 +41,7 @@ pub(crate) struct DispatchStashManager;
 
 impl DispatchStashManager {
     pub(crate) fn contains_key(&self, key: &MessageId) -> bool {
-        storage().with_borrow(|stash| stash.contains_key(key))
+        storage().with(|stash| stash.data().contains_key(key))
     }
 
     pub(crate) fn insert(
@@ -50,8 +49,8 @@ impl DispatchStashManager {
         key: MessageId,
         value: (StoredDelayedDispatch, Interval<BlockNumber>),
     ) {
-        storage().with_borrow_mut(|stash| {
-            stash.insert(key, value);
+        storage().with(|stash| {
+            stash.data_mut().insert(key, value);
         });
     }
 
@@ -59,6 +58,6 @@ impl DispatchStashManager {
         &self,
         key: &MessageId,
     ) -> Option<(StoredDelayedDispatch, Interval<BlockNumber>)> {
-        storage().with_borrow_mut(|stash| stash.remove(key))
+        storage().with(|stash| stash.data_mut().remove(key))
     }
 }

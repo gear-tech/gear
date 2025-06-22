@@ -19,7 +19,10 @@
 //! Auxiliary implementation of the waitlist.
 
 use super::{AuxiliaryDoubleStorageWrap, BlockNumber, DoubleBTreeMap};
-use crate::{auxiliary::overlay::WithOverlay, storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen}};
+use crate::{
+    auxiliary::overlay::WithOverlay,
+    storage::{Interval, WaitlistError, WaitlistImpl, WaitlistKeyGen},
+};
 use gear_core::{
     ids::{ActorId, MessageId},
     message::StoredDispatch,

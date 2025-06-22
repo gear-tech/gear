@@ -30,31 +30,11 @@ pub(crate) mod stash;
 pub(crate) mod task_pool;
 pub(crate) mod waitlist;
 
-use actors::{TestActor, ACTORS_STORAGE};
-use bank::{BankBalance, BANK_ACCOUNTS};
-use blocks::{BlockInfoStorageInner, BLOCK_INFO_STORAGE, CURRENT_EPOCH_RANDOM};
-use gear_core::{ids::ActorId, message::StoredDispatch};
-use nonce::{ID_NONCE, MSG_NONCE};
-use queue::DISPATCHES_QUEUE;
-use stash::{DispatchStashType, DISPATCHES_STASH};
-use std::{
-    cell::{Cell, RefCell},
-    collections::{BTreeMap, HashMap, VecDeque},
-    rc::Rc,
-    thread_local,
-};
+use std::{cell::Cell, thread_local};
 
 thread_local! {
     /// Overlay mode enabled flag.
     static OVERLAY_ENABLED: Cell<bool> = const { Cell::new(false) };
-    static ACTORS_STORAGE_OVERLAY: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
-    static BANK_ACCOUNTS_OVERLAY: RefCell<HashMap<ActorId, BankBalance>> = RefCell::new(Default::default());
-    static BLOCK_INFO_STORAGE_OVERLAY: BlockInfoStorageInner = Rc::new(RefCell::new(None));
-    static MSG_NONCE_OVERLAY: Cell<u64> = const { Cell::new(0) };
-    static ID_NONCE_OVERLAY: Cell<u64> = const { Cell::new(0) };
-    static DISPATCHES_QUEUE_OVERLAY: RefCell<VecDeque<StoredDispatch>> = const { RefCell::new(VecDeque::new()) };
-    static CURRENT_EPOCH_RANDOM_OVERLAY: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
-    static DISPATCHES_STASH_OVERLAY: DispatchStashType = RefCell::new(HashMap::new());
 }
 
 /// Enables overlay mode.
@@ -66,50 +46,6 @@ pub(crate) fn enable_overlay() {
     }
 
     OVERLAY_ENABLED.with(|v| v.set(true));
-
-    // Enable overlay for bank storage.
-    BANK_ACCOUNTS_OVERLAY.with(|bank_so| {
-        let original = BANK_ACCOUNTS.with_borrow(|bank_s| bank_s.clone());
-        bank_so.replace(original);
-    });
-
-    // Enable overlay for block info storage.
-    BLOCK_INFO_STORAGE_OVERLAY.with(|biso| {
-        let original = BLOCK_INFO_STORAGE.with(|bis| *bis.borrow());
-        assert!(original.is_some(), "Block info storage must be initialized");
-
-        biso.replace(original);
-    });
-
-    // Enable overlay for message nonce storage.
-    MSG_NONCE_OVERLAY.with(|msg_nonce| {
-        let original = MSG_NONCE.with(|mn| mn.get());
-        msg_nonce.set(original);
-    });
-
-    // Enable overlay for id nonce storage.
-    ID_NONCE_OVERLAY.with(|id_nonce| {
-        let original = ID_NONCE.with(|idn| idn.get());
-        id_nonce.set(original);
-    });
-
-    // Enable overlay for dispatches queue storage.
-    DISPATCHES_QUEUE_OVERLAY.with(|dq| {
-        let original = DISPATCHES_QUEUE.with_borrow(|dqs| dqs.clone());
-        dq.replace(original);
-    });
-
-    // Enable overlay for current epoch random storage.
-    CURRENT_EPOCH_RANDOM_OVERLAY.with(|cero| {
-        let original = CURRENT_EPOCH_RANDOM.with_borrow(|cer| cer.clone());
-        cero.replace(original);
-    });
-
-    // Enable overlay for dispatches stash storage.
-    DISPATCHES_STASH_OVERLAY.with(|dso| {
-        let original = DISPATCHES_STASH.with_borrow(|ds| ds.clone());
-        dso.replace(original);
-    });
 }
 
 /// Disables overlay mode.
@@ -121,40 +57,6 @@ pub(crate) fn disable_overlay() {
     }
 
     OVERLAY_ENABLED.with(|v| v.set(false));
-
-    // Disable overlay for bank storage.
-    BANK_ACCOUNTS_OVERLAY.with_borrow_mut(|bank_so| {
-        bank_so.clear();
-    });
-
-    // Disable overlay for block info storage.
-    BLOCK_INFO_STORAGE_OVERLAY.with(|biso| {
-        biso.borrow_mut().take();
-    });
-
-    // Disable overlay for message nonce storage.
-    MSG_NONCE_OVERLAY.with(|mno| {
-        mno.set(0);
-    });
-
-    // Disable overlay for id nonce storage.
-    ID_NONCE_OVERLAY.with(|ido| {
-        ido.set(0);
-    });
-
-    // Disable overlay for dispatches queue storage.
-    DISPATCHES_QUEUE_OVERLAY.with_borrow_mut(|dqo| {
-        dqo.clear();
-    });
-
-    // Disable overlay for current epoch random storage.
-    CURRENT_EPOCH_RANDOM_OVERLAY.with_borrow_mut(|cero| {
-        cero.clear();
-    });
-
-    DISPATCHES_STASH_OVERLAY.with_borrow_mut(|dso| {
-        dso.clear();
-    });
 }
 
 pub(crate) fn overlay_enabled() -> bool {
@@ -166,15 +68,20 @@ mod tests {
     use super::*;
     use crate::{
         state::{
-            accounts::Accounts, actors::Actors, bank::Bank, blocks::BlocksManager,
-            nonce::NonceManager, queue::QueueManager, stash::DispatchStashManager,
+            accounts::Accounts,
+            actors::{Actors, TestActor},
+            bank::Bank,
+            blocks::BlocksManager,
+            nonce::NonceManager,
+            queue::QueueManager,
+            stash::DispatchStashManager,
         },
         EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
     use gear_common::storage::Interval;
     use gear_core::{
         ids::{ActorId, MessageId},
-        message::{DispatchKind, StoredDelayedDispatch},
+        message::{DispatchKind, StoredDelayedDispatch, StoredDispatch},
     };
 
     #[test]
@@ -272,7 +179,7 @@ mod tests {
         assert_eq!(new_acc1_balance_overlaid, EXISTENTIAL_DEPOSIT * 1000);
 
         // Adjust actors storage the same way.
-        let acc2_actor_ty = TestActor::CodeNotExists;
+        let acc2_actor_ty = TestActor::Exited(Default::default());
         let acc3_actor_ty = TestActor::FailedInit;
         Actors::insert(new_acc, TestActor::Uninitialized(None, None));
         Actors::modify(predef_acc1, |actor| {

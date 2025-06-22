@@ -19,13 +19,13 @@
 //! Auxiliary implementation of the gas provider.
 
 use super::overlay;
-use overlay::WithOverlay;
 use crate::{
     gas_provider::{Error, GasNode, GasNodeId, Provider, TreeImpl},
     storage::{MapStorage, ValueStorage},
     Origin,
 };
 use alloc::collections::BTreeMap;
+use overlay::WithOverlay;
 use sp_core::H256;
 use std::thread::LocalKey;
 
@@ -214,16 +214,11 @@ impl ValueStorage for TotalIssuanceWrap {
     type Value = Balance;
 
     fn exists() -> bool {
-        total_issuance_storage().with(|i| {
-            i.data()
-                .is_some()
-        })
+        total_issuance_storage().with(|i| i.data().is_some())
     }
 
     fn get() -> Option<Self::Value> {
-        total_issuance_storage().with(|i| {
-            *i.data()
-        })
+        total_issuance_storage().with(|i| *i.data())
     }
 
     fn kill() {
@@ -234,15 +229,12 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(f: F) -> R {
-        total_issuance_storage().with(|i| {
-            f(&mut i.data_mut())
-        })
+        total_issuance_storage().with(|i| f(&mut i.data_mut()))
     }
 
     fn put(value: Self::Value) {
         total_issuance_storage().with(|i| {
-            i.data_mut()
-                .replace(value);
+            i.data_mut().replace(value);
         });
     }
 
@@ -255,10 +247,7 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 
     fn take() -> Option<Self::Value> {
-        total_issuance_storage().with(|i| {
-            i.data_mut()
-                .take()
-        })
+        total_issuance_storage().with(|i| i.data_mut().take())
     }
 }
 

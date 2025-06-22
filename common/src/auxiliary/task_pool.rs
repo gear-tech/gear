@@ -54,7 +54,7 @@ impl AuxiliaryDoubleStorageWrap for TaskPoolStorageWrap {
     where
         F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with(|tps| f(& tps.data()))
+        storage().with(|tps| f(&tps.data()))
     }
 
     fn with_storage_mut<F, R>(f: F) -> R

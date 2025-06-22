@@ -22,9 +22,7 @@
 //! inside the overlay, which won't modify the real storage. Same functionality
 //! is provided within the module
 
-use std::{
-    cell::{Cell, Ref, RefMut, RefCell},
-};
+use std::cell::{Cell, Ref, RefCell, RefMut};
 
 std::thread_local! {
     /// Overlay mode enabled flag.
@@ -50,7 +48,7 @@ impl<T: Default> Default for WithOverlay<T> {
 
 impl<T: Clone> WithOverlay<T> {
     pub fn new(original: T) -> Self
-    where 
+    where
         T: Default,
     {
         Self {
@@ -62,7 +60,7 @@ impl<T: Clone> WithOverlay<T> {
 
     pub fn data(&self) -> Ref<'_, T> {
         self.prepare_data();
-        
+
         if overlay_enabled() {
             self.overlay.borrow()
         } else {
@@ -72,7 +70,7 @@ impl<T: Clone> WithOverlay<T> {
 
     pub fn data_mut(&self) -> RefMut<'_, T> {
         self.prepare_data();
-        
+
         if overlay_enabled() {
             self.overlay.borrow_mut()
         } else {
@@ -127,11 +125,10 @@ pub fn overlay_enabled() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use gear_core::{message::DispatchKind, tasks::VaraScheduledTask};
-    use sp_core::H256;
+    use super::*;
     use crate::{
         auxiliary::{
-            gas_provider::{GasNodesWrap, TotalIssuanceWrap, Node, NodeId},
+            gas_provider::{GasNodesWrap, Node, NodeId, TotalIssuanceWrap},
             mailbox::{MailboxStorageWrap, MailboxedMessage},
             task_pool::TaskPoolStorageWrap,
             waitlist::{WaitlistStorageWrap, WaitlistedMessage},
@@ -139,7 +136,8 @@ mod tests {
         storage::{DoubleMapStorage, Interval, MapStorage, ValueStorage},
         GasMultiplier, Origin,
     };
-    use super::*;
+    use gear_core::{message::DispatchKind, tasks::VaraScheduledTask};
+    use sp_core::H256;
 
     #[test]
     fn overlay_works() {

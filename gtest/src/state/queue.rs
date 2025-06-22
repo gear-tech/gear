@@ -18,20 +18,17 @@
 
 //! Queue storage manager.
 
+use gear_common::auxiliary::overlay::WithOverlay;
 use gear_core::message::StoredDispatch;
-use std::{cell::RefCell, collections::VecDeque, thread::LocalKey};
+use std::{collections::VecDeque, thread::LocalKey};
 
 thread_local! {
     /// Definition of the storage value storing dispatches queue.
-    pub(super) static DISPATCHES_QUEUE: RefCell<VecDeque<StoredDispatch>> = const { RefCell::new(VecDeque::new()) };
+    pub(super) static DISPATCHES_QUEUE: WithOverlay<VecDeque<StoredDispatch>> = Default::default();
 }
 
-fn storage() -> &'static LocalKey<RefCell<VecDeque<StoredDispatch>>> {
-    if super::overlay_enabled() {
-        &super::DISPATCHES_QUEUE_OVERLAY
-    } else {
-        &DISPATCHES_QUEUE
-    }
+fn storage() -> &'static LocalKey<WithOverlay<VecDeque<StoredDispatch>>> {
+    &DISPATCHES_QUEUE
 }
 
 #[derive(Debug, Clone, Default)]
@@ -40,26 +37,26 @@ pub(crate) struct QueueManager;
 impl QueueManager {
     /// Push dispatch to the queue back.
     pub(crate) fn push_back(&self, dispatch: StoredDispatch) {
-        storage().with_borrow_mut(|queue| queue.push_back(dispatch));
+        storage().with(|queue| queue.data_mut().push_back(dispatch));
     }
 
     /// Push dispatch to the queue head.
     pub(crate) fn push_front(&self, dispatch: StoredDispatch) {
-        storage().with_borrow_mut(|queue| queue.push_front(dispatch));
+        storage().with(|queue| queue.data_mut().push_front(dispatch));
     }
 
     /// Pop dispatch from the queue head.
     pub(crate) fn pop_front(&self) -> Option<StoredDispatch> {
-        storage().with_borrow_mut(|queue| queue.pop_front())
+        storage().with(|queue| queue.data_mut().pop_front())
     }
 
     /// Clears the queue.
     pub(crate) fn clear(&self) {
-        storage().with_borrow_mut(|queue| queue.clear())
+        storage().with(|queue| queue.data_mut().clear())
     }
 
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
-        storage().with_borrow(|queue| queue.len())
+        storage().with(|queue| queue.data().len())
     }
 }

@@ -63,18 +63,14 @@ impl AuxiliaryDoubleStorageWrap for MailboxStorageWrap {
     where
         F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with(|ms| {
-            f(&ms.data())
-        })
+        storage().with(|ms| f(&ms.data()))
     }
 
     fn with_storage_mut<F, R>(f: F) -> R
     where
         F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
     {
-        storage().with(|ms| {
-            f(&mut ms.data_mut())
-        })
+        storage().with(|ms| f(&mut ms.data_mut()))
     }
 }
 

@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::code::MAX_WASM_PAGES_AMOUNT;
+use crate::state::blocks;
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, message::StoredDispatch};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -475,7 +476,7 @@ impl ExtManager {
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
-    fn block_config(&self) -> BlockConfig {
+    pub(crate) fn block_config(&self) -> BlockConfig {
         let schedule = Schedule::default();
         BlockConfig {
             block_info: self.blocks_manager.get(),
