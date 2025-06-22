@@ -60,9 +60,6 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
-      
-      - name: "Install rust-script"
-        run: cargo install rust-script
 
       - name: "Install: Rust target"
         run: |
@@ -238,6 +235,9 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+      
+      - name: "Install rust-script"
+        run: cargo install rust-script
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
