@@ -14,8 +14,6 @@ parity-scale-codec.workspace = true
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
-[dev-dependencies]
-
 [features]
 std = ["parity-scale-codec/std"]
 default = ["std"]

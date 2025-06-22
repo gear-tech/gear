@@ -189,7 +189,7 @@ pub fn prepare_mock_empty_block(
     block: &SimpleBlockData,
     previous_committed_block: H256,
 ) {
-    db.set_block_computed(block.hash);
+    db.mutate_block_meta(block.hash, |meta| meta.computed = true);
     db.set_block_header(block.hash, block.header.clone());
     db.set_previous_not_empty_block(block.hash, previous_committed_block);
     db.set_block_codes_queue(block.hash, Default::default());
