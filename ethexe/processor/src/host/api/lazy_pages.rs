@@ -18,8 +18,10 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory (unsafe casts).
 
-use crate::host::{api::MemoryWrap, threads::EthexeHostLazyPages};
-use anyhow::Result;
+use crate::{
+    host::{api::MemoryWrap, threads::EthexeHostLazyPages},
+    Result,
+};
 use gear_lazy_pages::LazyPagesVersion;
 use gear_runtime_interface::{lazy_pages_detail, LazyPagesInitContext};
 use sp_wasm_interface::StoreData;
@@ -85,7 +87,7 @@ fn init_lazy_pages(caller: Caller<'_, StoreData>, ctx: i64) -> i32 {
     let ctx: LazyPagesInitContext = memory.decode_by_val(&caller, ctx);
 
     gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), EthexeHostLazyPages)
-        .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+        .map_err(|err| log::error!("Cannot initialize lazy-pages: {err}"))
         .is_ok() as i32
 }
 

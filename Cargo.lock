@@ -210,7 +210,7 @@ dependencies = [
  "secp256k1 0.30.0",
  "serde",
  "serde_with",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -246,7 +246,7 @@ dependencies = [
  "alloy-transport",
  "futures",
  "futures-util",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -289,7 +289,7 @@ dependencies = [
  "alloy-rlp",
  "crc",
  "serde",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -313,7 +313,7 @@ dependencies = [
  "alloy-rlp",
  "k256",
  "serde",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -384,7 +384,7 @@ dependencies = [
  "alloy-sol-types",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -411,7 +411,7 @@ dependencies = [
  "futures-utils-wasm",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -443,7 +443,7 @@ dependencies = [
  "rand 0.8.5",
  "serde_json",
  "tempfile",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
  "url",
 ]
@@ -511,7 +511,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "url",
@@ -637,7 +637,7 @@ dependencies = [
  "alloy-rpc-types-engine",
  "serde",
  "serde_with",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -674,7 +674,7 @@ dependencies = [
  "itertools 0.14.0",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -700,7 +700,7 @@ dependencies = [
  "either",
  "elliptic-curve",
  "k256",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -716,7 +716,7 @@ dependencies = [
  "async-trait",
  "k256",
  "rand 0.8.5",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -807,7 +807,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tokio",
  "tower 0.5.1",
  "tracing",
@@ -2295,7 +2295,7 @@ dependencies = [
  "semver 1.0.18",
  "serde",
  "serde_json",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -3360,7 +3360,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
 ]
 
 [[package]]
@@ -3396,7 +3395,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
  "parity-scale-codec",
 ]
 
@@ -3444,7 +3442,6 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
- "gear-wasm-builder",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -3619,7 +3616,6 @@ dependencies = [
 name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
- "gcli",
  "gear-wasm-builder",
  "gstd",
 ]
@@ -3760,7 +3756,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
  "parity-scale-codec",
 ]
 
@@ -3789,7 +3784,6 @@ version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
- "gtest",
  "parity-scale-codec",
 ]
 
@@ -4627,13 +4621,13 @@ name = "ethexe-blob-loader"
 version = "1.8.1"
 dependencies = [
  "alloy",
- "anyhow",
  "ethexe-common",
  "futures",
  "gear-core",
  "gprimitives",
  "log",
  "reqwest",
+ "thiserror 2.0.12",
  "tokio",
 ]
 
@@ -4682,7 +4676,6 @@ dependencies = [
 name = "ethexe-compute"
 version = "1.8.1"
 dependencies = [
- "anyhow",
  "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
@@ -4693,6 +4686,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
+ "thiserror 2.0.12",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -4715,7 +4709,6 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
- "rand 0.8.5",
  "tokio",
 ]
 
@@ -4733,7 +4726,6 @@ dependencies = [
  "parity-scale-codec",
  "rocksdb",
  "scopeguard",
- "serde",
  "tempfile",
 ]
 
@@ -4774,7 +4766,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "tempfile",
  "tokio",
  "tracing-subscriber",
 ]
@@ -4804,7 +4795,6 @@ dependencies = [
 name = "ethexe-processor"
 version = "1.8.1"
 dependencies = [
- "anyhow",
  "demo-async",
  "demo-ping",
  "ethexe-common",
@@ -4823,6 +4813,7 @@ dependencies = [
  "rand 0.8.5",
  "sp-allocator",
  "sp-wasm-interface",
+ "thiserror 2.0.12",
  "tokio",
  "tracing-subscriber",
  "wasmtime",
@@ -4929,7 +4920,6 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
- "gear-utils",
  "gprimitives",
  "log",
  "ntest",
@@ -5659,7 +5649,7 @@ dependencies = [
  "scale-info",
  "serde",
  "serdect",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "visibility",
  "zeroize",
 ]
@@ -5956,7 +5946,6 @@ dependencies = [
  "colored",
  "demo-fungible-token",
  "demo-messenger",
- "demo-waiter",
  "dirs",
  "etc",
  "gclient",
@@ -5968,16 +5957,14 @@ dependencies = [
  "hex",
  "keyring",
  "log",
- "rand 0.8.5",
  "reqwest",
  "scale-info",
  "serde",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "tokio",
  "toml 0.8.14",
  "tracing-subscriber",
  "url",
- "which",
 ]
 
 [[package]]
@@ -5987,24 +5974,14 @@ dependencies = [
  "anyhow",
  "ark-bls12-381",
  "ark-ec",
- "ark-ff 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "async-trait",
- "demo-async-tester",
  "demo-bls381",
- "demo-calc-hash",
- "demo-calc-hash-in-one-block",
  "demo-constructor",
  "demo-custom",
- "demo-distributor",
- "demo-fungible-token",
  "demo-mul-by-const",
- "demo-node",
- "demo-program-factory",
- "demo-proxy",
- "demo-proxy-relay",
  "demo-reserve-gas",
  "demo-wat",
  "futures",
@@ -6019,7 +5996,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "subxt",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "tokio",
  "tracing-subscriber",
  "url",
@@ -6036,6 +6013,7 @@ dependencies = [
  "gprimitives",
  "gsys",
  "hex-literal",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -6044,17 +6022,13 @@ version = "1.8.1"
 dependencies = [
  "demo-constructor",
  "frame-support",
- "frame-system",
  "futures",
  "futures-timer",
  "gear-common",
  "gear-core",
  "gear-node-testing",
- "gear-runtime-common",
- "gear-runtime-interface",
  "gear-runtime-primitives",
  "log",
- "pallet-balances",
  "pallet-gear",
  "pallet-gear-builtin",
  "pallet-gear-debug",
@@ -6066,7 +6040,6 @@ dependencies = [
  "parking_lot 0.12.3",
  "sc-block-builder",
  "sc-client-api",
- "sc-executor",
  "sc-proposer-metrics",
  "sc-service",
  "sc-telemetry",
@@ -6107,7 +6080,7 @@ dependencies = [
  "hex",
  "log",
  "rand 0.8.5",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -6157,7 +6130,6 @@ dependencies = [
  "gear-utils",
  "gear-wasm-instrument",
  "gsys",
- "hex-literal",
  "log",
  "primitive-types",
  "proptest",
@@ -6228,10 +6200,10 @@ dependencies = [
 name = "gear-core-errors"
 version = "1.8.1"
 dependencies = [
- "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "scale-info",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -6249,7 +6221,6 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6347,7 +6318,7 @@ dependencies = [
  "primitive-types",
  "rand 0.8.5",
  "reqwest",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "tracing-appender",
@@ -6447,7 +6418,6 @@ dependencies = [
  "sp-io",
  "sp-runtime-interface",
  "sp-std",
- "winapi",
 ]
 
 [[package]]
@@ -6503,7 +6473,7 @@ dependencies = [
  "sp-allocator",
  "sp-wasm-interface-common",
  "tempfile",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "wasmer",
  "wasmer-types",
  "wasmi 0.38.0",
@@ -6586,7 +6556,6 @@ dependencies = [
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
  "sp-trie",
- "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "substrate-state-trie-migration-rpc",
  "vara-runtime",
@@ -6634,7 +6603,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-consensus-babe",
  "subxt",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "tokio",
  "tracing-subscriber",
 ]
@@ -6655,7 +6624,7 @@ dependencies = [
  "pathdiff",
  "regex",
  "rustc_version 0.4.0",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "toml 0.8.14",
 ]
 
@@ -6674,12 +6643,11 @@ dependencies = [
  "gear-wasm-instrument",
  "gsys",
  "indexmap 2.7.1",
- "indicatif",
  "log",
  "nonempty 0.8.1",
  "proptest",
  "rand 0.8.5",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "wasm-smith",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
@@ -6729,7 +6697,6 @@ dependencies = [
  "log",
  "loom",
  "tempfile",
- "tracing-subscriber",
  "uluru",
  "wasmer",
  "wasmer-cache",
@@ -6954,6 +6921,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -6998,6 +6966,7 @@ dependencies = [
  "demo-messenger",
  "demo-vec",
  "demo-waiter",
+ "derive_more 2.0.1",
  "futures",
  "futures-util",
  "gear-core",
@@ -7017,7 +6986,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "subxt",
- "thiserror 1.0.62",
+ "thiserror 2.0.12",
  "tokio",
 ]
 
@@ -7060,11 +7029,13 @@ dependencies = [
  "galloc",
  "gcore",
  "gear-core-errors",
+ "gprimitives",
  "gstd-codegen",
  "hashbrown 0.14.5",
  "hex",
  "parity-scale-codec",
  "scale-info",
+ "thiserror 2.0.12",
  "waker-fn",
 ]
 
@@ -7096,7 +7067,6 @@ dependencies = [
  "demo-futures-unordered",
  "demo-piggy-bank",
  "demo-ping",
- "derive_more 2.0.1",
  "etc",
  "gear-common",
  "gear-core",
@@ -7111,6 +7081,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "thiserror 2.0.12",
  "tracing-subscriber",
 ]
 
@@ -7384,7 +7355,7 @@ dependencies = [
  "once_cell",
  "rand 0.9.0",
  "socket2 0.5.7",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tinyvec",
  "tokio",
  "tracing",
@@ -7407,7 +7378,7 @@ dependencies = [
  "rand 0.9.0",
  "resolv-conf",
  "smallvec",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -8811,7 +8782,7 @@ dependencies = [
  "multiaddr 0.18.1",
  "pin-project",
  "rw-stream-sink",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -8908,7 +8879,7 @@ dependencies = [
  "quick-protobuf",
  "rand 0.8.5",
  "rw-stream-sink",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
  "unsigned-varint 0.8.0",
  "web-time",
@@ -9017,7 +8988,7 @@ dependencies = [
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
  "smallvec",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -9036,7 +9007,7 @@ dependencies = [
  "quick-protobuf",
  "rand 0.8.5",
  "sha2 0.10.8",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
  "zeroize",
 ]
@@ -9091,7 +9062,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.8",
  "smallvec",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
  "uint 0.10.0",
  "web-time",
@@ -9289,7 +9260,7 @@ dependencies = [
  "ring 0.17.14",
  "rustls 0.23.10",
  "socket2 0.5.7",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -9484,7 +9455,7 @@ dependencies = [
  "ring 0.17.14",
  "rustls 0.23.10",
  "rustls-webpki 0.101.4",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "x509-parser 0.16.0",
  "yasna",
 ]
@@ -9577,7 +9548,7 @@ dependencies = [
  "either",
  "futures",
  "libp2p-core 0.43.0",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tracing",
  "yamux 0.12.1",
  "yamux 0.13.3",
@@ -10532,7 +10503,7 @@ dependencies = [
  "log",
  "netlink-packet-core",
  "netlink-sys",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -10845,7 +10816,6 @@ dependencies = [
  "num-traits",
  "proptest",
  "scale-info",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -11248,7 +11218,6 @@ dependencies = [
  "gsys",
  "hex",
  "log",
- "page_size",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-bank",
@@ -11313,7 +11282,6 @@ dependencies = [
  "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
- "frame-executive",
  "frame-support",
  "frame-support-test",
  "frame-system",
@@ -11387,7 +11355,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-wasm-instrument",
- "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11405,7 +11372,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "test-syscalls",
  "tracing-subscriber",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -11417,7 +11383,6 @@ version = "1.8.1"
 dependencies = [
  "binary-merkle-tree",
  "frame-benchmarking",
- "frame-election-provider-support",
  "frame-support",
  "frame-support-test",
  "frame-system",
@@ -11432,25 +11397,34 @@ dependencies = [
  "pallet-gear",
  "pallet-gear-bank",
  "pallet-gear-builtin",
+ "pallet-gear-eth-bridge-primitives",
  "pallet-gear-gas",
  "pallet-gear-messenger",
  "pallet-gear-program",
  "pallet-gear-scheduler",
  "pallet-grandpa",
  "pallet-session",
- "pallet-staking",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "serde",
  "sp-consensus-grandpa",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-session",
- "sp-staking",
  "sp-std",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "pallet-gear-eth-bridge-primitives"
+version = "1.8.1"
+dependencies = [
+ "binary-merkle-tree",
+ "gprimitives",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
 ]
 
 [[package]]
@@ -11506,10 +11480,8 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
- "pallet-timestamp",
  "parity-scale-codec",
  "primitive-types",
- "rand 0.8.5",
  "scale-info",
  "sp-io",
  "sp-runtime",
@@ -11575,8 +11547,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
- "wat",
 ]
 
 [[package]]
@@ -11615,7 +11585,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-core-processor",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11658,7 +11627,6 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-authority-discovery",
  "sp-core",
  "sp-io",
  "sp-npos-elections",
@@ -11704,7 +11672,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -13158,7 +13125,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "rustls 0.23.10",
  "socket2 0.5.7",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "web-time",
@@ -13214,7 +13181,7 @@ dependencies = [
  "rustls 0.23.10",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "tinyvec",
  "tracing",
  "web-time",
@@ -13744,7 +13711,7 @@ dependencies = [
  "parity-scale-codec",
  "rand_core 0.6.4",
  "scale-info",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -13869,7 +13836,6 @@ dependencies = [
  "pallet-im-online",
  "parity-scale-codec",
  "proptest",
- "rand 0.8.5",
  "sha-1 0.10.1",
  "sp-authority-discovery",
  "sp-consensus-babe",
@@ -17733,11 +17699,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.9"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f072643fd0190df67a8bab670c20ef5d8737177d6ac6b2e9a236cb096206b2cc"
+checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
 dependencies = [
- "thiserror-impl 2.0.9",
+ "thiserror-impl 2.0.12",
 ]
 
 [[package]]
@@ -17753,9 +17719,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.9"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b50fa271071aae2e6ee85f842e2e28ba8cd2c5fb67f11fcb1fd70b276f9e7d4"
+checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -18404,7 +18370,7 @@ dependencies = [
  "rustls 0.23.10",
  "rustls-pki-types",
  "sha1",
- "thiserror 2.0.9",
+ "thiserror 2.0.12",
  "utf-8",
 ]
 

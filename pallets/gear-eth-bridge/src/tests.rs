@@ -1,5 +1,6 @@
 use crate::{
     builtin,
+    internal::EthMessageExt,
     mock::{mock_builtin_id as builtin_id, *},
     Config, EthMessage, WeightInfo,
 };
@@ -192,7 +193,9 @@ fn bridge_send_eth_message_works() {
         let mut builtin_balance = balance_of(&builtin_id);
         let fee = MockTransportFee::get();
 
-        let message = EthMessage::new(0.into(), SIGNER.cast(), destination, payload.clone());
+        let message = unsafe {
+            EthMessage::new_unchecked(0.into(), SIGNER.cast(), destination, payload.clone())
+        };
         let hash = message.hash();
         let mut queue = vec![hash];
 
@@ -216,7 +219,9 @@ fn bridge_send_eth_message_works() {
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
 
-        let message = EthMessage::new(1.into(), SIGNER.cast(), destination, payload.clone());
+        let message = unsafe {
+            EthMessage::new_unchecked(1.into(), SIGNER.cast(), destination, payload.clone())
+        };
         let nonce = message.nonce();
         let hash = message.hash();
 
