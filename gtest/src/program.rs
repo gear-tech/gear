@@ -20,7 +20,7 @@ use crate::{
     default_users_list,
     error::usage_panic,
     manager::ExtManager,
-    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
+    state::actors::{Actors, Program as InnerProgram, TestActor},
     system::System,
     Result, Value, MAX_USER_GAS_LIMIT,
 };
@@ -219,13 +219,13 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Genuine(GenuineProgram {
+            InnerProgram {
                 code,
                 code_id,
                 allocations: Default::default(),
                 pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
-            }),
+            },
         )
     }
 
@@ -344,30 +344,6 @@ impl<'a> Program<'a> {
             .build(system)
     }
 
-    /// Mock a program with provided `system` and `mock`.
-    ///
-    /// See [`WasmProgram`] for more details.
-    pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-
-        Self::mock_with_id(system, nonce, mock)
-    }
-
-    /// Create a mock program with provided `system` and `mock`,
-    /// and initialize it with provided `id`.
-    ///
-    /// See also [`Program::mock`].
-    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
-    where
-        T: WasmProgram + 'static,
-        ID: Into<ProgramIdWrapper> + Clone + Debug,
-    {
-        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
-    }
-}
-
-/// Program messaging related impl.
-impl Program<'_> {
     /// Send message to the program.
     pub fn send<ID, C>(&self, from: ID, payload: C) -> MessageId
     where
@@ -1122,7 +1098,7 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_genuine_program(prog.id(), |genuine_prog| {
+            .update_program(prog.id(), |genuine_prog| {
                 assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
                 genuine_prog
                     .gas_reservation_map
@@ -1171,7 +1147,7 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_genuine_program(prog.id(), |genuine_prog| {
+            .update_program(prog.id(), |genuine_prog| {
                 assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
                 genuine_prog
                     .gas_reservation_map

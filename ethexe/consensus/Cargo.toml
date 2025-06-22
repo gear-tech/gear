@@ -24,5 +24,4 @@ futures.workspace = true
 derive_more.workspace = true
 
 [dev-dependencies]
-rand.workspace = true
 tokio.workspace = true

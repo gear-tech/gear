@@ -1120,7 +1120,10 @@ async fn fast_sync() {
                 bob.db.block_codes_queue(block)
             );
 
-            assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
+            assert_eq!(
+                alice.db.block_meta(block).computed,
+                bob.db.block_meta(block).computed
+            );
             assert_eq!(
                 alice.db.previous_not_empty_block(block),
                 bob.db.previous_not_empty_block(block)
@@ -1135,8 +1138,8 @@ async fn fast_sync() {
             assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
             assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
             assert_eq!(
-                alice.db.block_is_synced(block),
-                bob.db.block_is_synced(block)
+                alice.db.block_meta(block).synced,
+                bob.db.block_meta(block).synced,
             );
 
             let header = alice.db.block_header(block).unwrap();

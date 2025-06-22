@@ -69,7 +69,7 @@ impl LazyPagesStorage for PagesStorage {
 
         Actors::access(program_id, |actor| {
             actor
-                .and_then(|actor| actor.get_pages_data())
+                .and_then(|actor| actor.pages())
                 .map(|pages_data| pages_data.contains_key(&page))
                 .unwrap_or(false)
         })
@@ -82,7 +82,7 @@ impl LazyPagesStorage for PagesStorage {
 
         Actors::access(program_id, |actor| {
             actor
-                .and_then(|actor| actor.get_pages_data())
+                .and_then(|actor| actor.pages())
                 .and_then(|pages_data| pages_data.get(&page))
                 .map(|page_buf| {
                     buffer.copy_from_slice(page_buf);

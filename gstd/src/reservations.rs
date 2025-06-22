@@ -98,7 +98,7 @@ impl Reservation {
 ///
 /// Create gas reservations inside `init` and use them inside `handle`.
 ///
-/// ```
+/// ```rust,ignore
 /// use gstd::{msg, prelude::*, Reservations};
 ///
 /// static mut RESERVATIONS: Reservations = Reservations::new();
