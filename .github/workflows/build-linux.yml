@@ -169,6 +169,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           no-vendored: 'false'
 
+      - name: "Test: Fetch dependencies"
+        # required for `gstd-codegen tests::ui`
+        run: cargo fetch --locked
+
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
