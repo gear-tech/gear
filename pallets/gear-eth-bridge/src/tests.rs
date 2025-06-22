@@ -455,8 +455,7 @@ fn bridge_queues_governance_messages_when_over_capacity() {
         assert_eq!(msg_queue_len, queue_capacity as usize);
 
         GearEthBridge::send_eth_message(
-            //RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
-            RuntimeOrigin::signed(<Test as crate::Config>::BridgePauser::get()),
+            RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
             H160::zero(),
             vec![],
         )
