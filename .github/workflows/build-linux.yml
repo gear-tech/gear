@@ -115,8 +115,31 @@ jobs:
       - name: "Test: Pack everything"
         run: >-
           cargo nextest archive
-          --archive-file=workspace.tar.zst --zstd-level=6
+          --archive-file=workspace.tar.zst --zstd-level=-7
           --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+
+      - name: "ACTIONS: Download node and runtime"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-unknown-linux-gnu
+          path: node-release
+
+      - name: "Test: Append files to nextest archive"
+        run: |
+          echo ">> Decompress archive"
+          mkdir nextest-archive
+          tar -xvf workspace.tar.zst -C nextest-archive
+          rm workspace.tar.zst
+          
+          echo ">> Append .binpath files"
+          rsync -avm --include='*/' --include='.binpath' --exclude='*' . nextest-archive
+          
+          echo ">> Append node and runtime"
+          mkdir -p nextest-archive/target/release
+          mv node-release/* nextest-archive/target/release/
+          
+          echo ">> Compress archive"
+          tar -C nextest-archive --use-compress-program="zstd -6" -cvf workspace2.tar.zst .
 
       - name: "ACTIONS: Upload nextest archive"
         uses: actions/upload-artifact@v4
@@ -124,16 +147,6 @@ jobs:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
           path: workspace.tar.zst
           compression-level: 0
-
-      - name: "Test: Copy `.binpath` files"
-        run: rsync -avm --include='*/' --include='.binpath' --exclude='*' . binpath
-
-      - name: "ACTIONS: Upload `.binpath` files"
-        uses: actions/upload-artifact@v4
-        with:
-          name: binpath-files-${{ matrix.profiles.name }}
-          path: binpath
-          include-hidden-files: true
 
   test-workspace:
     runs-on: ubuntu-latest
@@ -172,17 +185,6 @@ jobs:
       - name: "Test: Fetch dependencies"
         # required for `gstd-codegen tests::ui`
         run: cargo fetch --locked
-
-      - name: "ACTIONS: Download node and runtime"
-        uses: actions/download-artifact@v4
-        with:
-          name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: target/release
-
-      - name: "ACTIONS: Download `.binpath` files"
-        uses: actions/download-artifact@v4
-        with:
-          name: binpath-files-${{ matrix.profiles.name }}
 
       - name: "ACTIONS: Download nextest archive"
         uses: actions/download-artifact@v4
