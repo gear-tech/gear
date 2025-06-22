@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
@@ -11,8 +12,6 @@ library Clones {
     function cloneDeterministic(address router, bytes32 salt, uint256 value) internal returns (address instance) {
         uint256 size = 0x02c4;
         uint256 memPtr = Memory.allocate(size);
-
-        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
         Memory.writeWord(memPtr, 0x0000, 0x6080806040526102b290816100128239f3fe608060405260043610610268575f);
         Memory.writeWord(memPtr, 0x0020, 0x3560e01c806329336f391461009b5780632a68e35d1461009657806336a52a18);
         Memory.writeWord(memPtr, 0x0040, 0x14610091578063701da98e1461008c578063704ed5421461008757806391d5a6);
@@ -33,11 +32,7 @@ library Clones {
         Memory.writeWord(memPtr, 0x0220, 0x5b346100dc575f3660031901126100dc576001546040516001600160a01b0390);
         Memory.writeWord(memPtr, 0x0240, 0x91168152602090f35b346100dc575f3660031901126100dc5760206003546040);
         Memory.writeWord(memPtr, 0x0260, 0x51908152f35b346100dc575f36600319011215610268575f80fd5b63e6fabc09);
-        Memory.writeWord(
-            memPtr,
-            0x0280,
-            (0x60e01b5f5260205f600481730000000000000000000000000000000000000000) | (uint256(uint160(router)))
-        );
+        Memory.writeWord(memPtr, 0x0280, (0x60e01b5f5260205f600481730000000000000000000000000000000000000000) | (uint256(uint160(router))));
         Memory.writeWord(memPtr, 0x02a0, 0x5afa156100dc575f808051368280378136915af43d5f803e156102ae573d5ff3);
         Memory.writeWord(memPtr, 0x02c0, 0x5b3d5ffd00000000000000000000000000000000000000000000000000000000);
 
