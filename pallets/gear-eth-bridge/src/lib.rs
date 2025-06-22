@@ -28,9 +28,11 @@
 #![allow(clippy::useless_conversion)]
 
 pub use builtin::Actor;
-pub use internal::{EthMessage, Proof};
 pub use pallet::*;
+pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
 pub use weights::WeightInfo;
+
+use internal::EthMessageExt;
 
 pub mod weights;
 
