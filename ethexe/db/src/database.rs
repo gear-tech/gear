@@ -31,7 +31,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -269,9 +269,7 @@ impl Database {
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
-    block_synced: bool,
-    block_pre_computed: bool,
-    block_computed: bool,
+    meta: BlockMeta,
     prev_not_empty_block: Option<H256>,
     last_committed_batch: Option<Digest>,
     commitment_queue: Option<VecDeque<H256>>,
@@ -279,14 +277,9 @@ struct BlockSmallData {
 }
 
 impl BlockMetaStorageRead for Database {
-    fn block_prepared(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_pre_computed)
-            .unwrap_or(false)
-    }
-
-    fn block_computed(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_computed)
-            .unwrap_or(false)
+    fn block_meta(&self, block_hash: H256) -> BlockMeta {
+        self.with_small_data(block_hash, |data| data.meta)
+            .unwrap_or_default()
     }
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
@@ -352,14 +345,14 @@ impl BlockMetaStorageRead for Database {
 }
 
 impl BlockMetaStorageWrite for Database {
-    fn set_block_prepared(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set pre-computed");
-        self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
-    }
-
-    fn set_block_computed(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set block computed");
-        self.mutate_small_data(block_hash, |data| data.block_computed = true);
+    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
+    where
+        F: FnOnce(&mut BlockMeta),
+    {
+        log::trace!("For block {block_hash} mutate meta");
+        self.mutate_small_data(block_hash, |data| {
+            f(&mut data.meta);
+        });
     }
 
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
@@ -630,11 +623,6 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn block_is_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_synced)
-            .unwrap_or(false)
-    }
-
     fn latest_synced_block_height(&self) -> Option<u32> {
         self.kv
             .get(&Key::LatestSyncedBlockHeight.to_bytes())
@@ -657,10 +645,6 @@ impl OnChainStorageWrite for Database {
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
         self.kv
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
-    }
-
-    fn set_block_is_synced(&self, block_hash: H256) {
-        self.mutate_small_data(block_hash, |data| data.block_synced = true);
     }
 
     fn set_latest_synced_block_height(&self, height: u32) {
@@ -978,8 +962,8 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        db.set_block_is_synced(block_hash);
-        assert!(db.block_is_synced(block_hash));
+        db.mutate_block_meta(block_hash, |meta| meta.synced = true);
+        assert!(db.block_meta(block_hash).synced);
     }
 
     #[test]

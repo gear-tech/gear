@@ -28,52 +28,60 @@ pub use scale_info::scale::Error as CodecError;
 use crate::ActorId;
 use alloc::vec::Vec;
 use core::{fmt, str};
+use gprimitives::utils::ByteSliceFormatter;
 use parity_scale_codec::Decode;
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// Common error type returned by API functions from other modules.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /* Protocol under-hood errors */
     /// Error type from `gcore`.
     ///
     /// NOTE: this error could only be returned from syscalls.
-    Core(CoreError),
+    #[error(transparent)]
+    Core(#[from] CoreError),
 
     /* API lib under-hood errors */
     /// Conversion error.
     ///
     /// NOTE: this error returns from incorrect bytes conversion.
-    Convert(ConversionError),
+    #[error("Conversion error: {0}")]
+    Convert(#[from] ConversionError),
 
     /// `scale-codec` decoding error.
     ///
     /// NOTE: this error returns from APIs that return specific `Decode` types.
+    #[error("Scale codec decoding error: {0}")]
     Decode(CodecError),
 
     /// Gstd API usage error.
     ///
     /// Note: this error returns from `gstd` APIs in case of invalid arguments.
-    Gstd(UsageError),
+    #[error("Gstd API error: {0}")]
+    Gstd(#[from] UsageError),
 
     /* Business logic errors */
     /// Received error reply while awaited response from another actor.
     ///
     /// NOTE: this error could only be returned from async messaging.
     // TODO: consider to load payload lazily (#4595)
+    #[error("Received error reply '{0}' due to {1}")]
     ErrorReply(ErrorReplyPayload, ErrorReplyReason),
 
     /// Received reply that couldn't be identified as successful or not
     /// due to unsupported reply code.
     ///
     /// NOTE: this error could only be returned from async messaging.
+    #[error("Received unsupported reply '{hex}'", hex = ByteSliceFormatter::Dynamic(.0))]
     UnsupportedReply(Vec<u8>),
 
     /// Timeout reached while expecting for reply.
     ///
     /// NOTE: this error could only be returned from async messaging.
+    #[error("Timeout has occurred: expected at {0}, now {1}")]
     Timeout(u32, u32),
 }
 
@@ -122,36 +130,6 @@ impl Error {
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Core(e) => fmt::Display::fmt(e, f),
-            Error::Convert(e) => write!(f, "Conversion error: {e:?}"),
-            Error::Decode(e) => write!(f, "Scale codec decoding error: {e}"),
-            Error::Gstd(e) => write!(f, "`Gstd` API error: {e:?}"),
-            Error::ErrorReply(err, reason) => write!(f, "Received reply '{err}' due to {reason:?}"),
-            Error::UnsupportedReply(payload) => {
-                write!(f, "Received unsupported reply '0x{}'", hex::encode(payload))
-            }
-            Error::Timeout(expected, now) => {
-                write!(f, "Timeout has occurred: expected at {expected}, now {now}")
-            }
-        }
-    }
-}
-
-impl From<CoreError> for Error {
-    fn from(err: CoreError) -> Self {
-        Self::Core(err)
-    }
-}
-
-impl From<ConversionError> for Error {
-    fn from(err: ConversionError) -> Self {
-        Self::Convert(err)
-    }
-}
-
 /// New-type representing error reply payload. Expected to be utf-8 string.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ErrorReplyPayload(pub Vec<u8>);
@@ -183,7 +161,7 @@ impl fmt::Debug for ErrorReplyPayload {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.try_as_str()
             .map(|v| write!(f, "{v}"))
-            .unwrap_or_else(|| write!(f, "0x{}", hex::encode(&self.0)))
+            .unwrap_or_else(|| write!(f, "{}", ByteSliceFormatter::Dynamic(&self.0)))
     }
 }
 
@@ -194,35 +172,39 @@ impl fmt::Display for ErrorReplyPayload {
 }
 
 /// Error type returned by gstd API while using invalid arguments.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum UsageError {
     /// This error occurs when providing zero duration to waiting functions
     /// (e.g. see `exactly` and `up_to` functions in
     /// [`CodecMessageFuture`](crate::msg::CodecMessageFuture)).
+    #[error("Wait duration can not be zero")]
     EmptyWaitDuration,
     /// This error occurs when providing zero gas amount to system gas reserving
     /// function (see
     /// [`Config::set_system_reserve`](crate::Config::set_system_reserve)).
+    #[error("System reservation amount can not be zero in config")]
     ZeroSystemReservationAmount,
     /// This error occurs when providing zero duration to mutex lock function
+    #[error("Mutex lock duration can not be zero")]
     ZeroMxLockDuration,
     /// This error occurs when handle_reply is called without (or with zero)
     /// reply deposit
     /// (see [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)).
+    #[error("Reply deposit can not be zero when setting reply hook")]
     ZeroReplyDeposit,
 }
 
-impl fmt::Display for UsageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UsageError::EmptyWaitDuration => write!(f, "Wait duration can not be zero"),
-            UsageError::ZeroSystemReservationAmount => {
-                write!(f, "System reservation amount can not be zero in config")
-            }
-            UsageError::ZeroMxLockDuration => write!(f, "Mutex lock duration can not be zero"),
-            UsageError::ZeroReplyDeposit => {
-                write!(f, "Reply deposit can not be zero when setting reply hook")
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{format, vec};
+
+    #[test]
+    fn error_unsupported_reply_display() {
+        let payload = Error::UnsupportedReply(vec![1, 2, 3]);
+        assert_eq!(
+            format!("{payload}"),
+            "Received unsupported reply '0x010203'"
+        );
     }
 }

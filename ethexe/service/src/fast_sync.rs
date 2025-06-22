@@ -68,7 +68,7 @@ impl EventData {
         let mut latest_committed_batch = None;
 
         let mut block = highest_block;
-        while !db.block_computed(block) {
+        while !db.block_meta(block).computed {
             let events = db
                 .block_events(block)
                 .ok_or_else(|| anyhow!("no events found for block {block}"))?;
@@ -655,7 +655,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         previous_committed_block.unwrap_or_else(H256::zero),
     );
     db.set_last_committed_batch(latest_committed_block, latest_committed_batch);
-    db.set_block_computed(latest_committed_block);
+    db.mutate_block_meta(latest_committed_block, |meta| meta.computed = true);
     db.set_latest_computed_block(latest_committed_block, latest_block_header);
 
     log::info!("Fast synchronization done");
