@@ -138,7 +138,7 @@ impl Stream for ComputeService {
                     return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load))));
                 }
                 Some(BlockAction::Process(block)) => {
-                    if !self.db.block_prepared(block) {
+                    if !self.db.block_meta(block).prepared {
                         return Poll::Ready(Some(Err(ComputeError::BlockNotPrepared(block))));
                     }
 
@@ -157,23 +157,23 @@ impl Stream for ComputeService {
             chain,
             waiting_codes,
         } = &self.state
+            && waiting_codes.is_empty()
         {
-            if waiting_codes.is_empty() {
-                for block_data in chain {
-                    self.db.set_block_prepared(block_data.hash);
-                }
-
-                let event = ComputeEvent::BlockPrepared(*block);
-                self.state = BlockPreparationState::WaitForBlock;
-                return Poll::Ready(Some(Ok(event)));
+            for block_data in chain {
+                self.db
+                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
             }
+
+            let event = ComputeEvent::BlockPrepared(*block);
+            self.state = BlockPreparationState::WaitForBlock;
+            return Poll::Ready(Some(Ok(event)));
         }
 
-        if let Some(fut) = self.process_block.as_mut() {
-            if let Poll::Ready(res) = fut.poll_unpin(cx) {
-                self.process_block = None;
-                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
-            }
+        if let Some(fut) = self.process_block.as_mut()
+            && let Poll::Ready(res) = fut.poll_unpin(cx)
+        {
+            self.process_block = None;
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         Poll::Pending
@@ -315,7 +315,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
             .ok_or(ComputeError::BlockEventsNotFound(block))?;
 
         let parent = header.parent_hash;
-        if !self.db.block_computed(parent) {
+        if !self.db.block_meta(parent).computed {
             unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
         let mut commitments_queue =
@@ -345,7 +345,8 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         self.db.set_block_outcome(block, transitions);
         self.db.set_block_program_states(block, states);
         self.db.set_block_schedule(block, schedule);
-        self.db.set_block_computed(block);
+        self.db
+            .mutate_block_meta(block, |meta| meta.computed = true);
         self.db.set_latest_computed_block(block, header);
 
         Ok(())
@@ -410,8 +411,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
     fn collect_not_computed_blocks_chain(db: &DB, head: H256) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
-        while !db.block_computed(block) {
-            if !db.block_is_synced(block) {
+
+        // Optimization to avoid double fetching of block meta.
+        let mut block_meta = db.block_meta(block);
+        while !block_meta.computed {
+            if !block_meta.synced {
                 return Err(ComputeError::BlockNotSynced(block));
             }
 
@@ -427,6 +431,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
             });
 
             block = parent;
+            block_meta = db.block_meta(block);
         }
 
         Ok(chain)
@@ -491,7 +496,7 @@ mod tests {
     fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
         let genesis_hash = H256::random();
         db.set_block_codes_queue(genesis_hash, Default::default());
-        db.set_block_computed(genesis_hash);
+        db.mutate_block_meta(genesis_hash, |meta| meta.computed = true);
         db.set_block_outcome(genesis_hash, vec![]);
         db.set_previous_not_empty_block(genesis_hash, H256::random());
         db.set_block_commitment_queue(genesis_hash, Default::default());
@@ -509,7 +514,7 @@ mod tests {
                 parent_hash,
             };
             db.set_block_header(block_hash, block_header);
-            db.set_block_is_synced(block_hash);
+            db.mutate_block_meta(block_hash, |meta| meta.synced = true);
             chain.push_back(block_hash);
             parent_hash = block_hash;
         }

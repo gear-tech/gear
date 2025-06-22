@@ -192,7 +192,7 @@ impl Participant {
         } = request;
 
         ensure!(
-            db.block_computed(block_hash),
+            db.block_meta(block_hash).computed,
             "Requested block {block_hash} is not processed by this node"
         );
 

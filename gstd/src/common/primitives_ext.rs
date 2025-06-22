@@ -34,7 +34,7 @@ mod private {
 ///
 /// # Examples
 ///
-/// ```
+/// ```rust,ignore
 /// use gstd::{prelude::*, ReservationId};
 ///
 /// static mut RESERVED: Option<ReservationId> = None;

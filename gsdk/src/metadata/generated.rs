@@ -3361,16 +3361,6 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_eth_bridge {
             use super::runtime_types;
-            pub mod internal {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct EthMessage {
-                    pub nonce: runtime_types::primitive_types::U256,
-                    pub source: ::subxt::ext::subxt_core::utils::H256,
-                    pub destination: ::subxt::ext::subxt_core::utils::H160,
-                    pub payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
-                }
-            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3441,13 +3431,23 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "A new message was queued for bridging."]
                     MessageQueued {
-                        message: runtime_types::pallet_gear_eth_bridge::internal::EthMessage,
+                        message: runtime_types::pallet_gear_eth_bridge_primitives::EthMessage,
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
                     QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
                 }
+            }
+        }
+        pub mod pallet_gear_eth_bridge_primitives {
+            use super::runtime_types;
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct EthMessage {
+                pub nonce: runtime_types::primitive_types::U256,
+                pub source: ::subxt::ext::subxt_core::utils::H256,
+                pub destination: ::subxt::ext::subxt_core::utils::H160,
+                pub payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
             }
         }
         pub mod pallet_gear_gas {

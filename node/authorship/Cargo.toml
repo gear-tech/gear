@@ -41,11 +41,8 @@ sp-inherents = { workspace = true, features = ["std"] }
 prometheus-endpoint.workspace = true
 
 [dev-dependencies]
-gear-runtime-interface = { workspace = true, features = ["std"] }
-sc-executor.workspace = true
 sc-transaction-pool.workspace = true
 frame-support = { workspace = true, features = ["std"] }
-frame-system = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true, features = ["std"] }
 sp-consensus-babe = { workspace = true, features = ["std"] }
 sp-state-machine = { workspace = true, features = ["std"] }
@@ -57,7 +54,6 @@ pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-program = { workspace = true, features = ["std"] }
 testing.workspace = true
 runtime-primitives = { workspace = true, features = ["std"] }
-gear-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
 vara-runtime = { workspace = true, features = ["std", "dev"] }
 demo-constructor = { workspace = true, features = ["std"] }
