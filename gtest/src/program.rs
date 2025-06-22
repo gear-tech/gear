@@ -1094,7 +1094,7 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_genuine_program(prog.id(), |genuine_prog| {
+            .update_program(prog.id(), |genuine_prog| {
                 assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
                 genuine_prog
                     .gas_reservation_map
@@ -1143,7 +1143,7 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_genuine_program(prog.id(), |genuine_prog| {
+            .update_program(prog.id(), |genuine_prog| {
                 assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
                 genuine_prog
                     .gas_reservation_map

@@ -378,7 +378,7 @@ impl ExtManager {
                 return Exec::Notes(core_processor::process_uninitialized(context));
             }
 
-            if let Some(data) = actor.get_executable_actor_data() {
+            if let Some(data) = actor.executable_actor_data() {
                 Exec::ExecutableActor(data, context)
             } else {
                 unreachable!("invalid program state");

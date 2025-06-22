@@ -28,7 +28,7 @@ impl ExtManager {
     ) -> Result<Vec<u8>> {
         let executable_actor_data = Actors::modify(*program_id, |actor| {
             if let Some(actor) = actor {
-                Ok(actor.get_executable_actor_data())
+                Ok(actor.executable_actor_data())
             } else {
                 Err(TestError::ActorNotFound(*program_id))
             }

@@ -260,7 +260,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
-        self.update_genuine_program(program_id, |program| {
+        self.update_program(program_id, |program| {
             program
                 .allocations
                 .difference(&allocations)
@@ -425,7 +425,7 @@ impl JournalHandler for ExtManager {
 
     fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         let block_height = self.block_height();
-        self.update_genuine_program(program_id, |program| {
+        self.update_program(program_id, |program| {
             program.gas_reservation_map =
                 reserver.into_map(block_height, |duration| block_height + duration);
         })

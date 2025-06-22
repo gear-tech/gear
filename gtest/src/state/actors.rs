@@ -145,7 +145,7 @@ impl TestActor {
     }
 
     // Returns `Some` if actor contains genuine program.
-    pub(crate) fn genuine_program(&self) -> Option<&Program> {
+    pub(crate) fn program(&self) -> Option<&Program> {
         match self {
             TestActor::Initialized(program) | TestActor::Uninitialized(_, Some(program)) => {
                 Some(program)
@@ -155,7 +155,7 @@ impl TestActor {
     }
 
     // Returns `Some` if actor contains genuine program but mutable.
-    pub(crate) fn genuine_program_mut(&mut self) -> Option<&mut Program> {
+    pub(crate) fn program_mut(&mut self) -> Option<&mut Program> {
         match self {
             TestActor::Initialized(program) | TestActor::Uninitialized(_, Some(program)) => {
                 Some(program)
@@ -165,21 +165,18 @@ impl TestActor {
     }
 
     // Returns pages data of genuine program.
-    pub(crate) fn get_pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
-        self.genuine_program().map(|program| &program.pages_data)
+    pub(crate) fn pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
+        self.program().map(|program| &program.pages_data)
     }
 
     // Returns pages data of genuine program but mutable.
-    pub(crate) fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
-        self.genuine_program_mut()
-            .map(|program| &mut program.pages_data)
+    pub(crate) fn pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+        self.program_mut().map(|program| &mut program.pages_data)
     }
 
     // Gets a new executable actor derived from the inner program.
-    pub(crate) fn get_executable_actor_data(
-        &self,
-    ) -> Option<(ExecutableActorData, InstrumentedCode)> {
-        self.genuine_program().map(Program::executable_actor_data)
+    pub(crate) fn executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
+        self.program().map(Program::executable_actor_data)
     }
 }
 

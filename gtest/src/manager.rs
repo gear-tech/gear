@@ -192,7 +192,7 @@ impl ExtManager {
         Actors::modify(*program_id, |actor| {
             let pages_data = actor
                 .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .get_pages_data_mut()
+                .pages_data_mut()
                 .expect("No pages data found for program");
 
             for (page, buf) in memory_pages {
@@ -246,13 +246,13 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn update_genuine_program<R, F: FnOnce(&mut Program) -> R>(
+    pub(crate) fn update_program<R, F: FnOnce(&mut Program) -> R>(
         &mut self,
         id: ActorId,
         op: F,
     ) -> Option<R> {
         Actors::modify(id, |actor| {
-            actor.and_then(|actor| actor.genuine_program_mut().map(op))
+            actor.and_then(|actor| actor.program_mut().map(op))
         })
     }
 
