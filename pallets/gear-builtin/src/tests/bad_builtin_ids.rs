@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
-    BuiltinHandleResult,
+    self as pallet_gear_builtin, ActorHandleResult, ActorWithId, BuiltinActor, BuiltinActorError,
+    BuiltinContext,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -101,13 +101,13 @@ impl BuiltinActor for SomeBuiltinActor {
     fn handle(
         _dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<BuiltinHandleResult, BuiltinActorError> {
+    ) -> Result<ActorHandleResult, BuiltinActorError> {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_u64)?;
 
-        Ok(BuiltinHandleResult {
+        Ok(ActorHandleResult {
             payload,
-            used_value: 0,
+            return_value: 0,
         })
     }
 

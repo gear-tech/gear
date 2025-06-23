@@ -62,18 +62,17 @@ use core_processor::{
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
-    buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ActorId,
-    message::{
-        ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch, Value,
-    },
+    message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     str::LimitedStr,
     utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
 pub use pallet::*;
-use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
+use pallet_gear::{
+    BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, HandleFnResult, WeightFn,
+};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
@@ -82,7 +81,8 @@ pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasA
 
 const LOG_TARGET: &str = "gear::builtin";
 
-pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinHandleResult, BuiltinActorError>;
+pub type ActorHandleResult = HandleFnResult;
+pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 
 /// Built-in actor error type
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
@@ -119,13 +119,6 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             }
         }
     }
-}
-
-/// The result of a builtin actor handle call.
-#[derive(Debug)]
-pub struct BuiltinHandleResult {
-    pub payload: Payload,
-    pub used_value: Value,
 }
 
 /// A builtin actor execution context. Primarily used to track gas usage.
@@ -174,7 +167,7 @@ pub trait BuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<BuiltinHandleResult, BuiltinActorError>;
+    ) -> Result<ActorHandleResult, BuiltinActorError>;
 
     /// Returns the maximum gas that can be spent by the actor.
     fn max_gas() -> u64;
@@ -333,7 +326,6 @@ pub mod pallet {
 
 impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
     type Context = BuiltinContext;
-    type Result = BuiltinHandleResult;
     type Error = BuiltinActorError;
     type Output = BuiltinRegistry<T>;
 
@@ -368,27 +360,20 @@ impl<T: Config> BuiltinRegistry<T> {
 
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type Context = BuiltinContext;
-    type Result = BuiltinHandleResult;
     type Error = BuiltinActorError;
 
-    fn lookup<'a>(
-        &'a self,
-        id: &ActorId,
-    ) -> Option<BuiltinInfo<'a, Self::Context, Self::Result, Self::Error>> {
-        self.registry.get(id).map(|(f, g)| BuiltinInfo::<
-            'a,
-            Self::Context,
-            Self::Result,
-            Self::Error,
-        > {
-            handle: &**f,
-            max_gas: &**g,
-        })
+    fn lookup<'a>(&'a self, id: &ActorId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
+        self.registry
+            .get(id)
+            .map(|(f, g)| BuiltinInfo::<'a, Self::Context, Self::Error> {
+                handle: &**f,
+                max_gas: &**g,
+            })
     }
 
     fn run(
         &self,
-        context: BuiltinInfo<Self::Context, Self::Result, Self::Error>,
+        context: BuiltinInfo<Self::Context, Self::Error>,
         dispatch: StoredDispatch,
         gas_limit: u64,
     ) -> Vec<JournalNote> {
@@ -441,24 +426,15 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 let mut dispatch_result =
                     DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
 
-                debug_assert!(dispatch.value() >= handle_result.used_value,
-                    "BuiltinRegistry::run: Dispatch value should be greater than or equal to used value"
+                debug_assert!(dispatch.value() >= handle_result.return_value,
+                              "BuiltinRegistry::run: Dispatch value should be greater than or equal to return value"
                 );
-
-                let unused_value = dispatch
-                    .value()
-                    .checked_sub(handle_result.used_value)
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "BuiltinRegistry::run: Used value exceeds the value of the dispatch"
-                        );
-                    });
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
                     MessageContext::new(dispatch, actor_id, Default::default());
-                let packet = ReplyPacket::new(handle_result.payload, unused_value);
+                let packet = ReplyPacket::new(handle_result.payload, handle_result.return_value);
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {

@@ -107,7 +107,7 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<BuiltinHandleResult, BuiltinActorError> {
+    ) -> Result<ActorHandleResult, BuiltinActorError> {
         let message = dispatch.message();
         let origin = dispatch.source();
         let mut payload = message.payload_bytes();
@@ -132,10 +132,10 @@ where
         // Handle staking requests
         let call = Self::cast(request);
 
-        Ok(BuiltinHandleResult {
+        Ok(ActorHandleResult {
             payload: Pallet::<T>::dispatch_call(origin, call, context)
                 .map(|_| Default::default())?,
-            used_value: 0,
+            return_value: 0,
         })
     }
 

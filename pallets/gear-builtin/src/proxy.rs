@@ -78,7 +78,7 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<BuiltinHandleResult, BuiltinActorError> {
+    ) -> Result<ActorHandleResult, BuiltinActorError> {
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
 
@@ -86,10 +86,10 @@ where
 
         let call = Self::cast(request)?;
 
-        Ok(BuiltinHandleResult {
+        Ok(ActorHandleResult {
             payload: Pallet::<T>::dispatch_call(origin, call, context)
                 .map(|_| Default::default())?,
-            used_value: 0,
+            return_value: 0,
         })
     }
 
