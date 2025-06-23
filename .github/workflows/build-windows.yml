@@ -114,6 +114,7 @@ jobs:
           -E 'platform(target) and (rdeps(pallet-*) or package(gear-lazy-pages) or package(gear-runtime-interface))'
           --workspace-remap=${{ github.workspace }}
           --extract-to=${{ github.workspace }}
+          --extract-overwrite
 
       - name: "Test: gsdk tests"
         run: >-
