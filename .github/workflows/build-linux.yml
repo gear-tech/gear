@@ -170,7 +170,6 @@ jobs:
 
   try-runtime:
     runs-on: ubuntu-latest
-    needs: workspace
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
