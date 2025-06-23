@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates,
-    Schedule,
+    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, Digest,
+    ProgramStates, Schedule,
 };
 use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
