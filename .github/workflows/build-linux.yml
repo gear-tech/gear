@@ -201,7 +201,19 @@ jobs:
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
-      - name: "Test: Create Vara Mainnet database snapshot"
+      - name: "ACTIONS: Create cache key for snapshot"
+        id: cache-key
+        run: echo "value=$(date +%d-%m-%Y)" >> $GITHUB_OUTPUT
+
+      - name: "ACTIONS: Cache Vara Mainnet snapshot"
+        id: cache
+        uses: actions/cache@v4
+        with:
+          key: 'vara-mainnet-snapshot-${{ steps.cache-key.outputs.value }}'
+          path: vara_ci.snap
+
+      - name: "Test: Create Vara Mainnet snapshot"
+        if: steps.cache.outputs.cache-hit != 'true'
         run: ./try-runtime create-snapshot --uri wss://rpc-private.vara-network.io vara_ci.snap
 
       - name: "Test: on-runtime-upgrade"
