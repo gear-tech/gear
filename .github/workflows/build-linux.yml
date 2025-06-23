@@ -76,13 +76,13 @@ jobs:
           publish_dir: ./target/x86_64-unknown-linux-gnu/doc
           destination_dir: pr-${{ github.event.number }}
 
-  workspace:
+  build-workspace:
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
-    name: workspace (${{ matrix.profiles.name }})
+    name: build-workspace (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -112,23 +112,99 @@ jobs:
       - name: "Build: Workspace"
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
+      - name: "Test: Pack everything"
+        run: >-
+          cargo nextest archive
+          --archive-file=workspace.tar.zst --zstd-level=6
+          --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+
+      - name: "ACTIONS: Upload nextest archive"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
+          path: workspace.tar.zst
+          compression-level: 0
+
+      - name: "Test: Copy `.binpath` files"
+        run: rsync -avm --include='*/' --include='.binpath' --exclude='*' . binpath
+
+      - name: "ACTIONS: Upload `.binpath` files"
+        uses: actions/upload-artifact@v4
+        with:
+          name: binpath-files-${{ matrix.profiles.name }}
+          path: binpath
+          include-hidden-files: true
+
+  test-workspace:
+    runs-on: ubuntu-latest
+    needs: build-workspace
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+        partition: [1, 2, 3, 4]
+      fail-fast: false
+    name: test-workspace [${{ matrix.partition }}/4] (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Free disk space"
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+          no-vendored: 'false'
+
+      - name: "Test: Fetch dependencies"
+        # required for `gstd-codegen tests::ui`
+        run: cargo fetch --locked
+
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
           name: node-and-runtime-release-x86_64-unknown-linux-gnu
           path: target/release
 
-      - name: "Test: Pack everything"
+      - name: "ACTIONS: Download `.binpath` files"
+        uses: actions/download-artifact@v4
+        with:
+          name: binpath-files-${{ matrix.profiles.name }}
+
+      - name: "ACTIONS: Download nextest archive"
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-unknown-linux-gnu
+
+      - name: "Test: Workspace"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
-          cargo nextest run
-          --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+          cargo nextest run --archive-file=workspace.tar.zst 
+          --workspace-remap=${{ github.workspace }}
+          --extract-to=${{ github.workspace }}
+          --extract-overwrite
+          --partition hash:${{ matrix.partition }}/4
           -E 'not package(/fuzz/)'
 
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: workspace
+    needs: build-workspace
     name: benchmarks
     steps:
       - name: "ACTIONS: Checkout"
@@ -228,7 +304,7 @@ jobs:
 
   fuzzer:
     runs-on: [ kuberunner, github-runner-01 ]
-    needs: workspace
+    needs: build-workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
     steps:
@@ -287,7 +363,7 @@ jobs:
 
   production:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: workspace
+    needs: build-workspace
     if: ${{ inputs.production }}
     steps:
       - name: "ACTIONS: Checkout"
