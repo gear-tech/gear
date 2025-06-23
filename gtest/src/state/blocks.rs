@@ -53,10 +53,7 @@ pub(crate) struct BlocksManager;
 impl BlocksManager {
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        block_info_storage().with(|bi| {
-            log::warn!("{bi:?}");
-            *bi.data()
-        })
+        block_info_storage().with(|bi| *bi.data())
     }
 
     /// Move blocks by one.
