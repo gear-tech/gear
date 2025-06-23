@@ -29,6 +29,6 @@ runs:
       uses: actions/cache@v4
       with:
         path: /home/runner/.cache/cargo-xwin/xwin
-        key: windows-x86_64-${{ hashFiles(format('{0}/cargo-xwin-version.txt', runner.temp)) }}
+        key: xwin-msvc-crt-x86_64-${{ hashFiles(format('{0}/cargo-xwin-version.txt', runner.temp)) }}
         restore-keys: |
-          windows-x86_64-
+          xwin-msvc-crt-x86_64-
