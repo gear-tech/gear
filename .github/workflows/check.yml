@@ -74,19 +74,19 @@ jobs:
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
-          cd ethexe/contracts
           forge fmt --check
           forge build --sizes
           forge test -vvv
+        working-directory: ethexe/contracts
 
       - name: "Check: Clones.sol is updated"
         run: |
-          cd ethexe/contracts
           ../scripts/update-clones-sol.rs \
           --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
           --clones src/libraries/Clones.sol
           forge fmt
           git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
+        working-directory: ethexe/contracts
 
   clippy:
     strategy:
