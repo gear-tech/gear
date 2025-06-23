@@ -89,7 +89,8 @@ where
     BalanceOf<T>: Send + Sync + From<u64> + FixedPointOperand,
     CallOf<T>: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 {
-    const IDENTIFIER: &'static str = "CustomChargeTransactionPayment";
+    const IDENTIFIER: &'static str =
+        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::IDENTIFIER;
     type Implicit = <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::Implicit;
     type Val = <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::Val;
     type Pre = <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::Pre;
