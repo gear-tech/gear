@@ -363,7 +363,7 @@ jobs:
 
   production:
     runs-on: [ kuberunner, github-runner-02 ]
-    needs: build-workspace
+    needs: test-workspace
     if: ${{ inputs.production }}
     steps:
       - name: "ACTIONS: Checkout"
