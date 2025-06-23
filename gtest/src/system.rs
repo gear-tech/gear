@@ -533,11 +533,9 @@ impl Drop for System {
 
 #[cfg(test)]
 mod tests {
-    use gear_core_errors::{ReplyCode, SuccessReplyReason};
-
     use super::*;
     use crate::{Log, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, MAX_USER_GAS_LIMIT};
-    use std::{thread, time::Duration};
+    use gear_core_errors::{ReplyCode, SuccessReplyReason};
 
     #[test]
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
