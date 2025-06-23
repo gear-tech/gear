@@ -47,7 +47,10 @@ pub mod migrations;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn},
+    builtin::{
+        BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, HandleFnResult,
+        WeightFn,
+    },
     manager::{ExtManager, HandleKind},
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},

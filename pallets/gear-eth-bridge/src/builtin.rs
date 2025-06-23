@@ -26,7 +26,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
+use pallet_gear_builtin::{ActorHandleResult, BuiltinActor, BuiltinActorError, BuiltinContext};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -43,14 +43,16 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<ActorHandleResult, BuiltinActorError> {
         let fee: Value = TransportFee::<T>::get().unique_saturated_into();
 
-        if dispatch.value() != fee {
+        if dispatch.value() < fee {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 error_to_str(&Error::<T>::IncorrectValueApplied),
             )));
         }
+
+        let unused_value = dispatch.value().saturating_sub(fee);
 
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
@@ -59,7 +61,15 @@ where
             Request::SendEthMessage {
                 destination,
                 payload,
-            } => send_message_request::<T>(dispatch.source(), destination, payload, context),
+            } => Ok(ActorHandleResult {
+                payload: send_message_request::<T>(
+                    dispatch.source(),
+                    destination,
+                    payload,
+                    context,
+                )?,
+                return_value: unused_value,
+            }),
         }
     }
 

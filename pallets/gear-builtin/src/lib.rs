@@ -62,7 +62,6 @@ use core_processor::{
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
-    buffer::Payload,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ActorId,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
@@ -70,17 +69,19 @@ use gear_core::{
     utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
-use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
+pub use pallet::*;
+use pallet_gear::{
+    BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, HandleFnResult, WeightFn,
+};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
-
-pub use pallet::*;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 const LOG_TARGET: &str = "gear::builtin";
 
+pub type ActorHandleResult = HandleFnResult;
 pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 
 /// Built-in actor error type
@@ -166,7 +167,7 @@ pub trait BuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError>;
+    ) -> Result<ActorHandleResult, BuiltinActorError>;
 
     /// Returns the maximum gas that can be spent by the actor.
     fn max_gas() -> u64;
@@ -326,7 +327,6 @@ pub mod pallet {
 impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
     type Context = BuiltinContext;
     type Error = BuiltinActorError;
-
     type Output = BuiltinRegistry<T>;
 
     fn create() -> (BuiltinRegistry<T>, u64) {
@@ -419,18 +419,22 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let gas_amount = context.to_gas_amount();
 
         match res {
-            Ok(response_payload) => {
+            Ok(handle_result) => {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
                 let mut dispatch_result =
                     DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
 
+                debug_assert!(dispatch.value() >= handle_result.return_value,
+                              "BuiltinRegistry::run: Dispatch value should be greater than or equal to return value"
+                );
+
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 let mut message_context =
                     MessageContext::new(dispatch, actor_id, Default::default());
-                let packet = ReplyPacket::new(response_payload, 0);
+                let packet = ReplyPacket::new(handle_result.payload, handle_result.return_value);
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
