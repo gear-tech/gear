@@ -269,7 +269,6 @@ impl ExtManager {
             };
 
             let journal = self.process_dispatch(&block_config, dispatch);
-            log::warn!("{:#?}", journal);
             core_processor::handle_journal(journal, self);
 
             total_processed += 1;

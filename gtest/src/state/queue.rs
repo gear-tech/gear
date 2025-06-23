@@ -18,7 +18,7 @@
 
 //! Queue storage manager.
 
-use gear_common::auxiliary::overlay::WithOverlay;
+use crate::state::WithOverlay;
 use gear_core::message::StoredDispatch;
 use std::{collections::VecDeque, thread::LocalKey};
 

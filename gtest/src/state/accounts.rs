@@ -18,8 +18,11 @@
 
 //! Accounts storage.
 
-use crate::{default_users_list, Value, DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT};
-use gear_common::{auxiliary::overlay::WithOverlay, ActorId};
+use crate::{
+    default_users_list, state::WithOverlay, Value, DEFAULT_USERS_INITIAL_BALANCE,
+    EXISTENTIAL_DEPOSIT,
+};
+use gear_core::ids::ActorId;
 use std::{collections::HashMap, fmt, thread::LocalKey};
 
 fn init_default_accounts(storage: &mut HashMap<ActorId, Balance>) {
@@ -107,7 +110,7 @@ impl Accounts {
     // Decreases account balance.
     pub(crate) fn decrease(id: ActorId, amount: Value, keep_alive: bool) {
         storage().with(|storage| {
-            if let Some(balance) = storage.data_mut().get_mut(&id) {
+            let balance = if let Some(balance) = storage.data_mut().get_mut(&id) {
                 if keep_alive && balance.reducible_balance() < amount {
                     panic!(
                         "Not enough balance to decrease, reducible: {}, value: {amount}",
@@ -122,15 +125,17 @@ impl Accounts {
                 }
 
                 balance.decrease(amount);
-                if balance.balance() < EXISTENTIAL_DEPOSIT {
-                    log::debug!(
-                        "Removing account {id:?} with balance {} below the existential deposit",
-                        balance.balance()
-                    );
-                    storage.data_mut().remove(&id);
-                }
+
+                balance.balance()
             } else {
                 panic!("Failed to decrease balance for account {id:?}, balance is zero");
+            };
+
+            if balance < EXISTENTIAL_DEPOSIT {
+                log::debug!(
+                    "Removing account {id:?} with balance {balance} below the existential deposit",
+                );
+                storage.data_mut().remove(&id);
             }
         });
     }

@@ -18,11 +18,13 @@
 
 //! Actors storage.
 
+use crate::state::WithOverlay;
 use core_processor::common::ExecutableActorData;
-use gear_common::{auxiliary::overlay::WithOverlay, ActorId, CodeId, GearPage, MessageId, PageBuf};
 use gear_core::{
     code::InstrumentedCode,
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    ids::{ActorId, CodeId, MessageId},
+    memory::PageBuf,
+    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReservationMap,
 };
 use std::{collections::BTreeMap, fmt};

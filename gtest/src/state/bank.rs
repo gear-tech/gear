@@ -18,8 +18,13 @@
 
 //! `gtest` bank
 
-use crate::{constants::Value, state::accounts::Accounts, GAS_MULTIPLIER};
-use gear_common::{auxiliary::overlay::WithOverlay, ActorId, Gas, GasMultiplier};
+use crate::{
+    constants::Value,
+    state::{accounts::Accounts, WithOverlay},
+    Gas, GAS_MULTIPLIER,
+};
+use gear_common::GasMultiplier;
+use gear_core::ids::ActorId;
 use std::{collections::HashMap, thread::LocalKey};
 
 thread_local! {
@@ -144,6 +149,12 @@ impl Bank {
                 .entry(to)
                 .or_insert(BankBalance { gas: 0, value: 0 })
                 .value += value;
+        });
+    }
+
+    pub(crate) fn clear(&self) {
+        storage().with(|accs| {
+            accs.data_mut().clear();
         });
     }
 }

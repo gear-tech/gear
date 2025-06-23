@@ -76,20 +76,77 @@
 //!
 //! 14. Value catch can be performed only on consumed nodes (not tested).
 
-use super::*;
-use crate::{auxiliary::gas_provider::*, storage::MapStorage};
+use super::{gas_provider::auxiliary::*, *};
+use crate::storage::MapStorage;
 use core::iter::FromIterator;
 use enum_iterator::all;
 use frame_support::{assert_err, assert_ok};
 use gear_utils::{NonEmpty, RingGet};
 use primitive_types::H256;
 use proptest::prelude::*;
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    cell::{Ref, RefCell, RefMut},
+    collections::{BTreeSet, HashMap},
+    thread::LocalKey,
+};
 use strategies::GasTreeAction;
 
 mod assertions;
 mod strategies;
 mod utils;
+
+type PropertyTestGasProvider = AuxiliaryGasProvider<
+    TotalIssuanceStorageImpl,
+    TotalIssuanceProviderImpl,
+    GasNodesStorageImpl,
+    GasNodesProviderImpl,
+>;
+type Gas = <PropertyTestGasProvider as Provider>::GasTree;
+
+std::thread_local! {
+    // Definition of the `TotalIssuance` global storage, accessed by the tree.
+    pub(crate) static TOTAL_ISSUANCE: RefCell<Option<Balance>> = Default::default();
+    // Definition of the `GasNodes` (tree `StorageMap`) global storage, accessed by the tree.
+    pub(crate) static GAS_NODES: RefCell<BTreeMap<NodeId, Node>> = Default::default();
+}
+
+pub struct TotalIssuanceStorageImpl;
+pub type TotalIssuanceProviderImpl = RefCell<Option<Balance>>;
+
+impl TotalIssuanceStorage<TotalIssuanceProviderImpl> for TotalIssuanceStorageImpl {
+    fn storage() -> &'static LocalKey<TotalIssuanceProviderImpl> {
+        &TOTAL_ISSUANCE
+    }
+}
+
+impl TotalIssuanceProvider for TotalIssuanceProviderImpl {
+    fn data(&self) -> Ref<'_, Option<Balance>> {
+        self.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, Option<Balance>> {
+        self.borrow_mut()
+    }
+}
+
+pub struct GasNodesStorageImpl;
+pub type GasNodesProviderImpl = RefCell<BTreeMap<NodeId, Node>>;
+
+impl GasNodesStorage<GasNodesProviderImpl> for GasNodesStorageImpl {
+    fn storage() -> &'static LocalKey<GasNodesProviderImpl> {
+        &GAS_NODES
+    }
+}
+
+impl GasNodesProvider for GasNodesProviderImpl {
+    fn data(&self) -> Ref<'_, BTreeMap<NodeId, Node>> {
+        self.borrow()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, BTreeMap<NodeId, Node>> {
+        self.borrow_mut()
+    }
+}
 
 impl<U> From<H256> for GasNodeId<PlainNodeId, U> {
     fn from(raw_id: H256) -> Self {
@@ -102,8 +159,6 @@ impl ReservationNodeId {
         Self(H256::random())
     }
 }
-
-type Gas = <AuxiliaryGasProvider as Provider>::GasTree;
 
 fn gas_tree_node_clone() -> BTreeMap<NodeId, Node> {
     GAS_NODES.with(|tree| {
@@ -191,8 +246,8 @@ proptest! {
     #[test]
     fn test_tree_properties((max_balance, actions) in strategies::gas_tree_props_test_strategy())
     {
-        TotalIssuanceWrap::kill();
-        <GasNodesWrap as storage::MapStorage>::clear();
+        TotalIssuanceWrap::<TotalIssuanceStorageImpl, TotalIssuanceProviderImpl>::kill();
+        <GasNodesWrap<GasNodesStorageImpl, GasNodesProviderImpl> as storage::MapStorage>::clear();
 
         let external = ExternalOrigin(H256::random());
         // `actions` can consist only from tree splits. Then it's length will
@@ -420,7 +475,7 @@ proptest! {
             if let GasNode::SpecifiedLocal { parent, .. } | GasNode::UnspecifiedLocal { parent, .. } = node {
                 assert!(gas_tree_ids.contains(&parent));
                 // All nodes with parent point to a parent with value
-                let parent_node = GasNodesWrap::get(&parent).expect("checked");
+                let parent_node = GasNodesWrap::<GasNodesStorageImpl, GasNodesProviderImpl>::get(&parent).expect("checked");
                 assert!(parent_node.value().is_some());
             }
 
@@ -508,8 +563,8 @@ proptest! {
 
     #[test]
     fn test_empty_tree(actions in strategies::gas_tree_action_strategy(100)) {
-        TotalIssuanceWrap::kill();
-        GasNodesWrap::clear();
+        TotalIssuanceWrap::<TotalIssuanceStorageImpl, TotalIssuanceProviderImpl>::kill();
+        GasNodesWrap::<GasNodesStorageImpl, GasNodesProviderImpl>::clear();
 
         // Tree can be created only with external root
 

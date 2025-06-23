@@ -18,9 +18,8 @@
 
 //! Nonce manager.
 
+use crate::state::WithOverlay;
 use std::thread::LocalKey;
-
-use gear_common::auxiliary::overlay::WithOverlay;
 
 thread_local! {
     /// Definition of the storage value storing message nonce.
@@ -58,5 +57,10 @@ impl NonceManager {
             let value = *nonce.data();
             *nonce.data_mut() = value + 1;
         });
+    }
+
+    pub(crate) fn reset(&self) {
+        msg_nonce_storage().with(|nonce| *nonce.data_mut() = 1);
+        id_nonce_storage().with(|nonce| *nonce.data_mut() = 1);
     }
 }

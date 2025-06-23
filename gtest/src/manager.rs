@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::{Gas, Value},
+    constants::{BlockNumber, Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     state::{
@@ -27,7 +27,7 @@ use crate::{
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
-        mailbox::MailboxManager,
+        mailbox::manager::{MailboxErrorImpl, MailboxManager},
         nonce::NonceManager,
         queue::QueueManager,
         stash::DispatchStashManager,
@@ -42,11 +42,8 @@ use core_processor::{
     Ext,
 };
 use gear_common::{
-    auxiliary::{
-        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, overlay, waitlist::WaitlistErrorImpl,
-        BlockNumber,
-    },
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
+    gas_provider::auxiliary::PlainNodeId,
     scheduler::StorageType,
     storage::Interval,
     LockId, Origin,
@@ -114,7 +111,7 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     pub(crate) fn new() -> Self {
         Self {
-            blocks_manager: BlocksManager::new(),
+            blocks_manager: BlocksManager,
             messages_processing_enabled: true,
             ..Default::default()
         }
@@ -266,14 +263,12 @@ impl ExtManager {
     /// Enables the overlay mode for gear-runtime emulating storages
     /// (auxiliaries and internal ones).
     pub(crate) fn enable_overlay(&self) {
-        overlay::enable_overlay();
         state::enable_overlay();
     }
 
     /// Disables the overlay mode for gear-runtime emulating storages
     /// (auxiliaries and internal ones).
     pub(crate) fn disable_overlay(&self) {
-        overlay::disable_overlay();
         state::disable_overlay();
     }
 }

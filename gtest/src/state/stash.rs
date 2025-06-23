@@ -18,10 +18,8 @@
 
 //! Stash manager.
 
-use gear_common::{
-    auxiliary::{overlay::WithOverlay, BlockNumber},
-    storage::Interval,
-};
+use crate::{constants::BlockNumber, state::WithOverlay};
+use gear_common::storage::Interval;
 use gear_core::{ids::MessageId, message::StoredDelayedDispatch};
 use std::{collections::HashMap, thread::LocalKey};
 
@@ -59,5 +57,11 @@ impl DispatchStashManager {
         key: &MessageId,
     ) -> Option<(StoredDelayedDispatch, Interval<BlockNumber>)> {
         storage().with(|stash| stash.data_mut().remove(key))
+    }
+
+    pub(crate) fn clear(&self) {
+        storage().with(|stash| {
+            stash.data_mut().clear();
+        });
     }
 }

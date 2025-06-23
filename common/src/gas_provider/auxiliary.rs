@@ -18,14 +18,16 @@
 
 //! Auxiliary implementation of the gas provider.
 
-use super::overlay;
 use crate::{
     gas_provider::{Error, GasNode, GasNodeId, Provider, TreeImpl},
     storage::{MapStorage, ValueStorage},
     Origin,
 };
 use alloc::collections::BTreeMap;
-use overlay::WithOverlay;
+use core::{
+    cell::{Ref, RefMut},
+    marker::PhantomData,
+};
 use sp_core::H256;
 use std::thread::LocalKey;
 
@@ -34,14 +36,23 @@ pub(crate) type Balance = u64;
 /// Type represents token value equivalent of gas.
 pub(crate) type Funds = u128;
 /// Type represents gas tree node id, which is a key for gas nodes map storage.
-pub(crate) type NodeId = GasNodeId<PlainNodeId, ReservationNodeId>;
+pub type NodeId = GasNodeId<PlainNodeId, ReservationNodeId>;
 /// Type represents gas tree node, which is a value for gas nodes map storage.
-pub(crate) type Node = GasNode<ExternalOrigin, NodeId, Balance, Funds>;
+pub type Node = GasNode<ExternalOrigin, NodeId, Balance, Funds>;
 
 /// Gas provider implementor used in native, non-wasm runtimes.
-pub struct AuxiliaryGasProvider;
+pub struct AuxiliaryGasProvider<TIStorage, TIProvider, GNStorage, GNProvider>(
+    PhantomData<(TIStorage, TIProvider, GNStorage, GNProvider)>,
+);
 
-impl Provider for AuxiliaryGasProvider {
+impl<TIStorage, TIProvider, GNStorage, GNProvider> Provider
+    for AuxiliaryGasProvider<TIStorage, TIProvider, GNStorage, GNProvider>
+where
+    TIStorage: TotalIssuanceStorage<TIProvider> + 'static,
+    TIProvider: TotalIssuanceProvider + 'static,
+    GNStorage: GasNodesStorage<GNProvider> + 'static,
+    GNProvider: GasNodesProvider + 'static,
+{
     type ExternalOrigin = ExternalOrigin;
     type NodeId = NodeId;
     type Balance = Balance;
@@ -50,12 +61,12 @@ impl Provider for AuxiliaryGasProvider {
     type Error = GasTreeError;
 
     type GasTree = TreeImpl<
-        TotalIssuanceWrap,
+        TotalIssuanceWrap<TIStorage, TIProvider>,
         Self::InternalError,
         Self::Error,
         ExternalOrigin,
         Self::NodeId,
-        GasNodesWrap,
+        GasNodesWrap<GNStorage, GNProvider>,
     >;
 }
 
@@ -197,43 +208,47 @@ impl Error for GasTreeError {
     }
 }
 
-std::thread_local! {
-    // Definition of the `TotalIssuance` global storage, accessed by the tree.
-    pub(crate) static TOTAL_ISSUANCE: WithOverlay<Option<Balance>> = Default::default();
+pub trait TotalIssuanceStorage<T: TotalIssuanceProvider> {
+    fn storage() -> &'static LocalKey<T>;
 }
 
-fn total_issuance_storage() -> &'static LocalKey<WithOverlay<Option<Balance>>> {
-    &TOTAL_ISSUANCE
+pub trait TotalIssuanceProvider {
+    fn data(&self) -> Ref<'_, Option<Balance>>;
+    fn data_mut(&self) -> RefMut<'_, Option<Balance>>;
 }
 
 /// Global `TotalIssuance` storage manager.
 #[derive(Debug, PartialEq, Eq)]
-pub struct TotalIssuanceWrap;
+pub struct TotalIssuanceWrap<TIStorage, TIProvider>(PhantomData<(TIStorage, TIProvider)>);
 
-impl ValueStorage for TotalIssuanceWrap {
+impl<TIStorage, TIProvider> ValueStorage for TotalIssuanceWrap<TIStorage, TIProvider>
+where
+    TIStorage: TotalIssuanceStorage<TIProvider> + 'static,
+    TIProvider: TotalIssuanceProvider + 'static,
+{
     type Value = Balance;
 
     fn exists() -> bool {
-        total_issuance_storage().with(|i| i.data().is_some())
+        TIStorage::storage().with(|i| i.data().is_some())
     }
 
     fn get() -> Option<Self::Value> {
-        total_issuance_storage().with(|i| *i.data())
+        TIStorage::storage().with(|i| *i.data())
     }
 
     fn kill() {
-        total_issuance_storage().with(|i| {
+        TIStorage::storage().with(|i| {
             let mut data = i.data_mut();
             *data = None;
         });
     }
 
     fn mutate<R, F: FnOnce(&mut Option<Self::Value>) -> R>(f: F) -> R {
-        total_issuance_storage().with(|i| f(&mut i.data_mut()))
+        TIStorage::storage().with(|i| f(&mut i.data_mut()))
     }
 
     fn put(value: Self::Value) {
-        total_issuance_storage().with(|i| {
+        TIStorage::storage().with(|i| {
             i.data_mut().replace(value);
         });
     }
@@ -247,36 +262,40 @@ impl ValueStorage for TotalIssuanceWrap {
     }
 
     fn take() -> Option<Self::Value> {
-        total_issuance_storage().with(|i| i.data_mut().take())
+        TIStorage::storage().with(|i| i.data_mut().take())
     }
 }
 
-std::thread_local! {
-    // Definition of the `GasNodes` (tree `StorageMap`) global storage, accessed by the tree.
-    pub(crate) static GAS_NODES: WithOverlay<BTreeMap<NodeId, Node>> = Default::default();
+pub trait GasNodesStorage<T: GasNodesProvider> {
+    fn storage() -> &'static LocalKey<T>;
 }
 
-fn gas_nodes_storage() -> &'static LocalKey<WithOverlay<BTreeMap<NodeId, Node>>> {
-    &GAS_NODES
+pub trait GasNodesProvider {
+    fn data(&self) -> Ref<'_, BTreeMap<NodeId, Node>>;
+    fn data_mut(&self) -> RefMut<'_, BTreeMap<NodeId, Node>>;
 }
 
 /// Global `GasNodes` storage manager.
-pub struct GasNodesWrap;
+pub struct GasNodesWrap<GNStorage, GNProvider>(PhantomData<(GNStorage, GNProvider)>);
 
-impl MapStorage for GasNodesWrap {
+impl<GNStorage, GNProvider> MapStorage for GasNodesWrap<GNStorage, GNProvider>
+where
+    GNStorage: GasNodesStorage<GNProvider> + 'static,
+    GNProvider: GasNodesProvider + 'static,
+{
     type Key = NodeId;
     type Value = Node;
 
     fn contains_key(key: &Self::Key) -> bool {
-        gas_nodes_storage().with(|tree| tree.data().contains_key(key))
+        GNStorage::storage().with(|tree| tree.data().contains_key(key))
     }
 
     fn get(key: &Self::Key) -> Option<Self::Value> {
-        gas_nodes_storage().with(|tree| tree.data().get(key).cloned())
+        GNStorage::storage().with(|tree| tree.data().get(key).cloned())
     }
 
     fn insert(key: Self::Key, value: Self::Value) {
-        gas_nodes_storage().with(|tree| {
+        GNStorage::storage().with(|tree| {
             tree.data_mut().insert(key, value);
         });
     }
@@ -290,18 +309,18 @@ impl MapStorage for GasNodesWrap {
     }
 
     fn remove(key: Self::Key) {
-        gas_nodes_storage().with(|tree| {
+        GNStorage::storage().with(|tree| {
             tree.data_mut().remove(&key);
         });
     }
 
     fn clear() {
-        gas_nodes_storage().with(|tree| {
+        GNStorage::storage().with(|tree| {
             tree.data_mut().clear();
         });
     }
 
     fn take(key: Self::Key) -> Option<Self::Value> {
-        gas_nodes_storage().with(|tree| tree.data_mut().remove(&key))
+        GNStorage::storage().with(|tree| tree.data_mut().remove(&key))
     }
 }

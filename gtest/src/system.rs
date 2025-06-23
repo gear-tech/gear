@@ -514,10 +514,16 @@ impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
-        self.0.borrow().gas_tree.reset();
-        self.0.borrow().mailbox.reset();
-        self.0.borrow().task_pool.clear();
-        self.0.borrow().waitlist.reset();
+        let manager = self.0.borrow();
+        manager.gas_tree.clear();
+        manager.mailbox.clear();
+        manager.task_pool.clear();
+        manager.waitlist.clear();
+        manager.blocks_manager.reset();
+        manager.bank.clear();
+        manager.nonce_manager.reset();
+        manager.dispatches.clear();
+        manager.dispatches_stash.clear();
 
         // Clear actors and accounts storages
         Actors::clear();
@@ -633,7 +639,6 @@ mod tests {
         use demo_piggy_bank::WASM_BINARY;
 
         let sys = System::new();
-        sys.init_logger();
 
         let program = Program::from_binary_with_id(&sys, 42, WASM_BINARY);
         let pid = program.id();
@@ -674,7 +679,7 @@ mod tests {
         assert!(block_result.contains(
             &Log::builder()
                 .dest(DEFAULT_USER_ALICE)
-                .reply_code(ReplyCode::Success(SuccessReplyReason::Auto))
+                .reply_code(reply_info.code)
         ));
 
         let alice_expected_balance_after_msg1 =
@@ -706,6 +711,11 @@ mod tests {
             sys.balance_of(DEFAULT_USER_ALICE),
             alice_expected_balance_after_msg1
         );
+        let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
+        let log = Log::builder()
+            .dest(DEFAULT_USER_ALICE)
+            .payload_bytes(b"send");
+        assert!(!mailbox.contains(&log));
 
         let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"smash");
         let block_result = sys.run_next_block();
@@ -726,7 +736,4 @@ mod tests {
             alice_expected_balance_after_msg2
         );
     }
-
-    #[test]
-    fn calculate_reply_for_handle_async() {}
 }

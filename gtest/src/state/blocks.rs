@@ -18,12 +18,12 @@
 
 //! Block timestamp and height management.
 
-use crate::{BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS, INITIAL_RANDOM_SEED};
-use core_processor::configs::BlockInfo;
-use gear_common::{
-    auxiliary::{overlay::WithOverlay, BlockNumber},
-    storage::GetCallback,
+use crate::{
+    constants::BlockNumber, state::WithOverlay, BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS,
+    INITIAL_RANDOM_SEED,
 };
+use core_processor::configs::BlockInfo;
+use gear_common::storage::GetCallback;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
     thread::LocalKey,
@@ -32,11 +32,14 @@ use std::{
 
 thread_local! {
     /// Definition of the storage value storing block info (timestamp and height).
-    pub(super) static BLOCK_INFO_STORAGE: WithOverlay<Option<BlockInfo>> = Default::default();
+    pub(super) static BLOCK_INFO_STORAGE: WithOverlay<BlockInfo> = WithOverlay::new(BlockInfo {
+        height: 0,
+        timestamp: now(),
+    });
     pub(super) static CURRENT_EPOCH_RANDOM: WithOverlay<Vec<u8>> = WithOverlay::new(epoch_random(INITIAL_RANDOM_SEED));
 }
 
-fn block_info_storage() -> &'static LocalKey<WithOverlay<Option<BlockInfo>>> {
+fn block_info_storage() -> &'static LocalKey<WithOverlay<BlockInfo>> {
     &BLOCK_INFO_STORAGE
 }
 
@@ -48,32 +51,11 @@ fn current_epoch_random_storage() -> &'static LocalKey<WithOverlay<Vec<u8>>> {
 pub(crate) struct BlocksManager;
 
 impl BlocksManager {
-    /// Create block info storage manager with a further initialization of the
-    /// storage.
-    pub(crate) fn new() -> Self {
-        block_info_storage().with(|bi_rc| {
-            let mut ref_mut = bi_rc.data_mut();
-            if ref_mut.is_none() {
-                let info = BlockInfo {
-                    height: 0,
-                    timestamp: now(),
-                };
-
-                *ref_mut = Some(info);
-            }
-        });
-
-        Self
-    }
-
     /// Get current block info.
     pub(crate) fn get(&self) -> BlockInfo {
-        block_info_storage().with(|bi_rc| {
-            bi_rc
-                .data()
-                .as_ref()
-                .copied()
-                .expect("instance always initialized")
+        block_info_storage().with(|bi| {
+            log::warn!("{bi:?}");
+            *bi.data()
         })
     }
 
@@ -92,31 +74,28 @@ impl BlocksManager {
 
     /// Adjusts blocks info by moving blocks by `amount`.
     pub(crate) fn move_blocks_by(&self, amount: u32) -> BlockInfo {
-        block_info_storage().with(|bi_rc| {
-            let mut bi_ref_mut = bi_rc.data_mut();
-            let Some(block_info) = bi_ref_mut.as_mut() else {
-                panic!("instance always initialized");
-            };
-            block_info.height += amount;
+        block_info_storage().with(|bi| {
+            bi.data_mut().height += amount;
             let duration = BLOCK_DURATION_IN_MSECS.saturating_mul(amount as u64);
-            block_info.timestamp += duration;
+            bi.data_mut().timestamp += duration;
 
-            *block_info
+            *bi.data()
         })
+    }
+
+    pub(crate) fn reset(&self) {
+        block_info_storage().with(|bi_rc| {
+            *bi_rc.data_mut() = BlockInfo {
+                height: 0,
+                timestamp: now(),
+            };
+        });
     }
 }
 
 impl Default for BlocksManager {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Drop for BlocksManager {
-    fn drop(&mut self) {
-        block_info_storage().with(|bi_rc| {
-            *bi_rc.data_mut() = None;
-        });
+        Self
     }
 }
 
@@ -135,7 +114,7 @@ pub(crate) struct GetBlockNumberImpl;
 
 impl GetCallback<BlockNumber> for GetBlockNumberImpl {
     fn call() -> BlockNumber {
-        BlocksManager::new().get().height
+        BlocksManager.get().height
     }
 }
 
@@ -155,33 +134,4 @@ fn epoch_random(seed: u64) -> Vec<u8> {
     rng.fill_bytes(&mut random);
 
     random.to_vec()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_data_nullified_on_drop() {
-        let first_instance = BlocksManager::new();
-        let second_instance = BlocksManager::new();
-
-        first_instance.next_block();
-        first_instance.next_block();
-
-        // Assert all instance use same data;
-        assert_eq!(second_instance.get().height, 2);
-        BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.data().is_some());
-
-        // Drop first instance and check whether data is removed.
-        drop(first_instance);
-        assert_eq!(second_instance.get().height, 2);
-
-        second_instance.next_block();
-        assert_eq!(second_instance.get().height, 3);
-        assert!(BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.data().is_some()));
-
-        drop(second_instance);
-        assert!(BLOCK_INFO_STORAGE.with(|bi_rc| bi_rc.data().is_none()));
-    }
 }
