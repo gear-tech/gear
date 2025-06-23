@@ -81,6 +81,7 @@ jobs:
 
       - name: "Check: Clones.sol is updated"
         run: |
+          cd ethexe/contracts
           ../scripts/update-clones-sol.rs \
           --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
           --clones src/libraries/Clones.sol
