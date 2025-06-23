@@ -561,8 +561,6 @@ mod tests {
             assert_eq!(second_instance.block_height(), 10);
         });
 
-        thread::sleep(Duration::from_secs(1));
-
         h.join().expect("internal error failed joining thread");
 
         assert_eq!(first_instance.block_height(), 5);
