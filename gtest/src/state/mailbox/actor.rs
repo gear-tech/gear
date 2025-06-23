@@ -16,16 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::manager::{MailboxErrorImpl, MailboxedMessage};
 use crate::{
+    constants::BlockNumber,
     error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, actors::Actors},
     Log, Value, MAX_USER_GAS_LIMIT,
 };
-use gear_common::{
-    auxiliary::{mailbox::*, BlockNumber},
-    storage::Interval,
-};
+use gear_common::storage::Interval;
 use gear_core::{
     ids::{prelude::MessageIdExt as _, ActorId, MessageId},
     message::{ReplyMessage, ReplyPacket},

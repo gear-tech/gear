@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::code::MAX_WASM_PAGES_AMOUNT;
+use crate::state::blocks;
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, message::StoredDispatch};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -267,7 +268,8 @@ impl ExtManager {
                 None => break,
             };
 
-            self.process_dispatch(&block_config, dispatch);
+            let journal = self.process_dispatch(&block_config, dispatch);
+            core_processor::handle_journal(journal, self);
 
             total_processed += 1;
         }
@@ -275,7 +277,11 @@ impl ExtManager {
         total_processed
     }
 
-    fn process_dispatch(&mut self, block_config: &BlockConfig, dispatch: StoredDispatch) {
+    pub(crate) fn process_dispatch(
+        &mut self,
+        block_config: &BlockConfig,
+        dispatch: StoredDispatch,
+    ) -> Vec<JournalNote> {
         let destination_id = dispatch.destination();
         let dispatch_id = dispatch.id();
         let dispatch_kind = dispatch.kind();
@@ -304,8 +310,7 @@ impl ExtManager {
         ) {
             Ok(dispatch) => dispatch,
             Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
+                return journal;
             }
         };
 
@@ -394,7 +399,7 @@ impl ExtManager {
             }
         });
 
-        let journal = match exec {
+        match exec {
             Exec::Notes(journal) => journal,
             Exec::ExecutableActor((actor_data, instrumented_code), context) => self
                 .process_executable_actor(
@@ -404,9 +409,7 @@ impl ExtManager {
                     context,
                     balance,
                 ),
-        };
-
-        core_processor::handle_journal(journal, self)
+        }
     }
 
     fn process_executable_actor(
@@ -464,12 +467,15 @@ impl ExtManager {
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
             (context, instrumented_code, balance).into(),
-            self.random_data.clone(),
+            (
+                blocks::current_epoch_random(),
+                block_config.block_info.height,
+            ),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
-    fn block_config(&self) -> BlockConfig {
+    pub(crate) fn block_config(&self) -> BlockConfig {
         let schedule = Schedule::default();
         BlockConfig {
             block_info: self.blocks_manager.get(),

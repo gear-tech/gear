@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use gear_core::message::UserMessage;
 
 impl ExtManager {
     /// Insert message into the delayed queue.

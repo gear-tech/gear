@@ -29,6 +29,9 @@ mod node;
 mod positive_imbalance;
 mod reservable;
 
+#[cfg(feature = "std")]
+pub mod auxiliary;
+
 #[cfg(test)]
 mod property_tests;
 
