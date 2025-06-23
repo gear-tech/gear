@@ -87,6 +87,9 @@ impl WasmProject {
             .into();
 
         let substrate_runtime = env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok();
+        // Substrate runtime is usually built inside a workspace target in its own target directory,
+        // that looks like `target/debug/wbuild/SUBSTRATE_RUNTIME/target`,
+        // so we need to skip the first occurrence of `target`
         let mut first_target_reached = false;
 
         let profile = out_dir
@@ -124,7 +127,7 @@ impl WasmProject {
         // remove component to avoid creating a directory inside
         // `target/x86_64-unknown-linux-gnu` and so on when cross-compiling.
         //
-        // also don't change the directory if we are inside a substrate runtime build script
+        // also don't change the directory if we are inside a Substrate runtime build script
         // because the branch is always true in such case
         if !substrate_runtime && env::var("HOST") != env::var("TARGET") {
             wasm_target_dir.pop();
@@ -284,18 +287,6 @@ impl WasmProject {
         Ok(())
     }
 
-    pub fn file_base_name(&self) -> &str {
-        self.file_base_name
-            .as_ref()
-            .expect("Run `WasmProject::generate()` first")
-    }
-
-    pub fn wasm_paths(&self, file_base_name: &str) -> (PathBuf, PathBuf) {
-        let [original_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
-            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
-        (original_wasm_path, opt_wasm_path)
-    }
-
     /// Generates output optimized wasm file, `.binpath` file for our tests
     /// system and wasm binaries informational file.
     /// Makes a copy of original wasm file in `self.wasm_target_dir`.
@@ -304,7 +295,8 @@ impl WasmProject {
         original_wasm_path: P,
         file_base_name: &str,
     ) -> Result<PathBuf> {
-        let (original_copy_wasm_path, opt_wasm_path) = self.wasm_paths(file_base_name);
+        let [original_copy_wasm_path, opt_wasm_path] = [".wasm", ".opt.wasm"]
+            .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Copy original file to `self.wasm_target_dir`
         smart_fs::copy_if_newer(&original_wasm_path, &original_copy_wasm_path).with_context(
@@ -362,7 +354,10 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
     /// - Generate optimized binary from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
-        let file_base_name = self.file_base_name();
+        let file_base_name = self
+            .file_base_name
+            .as_ref()
+            .expect("Run `WasmProject::generate()` first");
 
         let original_wasm_path = self.target_dir.join(format!(
             "wasm32v1-none/{}/{file_base_name}.wasm",

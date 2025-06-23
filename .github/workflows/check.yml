@@ -46,6 +46,17 @@ jobs:
         with:
           submodules: recursive
 
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: rustup stable"
+        run: |
+          rustup show
+          rustup install stable
+
+      - name: "Install rust-script"
+        run: cargo install rust-script
+
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
 
@@ -67,6 +78,14 @@ jobs:
           forge fmt --check
           forge build --sizes
           forge test -vvv
+
+      - name: "Check: Clones.sol is updated"
+        run: |
+          ../scripts/update-clones-sol.rs \
+          --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
+          --clones src/libraries/Clones.sol
+          forge fmt
+          git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
 
   clippy:
     strategy:

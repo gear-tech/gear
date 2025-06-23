@@ -93,6 +93,8 @@ impl WasmBuilder {
     /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
     /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
+        // it means we are inside a Substrate runtime build script,
+        // so WASM is already built, and we just return paths
         if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok() {
             return self
                 .provide_paths_for_substrate_runtime()
