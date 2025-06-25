@@ -26,8 +26,8 @@ impl ExtManager {
         payload: Vec<u8>,
         program_id: &ActorId,
     ) -> Result<Vec<u8>> {
-        let executable_actor_data = Actors::modify(*program_id, |actor| {
-            if let Some(actor) = actor {
+        let executable_actor_data = ProgramsStorageManager::modify_program(*program_id, |program| {
+            if let Some(actor) = program {
                 Ok(actor.executable_actor_data())
             } else {
                 Err(TestError::ActorNotFound(*program_id))
@@ -50,8 +50,8 @@ impl ExtManager {
         }
     }
     pub(crate) fn read_memory_pages(&self, program_id: &ActorId) -> BTreeMap<GearPage, PageBuf> {
-        Actors::access(*program_id, |actor| {
-            let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+        ProgramsStorageManager::access_program(*program_id, |program| {
+            let program = match program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
             {
                 _ => todo!(),
             };

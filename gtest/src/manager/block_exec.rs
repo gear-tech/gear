@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::code::MAX_WASM_PAGES_AMOUNT;
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, program::ProgramState};
 use task::get_maximum_task_gas;
-
+use crate::state::programs::PLACEHOLDER_MESSAGE_ID;
+use core_processor::ContextChargedForAllocations;
 use super::*;
 
 impl ExtManager {
@@ -42,7 +43,7 @@ impl ExtManager {
         let source = dispatch.source();
         let destination = dispatch.destination();
 
-        if Actors::is_program(source) {
+        if ProgramsStorageManager::is_program(source) {
             usage_panic!(
                 "Sending messages allowed only from users id. Please, provide user id as source."
             );
@@ -58,7 +59,7 @@ impl ExtManager {
             usage_panic!("User's {source} balance is zero; mint value to it first.");
         }
 
-        if !Actors::is_active_program(destination) {
+        if !ProgramsStorageManager::is_active_program(destination) {
             usage_panic!("User message can't be sent to non active program");
         }
 
@@ -115,7 +116,7 @@ impl ExtManager {
 
     pub(crate) fn route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
         let stored_dispatch = dispatch.into_stored();
-        if Actors::is_user(stored_dispatch.destination()) {
+        if ProgramsStorageManager::is_user(stored_dispatch.destination()) {
             panic!("Program API only sends message to programs.")
         }
 
@@ -312,33 +313,26 @@ impl ExtManager {
         #[allow(clippy::large_enum_variant)]
         enum Exec {
             Notes(Vec<JournalNote>),
-            ExecutableActor(
-                (ExecutableActorData, InstrumentedCode),
-                ContextChargedForProgram,
-            ),
+            ExecutableActor(ExecutableActorData, ContextChargedForAllocations),
         }
 
-        let exec = Actors::modify(destination_id, |actor| {
-            use TestActor::*;
-
-            let actor = match actor {
-                Some(existing_actor) => match existing_actor {
-                    Initialized(_) | Uninitialized(_, _) => existing_actor,
-                    FailedInit => {
-                        log::debug!(
-                            "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
-                        );
-                        return Exec::Notes(core_processor::process_failed_init(context));
-                    }
-                    Exited(inheritor) => {
-                        log::debug!(
-                            "Message {dispatch_id} is sent to exited program {destination_id}"
-                        );
-                        return Exec::Notes(core_processor::process_program_exited(
-                            context, *inheritor,
-                        ));
-                    }
-                },
+        let exec = ProgramsStorageManager::modify_program(destination_id, |program| {
+            let program = match program {
+                Some(Program::Active(active_program)) => active_program,
+                Some(Program::Terminated(_)) => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
+                    );
+                    return Exec::Notes(core_processor::process_failed_init(context));
+                }
+                Some(Program::Exited(program_id)) => {
+                    log::debug!(
+                        "Message {dispatch_id} is sent to exited program {destination_id}"
+                    );
+                    return Exec::Notes(core_processor::process_program_exited(
+                        context, *inheritor,
+                    ));
+                }
                 None => {
                     log::debug!(
                         "Message {dispatch_id} is sent to program {destination_id} which does not exist"
@@ -347,59 +341,80 @@ impl ExtManager {
                 }
             };
 
-            if actor.is_initialized() && dispatch_kind.is_init() {
-                // Panic is impossible, because gear protocol does not provide functionality
-                // to send second init message to any already existing program.
-                let err_msg = format!(
+            // Check for invalid init message to already initialized program
+            if program.state == ProgramState::Initialized && dispatch_kind.is_init() {
+                unreachable!(
                     "Got init message for already initialized program. \
-                    Current init message id - {dispatch_id:?}, already initialized program id - {destination_id:?}."
+                    Current init message id: {dispatch_id:?}, already initialized program id: {destination_id:?}"
                 );
-
-                unreachable!("{err_msg}");
             }
 
-            if matches!(actor, Uninitialized(None, _)) {
-                let err_msg = format!(
-                    "Got message sent to incomplete user program. First send manually via `Program` API message \
-                    to {destination_id} program, so it's completely created and possibly initialized."
-                );
-
-                unreachable!("{err_msg}");
-            }
-
-            // If the destination program is uninitialized, then we allow
-            // to process message, if it's a reply or init message.
-            // Otherwise, we return error reply.
-            if matches!(actor, Uninitialized(Some(message_id), _)
-                if *message_id != dispatch_id && !dispatch_kind.is_reply())
-            {
-                if dispatch_kind.is_init() {
-                    // Panic is impossible, because gear protocol does not provide functionality
-                    // to send second init message to any existing program.
-                    let err_msg = format!(
-                        "run_queue_step: got init message which is not the first init message to the program. \
-                        Current init message id - {dispatch_id:?}, original init message id - {dispatch_id}, program - {destination_id:?}.",
+            // Handle uninitialized program states
+            if let ProgramState::Uninitialized { message_id } = program.state {
+                // Check for incomplete user programs (placeholder message ID)
+                if message_id == PLACEHOLDER_MESSAGE_ID {
+                    unreachable!(
+                        "Got message sent to incomplete user program. First send manually via `Program` API \
+                        message to {destination_id} program, so it's completely created and possibly initialized."
                     );
-
-                    unreachable!("{err_msg}");
                 }
 
-                return Exec::Notes(core_processor::process_uninitialized(context));
+                // If the destination program is uninitialized, then we allow
+                // to process message, if it's a reply (async init case) or init message.
+                // Otherwise, we return error reply.
+                if message_id != dispatch_id && !dispatch_kind.is_reply() {
+                    if dispatch_kind.is_init() {
+                        // This should never happen as the protocol doesn't allow second init messages
+                        unreachable!(
+                            "Got init message which is not the first init message to the program. \
+                            Current init message id: {dispatch_id:?}, original init message id: {message_id:?}, \
+                            program: {destination_id:?}"
+                        );
+                    }
+
+                    return Exec::Notes(core_processor::process_uninitialized(context));
+                }
             }
 
-            if let Some(data) = actor.executable_actor_data() {
-                Exec::ExecutableActor(data, context)
+            let context = match core_processor::precharge_for_allocations(
+                block_config,
+                context,
+                program.allocations_tree_len,
+            ) {
+                Ok(context) => context,
+                Err(journal) => {
+                    return Exec::Notes(journal);
+                }
+            };
+
+            let allocations = if program.allocations_tree_len != 0 {
+                ProgramsStorageManager::allocations(destination_id).unwrap_or_else(||
+                    unreachable!(
+                        "`allocations_tree_len` {} is not zero, so program {destination_id:?} must have allocations",
+                        program.allocations_tree_len,
+                    )
+                )
             } else {
-                unreachable!("invalid program state");
-            }
+                Default::default()
+            };
+
+            let executable_actor_data = ExecutableActorData {
+                allocations,
+                memory_infix: program.memory_infix,
+                code_id: program.code_hash.cast(),
+                code_exports: program.code_exports,
+                static_pages: program.static_pages,
+                gas_reservation_map: program.gas_reservation_map,
+            };
+
+            Exec::ExecutableActor(executable_actor_data, context)
         });
 
         let journal = match exec {
             Exec::Notes(journal) => journal,
-            Exec::ExecutableActor((actor_data, instrumented_code), context) => self
+            Exec::ExecutableActor(actor_data, context) => self
                 .process_executable_actor(
                     actor_data,
-                    instrumented_code,
                     block_config,
                     context,
                     balance,
@@ -412,22 +427,10 @@ impl ExtManager {
     fn process_executable_actor(
         &self,
         actor_data: ExecutableActorData,
-        instrumented_code: InstrumentedCode,
         block_config: &BlockConfig,
-        context: ContextChargedForProgram,
+        context: ContextChargedForAllocations,
         balance: Value,
     ) -> Vec<JournalNote> {
-        let context = match core_processor::precharge_for_allocations(
-            block_config,
-            context,
-            actor_data.allocations.intervals_amount() as u32,
-        ) {
-            Ok(context) => context,
-            Err(journal) => {
-                return journal;
-            }
-        };
-
         let context =
             match core_processor::precharge_for_code_length(block_config, context, actor_data) {
                 Ok(context) => context,
@@ -461,6 +464,12 @@ impl ExtManager {
             }
         };
 
+        let instrumented_code = self.instrumented_codes.get(&code_id).cloned().unwrap_or_else(|| {
+            // This should never happen as the code is already precharged
+            unreachable!(
+                "Instrumented code not found for code id {code_id:?}."
+            )
+        });
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
             (context, instrumented_code, balance).into(),

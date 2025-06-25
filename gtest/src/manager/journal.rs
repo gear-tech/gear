@@ -22,7 +22,7 @@ use super::{ExtManager, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     program::ProgramBuilder,
-    state::{accounts::Accounts, actors::Actors},
+    state::{accounts::Accounts, programs::ProgramsStorageManager},
     Value, EXISTENTIAL_DEPOSIT,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
@@ -95,25 +95,32 @@ impl JournalHandler for ExtManager {
             self.dispatches.push_back(message);
         });
 
-        Actors::modify(id_exited, |actor| {
-            let actor =
-                actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
+        ProgramsStorageManager::modify_program(id_exited, |program| {
+            let program =
+                program.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
 
-            if let TestActor::Initialized(program) =
-                std::mem::replace(actor, TestActor::Exited(value_destination))
-            {
-                for (reservation_id, slot) in program.gas_reservation_map {
-                    let slot = self.remove_gas_reservation_slot(reservation_id, slot);
+            match program {
+                Program::Active(active_program) => {
+                    for (reservation_id, slot) in active_program.gas_reservation_map {
+                        let slot = self.remove_gas_reservation_slot(reservation_id, slot);
 
-                    let result = self.task_pool.delete(
-                        slot.finish,
-                        ScheduledTask::RemoveGasReservation(id_exited, reservation_id),
-                    );
-                    log::debug!(
-                        "remove_gas_reservation_map; program_id = {id_exited:?}, result = {result:?}"
-                    );
+                        let result = self.task_pool.delete(
+                            slot.finish,
+                            ScheduledTask::RemoveGasReservation(id_exited, reservation_id),
+                        );
+                        log::debug!(
+                            "remove_gas_reservation_map; program_id = {id_exited:?}, result = {result:?}"
+                        );
+                    }
+                }
+                actual_program => {
+                    // Guaranteed to be called only on active program
+                    unreachable!("JournalHandler::exit_dispatch: failed to exit active program. \
+                    Program - {id_exited}, actual program - {actual_program:?}");
                 }
             }
+
+            *program = Program::Exited(value_destination);
         });
 
         let value = Accounts::balance(id_exited);
@@ -133,7 +140,7 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = Actors::is_user(dispatch.destination())
+        let to_user = ProgramsStorageManager::is_user(dispatch.destination())
             && !self.no_code_program.contains(&dispatch.destination());
         if delay > 0 {
             log::debug!(
@@ -148,7 +155,7 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = Actors::is_program(dispatch.destination())
+        let is_program = ProgramsStorageManager::is_program(dispatch.destination())
             || self.no_code_program.contains(&dispatch.destination());
 
         if is_program {
@@ -297,7 +304,8 @@ impl JournalHandler for ExtManager {
     ) {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
-                if !Actors::contains_key(candidate_id) {
+                if !ProgramsStorageManager::has_program(candidate_id) {
+                    todo!("build code and id & store new actor");
                     let (instrumented, _) =
                         ProgramBuilder::build_instrumented_code_and_id(code.clone());
                     self.store_new_actor(
@@ -309,7 +317,6 @@ impl JournalHandler for ExtManager {
                             pages_data: Default::default(),
                             gas_reservation_map: Default::default(),
                         },
-                        Some(init_message_id),
                     );
 
                     // Transfer the ED from the program-creator to the new program

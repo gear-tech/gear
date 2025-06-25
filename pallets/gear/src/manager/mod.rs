@@ -401,11 +401,6 @@ where
     }
 
     fn process_failed_init(program_id: ActorId, origin: ActorId) {
-        // Some messages addressed to the program could be processed
-        // in the queue before init message. For example, that could
-        // happen when init message had more gas limit then rest block
-        // gas allowance, but a dispatch message to the program was
-        // dequeued. The other case is async init.
         Self::clean_waitlist(program_id);
 
         let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {

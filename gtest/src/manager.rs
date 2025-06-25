@@ -17,22 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::{Gas, Value},
-    error::usage_panic,
-    log::{BlockRunResult, CoreLog},
-    state::{
+    constants::{Gas, Value}, error::usage_panic, log::{BlockRunResult, CoreLog}, state::{
         accounts::Accounts,
-        actors::Actors,
+        programs::ProgramsStorageManager,
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
         mailbox::MailboxManager,
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
-    },
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
-    VALUE_PER_GAS,
+    }, Block, Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS
 };
 use core_processor::{
     common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
@@ -98,6 +92,7 @@ pub(crate) struct ExtManager {
     pub(crate) bank: Bank,
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) instrumented_codes: BTreeMap<CodeId, InstrumentedCode>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
     pub(crate) task_pool: TaskPoolManager,
@@ -144,23 +139,21 @@ impl ExtManager {
     pub(crate) fn store_new_actor(
         &mut self,
         program_id: ActorId,
-        program: Program,
-        init_message_id: Option<MessageId>,
-    ) -> Option<Program> {
-        Actors::insert(program_id, Program::Active(ActiveProgram {
-            allocations_tree_len: 0,
-            memory_infix: Default::default(),
-            gas_reservation_map: GasReservationMap::default(),
-            code_hash: todo!(),
-            code_exports: todo!(),
-            static_pages: todo!(),
-            state: todo!(),
-            expiration_block: todo!(),
-        }))
+        program: Program<Block>,
+    ) -> Option<Program<Block>> {
+        ProgramsStorageManager::insert_program(program_id, program)
     }
 
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
         self.opt_binaries.insert(code_id, code);
+    }
+
+    pub(crate) fn store_instrumented_code(
+        &mut self,
+        code_id: CodeId,
+        code: InstrumentedCode,
+    ) {
+        self.instrumented_codes.insert(code_id, code);
     }
 
     pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
@@ -174,7 +167,7 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while Actors::contains_key(self.id_nonce.into()) {
+        while ProgramsStorageManager::has_program(self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -200,8 +193,8 @@ impl ExtManager {
         program_id: &ActorId,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
-        Actors::modify(*program_id, |actor| {
-            let pages_data = actor
+        ProgramsStorageManager::modify_program(*program_id, |program| {
+            let pages_data = program
                 .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
                 .pages_mut()
                 .expect("No pages data found for program");
@@ -221,7 +214,7 @@ impl ExtManager {
     }
 
     pub(crate) fn override_balance(&mut self, &id: &ActorId, balance: Value) {
-        if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
+        if ProgramsStorageManager::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             usage_panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({}. \
                 Please try to use bigger balance value",
@@ -238,21 +231,27 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, program_id: ActorId) {
-        Actors::modify(program_id, |actor| {
-            actor
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .set_initialized()
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            let Program::Active(active_program) = program
+                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found")) else {
+                    unreachable!("Before init finishes, program must always be active. But {program_id:?} program is not active.");
+                };
+
+            active_program.state = ProgramState::Initialized;
         });
     }
 
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
-        Actors::modify(program_id, |actor| {
-            if let Some(actor) = actor {
-                *actor = TestActor::FailedInit;
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            if let Some(program) = program {
+                // todo [sab] waitlist cleaning?
+                // todo [sab] removing gas reservation map
+                *program = Program::Terminated(program_id);
+
             } else {
                 // That's a case if no code exists for the program
                 // requested to be created from another program and
-                // there was not enough to get program from storage.
+                // there was not enough gas to get program from storage.
                 log::debug!("Failed init is set for non-existing actor");
             }
         });
@@ -268,8 +267,8 @@ impl ExtManager {
         id: ActorId,
         op: F,
     ) -> Option<R> {
-        Actors::modify(id, |actor| {
-            actor.and_then(|actor| actor.program_mut().map(op))
+        ProgramsStorageManager::modify_program(id, |program| {
+            program.and_then(|actor| actor.program_mut().map(op))
         })
     }
 

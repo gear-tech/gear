@@ -21,7 +21,7 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
-    state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
+    state::{accounts::Accounts, programs::ProgramsStorageManager, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
@@ -60,8 +60,8 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        Actors::access(program_id, |actor| {
-            actor
+        ProgramsStorageManager::access_program(program_id, |program| {
+            program
                 .and_then(|actor| actor.pages())
                 .map(|pages_data| pages_data.contains_key(&page))
                 .unwrap_or(false)
@@ -73,8 +73,8 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        Actors::access(program_id, |actor| {
-            actor
+        ProgramsStorageManager::access_program(program_id, |program| {
+            program
                 .and_then(|actor| actor.pages())
                 .and_then(|pages_data| pages_data.get(&page))
                 .map(|page_buf| {
@@ -258,7 +258,7 @@ impl System {
     /// Returns a [`Program`] by `id`.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
-        if Actors::is_program(id) {
+        if ProgramsStorageManager::is_program(id) {
             Some(Program {
                 id,
                 manager: &self.0,
@@ -275,7 +275,7 @@ impl System {
 
     /// Returns a list of programs.
     pub fn programs(&self) -> Vec<Program> {
-        Actors::program_ids()
+        ProgramsStorageManager::program_ids()
             .into_iter()
             .map(|id| Program {
                 id,
@@ -291,7 +291,7 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        Actors::is_active_program(program_id)
+        ProgramsStorageManager::is_active_program(program_id)
     }
 
     /// Returns `Some(ActorId)` if a program is exited with inheritor.
@@ -299,12 +299,13 @@ impl System {
     /// Returns [`None`] otherwise.
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
-        Actors::access(program_id, |actor| {
-            if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {
-                Some(*inheritor_id)
-            } else {
-                None
-            }
+        ProgramsStorageManager::access_program(program_id, |program| {
+            todo!("todo [sab]")
+            // if let Some(crate::state::programs::TestActor::Exited(inheritor_id)) = program {
+            //     Some(*inheritor_id)
+            // } else {
+            //     None
+            // }
         })
     }
 
@@ -362,7 +363,7 @@ impl System {
     /// for user action.
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
         let program_id = id.into().0;
-        if !Actors::is_user(program_id) {
+        if !ProgramsStorageManager::is_user(program_id) {
             usage_panic!("Mailbox available only for users. Please, provide a user id.");
         }
         ActorMailbox::new(program_id, &self.0)
@@ -372,7 +373,7 @@ impl System {
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
         let id = id.into().0;
 
-        if Actors::is_program(id) {
+        if ProgramsStorageManager::is_program(id) {
             usage_panic!(
                 "Attempt to mint value to a program {id:?}. Please, use `System::transfer` instead"
             );
@@ -393,7 +394,7 @@ impl System {
         let from = from.into().0;
         let to = to.into().0;
 
-        if Actors::is_program(from) {
+        if ProgramsStorageManager::is_program(from) {
             usage_panic!(
                 "Attempt to transfer from a program {from:?}. Please, provide `from` user id."
             );
@@ -418,8 +419,8 @@ impl Drop for System {
         self.0.borrow().task_pool.clear();
         self.0.borrow().waitlist.reset();
 
-        // Clear actors and accounts storages
-        Actors::clear();
+        // Clear programs and accounts storages
+        ProgramsStorageManager::clear();
         Accounts::clear();
     }
 }

@@ -19,7 +19,7 @@
 use crate::{
     error::usage_panic,
     manager::ExtManager,
-    state::{accounts::Accounts, actors::Actors},
+    state::{accounts::Accounts, programs::ProgramsStorageManager},
     Log, Value, MAX_USER_GAS_LIMIT,
 };
 use gear_common::{
@@ -144,7 +144,7 @@ impl<'a> ActorMailbox<'a> {
             .borrow_mut()
             .read_mailbox_message(self.user_id, message_id)?;
 
-        if Actors::is_active_program(mailboxed.source()) {
+        if ProgramsStorageManager::is_active_program(mailboxed.source()) {
             let message = ReplyMessage::auto(mailboxed.id());
 
             self.manager

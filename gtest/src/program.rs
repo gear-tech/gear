@@ -17,18 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    default_users_list,
-    error::usage_panic,
-    manager::ExtManager,
-    state::actors::Actors,
-    system::System,
-    Result, Value, MAX_USER_GAS_LIMIT,
+    default_users_list, error::usage_panic, manager::ExtManager, state::programs::{ProgramsStorageManager, PLACEHOLDER_MESSAGE_ID}, system::System, Block, Result, Value, MAX_USER_GAS_LIMIT
 };
+use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
-    gas_metering::Schedule,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
-    message::{Dispatch, DispatchKind, Message},
+    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId}, gas_metering::Schedule, ids::{prelude::*, ActorId, CodeId, MessageId}, message::{Dispatch, DispatchKind, Message}, program::{ActiveProgram, Program as InnerProgram, ProgramState}
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
@@ -205,7 +198,8 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code, code_id) = Self::build_instrumented_code_and_id(self.code.clone());
+        let (instrumented_code, code_id) = Self::build_instrumented_code_and_id(self.code.clone())
+            .into_parts();
 
         system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
@@ -216,22 +210,32 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
-        Program::program_with_id(
+        // Expiration block logic isn't yet fully implemented in Gear protocol,
+        // so we set it to the current block height.
+        let expiration_block = system.block_height();
+        let program = Program::program_with_id(
             system,
             id,
-            InnerProgram {
-                code,
-                code_id,
-                allocations: Default::default(),
-                pages_data: Default::default(),
+            InnerProgram::Active(ActiveProgram {
+                allocations_tree_len: 0,
+                code_hash: code_id.cast(),
+                code_exports: instrumented_code.exports().clone(),
+                static_pages: instrumented_code.static_pages(),
+                state: ProgramState::Uninitialized { message_id: PLACEHOLDER_MESSAGE_ID },
+                expiration_block,
+                memory_infix: Default::default(),
                 gas_reservation_map: Default::default(),
-            },
-        )
+            }),
+        );
+
+        system.0.borrow_mut().store_instrumented_code(code_id, instrumented_code);
+
+        program
     }
 
     pub(crate) fn build_instrumented_code_and_id(
         original_code: Vec<u8>,
-    ) -> (InstrumentedCode, CodeId) {
+    ) -> InstrumentedCodeAndId {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
@@ -242,7 +246,7 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts()
+        InstrumentedCodeAndId::from(CodeAndId::new(code))
     }
 }
 
@@ -269,7 +273,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram,
+        program: InnerProgram<Block>,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -283,7 +287,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .store_new_actor(program_id, program, None)
+            .store_new_actor(program_id, program)
             .is_some()
         {
             usage_panic!(
@@ -443,13 +447,21 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let kind = Actors::modify(self.id, |actor| {
-            let actor = actor.expect("Can't fail");
-            if let TestActor::Uninitialized(id @ None, _) = actor {
-                *id = Some(message.id());
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
+        let kind = ProgramsStorageManager::modify_program(self.id, |program| {
+            let program = program.expect("Can't fail");
+            let InnerProgram::Active(active_program) = program else {
+                usage_panic!(
+                    "Program with id {} is not active - {program:?}",
+                    self.id
+                );
+            };
+            match active_program.state {
+                ProgramState::Uninitialized { ref mut message_id } if *message_id == PLACEHOLDER_MESSAGE_ID => {
+                    *message_id = message.id();
+
+                    DispatchKind::Init
+                }
+                _ => DispatchKind::Handle
             }
         });
 
