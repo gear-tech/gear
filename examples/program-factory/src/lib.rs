@@ -149,17 +149,19 @@ mod tests {
         sys.init_logger();
         let factory = prepare_factory(&sys);
 
-        // Non existing code hash provided
+        // Non existing code hash provided with low gas limit
         let non_existing_code_hash = [10u8; 32];
-        let salt = b"some_salt";
-        let payload = CreateProgram::Custom(vec![(non_existing_code_hash, salt.to_vec(), 100_000)]);
-        let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
-        let res = sys.run_next_block();
-        let fictional_program_id =
-            calculate_program_id(non_existing_code_hash.into(), salt, Some(msg_id));
-        assert!(res.succeed.contains(&msg_id));
-        // No new program with fictional id
-        assert!(!sys.is_active_program(fictional_program_id));
+        for gas in [500, 100_000_000] {
+            let salt = b"some_salt";
+            let payload = CreateProgram::Custom(vec![(non_existing_code_hash, salt.to_vec(), gas)]);
+            let msg_id = factory.send_bytes(DEFAULT_USER_ALICE, payload.encode());
+            let res = sys.run_next_block();
+            assert!(res.succeed.contains(&msg_id));
+            // No new program with fictional id
+            let fictional_program_id =
+                calculate_program_id(non_existing_code_hash.into(), salt, Some(msg_id));
+            assert!(!sys.is_active_program(fictional_program_id));
+        }
     }
 
     #[test]

@@ -28,7 +28,7 @@ impl ExtManager {
         program_id: ActorId,
         reservation: ReservationId,
     ) -> GasReservationSlot {
-        let slot = self.update_genuine_program(program_id, |p| {
+        let slot = self.update_program(program_id, |p| {
             p.gas_reservation_map
                 .remove(&reservation)
                 .unwrap_or_else(|| {
