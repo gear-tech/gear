@@ -34,10 +34,7 @@ use crate::{
     GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
     VALUE_PER_GAS,
 };
-use core_processor::{
-    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
-    Ext,
-};
+use core_processor::{common::*, configs::BlockConfig, Ext};
 use gear_common::{
     auxiliary::{
         gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,

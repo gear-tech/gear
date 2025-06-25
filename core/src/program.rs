@@ -20,12 +20,9 @@
 
 use crate::{
     ids::{ActorId, MessageId},
-    message::DispatchKind,
-    pages::WasmPagesAmount,
     reservation::GasReservationMap,
 };
-use alloc::collections::BTreeSet;
-use primitive_types::H256;
+use gprimitives::CodeId;
 use scale_info::{
     scale::{Decode, Encode},
     TypeInfo,
@@ -97,12 +94,8 @@ pub struct ActiveProgram<BlockNumber: Copy> {
     pub memory_infix: MemoryInfix,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
-    /// Code hash of the program.
-    pub code_hash: H256,
-    /// Set of supported dispatch kinds.
-    pub code_exports: BTreeSet<DispatchKind>,
-    /// Amount of static pages.
-    pub static_pages: WasmPagesAmount,
+    /// Code id of the program.
+    pub code_id: CodeId,
     /// Initialization state of the program.
     pub state: ProgramState,
     /// Block number when the program will be expired.

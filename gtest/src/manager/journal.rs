@@ -298,13 +298,13 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !Actors::contains_key(candidate_id) {
-                    let (instrumented, _) =
+                    let (_, instrumented_code_and_metadata) =
                         ProgramBuilder::build_instrumented_code_and_id(code.clone());
                     self.store_new_actor(
                         candidate_id,
                         Program {
-                            code: instrumented,
-                            code_id,
+                            code: instrumented_code_and_metadata.instrumented_code,
+                            code_metadata: instrumented_code_and_metadata.metadata,
                             allocations: Default::default(),
                             pages_data: Default::default(),
                             gas_reservation_map: Default::default(),

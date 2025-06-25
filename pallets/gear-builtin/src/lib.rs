@@ -56,9 +56,11 @@ use alloc::{
 use common::{storage::Limiter, BlockLimiter};
 use core::marker::PhantomData;
 use core_processor::{
-    common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
-    process_allowance_exceed, process_execution_error, process_success,
-    SuccessfulDispatchResultKind, SystemReservationContext,
+    common::{
+        ActorExecutionErrorReplyReason, DispatchResult, JournalNote, SuccessfulDispatchResultKind,
+        TrapExplanation,
+    },
+    process_allowance_exceed, process_execution_error, process_success, SystemReservationContext,
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
