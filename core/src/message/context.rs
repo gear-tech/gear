@@ -30,15 +30,13 @@ use alloc::{
     vec::Vec,
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use super::{DispatchKind, IncomingDispatch, Packet};
 
 /// Context settings.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ContextSettings {
     /// Fee for sending message.
     pub sending_fee: u64,
@@ -86,7 +84,7 @@ pub struct ContextOutcomeDrain {
 /// Context outcome.
 ///
 /// Contains all outgoing messages and wakes that should be done after execution.
-#[derive(Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
@@ -106,10 +104,14 @@ impl ContextOutcome {
     /// Create new ContextOutcome.
     fn new(program_id: ActorId, source: ActorId, origin_msg_id: MessageId) -> Self {
         Self {
+            init: Vec::new(),
+            handle: Vec::new(),
+            reply: None,
+            awakening: Vec::new(),
+            reply_deposits: Vec::new(),
             program_id,
             source,
             origin_msg_id,
-            ..Default::default()
         }
     }
 
@@ -143,7 +145,7 @@ impl ContextOutcome {
     }
 }
 /// Store of current temporary message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct OutgoingPayloads {
     handles: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
@@ -151,7 +153,7 @@ pub struct OutgoingPayloads {
 }
 
 /// Store of previous message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
     initialized: BTreeSet<ActorId>,
@@ -210,7 +212,7 @@ impl ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MessageContext {
     kind: DispatchKind,
     current: IncomingMessage,

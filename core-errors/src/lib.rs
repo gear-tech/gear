@@ -25,22 +25,22 @@
 
 extern crate alloc;
 
-mod simple;
-
 use core::fmt::Debug;
 use enum_iterator::Sequence;
 #[cfg(feature = "codec")]
 use {
     alloc::vec::Vec,
-    scale_info::scale::{Decode, Encode, Error, Input},
+    parity_scale_codec::{Decode, Encode, Error, Input},
 };
 
 pub use simple::*;
 
+mod simple;
+
 /// Execution error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[non_exhaustive]
 #[repr(u32)]
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 pub enum ExecutionError {
     /// An error occurs in attempt to charge more gas than available for operation.
     #[error("Not enough gas for operation")]
@@ -76,9 +76,9 @@ pub enum ExecutionError {
 }
 
 /// Memory error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[non_exhaustive]
 #[repr(u32)]
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 pub enum MemoryError {
     /// The error occurs, when program tries to allocate in block-chain runtime more memory than allowed.
     #[error("Trying to allocate more memory in block-chain runtime than allowed")]
@@ -89,9 +89,9 @@ pub enum MemoryError {
 }
 
 /// Error using messages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[non_exhaustive]
 #[repr(u32)]
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 pub enum MessageError {
     /// Message has bigger then allowed one message size
     #[error("Max message size exceed")]
@@ -171,10 +171,10 @@ pub enum MessageError {
 }
 
 /// Reservation error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[non_exhaustive]
-#[repr(u32)]
 // TODO: refactor after multiple reservations are done
+#[repr(u32)]
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 pub enum ReservationError {
     /// An error occurs in attempt to unreserve gas with non-existing reservation ID.
     #[error("Invalid reservation ID")]
@@ -194,7 +194,7 @@ pub enum ReservationError {
 }
 
 /// An error occurred in API.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
 #[non_exhaustive]
 pub enum ExtError {
     /// Execution error.

@@ -26,10 +26,11 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 enum-iterator.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
 std = ["gear-core-backend/std", "gear-wasm-instrument/std"]
 strict = []
-mock = []
+mock = ["gear-core/mock"]
 gtest = []
