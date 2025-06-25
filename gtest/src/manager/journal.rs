@@ -18,7 +18,7 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use super::{ExtManager, Program, TestActor};
+use super::{ExtManager, Program};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     program::ProgramBuilder,
@@ -29,6 +29,7 @@ use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
     event::{MessageWaitedRuntimeReason, RuntimeReason},
     scheduler::StorageType,
+    ActiveProgram, Origin,
 };
 use gear_core::{
     env::MessageWaitedType,
@@ -40,11 +41,12 @@ use gear_core::{
         numerated::{iterators::IntervalIterator, tree::IntervalsTree},
         GearPage, WasmPage,
     },
+    program::ProgramState,
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem};
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
@@ -101,7 +103,8 @@ impl JournalHandler for ExtManager {
 
             match program {
                 Program::Active(active_program) => {
-                    for (reservation_id, slot) in active_program.gas_reservation_map {
+                    for (reservation_id, slot) in mem::take(&mut active_program.gas_reservation_map)
+                    {
                         let slot = self.remove_gas_reservation_slot(reservation_id, slot);
 
                         let result = self.task_pool.delete(
@@ -115,8 +118,10 @@ impl JournalHandler for ExtManager {
                 }
                 actual_program => {
                     // Guaranteed to be called only on active program
-                    unreachable!("JournalHandler::exit_dispatch: failed to exit active program. \
-                    Program - {id_exited}, actual program - {actual_program:?}");
+                    unreachable!(
+                        "JournalHandler::exit_dispatch: failed to exit active program. \
+                    Program - {id_exited}, actual program - {actual_program:?}"
+                    );
                 }
             }
 
@@ -265,22 +270,20 @@ impl JournalHandler for ExtManager {
     }
 
     fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
-        self.update_storage_pages(&program_id, pages_data);
+        self.update_storage_pages(program_id, pages_data);
     }
 
     fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
-        self.update_program(program_id, |program| {
-            program
-                .allocations
-                .difference(&allocations)
-                .flat_map(IntervalIterator::from)
-                .flat_map(|page| page.to_iter())
-                .for_each(|ref page| {
-                    program.pages_data.remove(page);
-                });
-            program.allocations = allocations;
-        })
-        .expect("no genuine program was found");
+        let old_allocations = ProgramsStorageManager::allocations(program_id).unwrap_or_default();
+        old_allocations
+            .difference(&allocations)
+            .flat_map(|page| page.iter())
+            .flat_map(|page| page.to_iter())
+            .for_each(|page| {
+                ProgramsStorageManager::remove_program_page(program_id, page);
+            });
+
+        ProgramsStorageManager::set_allocations(program_id, allocations);
     }
 
     fn send_value(&mut self, from: ActorId, to: ActorId, value: Value, locked: bool) {
@@ -302,21 +305,24 @@ impl JournalHandler for ExtManager {
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
+        if let Some(code) = self.instrumented_codes.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !ProgramsStorageManager::has_program(candidate_id) {
-                    todo!("build code and id & store new actor");
-                    let (instrumented, _) =
-                        ProgramBuilder::build_instrumented_code_and_id(code.clone());
+                    let expiration_block = self.block_height();
                     self.store_new_actor(
                         candidate_id,
-                        Program {
-                            code: instrumented,
-                            code_id,
-                            allocations: Default::default(),
-                            pages_data: Default::default(),
+                        Program::Active(ActiveProgram {
+                            allocations_tree_len: 0,
+                            code_hash: code_id.cast(),
+                            code_exports: code.exports().clone(),
+                            static_pages: code.static_pages(),
+                            state: ProgramState::Uninitialized {
+                                message_id: init_message_id,
+                            },
+                            expiration_block,
+                            memory_infix: Default::default(),
                             gas_reservation_map: Default::default(),
-                        },
+                        }),
                     );
 
                     // Transfer the ED from the program-creator to the new program
@@ -435,6 +441,7 @@ impl JournalHandler for ExtManager {
     fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         let block_height = self.block_height();
         self.update_program(program_id, |program| {
+            // todo [sab] use HoldBoundBuilder
             program.gas_reservation_map =
                 reserver.into_map(block_height, |duration| block_height + duration);
         })

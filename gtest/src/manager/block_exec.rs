@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, program::ProgramState};
-use task::get_maximum_task_gas;
+use super::*;
 use crate::state::programs::PLACEHOLDER_MESSAGE_ID;
 use core_processor::ContextChargedForAllocations;
-use super::*;
+use gear_core::{code::MAX_WASM_PAGES_AMOUNT, program::ProgramState};
+use task::get_maximum_task_gas;
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -325,10 +325,8 @@ impl ExtManager {
                     );
                     return Exec::Notes(core_processor::process_failed_init(context));
                 }
-                Some(Program::Exited(program_id)) => {
-                    log::debug!(
-                        "Message {dispatch_id} is sent to exited program {destination_id}"
-                    );
+                Some(Program::Exited(inheritor)) => {
+                    log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
                     return Exec::Notes(core_processor::process_program_exited(
                         context, *inheritor,
                     ));
@@ -364,7 +362,8 @@ impl ExtManager {
                 // Otherwise, we return error reply.
                 if message_id != dispatch_id && !dispatch_kind.is_reply() {
                     if dispatch_kind.is_init() {
-                        // This should never happen as the protocol doesn't allow second init messages
+                        // This should never happen as the protocol doesn't allow second init
+                        // messages
                         unreachable!(
                             "Got init message which is not the first init message to the program. \
                             Current init message id: {dispatch_id:?}, original init message id: {message_id:?}, \
@@ -402,9 +401,9 @@ impl ExtManager {
                 allocations,
                 memory_infix: program.memory_infix,
                 code_id: program.code_hash.cast(),
-                code_exports: program.code_exports,
+                code_exports: program.code_exports.clone(),
                 static_pages: program.static_pages,
-                gas_reservation_map: program.gas_reservation_map,
+                gas_reservation_map: program.gas_reservation_map.clone(),
             };
 
             Exec::ExecutableActor(executable_actor_data, context)
@@ -412,13 +411,9 @@ impl ExtManager {
 
         let journal = match exec {
             Exec::Notes(journal) => journal,
-            Exec::ExecutableActor(actor_data, context) => self
-                .process_executable_actor(
-                    actor_data,
-                    block_config,
-                    context,
-                    balance,
-                ),
+            Exec::ExecutableActor(actor_data, context) => {
+                self.process_executable_actor(actor_data, block_config, context, balance)
+            }
         };
 
         core_processor::handle_journal(journal, self)
@@ -452,6 +447,14 @@ impl ExtManager {
                 }
             };
 
+        let instrumented_code = self
+            .instrumented_codes
+            .get(&code_id)
+            .cloned()
+            .unwrap_or_else(|| {
+                // This should never happen as the code is already precharged
+                unreachable!("Instrumented code not found for code id {code_id:?}.")
+            });
         let context = match core_processor::precharge_for_module_instantiation(
             block_config,
             // No re-instrumentation
@@ -464,12 +467,6 @@ impl ExtManager {
             }
         };
 
-        let instrumented_code = self.instrumented_codes.get(&code_id).cloned().unwrap_or_else(|| {
-            // This should never happen as the code is already precharged
-            unreachable!(
-                "Instrumented code not found for code id {code_id:?}."
-            )
-        });
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
             (context, instrumented_code, balance).into(),

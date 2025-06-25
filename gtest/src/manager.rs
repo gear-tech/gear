@@ -17,16 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::{Gas, Value}, error::usage_panic, log::{BlockRunResult, CoreLog}, state::{
-        accounts::Accounts,
-        programs::ProgramsStorageManager,
-        bank::Bank,
-        blocks::BlocksManager,
-        gas_tree::GasTreeManager,
-        mailbox::MailboxManager,
-        task_pool::TaskPoolManager,
+    constants::{Gas, Value},
+    error::usage_panic,
+    log::{BlockRunResult, CoreLog},
+    state::{
+        accounts::Accounts, bank::Bank, blocks::BlocksManager, gas_tree::GasTreeManager,
+        mailbox::MailboxManager, programs::ProgramsStorageManager, task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
-    }, Block, Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS
+    },
+    Block, Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
+    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
+    VALUE_PER_GAS,
 };
 use core_processor::{
     common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
@@ -52,8 +53,8 @@ use gear_core::{
         StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
+    program::{ActiveProgram, Program, ProgramState},
     tasks::ScheduledTask,
-    program::{Program, ActiveProgram},
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
@@ -148,11 +149,7 @@ impl ExtManager {
         self.opt_binaries.insert(code_id, code);
     }
 
-    pub(crate) fn store_instrumented_code(
-        &mut self,
-        code_id: CodeId,
-        code: InstrumentedCode,
-    ) {
+    pub(crate) fn store_instrumented_code(&mut self, code_id: CodeId, code: InstrumentedCode) {
         self.instrumented_codes.insert(code_id, code);
     }
 
@@ -190,19 +187,12 @@ impl ExtManager {
 
     pub(crate) fn update_storage_pages(
         &mut self,
-        program_id: &ActorId,
+        program_id: ActorId,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
-        ProgramsStorageManager::modify_program(*program_id, |program| {
-            let pages_data = program
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .pages_mut()
-                .expect("No pages data found for program");
-
-            for (page, buf) in memory_pages {
-                pages_data.insert(page, buf);
-            }
-        });
+        for (page, buf) in memory_pages {
+            ProgramsStorageManager::set_program_page(program_id, page, buf);
+        }
     }
 
     pub(crate) fn mint_to(&mut self, id: &ActorId, value: Value) {
@@ -232,10 +222,11 @@ impl ExtManager {
 
     fn init_success(&mut self, program_id: ActorId) {
         ProgramsStorageManager::modify_program(program_id, |program| {
-            let Program::Active(active_program) = program
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found")) else {
-                    unreachable!("Before init finishes, program must always be active. But {program_id:?} program is not active.");
-                };
+            let Program::Active(active_program) =
+                program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+            else {
+                unreachable!("Before init finishes, program must always be active. But {program_id:?} program is not active.");
+            };
 
             active_program.state = ProgramState::Initialized;
         });
@@ -247,7 +238,6 @@ impl ExtManager {
                 // todo [sab] waitlist cleaning?
                 // todo [sab] removing gas reservation map
                 *program = Program::Terminated(program_id);
-
             } else {
                 // That's a case if no code exists for the program
                 // requested to be created from another program and
@@ -262,13 +252,19 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn update_program<R, F: FnOnce(&mut Program) -> R>(
+    pub(crate) fn update_program<R, F: FnOnce(&mut ActiveProgram<Block>) -> R>(
         &mut self,
         id: ActorId,
         op: F,
     ) -> Option<R> {
         ProgramsStorageManager::modify_program(id, |program| {
-            program.and_then(|actor| actor.program_mut().map(op))
+            program.and_then(|actor| {
+                if let Program::Active(active_program) = actor {
+                    Some(op(active_program))
+                } else {
+                    None
+                }
+            })
         })
     }
 

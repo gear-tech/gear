@@ -19,10 +19,10 @@
 // States and state managers that are used to emulate gear runtime.
 
 pub(crate) mod accounts;
-pub(crate) mod programs;
 pub(crate) mod bank;
 pub(crate) mod blocks;
 pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
+pub(crate) mod programs;
 pub(crate) mod task_pool;
 pub(crate) mod waitlist;

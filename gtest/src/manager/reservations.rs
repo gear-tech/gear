@@ -28,8 +28,8 @@ impl ExtManager {
         program_id: ActorId,
         reservation: ReservationId,
     ) -> GasReservationSlot {
-        let slot = self.update_program(program_id, |p| {
-            p.gas_reservation_map
+        let slot = self.update_program(program_id, |active_program| {
+            active_program.gas_reservation_map
                 .remove(&reservation)
                 .unwrap_or_else(|| {
                     let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \

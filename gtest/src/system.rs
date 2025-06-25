@@ -21,7 +21,7 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
-    state::{accounts::Accounts, programs::ProgramsStorageManager, mailbox::ActorMailbox},
+    state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
     Gas, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
@@ -60,12 +60,7 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        ProgramsStorageManager::access_program(program_id, |program| {
-            program
-                .and_then(|actor| actor.pages())
-                .map(|pages_data| pages_data.contains_key(&page))
-                .unwrap_or(false)
-        })
+        ProgramsStorageManager::program_page(program_id, page).is_some()
     }
 
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
@@ -73,14 +68,9 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        ProgramsStorageManager::access_program(program_id, |program| {
-            program
-                .and_then(|actor| actor.pages())
-                .and_then(|pages_data| pages_data.get(&page))
-                .map(|page_buf| {
-                    buffer.copy_from_slice(page_buf);
-                    page_buf.len() as u32
-                })
+        ProgramsStorageManager::program_page(program_id, page).map(|page_buf| {
+            buffer.copy_from_slice(page_buf.as_ref());
+            page_buf.len() as u32
         })
     }
 }

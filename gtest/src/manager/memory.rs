@@ -24,37 +24,43 @@ impl ExtManager {
     pub(crate) fn read_state_bytes(
         &mut self,
         payload: Vec<u8>,
-        program_id: &ActorId,
+        program_id: ActorId,
     ) -> Result<Vec<u8>> {
-        let executable_actor_data = ProgramsStorageManager::modify_program(*program_id, |program| {
-            if let Some(actor) = program {
-                Ok(actor.executable_actor_data())
-            } else {
-                Err(TestError::ActorNotFound(*program_id))
-            }
-        })?;
+        let allocations = ProgramsStorageManager::allocations(program_id)
+            .ok_or(TestError::ActorNotFound(program_id))?;
+        let code_id = ProgramsStorageManager::access_program(program_id, |program| {
+            program.and_then(|p| {
+                if let Some(Program::Active(ActiveProgram { code_hash, .. })) = program {
+                    Some(code_hash.cast())
+                } else {
+                    None
+                }
+            })
+        })
+        .ok_or(TestError::ActorNotFound(program_id))?;
+        let instrumented_code = self
+            .instrumented_codes
+            .get(&code_id)
+            .cloned()
+            .ok_or(TestError::ActorNotFound(program_id))?;
 
-        if let Some((data, code)) = executable_actor_data {
-            core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
-                String::from("state"),
-                code,
-                Some(data.allocations),
-                Some((*program_id, Default::default())),
-                payload,
-                MAX_USER_GAS_LIMIT,
-                self.blocks_manager.get(),
-            )
-            .map_err(TestError::ReadStateError)
-        } else {
-            Err(TestError::ActorIsNotExecutable(*program_id))
-        }
+        core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
+            String::from("state"),
+            instrumented_code,
+            Some(allocations),
+            Some((program_id, Default::default())),
+            payload,
+            MAX_USER_GAS_LIMIT,
+            self.blocks_manager.get(),
+        )
+        .map_err(TestError::ReadStateError)
     }
     pub(crate) fn read_memory_pages(&self, program_id: &ActorId) -> BTreeMap<GearPage, PageBuf> {
         ProgramsStorageManager::access_program(*program_id, |program| {
-            let program = match program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-            {
-                _ => todo!(),
-            };
+            let program =
+                match program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found")) {
+                    _ => todo!(),
+                };
 
             todo!()
         })

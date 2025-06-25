@@ -18,31 +18,40 @@
 
 //! Actors storage.
 
-use std::{cell::RefCell, collections::BTreeMap, fmt};
 use core_processor::common::ExecutableActorData;
-use gear_common::{auxiliary::BlockNumber, ActorId, CodeId, GearPage, MessageId, PageBuf};
+use gear_common::{
+    auxiliary::{BlockNumber, DoubleBTreeMap},
+    ActiveProgram, ActorId, CodeId, GearPage, MessageId, PageBuf,
+};
 use gear_core::{
     code::InstrumentedCode,
     pages::{numerated::tree::IntervalsTree, WasmPage},
+    program::Program,
     reservation::GasReservationMap,
-    program::Program
 };
+use std::{cell::RefCell, collections::BTreeMap, fmt};
 
-/// Message id used when program is set to the programs storage (with [`crate::Program`]),
-/// but no message is sent yet. So for uninitialized state we use a placeholder message id.
+/// Message id used when program is set to the programs storage (with
+/// [`crate::Program`]), but no message is sent yet. So for uninitialized state
+/// we use a placeholder message id.
 pub(crate) const PLACEHOLDER_MESSAGE_ID: MessageId = MessageId::new(PLACEHOLDER_MESSAGE_ID_BYTES);
 const PLACEHOLDER_MESSAGE_ID_BYTES: [u8; 32] = [
-    80, 76, 65, 67, 69, 72, 79, 76,
-    68, 69, 82, 95, 77, 69, 83, 83,
-    65, 71, 69, 95, 73, 68, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
+    80, 76, 65, 67, 69, 72, 79, 76, 68, 69, 82, 95, 77, 69, 83, 83, 65, 71, 69, 95, 73, 68, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
 ];
-const _: () = assert_eq!(PLACEHOLDER_MESSAGE_ID_BYTES, b"PLACEHOLDER_MESSAGE_ID\0\0\0\0\0\0\0\0\0\0");
+const _: () = {
+    let expected = b"PLACEHOLDER_MESSAGE_ID\0\0\0\0\0\0\0\0\0\0";
+    let mut i = 0;
+    while i < 32 {
+        assert!(PLACEHOLDER_MESSAGE_ID_BYTES[i] == expected[i]);
+        i += 1;
+    }
+};
 
 thread_local! {
     static PROGRAMS_STORAGE: RefCell<BTreeMap<ActorId, Program<BlockNumber>>> = RefCell::new(Default::default());
     static ALLOCATIONS_STORAGE: RefCell<BTreeMap<ActorId, IntervalsTree<WasmPage>>> = RefCell::new(Default::default());
-    static MEMORY_PAGES_STORAGE: RefCell<BTreeMap<(ActorId, GearPage), PageBuf>> = RefCell::new(Default::default());
+    static MEMORY_PAGES_STORAGE: RefCell<DoubleBTreeMap<ActorId, GearPage, PageBuf>> = RefCell::new(Default::default());
 }
 
 pub(crate) struct ProgramsStorageManager;
@@ -65,7 +74,10 @@ impl ProgramsStorageManager {
     }
 
     // Inserts actor by program id.
-    pub(crate) fn insert_program(program_id: ActorId, actor: Program<BlockNumber>) -> Option<Program<BlockNumber>> {
+    pub(crate) fn insert_program(
+        program_id: ActorId,
+        actor: Program<BlockNumber>,
+    ) -> Option<Program<BlockNumber>> {
         PROGRAMS_STORAGE.with_borrow_mut(|storage| storage.insert(program_id, actor))
     }
 
@@ -83,10 +95,10 @@ impl ProgramsStorageManager {
     // Checks if actor by program id is active.
     pub(crate) fn is_active_program(id: ActorId) -> bool {
         PROGRAMS_STORAGE.with_borrow(|storage| {
-            matches!(
-                storage.get(&id),
-                Some(Program::Initialized(_) | Program::Uninitialized(_, _))
-            )
+            storage
+                .get(&id)
+                .map(|program| program.is_active())
+                .unwrap_or(false)
         })
     }
 
@@ -113,6 +125,22 @@ impl ProgramsStorageManager {
     pub(crate) fn set_allocations(program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
         ALLOCATIONS_STORAGE.with_borrow_mut(|storage| {
             storage.insert(program_id, allocations);
+        });
+    }
+
+    pub(crate) fn program_page(program_id: ActorId, page: GearPage) -> Option<PageBuf> {
+        MEMORY_PAGES_STORAGE.with_borrow(|storage| storage.get(&program_id, &page).cloned())
+    }
+
+    pub(crate) fn set_program_page(program_id: ActorId, page: GearPage, buf: PageBuf) {
+        MEMORY_PAGES_STORAGE.with_borrow_mut(|storage| {
+            storage.insert(program_id, page, buf);
+        });
+    }
+
+    pub(crate) fn remove_program_page(program_id: ActorId, page: GearPage) {
+        MEMORY_PAGES_STORAGE.with_borrow_mut(|storage| {
+            storage.remove(program_id, page);
         });
     }
 }
