@@ -15,20 +15,6 @@ on:
       production:
         type: boolean
         default: false
-  workflow_dispatch:
-    inputs:
-      title:
-        type: string
-        description: "Pull request title that triggers this workflow."
-      number:
-        type: string
-        description: "Pull request number that triggers this workflow"
-      release:
-        type: boolean
-        default: false
-      production:
-        type: boolean
-        default: false
 
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 

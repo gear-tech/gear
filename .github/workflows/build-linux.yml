@@ -9,14 +9,6 @@ on:
       production:
         type: boolean
         default: false
-  workflow_dispatch:
-    inputs:
-      profiles:
-        type: string
-        default: '[{ "name": "debug", "flags": "" }]'
-      production:
-        type: boolean
-        default: false
 
 env:
   TERM: xterm-256color

@@ -6,11 +6,6 @@ on:
       profiles:
         type: string
         required: true
-  workflow_dispatch:
-    inputs:
-      profiles:
-        type: string
-        default: '[{ "name": "debug", "flags": "" }]'
 
 env:
   TERM: xterm-256color
