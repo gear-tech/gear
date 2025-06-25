@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bnjbvr/cargo-machete@main
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall --no-confirm cargo-shear
+      - run: cargo shear
 
   clippy:
     strategy:
@@ -233,6 +235,14 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+        
+      - name: "Install: rustup stable"
+        run: |
+          rustup show
+          rustup install stable
+      
+      - name: "Install rust-script"
+        run: cargo install rust-script
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -257,6 +267,12 @@ jobs:
           forge fmt --check
           forge build --sizes
           forge test -vvv
+          
+          ../scripts/update-clones-sol.rs \
+            --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
+            --clones src/libraries/Clones.sol
+          forge fmt
+          git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check

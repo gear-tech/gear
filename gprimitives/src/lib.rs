@@ -40,7 +40,7 @@ use core::{
     fmt,
     str::{self, FromStr},
 };
-use derive_more::{AsMut, AsRef, Display, From, Into};
+use derive_more::{AsMut, AsRef, From, Into};
 use gear_ss58::RawSs58Address;
 #[cfg(feature = "codec")]
 use scale_info::{
@@ -51,19 +51,19 @@ use scale_info::{
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 /// The error type returned when conversion fails.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ConversionError {
     /// Invalid slice length.
-    #[display("Slice should be 32 length")]
+    #[error("Slice should be 32 length")]
     InvalidSliceLength,
     /// Invalid hex string.
-    #[display("Invalid hex string")]
+    #[error("Invalid hex string")]
     InvalidHexString,
     /// Invalid SS58 address.
-    #[display("Invalid SS58 address")]
+    #[error("Invalid SS58 address")]
     InvalidSs58Address,
     /// SS58 encoding failed.
-    #[display("SS58 encoding failed")]
+    #[error("SS58 encoding failed")]
     Ss58Encode,
 }
 

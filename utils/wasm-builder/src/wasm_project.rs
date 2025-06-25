@@ -20,8 +20,11 @@ use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
 use anyhow::{anyhow, Context, Ok, Result};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
+use itertools::Itertools;
 use std::{
-    env, fs,
+    env,
+    ffi::OsStr,
+    fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
@@ -83,14 +86,29 @@ impl WasmProject {
             .expect("`OUT_DIR` is always set in build scripts")
             .into();
 
+        let substrate_runtime = env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok();
+        // Substrate runtime is usually built inside a workspace target in its own target directory,
+        // that looks like `target/debug/wbuild/SUBSTRATE_RUNTIME/target`,
+        // so we need to skip the first occurrence of `target`
+        let mut first_target_reached = false;
+
         let profile = out_dir
             .components()
             .rev()
-            .take_while(|c| c.as_os_str() != "target")
-            .collect::<Vec<_>>()
-            .into_iter()
+            .take_while(|c| {
+                if c.as_os_str() != "target" {
+                    true
+                } else if substrate_runtime && !first_target_reached {
+                    first_target_reached = true;
+                    true
+                } else {
+                    false
+                }
+            })
+            .collect::<PathBuf>()
+            .components()
             .rev()
-            .take_while(|c| c.as_os_str() != "build")
+            .take_while(|c| c.as_os_str() != "build" && c.as_os_str() != "wbuild")
             .last()
             .expect("Path should have subdirs in the `target` dir")
             .as_os_str()
@@ -99,12 +117,22 @@ impl WasmProject {
 
         let mut target_dir = out_dir
             .ancestors()
-            .find(|path| path.ends_with(&profile))
+            .find(|path| path.ends_with(&profile) && !path.iter().contains(&OsStr::new("wbuild")))
             .and_then(|path| path.parent())
-            .map(|p| p.to_owned())
-            .expect("Could not find target directory");
+            .expect("Could not find target directory")
+            .to_owned();
 
         let mut wasm_target_dir = target_dir.clone();
+
+        // remove component to avoid creating a directory inside
+        // `target/x86_64-unknown-linux-gnu` and so on when cross-compiling.
+        //
+        // also don't change the directory if we are inside a Substrate runtime build script
+        // because the branch is always true in such case
+        if !substrate_runtime && env::var("HOST") != env::var("TARGET") {
+            wasm_target_dir.pop();
+        }
+
         wasm_target_dir.push("wasm32-gear");
         wasm_target_dir.push(&profile);
 
@@ -238,7 +266,7 @@ impl WasmProject {
         Ok(())
     }
 
-    fn generate_bin_path(&self, file_base_name: &String) -> Result<()> {
+    fn generate_bin_path(&self, file_base_name: &str) -> Result<()> {
         let relative_path_to_wasm = pathdiff::diff_paths(&self.wasm_target_dir, &self.original_dir)
             .with_context(|| {
                 format!(
@@ -271,8 +299,14 @@ impl WasmProject {
             .map(|ext| self.wasm_target_dir.join([file_base_name, ext].concat()));
 
         // Copy original file to `self.wasm_target_dir`
-        smart_fs::copy_if_newer(&original_wasm_path, &original_copy_wasm_path)
-            .context("unable to copy WASM file")?;
+        smart_fs::copy_if_newer(&original_wasm_path, &original_copy_wasm_path).with_context(
+            || {
+                format!(
+                    "unable to copy WASM file from {}",
+                    original_copy_wasm_path.display()
+                )
+            },
+        )?;
 
         // Optimize wasm using and `wasm-opt` and our optimizations.
         if smart_fs::check_if_newer(&original_wasm_path, &opt_wasm_path)? {
@@ -334,7 +368,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
 
         self.generate_bin_path(file_base_name)?;
 
-        let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.clone())];
+        let mut wasm_files = vec![(original_wasm_path.clone(), file_base_name.to_string())];
 
         for pre_processor in &self.pre_processors {
             let pre_processor_name = pre_processor.name().to_lowercase().replace('-', "_");
