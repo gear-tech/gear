@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Error, MessageNonce};
+use common::Origin;
 use frame_support::{ensure, traits::Get};
 use gprimitives::{ActorId, H160, H256, U256};
 use pallet_gear_eth_bridge_primitives::EthMessage;
@@ -57,8 +58,7 @@ impl EthMessageExt for EthMessage {
 
     /// Returns hash of the message using `Keccak256` hasher.
     fn hash(&self) -> H256 {
-        let mut nonce = [0; 32];
-        self.nonce().to_little_endian(&mut nonce);
+        let nonce = self.nonce().to_little_endian();
 
         let bytes = [
             nonce.as_ref(),
@@ -68,6 +68,6 @@ impl EthMessageExt for EthMessage {
         ]
         .concat();
 
-        Keccak256::hash(&bytes)
+        Keccak256::hash(&bytes).cast()
     }
 }

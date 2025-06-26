@@ -729,8 +729,8 @@ fn check_changed_pages_in_storage() {
                 i32.store
             )
 
-            (data $.rodata (i32.const 0x10000) "0123456789")
-            (data $.rodata (i32.const 0x70001) "GEAR TECH")
+            (data (i32.const 0x10000) "0123456789")
+            (data (i32.const 0x70001) "GEAR TECH")
         )
     "#;
 

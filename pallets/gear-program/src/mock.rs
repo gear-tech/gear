@@ -108,6 +108,7 @@ impl pallet_treasury::Config for Test {
     type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
     type BalanceConverter = UnityAssetBalanceConversion;
     type PayoutPeriod = ConstU64<10>;
+    type BlockNumberProvider = System;
 }
 
 // Build genesis storage according to the mock runtime.

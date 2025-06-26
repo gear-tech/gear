@@ -51,6 +51,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use binary_merkle_tree::MerkleProof;
     use common::Origin;
     use frame_support::{
         pallet_prelude::*,
@@ -433,10 +434,19 @@ pub mod pallet {
             let queue = Queue::<T>::get();
 
             // Lookup for hash index within the queue.
-            let idx = queue.iter().position(|&v| v == hash)?;
+            let idx = queue.iter().position(|&v| v == hash)?.try_into().ok()?;
 
             // Generating proof.
-            let proof = binary_merkle_tree::merkle_proof::<Keccak256, _, _>(queue, idx);
+            let proof_raw = binary_merkle_tree::merkle_proof::<Keccak256, _, _>(queue, idx);
+
+            // Convert the proof so every hash is gprimitives::H256, and fill all required fields
+            let proof = MerkleProof::<gprimitives::H256, gprimitives::H256> {
+                leaf: proof_raw.leaf.cast(),
+                proof: proof_raw.proof.into_iter().map(|h| h.cast()).collect(),
+                root: proof_raw.root.cast(),
+                leaf_index: proof_raw.leaf_index,
+                number_of_leaves: proof_raw.number_of_leaves,
+            };
 
             // Returning appropriate type.
             Some(proof.into())
@@ -508,10 +518,10 @@ pub mod pallet {
             let root = binary_merkle_tree::merkle_root::<Keccak256, _>(queue);
 
             // Updating queue merkle root in storage.
-            QueueMerkleRoot::<T>::put(root);
+            QueueMerkleRoot::<T>::put(root.cast::<gprimitives::H256>());
 
             // Depositing event about queue root being updated.
-            Self::deposit_event(Event::<T>::QueueMerkleRootChanged(root));
+            Self::deposit_event(Event::<T>::QueueMerkleRootChanged(root.cast()));
         }
     }
 
