@@ -26,8 +26,7 @@ impl ExtManager {
         payload: Vec<u8>,
         program_id: ActorId,
     ) -> Result<Vec<u8>> {
-        let allocations = ProgramsStorageManager::allocations(program_id)
-            .ok_or(TestError::ActorNotFound(program_id))?;
+        let allocations = ProgramsStorageManager::allocations(program_id);
         let code_id = ProgramsStorageManager::access_program(program_id, |program| {
             program.and_then(|p| {
                 if let Program::Active(ActiveProgram { code_hash, .. }) = p {
@@ -43,11 +42,10 @@ impl ExtManager {
             .get(&code_id)
             .cloned()
             .ok_or(TestError::ActorNotFound(program_id))?;
-
         core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
             String::from("state"),
             instrumented_code,
-            Some(allocations),
+            allocations,
             Some((program_id, Default::default())),
             payload,
             MAX_USER_GAS_LIMIT,

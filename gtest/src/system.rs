@@ -22,10 +22,11 @@ use crate::{
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
-    Gas, Value, GAS_ALLOWANCE,
+    Gas, ProgramBuilder, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
-    ids::{prelude::CodeIdExt, ActorId, CodeId},
+    code::InstrumentedCodeAndId,
+    ids::{ActorId, CodeId},
     pages::GearPage,
     program::Program as InnerProgram,
 };
@@ -336,10 +337,23 @@ impl System {
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    ///
+    /// Also method saves instrumented version of the code.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
         let code = binary.into();
-        let code_id = CodeId::generate(code.as_ref());
-        self.0.borrow_mut().store_new_code(code_id, code);
+        let code_and_id = ProgramBuilder::build_code_and_id(code);
+        let code_id = code_and_id.code_id();
+
+        // Save original code
+        self.0
+            .borrow_mut()
+            .store_new_code(code_id, code_and_id.code().original_code().to_vec());
+
+        // Save instrumented code
+        let (instrumented_code, _) = InstrumentedCodeAndId::from(code_and_id).into_parts();
+        self.0
+            .borrow_mut()
+            .store_instrumented_code(code_id, instrumented_code);
 
         code_id
     }

@@ -120,6 +120,15 @@ impl ProgramsStorageManager {
     }
 
     pub(crate) fn set_allocations(program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
+        PROGRAMS_STORAGE.with_borrow_mut(|storage| {
+            if let Some(Program::Active(active_program)) = storage.get_mut(&program_id) {
+                active_program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
+                    .unwrap_or_else(|err| {
+                        // This panic is impossible because page numbers are u32.
+                        unreachable!("allocations tree length is too big to fit into u32: {err}")
+                    });
+            }
+        });
         ALLOCATIONS_STORAGE.with_borrow_mut(|storage| {
             storage.insert(program_id, allocations);
         });

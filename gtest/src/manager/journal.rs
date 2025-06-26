@@ -22,7 +22,7 @@ use super::{ExtManager, Program};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     state::{accounts::Accounts, programs::ProgramsStorageManager},
-    Value, EXISTENTIAL_DEPOSIT,
+    ProgramBuilder, Value, EXISTENTIAL_DEPOSIT,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
@@ -31,6 +31,7 @@ use gear_common::{
     ActiveProgram, Origin,
 };
 use gear_core::{
+    code::InstrumentedCode,
     env::MessageWaitedType,
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
@@ -278,7 +279,9 @@ impl JournalHandler for ExtManager {
                 ProgramsStorageManager::remove_program_page(program_id, page);
             });
 
+        log::warn!("set allocations for program {program_id:?}");
         ProgramsStorageManager::set_allocations(program_id, allocations);
+        assert!(ProgramsStorageManager::allocations(program_id).is_some());
     }
 
     fn send_value(&mut self, from: ActorId, to: ActorId, value: Value, locked: bool) {
@@ -300,17 +303,39 @@ impl JournalHandler for ExtManager {
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = self.instrumented_codes.get(&code_id).cloned() {
+        use Code::*;
+        enum Code {
+            Instrumented(InstrumentedCode),
+            Original(Vec<u8>),
+        }
+
+        let maybe_code = self
+            .instrumented_codes
+            .get(&code_id)
+            .cloned()
+            .map(Instrumented)
+            .or_else(|| self.opt_binaries.get(&code_id).cloned().map(Original));
+        if let Some(ref code) = maybe_code {
             for (init_message_id, candidate_id) in candidates {
                 if !ProgramsStorageManager::has_program(candidate_id) {
+                    let (code_exports, static_pages) = match code {
+                        Instrumented(ic) => (ic.exports().clone(), ic.static_pages()),
+                        Original(binary) => {
+                            let (ic, built_code_id) =
+                                ProgramBuilder::build_instrumented_code_and_id(binary.clone())
+                                    .into_parts();
+                            assert_eq!(built_code_id, code_id, "internal error: code id mismatch");
+                            (ic.exports().clone(), ic.static_pages())
+                        }
+                    };
                     let expiration_block = self.block_height();
                     self.store_new_actor(
                         candidate_id,
                         Program::Active(ActiveProgram {
                             allocations_tree_len: 0,
                             code_hash: code_id.cast(),
-                            code_exports: code.exports().clone(),
-                            static_pages: code.static_pages(),
+                            code_exports,
+                            static_pages,
                             state: ProgramState::Uninitialized {
                                 message_id: init_message_id,
                             },

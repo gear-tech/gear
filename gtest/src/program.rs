@@ -248,6 +248,10 @@ impl ProgramBuilder {
     }
 
     pub(crate) fn build_instrumented_code_and_id(original_code: Vec<u8>) -> InstrumentedCodeAndId {
+        InstrumentedCodeAndId::from(Self::build_code_and_id(original_code))
+    }
+
+    pub(crate) fn build_code_and_id(original_code: Vec<u8>) -> CodeAndId {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
@@ -258,7 +262,7 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        InstrumentedCodeAndId::from(CodeAndId::new(code))
+        CodeAndId::new(code)
     }
 }
 
