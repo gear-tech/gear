@@ -350,7 +350,10 @@ impl System {
 
     /// Returns previously submitted original code by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
+        self.0
+            .borrow()
+            .original_code(code_id)
+            .map(|code| code.to_vec())
     }
 
     /// Extract mailbox of user with given `id`.

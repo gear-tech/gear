@@ -154,8 +154,12 @@ impl ExtManager {
         self.instrumented_codes.get(&code_id)
     }
 
-    pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
+    pub(crate) fn original_code(&self, code_id: CodeId) -> Option<&[u8]> {
         self.opt_binaries.get(&code_id).map(|code| code.as_ref())
+    }
+
+    fn original_code_size(&self, code_id: CodeId) -> Option<usize> {
+        self.opt_binaries.get(&code_id).map(|code| code.len())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -234,10 +238,18 @@ impl ExtManager {
     }
 
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
+        self.clean_waitlist(program_id);
+        self.remove_gas_reservation_map(program_id);
         ProgramsStorageManager::modify_program(program_id, |program| {
             if let Some(program) = program {
-                // todo [sab] waitlist cleaning?
-                // todo [sab] removing gas reservation map
+                if !program.is_active() {
+                    // Guaranteed to be called only on active program
+                    unreachable!(
+                        "ExtManager::init_failure: failed to exit active program. \
+                    Program - {program_id}, actual program - {program:?}"
+                    );
+                }
+
                 *program = Program::Terminated(program_id);
             } else {
                 // That's a case if no code exists for the program
@@ -297,5 +309,13 @@ impl ExtManager {
             });
 
         Ok(message)
+    }
+
+    pub(crate) fn clean_waitlist(&mut self, id: ActorId) {
+        self.waitlist.drain_key(id).for_each(|entry| {
+            let message = self.wake_dispatch_requirements(entry);
+
+            self.dispatches.push_back(message);
+        });
     }
 }

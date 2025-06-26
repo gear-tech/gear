@@ -41,7 +41,7 @@ use gear_core::{
     tasks::{ScheduledTask, TaskHandler},
 };
 use gear_core_errors::SignalCode;
-use std::{collections::BTreeMap, mem};
+use std::collections::BTreeMap;
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(
@@ -86,38 +86,19 @@ impl JournalHandler for ExtManager {
             "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
         );
 
-        self.waitlist.drain_key(id_exited).for_each(|entry| {
-            let message = self.wake_dispatch_requirements(entry);
-
-            self.dispatches.push_back(message);
-        });
+        self.clean_waitlist(id_exited);
+        self.remove_gas_reservation_map(id_exited);
 
         ProgramsStorageManager::modify_program(id_exited, |program| {
             let program =
                 program.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
 
-            match program {
-                Program::Active(active_program) => {
-                    for (reservation_id, slot) in mem::take(&mut active_program.gas_reservation_map)
-                    {
-                        let slot = self.remove_gas_reservation_slot(reservation_id, slot);
-
-                        let result = self.task_pool.delete(
-                            slot.finish,
-                            ScheduledTask::RemoveGasReservation(id_exited, reservation_id),
-                        );
-                        log::debug!(
-                            "remove_gas_reservation_map; program_id = {id_exited:?}, result = {result:?}"
-                        );
-                    }
-                }
-                actual_program => {
-                    // Guaranteed to be called only on active program
-                    unreachable!(
-                        "JournalHandler::exit_dispatch: failed to exit active program. \
-                    Program - {id_exited}, actual program - {actual_program:?}"
-                    );
-                }
+            if !program.is_active() {
+                // Guaranteed to be called only on active program
+                unreachable!(
+                    "JournalHandler::exit_dispatch: failed to exit active program. \
+                Program - {id_exited}, actual program - {program:?}"
+                );
             }
 
             *program = Program::Exited(value_destination);
@@ -436,7 +417,7 @@ impl JournalHandler for ExtManager {
     fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         let block_height = self.block_height();
         self.update_program(program_id, |program| {
-            // todo [sab] use HoldBoundBuilder
+            // TODO #4758 use HoldBoundBuilder here and check all other places:
             program.gas_reservation_map =
                 reserver.into_map(block_height, |duration| block_height + duration);
         })

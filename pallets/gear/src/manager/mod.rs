@@ -401,7 +401,10 @@ where
     }
 
     fn process_failed_init(program_id: ActorId, origin: ActorId) {
-        // todo [sab] docs
+        // Waitlist can have messages only in one case of failed init:
+        // that's when program initialization message went to waitlist (say, because of async call),
+        // then the program receives reply (which queue allows to process for uninitialized program),
+        // which itself ends up being in waitlist (a wait syscall is invoked in `handle_reply`).
         Self::clean_waitlist(program_id);
 
         let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {

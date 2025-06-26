@@ -436,8 +436,8 @@ impl ExtManager {
 
         let code_id = context.actor_data().code_id;
         let code_len_bytes = self
-            .read_code(code_id)
-            .map(|code| code.len().try_into().expect("too big code len"))
+            .original_code_size(code_id)
+            .map(|size| size.try_into().expect("too big code len"))
             .unwrap_or_else(|| unreachable!("can't find code for the existing code id {code_id}"));
         let context =
             match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
