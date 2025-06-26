@@ -25,9 +25,9 @@ use crate::{
         mailbox::MailboxManager, programs::ProgramsStorageManager, task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Block, Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
-    VALUE_PER_GAS,
+    Block, ProgramBuilder, Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
+    RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{common::*, configs::BlockConfig, ContextChargedForInstrumentation, Ext};
 use gear_common::{
@@ -143,11 +143,15 @@ impl ExtManager {
     }
 
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
-        self.opt_binaries.insert(code_id, code);
+        self.opt_binaries.insert(code_id, code.clone());
+
+        let (instrumented_code, _) =
+            ProgramBuilder::build_instrumented_code_and_id(code).into_parts();
+        self.instrumented_codes.insert(code_id, instrumented_code);
     }
 
-    pub(crate) fn store_instrumented_code(&mut self, code_id: CodeId, code: InstrumentedCode) {
-        self.instrumented_codes.insert(code_id, code);
+    pub(crate) fn instrumented_code(&self, code_id: CodeId) -> Option<&InstrumentedCode> {
+        self.instrumented_codes.get(&code_id)
     }
 
     pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {

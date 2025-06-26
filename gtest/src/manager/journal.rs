@@ -300,7 +300,7 @@ impl JournalHandler for ExtManager {
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = self.instrumented_codes.get(&code_id).cloned() {
+        if let Some(code) = self.instrumented_code(code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !ProgramsStorageManager::has_program(candidate_id) {
                     let expiration_block = self.block_height();

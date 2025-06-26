@@ -22,11 +22,10 @@ use crate::{
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
-    Gas, ProgramBuilder, Value, GAS_ALLOWANCE,
+    Gas, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
-    code::InstrumentedCodeAndId,
-    ids::{ActorId, CodeId},
+    ids::{prelude::CodeIdExt, ActorId, CodeId},
     pages::GearPage,
     program::Program as InnerProgram,
 };
@@ -341,24 +340,15 @@ impl System {
     /// Also method saves instrumented version of the code.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
         let code = binary.into();
-        let code_and_id = ProgramBuilder::build_code_and_id(code);
-        let code_id = code_and_id.code_id();
+        let code_id = CodeId::generate(code.as_ref());
 
         // Save original code
-        self.0
-            .borrow_mut()
-            .store_new_code(code_id, code_and_id.code().original_code().to_vec());
-
-        // Save instrumented code
-        let (instrumented_code, _) = InstrumentedCodeAndId::from(code_and_id).into_parts();
-        self.0
-            .borrow_mut()
-            .store_instrumented_code(code_id, instrumented_code);
+        self.0.borrow_mut().store_new_code(code_id, code);
 
         code_id
     }
 
-    /// Returns previously submitted code by its code hash.
+    /// Returns previously submitted original code by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
         self.0.borrow().read_code(code_id).map(|code| code.to_vec())
     }

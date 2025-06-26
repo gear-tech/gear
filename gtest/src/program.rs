@@ -207,9 +207,7 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (instrumented_code, code_id) =
-            Self::build_instrumented_code_and_id(self.code.clone()).into_parts();
-
+        let code_id = CodeId::generate(&self.code);
         system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
@@ -219,17 +217,24 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
+        let (code_exports, static_pages) = system
+            .0
+            .borrow()
+            .instrumented_code(code_id)
+            .map(|ic| (ic.exports().clone(), ic.static_pages()))
+            .expect("code is set previously; qed.");
+
         // Expiration block logic isn't yet fully implemented in Gear protocol,
         // so we set it to the current block height.
         let expiration_block = system.block_height();
-        let program = Program::program_with_id(
+        Program::program_with_id(
             system,
             id,
             InnerProgram::Active(ActiveProgram {
                 allocations_tree_len: 0,
                 code_hash: code_id.cast(),
-                code_exports: instrumented_code.exports().clone(),
-                static_pages: instrumented_code.static_pages(),
+                code_exports,
+                static_pages,
                 state: ProgramState::Uninitialized {
                     message_id: PLACEHOLDER_MESSAGE_ID,
                 },
@@ -237,14 +242,7 @@ impl ProgramBuilder {
                 memory_infix: Default::default(),
                 gas_reservation_map: Default::default(),
             }),
-        );
-
-        system
-            .0
-            .borrow_mut()
-            .store_instrumented_code(code_id, instrumented_code);
-
-        program
+        )
     }
 
     pub(crate) fn build_instrumented_code_and_id(original_code: Vec<u8>) -> InstrumentedCodeAndId {
