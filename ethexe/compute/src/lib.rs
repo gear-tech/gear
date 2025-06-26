@@ -20,7 +20,7 @@ use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::GearBlock,
-    CodeAndIdUnchecked, SimpleBlockData,
+    BlockMeta, CodeAndIdUnchecked, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
@@ -70,6 +70,12 @@ pub enum ComputeError {
     PreviousCommitmentNotFound(H256),
     #[error("last committed batch not found for computed block({0})")]
     LastCommittedBatchNotFound(H256),
+    #[error("code validation mismatch for code({code_id:?}), local status: {local_status}, remote status: {remote_status}")]
+    CodeValidationStatusMismatch {
+        code_id: CodeId,
+        local_status: bool,
+        remote_status: bool,
+    },
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -83,14 +89,16 @@ enum BlockAction {
     Process(H256),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum BlockPreparationState {
+#[derive(Default)]
+enum State {
+    #[default]
     WaitForBlock,
     WaitForCodes {
         block: H256,
-        chain: Vec<SimpleBlockData>,
+        chain: VecDeque<SimpleBlockData>,
         waiting_codes: HashSet<CodeId>,
     },
+    ProcessBlock(BoxFuture<'static, Result<BlockProcessed>>),
 }
 
 // TODO #4548: add state monitoring in prometheus
@@ -100,9 +108,8 @@ pub struct ComputeService {
     processor: Processor,
 
     blocks_queue: VecDeque<BlockAction>,
-    state: BlockPreparationState,
+    blocks_state: State,
 
-    process_block: Option<BoxFuture<'static, Result<BlockProcessed>>>,
     process_codes: JoinSet<Result<CodeId>>,
 }
 
@@ -113,10 +120,8 @@ impl Stream for ComputeService {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
-                    if let (
-                        Ok(code_id),
-                        BlockPreparationState::WaitForCodes { waiting_codes, .. },
-                    ) = (&res, &mut self.state)
+                    if let (Ok(code_id), State::WaitForCodes { waiting_codes, .. }) =
+                        (&res, &mut self.blocks_state)
                     {
                         waiting_codes.remove(code_id);
                     }
@@ -127,18 +132,30 @@ impl Stream for ComputeService {
             }
         }
 
-        if self.process_block.is_none() && self.state == BlockPreparationState::WaitForBlock {
-            match self.blocks_queue.pop_back() {
+        match &self.blocks_state {
+            State::WaitForBlock => match self.blocks_queue.pop_back() {
                 Some(BlockAction::Prepare(block)) => {
-                    let (chain, validated_codes, codes_to_load) =
-                        self.collect_chain_codes(block)?;
+                    let chain = ChainHeadProcessContext::collect_chain(&self.db, block, |meta| {
+                        !meta.prepared
+                    })?;
 
-                    self.state = BlockPreparationState::WaitForCodes {
+                    let mut missing_codes = HashSet::new();
+                    let mut missing_validated_codes = HashSet::new();
+
+                    for block in chain.iter() {
+                        let (block_missing_requested_codes, block_missing_validated_codes) =
+                            Self::block_prepare_propagation(&self.db, block.hash)?;
+                        missing_codes.extend(block_missing_requested_codes);
+                        missing_validated_codes.extend(block_missing_validated_codes);
+                    }
+
+                    self.blocks_state = State::WaitForCodes {
                         block,
                         chain,
-                        waiting_codes: validated_codes,
+                        waiting_codes: missing_validated_codes,
                     };
-                    return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load))));
+
+                    return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(missing_codes))));
                 }
                 Some(BlockAction::Process(block)) => {
                     if !self.db.block_meta(block).prepared {
@@ -149,34 +166,31 @@ impl Stream for ComputeService {
                         db: self.db.clone(),
                         processor: self.processor.clone(),
                     };
-                    self.process_block = Some(context.process(block).boxed());
+                    self.blocks_state = State::ProcessBlock(context.process(block).boxed());
                 }
                 None => {}
+            },
+            State::WaitForCodes { waiting_codes, .. } if waiting_codes.is_empty() => {
+                let State::WaitForCodes { block, chain, .. } =
+                    std::mem::take(&mut self.blocks_state)
+                else {
+                    unreachable!("qed: waiting_codes must be empty here");
+                };
+
+                for block_data in chain {
+                    self.db
+                        .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
+                }
+                return Poll::Ready(Some(Ok(ComputeEvent::BlockPrepared(block))));
             }
+            _ => {}
         }
 
-        if let BlockPreparationState::WaitForCodes {
-            block,
-            chain,
-            waiting_codes,
-        } = &self.state
-            && waiting_codes.is_empty()
-        {
-            for block_data in chain {
-                self.db
-                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
+        if let State::ProcessBlock(future) = &mut self.blocks_state {
+            if let Poll::Ready(res) = future.poll_unpin(cx) {
+                self.blocks_state = State::WaitForBlock;
+                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
             }
-
-            let event = ComputeEvent::BlockPrepared(*block);
-            self.state = BlockPreparationState::WaitForBlock;
-            return Poll::Ready(Some(Ok(event)));
-        }
-
-        if let Some(fut) = self.process_block.as_mut()
-            && let Poll::Ready(res) = fut.poll_unpin(cx)
-        {
-            self.process_block = None;
-            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         Poll::Pending
@@ -196,8 +210,7 @@ impl ComputeService {
             db,
             processor,
             blocks_queue: Default::default(),
-            state: BlockPreparationState::WaitForBlock,
-            process_block: None,
+            blocks_state: State::WaitForBlock,
             process_codes: Default::default(),
         }
     }
@@ -240,50 +253,83 @@ impl ComputeService {
         self.blocks_queue.push_front(BlockAction::Process(block));
     }
 
-    fn collect_chain_codes(
-        &self,
+    /// # Return
+    /// (missing codes, missing validated codes)
+    fn block_prepare_propagation(
+        db: &Database,
         block: H256,
-    ) -> Result<(Vec<SimpleBlockData>, HashSet<CodeId>, HashSet<CodeId>)> {
-        let chain = ChainHeadProcessContext::collect_not_computed_blocks_chain(&self.db, block)?;
+    ) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
+        let parent = db
+            .block_header(block)
+            .ok_or(ComputeError::BlockHeaderNotFound(block))?
+            .parent_hash;
 
+        let mut missing_codes = HashSet::new();
+        let mut missing_validated_codes = HashSet::new();
+        let mut requested_codes = HashSet::new();
         let mut validated_codes = HashSet::new();
-        let mut codes_to_load = HashSet::new();
-        for block in chain.iter() {
-            let (block_validated_coded, block_codes_to_load) =
-                self.collect_block_codes(block.hash)?;
+        let mut committed_blocks = HashSet::new();
+        let mut last_committed_batch = db
+            .last_committed_batch(parent)
+            .ok_or_else(|| ComputeError::LastCommittedBatchNotFound(parent))?;
 
-            validated_codes.extend(block_validated_coded.into_iter());
-            codes_to_load.extend(block_codes_to_load.into_iter());
-        }
-
-        Ok((chain, validated_codes, codes_to_load))
-    }
-
-    fn collect_block_codes(&self, block: H256) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
-        let events = self
-            .db
+        let events = db
             .block_events(block)
             .ok_or(ComputeError::BlockEventsNotFound(block))?;
 
-        let mut validated_codes = HashSet::new();
-        let mut codes_to_load = HashSet::new();
-
-        for event in &events {
+        for event in events {
             match event {
-                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
-                    codes_to_load.insert(*code_id);
+                BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
+                    last_committed_batch = digest;
                 }
-                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                    if !self.db.original_code_exists(*code_id) {
-                        validated_codes.insert(*code_id);
-                        codes_to_load.insert(*code_id);
+                BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock { hash, .. })) => {
+                    committed_blocks.insert(hash);
+                }
+                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
+                    requested_codes.insert(code_id);
+                    if db.code_valid(code_id).is_none() {
+                        missing_codes.insert(code_id);
+                    }
+                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid }) => {
+                    validated_codes.insert(code_id);
+                    match db.code_valid(code_id) {
+                        None => {
+                            missing_validated_codes.insert(code_id);
+                            missing_codes.insert(code_id);
+                        }
+                        Some(local_status) if local_status != valid => {
+                            return Err(ComputeError::CodeValidationStatusMismatch {
+                                code_id,
+                                local_status,
+                                remote_status: valid,
+                            });
+                        }
+                        _ => {}
                     }
                 }
                 _ => {}
             }
         }
 
-        Ok((validated_codes, codes_to_load))
+        db.set_last_committed_batch(block, last_committed_batch);
+
+        // Propagate `wait for commitment` blocks queue
+        let mut blocks_queue = db
+            .block_commitment_queue(parent)
+            .ok_or(ComputeError::CommitmentQueueNotFound(parent))?;
+        blocks_queue.retain(|hash| !committed_blocks.contains(hash));
+        db.set_block_commitment_queue(block, blocks_queue);
+
+        // Propagate `wait for code validation` blocks queue
+        let mut codes_queue = db
+            .block_codes_queue(parent)
+            .ok_or(ComputeError::CodesQueueNotFound(parent))?;
+        codes_queue.retain(|code_id| !validated_codes.contains(code_id));
+        codes_queue.extend(requested_codes);
+        db.set_block_codes_queue(block, codes_queue);
+
+        Ok((missing_codes, missing_validated_codes))
     }
 }
 
@@ -298,10 +344,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
     ChainHeadProcessContext<DB>
 {
     async fn process(mut self, head: H256) -> Result<BlockProcessed> {
-        let chain = Self::collect_not_computed_blocks_chain(&self.db, head)?;
-
-        // Bypass the chain in reverse order (from the oldest to the newest) and compute each block.
-        for block_data in chain.into_iter().rev() {
+        for block_data in Self::collect_chain(&self.db, head, |meta| !meta.computed)? {
             self.process_one_block(block_data).await?;
         }
         Ok(BlockProcessed { block_hash: head })
@@ -356,6 +399,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         Ok(())
     }
 
+    /// +_+_+
     fn propagate_data_from_parent<'a>(
         db: &DB,
         block: H256,
@@ -419,31 +463,30 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         Ok(blocks_queue)
     }
 
-    /// Collect a chain of blocks from the head to the last not computed block.
-    fn collect_not_computed_blocks_chain(db: &DB, head: H256) -> Result<Vec<SimpleBlockData>> {
+    /// Collect a chain of blocks from the head to the last block that satisfies the filter.
+    /// Stops when the filter returns false for the block meta.
+    /// Returns a chain sorted in order from the oldest to the newest block (head is newest).
+    fn collect_chain(
+        db: &DB,
+        head: H256,
+        mut filter: impl FnMut(&BlockMeta) -> bool,
+    ) -> Result<VecDeque<SimpleBlockData>> {
         let mut block = head;
-        let mut chain = vec![];
+        let mut chain = VecDeque::new();
 
-        // Optimization to avoid double fetching of block meta.
-        let mut block_meta = db.block_meta(block);
-        while !block_meta.computed {
-            if !block_meta.synced {
-                return Err(ComputeError::BlockNotSynced(block));
-            }
-
+        while filter(&db.block_meta(block)) {
             let header = db
                 .block_header(block)
                 .ok_or(ComputeError::BlockHeaderNotFound(block))?;
 
             let parent = header.parent_hash;
 
-            chain.push(SimpleBlockData {
+            chain.push_front(SimpleBlockData {
                 hash: block,
                 header,
             });
 
             block = parent;
-            block_meta = db.block_meta(block);
         }
 
         Ok(chain)
@@ -456,7 +499,7 @@ mod tests {
     use ethexe_common::{db::OnChainStorageWrite, BlockHeader, Digest};
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
-    use std::collections::HashMap;
+    use std::{collections::HashMap, u64};
 
     // Create new code with a unique nonce
     fn create_new_code(nonce: u32) -> Vec<u8> {
@@ -504,21 +547,32 @@ mod tests {
 
     // Generate a chain with the given length and setup the genesis block
     fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
-        let genesis_hash = H256::random();
+        let genesis_hash = H256::from_low_u64_be(u64::MAX);
         db.set_block_codes_queue(genesis_hash, Default::default());
-        db.mutate_block_meta(genesis_hash, |meta| meta.computed = true);
+        db.mutate_block_meta(genesis_hash, |meta| {
+            meta.computed = true;
+            meta.prepared = true;
+        });
         db.set_block_outcome(genesis_hash, vec![]);
         db.set_previous_not_empty_block(genesis_hash, H256::random());
         db.set_last_committed_batch(genesis_hash, Digest::random());
         db.set_block_commitment_queue(genesis_hash, Default::default());
         db.set_block_program_states(genesis_hash, Default::default());
         db.set_block_schedule(genesis_hash, Default::default());
+        db.set_block_header(
+            genesis_hash,
+            BlockHeader {
+                height: 0,
+                timestamp: 0,
+                parent_hash: H256::zero(),
+            },
+        );
 
         let mut chain = VecDeque::new();
 
         let mut parent_hash = genesis_hash;
-        for block_num in 0..chain_len {
-            let block_hash = H256::random();
+        for block_num in 1..chain_len + 1 {
+            let block_hash = H256::from_low_u64_be(block_num as u64);
             let block_header = BlockHeader {
                 height: block_num,
                 timestamp: (block_num * 10) as u64,
