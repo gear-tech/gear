@@ -18,16 +18,13 @@
 
 //! Actors storage.
 
-use core_processor::common::ExecutableActorData;
 use gear_common::{
     auxiliary::{BlockNumber, DoubleBTreeMap},
-    ActiveProgram, ActorId, CodeId, GearPage, MessageId, PageBuf,
+    ActorId, GearPage, MessageId, PageBuf,
 };
 use gear_core::{
-    code::InstrumentedCode,
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::Program,
-    reservation::GasReservationMap,
 };
 use std::{cell::RefCell, collections::BTreeMap, fmt};
 
@@ -130,6 +127,10 @@ impl ProgramsStorageManager {
 
     pub(crate) fn program_page(program_id: ActorId, page: GearPage) -> Option<PageBuf> {
         MEMORY_PAGES_STORAGE.with_borrow(|storage| storage.get(&program_id, &page).cloned())
+    }
+
+    pub(crate) fn program_pages(program_id: ActorId) -> BTreeMap<GearPage, PageBuf> {
+        MEMORY_PAGES_STORAGE.with_borrow(|storage| storage.iter_key(&program_id).collect())
     }
 
     pub(crate) fn set_program_page(program_id: ActorId, page: GearPage, buf: PageBuf) {

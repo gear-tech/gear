@@ -109,6 +109,7 @@ mod tests {
         let res = sys.run_next_block();
         let child_id_expected =
             calculate_program_id(CHILD_CODE_HASH.into(), &0i32.to_le_bytes(), Some(msg_id));
+        println!("Child ID: {}", child_id_expected);
         assert!(res.succeed.contains(&msg_id));
         assert!(sys.is_active_program(child_id_expected));
     }

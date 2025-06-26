@@ -401,6 +401,7 @@ where
     }
 
     fn process_failed_init(program_id: ActorId, origin: ActorId) {
+        // todo [sab] docs
         Self::clean_waitlist(program_id);
 
         let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {

@@ -21,7 +21,6 @@
 use super::{ExtManager, Program};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
-    program::ProgramBuilder,
     state::{accounts::Accounts, programs::ProgramsStorageManager},
     Value, EXISTENTIAL_DEPOSIT,
 };
@@ -36,11 +35,7 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, SignalMessage, StoredDispatch},
-    pages::{
-        num_traits::Zero,
-        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
-        GearPage, WasmPage,
-    },
+    pages::{num_traits::Zero, numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::ProgramState,
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},

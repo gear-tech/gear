@@ -26,7 +26,7 @@ use crate::{
 };
 use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndId},
     gas_metering::Schedule,
     ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{Dispatch, DispatchKind, Message},
@@ -497,14 +497,14 @@ impl<'a> Program<'a> {
 
     /// Returns the balance of the account.
     pub fn balance(&self) -> Value {
-        self.manager.borrow().balance_of(&self.id())
+        self.manager.borrow().balance_of(self.id())
     }
 
     /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
-        let mem = manager.read_memory_pages(&self.id);
-        let balance = manager.balance_of(&self.id);
+        let mem = manager.read_memory_pages(self.id);
+        let balance = manager.balance_of(self.id);
 
         ProgramMemoryDump {
             balance,
@@ -534,9 +534,7 @@ impl<'a> Program<'a> {
             .saturating_add(memory_dump.reserved_balance);
 
         self.manager.borrow_mut().update_storage_pages(self.id, mem);
-        self.manager
-            .borrow_mut()
-            .override_balance(&self.id, balance);
+        self.manager.borrow_mut().override_balance(self.id, balance);
     }
 }
 

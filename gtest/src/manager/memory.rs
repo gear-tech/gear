@@ -30,7 +30,7 @@ impl ExtManager {
             .ok_or(TestError::ActorNotFound(program_id))?;
         let code_id = ProgramsStorageManager::access_program(program_id, |program| {
             program.and_then(|p| {
-                if let Some(Program::Active(ActiveProgram { code_hash, .. })) = program {
+                if let Program::Active(ActiveProgram { code_hash, .. }) = p {
                     Some(code_hash.cast())
                 } else {
                     None
@@ -55,14 +55,8 @@ impl ExtManager {
         )
         .map_err(TestError::ReadStateError)
     }
-    pub(crate) fn read_memory_pages(&self, program_id: &ActorId) -> BTreeMap<GearPage, PageBuf> {
-        ProgramsStorageManager::access_program(*program_id, |program| {
-            let program =
-                match program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found")) {
-                    _ => todo!(),
-                };
 
-            todo!()
-        })
+    pub(crate) fn read_memory_pages(&self, program_id: ActorId) -> BTreeMap<GearPage, PageBuf> {
+        ProgramsStorageManager::program_pages(program_id)
     }
 }

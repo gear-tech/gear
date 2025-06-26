@@ -27,6 +27,7 @@ use crate::{
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, CodeId},
     pages::GearPage,
+    program::Program as InnerProgram,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
@@ -290,12 +291,13 @@ impl System {
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
         ProgramsStorageManager::access_program(program_id, |program| {
-            todo!("todo [sab]")
-            // if let Some(crate::state::programs::TestActor::Exited(inheritor_id)) = program {
-            //     Some(*inheritor_id)
-            // } else {
-            //     None
-            // }
+            program.and_then(|program| {
+                if let InnerProgram::Exited(inheritor_id) = program {
+                    Some(*inheritor_id)
+                } else {
+                    None
+                }
+            })
         })
     }
 
@@ -369,7 +371,7 @@ impl System {
             );
         }
 
-        self.0.borrow_mut().mint_to(&id, value);
+        self.0.borrow_mut().mint_to(id, value);
     }
 
     /// Transfer balance from user with given `from` id to user with given `to`
@@ -396,7 +398,7 @@ impl System {
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
-        self.0.borrow().balance_of(&actor_id)
+        self.0.borrow().balance_of(actor_id)
     }
 }
 

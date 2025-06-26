@@ -46,6 +46,10 @@ impl ContextChargedForProgram {
     }
 }
 
+/// The instance returned by `precharge_for_allocations`.
+/// Existence of the instance means that corresponding counters were
+/// successfully charged for loading program's memory allocations tree from storage.
+/// This context is required before proceeding to code-related charging operations.
 pub struct ContextChargedForAllocations(pub(crate) ContextChargedForProgram);
 
 pub(crate) struct ContextData {

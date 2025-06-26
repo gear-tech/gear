@@ -29,10 +29,7 @@ use crate::{
     GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
     VALUE_PER_GAS,
 };
-use core_processor::{
-    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
-    Ext,
-};
+use core_processor::{common::*, configs::BlockConfig, ContextChargedForInstrumentation, Ext};
 use gear_common::{
     auxiliary::{
         gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
@@ -195,15 +192,15 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ActorId, value: Value) {
-        Accounts::increase(*id, value);
+    pub(crate) fn mint_to(&mut self, id: ActorId, value: Value) {
+        Accounts::increase(id, value);
     }
 
-    pub(crate) fn balance_of(&self, id: &ActorId) -> Value {
-        Accounts::balance(*id)
+    pub(crate) fn balance_of(&self, id: ActorId) -> Value {
+        Accounts::balance(id)
     }
 
-    pub(crate) fn override_balance(&mut self, &id: &ActorId, balance: Value) {
+    pub(crate) fn override_balance(&mut self, id: ActorId, balance: Value) {
         if ProgramsStorageManager::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             usage_panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({}. \
