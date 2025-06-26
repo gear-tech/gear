@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{
-    error::Error,
-    fmt::{Debug, Display},
-};
+use std::fmt::{Debug, Display};
 use subxt::ext::codec::Decode;
 
 // TODO: refactor this after #2618
@@ -121,6 +118,5 @@ export_module_error! {
     pallet_identity => Identity => 24,
     pallet_utility => Utility => 8,
     pallet_gear => Gear => 104,
-    pallet_gear_staking_rewards => GearStakingRewards => 106,
-    pallet_gear_debug => GearDebug => 199
+    pallet_gear_staking_rewards => GearStakingRewards => 106
 }
