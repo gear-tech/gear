@@ -19,8 +19,10 @@
 //! Various reservation related methods for ExtManager
 
 use super::ExtManager;
-use gear_common::{scheduler::StorageType, storage::Interval, ActorId, ReservationId};
+use crate::state::programs::ProgramsStorageManager;
+use gear_common::{scheduler::StorageType, storage::Interval, ActorId, Program, ReservationId};
 use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
+use std::mem;
 
 impl ExtManager {
     pub(crate) fn remove_gas_reservation_impl(
@@ -28,8 +30,8 @@ impl ExtManager {
         program_id: ActorId,
         reservation: ReservationId,
     ) -> GasReservationSlot {
-        let slot = self.update_program(program_id, |p| {
-            p.gas_reservation_map
+        let slot = self.update_program(program_id, |active_program| {
+            active_program.gas_reservation_map
                 .remove(&reservation)
                 .unwrap_or_else(|| {
                     let err_msg = format!("ExtManager::remove_gas_reservation_impl: failed removing gas reservation. \
@@ -76,5 +78,23 @@ impl ExtManager {
         self.consume_and_retrieve(reservation);
 
         slot
+    }
+
+    pub(crate) fn remove_gas_reservation_map(&mut self, program_id: ActorId) {
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            if let Some(Program::Active(active_program)) = program {
+                for (reservation_id, slot) in mem::take(&mut active_program.gas_reservation_map) {
+                    let slot = self.remove_gas_reservation_slot(reservation_id, slot);
+
+                    let result = self.task_pool.delete(
+                        slot.finish,
+                        ScheduledTask::RemoveGasReservation(program_id, reservation_id),
+                    );
+                    log::debug!(
+                        "remove_gas_reservation_map; program_id = {program_id:?}, result = {result:?}"
+                    );
+                }
+            }
+        });
     }
 }

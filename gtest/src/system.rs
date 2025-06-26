@@ -21,12 +21,13 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
-    state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
+    state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
     Gas, Value, GAS_ALLOWANCE,
 };
 use gear_core::{
     ids::{prelude::CodeIdExt, ActorId, CodeId},
     pages::GearPage,
+    program::Program as InnerProgram,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
@@ -60,12 +61,7 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        Actors::access(program_id, |actor| {
-            actor
-                .and_then(|actor| actor.pages())
-                .map(|pages_data| pages_data.contains_key(&page))
-                .unwrap_or(false)
-        })
+        ProgramsStorageManager::program_page(program_id, page).is_some()
     }
 
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
@@ -73,14 +69,9 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        Actors::access(program_id, |actor| {
-            actor
-                .and_then(|actor| actor.pages())
-                .and_then(|pages_data| pages_data.get(&page))
-                .map(|page_buf| {
-                    buffer.copy_from_slice(page_buf);
-                    page_buf.len() as u32
-                })
+        ProgramsStorageManager::program_page(program_id, page).map(|page_buf| {
+            buffer.copy_from_slice(page_buf.as_ref());
+            page_buf.len() as u32
         })
     }
 }
@@ -258,7 +249,7 @@ impl System {
     /// Returns a [`Program`] by `id`.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
         let id = id.into().0;
-        if Actors::is_program(id) {
+        if ProgramsStorageManager::is_program(id) {
             Some(Program {
                 id,
                 manager: &self.0,
@@ -275,7 +266,7 @@ impl System {
 
     /// Returns a list of programs.
     pub fn programs(&self) -> Vec<Program> {
-        Actors::program_ids()
+        ProgramsStorageManager::program_ids()
             .into_iter()
             .map(|id| Program {
                 id,
@@ -291,7 +282,7 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        Actors::is_active_program(program_id)
+        ProgramsStorageManager::is_active_program(program_id)
     }
 
     /// Returns `Some(ActorId)` if a program is exited with inheritor.
@@ -299,12 +290,14 @@ impl System {
     /// Returns [`None`] otherwise.
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
-        Actors::access(program_id, |actor| {
-            if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {
-                Some(*inheritor_id)
-            } else {
-                None
-            }
+        ProgramsStorageManager::access_program(program_id, |program| {
+            program.and_then(|program| {
+                if let InnerProgram::Exited(inheritor_id) = program {
+                    Some(*inheritor_id)
+                } else {
+                    None
+                }
+            })
         })
     }
 
@@ -343,17 +336,24 @@ impl System {
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    ///
+    /// Also method saves instrumented version of the code.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
         let code = binary.into();
         let code_id = CodeId::generate(code.as_ref());
+
+        // Save original code
         self.0.borrow_mut().store_new_code(code_id, code);
 
         code_id
     }
 
-    /// Returns previously submitted code by its code hash.
+    /// Returns previously submitted original code by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
+        self.0
+            .borrow()
+            .original_code(code_id)
+            .map(|code| code.to_vec())
     }
 
     /// Extract mailbox of user with given `id`.
@@ -362,7 +362,7 @@ impl System {
     /// for user action.
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
         let program_id = id.into().0;
-        if !Actors::is_user(program_id) {
+        if !ProgramsStorageManager::is_user(program_id) {
             usage_panic!("Mailbox available only for users. Please, provide a user id.");
         }
         ActorMailbox::new(program_id, &self.0)
@@ -372,13 +372,13 @@ impl System {
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
         let id = id.into().0;
 
-        if Actors::is_program(id) {
+        if ProgramsStorageManager::is_program(id) {
             usage_panic!(
                 "Attempt to mint value to a program {id:?}. Please, use `System::transfer` instead"
             );
         }
 
-        self.0.borrow_mut().mint_to(&id, value);
+        self.0.borrow_mut().mint_to(id, value);
     }
 
     /// Transfer balance from user with given `from` id to user with given `to`
@@ -393,7 +393,7 @@ impl System {
         let from = from.into().0;
         let to = to.into().0;
 
-        if Actors::is_program(from) {
+        if ProgramsStorageManager::is_program(from) {
             usage_panic!(
                 "Attempt to transfer from a program {from:?}. Please, provide `from` user id."
             );
@@ -405,7 +405,7 @@ impl System {
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
-        self.0.borrow().balance_of(&actor_id)
+        self.0.borrow().balance_of(actor_id)
     }
 }
 
@@ -418,8 +418,8 @@ impl Drop for System {
         self.0.borrow().task_pool.clear();
         self.0.borrow().waitlist.reset();
 
-        // Clear actors and accounts storages
-        Actors::clear();
+        // Clear programs and accounts storages
+        ProgramsStorageManager::clear();
         Accounts::clear();
     }
 }

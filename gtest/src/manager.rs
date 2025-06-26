@@ -21,23 +21,15 @@ use crate::{
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     state::{
-        accounts::Accounts,
-        actors::{Actors, Program, TestActor},
-        bank::Bank,
-        blocks::BlocksManager,
-        gas_tree::GasTreeManager,
-        mailbox::MailboxManager,
-        task_pool::TaskPoolManager,
+        accounts::Accounts, bank::Bank, blocks::BlocksManager, gas_tree::GasTreeManager,
+        mailbox::MailboxManager, programs::ProgramsStorageManager, task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
-    VALUE_PER_GAS,
+    Block, ProgramBuilder, Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT,
+    GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
+    RESERVE_FOR, VALUE_PER_GAS,
 };
-use core_processor::{
-    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
-    Ext,
-};
+use core_processor::{common::*, configs::BlockConfig, ContextChargedForInstrumentation, Ext};
 use gear_common::{
     auxiliary::{
         gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
@@ -58,6 +50,7 @@ use gear_core::{
         StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
+    program::{ActiveProgram, Program, ProgramState},
     tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
@@ -97,6 +90,7 @@ pub(crate) struct ExtManager {
     pub(crate) bank: Bank,
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) instrumented_codes: BTreeMap<CodeId, InstrumentedCode>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
     pub(crate) task_pool: TaskPoolManager,
@@ -143,18 +137,29 @@ impl ExtManager {
     pub(crate) fn store_new_actor(
         &mut self,
         program_id: ActorId,
-        program: Program,
-        init_message_id: Option<MessageId>,
-    ) -> Option<TestActor> {
-        Actors::insert(program_id, TestActor::new(init_message_id, program))
+        program: Program<Block>,
+    ) -> Option<Program<Block>> {
+        ProgramsStorageManager::insert_program(program_id, program)
     }
 
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
-        self.opt_binaries.insert(code_id, code);
+        self.opt_binaries.insert(code_id, code.clone());
+
+        let (instrumented_code, _) =
+            ProgramBuilder::build_instrumented_code_and_id(code).into_parts();
+        self.instrumented_codes.insert(code_id, instrumented_code);
     }
 
-    pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
+    pub(crate) fn instrumented_code(&self, code_id: CodeId) -> Option<&InstrumentedCode> {
+        self.instrumented_codes.get(&code_id)
+    }
+
+    pub(crate) fn original_code(&self, code_id: CodeId) -> Option<&[u8]> {
         self.opt_binaries.get(&code_id).map(|code| code.as_ref())
+    }
+
+    fn original_code_size(&self, code_id: CodeId) -> Option<usize> {
+        self.opt_binaries.get(&code_id).map(|code| code.len())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -164,7 +169,7 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while Actors::contains_key(self.id_nonce.into()) {
+        while ProgramsStorageManager::has_program(self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -187,31 +192,24 @@ impl ExtManager {
 
     pub(crate) fn update_storage_pages(
         &mut self,
-        program_id: &ActorId,
+        program_id: ActorId,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
-        Actors::modify(*program_id, |actor| {
-            let pages_data = actor
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .pages_mut()
-                .expect("No pages data found for program");
-
-            for (page, buf) in memory_pages {
-                pages_data.insert(page, buf);
-            }
-        });
+        for (page, buf) in memory_pages {
+            ProgramsStorageManager::set_program_page(program_id, page, buf);
+        }
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ActorId, value: Value) {
-        Accounts::increase(*id, value);
+    pub(crate) fn mint_to(&mut self, id: ActorId, value: Value) {
+        Accounts::increase(id, value);
     }
 
-    pub(crate) fn balance_of(&self, id: &ActorId) -> Value {
-        Accounts::balance(*id)
+    pub(crate) fn balance_of(&self, id: ActorId) -> Value {
+        Accounts::balance(id)
     }
 
-    pub(crate) fn override_balance(&mut self, &id: &ActorId, balance: Value) {
-        if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
+    pub(crate) fn override_balance(&mut self, id: ActorId, balance: Value) {
+        if ProgramsStorageManager::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             usage_panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({}. \
                 Please try to use bigger balance value",
@@ -228,21 +226,35 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, program_id: ActorId) {
-        Actors::modify(program_id, |actor| {
-            actor
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .set_initialized()
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            let Program::Active(active_program) =
+                program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+            else {
+                unreachable!("Before init finishes, program must always be active. But {program_id:?} program is not active.");
+            };
+
+            active_program.state = ProgramState::Initialized;
         });
     }
 
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
-        Actors::modify(program_id, |actor| {
-            if let Some(actor) = actor {
-                *actor = TestActor::FailedInit;
+        self.clean_waitlist(program_id);
+        self.remove_gas_reservation_map(program_id);
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            if let Some(program) = program {
+                if !program.is_active() {
+                    // Guaranteed to be called only on active program
+                    unreachable!(
+                        "ExtManager::init_failure: failed to exit active program. \
+                    Program - {program_id}, actual program - {program:?}"
+                    );
+                }
+
+                *program = Program::Terminated(program_id);
             } else {
                 // That's a case if no code exists for the program
                 // requested to be created from another program and
-                // there was not enough to get program from storage.
+                // there was not enough gas to get program from storage.
                 log::debug!("Failed init is set for non-existing actor");
             }
         });
@@ -253,13 +265,19 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn update_program<R, F: FnOnce(&mut Program) -> R>(
+    pub(crate) fn update_program<R, F: FnOnce(&mut ActiveProgram<Block>) -> R>(
         &mut self,
         id: ActorId,
         op: F,
     ) -> Option<R> {
-        Actors::modify(id, |actor| {
-            actor.and_then(|actor| actor.program_mut().map(op))
+        ProgramsStorageManager::modify_program(id, |program| {
+            program.and_then(|actor| {
+                if let Program::Active(active_program) = actor {
+                    Some(op(active_program))
+                } else {
+                    None
+                }
+            })
         })
     }
 
@@ -291,5 +309,13 @@ impl ExtManager {
             });
 
         Ok(message)
+    }
+
+    pub(crate) fn clean_waitlist(&mut self, id: ActorId) {
+        self.waitlist.drain_key(id).for_each(|entry| {
+            let message = self.wake_dispatch_requirements(entry);
+
+            self.dispatches.push_back(message);
+        });
     }
 }
