@@ -112,6 +112,8 @@ where
         let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
             return Ok((ValidTransaction::default(), Self::Val::NoCharge, origin));
         };
+
+        // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let cow_info = Self::pre_dispatch_info(call, info);
         let payer = Self::fee_payer_account(call, &who);
         let payer_origin: <T as frame_system::Config>::RuntimeOrigin =
@@ -135,24 +137,28 @@ where
         info: &DispatchInfoOf<CallOf<T>>,
         len: usize,
     ) -> Result<Self::Pre, TransactionValidityError> {
+        let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
+            return Ok(Self::Pre::NoCharge {
+                refund: self.weight(call),
+            });
+        };
+        // Override DispatchInfo struct for call variants exempted from weight fee multiplication
         let cow_info = Self::pre_dispatch_info(call, info);
-        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::prepare(
-            self.0,
-            val,
-            origin,
-            call,
-            cow_info.as_ref(),
-            len,
-        )
+        // Replace payer if delegated
+        let payer = Self::fee_payer_account(call, &who);
+        let payer_origin: <T as frame_system::Config>::RuntimeOrigin =
+            frame_system::RawOrigin::Signed(payer.clone().into_owned()).into();
+        self.0
+            .prepare(val, &payer_origin, call, cow_info.as_ref(), len)
     }
 
-    fn post_dispatch(
+    fn post_dispatch_details(
         pre: Self::Pre,
         info: &DispatchInfoOf<CallOf<T>>,
-        post_info: &mut PostDispatchInfoOf<CallOf<T>>,
+        post_info: &PostDispatchInfoOf<CallOf<T>>,
         len: usize,
         result: &sp_runtime::DispatchResult,
-    ) -> Result<(), TransactionValidityError> {
+    ) -> Result<Weight, TransactionValidityError> {
         // There is no easy way to modify the original `DispatchInfo` struct similarly
         // it's done in `pre_dispatch()` because a call is not supplied.
         // However, we can just leave it as is and yet get the correct fee refund if any:
@@ -163,7 +169,7 @@ where
         //   weight normalization before returning it from the extrinsic.
         //
         // TODO: still think of a more robust way to deal with fee refunds
-        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::post_dispatch(
+        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::post_dispatch_details(
             pre, info, post_info, len, result,
         )
     }
