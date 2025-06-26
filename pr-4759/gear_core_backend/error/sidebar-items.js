@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ActorTerminationReason","RunFallibleError","TrapExplanation","UndefinedTerminationReason","UnrecoverableExecutionError","UnrecoverableExtError","UnrecoverableMemoryError","UnrecoverableWaitError"],"struct":["SystemTerminationReason"],"trait":["BackendAllocSyscallError","BackendSyscallError"],"type":["TerminationReason"]};
