@@ -19,7 +19,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     with:
       macos: true
-      win-native: true
+      windows: true
       release: true
       production: true
 
