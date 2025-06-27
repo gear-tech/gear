@@ -14,9 +14,6 @@ jobs:
     uses: ./.github/workflows/check.yml
 
   build:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'A0-pleasereview') ||
-            contains(github.event.pull_request.labels.*.name, 'A2-mergeoncegreen') ||
-            contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
     uses: ./.github/workflows/build.yml
     with:
       macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
