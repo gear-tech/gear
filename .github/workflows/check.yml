@@ -125,7 +125,7 @@ jobs:
           no-vendored: 'true'
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: gear-tech/rust-cache@metadata
         with:
           key: "${{ matrix.name }}"
           #save-if: ${{ github.ref == 'refs/heads/master' }}
@@ -151,7 +151,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: gear-tech/rust-cache@metadata
         with:
           #save-if: ${{ github.ref == 'refs/heads/master' }}
           workspaces: |
@@ -199,7 +199,7 @@ jobs:
           no-vendored: 'true'
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: gear-tech/rust-cache@metadata
         with:
           key: "${{ matrix.name }}"
           #save-if: ${{ github.ref == 'refs/heads/master' }}
@@ -244,7 +244,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: gear-tech/rust-cache@metadata
         with:
           key: "${{ matrix.name }}"
           #save-if: ${{ github.ref == 'refs/heads/master' }}

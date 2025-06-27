@@ -52,7 +52,7 @@ jobs:
           no-vendored: 'false'
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: gear-tech/rust-cache@metadata
         with:
           key: "${{ matrix.profiles.name }}"
           save-if: ${{ github.ref == 'refs/heads/master' }}

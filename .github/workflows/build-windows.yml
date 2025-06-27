@@ -48,7 +48,7 @@ jobs:
           no-vendored: 'true'
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: gear-tech/rust-cache@metadata
         with:
           key: "${{ matrix.profiles.name }}"
 
