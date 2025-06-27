@@ -1,7 +1,8 @@
 use crate::{utils, ComputeError, Result};
 use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
-    events::{BlockEvent, RouterEvent}, SimpleBlockData,
+    events::{BlockEvent, RouterEvent},
+    SimpleBlockData,
 };
 use gprimitives::{CodeId, H256};
 use std::collections::{HashSet, VecDeque};

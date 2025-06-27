@@ -17,18 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
-    events::{BlockEvent, RouterEvent},
-    gear::GearBlock,
-    BlockMeta, CodeAndIdUnchecked, SimpleBlockData,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
+    CodeAndIdUnchecked, SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
+use ethexe_processor::{Processor, ProcessorError};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use prepare::PrepareInfo;
 use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
+    collections::{HashSet, VecDeque},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -256,10 +254,14 @@ impl FusedStream for ComputeService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{db::OnChainStorageWrite, BlockHeader, Digest};
+    use ethexe_common::{
+        db::{OnChainStorageRead, OnChainStorageWrite},
+        events::{BlockEvent, RouterEvent},
+        BlockHeader, Digest,
+    };
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
-    use std::{collections::HashMap, u64};
+    use std::collections::HashMap;
 
     // Create new code with a unique nonce
     fn create_new_code(nonce: u32) -> Vec<u8> {
