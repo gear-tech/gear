@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cargo_gbuild::GBuild;
 use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
-use std::{path::PathBuf, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
@@ -48,7 +48,8 @@ fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
 // when this test grows.
 #[test]
 fn test_compile() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
+    let root = env::var("CARGO_MANIFEST_DIR").context("CARGO_MANIFEST_DIR not found")?;
+    let root = PathBuf::from(root).join("test-program/Cargo.toml");
     let system = System::new();
     system.init_logger();
 

@@ -1,27 +1,39 @@
+experimental = ["setup-scripts"]
+
+[scripts.setup.restore-node-permissions]
+command = "chmod +x target/release/gear"
+
 [profile.default]
 leak-timeout = { period = "500ms", result = "fail" }
 
+[profile.ci]
+fail-fast = false
+archive.include = [
+  { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },
+]
+
 [profile.ci.junit]
 path = "junit.xml"
+
+# sdk
+[[profile.ci.overrides]]
+filter = 'package(gclient) or package(gsdk)'
+retries = 5
+
+[[profile.ci.scripts]]
+filter = 'package(gclient) or package(gsdk)'
+platform = "cfg(unix)"
+setup = "restore-node-permissions"
 
 # sometimes fails on CI machine in debug profile
 # due to an inconsistent machine load and unoptimized code
 [[profile.ci.overrides]]
 filter = 'package(gear-authorship)'
 retries = 5
-threads-required = "num-test-threads"
+threads-required = 4
 
+# ethexe
 [[profile.ci.overrides]]
-filter = 'package(ethexe-service)'
+filter = 'package(ethexe-service) or package(ethexe-observer) or package(ethexe-processor)'
 retries = 5
-threads-required = "num-test-threads"
-
-[[profile.ci.overrides]]
-filter = 'package(ethexe-observer)'
-retries = 5
-threads-required = "num-test-threads"
-
-[[profile.ci.overrides]]
-filter = 'package(gclient)'
-retries = 5
-threads-required = "num-test-threads"
+threads-required = 4
