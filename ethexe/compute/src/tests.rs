@@ -1,3 +1,21 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use super::*;
 use ethexe_common::{
     db::{BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
@@ -175,57 +193,6 @@ fn setup_chain_and_compute(
     };
     (chain, compute)
 }
-
-// #[tokio::test]
-// async fn test_codes_queue_propagation() {
-//     let db = Database::memory();
-
-//     // Prepare test data
-//     let parent_block = H256::random();
-//     let current_block = H256::random();
-//     let code_id_1 = H256::random().into();
-//     let code_id_2 = H256::random().into();
-
-//     // Simulate parent block with a codes queue
-//     let mut parent_codes_queue = VecDeque::new();
-//     parent_codes_queue.push_back(code_id_1);
-//     db.set_block_codes_queue(parent_block, parent_codes_queue.clone());
-//     db.set_block_outcome(parent_block, Default::default());
-//     db.set_previous_not_empty_block(parent_block, H256::random());
-//     db.set_last_committed_batch(parent_block, Digest::random());
-//     db.set_block_commitment_queue(parent_block, Default::default());
-
-//     // Simulate events for the current block
-//     let events = vec![
-//         BlockEvent::Router(RouterEvent::CodeGotValidated {
-//             code_id: code_id_1,
-//             valid: true,
-//         }),
-//         BlockEvent::Router(RouterEvent::CodeValidationRequested {
-//             code_id: code_id_2,
-//             timestamp: 0,
-//             tx_hash: H256::random(),
-//         }),
-//     ];
-//     db.set_block_events(current_block, &events);
-
-//     // Propagate data from parent
-//     ChainHeadProcessContext::propagate_data_from_parent(
-//         &db,
-//         current_block,
-//         parent_block,
-//         db.block_events(current_block).unwrap().iter(),
-//     )
-//     .unwrap();
-
-//     // Check for parent
-//     let codes_queue = db.block_codes_queue(parent_block).unwrap();
-//     assert_eq!(codes_queue, parent_codes_queue);
-
-//     // Check for current block
-//     let codes_queue = db.block_codes_queue(current_block).unwrap();
-//     assert_eq!(codes_queue, VecDeque::from(vec![code_id_2]));
-// }
 
 #[tokio::test]
 async fn block_computation_basic() -> Result<()> {
