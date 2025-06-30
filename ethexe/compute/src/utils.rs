@@ -52,3 +52,119 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
 
     Ok(chain)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
+        BlockHeader,
+    };
+    use ethexe_db::Database as DB;
+    use gprimitives::H256;
+
+    /// Test collect_chain function
+    #[test]
+    fn test_collect_chain() {
+        let db = DB::memory();
+
+        // Create a chain of blocks: genesis -> block1 -> block2 -> head
+        let genesis_hash = H256::from([0; 32]);
+        let block1_hash = H256::from([1; 32]);
+        let block2_hash = H256::from([2; 32]);
+        let head_hash = H256::from([3; 32]);
+
+        // Setup genesis block (prepared)
+        db.mutate_block_meta(genesis_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+        });
+        let genesis_header = BlockHeader {
+            height: 0,
+            parent_hash: H256::zero(),
+            timestamp: 1000,
+        };
+        db.set_block_header(genesis_hash, genesis_header.clone());
+
+        // Setup block1 (not prepared)
+        db.mutate_block_meta(block1_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = false;
+        });
+        let block1_header = BlockHeader {
+            height: 1,
+            parent_hash: genesis_hash,
+            timestamp: 2000,
+        };
+        db.set_block_header(block1_hash, block1_header.clone());
+
+        // Setup block2 (not prepared)
+        db.mutate_block_meta(block2_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = false;
+        });
+        let block2_header = BlockHeader {
+            height: 2,
+            parent_hash: block1_hash,
+            timestamp: 3000,
+        };
+        db.set_block_header(block2_hash, block2_header.clone());
+
+        // Setup head (not prepared)
+        db.mutate_block_meta(head_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = false;
+        });
+        let head_header = BlockHeader {
+            height: 3,
+            parent_hash: block2_hash,
+            timestamp: 4000,
+        };
+        db.set_block_header(head_hash, head_header.clone());
+
+        // Test: collect all unprepared blocks
+        let result = collect_chain(&db, head_hash, |meta| !meta.prepared).unwrap();
+
+        // Should return chain from oldest to newest: block1 -> block2 -> head
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].hash, block1_hash);
+        assert_eq!(result[0].header, block1_header);
+        assert_eq!(result[1].hash, block2_hash);
+        assert_eq!(result[1].header, block2_header);
+        assert_eq!(result[2].hash, head_hash);
+        assert_eq!(result[2].header, head_header);
+
+        // Test: collect with filter that stops at block2
+        let result = collect_chain(&db, head_hash, |meta| !meta.prepared && meta.synced).unwrap();
+
+        // Should return the same result since all blocks match the filter
+        assert_eq!(result.len(), 3);
+
+        // Test: collect with filter that accepts nothing
+        let result = collect_chain(&db, head_hash, |_meta| false).unwrap();
+
+        // Should return empty chain
+        assert!(result.is_empty());
+    }
+
+    /// Test collect_chain with missing header
+    #[test]
+    fn test_collect_chain_missing_header() {
+        let db = DB::memory();
+        let head_hash = H256::from([1; 32]);
+
+        // Setup block meta but no header
+        db.mutate_block_meta(head_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = false;
+        });
+
+        // Should return BlockHeaderNotFound error
+        let result = collect_chain(&db, head_hash, |meta| !meta.prepared);
+
+        assert!(matches!(
+            result,
+            Err(ComputeError::BlockHeaderNotFound(hash)) if hash == head_hash
+        ));
+    }
+}

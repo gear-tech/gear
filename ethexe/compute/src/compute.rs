@@ -185,34 +185,68 @@ mod tests {
         }
     }
 
-    /// Test compute function with single block
+    /// Test compute function with chain of 3 blocks
     #[tokio::test]
     async fn test_compute() {
         let db = DB::memory();
         let processor = MockProcessor;
-        let head = H256::from([1; 32]);
 
-        // Setup block data
-        let header = BlockHeader {
-            height: 1,
+        // Create a chain: genesis -> block1 -> block2 -> head
+        let genesis_hash = H256::from([0; 32]);
+        let block1_hash = H256::from([1; 32]);
+        let block2_hash = H256::from([2; 32]);
+        let head_hash = H256::from([3; 32]);
+
+        // Setup genesis block as computed
+        db.mutate_block_meta(genesis_hash, |meta| meta.computed = true);
+        db.set_block_commitment_queue(genesis_hash, VecDeque::new());
+        db.set_block_outcome(genesis_hash, vec![]);
+        db.set_previous_not_empty_block(genesis_hash, genesis_hash);
+        let genesis_header = BlockHeader {
+            height: 0,
             parent_hash: H256::zero(),
             timestamp: 1000,
         };
+        db.set_block_header(genesis_hash, genesis_header);
 
-        // Setup parent block as computed
-        db.mutate_block_meta(H256::zero(), |meta| meta.computed = true);
-        db.set_block_commitment_queue(H256::zero(), VecDeque::new());
-        db.set_block_outcome(H256::zero(), vec![]); // Add missing parent outcome
-        db.set_previous_not_empty_block(H256::zero(), H256::zero()); // Add missing previous commitment
+        // Setup block1 as synced but not computed
+        db.mutate_block_meta(block1_hash, |meta| meta.synced = true);
+        let block1_header = BlockHeader {
+            height: 1,
+            parent_hash: genesis_hash,
+            timestamp: 2000,
+        };
+        db.set_block_header(block1_hash, block1_header);
+        db.set_block_events(block1_hash, &[]);
 
-        // Setup head block as synced but not computed
-        db.mutate_block_meta(head, |meta| meta.synced = true);
-        db.set_block_header(head, header);
-        db.set_block_events(head, &[]);
+        // Setup block2 as synced but not computed
+        db.mutate_block_meta(block2_hash, |meta| meta.synced = true);
+        let block2_header = BlockHeader {
+            height: 2,
+            parent_hash: block1_hash,
+            timestamp: 3000,
+        };
+        db.set_block_header(block2_hash, block2_header);
+        db.set_block_events(block2_hash, &[]);
 
-        let result = compute(db, processor, head).await.unwrap();
+        // Setup head as synced but not computed
+        db.mutate_block_meta(head_hash, |meta| meta.synced = true);
+        let head_header = BlockHeader {
+            height: 3,
+            parent_hash: block2_hash,
+            timestamp: 4000,
+        };
+        db.set_block_header(head_hash, head_header);
+        db.set_block_events(head_hash, &[]);
 
-        assert_eq!(result.block_hash, head);
+        let result = compute(db.clone(), processor, head_hash).await.unwrap();
+
+        assert_eq!(result.block_hash, head_hash);
+
+        // Verify all blocks were computed
+        assert!(db.block_meta(block1_hash).computed);
+        assert!(db.block_meta(block2_hash).computed);
+        assert!(db.block_meta(head_hash).computed);
     }
 
     /// Test compute_one_block function
