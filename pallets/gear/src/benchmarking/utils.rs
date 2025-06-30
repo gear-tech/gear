@@ -242,7 +242,7 @@ where
             &block_config,
             code_metadata
                 .instrumented_code_len()
-                .ok_or("Instrumented code length not found")?,
+                .ok_or("Failed to get instrumented code length")?,
         )
         .map_err(|_| "core_processor::precharge_for_instrumented_code failed")?;
 
