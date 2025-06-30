@@ -550,14 +550,14 @@ where
 
                 true
             }
-            InstrumentationStatus::Instrumented(weights_version) => {
-                weights_version != schedule.instruction_weights.version
+            InstrumentationStatus::Instrumented { version, .. } => {
+                version != schedule.instruction_weights.version
             }
-            InstrumentationStatus::InstrumentationFailed(weights_version) => {
-                if weights_version == schedule.instruction_weights.version {
+            InstrumentationStatus::InstrumentationFailed { version } => {
+                if version == schedule.instruction_weights.version {
                     return Err(format!(
                         "Re-instrumentation already failed for program '{program_id:?}' \
-                        with instructions weights version {weights_version}"
+                        with instructions weights version {version}"
                     ));
                 }
 

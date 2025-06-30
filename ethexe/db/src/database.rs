@@ -1025,11 +1025,13 @@ mod tests {
         let code_id = CodeId::default();
         let code_metadata = CodeMetadata::new(
             1,
-            2,
             Default::default(),
             0.into(),
             None,
-            InstrumentationStatus::Instrumented(3),
+            InstrumentationStatus::Instrumented {
+                version: 3,
+                code_len: 2,
+            },
         );
         db.set_code_metadata(code_id, code_metadata.clone());
         assert_eq!(

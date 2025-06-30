@@ -34,9 +34,17 @@ pub enum InstrumentationStatus {
     /// Code is not instrumented yet.
     NotInstrumented,
     /// Code is instrumented on weights version.
-    Instrumented(u32),
+    Instrumented {
+        /// Version of the instruction weights used for instrumentation.
+        version: u32,
+        /// Instrumented code length.
+        code_len: u32,
+    },
     /// Failed to instrument code on weights version.
-    InstrumentationFailed(u32),
+    InstrumentationFailed {
+        /// Version of the instruction weights used for instrumentation.
+        version: u32,
+    },
 }
 
 /// Metadata for the code.
@@ -44,8 +52,6 @@ pub enum InstrumentationStatus {
 pub struct CodeMetadata {
     /// Original code length.
     original_code_len: u32,
-    /// Instrumented code length.
-    instrumented_code_len: u32,
     /// Exports of the wasm module.
     exports: BTreeSet<DispatchKind>,
     // Static pages count from memory import.
@@ -60,7 +66,6 @@ impl CodeMetadata {
     /// Creates a new instance of the code metadata.
     pub fn new(
         original_code_len: u32,
-        instrumented_code_len: u32,
         exports: BTreeSet<DispatchKind>,
         static_pages: WasmPagesAmount,
         stack_end: Option<WasmPage>,
@@ -68,7 +73,6 @@ impl CodeMetadata {
     ) -> Self {
         Self {
             original_code_len,
-            instrumented_code_len,
             exports,
             static_pages,
             stack_end,
@@ -79,9 +83,9 @@ impl CodeMetadata {
     /// Converts the metadata into the failed instrumentation state.
     pub fn into_failed_instrumentation(self, instruction_weights_version: u32) -> Self {
         Self {
-            instrumentation_status: InstrumentationStatus::InstrumentationFailed(
-                instruction_weights_version,
-            ),
+            instrumentation_status: InstrumentationStatus::InstrumentationFailed {
+                version: instruction_weights_version,
+            },
             ..self
         }
     }
@@ -92,8 +96,12 @@ impl CodeMetadata {
     }
 
     /// Returns the instrumented code length.
-    pub fn instrumented_code_len(&self) -> u32 {
-        self.instrumented_code_len
+    pub fn instrumented_code_len(&self) -> Option<u32> {
+        match self.instrumentation_status {
+            InstrumentationStatus::NotInstrumented
+            | InstrumentationStatus::InstrumentationFailed { .. } => None,
+            InstrumentationStatus::Instrumented { code_len, .. } => Some(code_len),
+        }
     }
 
     /// Returns the code exports.
@@ -117,11 +125,11 @@ impl CodeMetadata {
     }
 
     /// Returns the version of the instructions.
-    pub fn instruction_weights_version(&self) -> u32 {
+    pub fn instruction_weights_version(&self) -> Option<u32> {
         match self.instrumentation_status {
-            InstrumentationStatus::NotInstrumented => 0,
-            InstrumentationStatus::Instrumented(version) => version,
-            InstrumentationStatus::InstrumentationFailed(version) => version,
+            InstrumentationStatus::NotInstrumented => None,
+            InstrumentationStatus::Instrumented { version, .. } => Some(version),
+            InstrumentationStatus::InstrumentationFailed { version } => Some(version),
         }
     }
 }

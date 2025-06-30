@@ -155,14 +155,14 @@ where
 
                 true
             }
-            InstrumentationStatus::Instrumented(weights_version) => {
-                weights_version != schedule.instruction_weights.version
+            InstrumentationStatus::Instrumented { version, .. } => {
+                version != schedule.instruction_weights.version
             }
-            InstrumentationStatus::InstrumentationFailed(weights_version) => {
-                if weights_version == schedule.instruction_weights.version {
+            InstrumentationStatus::InstrumentationFailed { version } => {
+                if version == schedule.instruction_weights.version {
                     log::debug!(
                         "Re-instrumentation already failed for program '{destination_id:?}' \
-                        with instructions weights version {weights_version}"
+                        with instructions weights version {version}"
                     );
 
                     return core_processor::process_instrumentation_failed(context);
@@ -206,13 +206,22 @@ where
                 context,
             )
         } else {
+            let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
+                let err_msg = format!(
+                    "run_queue_step: code metadata for the existing program does not contain \
+                    instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
             // Adjust gas counters for fetching instrumented binary code.
-            let context = match context
-                .charge_for_instrumented_code(block_config, code_metadata.instrumented_code_len())
-            {
-                Ok(context) => context,
-                Err(journal) => return journal,
-            };
+            let context =
+                match context.charge_for_instrumented_code(block_config, instrumented_code_len) {
+                    Ok(context) => context,
+                    Err(journal) => return journal,
+                };
 
             let code = T::CodeStorage::get_instrumented_code(code_id).unwrap_or_else(|| {
                 // `Program` exists, so instrumented code must exist as well.

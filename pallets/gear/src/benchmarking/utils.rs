@@ -238,7 +238,12 @@ where
         T::CodeStorage::get_code_metadata(active.code_id).ok_or("Code metadata not found")?;
 
     let context = context
-        .charge_for_instrumented_code(&block_config, code_metadata.instrumented_code_len())
+        .charge_for_instrumented_code(
+            &block_config,
+            code_metadata
+                .instrumented_code_len()
+                .ok_or("Instrumented code length not found")?,
+        )
         .map_err(|_| "core_processor::precharge_for_instrumented_code failed")?;
 
     let code =

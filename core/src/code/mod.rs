@@ -198,11 +198,13 @@ impl Code {
 
         let metadata = CodeMetadata::new(
             original_code.len() as u32,
-            instrumented_code.bytes().len() as u32,
             exports.clone(),
             static_pages,
             stack_end,
-            InstrumentationStatus::Instrumented(config.version),
+            InstrumentationStatus::Instrumented {
+                version: config.version,
+                code_len: instrumented_code.bytes().len() as u32,
+            },
         );
 
         Ok(Self {

@@ -413,8 +413,11 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         // Code metadata doesn't have to be completely wrong, just a version of instrumentation
         let old_code_metadata =
             <Test as Config>::CodeStorage::get_code_metadata(program.code_id).unwrap();
-        let code_metadata = old_code_metadata
-            .into_failed_instrumentation(invalid_metadata.instruction_weights_version());
+        let code_metadata = old_code_metadata.into_failed_instrumentation(
+            invalid_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+        );
 
         <Test as Config>::CodeStorage::update_instrumented_code_and_metadata(
             program.code_id,
@@ -10253,7 +10256,9 @@ fn test_reinstrumentation_works() {
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
             assert_eq!(
-                code_metadata.instruction_weights_version(),
+                code_metadata
+                    .instruction_weights_version()
+                    .expect("Failed to get instructions weight version"),
                 schedule.instruction_weights.version
             );
 
@@ -10273,7 +10278,12 @@ fn test_reinstrumentation_works() {
 
         // check new version
         let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
-        assert_eq!(code_metadata.instruction_weights_version(), 0xdeadbeef);
+        assert_eq!(
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+            0xdeadbeef
+        );
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -10288,7 +10298,12 @@ fn test_reinstrumentation_works() {
 
         // check new version stands still
         let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
-        assert_eq!(code_metadata.instruction_weights_version(), 0xdeadbeef);
+        assert_eq!(
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+            0xdeadbeef
+        );
     })
 }
 
@@ -10331,7 +10346,9 @@ fn test_reinstrumentation_failure() {
         // After message processing the code must have the new instrumentation version.
         let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
         assert_eq!(
-            code_metadata.instruction_weights_version(),
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
             new_weights_version
         );
 
@@ -10374,7 +10391,9 @@ fn test_init_reinstrumentation_failure() {
         // After message processing the code must have the new instrumentation version.
         let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
         assert_eq!(
-            code_metadata.instruction_weights_version(),
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
             new_weights_version
         );
 

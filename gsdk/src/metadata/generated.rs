@@ -728,7 +728,6 @@ pub mod runtime_types {
                     )]
                     pub struct CodeMetadata {
                         pub original_code_len: ::core::primitive::u32,
-                        pub instrumented_code_len: ::core::primitive::u32,
                         pub exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::gear_core::message::DispatchKind,
                         >,
@@ -743,9 +742,14 @@ pub mod runtime_types {
                     )]
                     pub enum InstrumentationStatus {
                         #[codec(index = 0)]
-                        Instrumented(::core::primitive::u32),
+                        NotInstrumented,
                         #[codec(index = 1)]
-                        InstrumentationFailed(::core::primitive::u32),
+                        Instrumented {
+                            version: ::core::primitive::u32,
+                            code_len: ::core::primitive::u32,
+                        },
+                        #[codec(index = 2)]
+                        InstrumentationFailed { version: ::core::primitive::u32 },
                     }
                 }
             }

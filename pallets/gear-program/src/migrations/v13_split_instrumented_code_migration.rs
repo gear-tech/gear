@@ -63,13 +63,12 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
             log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
 
             v12::CodeStorage::<T>::drain().for_each(|(code_id, instrumented_code)| {
-                // 1 read for instrumented code and 1 write for code metadata
-                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                // 1 read for instrumented code and 1 write for code metadata, also 1 write to delete instrumented code from previous storage
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
 
                 // We skip writing instrumented code into storage, as it will be written in the next reinstrumentation
                 let code_metadata = CodeMetadata::new(
                     instrumented_code.original_code_len,
-                    instrumented_code.code.len() as u32,
                     instrumented_code.exports,
                     instrumented_code.static_pages,
                     instrumented_code.stack_end,
@@ -226,10 +225,6 @@ mod test {
                 code_metadata.original_code_len(),
                 instrumented_code.original_code_len
             );
-            assert_eq!(
-                code_metadata.instrumented_code_len(),
-                instrumented_code.code.len() as u32
-            );
             assert_eq!(code_metadata.exports(), &instrumented_code.exports);
             assert_eq!(code_metadata.static_pages(), instrumented_code.static_pages);
             assert_eq!(code_metadata.stack_end(), instrumented_code.stack_end);
@@ -237,6 +232,7 @@ mod test {
                 code_metadata.instrumentation_status(),
                 InstrumentationStatus::NotInstrumented
             );
+            assert_eq!(code_metadata.instrumented_code_len(), None);
 
             assert_eq!(StorageVersion::get::<GearProgram>(), MIGRATE_TO_VERSION);
         })

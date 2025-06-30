@@ -1466,9 +1466,10 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            if !T::CodeStorage::original_code_exists(code_id) {
-                return Err(Error::<T>::CodeDoesntExist.into());
-            }
+            ensure!(
+                T::CodeStorage::original_code_exists(code_id),
+                Error::<T>::CodeDoesntExist
+            );
 
             // Check `gas_limit`
             Self::check_gas_limit(gas_limit)?;
