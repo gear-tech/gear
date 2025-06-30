@@ -23,6 +23,8 @@ pub type Migrations = (
     BagsListMigrate<Runtime>,
     pallet_gear_bank::migrations::MigrateToV1<Runtime>,
     pallet_gear_builtin::migration::MigrateToV1<Runtime, TreasuryAccount>,
+    pallet_identity::migration::v2::LazyMigrationV1ToV2<Runtime>,
+    pallet_child_bounties::migration::MigrateV0ToV1<Runtime>,
 );
 
 pub struct BagsListMigrate<T>(core::marker::PhantomData<T>);
