@@ -25,7 +25,7 @@ use common::{storage::*, DelegateFee, ExtractCall};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
-    traits::Contains,
+    traits::{Contains, OriginTrait},
 };
 use pallet_transaction_payment::{
     ChargeTransactionPayment, FeeDetails, Multiplier, MultiplierUpdate, OnChargeTransaction,
@@ -109,24 +109,32 @@ where
         implication: &impl Implication,
         source: TransactionSource,
     ) -> ValidateResult<Self::Val, CallOf<T>> {
+        // extract signer if present
         let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
             return Ok((ValidTransaction::default(), Self::Val::NoCharge, origin));
         };
-
-        // Override DispatchInfo struct for call variants exempted from weight fee multiplication
-        let cow_info = Self::pre_dispatch_info(call, info);
         let payer = Self::fee_payer_account(call, &who);
-        let payer_origin: <T as frame_system::Config>::RuntimeOrigin =
-            frame_system::RawOrigin::Signed(payer.into_owned()).into();
-        self.0.validate(
-            payer_origin,
+
+        // patch the `DispatchInfo` if the call is exempt from multiplier
+        let patched_info = Self::pre_dispatch_info(call, info);
+
+        // delegate to the inner extension
+        let (valid, val, _inner_origin) = self.0.validate(
+            <T::RuntimeCall as Dispatchable>::RuntimeOrigin::signed(payer.clone().into_owned()),
             call,
-            cow_info.as_ref(),
+            &patched_info,
             len,
             (),
             implication,
             source,
-        )
+        )?;
+
+        // Pass original origin to the pipeline
+        Ok((
+            valid,
+            val,
+            origin
+        ))
     }
 
     fn prepare(
@@ -137,19 +145,13 @@ where
         info: &DispatchInfoOf<CallOf<T>>,
         len: usize,
     ) -> Result<Self::Pre, TransactionValidityError> {
-        let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
-            return Ok(Self::Pre::NoCharge {
-                refund: self.weight(call),
-            });
-        };
-        // Override DispatchInfo struct for call variants exempted from weight fee multiplication
-        let cow_info = Self::pre_dispatch_info(call, info);
-        // Replace payer if delegated
-        let payer = Self::fee_payer_account(call, &who);
-        let payer_origin: <T as frame_system::Config>::RuntimeOrigin =
-            frame_system::RawOrigin::Signed(payer.clone().into_owned()).into();
-        self.0
-            .prepare(val, &payer_origin, call, cow_info.as_ref(), len)
+        self.0.prepare(
+            val,
+            origin,
+            call,
+            info,
+            len,
+        )
     }
 
     fn post_dispatch_details(
