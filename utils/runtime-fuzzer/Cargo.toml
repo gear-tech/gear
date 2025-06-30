@@ -43,4 +43,3 @@ sp-authority-discovery.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
-rand = { workspace = true, features = ["small_rng"] }
