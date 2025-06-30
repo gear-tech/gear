@@ -130,11 +130,7 @@ where
         )?;
 
         // Pass original origin to the pipeline
-        Ok((
-            valid,
-            val,
-            origin
-        ))
+        Ok((valid, val, origin))
     }
 
     fn prepare(
@@ -145,9 +141,15 @@ where
         info: &DispatchInfoOf<CallOf<T>>,
         len: usize,
     ) -> Result<Self::Pre, TransactionValidityError> {
+        let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
+            return self.0.prepare(val, origin, call, info, len);
+        };
+
+        let payer = Self::fee_payer_account(call, &who);
+
         self.0.prepare(
             val,
-            origin,
+            &<T::RuntimeCall as Dispatchable>::RuntimeOrigin::signed(payer.clone().into_owned()),
             call,
             info,
             len,
