@@ -26,7 +26,7 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     self,
-    db::{OnChainStorageRead, OnChainStorageWrite},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     BlockData, BlockHeader, CodeBlobInfo,
 };
@@ -34,8 +34,19 @@ use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 use std::collections::HashMap;
 
-pub(crate) trait SyncDB: OnChainStorageRead + OnChainStorageWrite + Clone {}
-impl<T: OnChainStorageRead + OnChainStorageWrite + Clone> SyncDB for T {}
+pub(crate) trait SyncDB:
+    OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone
+{
+}
+impl<
+        T: OnChainStorageRead
+            + OnChainStorageWrite
+            + BlockMetaStorageRead
+            + BlockMetaStorageWrite
+            + Clone,
+    > SyncDB for T
+{
+}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -81,7 +92,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let mut chain = Vec::new();
 
         let mut hash = block;
-        while !self.db.block_is_synced(hash) {
+        while !self.db.block_meta(hash).synced {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
@@ -175,7 +186,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            self.db.set_block_is_synced(hash);
+            self.db.mutate_block_meta(hash, |meta| meta.synced = true);
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
