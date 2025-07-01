@@ -19,6 +19,8 @@
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
+use frame_support::traits::EnsureOrigin;
+use frame_system::RawOrigin;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
@@ -44,9 +46,16 @@ where
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<ActorHandleResult, BuiltinActorError> {
+        let source = dispatch.source();
+
+        let is_governance_origin = <T as Config>::ControlOrigin::ensure_origin(
+            RawOrigin::from(Some(source.cast())).into(),
+        )
+        .is_ok();
+
         let fee: Value = TransportFee::<T>::get().unique_saturated_into();
 
-        if dispatch.value() < fee {
+        if !(is_governance_origin || dispatch.value() < fee) {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 error_to_str(&Error::<T>::IncorrectValueApplied),
             )));
@@ -63,10 +72,11 @@ where
                 payload,
             } => Ok(ActorHandleResult {
                 payload: send_message_request::<T>(
-                    dispatch.source(),
+                    source,
                     destination,
                     payload,
                     context,
+                    is_governance_origin,
                 )?,
                 return_value: unused_value,
             }),
@@ -83,15 +93,13 @@ fn send_message_request<T: Config>(
     destination: H160,
     payload: Vec<u8>,
     context: &mut BuiltinContext,
-) -> Result<Payload, BuiltinActorError>
-where
-    T::AccountId: Origin,
-{
+    is_governance_origin: bool,
+) -> Result<Payload, BuiltinActorError> {
     let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
 
     context.try_charge_gas(gas_cost)?;
 
-    Pallet::<T>::queue_message(source, destination, payload)
+    Pallet::<T>::queue_message(source, destination, payload, is_governance_origin)
         .map(|(nonce, hash)| {
             Response::EthMessageQueued { nonce, hash }
                 .encode()

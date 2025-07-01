@@ -166,19 +166,19 @@ where
             }
             Ok(match res.kind {
                 DispatchResultKind::Trap(reason) => process_execution_error(
-                    res.dispatch,
+                    dispatch,
                     program_id,
                     res.gas_amount.burned(),
                     res.system_reservation_context,
                     ActorExecutionErrorReplyReason::Trap(reason),
                 ),
 
-                DispatchResultKind::Success => process_success(Success, res),
+                DispatchResultKind::Success => process_success(Success, res, dispatch),
                 DispatchResultKind::Wait(duration, ref waited_type) => {
-                    process_success(Wait(duration, waited_type.clone()), res)
+                    process_success(Wait(duration, waited_type.clone()), res, dispatch)
                 }
                 DispatchResultKind::Exit(value_destination) => {
-                    process_success(Exit(value_destination), res)
+                    process_success(Exit(value_destination), res, dispatch)
                 }
                 DispatchResultKind::GasAllowanceExceed => {
                     process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
@@ -510,11 +510,11 @@ pub fn process_reinstrumentation_error(
 pub fn process_success(
     kind: SuccessfulDispatchResultKind,
     dispatch_result: DispatchResult,
+    dispatch: IncomingDispatch,
 ) -> Vec<JournalNote> {
     use crate::precharge::SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
-        dispatch,
         generated_dispatches,
         awakening,
         program_candidates,
