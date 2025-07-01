@@ -65,7 +65,7 @@ use ::alloc::{collections::BTreeMap, vec};
 use common::{
     self, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
+    CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
@@ -459,7 +459,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code);
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = 10000u32.into();
@@ -500,7 +500,8 @@ benchmarks! {
         init_block::<T>(None);
     }: _(origin, code)
     verify {
-        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
     }
 
     // The size of the salt influences the runtime because it is hashed in order to
@@ -525,7 +526,8 @@ benchmarks! {
         init_block::<T>(None);
     }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
     verify {
-        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.
@@ -563,7 +565,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code);
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -580,7 +582,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code);
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = (p % 2).into();
@@ -619,7 +621,7 @@ benchmarks! {
             programs.push(program_id.clone());
             let _ = CurrencyOf::<T>::deposit_creating(&program_id, minimum_balance);
             let program_id = program_id.cast();
-            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![]);
 
             ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
                 if i % 2 == 0 {
@@ -659,19 +661,15 @@ benchmarks! {
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
-        let code_id = code_and_id.code_id();
 
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        let metadata = {
-            let block_number = Pallet::<T>::block_number().unique_saturated_into();
-            CodeMetadata::new(caller.into_origin(), block_number)
-        };
+        T::CodeStorage::add_code(code_and_id.clone()).unwrap();
 
-        T::CodeStorage::add_code(code_and_id, metadata).unwrap();
+        let (code, code_id) = code_and_id.into_parts();
+        let (_, _, code_metadata) = code.into_parts();
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
+        Gear::<T>::reinstrument_code(code_id, code_metadata, &schedule).expect("Re-instrumentation  failed");
     }
 
     load_allocations_per_interval {
@@ -679,7 +677,7 @@ benchmarks! {
         let allocations = (0..a).map(|p| WasmPage::from(p as u16 * 2 + 1));
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code);
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
     }: {
         let _ = ProgramStorageOf::<T>::allocations(program_id).unwrap();

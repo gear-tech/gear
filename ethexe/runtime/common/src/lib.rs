@@ -26,21 +26,22 @@ use alloc::vec::Vec;
 use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
-    ContextChargedForCode, ContextChargedForInstrumentation, Ext, ProcessExecutionContext,
+    ContextCharged, Ext, ProcessExecutionContext,
 };
 use ethexe_common::gear::Origin;
 use gear_core::{
-    code::{InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
+    code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
     primitives::ActorId,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::{CodeId, H256};
+use gprimitives::H256;
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
+use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{InBlockTransitions, NonFinalTransition};
@@ -106,7 +107,7 @@ pub fn process_queue<S, RI>(
     program_id: ActorId,
     mut program_state: ProgramState,
     instrumented_code: Option<InstrumentedCode>,
-    code_id: CodeId,
+    code_metadata: Option<CodeMetadata>,
     ri: &RI,
 ) -> ProgramJournals
 where
@@ -189,7 +190,7 @@ where
             program_id,
             &program_state,
             &instrumented_code,
-            code_id,
+            &code_metadata,
             ri,
         );
         let mut handler = RuntimeJournalHandler {
@@ -214,7 +215,7 @@ fn process_dispatch<S, RI>(
     program_id: ActorId,
     program_state: &ProgramState,
     instrumented_code: &Option<InstrumentedCode>,
-    code_id: CodeId,
+    code_metadata: &Option<CodeMetadata>,
     ri: &RI,
 ) -> Vec<JournalNote>
 where
@@ -245,13 +246,10 @@ where
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let context = match core_processor::precharge_for_program(
-        block_config,
-        1_000_000_000_000,
-        dispatch,
-        program_id,
-    ) {
-        Ok(dispatch) => dispatch,
+    let context = ContextCharged::new(program_id, dispatch, 1_000_000_000_000);
+
+    let context = match context.charge_for_program(block_config) {
+        Ok(context) => context,
         Err(journal) => return journal,
     };
 
@@ -283,18 +281,7 @@ where
         return core_processor::process_uninitialized(context);
     }
 
-    // TODO: support normal allocations len #4068
-    let allocations = active_state.allocations_hash.map_or_default(|hash| {
-        ri.storage()
-            .read_allocations(hash)
-            .expect("Cannot get allocations")
-    });
-
-    let context = match core_processor::precharge_for_allocations(
-        block_config,
-        context,
-        allocations.tree_len(),
-    ) {
+    let context = match context.charge_for_code_metadata(block_config) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
@@ -302,35 +289,52 @@ where
     let code = instrumented_code
         .as_ref()
         .expect("Instrumented code must be provided if program is active");
+    let code_metadata = code_metadata
+        .as_ref()
+        .expect("Code metadata must be provided if program is active");
 
-    let actor_data = ExecutableActorData {
-        allocations: allocations.into(),
-        code_id,
-        code_exports: code.exports().clone(),
-        static_pages: code.static_pages(),
-        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
-        memory_infix: active_state.memory_infix,
-    };
+    let context =
+        match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
 
-    let context = match core_processor::precharge_for_code_length(block_config, context, actor_data)
-    {
+    // TODO: support normal allocations len #4068
+    let allocations = active_state.allocations_hash.map_or_default(|hash| {
+        ri.storage()
+            .read_allocations(hash)
+            .expect("Cannot get allocations")
+    });
+
+    let context = match context.charge_for_allocations(block_config, allocations.tree_len()) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
 
-    let context = ContextChargedForCode::from(context);
-    let context = ContextChargedForInstrumentation::from(context);
-    let context = match core_processor::precharge_for_module_instantiation(
+    let actor_data = ExecutableActorData {
+        allocations: allocations.into(),
+        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
+        memory_infix: active_state.memory_infix,
+    };
+
+    let context = match context.charge_for_module_instantiation(
         block_config,
-        context,
+        actor_data,
         code.instantiated_section_sizes(),
+        code_metadata,
     ) {
         Ok(context) => context,
         Err(journal) => return journal,
     };
 
-    let execution_context =
-        ProcessExecutionContext::from((context, code.clone(), program_state.balance));
+    let execution_context = ProcessExecutionContext::new(
+        context,
+        InstrumentedCodeAndMetadata {
+            instrumented_code: code.clone(),
+            metadata: code_metadata.clone(),
+        },
+        program_state.balance,
+    );
 
     let random_data = ri.random_data();
 

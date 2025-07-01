@@ -23,7 +23,7 @@ use crate::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::storage::primitives::Interval,
             gear_core::{
-                code::instrumented::InstrumentedCode,
+                code::{instrumented::InstrumentedCode, metadata::CodeMetadata},
                 message::user::UserStoredMessage,
                 program::{ActiveProgram, Program},
             },
@@ -271,29 +271,29 @@ impl Api {
         self.fetch_storage_at(&addr, block_hash).await
     }
 
-    /// Get `InstrumentedCode` by its `CodeId at specified block.
+    /// Get `InstrumentedCode` by its `CodeId` at specified block.
     #[storage_fetch]
-    pub async fn code_storage_at(
+    pub async fn instrumented_code_storage_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<InstrumentedCode> {
         let addr = Self::storage(
-            GearProgramStorage::CodeStorage,
+            GearProgramStorage::InstrumentedCodeStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.fetch_storage_at(&addr, block_hash).await
     }
 
-    /// Get `InstrumentedCode` length by its `CodeId` at specified block.
+    /// Get `CodeMetadata` by its `CodeId` at specified block.
     #[storage_fetch]
-    pub async fn code_len_storage_at(
+    pub async fn code_metadata_storage_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
-    ) -> Result<u32> {
+    ) -> Result<CodeMetadata> {
         let addr = Self::storage(
-            GearProgramStorage::CodeLenStorage,
+            GearProgramStorage::CodeMetadataStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.fetch_storage_at(&addr, block_hash).await

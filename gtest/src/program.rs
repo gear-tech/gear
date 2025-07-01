@@ -25,7 +25,7 @@ use crate::{
     Result, Value, MAX_USER_GAS_LIMIT,
 };
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     gas_metering::Schedule,
     message::{Dispatch, DispatchKind, Message},
     primitives::{ActorId, CodeId, MessageId},
@@ -205,7 +205,8 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code, code_id) = Self::build_instrumented_code_and_id(self.code.clone());
+        let (code_id, instrumented_code_and_metadata) =
+            Self::build_instrumented_code_and_id(self.code.clone());
 
         system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
@@ -220,8 +221,8 @@ impl ProgramBuilder {
             system,
             id,
             InnerProgram {
-                code,
-                code_id,
+                code: instrumented_code_and_metadata.instrumented_code,
+                code_metadata: instrumented_code_and_metadata.metadata,
                 allocations: Default::default(),
                 pages_data: Default::default(),
                 gas_reservation_map: Default::default(),
@@ -231,7 +232,7 @@ impl ProgramBuilder {
 
     pub(crate) fn build_instrumented_code_and_id(
         original_code: Vec<u8>,
-    ) -> (InstrumentedCode, CodeId) {
+    ) -> (CodeId, InstrumentedCodeAndMetadata) {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
@@ -242,7 +243,9 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts()
+        let (code, code_id) = CodeAndId::new(code).into_parts();
+
+        (code_id, code.into())
     }
 }
 

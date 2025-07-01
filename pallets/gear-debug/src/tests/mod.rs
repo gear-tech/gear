@@ -59,10 +59,10 @@ fn vec() {
 
         let code_id = CodeId::generate(WASM_BINARY);
 
-        let code = <Test as pallet_gear::Config>::CodeStorage::get_code(code_id)
-            .expect("code should be in the storage");
+        let code_metadata = <Test as pallet_gear::Config>::CodeStorage::get_code_metadata(code_id)
+            .expect("code metadata should be in the storage");
 
-        let static_pages = code.static_pages();
+        let static_pages = code_metadata.static_pages();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(1),
@@ -90,7 +90,7 @@ fn vec() {
         let crate::ProgramState::Active(ref program_info) = program_details.state else {
             panic!("Inactive program")
         };
-        assert_eq!(program_info.code_hash, code_id.into_origin());
+        assert_eq!(program_info.code_hash, code_id);
 
         let pages = program_info
             .persistent_pages
@@ -168,7 +168,7 @@ fn debug_mode_works() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: Default::default(),
-                        code_hash: utils::h256_code_hash(&code_1),
+                        code_hash: utils::h256_code_hash(&code_1).into(),
                     }),
                 }]
                 .into(),
@@ -202,7 +202,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_2),
+                            code_hash: utils::h256_code_hash(&code_2).into(),
                         }),
                     },
                     crate::ProgramDetails {
@@ -210,7 +210,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
+                            code_hash: utils::h256_code_hash(&code_1).into(),
                         }),
                     },
                 ]
@@ -281,7 +281,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_2),
+                            code_hash: utils::h256_code_hash(&code_2).into(),
                         }),
                     },
                     crate::ProgramDetails {
@@ -289,7 +289,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
+                            code_hash: utils::h256_code_hash(&code_1).into(),
                         }),
                     },
                 ]
@@ -311,7 +311,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_2),
+                            code_hash: utils::h256_code_hash(&code_2).into(),
                         }),
                     },
                     crate::ProgramDetails {
@@ -319,7 +319,7 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: Default::default(),
-                            code_hash: utils::h256_code_hash(&code_1),
+                            code_hash: utils::h256_code_hash(&code_1).into(),
                         }),
                     },
                 ]
@@ -557,7 +557,7 @@ fn check_not_allocated_pages() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: h256_code_hash(&code),
+                        code_hash: h256_code_hash(&code).into(),
                     }),
                 }]
                 .into(),
@@ -589,7 +589,7 @@ fn check_not_allocated_pages() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 0.into(),
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: h256_code_hash(&code),
+                        code_hash: h256_code_hash(&code).into(),
                     }),
                 }]
                 .into(),
@@ -794,7 +794,7 @@ fn check_changed_pages_in_storage() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages: persistent_pages.clone(),
-                        code_hash: h256_code_hash(&code),
+                        code_hash: h256_code_hash(&code).into(),
                     }),
                 }]
                 .into(),
@@ -832,7 +832,7 @@ fn check_changed_pages_in_storage() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages,
                         persistent_pages,
-                        code_hash: h256_code_hash(&code),
+                        code_hash: h256_code_hash(&code).into(),
                     }),
                 }]
                 .into(),
@@ -920,7 +920,7 @@ fn check_gear_stack_end() {
                     state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 4.into(),
                         persistent_pages,
-                        code_hash: utils::h256_code_hash(&code),
+                        code_hash: utils::h256_code_hash(&code).into(),
                     }),
                 }]
                 .into(),
