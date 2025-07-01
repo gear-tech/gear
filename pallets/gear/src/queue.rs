@@ -138,7 +138,8 @@ where
 
             return core_processor::process_success(
                 SuccessfulDispatchResultKind::Success,
-                DispatchResult::success(dispatch, destination_id, gas_counter.to_amount()),
+                DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
+                dispatch,
             );
         }
 

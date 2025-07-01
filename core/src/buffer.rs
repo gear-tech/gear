@@ -24,7 +24,7 @@ use core::{
     marker::PhantomData,
 };
 
-use alloc::{vec, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
 use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_info::{
     scale::{Decode, Encode},
@@ -215,6 +215,37 @@ impl From<RuntimeBufferSizeError> for &str {
 impl Display for RuntimeBufferSizeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str((*self).into())
+    }
+}
+
+/// Wrapper for payload slice.
+pub struct PayloadSlice {
+    /// Start of the slice.
+    start: usize,
+    /// End of the slice.
+    end: usize,
+    /// Payload
+    payload: Arc<Payload>,
+}
+
+impl PayloadSlice {
+    /// Try to create a new PayloadSlice.
+    pub fn try_new(start: u32, end: u32, payload: Arc<Payload>) -> Option<Self> {
+        // Check if start and end are within the bounds of the payload
+        if start > end || end > payload.len_u32() {
+            return None;
+        }
+
+        Some(Self {
+            start: start as usize,
+            end: end as usize,
+            payload,
+        })
+    }
+
+    /// Get slice of the payload.
+    pub fn slice(&self) -> &[u8] {
+        &self.payload.inner()[self.start..self.end]
     }
 }
 

@@ -28,7 +28,7 @@ use crate::{
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableMemoryError,
     },
-    memory::{BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry},
+    memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
     runtime::MemoryCallerContext,
     state::HostState,
     BackendExternalities,
@@ -39,7 +39,7 @@ use core::marker::PhantomData;
 use gear_core::{
     buffer::{Payload, RuntimeBuffer, RuntimeBufferSizeError},
     costs::CostToken,
-    env::{DropPayloadLockBound, MessageWaitedType},
+    env::MessageWaitedType,
     gas::CounterType,
     ids::{ActorId, MessageId, ReservationId},
     message::{HandlePacket, InitPacket, ReplyPacket},
@@ -535,23 +535,8 @@ where
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::Read,
             move |ctx: &mut MemoryCallerContext<Caller>| {
-                let payload_lock = ctx.caller_wrap.ext_mut().lock_payload(at, buffer.size())?;
-                payload_lock
-                    .drop_with::<MemoryAccessError, _>(move |payload_access| {
-                        let f = || {
-                            buffer.write(ctx, payload_access.as_slice())?;
-                            Ok(())
-                        };
-                        let res = f();
-                        let unlock_bound = ctx
-                            .caller_wrap
-                            .ext_mut()
-                            .unlock_payload(payload_access.into_lock());
-
-                        DropPayloadLockBound::from((unlock_bound, res))
-                    })
-                    .into_inner()
-                    .map_err(Into::into)
+                let payload = ctx.caller_wrap.ext_mut().payload_slice(at, buffer.size())?;
+                buffer.write(ctx, payload.slice()).map_err(Into::into)
             },
         )
     }
