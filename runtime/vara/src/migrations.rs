@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
+use pallet_balances::WeightInfo;
 
 parameter_types! {
     pub BalanceTransferAllowDeath: Weight = weights::pallet_balances::SubstrateWeight::<Runtime>::transfer_allow_death();
