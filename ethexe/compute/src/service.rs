@@ -36,6 +36,13 @@ use std::{
 use tokio::task::JoinSet;
 
 #[derive(Debug, Clone)]
+pub struct ComputeMetrics {
+    pub blocks_queue_len: usize,
+    pub waiting_codes_count: usize,
+    pub process_codes_count: usize,
+}
+
+#[derive(Debug, Clone)]
 enum BlockAction {
     Prepare(H256),
     Process(H256),
@@ -53,7 +60,6 @@ enum State {
     ComputeBlock(BoxFuture<'static, Result<BlockProcessed>>),
 }
 
-// TODO #4548: add state monitoring in prometheus
 pub struct ComputeService<P: ProcessorExt> {
     db: Database,
     processor: P,
@@ -112,6 +118,22 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     pub fn process_block(&mut self, block: H256) {
         self.blocks_queue.push_front(BlockAction::Process(block));
+    }
+
+    /// Get all metrics from the compute service
+    pub fn get_metrics(&self) -> ComputeMetrics {
+        let waiting_codes_count =
+            if let State::WaitForCodes { waiting_codes, .. } = &self.blocks_state {
+                waiting_codes.len()
+            } else {
+                0
+            };
+
+        ComputeMetrics {
+            blocks_queue_len: self.blocks_queue.len(),
+            waiting_codes_count,
+            process_codes_count: self.process_codes.len(),
+        }
     }
 }
 
