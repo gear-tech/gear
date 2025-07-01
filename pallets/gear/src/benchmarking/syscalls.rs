@@ -31,9 +31,8 @@ use crate::{
     MailboxOf, Pallet as Gear, ProgramStorageOf,
 };
 use alloc::{vec, vec::Vec};
-use common::{benchmarking, storage::*, Origin, ProgramStorage};
+use common::{storage::*, Origin, ProgramStorage};
 use core::marker::PhantomData;
-use frame_system::RawOrigin;
 use gear_core::{
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{PageBuf, PageBufInner},
@@ -1458,10 +1457,7 @@ where
         let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
 
         let module = WasmModule::<T>::dummy();
-        let _ = Gear::<T>::upload_code_raw(
-            RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
-            module.code,
-        );
+        let _ = Gear::<T>::upload_code_raw(module.code);
 
         let mut cid_value = [0; CID_VALUE_SIZE as usize];
         cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());
