@@ -311,4 +311,75 @@ mod tests {
         let prev_not_empty = db.previous_not_empty_block(block_hash).unwrap();
         assert_eq!(prev_not_empty, grandparent_hash);
     }
+
+    /// Test compute_one_block function with non-empty processor result
+    #[tokio::test]
+    async fn test_compute_one_block_with_non_empty_result() {
+        use crate::tests::PROCESSOR_RESULT;
+        use ethexe_common::gear::StateTransition;
+        use gprimitives::ActorId;
+        use std::collections::BTreeMap;
+
+        let db = DB::memory();
+        let mut processor = MockProcessor;
+        let block_hash = H256::from([2; 32]);
+        let parent_hash = H256::from([1; 32]);
+
+        // Setup parent block as computed
+        db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
+        db.set_block_commitment_queue(parent_hash, VecDeque::new());
+        db.set_block_outcome(parent_hash, vec![]);
+        db.set_previous_not_empty_block(parent_hash, parent_hash);
+
+        // Setup block data
+        let header = BlockHeader {
+            height: 2,
+            parent_hash,
+            timestamp: 2000,
+        };
+
+        let block_data = SimpleBlockData {
+            hash: block_hash,
+            header,
+        };
+
+        // Setup block events
+        db.set_block_events(block_hash, &[]);
+
+        // Create non-empty processor result with transitions
+        let non_empty_result = BlockProcessingResult {
+            transitions: vec![StateTransition {
+                actor_id: ActorId::from([1; 32]),
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 100,
+                value_claims: vec![],
+                messages: vec![],
+            }],
+            states: BTreeMap::new(),
+            schedule: BTreeMap::new(),
+        };
+
+        // Set the PROCESSOR_RESULT to return non-empty result
+        PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
+        let result = compute_one_block(&db, &mut processor, block_data).await;
+
+        assert!(result.is_ok());
+
+        // Verify block was marked as computed
+        let meta = db.block_meta(block_hash);
+        assert!(meta.computed);
+
+        // Verify transitions were stored in DB
+        let stored_transitions = db.block_outcome(block_hash).unwrap();
+        assert_eq!(stored_transitions.len(), 1);
+        assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
+        assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
+
+        // Verify that block was added to waiting blocks queue since transitions are not empty
+        let commitment_queue = db.block_commitment_queue(block_hash).unwrap();
+        assert_eq!(commitment_queue.len(), 1);
+        assert_eq!(commitment_queue[0], block_hash);
+    }
 }

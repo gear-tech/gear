@@ -51,7 +51,16 @@ impl ProcessorExt for MockProcessor {
         _block: H256,
         _events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        Ok(PROCESSOR_RESULT.with(|r| r.borrow().clone()))
+        let result = PROCESSOR_RESULT.with(|r| r.borrow().clone());
+        PROCESSOR_RESULT.with(|r| {
+            *r.borrow_mut() = BlockProcessingResult {
+                transitions: vec![],
+                states: BTreeMap::new(),
+                schedule: BTreeMap::new(),
+            }
+        });
+
+        Ok(result)
     }
 
     fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
