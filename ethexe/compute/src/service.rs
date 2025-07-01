@@ -19,14 +19,13 @@
 use crate::{
     compute,
     prepare::{self, PrepareInfo},
-    BlockProcessed, ComputeError, ComputeEvent, Result,
+    BlockProcessed, ComputeError, ComputeEvent, ProcessorExt, Result,
 };
 use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
     CodeAndIdUnchecked, SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_processor::Processor;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
@@ -56,9 +55,9 @@ enum State {
 
 // TODO #4548: add state monitoring in prometheus
 // TODO #4549: add tests for compute service
-pub struct ComputeService {
+pub struct ComputeService<P: ProcessorExt> {
     db: Database,
-    processor: Processor,
+    processor: P,
 
     blocks_queue: VecDeque<BlockAction>,
     blocks_state: State,
@@ -66,9 +65,9 @@ pub struct ComputeService {
     process_codes: JoinSet<Result<CodeId>>,
 }
 
-impl ComputeService {
+impl<P: ProcessorExt> ComputeService<P> {
     // TODO #4550: consider to create Processor inside ComputeService
-    pub fn new(db: Database, processor: Processor) -> Self {
+    pub fn new(db: Database, processor: P) -> Self {
         Self {
             db,
             processor,
@@ -101,9 +100,9 @@ impl ComputeService {
             let mut processor = self.processor.clone();
 
             self.process_codes.spawn_blocking(move || {
-                Ok(processor
+                processor
                     .process_upload_code(code_and_id)
-                    .map(|_valid| code_id)?)
+                    .map(|_valid| code_id)
             });
         }
     }
@@ -117,7 +116,7 @@ impl ComputeService {
     }
 }
 
-impl Stream for ComputeService {
+impl<P: ProcessorExt> Stream for ComputeService<P> {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -195,7 +194,7 @@ impl Stream for ComputeService {
     }
 }
 
-impl FusedStream for ComputeService {
+impl<P: ProcessorExt> FusedStream for ComputeService<P> {
     fn is_terminated(&self) -> bool {
         false
     }

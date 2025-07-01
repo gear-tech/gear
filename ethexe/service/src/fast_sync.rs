@@ -33,6 +33,7 @@ use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverEvent, ObserverService};
+use ethexe_processor::Processor;
 use ethexe_runtime_common::{
     state::{
         ActiveProgram, DispatchStash, Expiring, Mailbox, MaybeHashOf, MemoryPages,
@@ -535,7 +536,7 @@ async fn sync_from_network(
 }
 
 async fn prepare_codes(
-    compute: &mut ComputeService,
+    compute: &mut ComputeService<Processor>,
     blobs_loader: &mut Box<dyn BlobLoaderService>,
     synced_block: H256,
     mut code_ids: HashSet<CodeId>,

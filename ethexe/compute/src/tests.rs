@@ -26,7 +26,38 @@ use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt;
-use std::collections::{HashMap, VecDeque};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap, VecDeque},
+};
+
+thread_local! {
+    pub(crate) static PROCESSOR_RESULT: RefCell<BlockProcessingResult> = const { RefCell::new(
+        BlockProcessingResult {
+            transitions: Vec::new(),
+            states: BTreeMap::new(),
+            schedule: BTreeMap::new(),
+        }
+    ) };
+}
+
+// MockProcessor that implements ProcessorExt and always returns Ok with empty results
+#[derive(Clone)]
+pub(crate) struct MockProcessor;
+
+impl ProcessorExt for MockProcessor {
+    async fn process_block_events(
+        &mut self,
+        _block: H256,
+        _events: Vec<BlockRequestEvent>,
+    ) -> Result<BlockProcessingResult> {
+        Ok(PROCESSOR_RESULT.with(|r| r.borrow().clone()))
+    }
+
+    fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
+        Ok(true)
+    }
+}
 
 // Create new code with a unique nonce
 fn create_new_code(nonce: u32) -> Vec<u8> {
@@ -116,7 +147,7 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
 
 // A wrapper around the `ComputeService` to correctly handle code processing and block preparation
 struct WrappedComputeService {
-    inner: ComputeService,
+    inner: ComputeService<Processor>,
     codes_storage: HashMap<CodeId, Vec<u8>>,
 }
 

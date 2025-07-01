@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_processor::ProcessorError;
+use ethexe_common::{events::BlockRequestEvent, CodeAndIdUnchecked};
+use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
@@ -78,3 +79,29 @@ pub enum ComputeError {
 }
 
 type Result<T> = std::result::Result<T, ComputeError>;
+
+pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
+    /// Process block events and return the result.
+    fn process_block_events(
+        &mut self,
+        block: H256,
+        events: Vec<BlockRequestEvent>,
+    ) -> impl Future<Output = Result<BlockProcessingResult>> + Send;
+    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
+}
+
+impl ProcessorExt for Processor {
+    async fn process_block_events(
+        &mut self,
+        block: H256,
+        events: Vec<BlockRequestEvent>,
+    ) -> Result<BlockProcessingResult> {
+        self.process_block_events(block, events)
+            .await
+            .map_err(Into::into)
+    }
+
+    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
+        self.process_upload_code(code_and_id).map_err(Into::into)
+    }
+}

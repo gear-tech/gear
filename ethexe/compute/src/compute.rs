@@ -16,37 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{utils, BlockProcessed, ComputeError, Result};
+use crate::{utils, BlockProcessed, ComputeError, ProcessorExt, Result};
 use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead},
-    events::{BlockEvent, BlockRequestEvent, RouterEvent},
+    events::{BlockEvent, RouterEvent},
     gear::GearBlock,
     SimpleBlockData,
 };
-use ethexe_processor::{BlockProcessingResult, Processor};
+use ethexe_processor::BlockProcessingResult;
 use gprimitives::H256;
 use std::collections::VecDeque;
-
-pub(crate) trait ProcessorExt {
-    /// Process block events and return the result.
-    async fn process_block_events(
-        &mut self,
-        block: H256,
-        events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult>;
-}
-
-impl ProcessorExt for Processor {
-    async fn process_block_events(
-        &mut self,
-        block: H256,
-        events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
-        self.process_block_events(block, events)
-            .await
-            .map_err(Into::into)
-    }
-}
 
 pub(crate) async fn compute<
     DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead,
@@ -158,32 +137,15 @@ fn propagate_data_from_parent<'a, DB: BlockMetaStorageRead + BlockMetaStorageWri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::MockProcessor;
     use ethexe_common::{
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
         BlockHeader,
     };
     use ethexe_db::Database as DB;
-    use ethexe_processor::BlockProcessingResult;
     use gprimitives::H256;
-    use std::collections::{BTreeMap, VecDeque};
-
-    // MockProcessor that implements ProcessorExt and always returns Ok with empty results
-    struct MockProcessor;
-
-    impl ProcessorExt for MockProcessor {
-        async fn process_block_events(
-            &mut self,
-            _block: H256,
-            _events: Vec<BlockRequestEvent>,
-        ) -> Result<BlockProcessingResult> {
-            Ok(BlockProcessingResult {
-                transitions: Vec::new(),
-                states: BTreeMap::new(),
-                schedule: BTreeMap::new(),
-            })
-        }
-    }
+    use std::collections::VecDeque;
 
     /// Test compute function with chain of 3 blocks
     #[tokio::test]
