@@ -84,17 +84,20 @@ impl Processor {
 
         let original_code = original_code.as_ref();
 
-        let Some(instrumented_code) = executor.instrument(original_code)? else {
+        let Some((instrumented_code, code_metadata)) = executor.instrument(original_code)? else {
             return Ok(None);
         };
 
         let code_id = self.db.set_original_code(original_code);
 
-        self.db.set_instrumented_code(
-            instrumented_code.instruction_weights_version(),
-            code_id,
-            instrumented_code,
-        );
+        let Some(instructions_weight) = code_metadata.instruction_weights_version() else {
+            return Ok(None);
+        };
+
+        self.db
+            .set_instrumented_code(instructions_weight, code_id, instrumented_code);
+
+        self.db.set_code_metadata(code_id, code_metadata);
 
         Ok(Some(code_id))
     }

@@ -20,18 +20,14 @@
 
 use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation};
 use actor_system_error::actor_system_error;
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    string::String,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     env::MessageWaitedType,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
-    message::{ContextStore, Dispatch, DispatchKind, IncomingDispatch, StoredDispatch},
+    message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
@@ -114,6 +110,17 @@ impl DispatchResult {
             reply_sent: false,
         }
     }
+}
+
+/// Possible variants of the [`DispatchResult`] if the latter contains value.
+#[derive(Debug)]
+pub enum SuccessfulDispatchResultKind {
+    /// Process dispatch as exit
+    Exit(ActorId),
+    /// Process dispatch as wait
+    Wait(Option<u32>, MessageWaitedType),
+    /// Process dispatch as success
+    Success,
 }
 
 /// Dispatch outcome of the specific message.
@@ -492,14 +499,17 @@ pub struct ExecutableActorData {
     pub allocations: IntervalsTree<WasmPage>,
     /// The infix of memory pages in a storage.
     pub memory_infix: MemoryInfix,
-    /// Id of the program code.
-    pub code_id: CodeId,
-    /// Exported functions by the program code.
-    pub code_exports: BTreeSet<DispatchKind>,
-    /// Count of static memory pages.
-    pub static_pages: WasmPagesAmount,
     /// Gas reservation map.
     pub gas_reservation_map: GasReservationMap,
+}
+
+/// Executable allocations data.
+#[derive(Clone, Debug)]
+pub struct ReservationsAndMemorySize {
+    /// Amount of reservations can exist for 1 program.
+    pub max_reservations: u64,
+    /// Size of wasm memory buffer which must be created in execution environment
+    pub memory_size: WasmPagesAmount,
 }
 
 /// Program.
@@ -510,7 +520,9 @@ pub(crate) struct Program {
     /// Memory infix.
     pub memory_infix: MemoryInfix,
     /// Instrumented code.
-    pub code: InstrumentedCode,
+    pub instrumented_code: InstrumentedCode,
+    /// Code metadata.
+    pub code_metadata: CodeMetadata,
     /// Allocations.
     pub allocations: IntervalsTree<WasmPage>,
 }
