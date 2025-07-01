@@ -54,7 +54,6 @@ enum State {
 }
 
 // TODO #4548: add state monitoring in prometheus
-// TODO #4549: add tests for compute service
 pub struct ComputeService<P: ProcessorExt> {
     db: Database,
     processor: P,
@@ -197,5 +196,158 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
 impl<P: ProcessorExt> FusedStream for ComputeService<P> {
     fn is_terminated(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::MockProcessor;
+    use ethexe_common::{
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
+        BlockHeader, CodeAndIdUnchecked,
+    };
+    use ethexe_db::Database as DB;
+    use futures::StreamExt;
+    use gear_core::ids::prelude::CodeIdExt;
+    use gprimitives::{CodeId, H256};
+    use std::collections::VecDeque;
+
+    /// Test ComputeService block preparation functionality
+    #[tokio::test]
+    async fn test_compute_service_prepare_block() {
+        let db = DB::memory();
+        let processor = MockProcessor;
+        let mut service = ComputeService::new(db.clone(), processor);
+
+        let parent_hash = H256::from([1; 32]);
+        let block_hash = H256::from([2; 32]);
+
+        // Setup parent block as prepared
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+        });
+        db.set_last_committed_batch(parent_hash, Default::default());
+        db.set_block_codes_queue(parent_hash, VecDeque::new());
+
+        // Setup block as synced but not prepared
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = false;
+        });
+        let header = BlockHeader {
+            height: 2,
+            parent_hash,
+            timestamp: 2000,
+        };
+        db.set_block_header(block_hash, header);
+        db.set_block_events(block_hash, &[]);
+
+        // Request block preparation
+        service.prepare_block(block_hash);
+
+        // Poll service to process the preparation request
+        let event = service.next().await.unwrap().unwrap();
+
+        // Should receive RequestLoadCodes event (even if empty)
+        match event {
+            ComputeEvent::RequestLoadCodes(codes) => {
+                assert!(codes.is_empty()); // No missing codes for this simple case
+            }
+            _ => panic!("Expected RequestLoadCodes event"),
+        }
+
+        // Poll again to get BlockPrepared event
+        let event = service.next().await.unwrap().unwrap();
+
+        // Should receive BlockPrepared event
+        match event {
+            ComputeEvent::BlockPrepared(prepared_block) => {
+                assert_eq!(prepared_block, block_hash);
+            }
+            _ => panic!("Expected BlockPrepared event"),
+        }
+
+        // Verify block is marked as prepared in DB
+        assert!(db.block_meta(block_hash).prepared);
+    }
+
+    /// Test ComputeService block processing functionality
+    #[tokio::test]
+    async fn test_compute_service_process_block() {
+        let db = DB::memory();
+        let processor = MockProcessor;
+        let mut service = ComputeService::new(db.clone(), processor);
+
+        let parent_hash = H256::from([1; 32]);
+        let block_hash = H256::from([2; 32]);
+
+        // Setup parent block as computed
+        db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
+        db.set_block_commitment_queue(parent_hash, VecDeque::new());
+        db.set_block_outcome(parent_hash, vec![]);
+        db.set_previous_not_empty_block(parent_hash, parent_hash);
+
+        // Setup block as prepared
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+        });
+        let header = BlockHeader {
+            height: 2,
+            parent_hash,
+            timestamp: 2000,
+        };
+        db.set_block_header(block_hash, header);
+        db.set_block_events(block_hash, &[]);
+
+        // Request block processing
+        service.process_block(block_hash);
+
+        // Poll service to process the block
+        let event = service.next().await.unwrap().unwrap();
+
+        // Should receive BlockProcessed event
+        match event {
+            ComputeEvent::BlockProcessed(processed_block) => {
+                assert_eq!(processed_block.block_hash, block_hash);
+            }
+            _ => panic!("Expected BlockProcessed event"),
+        }
+
+        // Verify block is marked as computed in DB
+        assert!(db.block_meta(block_hash).computed);
+    }
+
+    /// Test ComputeService code processing functionality
+    #[tokio::test]
+    async fn test_compute_service_process_code() {
+        let db = DB::memory();
+        let processor = MockProcessor;
+        let mut service = ComputeService::new(db.clone(), processor);
+
+        // Create test code
+        let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
+        let code_id = CodeId::generate(&code);
+
+        let code_and_id = CodeAndIdUnchecked { code, code_id };
+
+        // Verify code is not yet in DB
+        assert!(db.code_valid(code_id).is_none());
+
+        // Request code processing
+        service.process_code(code_and_id);
+
+        // Poll service to process the code
+        let event = service.next().await.unwrap().unwrap();
+
+        // Should receive CodeProcessed event with correct code_id
+        match event {
+            ComputeEvent::CodeProcessed(processed_code_id) => {
+                assert_eq!(processed_code_id, code_id);
+            }
+            _ => panic!("Expected CodeProcessed event"),
+        }
     }
 }
