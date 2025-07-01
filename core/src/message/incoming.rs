@@ -24,23 +24,20 @@ use crate::{
         StoredMessage, Value,
     },
 };
+use alloc::sync::Arc;
 use core::ops::Deref;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Incoming message.
 ///
 /// Used for program execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct IncomingMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
     source: ActorId,
     /// Message payload.
-    payload: Payload,
+    payload: Arc<Payload>,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
@@ -62,10 +59,10 @@ impl IncomingMessage {
         Self {
             id,
             source,
-            payload,
             gas_limit,
             value,
             details,
+            payload: Arc::new(payload),
         }
     }
 
@@ -75,10 +72,20 @@ impl IncomingMessage {
             self.id,
             self.source,
             destination,
-            self.payload,
+            Arc::try_unwrap(self.payload).unwrap_or_else(|payload| {
+                log::error!(
+                    "IncomingMessage payload has multiple references, this is unexpected behavior"
+                );
+                Arc::unwrap_or_clone(payload)
+            }),
             self.value,
             self.details,
         )
+    }
+
+    /// Message payload.
+    pub fn payload(&self) -> Arc<Payload> {
+        self.payload.clone()
     }
 
     /// Message id.
@@ -89,16 +96,6 @@ impl IncomingMessage {
     /// Message source.
     pub fn source(&self) -> ActorId {
         self.source
-    }
-
-    /// Message payload bytes.
-    pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
-    }
-
-    /// Mutable reference to message payload.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        &mut self.payload
     }
 
     /// Message gas limit.
@@ -128,7 +125,7 @@ impl IncomingMessage {
 }
 
 /// Incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,
