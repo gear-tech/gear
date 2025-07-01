@@ -34,10 +34,9 @@ mod junit_tree;
 mod output;
 mod stats;
 
-const PALLET_NAMES: [&str; 6] = [
+const PALLET_NAMES: [&str; 5] = [
     "pallet-gear-gas",
     "pallet-gear",
-    "pallet-gear-debug",
     "pallet-gear-messenger",
     "pallet-gear-payment",
     "pallet-gear-scheduler",
