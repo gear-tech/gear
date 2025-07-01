@@ -55,7 +55,7 @@ where
 
         let fee: Value = TransportFee::<T>::get().unique_saturated_into();
 
-        if !(is_governance_origin || dispatch.value() < fee) {
+        if !is_governance_origin && dispatch.value() < fee {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 error_to_str(&Error::<T>::IncorrectValueApplied),
             )));
