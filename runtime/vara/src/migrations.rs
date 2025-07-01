@@ -19,7 +19,7 @@
 use crate::*;
 
 parameter_types! {
-    pub BalanceTransferAllowDeath: Weight = weights::pallet_balances::WeightInfo::<Runtime>::transfer_allow_death();
+    pub BalanceTransferAllowDeath: Weight = weights::pallet_balances::SubstrateWeight::<Runtime>::transfer_allow_death();
 }
 
 /// All migrations that will run on the next runtime upgrade.
@@ -27,7 +27,6 @@ pub type Migrations = (
     BagsListMigrate<Runtime>,
     pallet_gear_bank::migrations::MigrateToV1<Runtime>,
     pallet_gear_builtin::migration::MigrateToV1<Runtime, TreasuryAccount>,
-    pallet_identity::migration::v2::LazyMigrationV1ToV2<Runtime>,
     pallet_child_bounties::migration::MigrateV0ToV1<Runtime, BalanceTransferAllowDeath>,
 );
 

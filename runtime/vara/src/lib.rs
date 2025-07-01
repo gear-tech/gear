@@ -295,6 +295,7 @@ impl frame_system::Config for Runtime {
     /// The set code logic, just the default since we're not a parachain.
     type OnSetCode = ();
     type MaxConsumers = ConstU32<16>;
+	type MultiBlockMigrator = MultiBlockMigrations;
 }
 
 parameter_types! {
@@ -1004,6 +1005,25 @@ impl pallet_utility::Config for Runtime {
 }
 
 parameter_types! {
+	pub MbmServiceWeight: Weight = Perbill::from_percent(80) * RuntimeBlockWeights::get().max_block;
+}
+
+impl pallet_migrations::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	type Migrations = pallet_identity::migration::v2::LazyMigrationV1ToV2<Runtime>;
+	// Benchmarks need mocked migrations to guarantee that they succeed.
+	#[cfg(feature = "runtime-benchmarks")]
+	type Migrations = pallet_migrations::mock_helpers::MockedMigrations;
+	type CursorMaxLen = ConstU32<65_536>;
+	type IdentifierMaxLen = ConstU32<256>;
+	type MigrationStatusHandler = ();
+	type FailedMigrationHandler = frame_support::migrations::FreezeChainOnFailedMigration;
+	type MaxServiceWeight = MbmServiceWeight;
+	type WeightInfo = ();
+}
+
+parameter_types! {
     // One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
     pub const DepositBase: Balance = deposit(1, 88);
     // Additional storage item size of 32 bytes.
@@ -1527,6 +1547,9 @@ mod runtime {
     #[runtime::pallet_index(31)]
     pub type NominationPools = pallet_nomination_pools;
 
+    #[runtime::pallet_index(32)]
+    pub type MultiBlockMigrations = pallet_migrations;
+
     // Gear
     // NOTE (!): if adding new pallet, don't forget to extend non payable proxy filter.
 
@@ -1687,6 +1710,9 @@ mod runtime {
 
     #[runtime::pallet_index(31)]
     pub type NominationPools = pallet_nomination_pools;
+
+    #[runtime::pallet_index(32)]
+    pub type MultiBlockMigrations = pallet_migrations;
 
     // Gear
 

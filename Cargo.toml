@@ -342,6 +342,7 @@ pallet-election-provider-multi-phase = { version = "38.1.0", git = "https://gith
 pallet-grandpa = { version = "39.1.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
 pallet-identity = { version = "39.1.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
 pallet-im-online = { version = "38.1.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
+pallet-migrations = { version = "9.1.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
 pallet-multisig = { version = "39.1.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
 pallet-nomination-pools = { version = "37.0.2", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }
 pallet-nomination-pools-runtime-api = { version = "35.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2412", default-features = false }

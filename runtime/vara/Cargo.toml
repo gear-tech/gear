@@ -55,6 +55,7 @@ pallet-identity.workspace = true
 pallet-im-online.workspace = true
 pallet-nomination-pools.workspace = true
 pallet-nomination-pools-runtime-api.workspace = true
+pallet-migrations.workspace = true
 pallet-multisig.workspace = true
 pallet-offences.workspace = true
 pallet-preimage.workspace = true

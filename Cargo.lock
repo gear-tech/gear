@@ -651,7 +651,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -2623,7 +2623,7 @@ checksum = "fe6d2e5af09e8c8ad56c969f2157a3d4238cebc7c55f0a517728c38f7b200f81"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.1.14",
+ "unicode-width 0.2.1",
 ]
 
 [[package]]
@@ -12073,6 +12073,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-migrations"
+version = "9.1.0"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2412#0cfd1bb234615bef3fa9b1e3e3ea81f8b809fc22"
+dependencies = [
+ "cfg-if",
+ "docify",
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-multisig"
 version = "39.1.1"
 source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2412#0cfd1bb234615bef3fa9b1e3e3ea81f8b809fc22"
@@ -13464,7 +13481,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "log",
  "multimap",
  "once_cell",
@@ -13497,7 +13514,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.103",
@@ -19476,6 +19493,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-identity",
  "pallet-im-online",
+ "pallet-migrations",
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-nomination-pools-runtime-api",
