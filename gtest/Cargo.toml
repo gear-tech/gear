@@ -32,6 +32,7 @@ etc.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+sp-core.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true
