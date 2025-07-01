@@ -242,6 +242,7 @@ runtime-benchmarks = [
 	"pallet-conviction-voting/runtime-benchmarks",
 	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
+	"pallet-migrations/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = ["pallet-gear/runtime-benchmarks-checkers"]
 try-runtime = [
@@ -275,6 +276,7 @@ try-runtime = [
 	"pallet-identity/try-runtime",
 	"pallet-im-online/try-runtime",
 	"pallet-nomination-pools/try-runtime",
+	"pallet-migrations/try-runtime",
 	"pallet-multisig/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
