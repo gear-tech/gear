@@ -28,13 +28,13 @@ use gear_core::{
     memory::{HostPointer, MemoryInterval},
     str::LimitedStr,
 };
-use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
+use gear_lazy_pages_common::{GlobalsAccessConfig, Status};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime_interface::{
     pass_by::{Codec, PassBy},
     runtime_interface,
 };
-use sp_std::{convert::TryFrom, result::Result, vec::Vec};
+use sp_std::{result::Result, vec::Vec};
 #[cfg(feature = "std")]
 use {
     ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
@@ -45,6 +45,8 @@ use {
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
     gear_lazy_pages::LazyPagesStorage,
+    gear_lazy_pages_common::ProcessAccessError,
+    sp_std::convert::TryFrom,
 };
 
 pub use gear_sandbox_interface::sandbox;
@@ -122,6 +124,7 @@ impl PassBy for LazyPagesInitContext {
     type PassBy = Codec<LazyPagesInitContext>;
 }
 
+#[cfg(feature = "std")]
 #[derive(Debug, Default)]
 struct SpIoProgramStorage;
 
@@ -253,7 +256,7 @@ pub mod lazy_pages_detail {
         use gear_lazy_pages::LazyPagesVersion;
 
         gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), SpIoProgramStorage)
-            .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+            .map_err(|err| log::error!("Cannot initialize lazy-pages: {err}"))
             .is_ok()
     }
 
@@ -346,6 +349,7 @@ pub trait GearDebug {
 }
 
 /// Describes possible errors for `GearBls12_381`.
+#[cfg(feature = "std")]
 #[repr(u32)]
 enum GearBls12_381Error {
     /// Failed to decode an array of G1-points.
@@ -358,6 +362,7 @@ enum GearBls12_381Error {
     MessageMapping,
 }
 
+#[cfg(feature = "std")]
 impl From<GearBls12_381Error> for u32 {
     fn from(value: GearBls12_381Error) -> Self {
         value as u32

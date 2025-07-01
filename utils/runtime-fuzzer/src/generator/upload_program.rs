@@ -132,7 +132,7 @@ fn config(
 
     let code_ids = codes.and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().cloned()));
 
-    log::trace!("Messages destination config: {:?}", actor_kind);
+    log::trace!("Messages destination config: {actor_kind:?}");
 
     params_config = params_config
         .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))

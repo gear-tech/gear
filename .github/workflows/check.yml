@@ -14,10 +14,214 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bnjbvr/cargo-machete@main
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall --no-confirm cargo-shear
+      - run: cargo shear
+
+  clippy:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-aarch64
+            target: aarch64-apple-darwin
+            runs-on: macos-latest
+          - name: macos-x86_64
+            target: x86_64-apple-darwin
+            runs-on: macos-latest
+          - name: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    name: clippy (${{ matrix.name }})
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "${{ matrix.name }}"
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Rust target"
+        run: |
+          rustup target add ${{ matrix.target }}
+          echo "CARGO_BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+
+      - name: "Install: macOS aarch64 packages"
+        if: ${{ matrix.name == 'macos-aarch64' }}
+        run: |
+          brew install protobuf binaryen openssl rocksdb zstd jemalloc
+          
+          # Do not override include directory because system RocksDB is too new
+          #echo "ROCKSDB_INCLUDE_DIR=/opt/homebrew/opt/rocksdb/include" >> $GITHUB_ENV
+          echo "ROCKSDB_LIB_DIR=/opt/homebrew/opt/rocksdb/lib" >> $GITHUB_ENV
+
+          echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          
+          echo "JEMALLOC_OVERRIDE=/opt/homebrew/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/opt/homebrew/opt/openssl" >> $GITHUB_ENV
+
+      - name: "Install: macOS x86_64 packages"
+        if: ${{ matrix.name == 'macos-x86_64' }}
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+          /usr/local/bin/brew install protobuf binaryen openssl rocksdb zstd jemalloc pkgconf
+          
+          # Do not override include directory because system RocksDB is too new
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/local/opt/rocksdb/include" >> $GITHUB_ENV
+          echo "ROCKSDB_LIB_DIR=/usr/local/opt/rocksdb/lib" >> $GITHUB_ENV
+
+          echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG=/usr/local/bin/pkg-config" >> $GITHUB_ENV
+          echo "HOST_PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig" >> $GITHUB_ENV
+          echo "TARGET_PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
+          
+          echo "JEMALLOC_OVERRIDE=/usr/local/opt/jemalloc/lib/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=/usr/local/opt/openssl" >> $GITHUB_ENV
+        shell: arch -x86_64 zsh {0}
+
+      - name: "Install: Linux packages"
+        if: ${{ matrix.name == 'linux-x86_64' }}
+        run: |
+          sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
+          sudo dpkg --add-architecture amd64
+          sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+          EOF
+          sudo apt update
+          sudo apt install protobuf-compiler binaryen \
+            libssl-dev:amd64 librocksdb-dev:amd64 libzstd-dev:amd64 libjemalloc-dev:amd64 \
+            pkg-config gcc-x86-64-linux-gnu g++-x86-64-linux-gnu
+          
+          echo "CC_x86_64-unknown-linux-gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX_x86_64-unknown-linux-gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
+          
+          # Do not override include directory because system RocksDB is too new
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+
+          echo "ZSTD_SYS_USE_PKG_CONFIG=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
+          echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "TARGET_PKG_CONFIG_PATH=/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          
+          echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+
+      - name: "Install: Windows packages"
+        if: ${{ matrix.name == 'windows-x86_64' }}
+        run: |
+          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.18.4/cargo-xwin-v0.18.4.aarch64-unknown-linux-musl.tar.gz | tar zxf -
+          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
+          cargo xwin --version >> cargo-xwin-version.txt
+          
+          sudo apt update
+          sudo apt install protobuf-compiler binaryen innoextract
+          
+          # Package is not available in choco or scoop
+          #echo "ROCKSDB_INCLUDE_DIR=/usr/include" >> $GITHUB_ENV
+          #echo "ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+          
+          # Custom ".pc" is required to be written
+          #Add-Content -Path $Env:GITHUB_ENV -Value "ZSTD_SYS_USE_PKG_CONFIG=1"
+          
+          # Not used on Windows
+          #echo "JEMALLOC_OVERRIDE=/usr/lib/x86_64-linux-gnu/libjemalloc.a" >> $GITHUB_ENV
+          
+          wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
+          innoextract -d openssl_extracted -I app openssl_installer.exe
+          
+          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$(pwd)/openssl_extracted/app/include" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$(pwd)/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
+
+      - name: "ACTIONS: Cache MSVC CRT"
+        if: ${{ matrix.name == 'windows-x86_64' }}
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/cargo-xwin/xwin
+          key: ${{ matrix.name }}-${{ hashFiles('cargo-xwin-version.txt') }}
+          restore-keys: |
+            ${{ matrix.name }}-
+
+      - name: "Check clippy: Gear"
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+
+  clippy-wasm:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_HOME: /tmp/rustup_home
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "ACTIONS: Setup caching"
+        uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+          workspaces: |
+            . -> target
+            utils/wasm-builder/test-program -> target
+            utils/cargo-gbuild/test-program -> target
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Set cargo path"
+        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install: Rust toolchain"
+        uses: dsherret/rust-toolchain-file@v1
+
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: "Check clippy: Examples"
+        run: ./scripts/gear.sh clippy examples --all-targets --locked
+
+      - name: "Check clippy: no_std crates"
+        run: ./scripts/gear.sh clippy no_std --locked
+
+      - run: cargo +stable check -p gstd --target wasm32v1-none
+      - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+      - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   linux:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
     steps:
@@ -31,6 +235,14 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
+        
+      - name: "Install: rustup stable"
+        run: |
+          rustup show
+          rustup install stable
+      
+      - name: "Install rust-script"
+        run: cargo install rust-script
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -55,18 +267,18 @@ jobs:
           forge fmt --check
           forge build --sizes
           forge test -vvv
+          
+          ../scripts/update-clones-sol.rs \
+            --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
+            --clones src/libraries/Clones.sol
+          forge fmt
+          git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
       - name: "Check formatting: Doc"
         run: ./scripts/gear.sh format doc --check
-
-      - name: "Check clippy: Gear"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
-
-      - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples --all-targets --locked
 
       - name: "Test: Doc tests"
         run: ./scripts/gear.sh test docs
@@ -95,17 +307,11 @@ jobs:
         with:
           targets: wasm32v1-none
 
-      - name: "Check: Compiling gstd on stable"
-        run: |
-          cargo +stable check -p gstd --target wasm32v1-none
-          cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-          cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
-
       - name: "Check: crates-io packages publishing"
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   fuzzer:
-    runs-on: [kuberunner, github-runner-01]
+    runs-on: [ kuberunner, github-runner-01 ]
     env:
       RUSTUP_HOME: /tmp/rustup_home
       RUSTFLAGS: "--cfg fuzz"

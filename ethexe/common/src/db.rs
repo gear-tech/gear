@@ -20,75 +20,73 @@
 
 // TODO #4547: move types to another module(s)
 
-use crate::{events::BlockEvent, gear::StateTransition, BlockHeader, CodeInfo, Schedule};
-use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    vec::Vec,
+use crate::{
+    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates,
+    Schedule,
 };
+use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     primitives::{ActorId, CodeId},
 };
 use gprimitives::H256;
 
-pub trait BlockMetaStorage: Send + Sync {
-    fn block_computed(&self, block_hash: H256) -> bool;
-    fn set_block_computed(&self, block_hash: H256);
+pub trait BlockMetaStorageRead {
+    /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
+    fn block_meta(&self, block_hash: H256) -> BlockMeta;
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
-
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
-    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
-
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
-    fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
-
-    fn block_program_states(&self, block_hash: H256) -> Option<BTreeMap<ActorId, H256>>;
-    fn set_block_program_states(&self, block_hash: H256, map: BTreeMap<ActorId, H256>);
-
+    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
-    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
     fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
-
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
-    fn set_block_schedule(&self, block_hash: H256, map: Schedule);
-
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
+}
+
+pub trait BlockMetaStorageWrite {
+    /// NOTE: if `BlockMeta` doesn't exist in the database,
+    /// it will be created with default values and then will be mutated.
+    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
+    where
+        F: FnOnce(&mut BlockMeta);
+
+    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
+    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
+    fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
+    fn set_block_program_states(&self, block_hash: H256, map: ProgramStates);
+    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
+    fn set_block_schedule(&self, block_hash: H256, map: Schedule);
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
 }
 
-pub trait CodesStorage: Send + Sync {
+pub trait CodesStorageRead {
     fn original_code_exists(&self, code_id: CodeId) -> bool;
-
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
-    fn set_original_code(&self, code: &[u8]) -> CodeId;
-
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
-    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
-    fn program_ids(&self) -> BTreeSet<ActorId>;
-
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
-    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
-
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
+}
+
+pub trait CodesStorageWrite {
+    fn set_original_code(&self, code: &[u8]) -> CodeId;
+    fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
+    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
-pub trait OnChainStorage: Send + Sync {
+pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
-
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
-
-    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeInfo>;
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeInfo);
-
-    fn block_is_synced(&self, block_hash: H256) -> bool;
-    fn set_block_is_synced(&self, block_hash: H256);
-
+    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
+}
+
+pub trait OnChainStorageWrite {
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader);
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
 }

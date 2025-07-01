@@ -30,7 +30,7 @@ use crate::{
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::SignedData,
     gear::CodeCommitment,
     Address, Digest, SimpleBlockData, ToDigest,
@@ -147,7 +147,7 @@ impl Participant {
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
     }
 
-    fn validate_code_commitment<DB: OnChainStorage + CodesStorage>(
+    fn validate_code_commitment<DB: OnChainStorageRead + CodesStorageRead>(
         db: &DB,
         request: CodeCommitment,
     ) -> Result<()> {
@@ -179,7 +179,7 @@ impl Participant {
         Ok(())
     }
 
-    fn validate_block_commitment<DB: BlockMetaStorage + OnChainStorage>(
+    fn validate_block_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>(
         db: &DB,
         request: BlockCommitmentValidationRequest,
     ) -> Result<()> {
@@ -192,7 +192,7 @@ impl Participant {
         } = request;
 
         ensure!(
-            db.block_computed(block_hash),
+            db.block_meta(block_hash).computed,
             "Requested block {block_hash} is not processed by this node"
         );
 
@@ -232,7 +232,7 @@ impl Participant {
 
     /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
     fn verify_is_predecessor(
-        db: &impl OnChainStorage,
+        db: &impl OnChainStorageRead,
         block_hash: H256,
         pred_hash: H256,
         max_distance: Option<u32>,
@@ -278,7 +278,7 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{db::OnChainStorage, BlockHeader};
+    use ethexe_common::{db::OnChainStorageWrite, BlockHeader};
     use ethexe_db::Database;
 
     #[test]
@@ -430,7 +430,7 @@ mod tests {
 
         // Incorrect transitions digest
         let mut incorrect_request = request.clone();
-        incorrect_request.transitions_digest = Digest::from([2; 32]);
+        incorrect_request.transitions_digest = Digest([2; 32]);
         Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
 
         // Block is not processed by this node

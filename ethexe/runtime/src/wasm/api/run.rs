@@ -20,19 +20,17 @@ use crate::wasm::{
     interface::database_ri,
     storage::{NativeRuntimeInterface, RuntimeInterfaceStorage},
 };
-use alloc::vec::Vec;
-use core_processor::{common::JournalNote, configs::BlockInfo};
-use ethexe_common::gear::Origin;
-use ethexe_runtime_common::{process_next_message, state::Storage, RuntimeInterface};
-use gear_core::{code::InstrumentedCode, primitives::ActorId};
-use gprimitives::{CodeId, H256};
+use core_processor::configs::BlockInfo;
+use ethexe_runtime_common::{process_queue, state::Storage, ProgramJournals, RuntimeInterface};
+use gear_core::code::InstrumentedCode;
+use gprimitives::{ActorId, CodeId, H256};
 
 pub fn run(
     program_id: ActorId,
     original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
-) -> (Vec<JournalNote>, Option<Origin>) {
+) -> ProgramJournals {
     log::debug!("You're calling 'run(..)'");
 
     let block_info = BlockInfo {
@@ -47,7 +45,7 @@ pub fn run(
 
     let program_state = ri.storage().read_state(state_root).unwrap();
 
-    let (journal, origin) = process_next_message(
+    let journals = process_queue(
         program_id,
         program_state,
         maybe_instrumented_code,
@@ -55,14 +53,12 @@ pub fn run(
         &ri,
     );
 
-    log::debug!(
-        "Done creating journal: {} notes, origin {origin:?}",
-        journal.len()
-    );
-
-    for note in &journal {
-        log::debug!("{note:?}");
+    for (journal, origin, call_reply) in &journals {
+        for note in journal {
+            log::debug!("{note:?}");
+        }
+        log::debug!("Origin: {origin:?}, call_reply {call_reply:?}");
     }
 
-    (journal, origin)
+    journals
 }

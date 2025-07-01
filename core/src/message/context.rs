@@ -413,7 +413,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -426,17 +426,17 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input = self.current.payload_bytes();
+        let input_len = self.current.payload().inner().len();
         let offset = offset as usize;
         let len = len as usize;
 
         // Check `offset` is not out of bounds.
-        if offset >= input.len() {
+        if offset >= input_len {
             return Err(Error::OutOfBoundsInputSliceOffset);
         }
 
         // Check `len` for the current `offset` doesn't refer to the slice out of input bounds.
-        let available_len = input.len() - offset;
+        let available_len = input_len - offset;
         if len > available_len {
             return Err(Error::OutOfBoundsInputSliceLength);
         }
@@ -516,7 +516,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+            .try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -567,11 +567,6 @@ impl MessageContext {
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
-    }
-
-    /// Mutable reference to currently processed incoming message.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        self.current.payload_mut()
     }
 
     /// Current program's id.

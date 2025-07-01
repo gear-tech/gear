@@ -23,9 +23,9 @@ use crate::ConsensusEvent;
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     gear::{BatchCommitment, BlockCommitment, CodeCommitment},
-    Address, CodeInfo, ProducerBlock, SimpleBlockData,
+    Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
@@ -163,7 +163,7 @@ impl Producer {
         let predecessor_block = block_hash;
 
         for block in commitments_queue {
-            if !ctx.db.block_computed(block) {
+            if !ctx.db.block_meta(block).computed {
                 // This can happen when validator syncs from p2p network and skips some old blocks.
                 return Err(AggregationError::SomeBlocksInQueueAreNotComputed(block));
             }
@@ -213,7 +213,7 @@ impl Producer {
                 ctx.db
                     .code_blob_info(id)
                     .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))
-                    .map(|CodeInfo { timestamp, .. }| CodeCommitment {
+                    .map(|CodeBlobInfo { timestamp, .. }| CodeCommitment {
                         id,
                         timestamp,
                         valid,
@@ -253,6 +253,7 @@ enum AggregationError {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
+    use ethexe_common::db::BlockMetaStorageWrite;
     use std::vec;
 
     #[tokio::test]

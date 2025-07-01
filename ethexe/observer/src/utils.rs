@@ -18,7 +18,6 @@
 
 // TODO #4552: add tests for observer utils
 
-use crate::{BlobData, BlobReader};
 use alloy::{
     network::{Ethereum, Network},
     providers::{Provider as _, RootProvider},
@@ -34,34 +33,11 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{events::BlockEvent, Address, BlockData, BlockHeader};
 use ethexe_ethereum::{mirror, router, wvara};
 use futures::{future, stream::FuturesUnordered, FutureExt};
-use gprimitives::{CodeId, H256};
+use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture};
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
-
-pub(crate) async fn read_code_from_tx_hash(
-    blob_reader: Box<dyn BlobReader>,
-    expected_code_id: CodeId,
-    timestamp: u64,
-    tx_hash: H256,
-    attempts: Option<u8>,
-) -> Result<BlobData> {
-    let code = blob_reader
-        .read_blob_from_tx_hash(tx_hash, attempts)
-        .await
-        .map_err(|err| anyhow!("failed to read blob: {err}"))?;
-
-    (CodeId::generate(&code) == expected_code_id)
-        .then_some(())
-        .ok_or_else(|| anyhow!("unexpected code id"))?;
-
-    Ok(BlobData {
-        code_id: expected_code_id,
-        timestamp,
-        code,
-    })
-}
 
 pub(crate) fn log_filter() -> Filter {
     let topic = Topic::from_iter(

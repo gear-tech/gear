@@ -20,6 +20,7 @@ scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
+thiserror.workspace = true
 
 [features]
 codec = ["dep:scale-info"]

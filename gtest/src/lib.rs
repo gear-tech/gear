@@ -503,8 +503,7 @@ pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use error::{Result, TestError};
 pub use parity_scale_codec;
 pub use program::{
-    calculate_program_id, gbuild::ensure_gbuild, Gas, Program, ProgramBuilder, ProgramIdWrapper,
-    WasmProgram,
+    calculate_program_id, gbuild::ensure_gbuild, Program, ProgramBuilder, ProgramIdWrapper,
 };
 pub use state::mailbox::ActorMailbox;
 pub use system::System;

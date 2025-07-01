@@ -98,7 +98,7 @@ impl Reservation {
 ///
 /// Create gas reservations inside `init` and use them inside `handle`.
 ///
-/// ```
+/// ```rust,ignore
 /// use gstd::{msg, prelude::*, Reservations};
 ///
 /// static mut RESERVATIONS: Reservations = Reservations::new();
@@ -235,7 +235,7 @@ impl Reservations {
                     let suitable = self
                         .0
                         .drain(search_from..=i)
-                        .last()
+                        .next_back()
                         .expect("At least one element in range");
 
                     return Some(suitable);

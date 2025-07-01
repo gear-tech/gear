@@ -47,6 +47,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub use pallet::*;
 pub use weights::WeightInfo;
 
 use alloc::{
@@ -72,8 +73,6 @@ use impl_trait_for_tuples::impl_for_tuples;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
-
-pub use pallet::*;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
@@ -315,7 +314,7 @@ pub mod pallet {
             })
             .map(|_| ())
             .inspect_err(|e| {
-                log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
+                log::debug!(target: LOG_TARGET, "Error dispatching call: {e:?}");
             })
             .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(e.into())))
         }
@@ -422,13 +421,13 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
-                let mut dispatch_result =
-                    DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
+                let mut dispatch_result = DispatchResult::success(&dispatch, actor_id, gas_amount);
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
+                // Dispatch clone is cheap here since it only contains Arc<Payload>
                 let mut message_context =
-                    MessageContext::new(dispatch, actor_id, Default::default());
+                    MessageContext::new(dispatch.clone(), actor_id, Default::default());
                 let packet = ReplyPacket::new(response_payload, 0);
 
                 // Mark reply as sent
@@ -447,7 +446,11 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
-                process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
+                process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    dispatch,
+                )
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
                 // Ideally, this should never happen, as we should have checked the gas allowance
@@ -458,7 +461,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             }
             Err(err) => {
                 // Builtin actor call failed.
-                log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
+                log::debug!(target: LOG_TARGET, "Builtin actor error: {err:?}");
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(

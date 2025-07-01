@@ -10,11 +10,19 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[package.metadata.cargo-shear]
+ignored = [
+  # docs
+  "hex-literal",
+  "galloc",
+]
+
 [dependencies]
 gsys.workspace = true
 gprimitives.workspace = true
 gear-core-errors.workspace = true
 gear-stack-buffer.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true

@@ -62,7 +62,7 @@ impl LazyPagesStorage for PagesStorage {
 
         Actors::access(program_id, |actor| {
             actor
-                .and_then(|actor| actor.get_pages_data())
+                .and_then(|actor| actor.pages())
                 .map(|pages_data| pages_data.contains_key(&page))
                 .unwrap_or(false)
         })
@@ -75,7 +75,7 @@ impl LazyPagesStorage for PagesStorage {
 
         Actors::access(program_id, |actor| {
             actor
-                .and_then(|actor| actor.get_pages_data())
+                .and_then(|actor| actor.pages())
                 .and_then(|pages_data| pages_data.get(&page))
                 .map(|page_buf| {
                     buffer.copy_from_slice(page_buf);
@@ -180,13 +180,13 @@ impl System {
     /// Messages processing executes messages until either queue becomes empty
     /// or block gas allowance is fully consumed.
     pub fn run_next_block(&self) -> BlockRunResult {
-        self.run_next_block_with_allowance(Gas(GAS_ALLOWANCE))
+        self.run_next_block_with_allowance(GAS_ALLOWANCE)
     }
 
     /// Runs blocks same as [`Self::run_next_block`], but with limited
     /// allowance.
     pub fn run_next_block_with_allowance(&self, allowance: Gas) -> BlockRunResult {
-        if allowance > Gas(GAS_ALLOWANCE) {
+        if allowance > GAS_ALLOWANCE {
             usage_panic!(
                 "Provided allowance more than allowed limit of {GAS_ALLOWANCE}. \
                 Please, provide an allowance less than or equal to the limit."
@@ -208,7 +208,7 @@ impl System {
 
         let mut ret = Vec::with_capacity((bn - current_block) as usize);
         while current_block != bn {
-            let res = manager.run_new_block(Gas(GAS_ALLOWANCE));
+            let res = manager.run_new_block(GAS_ALLOWANCE);
             ret.push(res);
 
             current_block = manager.block_height();
@@ -237,7 +237,7 @@ impl System {
                     .collect();
                 BlockRunResult {
                     block_info,
-                    gas_allowance_spent: Gas(GAS_ALLOWANCE) - manager.gas_allowance,
+                    gas_allowance_spent: GAS_ALLOWANCE - manager.gas_allowance,
                     log,
                     ..Default::default()
                 }

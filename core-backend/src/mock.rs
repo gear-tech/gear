@@ -25,8 +25,9 @@ use crate::{
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
+    buffer::PayloadSlice,
     costs::CostToken,
-    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env::Externalities,
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     memory::{Memory, MemoryInterval},
@@ -281,15 +282,7 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
-    fn lock_payload(
-        &mut self,
-        _at: u32,
-        _len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
-        unimplemented!()
-    }
-
-    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+    fn payload_slice(&mut self, _at: u32, _len: u32) -> Result<PayloadSlice, Self::FallibleError> {
         unimplemented!()
     }
 }

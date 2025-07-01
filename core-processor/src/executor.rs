@@ -74,7 +74,7 @@ where
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program.id);
-    log::debug!("Executing dispatch {:?}", dispatch);
+    log::debug!("Executing dispatch {dispatch:?}");
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::try_new(
@@ -85,9 +85,6 @@ where
         settings.max_pages,
     )
     .map_err(SystemExecutionError::from)?;
-
-    // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
 
     // Creating value counter.
     //
@@ -102,6 +99,9 @@ where
         Default::default()
     });
     let value_counter = ValueCounter::new(value_available);
+
+    // Creating message context.
+    let message_context = MessageContext::new(dispatch, program.id, msg_ctx_settings);
 
     let context = ProcessorContext {
         gas_counter,
@@ -186,7 +186,7 @@ where
         }
     };
 
-    log::debug!("Termination reason: {:?}", termination);
+    log::debug!("Termination reason: {termination:?}");
 
     let info = ext
         .into_ext_info(&mut store, &memory)
@@ -226,7 +226,6 @@ where
     // Output
     Ok(DispatchResult {
         kind,
-        dispatch,
         program_id: program.id,
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,

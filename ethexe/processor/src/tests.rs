@@ -18,7 +18,10 @@
 
 use crate::*;
 use ethexe_common::{
-    db::{BlockMetaStorage, CodesStorage, OnChainStorage},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
     BlockHeader,
 };
@@ -63,8 +66,8 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     )
 }
 
-#[test]
-fn process_observer_event() {
+#[tokio::test(flavor = "multi_thread")]
+async fn process_observer_event() {
     init_logger();
 
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
@@ -88,7 +91,7 @@ fn process_observer_event() {
     );
 
     // Process ch0 and save results
-    let result0 = processor.process_block_events(ch0, vec![]).unwrap();
+    let result0 = processor.process_block_events(ch0, vec![]).await.unwrap();
     processor.db.set_block_program_states(ch0, result0.states);
     processor.db.set_block_schedule(ch0, result0.schedule);
     let ch1 = init_new_block_from_parent(&mut processor, ch0);
@@ -110,6 +113,7 @@ fn process_observer_event() {
                 source: H256::random().0.into(),
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         ),
     ];
@@ -117,6 +121,7 @@ fn process_observer_event() {
     // Process ch1 and save results
     let result1 = processor
         .process_block_events(ch1, create_program_events)
+        .await
         .expect("failed to process create program");
     processor
         .db
@@ -136,12 +141,14 @@ fn process_observer_event() {
             source: H256::random().0.into(),
             payload: b"PING".to_vec(),
             value: 0,
+            call_reply: false,
         },
     );
 
     // Process ch2 and save results
     let result2 = processor
         .process_block_events(ch2, vec![send_message_event])
+        .await
         .expect("failed to process send message");
     processor
         .db
@@ -223,8 +230,8 @@ fn handle_new_code_invalid() {
         .is_none());
 }
 
-#[test]
-fn ping_pong() {
+#[tokio::test(flavor = "multi_thread")]
+async fn ping_pong() {
     init_logger();
 
     let mut processor = Processor::new(Database::memory()).unwrap();
@@ -263,6 +270,7 @@ fn ping_pong() {
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -275,11 +283,12 @@ fn ping_pong() {
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
 
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
 
@@ -294,8 +303,8 @@ fn ping_pong() {
     assert_eq!(message.payload, b"PONG");
 }
 
-#[test]
-fn async_and_ping() {
+#[tokio::test(flavor = "multi_thread")]
+async fn async_and_ping() {
     init_logger();
 
     let mut message_nonce: u64 = 0;
@@ -349,6 +358,7 @@ fn async_and_ping() {
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -377,6 +387,7 @@ fn async_and_ping() {
                 source: user_id,
                 payload: ping_id.encode(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
@@ -391,11 +402,12 @@ fn async_and_ping() {
                 source: user_id,
                 payload: demo_async::Command::Common.encode(),
                 value: 0,
+                call_reply: false,
             },
         )
         .expect("failed to send message");
 
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
 
@@ -411,11 +423,11 @@ fn async_and_ping() {
 
     let message = &to_users[2].1;
     assert_eq!(message.destination, user_id);
-    assert_eq!(message.payload, wait_for_reply_to.into_bytes().as_slice());
+    assert_eq!(message.payload, wait_for_reply_to.into_bytes());
 }
 
-#[test]
-fn many_waits() {
+#[tokio::test(flavor = "multi_thread")]
+async fn many_waits() {
     init_logger();
 
     let wat = r#"
@@ -482,13 +494,14 @@ fn many_waits() {
                     source: H256::random().0.into(),
                     payload: Default::default(),
                     value: 0,
+                    call_reply: false,
                 },
             )
             .expect("failed to send message");
     }
 
     handler.run_schedule();
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     assert_eq!(
         handler.transitions.current_messages().len(),
@@ -504,12 +517,13 @@ fn many_waits() {
                     source: H256::random().0.into(),
                     payload: Default::default(),
                     value: 0,
+                    call_reply: false,
                 },
             )
             .expect("failed to send message");
     }
 
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     // unchanged
     assert_eq!(
@@ -545,7 +559,7 @@ fn many_waits() {
 
     let mut handler = processor.handler(ch11).unwrap();
     handler.run_schedule();
-    processor.process_queue(&mut handler);
+    processor.process_queue(&mut handler).await;
 
     assert_eq!(
         handler.transitions.current_messages().len(),

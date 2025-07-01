@@ -34,24 +34,24 @@ pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ActorId>) -> Gas {
     use ScheduledTask::*;
     let weights = TaskWeights::default();
     match task {
-        PauseProgram(_) => Gas(0),
+        PauseProgram(_) => 0,
         #[allow(deprecated)]
-        RemoveResumeSession(_) => Gas(0),
+        RemoveResumeSession(_) => 0,
 
-        RemoveFromMailbox(_, _) => Gas(weights.remove_from_mailbox.ref_time),
-        RemoveFromWaitlist(_, _) => Gas(weights.remove_from_waitlist.ref_time),
+        RemoveFromMailbox(_, _) => weights.remove_from_mailbox.ref_time,
+        RemoveFromWaitlist(_, _) => weights.remove_from_waitlist.ref_time,
         RemovePausedProgram(_) => todo!("#646"),
         RemoveCode(_) => todo!("#646"),
-        WakeMessage(_, _) => Gas(weights
+        WakeMessage(_, _) => weights
             .wake_message
             .ref_time
-            .max(weights.wake_message_no_wake.ref_time)),
-        SendDispatch(_) => Gas(weights.send_dispatch.ref_time),
-        SendUserMessage { .. } => Gas(weights
+            .max(weights.wake_message_no_wake.ref_time),
+        SendDispatch(_) => weights.send_dispatch.ref_time,
+        SendUserMessage { .. } => weights
             .send_user_message_to_mailbox
             .ref_time
-            .max(weights.send_user_message.ref_time)),
-        RemoveGasReservation(_, _) => Gas(weights.remove_gas_reservation.ref_time),
+            .max(weights.send_user_message.ref_time),
+        RemoveGasReservation(_, _) => weights.remove_gas_reservation.ref_time,
     }
 }
 

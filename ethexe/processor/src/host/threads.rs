@@ -19,7 +19,7 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::db::OnChainStorage;
+use ethexe_common::db::OnChainStorageRead;
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     state::{
@@ -118,6 +118,16 @@ pub fn set(db: Database, chain_head: H256, state_hash: H256) {
         pages_registry_cache: None,
         pages_regions_cache: None,
     }))
+}
+
+pub fn update_state_hash(state_hash: H256) {
+    PARAMS.with_borrow_mut(|v| {
+        let params = v.as_mut().expect(UNSET_PANIC);
+
+        params.state_hash = state_hash;
+        params.pages_registry_cache = None;
+        params.pages_regions_cache = None;
+    })
 }
 
 pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {

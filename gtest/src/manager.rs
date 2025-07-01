@@ -17,13 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::Value,
+    constants::{Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
-    program::{Gas, WasmProgram},
     state::{
         accounts::Accounts,
-        actors::{Actors, GenuineProgram, Program, TestActor},
+        actors::{Actors, Program, TestActor},
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
@@ -54,8 +53,8 @@ use gear_core::{
     gas_metering::{DbWeights, RentWeights, Schedule},
     memory::PageBuf,
     message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDelayedDispatch,
-        StoredDispatch, StoredMessage, UserMessage, UserStoredMessage,
+        Dispatch, DispatchKind, Message, ReplyMessage, StoredDelayedDispatch, StoredDispatch,
+        StoredMessage, UserMessage, UserStoredMessage,
     },
     pages::{num_traits::Zero, GearPage},
     primitives::{ActorId, CodeId, MessageId, ReservationId},
@@ -113,6 +112,7 @@ pub(crate) struct ExtManager {
     pub(crate) not_executed: BTreeSet<MessageId>,
     pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
     pub(crate) log: Vec<StoredMessage>,
+    pub(crate) no_code_program: BTreeSet<ActorId>,
 }
 
 impl ExtManager {
@@ -193,7 +193,7 @@ impl ExtManager {
         Actors::modify(*program_id, |actor| {
             let pages_data = actor
                 .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .get_pages_data_mut()
+                .pages_mut()
                 .expect("No pages data found for program");
 
             for (page, buf) in memory_pages {
@@ -224,7 +224,7 @@ impl ExtManager {
 
     pub(crate) fn on_task_pool_change(&mut self) {
         let write = DbWeights::default().write.ref_time;
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(write));
+        self.gas_allowance = self.gas_allowance.saturating_sub(write);
     }
 
     fn init_success(&mut self, program_id: ActorId) {
@@ -237,8 +237,14 @@ impl ExtManager {
 
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
         Actors::modify(program_id, |actor| {
-            let actor = actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"));
-            *actor = TestActor::FailedInit;
+            if let Some(actor) = actor {
+                *actor = TestActor::FailedInit;
+            } else {
+                // That's a case if no code exists for the program
+                // requested to be created from another program and
+                // there was not enough to get program from storage.
+                log::debug!("Failed init is set for non-existing actor");
+            }
         });
 
         let value = Accounts::balance(program_id);
@@ -247,13 +253,13 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn update_genuine_program<R, F: FnOnce(&mut GenuineProgram) -> R>(
+    pub(crate) fn update_program<R, F: FnOnce(&mut Program) -> R>(
         &mut self,
         id: ActorId,
         op: F,
     ) -> Option<R> {
         Actors::modify(id, |actor| {
-            actor.and_then(|actor| actor.genuine_program_mut().map(op))
+            actor.and_then(|actor| actor.program_mut().map(op))
         })
     }
 

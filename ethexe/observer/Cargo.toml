@@ -28,10 +28,8 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
     "signer-local",
 ] }
-async-trait.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "fs", "sync"] }
 futures.workspace = true
-reqwest = { workspace = true, features = ["default-tls", "json"] }
 log.workspace = true
 
 [dev-dependencies]

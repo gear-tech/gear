@@ -86,7 +86,7 @@ where
     T: Numerated + UpperBounded + Debug,
     T::Bound: Debug,
 {
-    log::debug!("{:?}", action);
+    log::debug!("{action:?}");
     match action {
         IntervalAction::Incorrect(start, end) => {
             assert!(IntervalIterator::<T>::try_from(start..end).is_err());
@@ -135,7 +135,7 @@ pub fn test_tree<T: Numerated + Debug>(initial: BTreeSet<T>, actions: Vec<TreeAc
     assert_eq!(expected, initial);
 
     for action in actions {
-        log::debug!("{:?}", action);
+        log::debug!("{action:?}");
         match action {
             TreeAction::Insert(interval) => {
                 tree.remove(interval);
