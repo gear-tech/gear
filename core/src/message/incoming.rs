@@ -24,6 +24,7 @@ use crate::{
         StoredMessage, Value,
     },
 };
+use alloc::sync::Arc;
 use core::ops::Deref;
 
 /// Incoming message.
@@ -37,7 +38,7 @@ pub struct IncomingMessage {
     /// Message source.
     source: ActorId,
     /// Message payload.
-    payload: Payload,
+    payload: Arc<Payload>,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
@@ -59,10 +60,10 @@ impl IncomingMessage {
         Self {
             id,
             source,
-            payload,
             gas_limit,
             value,
             details,
+            payload: Arc::new(payload),
         }
     }
 
@@ -72,10 +73,20 @@ impl IncomingMessage {
             self.id,
             self.source,
             destination,
-            self.payload,
+            Arc::try_unwrap(self.payload).unwrap_or_else(|payload| {
+                log::error!(
+                    "IncomingMessage payload has multiple references, this is unexpected behavior"
+                );
+                Arc::unwrap_or_clone(payload)
+            }),
             self.value,
             self.details,
         )
+    }
+
+    /// Message payload.
+    pub fn payload(&self) -> Arc<Payload> {
+        self.payload.clone()
     }
 
     /// Message id.
@@ -86,16 +97,6 @@ impl IncomingMessage {
     /// Message source.
     pub fn source(&self) -> ActorId {
         self.source
-    }
-
-    /// Message payload bytes.
-    pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
-    }
-
-    /// Mutable reference to message payload.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        &mut self.payload
     }
 
     /// Message gas limit.
