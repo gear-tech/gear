@@ -148,11 +148,31 @@ impl PrometheusService {
         self.metrics.eth_best_height.set(eth_best_height as u64);
         self.metrics.pending_codes.set(pending_codes as u64);
     }
+
+    pub fn update_compute_metrics(
+        &mut self,
+        blocks_queue_len: usize,
+        waiting_codes_count: usize,
+        process_codes_count: usize,
+    ) {
+        self.metrics
+            .compute_blocks_queue
+            .set(blocks_queue_len as u64);
+        self.metrics
+            .compute_waiting_codes
+            .set(waiting_codes_count as u64);
+        self.metrics
+            .compute_processing_codes
+            .set(process_codes_count as u64);
+    }
 }
 
 struct PrometheusMetrics {
     eth_best_height: Gauge<U64>,
     pending_codes: Gauge<U64>,
+    compute_blocks_queue: Gauge<U64>,
+    compute_waiting_codes: Gauge<U64>,
+    compute_processing_codes: Gauge<U64>,
 }
 
 impl PrometheusMetrics {
@@ -198,6 +218,30 @@ impl PrometheusMetrics {
                 Gauge::<U64>::new(
                     "ethexe_pending_codes",
                     "Pending codes for lookup by observer",
+                )?,
+                registry,
+            )?,
+
+            compute_blocks_queue: register(
+                Gauge::<U64>::new(
+                    "ethexe_compute_blocks_queue",
+                    "Number of blocks in the queue for processing",
+                )?,
+                registry,
+            )?,
+
+            compute_waiting_codes: register(
+                Gauge::<U64>::new(
+                    "ethexe_compute_waiting_codes",
+                    "Number of codes waiting for loading to advance block processing",
+                )?,
+                registry,
+            )?,
+
+            compute_processing_codes: register(
+                Gauge::<U64>::new(
+                    "ethexe_compute_processing_codes",
+                    "Number of processing codes",
                 )?,
                 registry,
             )?,
