@@ -41,9 +41,9 @@ use gear_core::{
     costs::CostToken,
     env::MessageWaitedType,
     gas::CounterType,
-    ids::{ActorId, MessageId, ReservationId},
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
+    primitives::{ActorId, MessageId, ReservationId},
 };
 use gear_core_errors::{MessageError, ReplyCode, SignalCode};
 use gear_sandbox::{AsContextExt, ReturnValue, Value};

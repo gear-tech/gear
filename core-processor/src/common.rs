@@ -25,10 +25,10 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     env::MessageWaitedType,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
 };

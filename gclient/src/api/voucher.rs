@@ -18,7 +18,7 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use gsdk::{
     ext::sp_core::H256,
     metadata::{

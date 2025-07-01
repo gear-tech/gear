@@ -18,7 +18,7 @@
 
 use super::{RuntimeStateView, AUXILIARY_SIZE, ID_SIZE};
 use gear_call_gen::{ClaimValueArgs, GearCall};
-use gear_core::ids::MessageId;
+use gear_core::primitives::MessageId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use std::result::Result as StdResult;

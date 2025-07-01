@@ -25,8 +25,8 @@
 use crate::Origin;
 use core::marker::PhantomData;
 use gear_core::{
-    ids::{ActorId, MessageId},
     message::{StoredDispatch, UserStoredMessage},
+    primitives::{ActorId, MessageId},
 };
 
 /// Represents logic of providing key as specified

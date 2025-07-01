@@ -37,14 +37,13 @@ use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
     buffer::Payload,
-    ids::prelude::MessageIdExt as _,
     memory::PageBuf,
     message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gprimitives::{ActorId, MessageId, H256};
+use gprimitives::{hashing, ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
@@ -646,7 +645,7 @@ impl Dispatch {
         call: bool,
     ) -> Self {
         Self {
-            id: MessageId::generate_reply(reply_to),
+            id: gear_core::utils::generate_mid_reply(reply_to),
             kind: DispatchKind::Reply,
             source,
             payload,
@@ -1335,7 +1334,7 @@ impl MemStorage {
 
     fn write<T: Encode>(&self, value: T) -> H256 {
         let value = value.encode();
-        let hash = gear_core::utils::hash(&value);
+        let hash = hashing::hash(&value);
         let hash = H256(hash);
         self.inner.borrow_mut().insert(hash, value);
         hash

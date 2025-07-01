@@ -35,7 +35,7 @@ use crate::metadata::runtime_types::{
     gear_common::gas_provider::node::{GasNode, GasNodeId},
     gear_core::program::ActiveProgram,
 };
-use gear_core::ids::{MessageId, ReservationId};
+use gear_core::primitives::{MessageId, ReservationId};
 use parity_scale_codec::Decode;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;

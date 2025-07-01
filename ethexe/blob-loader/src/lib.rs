@@ -31,7 +31,6 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Stream, StreamExt,
 };
-use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
 use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};

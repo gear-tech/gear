@@ -40,8 +40,8 @@ use ethexe_runtime_common::state::{
 use gear_core::{
     buffer::Payload,
     code::{CodeMetadata, InstrumentedCode},
-    ids::{ActorId, CodeId},
     memory::PageBuf,
+    primitives::{ActorId, CodeId},
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};

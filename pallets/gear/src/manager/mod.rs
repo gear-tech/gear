@@ -67,8 +67,8 @@ use core::{fmt, mem};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     message::SignalMessage,
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     program::{ActiveProgram, Program, ProgramState},
     reservation::GasReservationSlot,
     tasks::ScheduledTask,

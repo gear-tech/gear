@@ -33,49 +33,49 @@ use super::{
     vara_runtime::{RuntimeCall, RuntimeEvent},
 };
 use core::ops::{Index, IndexMut};
-use gear_core::{ids, message, message::UserMessage};
+use gear_core::{message, message::UserMessage, primitives};
 use parity_scale_codec::{Decode, Encode};
 use subxt::{dynamic::Value, utils::MultiAddress};
 
 type ApiEvent = super::Event;
 
-impl From<ids::MessageId> for generated_ids::MessageId {
-    fn from(other: ids::MessageId) -> Self {
+impl From<primitives::MessageId> for generated_ids::MessageId {
+    fn from(other: primitives::MessageId) -> Self {
         Self(other.into())
     }
 }
 
-impl From<generated_ids::MessageId> for ids::MessageId {
+impl From<generated_ids::MessageId> for primitives::MessageId {
     fn from(other: generated_ids::MessageId) -> Self {
         other.0.into()
     }
 }
 
-impl From<ids::ActorId> for generated_ids::ActorId {
-    fn from(other: ids::ActorId) -> Self {
+impl From<primitives::ActorId> for generated_ids::ActorId {
+    fn from(other: primitives::ActorId) -> Self {
         Self(other.into())
     }
 }
 
-impl From<generated_ids::ActorId> for ids::ActorId {
+impl From<generated_ids::ActorId> for primitives::ActorId {
     fn from(other: generated_ids::ActorId) -> Self {
         other.0.into()
     }
 }
 
-impl From<ids::CodeId> for generated_ids::CodeId {
-    fn from(other: ids::CodeId) -> Self {
+impl From<primitives::CodeId> for generated_ids::CodeId {
+    fn from(other: primitives::CodeId) -> Self {
         Self(other.into())
     }
 }
 
-impl From<generated_ids::CodeId> for ids::CodeId {
+impl From<generated_ids::CodeId> for primitives::CodeId {
     fn from(other: generated_ids::CodeId) -> Self {
         other.0.into()
     }
 }
 
-impl From<generated_ids::ReservationId> for ids::ReservationId {
+impl From<generated_ids::ReservationId> for primitives::ReservationId {
     fn from(other: generated_ids::ReservationId) -> Self {
         other.0.into()
     }
@@ -120,7 +120,7 @@ impl From<generated_message::user::UserStoredMessage> for message::UserStoredMes
     }
 }
 
-impl<M> From<generated_ids::ReservationId> for GasNodeId<M, ids::ReservationId> {
+impl<M> From<generated_ids::ReservationId> for GasNodeId<M, primitives::ReservationId> {
     fn from(other: generated_ids::ReservationId) -> Self {
         GasNodeId::Reservation(other.into())
     }

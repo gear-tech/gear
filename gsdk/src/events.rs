@@ -19,10 +19,14 @@
 //! Events api
 use crate::{
     config::GearConfig,
-    metadata::{system::Event as SystemEvent, Event},
+    metadata::{
+        gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry,
+        system::Event as SystemEvent, Event,
+    },
     result::{Error, Result},
     Api,
 };
+use gear_core::primitives::ActorId;
 use subxt::{
     blocks::ExtrinsicEvents as TxEvents,
     error::{DispatchError, Error as SubxtError},
@@ -32,6 +36,27 @@ use subxt::{
 };
 
 impl Api {
+    /// Captures the Gear::ProgramChanged { id, change: Active } event and returns the id.
+    ///
+    /// This event is emitted when a program is activated (created).
+    pub async fn capture_actor_id_created(
+        &self,
+        tx: &TxInBlock<GearConfig, OnlineClient<GearConfig>>,
+    ) -> Result<ActorId> {
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::Gear(GearEvent::MessageQueued {
+                destination,
+                entry: MessageEntry::Init,
+                ..
+            }) = event?.as_root_event::<Event>()?
+            {
+                return Ok(destination.into());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Capture the dispatch info of any extrinsic and display the weight spent
     pub async fn capture_dispatch_info(
         &self,

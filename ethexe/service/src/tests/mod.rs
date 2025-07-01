@@ -40,12 +40,9 @@ use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
-use gear_core::{
-    ids::prelude::*,
-    message::{ReplyCode, SuccessReplyReason},
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, MessageId, H160};
+use gprimitives::{ActorId, H160};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -402,8 +399,8 @@ async fn mailbox() {
         .unwrap();
 
     let original_mid = res.message_id;
-    let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
-    let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
+    let mid_expected_message = gear_core::utils::generate_mid_outgoing(original_mid, 0);
+    let ping_expected_message = gear_core::utils::generate_mid_outgoing(original_mid, 1);
 
     let mut listener = env.observer_events_publisher().subscribe().await;
     let block_data = listener

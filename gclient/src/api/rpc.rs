@@ -19,7 +19,7 @@
 
 use crate::{api::Result, GearApi};
 use gear_core::{
-    ids::{ActorId, CodeId, MessageId},
+    primitives::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
 use gsdk::{ext::sp_core::H256, GasInfo};

@@ -40,7 +40,7 @@ use crate::{
     utils, Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
 };
 use anyhow::anyhow;
-use gear_core::ids::*;
+use gear_core::primitives::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
 use sp_core::{crypto::Ss58Codec, H256};

@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    ids::{ActorId, MessageId},
+    primitives::{ActorId, MessageId},
     reservation::GasReservationMap,
 };
 use gprimitives::CodeId;

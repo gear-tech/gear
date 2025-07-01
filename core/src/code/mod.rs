@@ -20,7 +20,7 @@
 
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
-    ids::{prelude::*, CodeId},
+    primitives::CodeId,
 };
 use alloc::vec::Vec;
 use gear_wasm_instrument::{InstrumentationBuilder, Module, GEAR_SUPPORTED_FEATURES};

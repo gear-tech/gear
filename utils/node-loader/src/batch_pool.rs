@@ -8,7 +8,7 @@ use context::Context;
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
-use gear_core::ids::{ActorId, MessageId};
+use gear_core::primitives::{ActorId, MessageId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use gsdk::metadata::{gear::Event as GearEvent, Event};
 use primitive_types::H256;

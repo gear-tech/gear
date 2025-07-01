@@ -20,7 +20,7 @@
 
 use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
-use gear_core::ids::MessageId;
+use gear_core::primitives::MessageId;
 use gstd::{vec, ActorId, Encode, Vec};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use statrs::statistics::Statistics;

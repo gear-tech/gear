@@ -18,11 +18,12 @@
 
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Salt, StoredDispatch, StoredMessage,
         Value,
     },
+    primitives::{ActorId, CodeId, MessageId},
+    utils,
 };
 use scale_info::{
     scale::{Decode, Encode},
@@ -141,7 +142,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ActorId::generate_from_user(code_id, salt.inner()),
+            program_id: utils::generate_pid_from_user(code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -160,7 +161,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ActorId::generate_from_program(message_id, code_id, salt.inner()),
+            program_id: utils::generate_pid_from_program(message_id, code_id, salt.inner()),
             code_id,
             salt,
             payload,

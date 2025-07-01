@@ -22,7 +22,7 @@ use ethexe_common::gear::Origin;
 use ethexe_runtime_common::{unpack_i64_to_u32, ProgramJournals};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    ids::ActorId,
+    primitives::ActorId,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};

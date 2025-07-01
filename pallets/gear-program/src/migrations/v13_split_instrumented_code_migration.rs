@@ -172,7 +172,7 @@ mod v12 {
 
     use crate::{Config, Pallet};
     use frame_support::Identity;
-    use gear_core::ids::CodeId;
+    use gear_core::primitives::CodeId;
 
     #[frame_support::storage_alias]
     pub type CodeStorage<T: Config> = StorageMap<Pallet<T>, Identity, CodeId, InstrumentedCode>;

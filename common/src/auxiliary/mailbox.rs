@@ -23,8 +23,8 @@ use crate::{
 };
 use core::cell::RefCell;
 use gear_core::{
-    ids::{ActorId, MessageId},
     message::UserStoredMessage,
+    primitives::{ActorId, MessageId},
 };
 
 /// Mailbox implementation that can be used in a native, non-wasm runtimes.

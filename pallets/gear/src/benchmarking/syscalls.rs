@@ -34,10 +34,10 @@ use alloc::{vec, vec::Vec};
 use common::{storage::*, Origin, ProgramStorage};
 use core::marker::PhantomData;
 use gear_core::{
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
     pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;

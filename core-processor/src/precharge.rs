@@ -30,8 +30,8 @@ use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, SectionName},
     costs::{BytesAmount, ProcessCosts},
     gas::{ChargeResult, GasAllowanceCounter, GasCounter},
-    ids::ActorId,
     message::IncomingDispatch,
+    primitives::ActorId,
 };
 
 /// Operation related to gas charging.

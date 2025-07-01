@@ -109,7 +109,7 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use gear_core::ids::ActorId;
+use gear_core::primitives::ActorId;
 use gprimitives::H256;
 use itertools::Itertools;
 use tokio::task::JoinSet;

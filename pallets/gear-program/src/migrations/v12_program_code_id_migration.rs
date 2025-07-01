@@ -132,9 +132,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateProgramCodeHashToCodeId<T> {
 
 mod v11 {
     use gear_core::{
-        ids::ActorId,
         message::DispatchKind,
         pages::WasmPage,
+        primitives::ActorId,
         program::{MemoryInfix, ProgramState},
         reservation::GasReservationMap,
     };
@@ -192,7 +192,7 @@ mod test {
     use crate::mock::*;
     use frame_support::traits::StorageVersion;
     use gear_core::{
-        ids::{ActorId, CodeId},
+        primitives::{ActorId, CodeId},
         program::ProgramState,
     };
     use primitive_types::H256;

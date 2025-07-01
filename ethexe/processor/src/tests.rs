@@ -26,7 +26,6 @@ use ethexe_common::{
     BlockHeader,
 };
 use ethexe_runtime_common::ScheduleRestorer;
-use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use utils::*;

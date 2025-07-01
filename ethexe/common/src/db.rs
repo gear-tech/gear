@@ -27,7 +27,7 @@ use crate::{
 use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    ids::{ActorId, CodeId},
+    primitives::{ActorId, CodeId},
 };
 use gprimitives::H256;
 

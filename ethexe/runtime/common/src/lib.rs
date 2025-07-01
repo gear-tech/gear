@@ -31,8 +31,8 @@ use core_processor::{
 use ethexe_common::gear::Origin;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
-    ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    primitives::ActorId,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::H256;

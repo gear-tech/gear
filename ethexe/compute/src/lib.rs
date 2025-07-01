@@ -442,7 +442,6 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
 mod tests {
     use ethexe_common::BlockHeader;
     use futures::StreamExt;
-    use gear_core::ids::prelude::CodeIdExt;
     use std::collections::HashMap;
 
     use super::*;

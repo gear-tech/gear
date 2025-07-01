@@ -22,7 +22,7 @@ mod block;
 use super::{GearApi, Result};
 use crate::Error;
 use account_id::IntoAccountId32;
-use gear_core::{ids::*, message::UserStoredMessage};
+use gear_core::{message::UserStoredMessage, primitives::*};
 use gsdk::{
     ext::{
         sp_core::{crypto::Ss58Codec, H256},

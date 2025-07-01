@@ -1,4 +1,4 @@
-use gear_core::ids::{ActorId, CodeId, MessageId};
+use gear_core::primitives::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;
 
 use super::report::{MailboxReport, Report};

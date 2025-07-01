@@ -25,9 +25,9 @@ use crate::{
 use gear_core::{
     code::InstrumentedCodeAndMetadata,
     gas::{GasAllowanceCounter, GasCounter},
-    ids::ActorId,
     message::IncomingDispatch,
     pages::WasmPagesAmount,
+    primitives::ActorId,
     program::MemoryInfix,
     reservation::GasReserver,
 };

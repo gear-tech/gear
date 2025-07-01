@@ -89,9 +89,9 @@ use gear_core::{
     buffer::*,
     code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
     env::MessageWaitedType,
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     message::*,
     percent::Percent,
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     tasks::VaraScheduledTask,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
@@ -562,7 +562,7 @@ pub mod pallet {
             init_payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
+        ) -> Result<ActorId, sp_runtime::DispatchError> {
             use gear_core::{code::TryNewCodeConfig, gas_metering::CustomConstantCostRules};
 
             let who = ensure_signed(origin)?;
@@ -665,7 +665,7 @@ pub mod pallet {
                 entry: MessageEntry::Init,
             });
 
-            Ok(().into())
+            Ok(program_id)
         }
 
         /// Upload code to the chain without gas and stack limit injection.
@@ -924,7 +924,7 @@ pub mod pallet {
             SentOf::<T>::increase();
             let block_number = System::<T>::block_number().unique_saturated_into();
 
-            MessageId::generate_from_user(block_number, user_id.cast(), nonce.into())
+            gear_core::utils::generate_mid_from_user(block_number, user_id.cast(), nonce.into())
         }
 
         /// Delayed tasks processing.
@@ -1912,7 +1912,7 @@ pub mod pallet {
                 Error::<T>::InactiveProgram
             );
 
-            let reply_id = MessageId::generate_reply(mailboxed.id());
+            let reply_id = gear_core::utils::generate_mid_reply(mailboxed.id());
 
             // Set zero gas limit if reply deposit exists.
             let gas_limit = if GasHandlerOf::<T>::exists_and_deposit(reply_id) {

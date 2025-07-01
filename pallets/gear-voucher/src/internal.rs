@@ -22,7 +22,7 @@ use common::{
     Origin,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use gear_core::ids;
+use gear_core::primitives::hashing;
 use sp_std::collections::btree_set::BTreeSet;
 
 impl<T: Config> crate::Call<T>
@@ -162,7 +162,7 @@ impl VoucherId {
         CounterImpl::<u64, IssuedWrap<T>>::increase();
         let nonce = CounterImpl::<u64, IssuedWrap<T>>::get();
 
-        ids::hash_of_array([SALT, &nonce.to_le_bytes()]).into()
+        hashing::hash_array([SALT, &nonce.to_le_bytes()]).into()
     }
 }
 

@@ -32,8 +32,8 @@ use common::{
 use core::cmp;
 use gear_core::{
     buffer::Payload,
-    ids::{ActorId, CodeId, MessageId, ReservationId},
     message::{DispatchKind, ReplyMessage},
+    primitives::{ActorId, CodeId, MessageId, ReservationId},
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
