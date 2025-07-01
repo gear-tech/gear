@@ -15732,10 +15732,10 @@ fn vec() {
 
         let code_id = CodeId::generate(WASM_BINARY);
 
-        let code = <Test as crate::Config>::CodeStorage::get_code(code_id)
+        let code_metadata = <Test as crate::Config>::CodeStorage::get_code_metadata(code_id)
             .expect("code should be in the storage");
 
-        let static_pages = code.static_pages();
+        let static_pages = code_metadata.static_pages();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(1),
@@ -17406,7 +17406,7 @@ pub(crate) mod utils {
                 };
 
                 let static_pages =
-                    match <Test as Config>::CodeStorage::get_code(active.code_hash.cast()) {
+                    match <Test as Config>::CodeStorage::get_code_metadata(active.code_id) {
                         Some(code) => code.static_pages(),
                         None => 0.into(),
                     };
@@ -17421,7 +17421,7 @@ pub(crate) mod utils {
                         ProgramState::Active(ProgramInfo {
                             static_pages,
                             persistent_pages,
-                            code_hash: active.code_hash,
+                            code_hash: active.code_id.cast(),
                         })
                     },
                 }
