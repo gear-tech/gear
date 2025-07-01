@@ -21,7 +21,7 @@ use crate::{
 };
 use frame_support::{
     construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
     PalletId,
 };
 use frame_support_test::TestRandomness;

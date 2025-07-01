@@ -35,7 +35,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
     testing::TestXt,
-    traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
     BuildStorage,
 };
 use sp_std::{

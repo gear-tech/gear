@@ -30,7 +30,6 @@ use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
-use sp_core::ConstBool;
 use sp_runtime::{
     traits::{BlakeTwo256, ConstU64, IdentityLookup},
     BuildStorage,
@@ -100,7 +99,7 @@ pallet_gear_program::impl_config!(Test);
 pallet_gear_messenger::impl_config!(Test, CurrentBlockNumber = Gear);
 pallet_gear_scheduler::impl_config!(Test);
 pallet_gear_bank::impl_config!(Test);
-pallet_gear::impl_config!(Test, DebugInfo = pallet_gear_debug::Pallet<Test>, ProgramRentEnabled = ConstBool<false>);
+pallet_gear::impl_config!(Test, DebugInfo = pallet_gear_debug::Pallet<Test>);
 pallet_gear_gas::impl_config!(Test);
 
 // Build genesis storage according to the mock runtime.
