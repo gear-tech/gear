@@ -240,9 +240,10 @@ fn run_runtime(
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
     let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+    let code_metadata = db.code_metadata(code_id);
 
     executor
-        .run(db, program_id, code_id, state_hash, instrumented_code)
+        .run(db, program_id, state_hash, instrumented_code, code_metadata)
         .expect("Some error occurs while running program in instance")
 }
 

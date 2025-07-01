@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBoundBuilder,
-    manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
-    Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    internal::HoldBoundBuilder, manager::ExtManager, Config, CostsPerBlockOf, CurrencyOf, Event,
+    GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf,
+    WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use alloc::format;
 use common::{
@@ -435,8 +434,7 @@ where
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = T::CodeStorage::get_code(code_id) {
-            let code_info = CodeInfo::from_code(&code_id, &code);
+        if T::CodeStorage::original_code_exists(code_id) {
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
@@ -469,7 +467,7 @@ where
                         WithdrawReasons::all(),
                     );
 
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    self.set_program(candidate_id, code_id, init_message, block_number);
 
                     Pallet::<T>::deposit_event(Event::ProgramChanged {
                         id: candidate_id,
