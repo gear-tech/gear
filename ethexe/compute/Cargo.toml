@@ -22,7 +22,6 @@ derive_more.workspace = true
 log.workspace = true
 
 [dev-dependencies]
-gear-core.workspace = true
 gear-utils.workspace = true
 wat.workspace = true
 wasmparser.workspace = true
