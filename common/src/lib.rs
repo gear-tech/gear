@@ -226,24 +226,6 @@ pub trait BlockLimiter {
     type GasAllowance: storage::Limiter<Value = Self::Balance>;
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub struct CodeMetadata {
-    pub author: H256,
-    #[codec(compact)]
-    pub block_number: u32,
-}
-
-impl CodeMetadata {
-    pub fn new(author: H256, block_number: u32) -> Self {
-        CodeMetadata {
-            author,
-            block_number,
-        }
-    }
-}
-
 /// A trait whose purpose is to extract the `Call` variant of an extrinsic
 pub trait ExtractCall<Call> {
     fn extract_call(&self) -> Call;

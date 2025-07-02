@@ -18,7 +18,7 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use super::{ExtManager, GenuineProgram, Program, TestActor};
+use super::{ExtManager, Program, TestActor};
 use crate::{
     manager::hold_bound::HoldBoundBuilder,
     program::ProgramBuilder,
@@ -99,7 +99,7 @@ impl JournalHandler for ExtManager {
             let actor =
                 actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
 
-            if let TestActor::Initialized(Program::Genuine(program)) =
+            if let TestActor::Initialized(program) =
                 std::mem::replace(actor, TestActor::Exited(value_destination))
             {
                 for (reservation_id, slot) in program.gas_reservation_map {
@@ -133,7 +133,8 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = Actors::is_user(dispatch.destination());
+        let to_user = Actors::is_user(dispatch.destination())
+            && !self.no_code_program.contains(&dispatch.destination());
         if delay > 0 {
             log::debug!(
                 "[{message_id}] new delayed dispatch#{} with delay for {delay} blocks",
@@ -147,7 +148,8 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = Actors::is_program(dispatch.destination());
+        let is_program = Actors::is_program(dispatch.destination())
+            || self.no_code_program.contains(&dispatch.destination());
 
         if is_program {
             let gas_limit = dispatch.gas_limit();
@@ -260,7 +262,7 @@ impl JournalHandler for ExtManager {
     }
 
     fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
-        self.update_genuine_program(program_id, |program| {
+        self.update_program(program_id, |program| {
             program
                 .allocations
                 .difference(&allocations)
@@ -296,17 +298,17 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
             for (init_message_id, candidate_id) in candidates {
                 if !Actors::contains_key(candidate_id) {
-                    let (instrumented, _) =
+                    let (_, instrumented_code_and_metadata) =
                         ProgramBuilder::build_instrumented_code_and_id(code.clone());
                     self.store_new_actor(
                         candidate_id,
-                        Program::Genuine(GenuineProgram {
-                            code: instrumented,
-                            code_id,
+                        Program {
+                            code: instrumented_code_and_metadata.instrumented_code,
+                            code_metadata: instrumented_code_and_metadata.metadata,
                             allocations: Default::default(),
                             pages_data: Default::default(),
                             gas_reservation_map: Default::default(),
-                        }),
+                        },
                         Some(init_message_id),
                     );
 
@@ -319,7 +321,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                Actors::insert(invalid_candidate_id, TestActor::CodeNotExists);
+                self.no_code_program.insert(invalid_candidate_id);
             }
         }
     }
@@ -425,7 +427,7 @@ impl JournalHandler for ExtManager {
 
     fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         let block_height = self.block_height();
-        self.update_genuine_program(program_id, |program| {
+        self.update_program(program_id, |program| {
             program.gas_reservation_map =
                 reserver.into_map(block_height, |duration| block_height + duration);
         })
