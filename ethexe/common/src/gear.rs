@@ -120,7 +120,7 @@ impl ToDigest for OperatorRewardsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let OperatorRewardsCommitment { amount, root } = self;
 
-        hasher.update(<[u8; 32]>::from(*amount));
+        hasher.update(amount.to_little_endian());
         hasher.update(root);
     }
 }
@@ -150,10 +150,10 @@ impl ToDigest for StakerRewardsCommitment {
             .iter()
             .for_each(|StakerRewards { vault, amount }| {
                 hasher.update(vault);
-                hasher.update(<[u8; 32]>::from(*amount));
+                hasher.update(amount.to_little_endian());
             });
 
-        hasher.update(<[u8; 32]>::from(*total_amount));
+        hasher.update(total_amount.to_little_endian());
         hasher.update(token);
     }
 }

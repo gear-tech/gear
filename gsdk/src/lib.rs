@@ -18,6 +18,7 @@
 
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![allow(clippy::result_large_err)]
 
 //! Gear api
 pub use crate::{
