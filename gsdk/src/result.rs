@@ -91,8 +91,6 @@ pub enum Error {
     #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]
-    SubxtRpcErr(#[from] subxt_rpcs::Error),
-    #[error(transparent)]
     SubxtRpc(#[from] jsonrpsee::core::ClientError),
     #[error("Page {0} of Program {1} was not found in the storage.")]
     PageNotFound(u32, String),

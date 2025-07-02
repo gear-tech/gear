@@ -64,7 +64,7 @@ impl Inner {
     pub(crate) fn log_status(status: &TxStatus) {
         match status {
             TxStatus::Validated => log::info!("\tStatus: Validated"),
-            TxStatus::Broadcasted => log::info!("\tStatus: Broadcasted"),
+            TxStatus::Broadcasted { num_peers } => log::info!("\tStatus: Broadcast( {num_peers} )"),
             TxStatus::NoLongerInBestBlock => log::info!("\tStatus: NoLongerInBestBlock"),
             TxStatus::InBestBlock(b) => log::info!(
                 "\tStatus: InBestBlock( block hash: {}, extrinsic hash: {} )",

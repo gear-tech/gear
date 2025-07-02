@@ -29,7 +29,9 @@ use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
 pub enum BacktraceStatus {
     Validated,
     NoLongerInBestBlock,
-    Broadcasted,
+    Broadcasted {
+        num_peers: u32,
+    },
     InBestBlock {
         block_hash: H256,
         extrinsic_hash: H256,
@@ -54,7 +56,9 @@ impl<'s> From<&'s TxStatus> for BacktraceStatus {
         match status {
             TxStatus::Validated => BacktraceStatus::Validated,
             TxStatus::NoLongerInBestBlock => BacktraceStatus::NoLongerInBestBlock,
-            TxStatus::Broadcasted => BacktraceStatus::Broadcasted,
+            TxStatus::Broadcasted { num_peers } => BacktraceStatus::Broadcasted {
+                num_peers: *num_peers,
+            },
             TxStatus::InBestBlock(b) => BacktraceStatus::InBestBlock {
                 block_hash: b.block_hash(),
                 extrinsic_hash: b.extrinsic_hash(),

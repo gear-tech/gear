@@ -24,7 +24,7 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use sp_core::H256;
-use subxt_rpcs::rpc_params;
+use subxt::rpc_params;
 
 impl Api {
     /// gear_calculateInitCreateGas

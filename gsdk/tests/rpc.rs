@@ -27,8 +27,7 @@ use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{utils::H256, Error as SubxtError};
-use subxt_rpcs::Error as RpcError;
+use subxt::{error::RpcError, utils::H256, Error as SubxtError};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -50,13 +49,13 @@ async fn pallet_errors_formatting() -> Result<()> {
         .await
         .expect_err("Must return error");
 
-    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(
-        subxt::error::RpcError::ClientError(RpcError::Client(Box::new(ErrorObject::owned(
+    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(RpcError::ClientError(Box::new(
+        ErrorObject::owned(
             8000,
             "Runtime error",
             Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
-        )))),
-    )));
+        ),
+    )))));
 
     assert_eq!(format!("{err}"), format!("{expected_err}"));
 
@@ -290,7 +289,7 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
         None::<String>,
     );
 
-    if let SubxtError::Rpc(e) = *wasm_blob_version_err {
+    if let SubxtError::Rpc(RpcError::ClientError(e)) = *wasm_blob_version_err {
         assert_eq!(e.to_string(), err.to_string());
         return Ok(());
     }
