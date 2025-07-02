@@ -341,6 +341,7 @@ fn generate_impls(metadata: &Metadata) -> TokenStream {
                         "system" => "frame_system".into(),
                         "fellowship_collective" => "pallet_ranked_collective".into(),
                         "fellowship_referenda" => "pallet_referenda".into(),
+                        "multi_block_migrations" => "pallet_migrations".into(),
                         "staking_rewards" => "pallet_gear_staking_rewards".into(),
                         _ => "pallet_".to_string() + &pallet_name,
                     }

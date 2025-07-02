@@ -12710,6 +12710,9 @@ pub mod exports {
     pub mod nomination_pools {
         pub use super::runtime_types::pallet_nomination_pools::pallet::Event;
     }
+    pub mod multi_block_migrations {
+        pub use super::runtime_types::pallet_migrations::pallet::Event;
+    }
     pub mod sudo {
         pub use super::runtime_types::pallet_sudo::pallet::Event;
     }
