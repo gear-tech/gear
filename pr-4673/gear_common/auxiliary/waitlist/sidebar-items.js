@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["WaitlistErrorImpl"],"struct":["WaitlistStorageWrap"],"type":["AuxiliaryWaitlist","WaitlistedMessage"]};
