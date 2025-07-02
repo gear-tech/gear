@@ -38,17 +38,11 @@ url = { workspace = true, features = ["serde"] }
 toml.workspace = true
 
 [dev-dependencies]
-rand.workspace = true
 demo-messenger.workspace = true
 demo-fungible-token.workspace = true
-demo-waiter.workspace = true
 gear-node-wrapper.workspace = true
 
 [build-dependencies]
-which.workspace = true
-
-[features]
-embed = []
 
 [package.metadata.docs.rs]
 all-features = true

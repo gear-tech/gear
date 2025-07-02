@@ -38,7 +38,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, storage::*, CodeStorage, Origin, ProgramStorage};
+    use common::{self, storage::*, CodeId, CodeStorage, Origin, ProgramStorage};
     use core::fmt;
     use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
     use frame_system::pallet_prelude::*;
@@ -102,7 +102,7 @@ pub mod pallet {
     pub struct ProgramInfo {
         pub static_pages: WasmPagesAmount,
         pub persistent_pages: BTreeMap<GearPage, PageBuf>,
-        pub code_hash: H256,
+        pub code_hash: CodeId,
     }
 
     impl fmt::Debug for ProgramInfo {
@@ -226,8 +226,8 @@ pub mod pallet {
                             };
                         }
                     };
-                    let static_pages = match T::CodeStorage::get_code(active.code_hash.cast()) {
-                        Some(code) => code.static_pages(),
+                    let static_pages = match T::CodeStorage::get_code_metadata(active.code_id) {
+                        Some(code_metadata) => code_metadata.static_pages(),
                         None => 0.into(),
                     };
                     let persistent_pages =
@@ -239,7 +239,7 @@ pub mod pallet {
                             ProgramState::Active(ProgramInfo {
                                 static_pages,
                                 persistent_pages,
-                                code_hash: active.code_hash,
+                                code_hash: active.code_id,
                             })
                         },
                     }

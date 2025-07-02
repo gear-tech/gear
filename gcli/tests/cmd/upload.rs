@@ -19,7 +19,7 @@
 //! Integration tests for command `upload`
 
 use crate::common::{
-    self, env,
+    self,
     node::{Convert, NodeExec},
     Args, Result,
 };
@@ -36,7 +36,11 @@ async fn test_command_upload_works() -> Result<()> {
         .signer("//Alice", None)?;
     let code_id = CodeId::generate(demo_fungible_token::WASM_BINARY);
     assert!(
-        signer.api().code_storage(code_id).await.is_err(),
+        signer
+            .api()
+            .instrumented_code_storage(code_id)
+            .await
+            .is_err(),
         "code should not exist"
     );
 
@@ -44,7 +48,7 @@ async fn test_command_upload_works() -> Result<()> {
 
     let output = node.run(
         Args::new("upload")
-            .program(env::wasm_bin("demo_fungible_token.opt.wasm"))
+            .program_stdin(demo_fungible_token::WASM_BINARY)
             .payload(payload),
     )?;
     assert!(
@@ -52,11 +56,15 @@ async fn test_command_upload_works() -> Result<()> {
             .stdout
             .convert()
             .contains("Submitted Gear::upload_program"),
-        "code should be uploaded, but got: {}",
+        "code should be uploaded, but got: '{}'",
         output.stderr.convert()
     );
     assert!(
-        signer.api().code_storage(code_id).await.is_ok(),
+        signer
+            .api()
+            .instrumented_code_storage(code_id)
+            .await
+            .is_ok(),
         "code should exist"
     );
 
@@ -69,7 +77,7 @@ async fn test_command_upload_code_works() -> Result<()> {
     let output = node.run(
         Args::new("upload")
             .flag("--code-only")
-            .program(env::wasm_bin("demo_fungible_token.opt.wasm")),
+            .program_stdin(demo_fungible_token::WASM_BINARY),
     )?;
 
     assert!(

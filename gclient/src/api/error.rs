@@ -41,10 +41,10 @@ pub enum Error {
     EventsStopped,
     /// A wrapper around [`subxt::error::Error`].
     #[error(transparent)]
-    Subxt(SubxtError),
+    Subxt(Box<SubxtError>),
     /// Subxt core error
     #[error(transparent)]
-    SubxtCore(#[from] subxt::ext::subxt_core::Error),
+    SubxtCore(#[from] Box<subxt::ext::subxt_core::Error>),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -129,16 +129,28 @@ impl From<SubxtError> for Error {
             return Error::Module(m.into());
         }
 
-        Error::Subxt(e)
+        Error::Subxt(Box::new(e))
     }
 }
 
 impl From<GearSDKError> for Error {
     fn from(e: GearSDKError) -> Self {
-        if let GearSDKError::Subxt(SubxtError::Runtime(DispatchError::Module(m))) = e {
-            return Error::Module(m.into());
-        }
+        let e = if let GearSDKError::Subxt(e) = e {
+            if let SubxtError::Runtime(DispatchError::Module(m)) = *e {
+                return Error::Module(m.into());
+            }
+
+            GearSDKError::Subxt(e)
+        } else {
+            e
+        };
 
         Error::GearSDK(e)
+    }
+}
+
+impl From<subxt::ext::subxt_core::Error> for Error {
+    fn from(value: subxt::ext::subxt_core::Error) -> Self {
+        Self::SubxtCore(Box::new(value))
     }
 }

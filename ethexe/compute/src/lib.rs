@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
 use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     SimpleBlockData,
 };
 use ethexe_db::Database;
-use ethexe_processor::{BlockProcessingResult, Processor};
+use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
@@ -45,6 +44,35 @@ pub enum ComputeEvent {
     BlockPrepared(H256),
     BlockProcessed(BlockProcessed),
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum ComputeError {
+    #[error("block({0}) requested to process, but it's not prepared")]
+    BlockNotPrepared(H256),
+    #[error("block({0}) not synced")]
+    BlockNotSynced(H256),
+    #[error("not found events for block({0})")]
+    BlockEventsNotFound(H256),
+    #[error("block header not found for synced block({0})")]
+    BlockHeaderNotFound(H256),
+    #[error("process code join error")]
+    CodeProcessJoin(#[from] tokio::task::JoinError),
+    #[error("block outcome not set for computed block({0})")]
+    ParentNotFound(H256),
+    #[error("code({0}) marked as validated, but not found in db")]
+    ValidatedCodeNotFound(CodeId),
+    #[error("codes queue nоt found for computed block({0})")]
+    CodesQueueNotFound(H256),
+    #[error("commitment queue not found for computed block({0})")]
+    CommitmentQueueNotFound(H256),
+    #[error("previous commitment not found for computed block ({0})")]
+    PreviousCommitmentNotFound(H256),
+
+    #[error(transparent)]
+    Processor(#[from] ProcessorError),
+}
+
+type Result<T> = std::result::Result<T, ComputeError>;
 
 #[derive(Debug, Clone)]
 enum BlockAction {
@@ -81,16 +109,18 @@ impl Stream for ComputeService {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
-                Ok(Ok(code_id)) => {
-                    if let BlockPreparationState::WaitForCodes { waiting_codes, .. } =
-                        &mut self.state
+                Ok(res) => {
+                    if let (
+                        Ok(code_id),
+                        BlockPreparationState::WaitForCodes { waiting_codes, .. },
+                    ) = (&res, &mut self.state)
                     {
-                        waiting_codes.remove(&code_id);
+                        waiting_codes.remove(code_id);
                     }
-                    return Poll::Ready(Some(Ok(ComputeEvent::CodeProcessed(code_id))));
+
+                    return Poll::Ready(Some(res.map(ComputeEvent::CodeProcessed)));
                 }
-                Ok(Err(e)) => return Poll::Ready(Some(Err(anyhow!("process code error: {e}")))),
-                Err(e) => return Poll::Ready(Some(Err(anyhow!("process codes join error: {e}")))),
+                Err(e) => return Poll::Ready(Some(Err(ComputeError::CodeProcessJoin(e)))),
             }
         }
 
@@ -108,10 +138,8 @@ impl Stream for ComputeService {
                     return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes_to_load))));
                 }
                 Some(BlockAction::Process(block)) => {
-                    if !self.db.block_prepared(block) {
-                        return Poll::Ready(Some(Err(anyhow!(
-                            "block {block:?} requested to process, but it's not prepared"
-                        ))));
+                    if !self.db.block_meta(block).prepared {
+                        return Poll::Ready(Some(Err(ComputeError::BlockNotPrepared(block))));
                     }
 
                     let context = ChainHeadProcessContext {
@@ -129,23 +157,23 @@ impl Stream for ComputeService {
             chain,
             waiting_codes,
         } = &self.state
+            && waiting_codes.is_empty()
         {
-            if waiting_codes.is_empty() {
-                for block_data in chain {
-                    self.db.set_block_prepared(block_data.hash);
-                }
-
-                let event = ComputeEvent::BlockPrepared(*block);
-                self.state = BlockPreparationState::WaitForBlock;
-                return Poll::Ready(Some(Ok(event)));
+            for block_data in chain {
+                self.db
+                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
             }
+
+            let event = ComputeEvent::BlockPrepared(*block);
+            self.state = BlockPreparationState::WaitForBlock;
+            return Poll::Ready(Some(Ok(event)));
         }
 
-        if let Some(fut) = self.process_block.as_mut() {
-            if let Poll::Ready(res) = fut.poll_unpin(cx) {
-                self.process_block = None;
-                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
-            }
+        if let Some(fut) = self.process_block.as_mut()
+            && let Poll::Ready(res) = fut.poll_unpin(cx)
+        {
+            self.process_block = None;
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         Poll::Pending
@@ -193,9 +221,9 @@ impl ComputeService {
             let mut processor = self.processor.clone();
 
             self.process_codes.spawn_blocking(move || {
-                processor
+                Ok(processor
                     .process_upload_code_raw(code_id, &code)
-                    .map(|_valid| code_id)
+                    .map(|_valid| code_id)?)
             });
         }
     }
@@ -231,7 +259,7 @@ impl ComputeService {
         let events = self
             .db
             .block_events(block)
-            .ok_or(anyhow!("observer must set block events"))?;
+            .ok_or(ComputeError::BlockEventsNotFound(block))?;
 
         let mut validated_codes = HashSet::new();
         let mut codes_to_load = HashSet::new();
@@ -284,10 +312,10 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         let events = self
             .db
             .block_events(block)
-            .ok_or_else(|| anyhow!("events not found for synced block {block}"))?;
+            .ok_or(ComputeError::BlockEventsNotFound(block))?;
 
         let parent = header.parent_hash;
-        if !self.db.block_computed(parent) {
+        if !self.db.block_meta(parent).computed {
             unreachable!("Parent block {parent} must be computed before the current one {block}",);
         }
         let mut commitments_queue =
@@ -317,7 +345,8 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         self.db.set_block_outcome(block, transitions);
         self.db.set_block_program_states(block, states);
         self.db.set_block_schedule(block, schedule);
-        self.db.set_block_computed(block);
+        self.db
+            .mutate_block_meta(block, |meta| meta.computed = true);
         self.db.set_latest_computed_block(block, header);
 
         Ok(())
@@ -332,11 +361,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         // Propagate prev commitment (prev not empty block hash or zero for genesis).
         if db
             .block_outcome_is_empty(parent)
-            .ok_or_else(|| anyhow!("emptiness not found for computed block {parent}"))?
+            .ok_or(ComputeError::ParentNotFound(block))?
         {
             let parent_prev_commitment = db
                 .previous_not_empty_block(parent)
-                .ok_or_else(|| anyhow!("prev commitment not found for computed block {parent}"))?;
+                .ok_or(ComputeError::PreviousCommitmentNotFound(parent))?;
             db.set_previous_not_empty_block(block, parent_prev_commitment);
         } else {
             db.set_previous_not_empty_block(block, parent);
@@ -364,13 +393,13 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         // Propagate `wait for commitment` blocks queue
         let mut blocks_queue = db
             .block_commitment_queue(parent)
-            .ok_or_else(|| anyhow!("commitment queue not found for computed block {parent}"))?;
+            .ok_or(ComputeError::CommitmentQueueNotFound(parent))?;
         blocks_queue.retain(|hash| !committed_blocks_in_current.contains(hash));
 
         // Propagate `wait for code validation` blocks queue
         let mut codes_queue = db
             .block_codes_queue(parent)
-            .ok_or_else(|| anyhow!("codes queue not found for computed block {parent}"))?;
+            .ok_or(ComputeError::CodesQueueNotFound(parent))?;
         codes_queue.retain(|code_id| !validated_codes_in_current.contains(code_id));
         codes_queue.extend(requested_codes_in_current);
         db.set_block_codes_queue(block, codes_queue);
@@ -382,14 +411,17 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
     fn collect_not_computed_blocks_chain(db: &DB, head: H256) -> Result<Vec<SimpleBlockData>> {
         let mut block = head;
         let mut chain = vec![];
-        while !db.block_computed(block) {
-            if !db.block_is_synced(block) {
-                return Err(anyhow!("Block {block} is not synced, but must be"));
+
+        // Optimization to avoid double fetching of block meta.
+        let mut block_meta = db.block_meta(block);
+        while !block_meta.computed {
+            if !block_meta.synced {
+                return Err(ComputeError::BlockNotSynced(block));
             }
 
             let header = db
                 .block_header(block)
-                .ok_or_else(|| anyhow!("header not found for synced block {block}"))?;
+                .ok_or(ComputeError::BlockHeaderNotFound(block))?;
 
             let parent = header.parent_hash;
 
@@ -399,6 +431,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
             });
 
             block = parent;
+            block_meta = db.block_meta(block);
         }
 
         Ok(chain)
@@ -463,7 +496,7 @@ mod tests {
     fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
         let genesis_hash = H256::random();
         db.set_block_codes_queue(genesis_hash, Default::default());
-        db.set_block_computed(genesis_hash);
+        db.mutate_block_meta(genesis_hash, |meta| meta.computed = true);
         db.set_block_outcome(genesis_hash, vec![]);
         db.set_previous_not_empty_block(genesis_hash, H256::random());
         db.set_block_commitment_queue(genesis_hash, Default::default());
@@ -481,7 +514,7 @@ mod tests {
                 parent_hash,
             };
             db.set_block_header(block_hash, block_header);
-            db.set_block_is_synced(block_hash);
+            db.mutate_block_meta(block_hash, |meta| meta.synced = true);
             chain.push_back(block_hash);
             parent_hash = block_hash;
         }

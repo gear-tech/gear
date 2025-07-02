@@ -44,14 +44,14 @@ extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
 fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
-    let (program_id, original_code_id, state_root, maybe_instrumented_code, gas_allowance) =
+    let (program_id, state_root, maybe_instrumented_code, maybe_code_metadata, gas_allowance) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
     let (program_journals, gas_spent) = run::run(
         program_id,
-        original_code_id,
         state_root,
         maybe_instrumented_code,
+        maybe_code_metadata,
         gas_allowance,
     );
 

@@ -32,7 +32,6 @@ enum-iterator.workspace = true
 byteorder.workspace = true
 num-traits.workspace = true
 numerated.workspace = true
-primitive-types = { workspace = true, features = ["scale-info"] }
 
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }

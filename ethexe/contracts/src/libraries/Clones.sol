@@ -9,7 +9,7 @@ library Clones {
     }
 
     function cloneDeterministic(address router, bytes32 salt, uint256 value) internal returns (address instance) {
-        uint256 size = 0x02b4;
+        uint256 size = 0x02c4;
         uint256 memPtr = Memory.allocate(size);
 
         /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
@@ -39,7 +39,7 @@ library Clones {
             (0x60e01b5f5260205f600481730000000000000000000000000000000000000000) | (uint256(uint160(router)))
         );
         Memory.writeWord(memPtr, 0x02a0, 0x5afa156100dc575f808051368280378136915af43d5f803e156102ae573d5ff3);
-        Memory.writeWord(memPtr, 0x02b0, 0x5b3d5ffd00000000000000000000000000000000000000000000000000000000);
+        Memory.writeWord(memPtr, 0x02c0, 0x5b3d5ffd00000000000000000000000000000000000000000000000000000000);
 
         assembly ("memory-safe") {
             instance := create2(value, memPtr, size, salt)

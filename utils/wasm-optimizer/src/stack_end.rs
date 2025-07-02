@@ -52,7 +52,7 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &'static str> 
     }
 
     if let Instruction::I32Const(literal) = init_code[0] {
-        log::debug!("stack pointer init == {:#x}", literal);
+        log::debug!("stack pointer init == {literal:#x}");
         let export_section = module
             .export_section
             .as_mut()
@@ -155,7 +155,7 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
         mut_globals.push((index, global_initial_data));
     }
 
-    log::trace!("mutable globals are {:?}", mut_globals);
+    log::trace!("mutable globals are {mut_globals:?}");
 
     let data_end_offset = handle_global_init_data(
         module
@@ -168,7 +168,7 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
         |_| Err("Wrong data section initial data instruction"),
     )??;
 
-    log::trace!("data section end offset == {:#x}", data_end_offset);
+    log::trace!("data section end offset == {data_end_offset:#x}");
 
     let mut own_module = module.clone();
     let mut global_data_offset = data_end_offset;
@@ -191,10 +191,7 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
             as u32;
 
         log::trace!(
-            "make get/set global functions {} and {} for global {}",
-            get_global_function_index,
-            set_global_function_index,
-            index
+            "make get/set global functions {get_global_function_index} and {set_global_function_index} for global {index}"
         );
 
         // Bypass all instructions in module and replace global.get and global.set
@@ -232,11 +229,7 @@ pub fn move_mut_globals_to_static(module: &mut Module) -> Result<(), &'static st
             .get_mut(data_end_index as usize)
             .expect("We have already find data end global earlier"),
         |c| {
-            log::debug!(
-                "Change data end offset from {:#x} to {:#x}",
-                c,
-                global_data_offset
-            );
+            log::debug!("Change data end offset from {c:#x} to {global_data_offset:#x}");
             *c = global_data_offset as i32;
         },
         |_| unreachable!("Data end global has i32 value, which has been already checked"),

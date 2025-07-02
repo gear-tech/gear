@@ -183,7 +183,7 @@ pub fn initialize_for_program(
 
         ctx.set_execution_context(execution_ctx);
 
-        log::trace!("Initialize lazy-pages for current program: {:?}", ctx);
+        log::trace!("Initialize lazy-pages for current program: {ctx:?}");
 
         Ok(())
     })

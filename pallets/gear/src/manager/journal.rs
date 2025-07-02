@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBoundBuilder,
-    manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
-    Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    internal::HoldBoundBuilder, manager::ExtManager, Config, CostsPerBlockOf, CurrencyOf, Event,
+    GasAllowanceOf, GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf,
+    WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
 };
 use alloc::format;
 use common::{
@@ -64,7 +63,7 @@ where
 
         let status = match outcome {
             Exit { program_id } => {
-                log::trace!("Dispatch outcome exit: {:?}", message_id);
+                log::trace!("Dispatch outcome exit: {message_id:?}");
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
@@ -74,12 +73,12 @@ where
                 DispatchStatus::Success
             }
             Success => {
-                log::trace!("Dispatch outcome success: {:?}", message_id);
+                log::trace!("Dispatch outcome success: {message_id:?}");
 
                 DispatchStatus::Success
             }
             MessageTrap { program_id, trap } => {
-                log::trace!("Dispatch outcome trap: {:?}", message_id);
+                log::trace!("Dispatch outcome trap: {message_id:?}");
                 log::debug!(
                     "🪤 Program {} terminated with a trap: {}",
                     program_id.into_origin(),
@@ -89,11 +88,7 @@ where
                 DispatchStatus::Failed
             }
             InitSuccess { program_id, .. } => {
-                log::trace!(
-                    "Dispatch ({:?}) init success for program {:?}",
-                    message_id,
-                    program_id
-                );
+                log::trace!("Dispatch ({message_id:?}) init success for program {program_id:?}");
 
                 let expiration =
                     ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
@@ -142,7 +137,7 @@ where
                 DispatchStatus::Failed
             }
             NoExecution => {
-                log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
+                log::trace!("Dispatch ({message_id:?}) for program wasn't executed");
 
                 DispatchStatus::NotExecuted
             }
@@ -154,7 +149,7 @@ where
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
+        log::debug!("Burned: {amount:?} from: {message_id:?}");
 
         GasAllowanceOf::<T>::decrease(amount);
 
@@ -366,11 +361,7 @@ where
             return;
         }
 
-        log::debug!(
-            "Attempt to wake unknown message {:?} from {:?}",
-            awakening_id,
-            message_id
-        );
+        log::debug!("Attempt to wake unknown message {awakening_id:?} from {message_id:?}");
     }
 
     fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
@@ -445,8 +436,7 @@ where
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = T::CodeStorage::get_code(code_id) {
-            let code_info = CodeInfo::from_code(&code_id, &code);
+        if T::CodeStorage::original_code_exists(code_id) {
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
@@ -479,7 +469,7 @@ where
                         WithdrawReasons::all(),
                     );
 
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    self.set_program(candidate_id, code_id, init_message, block_number);
 
                     Pallet::<T>::deposit_event(Event::ProgramChanged {
                         id: candidate_id,
@@ -488,14 +478,11 @@ where
                         },
                     });
                 } else {
-                    log::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!("Program with id {candidate_id:?} already exists");
                 }
             }
         } else {
-            log::debug!(
-                "No referencing code with code hash {:?} for candidate programs",
-                code_id
-            );
+            log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             // SAFETY:
             // Do not remove insertion into programs map as it gives guarantee
             // that init message for destination with no code won't enter
@@ -539,11 +526,7 @@ where
         duration: u32,
     ) {
         log::debug!(
-            "Reserved: {:?} from {:?} with {:?} for {} blocks",
-            amount,
-            message_id,
-            reservation_id,
-            duration
+            "Reserved: {amount:?} from {message_id:?} with {reservation_id:?} for {duration} blocks"
         );
 
         let hold = HoldBoundBuilder::<T>::new(StorageType::Reservation)
@@ -653,7 +636,7 @@ where
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Reserve {} of gas for system from {}", amount, message_id);
+        log::debug!("Reserve {amount} of gas for system from {message_id}");
 
         GasHandlerOf::<T>::system_reserve(message_id, amount).unwrap_or_else(|e| {
             let err_msg = format!(
@@ -678,11 +661,10 @@ where
         });
 
         if amount != 0 {
-            log::debug!("Unreserved {} gas for system from {}", amount, message_id);
+            log::debug!("Unreserved {amount} gas for system from {message_id}");
         } else {
             log::debug!(
-                "Gas for system was not unreserved from {} as there is no supply",
-                message_id
+                "Gas for system was not unreserved from {message_id} as there is no supply"
             );
         }
     }
