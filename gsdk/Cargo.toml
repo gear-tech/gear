@@ -27,6 +27,7 @@ log.workspace = true
 scale-value.workspace = true
 serde_json = { workspace = true, features = [ "std" ] }
 subxt.workspace = true
+subxt-rpcs.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" , "full_crypto"] }

@@ -33,15 +33,13 @@ use jsonrpsee::{
 };
 use sp_runtime::DeserializeOwned;
 use std::{ops::Deref, result::Result as StdResult, time::Duration};
-use subxt::{
-    backend::{
-        legacy::LegacyRpcMethods,
-        rpc::{
-            RawRpcFuture as RpcFuture, RawRpcSubscription as RpcSubscription, RawValue,
-            RpcClient as SubxtRpcClient, RpcClientT, RpcParams,
-        },
+use subxt::backend::legacy::LegacyRpcMethods;
+use subxt_rpcs::{
+    client::{
+        RawRpcFuture as RpcFuture, RawRpcSubscription as RpcSubscription, RawValue,
+        RpcClient as SubxtRpcClient, RpcClientT, RpcParams,
     },
-    error::RpcError,
+    Error as RpcError,
 };
 
 const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
@@ -99,10 +97,10 @@ impl RpcClientT for RpcClient {
             let res = match self {
                 RpcClient::Http(c) => ClientT::request(c, method, Params(params))
                     .await
-                    .map_err(|e| RpcError::ClientError(Box::new(e)))?,
+                    .map_err(|e| RpcError::Client(Box::new(e)))?,
                 RpcClient::Ws(c) => ClientT::request(c, method, Params(params))
                     .await
-                    .map_err(|e| RpcError::ClientError(Box::new(e)))?,
+                    .map_err(|e| RpcError::Client(Box::new(e)))?,
             };
             Ok(res)
         })
@@ -127,9 +125,7 @@ impl RpcClientT for RpcClient {
                 _ => None,
             };
 
-            let stream = stream
-                .map_err(|e| RpcError::ClientError(Box::new(e)))
-                .boxed();
+            let stream = stream.map_err(|e| RpcError::Client(Box::new(e))).boxed();
 
             Ok(RpcSubscription { stream, id })
         })
@@ -145,7 +141,7 @@ async fn subscription_stream<C: SubscriptionClientT>(
 ) -> StdResult<Subscription<Box<RawValue>>, RpcError> {
     SubscriptionClientT::subscribe::<Box<RawValue>, _>(client, sub, Params(params), unsub)
         .await
-        .map_err(|e| RpcError::ClientError(Box::new(e)))
+        .map_err(|e| RpcError::Client(Box::new(e)))
 }
 
 /// RPC client for Gear API.
