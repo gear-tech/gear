@@ -133,9 +133,9 @@ jobs:
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
-        partition: [1, 2, 3, 4]
+        partition: [1, 2, 3, 4, 5]
       fail-fast: false
-    name: test-workspace [${{ matrix.partition }}/4] (${{ matrix.profiles.name }})
+    name: test-workspace [${{ matrix.partition }}/5] (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Free disk space"
         uses: jlumbroso/free-disk-space@main
@@ -189,7 +189,7 @@ jobs:
           --workspace-remap=${{ github.workspace }}
           --extract-to=${{ github.workspace }}
           --extract-overwrite
-          --partition hash:${{ matrix.partition }}/4
+          --partition hash:${{ matrix.partition }}/5
           -E 'not package(/fuzz/)'
 
   # unoptimized benchmark tests take a few hours to run,
