@@ -203,7 +203,7 @@ impl Manifest {
         let mut mutable_manifest = original_manifest.clone();
 
         // Complete documentation as from <https://docs.rs>
-        let name = pkg.name.clone();
+        let name = pkg.name.clone().into_inner();
         mutable_manifest["package"]["documentation"] =
             toml_edit::value(format!("https://docs.rs/{name}"));
 
