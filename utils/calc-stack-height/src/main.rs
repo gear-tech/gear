@@ -58,7 +58,8 @@ fn main() -> anyhow::Result<()> {
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
-    let module = Module::new(&store, code.code()).context("Failed to create initial module")?;
+    let module = Module::new(&store, code.instrumented_code().bytes())
+        .context("Failed to create initial module")?;
 
     let mut imports = Imports::new();
     let mut exports = Exports::new();
@@ -128,7 +129,8 @@ fn main() -> anyhow::Result<()> {
         )
         .context("Code error")?;
 
-        let module = Module::new(&store, code.code()).context("Failed to create module")?;
+        let module = Module::new(&store, code.instrumented_code().bytes())
+            .context("Failed to create module")?;
         let instance =
             Instance::new(&mut store, &module, &imports).context("Failed to instantiate module")?;
         let init = instance
