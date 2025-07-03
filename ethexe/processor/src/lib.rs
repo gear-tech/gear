@@ -22,7 +22,7 @@ use ethexe_common::{
     db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    ProgramStates, Schedule,
+    CodeAndIdUnchecked, ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -167,20 +167,12 @@ impl Processor {
         OverlaidProcessor(self)
     }
 
-    pub fn process_upload_code(
-        &mut self,
-        code_id: CodeId,
-        code: &[u8],
-    ) -> Result<Vec<LocalOutcome>> {
-        let valid = self.process_upload_code_raw(code_id, code)?;
+    pub fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
+        log::debug!("Processing upload code {code_and_id:?}");
 
-        Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
-    }
+        let CodeAndIdUnchecked { code, code_id } = code_and_id;
 
-    pub fn process_upload_code_raw(&mut self, code_id: CodeId, code: &[u8]) -> Result<bool> {
-        log::debug!("Processing upload code {code_id:?}");
-
-        let valid = code_id == CodeId::generate(code) && self.handle_new_code(code)?.is_some();
+        let valid = code_id == CodeId::generate(&code) && self.handle_new_code(code)?.is_some();
 
         self.db.set_code_valid(code_id, valid);
 

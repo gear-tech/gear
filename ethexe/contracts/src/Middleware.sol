@@ -96,7 +96,10 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _validateStorage($);
     }
 
+    /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize() public onlyOwner reinitializer(2) {
+        __Ownable_init(owner());
+
         Storage storage oldStorage = _storage();
 
         _setStorageSlot("middleware.storage.MiddlewareV2");
@@ -265,7 +268,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         }
 
         IDefaultOperatorRewards($.operatorRewards).distributeRewards($.router, token, amount, root);
-        return keccak256(abi.encodePacked(token, amount, root));
+
+        return keccak256(abi.encodePacked(amount, root));
     }
 
     function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment, uint48 timestamp)

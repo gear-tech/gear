@@ -20,16 +20,13 @@ use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
 use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
-    BlobData, BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
+    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
-use ethexe_common::{
-    ecdsa::{PublicKey, SignedData},
-    ProducerBlock,
-};
+use ethexe_common::ecdsa::PublicKey;
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
@@ -87,8 +84,8 @@ pub struct Service {
 // TODO #4176: consider to move this to another module
 #[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
-    ProducerBlock(SignedData<ProducerBlock>),
-    RequestBatchValidation(SignedData<BatchCommitmentValidationRequest>),
+    ProducerBlock(SignedProducerBlock),
+    RequestBatchValidation(SignedValidationRequest),
     ApproveBatch(BatchCommitmentValidationReply),
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
@@ -107,7 +104,7 @@ impl Service {
 
         let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
             let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new(db.clone(), storage.clone());
+            let blob_loader = LocalBlobLoader::new(storage.clone());
 
             (blob_loader.into_box(), Some(storage))
         } else {
@@ -367,22 +364,18 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(synced_block) => {
-                        // NOTE: Observer guarantees that, if this event is emitted,
-                        // then from latest synced block and up to `block_hash`:
-                        // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
+                    ObserverEvent::BlockSynced(data) => {
+                        // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
+                        // then from latest synced block and up to `data.block_hash`:
+                        // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block(synced_block.block_hash);
-                        consensus.receive_synced_block(synced_block)?;
+                        compute.prepare_block(data.block_hash);
+                        consensus.receive_synced_block(data)?;
                     }
                 },
                 Event::BlobLoader(event) => match event {
-                    BlobLoaderEvent::BlobLoaded(BlobData {
-                        code_id,
-                        timestamp,
-                        code,
-                    }) => {
-                        compute.process_code(code_id, timestamp, code);
+                    BlobLoaderEvent::BlobLoaded(code_and_id) => {
+                        compute.process_code(code_and_id);
                     }
                 },
                 Event::Compute(event) => match event {
