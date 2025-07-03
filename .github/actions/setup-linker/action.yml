@@ -1,14 +1,12 @@
 runs:
   using: composite
   steps:
-    - uses: awalsh128/cache-apt-pkgs-action@latest
-      if: ${{ runner.os == 'Linux' }}
-      with:
-        packages: mold
-
     - name: "Setup linker on Linux"
       if: ${{ runner.os == 'Linux' }}
       run: |
+        sudo apt update
+        sudo apt install -y mold
+        
         targets=("X86_64_UNKNOWN_LINUX_GNU" "X86_64_UNKNOWN_LINUX_MUSL" "AARCH64_UNKNOWN_LINUX_GNU" "AARCH64_UNKNOWN_LINUX_MUSL")
         for target in "${targets[@]}"
         do
