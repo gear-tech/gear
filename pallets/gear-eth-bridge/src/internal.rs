@@ -58,7 +58,7 @@ impl EthMessageExt for EthMessage {
     /// Returns hash of the message using `Keccak256` hasher.
     fn hash(&self) -> H256 {
         let mut nonce = [0; 32];
-        self.nonce().to_little_endian(&mut nonce);
+        self.nonce().to_big_endian(&mut nonce);
 
         let bytes = [
             nonce.as_ref(),
