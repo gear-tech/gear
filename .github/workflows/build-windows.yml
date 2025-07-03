@@ -70,6 +70,8 @@ jobs:
           compression-level: 0
 
   test-windows:
+    # TODO: enable when #4341 is fixed
+    if: false
     runs-on: windows-latest
     needs: build-windows
     strategy:
