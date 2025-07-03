@@ -25,6 +25,7 @@ async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
+itertools.workspace = true
 
 [dependencies.libp2p]
 version = "0.55.0"
@@ -34,3 +35,4 @@ features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "reques
 libp2p-swarm-test = { version = "0.5.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
+assert_matches.workspace = true
