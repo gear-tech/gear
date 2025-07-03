@@ -6201,6 +6201,7 @@ name = "gear-core-errors"
 version = "1.8.1"
 dependencies = [
  "enum-iterator 1.5.0",
+ "parity-scale-codec",
  "scale-info",
  "serde",
  "thiserror 2.0.12",

@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::*;
 use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
 use gear_core::code::{CodeMetadata, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT};
-use task::get_maximum_task_gas;
-
-use super::*;
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -189,7 +187,7 @@ impl ExtManager {
                 // decreasing allowance due to DB deletion
                 self.on_task_pool_change();
 
-                let max_task_gas = get_maximum_task_gas(&task);
+                let max_task_gas = task::get_maximum_task_gas(&task);
                 log::debug!(
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );

@@ -38,3 +38,4 @@ demo-ping.workspace = true
 demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
