@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GasMultiplier"],"mod":["event","gas_provider","storage"]};
