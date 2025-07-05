@@ -52,10 +52,11 @@ jobs:
           no-vendored: 'false'
 
       - name: "ACTIONS: Setup caching"
-        uses: ./.github/actions/sccache
+        uses: ./.github/actions/rust-cache
         with:
           aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
           aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.profiles.name }}"
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

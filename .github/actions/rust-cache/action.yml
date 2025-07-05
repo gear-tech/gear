@@ -7,6 +7,12 @@ inputs:
   aws-secret-access-key:
     required: true
     description: AWS Secret Access Key
+  key:
+    required: false
+    description: Cache key
+  workspaces:
+    required: false
+    description: Workspaces to cache
 
 runs:
   using: composite
@@ -23,3 +29,10 @@ runs:
         echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
       shell: bash
+    - uses: gear-tech/rust-cache@s3
+      with:
+        key: ${{ inputs.key }}
+        workspaces: ${{ inputs.workspaces }}
+        cache-provider: 's3'
+      env:
+        SWATINEM_RUST_CACHE_S3_BUCKET: gear-ci
