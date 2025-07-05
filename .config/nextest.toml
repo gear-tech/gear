@@ -17,11 +17,11 @@ path = "junit.xml"
 
 # sdk
 [[profile.ci.overrides]]
-filter = 'package(gclient) or package(gsdk)'
+filter = 'package(gclient) or package(gsdk) or package(gcli)'
 retries = 5
 
 [[profile.ci.scripts]]
-filter = 'package(gclient) or package(gsdk)'
+filter = 'package(gclient) or package(gsdk) or package(gcli)'
 platform = "cfg(unix)"
 setup = "restore-node-permissions"
 
