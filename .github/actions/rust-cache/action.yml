@@ -26,6 +26,7 @@ runs:
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         
+        echo "AWS_REGION=us-west-2" >> $GITHUB_ENV
         echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
       shell: bash
