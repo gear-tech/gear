@@ -1,4 +1,13 @@
 name: sccache
+
+inputs:
+  aws-access-key-id:
+    required: true
+    description: AWS Access Key ID
+  aws-secret-access-key:
+    required: true
+    description: AWS Secret Access Key
+
 runs:
   using: composite
   steps:
@@ -11,6 +20,6 @@ runs:
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+        echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
       shell: bash
