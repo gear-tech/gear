@@ -14,9 +14,11 @@ concurrency:
 jobs:
   check:
     uses: ./.github/workflows/check.yml
+    secrets: inherit
 
   build:
     uses: ./.github/workflows/build.yml
+    secrets: inherit
     with:
       macos: true
       windows: true

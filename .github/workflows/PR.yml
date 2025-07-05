@@ -12,9 +12,11 @@ concurrency:
 jobs:
   check:
     uses: ./.github/workflows/check.yml
+    secrets: inherit
 
   build:
     uses: ./.github/workflows/build.yml
+    secrets: inherit
     with:
       macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
       windows: ${{ contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
