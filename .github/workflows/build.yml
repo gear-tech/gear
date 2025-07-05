@@ -108,9 +108,7 @@ jobs:
           no-vendored: 'false'
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          key: ${{ matrix.targets.target }}
+        uses: ./.github/actions/sccache
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked

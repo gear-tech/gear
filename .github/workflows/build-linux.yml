@@ -40,7 +40,7 @@ jobs:
           no-vendored: 'true'
 
       - name: Cache
-        uses: gear-tech/rust-cache@metadata
+        uses: ./.github/actions/sccache
 
       - name: Test docs
         run: ./scripts/gear.sh test docs
@@ -86,9 +86,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          key: "${{ matrix.profiles.name }}"
+        uses: ./.github/actions/sccache
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1

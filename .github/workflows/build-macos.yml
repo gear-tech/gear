@@ -52,10 +52,7 @@ jobs:
           no-vendored: 'false'
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          key: "${{ matrix.profiles.name }}"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
+        uses: ./.github/actions/sccache
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

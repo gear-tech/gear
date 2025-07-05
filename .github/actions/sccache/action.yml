@@ -1,0 +1,16 @@
+name: sccache
+runs:
+  using: composite
+  steps:
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - run: |
+        echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
+        echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
+        echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
+        
+        echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        
+        echo "AWS_ACCESS_KEY_ID=${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+      shell: bash

@@ -125,10 +125,7 @@ jobs:
           no-vendored: 'true'
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          key: "${{ matrix.name }}"
-          #save-if: ${{ github.ref == 'refs/heads/master' }}
+        uses: ./.github/actions/sccache
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
@@ -151,13 +148,7 @@ jobs:
           targets: wasm32v1-none
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          #save-if: ${{ github.ref == 'refs/heads/master' }}
-          workspaces: |
-            . -> target
-            utils/wasm-builder/test-program -> target
-            utils/cargo-gbuild/test-program -> target
+        uses: ./.github/actions/sccache
 
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
@@ -199,10 +190,7 @@ jobs:
           no-vendored: 'true'
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          key: "${{ matrix.name }}"
-          #save-if: ${{ github.ref == 'refs/heads/master' }}
+        uses: ./.github/actions/sccache
 
       - name: "Build: Vara runtime and wasm-proc"
         run: cargo build -p vara-runtime -p wasm-proc --release
@@ -244,10 +232,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Setup caching"
-        uses: gear-tech/rust-cache@metadata
-        with:
-          key: "${{ matrix.name }}"
-          #save-if: ${{ github.ref == 'refs/heads/master' }}
+        uses: ./.github/actions/sccache
 
       - run: cargo run -p calc-stack-height --release --locked
 
