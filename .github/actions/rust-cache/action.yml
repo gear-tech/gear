@@ -30,7 +30,7 @@ runs:
         echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
       shell: bash
-    - uses: gear-tech/rust-cache@s3
+    - uses: gear-tech/rust-cache@aws-s3
       with:
         key: ${{ inputs.key }}
         workspaces: ${{ inputs.workspaces }}
