@@ -131,6 +131,7 @@ jobs:
   linux:
     needs: [dynamic-matrix, node]
     uses: ./.github/workflows/build-linux.yml
+    secrets: inherit
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
       production: ${{ inputs.production }}
@@ -139,6 +140,7 @@ jobs:
     needs: [dynamic-matrix, node, linux]
     if: ${{ inputs.windows }}
     uses: ./.github/workflows/build-windows.yml
+    secrets: inherit
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
 
@@ -146,5 +148,6 @@ jobs:
     needs: [dynamic-matrix, node, linux]
     if: ${{ inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
