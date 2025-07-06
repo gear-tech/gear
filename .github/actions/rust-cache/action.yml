@@ -42,8 +42,9 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-cargo-${{ inputs.key }}-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ github.job }}-cargo-${{ inputs.key }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('.cargo/config.toml') }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-${{ inputs.key }}-
+          ${{ github.job }}-cargo-${{ inputs.key }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('.cargo/config.toml') }}-
+          ${{ github.job }}-cargo-${{ inputs.key }}-${{ hashFiles('rust-toolchain.toml') }}-
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
