@@ -10,7 +10,6 @@ inputs:
   key:
     required: false
     description: Cache key
-    default: "default_key"
   workspaces:
     required: false
     description: Workspaces to cache
@@ -34,31 +33,10 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
-    - name: "Prepare cache key"
-      id: cache-key
-      run: |
-        echo ${{ github.workflow }} >> ${{ runner.temp }}/rust-cache-key.txt
-        echo ${{ github.job }}   >> ${{ runner.temp }}/rust-cache-key.txt
-        echo ${{ inputs.key }}   >> ${{ runner.temp }}/rust-cache-key.txt
-        echo $(rustc --version)  >> ${{ runner.temp }}/rust-cache-key.txt
-        echo $CARGO_BUILD_TARGET >> ${{ runner.temp }}/rust-cache-key.txt
-        echo $CARGO_ENCODED_RUSTFLAGS >> ${{ runner.temp }}/rust-cache-key.txt
-        echo $RUSTFLAGS          >> ${{ runner.temp }}/rust-cache-key.txt
-        cat rust-toolchain.toml  >> ${{ runner.temp }}/rust-cache-key.txt || true
-        cat .cargo/config.toml   >> ${{ runner.temp }}/rust-cache-key.txt || true
-        echo "value=$(git hash-object ${{ runner.temp }}/rust-cache-key.txt)" >> $GITHUB_OUTPUT
-      shell: bash
-
-    - uses: runs-on/cache@v4
+    - uses: gear-tech/rust-cache@runs-on
       with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: cargo-${{ steps.cache-key.outputs.value }}-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          cargo-${{ steps.cache-key.outputs.value }}-
+        key: ${{ inputs.key }}
+        workspaces: ${{ inputs.workspaces }}
+        cache-provider: 's3'
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
