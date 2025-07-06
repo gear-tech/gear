@@ -46,7 +46,7 @@ runs:
         echo $RUSTFLAGS          >> ${{ runner.temp }}/rust-cache-key.txt
         cat rust-toolchain.toml  >> ${{ runner.temp }}/rust-cache-key.txt || true
         cat .cargo/config.toml   >> ${{ runner.temp }}/rust-cache-key.txt || true
-        echo "value=$(git hash-object /tmp/rust-cache-key.txt)" >> $GITHUB_OUTPUT
+        echo "value=$(git hash-object ${{ runner.temp }}/rust-cache-key.txt)" >> $GITHUB_OUTPUT
       shell: bash
 
     - uses: runs-on/cache@v4
