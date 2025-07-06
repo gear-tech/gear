@@ -18,6 +18,12 @@ inputs:
 runs:
   using: composite
   steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: 'us-west-2'
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+
     - uses: mozilla-actions/sccache-action@v0.0.9
     - run: |
         echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
@@ -26,12 +32,9 @@ runs:
         
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-        
-        echo "AWS_REGION=us-west-2" >> $GITHUB_ENV
-        echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
       shell: bash
-    - uses: whywaita/actions-cache-s3@v2
+
+    - uses: runs-on/cache@v4
       with:
         path: |
           ~/.cargo/bin/
@@ -42,7 +45,5 @@ runs:
         key: ${{ runner.os }}-cargo-${{ inputs.key }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-${{ inputs.key }}-
-        aws-s3-bucket: gear-ci
-        aws-access-key-id: ${{ inputs.aws-access-key-id }}
-        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
-        aws-region: us-west-2
+      env:
+        RUNS_ON_S3_BUCKET_CACHE: gear-ci
