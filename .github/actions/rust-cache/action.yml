@@ -10,6 +10,7 @@ inputs:
   key:
     required: false
     description: Cache key
+    default: "default_key"
   workspaces:
     required: false
     description: Workspaces to cache
@@ -30,10 +31,18 @@ runs:
         echo "AWS_ACCESS_KEY_ID=${{ inputs.aws-access-key-id }}" >> $GITHUB_ENV
         echo "AWS_SECRET_ACCESS_KEY=${{ inputs.aws-secret-access-key }}" >> $GITHUB_ENV
       shell: bash
-    - uses: gear-tech/rust-cache@aws-s3
+    - uses: whywaita/actions-cache-s3@v2
       with:
-        key: ${{ inputs.key }}
-        workspaces: ${{ inputs.workspaces }}
-        cache-provider: 's3'
-      env:
-        SWATINEM_RUST_CACHE_S3_BUCKET: gear-ci
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ inputs.key }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ inputs.key }}-
+        aws-s3-bucket: gear-ci
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: us-west-2
