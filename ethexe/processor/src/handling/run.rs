@@ -154,7 +154,8 @@ pub async fn run(
         }
 
         for chunk in chunks {
-            for (program_id, state_hash, _) in chunk {
+            let chunk_len = chunk.len();
+            for (thread_id, (program_id, state_hash, _)) in chunk.into_iter().enumerate() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -171,29 +172,34 @@ pub async fn run(
                         state_hash,
                         gas_allowance_for_chunk,
                     );
-                    (program_id, new_state_hash, jn, gas_spent)
+                    (thread_id, program_id, new_state_hash, jn, gas_spent)
                 });
             }
 
             let mut max_gas_spent_in_chunk = 0u64;
-            let mut chunk_journal = Vec::new();
+            let mut chunk_journals = vec![None; chunk_len];
             while let Some(result) = join_set
                 .join_next()
                 .await
                 .transpose()
                 .expect("Failed to join task")
             {
-                let (program_id, new_state_hash, program_journals, gas_spent) = result;
+                let (thread_id, program_id, new_state_hash, program_journals, gas_spent) = result;
 
-                chunk_journal.push((program_id, new_state_hash, program_journals));
-                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
-            }
-
-            for (program_id, new_state_hash, program_journals) in chunk_journal {
-                // State was updated during journal handling inside the runtime (allocations, pages)
+                // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
+                // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
                 in_block_transitions.modify(program_id, |state, _| {
                     state.hash = new_state_hash;
                 });
+
+                chunk_journals[thread_id] = Some((program_id, program_journals));
+                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
+            }
+
+            for program_journals in chunk_journals {
+                let Some((program_id, program_journals)) = program_journals else {
+                    unreachable!("Program journal is `None`, this should never happen");
+                };
 
                 for (journal, dispatch_origin, call_reply) in program_journals {
                     let mut journal_handler = JournalHandler {
@@ -215,7 +221,7 @@ pub async fn run(
             allowance_counter.charge(max_gas_spent_in_chunk);
 
             if is_out_of_gas_for_block {
-                // Out of gas for block, stopping processing
+                // Ran out of gas for the block, stopping processing.
                 break;
             }
         }
