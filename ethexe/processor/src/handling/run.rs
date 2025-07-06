@@ -155,7 +155,7 @@ pub async fn run(
 
         for chunk in chunks {
             let chunk_len = chunk.len();
-            for (thread_id, (program_id, state_hash, _)) in chunk.into_iter().enumerate() {
+            for (thread_id, (program_id, state_hash)) in chunk.into_iter().enumerate() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -233,7 +233,7 @@ pub async fn run(
 fn split_to_chunks(
     chunk_size: usize,
     states: Vec<(ActorId, StateHashWithQueueSize)>,
-) -> Vec<Vec<(ActorId, H256, usize)>> {
+) -> Vec<Vec<(ActorId, H256)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
         debug_assert_ne!(queue_size, 0);
@@ -253,7 +253,7 @@ fn split_to_chunks(
     {
         let queue_size = cached_queue_size as usize;
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
-        chunks[chunk_idx].push((actor_id, hash, queue_size));
+        chunks[chunk_idx].push((actor_id, hash));
     }
 
     chunks
@@ -295,6 +295,8 @@ fn run_runtime(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use gprimitives::ActorId;
 
     use super::*;
@@ -305,13 +307,21 @@ mod tests {
         const CHUNK_PROCESSING_THREADS: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
 
+        let mut i = 0;
+        let mut states_to_queue_size = HashMap::new();
+
         let states = Vec::from_iter(
             std::iter::repeat_with(|| {
+                i += 1;
+                let hash = H256::from_low_u64_le(i);
+                let cached_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+                states_to_queue_size.insert(hash, cached_queue_size as usize);
+
                 (
-                    ActorId::from(0),
+                    ActorId::from(i),
                     StateHashWithQueueSize {
-                        hash: H256::zero(),
-                        cached_queue_size: (rand::random::<u8>() % MAX_QUEUE_SIZE + 1),
+                        hash,
+                        cached_queue_size,
                     },
                 )
             })
@@ -326,7 +336,11 @@ mod tests {
             .map(|chunk| {
                 chunk
                     .into_iter()
-                    .map(|(_, _, queue_size)| queue_size)
+                    .map(|(_, hash)| {
+                        states_to_queue_size
+                            .get(&hash)
+                            .expect("State hash must be in the map")
+                    })
                     .sum::<usize>()
             })
             .collect::<Vec<_>>();
