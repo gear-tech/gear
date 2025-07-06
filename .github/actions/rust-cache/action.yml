@@ -35,6 +35,7 @@ runs:
       shell: bash
 
     - name: "Prepare cache key"
+      id: cache-key
       run: |
         echo ${{ github.workflow }} >> ${{ runner.temp }}/rust-cache-key.txt
         echo ${{ github.job }}   >> ${{ runner.temp }}/rust-cache-key.txt
@@ -45,6 +46,7 @@ runs:
         echo $RUSTFLAGS          >> ${{ runner.temp }}/rust-cache-key.txt
         cat rust-toolchain.toml  >> ${{ runner.temp }}/rust-cache-key.txt || true
         cat .cargo/config.toml   >> ${{ runner.temp }}/rust-cache-key.txt || true
+        echo "value=$(git hash-object /tmp/rust-cache-key.txt)" >> $GITHUB_OUTPUT
       shell: bash
 
     - uses: runs-on/cache@v4
@@ -55,8 +57,8 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: cargo-${{ hashFiles(format('{0}/rust-cache-key.txt', runner.temp)) }}-${{ hashFiles('**/Cargo.lock') }}
+        key: cargo-${{ steps.cache-key.outputs.value }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          cargo-${{ hashFiles(format('{0}/rust-cache-key.txt', runner.temp)) }}-
+          cargo-${{ steps.cache-key.outputs.value }}-
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
