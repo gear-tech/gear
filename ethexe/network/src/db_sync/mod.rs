@@ -19,15 +19,13 @@
 mod requests;
 mod responses;
 
-use crate::utils::AlternateCollectionFmt;
+use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
 };
-
-use crate::db_sync::requests::OngoingRequests;
 use async_trait::async_trait;
 use ethexe_common::gear::CodeState;
 use ethexe_db::Database;
