@@ -487,7 +487,7 @@ impl CodesStorageWrite for Database {
                 let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
                 debug_assert_eq!(split_key_prefix, key_prefix);
                 let code_id =
-                    CodeId::try_from(code_id).expect("Failed to decode key into `ProgramId`");
+                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
 
                 #[cfg(debug_assertions)]
                 bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
