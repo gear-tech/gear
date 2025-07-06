@@ -59,7 +59,7 @@ pub(crate) struct OngoingRequests {
     connections: ConnectionMap,
     waker: Option<Waker>,
     request_id_counter: u64,
-    //
+    // used in requests themselves
     peer_score_handle: Handle,
     external_data_provider: Box<dyn ExternalDataProvider>,
     // config
