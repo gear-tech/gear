@@ -155,7 +155,7 @@ pub async fn run(
 
         for chunk in chunks {
             let chunk_len = chunk.len();
-            for (thread_id, (program_id, state_hash)) in chunk.into_iter().enumerate() {
+            for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -172,7 +172,7 @@ pub async fn run(
                         state_hash,
                         gas_allowance_for_chunk,
                     );
-                    (thread_id, program_id, new_state_hash, jn, gas_spent)
+                    (chunk_pos, program_id, new_state_hash, jn, gas_spent)
                 });
             }
 
@@ -184,7 +184,7 @@ pub async fn run(
                 .transpose()
                 .expect("Failed to join task")
             {
-                let (thread_id, program_id, new_state_hash, program_journals, gas_spent) = result;
+                let (chunk_pos, program_id, new_state_hash, program_journals, gas_spent) = result;
 
                 // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
                 // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
@@ -192,7 +192,7 @@ pub async fn run(
                     state.hash = new_state_hash;
                 });
 
-                chunk_journals[thread_id] = Some((program_id, program_journals));
+                chunk_journals[chunk_pos] = Some((program_id, program_journals));
                 max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
             }
 
