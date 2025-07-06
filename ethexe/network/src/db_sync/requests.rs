@@ -287,6 +287,16 @@ enum HashesResponseHandled {
     },
 }
 
+impl HashesResponseHandled {
+    fn stripped(&self) -> bool {
+        match self {
+            Self::Done { stripped, .. } => *stripped,
+            Self::NewRequest { stripped, .. } => *stripped,
+            Self::Err { stripped, .. } => *stripped,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum HashesResponseError {
     #[display("hash mismatch from provided data")]
@@ -500,46 +510,42 @@ impl ResponseHandler {
             ) => {
                 let processed =
                     Self::handle_hashes(acc, &original_request, &reduced_request, response);
-                let s;
-                let res = match processed {
-                    HashesResponseHandled::Done { response, stripped } => {
-                        s = stripped;
-                        Ok(Response::Hashes(response))
-                    }
-                    HashesResponseHandled::NewRequest {
-                        acc,
-                        new_request,
-                        stripped,
-                    } => {
-                        s = stripped;
-                        Err((
-                            Self::Hashes {
-                                acc,
-                                original_request,
-                                reduced_request: new_request,
-                            },
-                            ResponseError::NewRound,
-                        ))
-                    }
-                    HashesResponseHandled::Err { acc, err, stripped } => {
-                        s = stripped;
-                        Err((
-                            Self::Hashes {
-                                acc,
-                                original_request,
-                                reduced_request,
-                            },
-                            err.into(),
-                        ))
-                    }
-                };
 
-                if s {
+                if processed.stripped() {
                     log::debug!("data stripped in response from {peer}");
                     peer_score_handle.excessive_data(peer);
                 }
 
-                res
+                match processed {
+                    HashesResponseHandled::Done {
+                        response,
+                        stripped: _,
+                    } => Ok(Response::Hashes(response)),
+                    HashesResponseHandled::NewRequest {
+                        acc,
+                        new_request,
+                        stripped: _,
+                    } => Err((
+                        Self::Hashes {
+                            acc,
+                            original_request,
+                            reduced_request: new_request,
+                        },
+                        ResponseError::NewRound,
+                    )),
+                    HashesResponseHandled::Err {
+                        acc,
+                        err,
+                        stripped: _,
+                    } => Err((
+                        Self::Hashes {
+                            acc,
+                            original_request,
+                            reduced_request,
+                        },
+                        err.into(),
+                    )),
+                }
             }
             (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => {
                 Self::handle_program_ids(response, &request, external_data_provider)
