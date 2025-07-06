@@ -31,7 +31,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -39,7 +39,7 @@ use ethexe_runtime_common::state::{
 };
 use gear_core::{
     buffer::Payload,
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
     memory::PageBuf,
 };
@@ -57,13 +57,14 @@ enum Key {
 
     ProgramToCodeId(ActorId) = 5,
     InstrumentedCode(u32, CodeId) = 6,
-    CodeUploadInfo(CodeId) = 7,
-    CodeValid(CodeId) = 8,
+    CodeMetadata(CodeId) = 7,
+    CodeUploadInfo(CodeId) = 8,
+    CodeValid(CodeId) = 9,
 
-    SignedTransaction(H256) = 9,
+    SignedTransaction(H256) = 10,
 
-    LatestComputedBlock = 10,
-    LatestSyncedBlockHeight = 11,
+    LatestComputedBlock = 11,
+    LatestSyncedBlockHeight = 12,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -94,9 +95,9 @@ impl Key {
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
-            Self::CodeUploadInfo(code_id) | Self::CodeValid(code_id) => {
-                [prefix.as_ref(), code_id.as_ref()].concat()
-            }
+            Self::CodeMetadata(code_id)
+            | Self::CodeUploadInfo(code_id)
+            | Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
 
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
@@ -269,23 +270,16 @@ impl Database {
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
-    block_synced: bool,
-    block_pre_computed: bool,
-    block_computed: bool,
+    meta: BlockMeta,
     prev_not_empty_block: Option<H256>,
     commitment_queue: Option<VecDeque<H256>>,
     codes_queue: Option<VecDeque<CodeId>>,
 }
 
 impl BlockMetaStorageRead for Database {
-    fn block_prepared(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_pre_computed)
-            .unwrap_or(false)
-    }
-
-    fn block_computed(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_computed)
-            .unwrap_or(false)
+    fn block_meta(&self, block_hash: H256) -> BlockMeta {
+        self.with_small_data(block_hash, |data| data.meta)
+            .unwrap_or_default()
     }
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
@@ -347,14 +341,14 @@ impl BlockMetaStorageRead for Database {
 }
 
 impl BlockMetaStorageWrite for Database {
-    fn set_block_prepared(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set pre-computed");
-        self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
-    }
-
-    fn set_block_computed(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set block computed");
-        self.mutate_small_data(block_hash, |data| data.block_computed = true);
+    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
+    where
+        F: FnOnce(&mut BlockMeta),
+    {
+        log::trace!("For block {block_hash} mutate meta");
+        self.mutate_small_data(block_hash, |data| {
+            f(&mut data.meta);
+        });
     }
 
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
@@ -436,6 +430,15 @@ impl CodesStorageRead for Database {
             })
     }
 
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata> {
+        self.kv
+            .get(&Key::CodeMetadata(code_id).to_bytes())
+            .map(|data| {
+                CodeMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeMetadata`")
+            })
+    }
+
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
         self.kv
             .get(&Key::CodeValid(code_id).to_bytes())
@@ -461,6 +464,13 @@ impl CodesStorageWrite for Database {
         self.kv.put(
             &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
             code.encode(),
+        );
+    }
+
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        self.kv.put(
+            &Key::CodeMetadata(code_id).to_bytes(),
+            code_metadata.encode(),
         );
     }
 
@@ -638,11 +648,6 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn block_is_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_synced)
-            .unwrap_or(false)
-    }
-
     fn latest_synced_block_height(&self) -> Option<u32> {
         self.kv
             .get(&Key::LatestSyncedBlockHeight.to_bytes())
@@ -667,10 +672,6 @@ impl OnChainStorageWrite for Database {
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
-    fn set_block_is_synced(&self, block_hash: H256) {
-        self.mutate_small_data(block_hash, |data| data.block_synced = true);
-    }
-
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
@@ -683,7 +684,7 @@ mod tests {
     use ethexe_common::{
         ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
     };
-    use gear_core::code::InstantiatedSectionSizes;
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_offchain_transaction() {
@@ -986,8 +987,8 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        db.set_block_is_synced(block_hash);
-        assert!(db.block_is_synced(block_hash));
+        db.mutate_block_meta(block_hash, |meta| meta.synced = true);
+        assert!(db.block_meta(block_hash).synced);
     }
 
     #[test]
@@ -1024,23 +1025,56 @@ mod tests {
 
         let runtime_id = 1;
         let code_id = CodeId::default();
-        let instrumented_code = unsafe {
-            InstrumentedCode::new_unchecked(
-                vec![1, 2, 3, 4],
-                2,
-                Default::default(),
-                0.into(),
-                None,
-                InstantiatedSectionSizes::EMPTY,
-                1,
-            )
-        };
+        let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
+        let instrumented_code = InstrumentedCode::new(vec![1, 2, 3, 4], section_sizes);
         db.set_instrumented_code(runtime_id, code_id, instrumented_code.clone());
         assert_eq!(
             db.instrumented_code(runtime_id, code_id)
                 .as_ref()
-                .map(|c| c.code()),
-            Some(instrumented_code.code())
+                .map(|c| c.bytes()),
+            Some(instrumented_code.bytes())
+        );
+    }
+
+    #[test]
+    fn test_code_metadata() {
+        let db = Database::memory();
+
+        let code_id = CodeId::default();
+        let code_metadata = CodeMetadata::new(
+            1,
+            Default::default(),
+            0.into(),
+            None,
+            InstrumentationStatus::Instrumented {
+                version: 3,
+                code_len: 2,
+            },
+        );
+        db.set_code_metadata(code_id, code_metadata.clone());
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.original_code_len()),
+            Some(code_metadata.original_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumented_code_len()),
+            Some(code_metadata.instrumented_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumentation_status()),
+            Some(code_metadata.instrumentation_status())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instruction_weights_version()),
+            Some(code_metadata.instruction_weights_version())
         );
     }
 

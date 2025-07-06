@@ -190,6 +190,7 @@ impl Service {
         let processor = Processor::with_config(
             ProcessorConfig {
                 chunk_processing_threads: config.node.chunk_processing_threads,
+                block_gas_limit: config.node.block_gas_limit,
             },
             db.clone(),
         )

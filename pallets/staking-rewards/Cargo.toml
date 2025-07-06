@@ -32,7 +32,6 @@ frame-election-provider-support.workspace = true
 [dev-dependencies]
 sp-core = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
-sp-authority-discovery = { workspace = true, features = ["std"] }
 sp-npos-elections = { workspace = true, features = ["std"] }
 frame-election-provider-support = { workspace = true, features = ["std"] }
 pallet-treasury = { workspace = true, features = ["std"] }

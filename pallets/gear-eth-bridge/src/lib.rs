@@ -28,9 +28,11 @@
 #![allow(clippy::useless_conversion)]
 
 pub use builtin::Actor;
-pub use internal::{EthMessage, Proof};
 pub use pallet::*;
+pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
 pub use weights::WeightInfo;
+
+use internal::EthMessageExt;
 
 pub mod weights;
 
@@ -217,7 +219,8 @@ pub mod pallet {
     ///
     /// Keeps bridge's queued messages keccak hashes.
     #[pallet::storage]
-    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, QueueCapacityOf<T>>, ValueQuery>;
+    #[pallet::unbounded]
+    pub(crate) type Queue<T> = StorageValue<_, Vec<H256>, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -334,10 +337,11 @@ pub mod pallet {
             T::AccountId: Origin,
         {
             let source: ActorId = ensure_signed(origin.clone())?.cast();
+            let is_governance_origin = T::ControlOrigin::ensure_origin(origin).is_ok();
 
-            // Transfer fee
+            // Transfer fee or skip it if it's zero or governance origin.
             let fee = TransportFee::<T>::get();
-            if !fee.is_zero() {
+            if !(fee.is_zero() || is_governance_origin) {
                 let builtin_id = T::BuiltinAddress::get();
                 CurrencyOf::<T>::transfer(
                     &source.cast(),
@@ -347,7 +351,7 @@ pub mod pallet {
                 )?;
             }
 
-            Self::queue_message(source, destination, payload)?;
+            Self::queue_message(source, destination, payload, is_governance_origin)?;
 
             Ok(().into())
         }
@@ -372,6 +376,7 @@ pub mod pallet {
             source: ActorId,
             destination: H160,
             payload: Vec<u8>,
+            is_governance_origin: bool,
         ) -> Result<(U256, H256), Error<T>> {
             // Ensuring that pallet is initialized.
             ensure!(
@@ -388,17 +393,16 @@ pub mod pallet {
             // as well as checking payload size.
             let message = EthMessage::try_new(source, destination, payload)?;
 
-            // Appending hash of the message into the queue
-            // if it's capacity wasn't exceeded.
+            // Appending hash of the message into the queue,
+            // checks whether the queue capacity is exceeded,
+            // or skips the check when the origin is governance.
             let hash = Queue::<T>::mutate(|v| {
-                (v.len() < QueueCapacityOf::<T>::get() as usize)
+                (is_governance_origin || v.len() < QueueCapacityOf::<T>::get() as usize)
                     .then(|| {
                         let hash = message.hash();
-
-                        // Always `Ok`: check performed above as in inner implementation.
-                        v.try_push(hash).map(|()| hash).ok()
+                        v.push(hash);
+                        hash
                     })
-                    .flatten()
                     .ok_or(Error::<T>::QueueCapacityExceeded)
             })
             .inspect_err(|_| {

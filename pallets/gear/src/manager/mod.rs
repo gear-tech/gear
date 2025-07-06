@@ -67,15 +67,12 @@ use core::{fmt, mem};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{CodeAndId, InstrumentedCode},
     ids::{ActorId, CodeId, MessageId, ReservationId},
-    message::{DispatchKind, SignalMessage},
-    pages::WasmPagesAmount,
+    message::SignalMessage,
     program::{ActiveProgram, Program, ProgramState},
     reservation::GasReservationSlot,
     tasks::ScheduledTask,
 };
-use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
@@ -104,31 +101,6 @@ impl fmt::Debug for HandleKind {
             HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
             HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
             HandleKind::Signal(id, code) => f.debug_tuple("Signal").field(id).field(code).finish(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct CodeInfo {
-    id: H256,
-    exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPagesAmount,
-}
-
-impl CodeInfo {
-    pub fn from_code_and_id(code: &CodeAndId) -> Self {
-        Self {
-            id: code.code_id().into_origin(),
-            exports: code.code().exports().clone(),
-            static_pages: code.code().static_pages(),
-        }
-    }
-
-    pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
-        Self {
-            id: id.into_origin(),
-            exports: code.exports().clone(),
-            static_pages: code.static_pages(),
         }
     }
 }
@@ -211,7 +183,7 @@ where
     pub fn set_program(
         &self,
         program_id: ActorId,
-        code_info: &CodeInfo,
+        code_id: CodeId,
         message_id: MessageId,
         expiration_block: BlockNumberFor<T>,
     ) {
@@ -220,16 +192,14 @@ where
         //
         // Code can exist without program, but the latter can't exist without code.
         debug_assert!(
-            T::CodeStorage::exists(code_info.id.cast()),
+            T::CodeStorage::original_code_exists(code_id),
             "Program set must be called only when code exists",
         );
 
         // An empty program has been just constructed: it contains no mem allocations.
         let program = ActiveProgram {
             allocations_tree_len: 0,
-            code_hash: code_info.id,
-            code_exports: code_info.exports.clone(),
-            static_pages: code_info.static_pages,
+            code_id,
             state: ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
@@ -317,10 +287,7 @@ where
         });
         if reserved != 0 {
             log::debug!(
-                "Send signal issued by {} to {} with {} supply",
-                message_id,
-                destination,
-                reserved
+                "Send signal issued by {message_id} to {destination} with {reserved} supply"
             );
 
             // Creating signal message.

@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::SuccessfulDispatchResultKind;
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, gas::GasCounter, str::LimitedStr};
+use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
+use gear_core::code::{CodeMetadata, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT};
 use task::get_maximum_task_gas;
 
 use super::*;
@@ -48,6 +48,11 @@ impl ExtManager {
                 "Sending messages allowed only from users id. Please, provide user id as source."
             );
         }
+
+        assert!(
+            self.no_code_program.is_empty(),
+            "internal error: no code programs set is not empty"
+        );
 
         // User must exist
         if !Accounts::exists(source) {
@@ -132,6 +137,9 @@ impl ExtManager {
         let total_processed = self.process_messages();
 
         log::debug!("⚙️  Finalization of block #{new_block_bn}");
+
+        // Clean up no code programs for the next block
+        self.no_code_program.clear();
 
         BlockRunResult {
             block_info: self.blocks_manager.get(),
@@ -289,13 +297,14 @@ impl ExtManager {
 
         let balance = Accounts::reducible_balance(destination_id);
 
-        let context = match core_processor::precharge_for_program(
-            block_config,
-            self.gas_allowance,
-            dispatch.into_incoming(gas_limit),
+        let context = ContextCharged::new(
             destination_id,
-        ) {
-            Ok(dispatch) => dispatch,
+            dispatch.into_incoming(gas_limit),
+            self.gas_allowance,
+        );
+
+        let context = match context.charge_for_program(block_config) {
+            Ok(context) => context,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);
                 return;
@@ -306,38 +315,39 @@ impl ExtManager {
         enum Exec {
             Notes(Vec<JournalNote>),
             ExecutableActor(
-                (ExecutableActorData, InstrumentedCode),
-                ContextChargedForProgram,
+                (ExecutableActorData, InstrumentedCode, CodeMetadata),
+                ContextCharged<ForProgram>,
             ),
         }
 
         let exec = Actors::modify(destination_id, |actor| {
             use TestActor::*;
 
-            let actor = actor.unwrap_or_else(|| unreachable!("actor must exist for queue message"));
-
-            match actor {
-                Initialized(_) => {}
-                Uninitialized(_, _) => { /* uninit case is checked further */ }
-                FailedInit => {
+            let actor = match actor {
+                Some(existing_actor) => match existing_actor {
+                    Initialized(_) | Uninitialized(_, _) => existing_actor,
+                    FailedInit => {
+                        log::debug!(
+                            "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
+                        );
+                        return Exec::Notes(core_processor::process_failed_init(context));
+                    }
+                    Exited(inheritor) => {
+                        log::debug!(
+                            "Message {dispatch_id} is sent to exited program {destination_id}"
+                        );
+                        return Exec::Notes(core_processor::process_program_exited(
+                            context, *inheritor,
+                        ));
+                    }
+                },
+                None => {
                     log::debug!(
-                        "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
-                    );
-                    return Exec::Notes(core_processor::process_failed_init(context));
-                }
-                CodeNotExists => {
-                    log::debug!(
-                        "Message {dispatch_id} is sent to program {destination_id} which code does not exist"
+                        "Message {dispatch_id} is sent to program {destination_id} which does not exist"
                     );
                     return Exec::Notes(core_processor::process_code_not_exists(context));
                 }
-                Exited(inheritor) => {
-                    log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
-                    return Exec::Notes(core_processor::process_program_exited(
-                        context, *inheritor,
-                    ));
-                }
-            }
+            };
 
             if actor.is_initialized() && dispatch_kind.is_init() {
                 // Panic is impossible, because gear protocol does not provide functionality
@@ -379,13 +389,8 @@ impl ExtManager {
                 return Exec::Notes(core_processor::process_uninitialized(context));
             }
 
-            if let Some(data) = actor.get_executable_actor_data() {
+            if let Some(data) = actor.executable_actor_data() {
                 Exec::ExecutableActor(data, context)
-            } else if let Some(mut mock) = actor.take_mock() {
-                let journal = self.process_mock(&mut mock, context);
-                actor.set_mock(mock);
-
-                Exec::Notes(journal)
             } else {
                 unreachable!("invalid program state");
             }
@@ -393,10 +398,11 @@ impl ExtManager {
 
         let journal = match exec {
             Exec::Notes(journal) => journal,
-            Exec::ExecutableActor((actor_data, instrumented_code), context) => self
+            Exec::ExecutableActor((actor_data, instrumented_code, code_metadata), context) => self
                 .process_executable_actor(
                     actor_data,
                     instrumented_code,
+                    code_metadata,
                     block_config,
                     context,
                     balance,
@@ -410,145 +416,54 @@ impl ExtManager {
         &self,
         actor_data: ExecutableActorData,
         instrumented_code: InstrumentedCode,
+        code_metadata: CodeMetadata,
         block_config: &BlockConfig,
-        context: ContextChargedForProgram,
+        context: ContextCharged<ForProgram>,
         balance: Value,
     ) -> Vec<JournalNote> {
-        let context = match core_processor::precharge_for_allocations(
+        let context = match context.charge_for_code_metadata(block_config) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
+
+        let context = match context
+            .charge_for_instrumented_code(block_config, instrumented_code.bytes().len() as u32)
+        {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
+
+        let context = match context.charge_for_allocations(
             block_config,
-            context,
             actor_data.allocations.intervals_amount() as u32,
         ) {
             Ok(context) => context,
-            Err(journal) => {
-                return journal;
-            }
+            Err(journal) => return journal,
         };
 
-        let context =
-            match core_processor::precharge_for_code_length(block_config, context, actor_data) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-        let code_id = context.actor_data().code_id;
-        let code_len_bytes = self
-            .read_code(code_id)
-            .map(|code| code.len().try_into().expect("too big code len"))
-            .unwrap_or_else(|| unreachable!("can't find code for the existing code id {code_id}"));
-        let context =
-            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-        let context = match core_processor::precharge_for_module_instantiation(
+        let context = match context.charge_for_module_instantiation(
             block_config,
-            // No re-instrumentation
-            ContextChargedForInstrumentation::from(context),
+            actor_data,
             instrumented_code.instantiated_section_sizes(),
+            &code_metadata,
         ) {
             Ok(context) => context,
-            Err(journal) => {
-                return journal;
-            }
+            Err(journal) => return journal,
         };
 
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
-            (context, instrumented_code, balance).into(),
+            ProcessExecutionContext::new(
+                context,
+                InstrumentedCodeAndMetadata {
+                    instrumented_code,
+                    metadata: code_metadata,
+                },
+                balance,
+            ),
             self.random_data.clone(),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
-    }
-
-    fn process_mock(
-        &self,
-        mock: &mut Box<dyn WasmProgram>,
-        context: ContextChargedForProgram,
-    ) -> Vec<JournalNote> {
-        enum Mocked {
-            Reply(Option<Vec<u8>>),
-            Signal,
-        }
-
-        let (dispatch, program_id, gas_counter) = context.into_inner();
-        let payload = dispatch.payload_bytes().to_vec();
-
-        let response = match dispatch.kind() {
-            DispatchKind::Init => mock.init(payload).map(Mocked::Reply),
-            DispatchKind::Handle => mock.handle(payload).map(Mocked::Reply),
-            DispatchKind::Reply => mock.handle_reply(payload).map(|_| Mocked::Reply(None)),
-            DispatchKind::Signal => mock.handle_signal(payload).map(|_| Mocked::Signal),
-        };
-
-        match response {
-            Ok(Mocked::Reply(reply)) => {
-                let kind = DispatchResultKind::Success;
-                let (generated_dispatches, reply_sent) = reply
-                    .map(|payload| {
-                        let reply_message = ReplyMessage::from_packet(
-                            MessageId::generate_reply(dispatch.id()),
-                            ReplyPacket::new(payload.try_into().expect("too big payload"), 0),
-                        );
-                        let dispatch = reply_message.into_dispatch(
-                            program_id,
-                            dispatch.source(),
-                            dispatch.id(),
-                        );
-
-                        (vec![(dispatch, 0, None)], true)
-                    })
-                    .unwrap_or_default();
-                let dispatch_result = DispatchResult {
-                    kind,
-                    dispatch,
-                    program_id,
-                    generated_dispatches,
-                    gas_amount: gas_counter.to_amount(),
-                    reply_sent,
-                    ..default_dispatch_result()
-                };
-
-                core_processor::process_success(
-                    SuccessfulDispatchResultKind::Success,
-                    dispatch_result,
-                )
-            }
-            Ok(Mocked::Signal) => {
-                let kind = DispatchResultKind::Success;
-                let dispatch_result = DispatchResult {
-                    kind,
-                    dispatch,
-                    program_id,
-                    gas_amount: gas_counter.to_amount(),
-                    ..default_dispatch_result()
-                };
-
-                core_processor::process_success(
-                    SuccessfulDispatchResultKind::Success,
-                    dispatch_result,
-                )
-            }
-            Err(expl) => {
-                mock.debug(expl);
-
-                let err_reply_reason = ActorExecutionErrorReplyReason::Trap(
-                    TrapExplanation::Panic(LimitedStr::from_small_str(expl).into()),
-                );
-                core_processor::process_execution_error(
-                    dispatch,
-                    program_id,
-                    gas_counter.burned(),
-                    Default::default(),
-                    err_reply_reason,
-                )
-            }
-        }
     }
 
     fn block_config(&self) -> BlockConfig {
@@ -567,24 +482,5 @@ impl ExtManager {
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
-    }
-}
-
-fn default_dispatch_result() -> DispatchResult {
-    DispatchResult {
-        kind: DispatchResultKind::Success,
-        dispatch: Default::default(),
-        program_id: Default::default(),
-        context_store: Default::default(),
-        generated_dispatches: Default::default(),
-        awakening: Default::default(),
-        reply_deposits: Default::default(),
-        program_candidates: Default::default(),
-        gas_amount: GasCounter::new(0).to_amount(),
-        gas_reserver: Default::default(),
-        system_reservation_context: Default::default(),
-        page_update: Default::default(),
-        allocations: Default::default(),
-        reply_sent: Default::default(),
     }
 }

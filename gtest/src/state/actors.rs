@@ -21,14 +21,12 @@
 use std::{cell::RefCell, collections::BTreeMap, fmt};
 
 use core_processor::common::ExecutableActorData;
-use gear_common::{ActorId, CodeId, GearPage, MessageId, PageBuf};
+use gear_common::{ActorId, GearPage, MessageId, PageBuf};
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     pages::{numerated::tree::IntervalsTree, WasmPage},
     reservation::GasReservationMap,
 };
-
-use crate::WasmProgram;
 
 thread_local! {
     static ACTORS_STORAGE: RefCell<BTreeMap<ActorId, TestActor>> = RefCell::new(Default::default());
@@ -109,7 +107,6 @@ pub(crate) enum TestActor {
     // Contract: program is always `Some`, option is used to take ownership
     Uninitialized(Option<MessageId>, Option<Program>),
     FailedInit,
-    CodeNotExists,
     Exited(ActorId),
 }
 
@@ -147,96 +144,64 @@ impl TestActor {
     }
 
     // Returns `Some` if actor contains genuine program.
-    pub(crate) fn genuine_program(&self) -> Option<&GenuineProgram> {
+    pub(crate) fn program(&self) -> Option<&Program> {
         match self {
-            TestActor::Initialized(Program::Genuine(program))
-            | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
+            TestActor::Initialized(program) | TestActor::Uninitialized(_, Some(program)) => {
+                Some(program)
+            }
             _ => None,
         }
     }
 
     // Returns `Some` if actor contains genuine program but mutable.
-    pub(crate) fn genuine_program_mut(&mut self) -> Option<&mut GenuineProgram> {
+    pub(crate) fn program_mut(&mut self) -> Option<&mut Program> {
         match self {
-            TestActor::Initialized(Program::Genuine(program))
-            | TestActor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program),
+            TestActor::Initialized(program) | TestActor::Uninitialized(_, Some(program)) => {
+                Some(program)
+            }
             _ => None,
         }
     }
 
     // Returns pages data of genuine program.
-    pub(crate) fn get_pages_data(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
-        self.genuine_program().map(|program| &program.pages_data)
+    pub(crate) fn pages(&self) -> Option<&BTreeMap<GearPage, PageBuf>> {
+        self.program().map(|program| &program.pages_data)
     }
 
     // Returns pages data of genuine program but mutable.
-    pub(crate) fn get_pages_data_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
-        self.genuine_program_mut()
-            .map(|program| &mut program.pages_data)
-    }
-
-    // Takes ownership over mock program, putting `None` value instead of it.
-    pub(crate) fn take_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
-        match self {
-            TestActor::Initialized(Program::Mock(mock))
-            | TestActor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn set_mock(&mut self, mock: Box<dyn WasmProgram>) {
-        match self {
-            TestActor::Initialized(Program::Mock(maybe_mock_none))
-            | TestActor::Uninitialized(_, Some(Program::Mock(maybe_mock_none))) => {
-                *maybe_mock_none = Some(mock);
-            }
-            _ => {}
-        }
+    pub(crate) fn pages_mut(&mut self) -> Option<&mut BTreeMap<GearPage, PageBuf>> {
+        self.program_mut().map(|program| &mut program.pages_data)
     }
 
     // Gets a new executable actor derived from the inner program.
-    pub(crate) fn get_executable_actor_data(
+    pub(crate) fn executable_actor_data(
         &self,
-    ) -> Option<(ExecutableActorData, InstrumentedCode)> {
-        self.genuine_program()
-            .map(GenuineProgram::executable_actor_data)
+    ) -> Option<(ExecutableActorData, InstrumentedCode, CodeMetadata)> {
+        self.program().map(Program::executable_actor_data)
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct GenuineProgram {
-    pub code_id: CodeId,
+pub(crate) struct Program {
     pub code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
     pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub gas_reservation_map: GasReservationMap,
 }
 
-impl GenuineProgram {
-    pub(crate) fn executable_actor_data(&self) -> (ExecutableActorData, InstrumentedCode) {
+impl Program {
+    pub(crate) fn executable_actor_data(
+        &self,
+    ) -> (ExecutableActorData, InstrumentedCode, CodeMetadata) {
         (
             ExecutableActorData {
                 allocations: self.allocations.clone(),
-                code_id: self.code_id,
-                code_exports: self.code.exports().clone(),
-                static_pages: self.code.static_pages(),
                 gas_reservation_map: self.gas_reservation_map.clone(),
                 memory_infix: Default::default(),
             },
             self.code.clone(),
+            self.code_metadata.clone(),
         )
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum Program {
-    Genuine(GenuineProgram),
-    // Contract: is always `Some`, option is used to take ownership
-    Mock(Option<Box<dyn WasmProgram>>),
-}
-
-impl Program {
-    pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
-        Program::Mock(Some(Box::new(mock)))
     }
 }
