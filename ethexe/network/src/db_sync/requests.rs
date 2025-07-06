@@ -337,8 +337,7 @@ enum ResponseError {
 enum ResponseHandler {
     Hashes {
         acc: InnerHashesResponse,
-        original_request: HashesRequest,
-        reduced_request: HashesRequest,
+        request: HashesRequest,
     },
     ProgramIds {
         request: ProgramIdsRequest,
@@ -353,8 +352,7 @@ impl ResponseHandler {
         match request {
             Request::Hashes(request) => Self::Hashes {
                 acc: Default::default(),
-                original_request: request.clone(),
-                reduced_request: request,
+                request,
             },
             Request::ProgramIds(request) => Self::ProgramIds { request },
             Request::ValidCodes(request) => Self::ValidCodes { request },
@@ -364,7 +362,8 @@ impl ResponseHandler {
     fn inner_request(&self) -> InnerRequest {
         match self {
             ResponseHandler::Hashes {
-                reduced_request, ..
+                request: reduced_request,
+                ..
             } => InnerRequest::Hashes(reduced_request.clone()),
             ResponseHandler::ProgramIds {
                 request:
@@ -385,7 +384,6 @@ impl ResponseHandler {
 
     fn handle_hashes(
         mut acc: InnerHashesResponse,
-        original_request: &HashesRequest,
         reduced_request: &HashesRequest,
         new_response: InnerHashesResponse,
     ) -> HashesResponseHandled {
@@ -416,9 +414,9 @@ impl ResponseHandler {
                     // peer was unable to give this key
                     new_request.insert(key);
                 }
-                EitherOrBoth::Right((key, _value)) => {
+                EitherOrBoth::Right(_key) => {
                     // peer sent more keys than we requested
-                    stripped = !original_request.0.contains(&key);
+                    stripped = true;
                 }
             }
         }
@@ -503,13 +501,11 @@ impl ResponseHandler {
             (
                 Self::Hashes {
                     acc,
-                    original_request,
-                    reduced_request,
+                    request: reduced_request,
                 },
                 InnerResponse::Hashes(response),
             ) => {
-                let processed =
-                    Self::handle_hashes(acc, &original_request, &reduced_request, response);
+                let processed = Self::handle_hashes(acc, &reduced_request, response);
 
                 if processed.stripped() {
                     log::debug!("data stripped in response from {peer}");
@@ -528,8 +524,7 @@ impl ResponseHandler {
                     } => Err((
                         Self::Hashes {
                             acc,
-                            original_request,
-                            reduced_request: new_request,
+                            request: new_request,
                         },
                         ResponseError::NewRound,
                     )),
@@ -540,8 +535,7 @@ impl ResponseHandler {
                     } => Err((
                         Self::Hashes {
                             acc,
-                            original_request,
-                            reduced_request,
+                            request: reduced_request,
                         },
                         err.into(),
                     )),
@@ -773,8 +767,7 @@ mod tests {
             ]
             .into(),
         );
-        let processed =
-            ResponseHandler::handle_hashes(Default::default(), &request, &request, response);
+        let processed = ResponseHandler::handle_hashes(Default::default(), &request, response);
         let HashesResponseHandled::Done { response, stripped } = processed else {
             unreachable!("{processed:?}")
         };
@@ -791,8 +784,7 @@ mod tests {
 
         let request = HashesRequest([hash1].into());
         let response = InnerHashesResponse([(hash1, b"2".to_vec())].into());
-        let processed =
-            ResponseHandler::handle_hashes(Default::default(), &request, &request, response);
+        let processed = ResponseHandler::handle_hashes(Default::default(), &request, response);
         let HashesResponseHandled::Err { acc, err, stripped } = processed else {
             unreachable!("{processed:?}")
         };
