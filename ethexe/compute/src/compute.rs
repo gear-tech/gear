@@ -18,36 +18,68 @@
 
 use crate::{utils, BlockProcessed, ComputeError, ProcessorExt, Result};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead},
+    db::{
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
+        OnChainStorageRead,
+    },
     events::{BlockEvent, RouterEvent},
     gear::GearBlock,
-    SimpleBlockData,
+    ProducerBlock, SimpleBlockData,
 };
 use ethexe_processor::BlockProcessingResult;
 use gprimitives::H256;
 use std::collections::VecDeque;
 
+enum ComputationStatus {
+    Rejected,
+    Computed,
+}
+
 pub(crate) async fn compute<
-    DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead,
+    DB: BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + OnChainStorageRead
+        + AnnounceStorageRead
+        + AnnounceStorageWrite,
     P: ProcessorExt,
 >(
     db: DB,
     mut processor: P,
-    head: H256,
-) -> Result<BlockProcessed> {
-    for block_data in utils::collect_chain(&db, head, |meta| !meta.computed)? {
-        compute_one_block(&db, &mut processor, block_data).await?;
+    announce: ProducerBlock,
+) -> Result<ComputationStatus> {
+    if db.announce(announce.parent).is_none() {
+        log::warn!(
+            "{announce} is from unknown branch: parent {} not found",
+            announce.parent
+        );
+        return Ok(ComputationStatus::Rejected);
     }
-    Ok(BlockProcessed { block_hash: head })
+
+    let mut chain = VecDeque::new();
+    chain.push_back(announce);
+    let mut pred_hash = announce.parent;
+    while !db.announce_meta(pred_hash).computed {
+        let pred = db
+            .announce(pred)
+            .ok_or(ComputeError::AnnounceNotFound(pred))?;
+        chain.push_front(pred);
+        pred_hash = pred.parent;
+    }
+
+    for announce in chain {
+        compute_one(&db, &mut processor, announce).await?;
+    }
+
+    Ok(ComputationStatus::Computed)
 }
 
-async fn compute_one_block<
+async fn compute_one<
     DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead,
     P: ProcessorExt,
 >(
     db: &DB,
     processor: &mut P,
-    block_data: SimpleBlockData,
+    block_data: ProducerBlock,
 ) -> Result<()> {
     let SimpleBlockData {
         hash: block,
@@ -240,7 +272,7 @@ mod tests {
         // Setup block events
         db.set_block_events(block_hash, &[]);
 
-        let result = compute_one_block(&db, &mut processor, block_data).await;
+        let result = compute_one(&db, &mut processor, block_data).await;
 
         assert!(result.is_ok());
 
@@ -363,7 +395,7 @@ mod tests {
 
         // Set the PROCESSOR_RESULT to return non-empty result
         PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
-        let result = compute_one_block(&db, &mut processor, block_data).await;
+        let result = compute_one(&db, &mut processor, block_data).await;
 
         assert!(result.is_ok());
 

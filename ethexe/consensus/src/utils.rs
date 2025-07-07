@@ -312,6 +312,178 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
     data.iter().any(|item| !seen.insert(item))
 }
 
+// pub fn choose_announces_chain_head<
+//     DB: BlockMetaStorageRead + OnChainStorageRead + AnnounceStorage,
+// >(
+//     db: DB,
+//     head: &SimpleBlockData,
+//     genesis: &SimpleBlockData,
+// ) -> Result<()> {
+//     // Must be guarantied:
+//     // 1) `genesis` is from the same branch as `head`
+//     // 2) `head.number` > `genesis.number`
+
+//     const MAX_COMMITMENT_DELAY: u32 = 3;
+
+//     let mut counter = 0;
+//     let mut block = head.clone();
+//     let mut last_committed_announce = None;
+//     let mut announces_queue = VecDeque::new();
+//     while counter < MAX_COMMITMENT_DELAY && block.hash != genesis.hash {
+//         if let Some(announce) = db.block_meta(block.hash).producer_announce {
+//             announces_queue.push_back(announce);
+//         }
+
+//         if let Some(announce) = db
+//             .block_events(block.hash)
+//             .ok_or_else(|| {
+//                 anyhow::anyhow!("Cannot get from db events for synced block {}", block.hash)
+//             })?
+//             .into_iter()
+//             .filter_map(|event| {
+//                 if let BlockEvent::Router(RouterEvent::GearBlockCommitted(announce)) = event {
+//                     announces_queue.retain(|a| a != &announce.hash());
+//                     Some(announce.hash())
+//                 } else {
+//                     None
+//                 }
+//             })
+//             .last()
+//         {
+//             let _ = last_committed_announce.get_or_insert(announce);
+//         }
+
+//         block = SimpleBlockData {
+//             hash: block.header.parent_hash,
+//             header: db.block_header(block.header.parent_hash).ok_or_else(|| {
+//                 anyhow::anyhow!("Cannot get from db header for block {}", block.hash)
+//             })?,
+//         };
+
+//         counter += 1;
+//     }
+
+//     let (last_defined_block, mut last_announce) =
+//         if let Some(last_committed_announce) = last_committed_announce {
+//             let Some(announce) = db.announce_block(last_committed_announce) else {
+//                 log::warn!("Cannot get from db announce by hash {last_committed_announce:?}");
+//                 todo!();
+//             };
+//             let last_committed_announce_block_height = db
+//                 .block_header(announce.block_hash)
+//                 .ok_or_else(|| {
+//                     anyhow::anyhow!(
+//                         "Cannot get from db header for block {}",
+//                         announce.block_hash
+//                     )
+//                 })?
+//                 .height;
+
+//             debug_assert!(last_committed_announce_block_height > genesis.header.height);
+
+//             if last_committed_announce_block_height > block.header.height {
+//                 (announce.block_hash, Some(last_committed_announce))
+//             } else {
+//                 (block.hash, Some(last_committed_announce))
+//             }
+//         } else {
+//             (block.hash, None)
+//         };
+
+//     let announces_head = if let Some(announce) = last_announce {
+//         announce
+//     } else {
+//         // Committed announce not found - we have to search for last announce (maybe empty) from which we could propagate the chain.
+//         while block.hash != genesis.hash {
+//             if let Some(announce) = db
+//                 .block_events(block.hash)
+//                 .ok_or_else(|| {
+//                     anyhow::anyhow!("Cannot get from db events for synced block {}", block.hash)
+//                 })?
+//                 .into_iter()
+//                 .filter_map(|event| {
+//                     if let BlockEvent::Router(RouterEvent::GearBlockCommitted(announce)) = event {
+//                         Some(announce.hash())
+//                     } else {
+//                         None
+//                     }
+//                 })
+//                 .last()
+//             {
+//                 last_announce = Some(announce);
+//                 break;
+//             }
+
+//             block = SimpleBlockData {
+//                 hash: block.header.parent_hash,
+//                 header: db.block_header(block.header.parent_hash).ok_or_else(|| {
+//                     anyhow::anyhow!("Cannot get from db header for block {}", block.hash)
+//                 })?,
+//             };
+//         }
+
+//         // If we still don't have any committed announces after searching through the chain,
+//         // then we use genesis announce hash - zero hash.
+//         last_announce.unwrap_or(AnnounceHash(H256::zero()))
+//     };
+
+//     // Propagate empty announces from `announce_head` till the `last_defined_block`.
+//     let mut last_announce_hash = announces_head;
+//     let Some(mut announce) = db.announce_block(announces_head) else {
+//         todo!()
+//     };
+//     let mut block_hash = announce.block_hash;
+//     let mut chain = VecDeque::new();
+//     while block_hash != last_defined_block {
+//         let block = SimpleBlockData {
+//             hash: block_hash,
+//             header: db.block_header(block_hash).ok_or_else(|| {
+//                 anyhow::anyhow!("Cannot get from db header for block {}", block_hash)
+//             })?,
+//         };
+//         block_hash = block.header.parent_hash;
+//         chain.push_front(block);
+//     }
+//     for block in chain {
+//         last_announce_hash = ProducerBlock {
+//             block_hash: block.hash,
+//             parent_announce: last_announce_hash,
+//             gas_allowance: None,
+//             off_chain_transactions: Vec::new(),
+//         }
+//         .hash();
+//     }
+
+//     // Now we have `last_announce_hash`, which is the announce for the `last_defined_block`.
+//     // If have some fresh announces from previous block producers, which are not committed yet,
+//     // Then we start to iterate over them, in order to find the first announce,
+//     // which is in the same branch as `last_announce_hash`.
+//     for announce_hash in announces_queue {
+//         let Some(announce) = db.announce_block(announce_hash) else {
+//             log::warn!("Cannot get from db announce by hash {announce_hash:?}");
+//             continue;
+//         };
+
+//         for announce
+
+//         if announce.block_hash == last_defined_block {
+//             // We found the announce for the last defined block.
+//             // We can use it as a chain head.
+//             db.set_announces_chain_head(announce.block_hash, announces_head)?;
+//             return Ok(());
+//         }
+
+//         if announce.block_hash == announces_head.0 {
+//             // We found the announce for the announces head.
+//             // We can use it as a chain head.
+//             db.set_announces_chain_head(announce.block_hash, announces_head)?;
+//             return Ok(());
+//         }
+//     }
+
+//     Ok(())
+// }
+
 #[cfg(test)]
 mod tests {
     use super::*;

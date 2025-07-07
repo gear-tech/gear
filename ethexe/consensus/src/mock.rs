@@ -21,7 +21,7 @@ use ethexe_common::{
     db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock, Message, StateTransition},
-    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
+    Address, AnnounceHash, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;
@@ -74,6 +74,7 @@ impl Mock for ProducerBlock {
     fn mock(block_hash: H256) -> Self {
         ProducerBlock {
             block_hash,
+            parent: AnnounceHash(H256::random()),
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         }

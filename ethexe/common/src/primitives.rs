@@ -28,6 +28,27 @@ use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::Display,
+)]
+#[display("{}", self.0)]
+pub struct AnnounceHash(pub H256);
+
+impl AnnounceHash {
+    pub fn zero() -> Self {
+        Self(H256::zero())
+    }
+}
+
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
@@ -71,18 +92,36 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BlockMeta {
-    pub synced: bool,
     pub prepared: bool,
-    pub computed: bool,
+    pub announces: Option<Vec<AnnounceHash>>,
+    pub codes_queue: Option<Vec<CodeId>>,
+    pub last_committed_batch: Option<H256>,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ProducerBlock {
     pub block_hash: H256,
+    pub parent: AnnounceHash,
     pub gas_allowance: Option<u64>,
     pub off_chain_transactions: Vec<H256>,
+}
+
+impl ProducerBlock {
+    pub fn hash(&self) -> AnnounceHash {
+        // +_+_+
+        AnnounceHash(H256(gear_core::utils::hash(&self.encode())))
+    }
+
+    pub fn base(block_hash: H256, parent: AnnounceHash) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: None,
+            off_chain_transactions: Vec::new(),
+        }
+    }
 }
 
 impl ToDigest for ProducerBlock {

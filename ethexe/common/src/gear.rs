@@ -18,7 +18,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Digest, ToDigest};
+use crate::{Address, AnnounceHash, Digest, ToDigest};
 use alloc::vec::Vec;
 use gear_core::message::{ReplyDetails, StoredMessage};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
@@ -56,6 +56,12 @@ pub struct GearBlock {
     pub hash: H256,
     pub off_chain_transactions_hash: H256,
     pub gas_allowance: u64,
+}
+
+impl GearBlock {
+    pub fn hash(&self) -> AnnounceHash {
+        todo!()
+    }
 }
 
 impl ToDigest for GearBlock {

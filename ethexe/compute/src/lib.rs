@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{events::BlockRequestEvent, CodeAndIdUnchecked};
+use ethexe_common::{events::BlockRequestEvent, AnnounceHash, CodeAndIdUnchecked};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
@@ -73,6 +73,8 @@ pub enum ComputeError {
         local_status: bool,
         remote_status: bool,
     },
+    #[error("Meta for announce {0:?} not found in db")]
+    AnnounceNotFound(AnnounceHash),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -96,7 +98,7 @@ impl ProcessorExt for Processor {
         block: H256,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        self.process_block_events(block, events)
+        self.process_announce(block, events)
             .await
             .map_err(Into::into)
     }

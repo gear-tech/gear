@@ -21,29 +21,20 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, Digest,
-    ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition, AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo,
+    ProducerBlock, ProgramStates, Schedule,
 };
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::vec::Vec;
 use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
 
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
-
-    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
-    fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
-    fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
-    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest>;
-    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
-    fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
-    fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
-    fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
 }
 
 pub trait BlockMetaStorageWrite {
@@ -52,15 +43,6 @@ pub trait BlockMetaStorageWrite {
     fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
     where
         F: FnOnce(&mut BlockMeta);
-
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
-    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
-    fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
-    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest);
-    fn set_block_program_states(&self, block_hash: H256, map: ProgramStates);
-    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
-    fn set_block_schedule(&self, block_hash: H256, map: Schedule);
-    fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
 }
 
 pub trait CodesStorageRead {
@@ -83,12 +65,51 @@ pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn latest_synced_block_height(&self) -> Option<u32>;
+    fn block_synced(&self, block_hash: H256) -> bool;
 }
 
 pub trait OnChainStorageWrite {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_latest_synced_block_height(&self, height: u32);
+    fn set_block_synced(&self, block_hash: H256);
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+pub struct AnnounceMeta {
+    pub computed: bool,
+}
+
+pub trait AnnounceStorageRead {
+    fn announce(&self, hash: AnnounceHash) -> Option<ProducerBlock>;
+    fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates>;
+    fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>>;
+    fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule>;
+    fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta;
+}
+
+pub trait AnnounceStorageWrite {
+    fn set_announce(&self, announce: ProducerBlock);
+    fn set_announce_program_states(
+        &self,
+        announce_hash: AnnounceHash,
+        program_states: ProgramStates,
+    );
+    fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>);
+    fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule);
+    fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta));
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+pub struct LatestData {
+    pub latest_synced_block_height: Option<u32>,
+    pub latest_prepared_block_hash: Option<H256>,
+    pub latest_computed_announce_hash: Option<AnnounceHash>,
+}
+
+pub trait LatestDataStorageRead {
+    fn latest_data(&self) -> LatestData;
+}
+pub trait LatestDataStorageWrite {
+    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData));
 }
