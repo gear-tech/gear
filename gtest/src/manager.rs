@@ -29,7 +29,7 @@ use crate::{
     GAS_ALLOWANCE, GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
     RESERVE_FOR, VALUE_PER_GAS,
 };
-use core_processor::{common::*, configs::BlockConfig, ContextChargedForInstrumentation, Ext};
+use core_processor::{common::*, configs::BlockConfig, Ext};
 use gear_common::{
     auxiliary::{
         gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
@@ -41,7 +41,7 @@ use gear_common::{
     LockId, Origin,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
@@ -91,6 +91,7 @@ pub(crate) struct ExtManager {
     pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) instrumented_codes: BTreeMap<CodeId, InstrumentedCode>,
+    pub(crate) code_metadata: BTreeMap<CodeId, CodeMetadata>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: MailboxManager,
     pub(crate) task_pool: TaskPoolManager,
@@ -145,21 +146,24 @@ impl ExtManager {
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
         self.opt_binaries.insert(code_id, code.clone());
 
-        let (instrumented_code, _) =
-            ProgramBuilder::build_instrumented_code_and_id(code).into_parts();
+        let (instrumented_code, code_metadata) =
+            ProgramBuilder::build_instrumented_code_and_id(code)
+                .1
+                .into_parts();
         self.instrumented_codes.insert(code_id, instrumented_code);
+        self.code_metadata.insert(code_id, code_metadata);
     }
 
     pub(crate) fn instrumented_code(&self, code_id: CodeId) -> Option<&InstrumentedCode> {
         self.instrumented_codes.get(&code_id)
     }
 
-    pub(crate) fn original_code(&self, code_id: CodeId) -> Option<&[u8]> {
-        self.opt_binaries.get(&code_id).map(|code| code.as_ref())
+    pub(crate) fn code_metadata(&self, code_id: CodeId) -> Option<&CodeMetadata> {
+        self.code_metadata.get(&code_id)
     }
 
-    fn original_code_size(&self, code_id: CodeId) -> Option<usize> {
-        self.opt_binaries.get(&code_id).map(|code| code.len())
+    pub(crate) fn original_code(&self, code_id: CodeId) -> Option<&[u8]> {
+        self.opt_binaries.get(&code_id).map(|code| code.as_ref())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {

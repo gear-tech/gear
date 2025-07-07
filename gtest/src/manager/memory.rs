@@ -29,22 +29,26 @@ impl ExtManager {
         let allocations = ProgramsStorageManager::allocations(program_id);
         let code_id = ProgramsStorageManager::access_program(program_id, |program| {
             program.and_then(|p| {
-                if let Program::Active(ActiveProgram { code_hash, .. }) = p {
-                    Some(code_hash.cast())
+                if let Program::Active(ActiveProgram { code_id, .. }) = p {
+                    Some(code_id.cast())
                 } else {
                     None
                 }
             })
         })
         .ok_or(TestError::ActorNotFound(program_id))?;
+        let code_metadata = self
+            .code_metadata(code_id)
+            .cloned()
+            .ok_or(TestError::ActorNotFound(program_id))?;
         let instrumented_code = self
-            .instrumented_codes
-            .get(&code_id)
+            .instrumented_code(code_id)
             .cloned()
             .ok_or(TestError::ActorNotFound(program_id))?;
         core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
             String::from("state"),
             instrumented_code,
+            code_metadata,
             allocations,
             Some((program_id, Default::default())),
             payload,

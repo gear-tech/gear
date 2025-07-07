@@ -4642,6 +4642,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
+ "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
@@ -6167,7 +6168,6 @@ dependencies = [
  "numerated",
  "parity-scale-codec",
  "paste",
- "primitive-types",
  "proptest",
  "rand 0.8.5",
  "scale-info",
@@ -6201,6 +6201,7 @@ name = "gear-core-errors"
 version = "1.8.1"
 dependencies = [
  "enum-iterator 1.5.0",
+ "parity-scale-codec",
  "scale-info",
  "serde",
  "thiserror 2.0.12",
@@ -11535,6 +11536,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11542,11 +11544,13 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
+ "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing-subscriber",
 ]
 
 [[package]]

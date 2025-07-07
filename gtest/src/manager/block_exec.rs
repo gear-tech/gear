@@ -18,9 +18,11 @@
 
 use super::*;
 use crate::state::programs::PLACEHOLDER_MESSAGE_ID;
-use core_processor::ContextChargedForAllocations;
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, program::ProgramState};
-use task::get_maximum_task_gas;
+use core_processor::{ContextCharged, ProcessExecutionContext};
+use gear_core::{
+    code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    program::ProgramState,
+};
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -189,7 +191,7 @@ impl ExtManager {
                 // decreasing allowance due to DB deletion
                 self.on_task_pool_change();
 
-                let max_task_gas = get_maximum_task_gas(&task);
+                let max_task_gas = task::get_maximum_task_gas(&task);
                 log::debug!(
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );
@@ -297,45 +299,38 @@ impl ExtManager {
 
         let balance = Accounts::reducible_balance(destination_id);
 
-        let context = match core_processor::precharge_for_program(
-            block_config,
-            self.gas_allowance,
-            dispatch.into_incoming(gas_limit),
+        let context = ContextCharged::new(
             destination_id,
-        ) {
-            Ok(dispatch) => dispatch,
+            dispatch.into_incoming(gas_limit),
+            self.gas_allowance,
+        );
+
+        let context = match context.charge_for_program(block_config) {
+            Ok(context) => context,
             Err(journal) => {
                 core_processor::handle_journal(journal, self);
                 return;
             }
         };
 
-        #[allow(clippy::large_enum_variant)]
-        enum Exec {
-            Notes(Vec<JournalNote>),
-            ExecutableActor(ExecutableActorData, ContextChargedForAllocations),
-        }
-
-        let exec = ProgramsStorageManager::modify_program(destination_id, |program| {
+        let journal = ProgramsStorageManager::modify_program(destination_id, |program| {
             let program = match program {
                 Some(Program::Active(active_program)) => active_program,
                 Some(Program::Terminated(_)) => {
                     log::debug!(
                         "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
                     );
-                    return Exec::Notes(core_processor::process_failed_init(context));
+                    return core_processor::process_failed_init(context);
                 }
                 Some(Program::Exited(inheritor)) => {
                     log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
-                    return Exec::Notes(core_processor::process_program_exited(
-                        context, *inheritor,
-                    ));
+                    return core_processor::process_program_exited(context, *inheritor);
                 }
                 None => {
                     log::debug!(
                         "Message {dispatch_id} is sent to program {destination_id} which does not exist"
                     );
-                    return Exec::Notes(core_processor::process_code_not_exists(context));
+                    return core_processor::process_code_not_exists(context);
                 }
             };
 
@@ -371,20 +366,77 @@ impl ExtManager {
                         );
                     }
 
-                    return Exec::Notes(core_processor::process_uninitialized(context));
+                    return core_processor::process_uninitialized(context);
                 }
             }
 
-            let context = match core_processor::precharge_for_allocations(
-                block_config,
-                context,
-                program.allocations_tree_len,
-            ) {
+            let context = match context.charge_for_code_metadata(block_config) {
                 Ok(context) => context,
                 Err(journal) => {
-                    return Exec::Notes(journal);
+                    return journal;
                 }
             };
+
+            let code_id = program.code_id;
+            let code_metadata = self.code_metadata(code_id).cloned().unwrap_or_else(|| {
+                unreachable!(
+                    "Code metadata for program {destination_id:?} with code id {} not found",
+                    program.code_id
+                )
+            });
+
+            // TODO: This is an early check, it should be moved after re-instrumentation, in
+            // case re-instrumentation will change/add exports
+            if !code_metadata.exports().contains(&dispatch_kind) {
+                let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+                let notes = core_processor::process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
+                    dispatch,
+                );
+
+                return notes;
+            }
+
+            // No re-instrumentation is needed for test environment,
+            // as `gtest` test runtime doesn't provide an opportunity
+            // to change the Schedule with weights data.
+
+            let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Сode metadata for the existing program does not contain \
+                    instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            // Adjust gas counters for fetching instrumented binary code.
+            let context =
+                match context.charge_for_instrumented_code(block_config, instrumented_code_len) {
+                    Ok(context) => context,
+                    Err(journal) => return journal,
+                };
+
+            let instrumented_code = self.instrumented_code(code_id).cloned().unwrap_or_else(|| {
+                let err_msg = format!(
+                    "Failed to get instrumented code for the existing program. \
+                        Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            let context =
+                match context.charge_for_allocations(block_config, program.allocations_tree_len) {
+                    Ok(context) => context,
+                    Err(journal) => {
+                        return journal;
+                    }
+                };
 
             let allocations = if program.allocations_tree_len != 0 {
                 ProgramsStorageManager::allocations(destination_id).unwrap_or_else(||
@@ -397,82 +449,40 @@ impl ExtManager {
                 Default::default()
             };
 
-            let executable_actor_data = ExecutableActorData {
+            let actor_data = ExecutableActorData {
                 allocations,
                 memory_infix: program.memory_infix,
-                code_id: program.code_hash.cast(),
-                code_exports: program.code_exports.clone(),
-                static_pages: program.static_pages,
                 gas_reservation_map: program.gas_reservation_map.clone(),
             };
 
-            Exec::ExecutableActor(executable_actor_data, context)
+            let context = match context.charge_for_module_instantiation(
+                block_config,
+                actor_data,
+                instrumented_code.instantiated_section_sizes(),
+                &code_metadata,
+            ) {
+                Ok(context) => context,
+                Err(journal) => {
+                    return journal;
+                }
+            };
+
+            core_processor::process::<Ext<LazyPagesNative>>(
+                block_config,
+                ProcessExecutionContext::new(
+                    context,
+                    InstrumentedCodeAndMetadata {
+                        instrumented_code,
+                        metadata: code_metadata,
+                    },
+                    balance,
+                ),
+                self.random_data.clone(),
+            )
+            .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
         });
 
-        let journal = match exec {
-            Exec::Notes(journal) => journal,
-            Exec::ExecutableActor(actor_data, context) => {
-                self.process_executable_actor(actor_data, block_config, context, balance)
-            }
-        };
-
         core_processor::handle_journal(journal, self)
-    }
-
-    fn process_executable_actor(
-        &self,
-        actor_data: ExecutableActorData,
-        block_config: &BlockConfig,
-        context: ContextChargedForAllocations,
-        balance: Value,
-    ) -> Vec<JournalNote> {
-        let context =
-            match core_processor::precharge_for_code_length(block_config, context, actor_data) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-        let code_id = context.actor_data().code_id;
-        let code_len_bytes = self
-            .original_code_size(code_id)
-            .map(|size| size.try_into().expect("too big code len"))
-            .unwrap_or_else(|| unreachable!("can't find code for the existing code id {code_id}"));
-        let context =
-            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-        let instrumented_code = self
-            .instrumented_codes
-            .get(&code_id)
-            .cloned()
-            .unwrap_or_else(|| {
-                // This should never happen as the code is already precharged
-                unreachable!("Instrumented code not found for code id {code_id:?}.")
-            });
-        let context = match core_processor::precharge_for_module_instantiation(
-            block_config,
-            // No re-instrumentation
-            ContextChargedForInstrumentation::from(context),
-            instrumented_code.instantiated_section_sizes(),
-        ) {
-            Ok(context) => context,
-            Err(journal) => {
-                return journal;
-            }
-        };
-
-        core_processor::process::<Ext<LazyPagesNative>>(
-            block_config,
-            (context, instrumented_code, balance).into(),
-            self.random_data.clone(),
-        )
-        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
     fn block_config(&self) -> BlockConfig {

@@ -26,7 +26,7 @@ use crate::{
 };
 use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     gas_metering::Schedule,
     ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{Dispatch, DispatchKind, Message},
@@ -217,13 +217,6 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
-        let (code_exports, static_pages) = system
-            .0
-            .borrow()
-            .instrumented_code(code_id)
-            .map(|ic| (ic.exports().clone(), ic.static_pages()))
-            .expect("code is set previously; qed.");
-
         // Expiration block logic isn't yet fully implemented in Gear protocol,
         // so we set it to the current block height.
         let expiration_block = system.block_height();
@@ -232,9 +225,7 @@ impl ProgramBuilder {
             id,
             InnerProgram::Active(ActiveProgram {
                 allocations_tree_len: 0,
-                code_hash: code_id.cast(),
-                code_exports,
-                static_pages,
+                code_id: code_id.cast(),
                 state: ProgramState::Uninitialized {
                     message_id: PLACEHOLDER_MESSAGE_ID,
                 },
@@ -245,11 +236,9 @@ impl ProgramBuilder {
         )
     }
 
-    pub(crate) fn build_instrumented_code_and_id(original_code: Vec<u8>) -> InstrumentedCodeAndId {
-        InstrumentedCodeAndId::from(Self::build_code_and_id(original_code))
-    }
-
-    pub(crate) fn build_code_and_id(original_code: Vec<u8>) -> CodeAndId {
+    pub(crate) fn build_instrumented_code_and_id(
+        original_code: Vec<u8>,
+    ) -> (CodeId, InstrumentedCodeAndMetadata) {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
@@ -260,7 +249,9 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        CodeAndId::new(code)
+        let (code, code_id) = CodeAndId::new(code).into_parts();
+
+        (code_id, code.into())
     }
 }
 

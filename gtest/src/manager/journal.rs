@@ -281,7 +281,7 @@ impl JournalHandler for ExtManager {
         code_id: CodeId,
         candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = self.instrumented_code(code_id).cloned() {
+        if self.instrumented_code(code_id).is_some() {
             for (init_message_id, candidate_id) in candidates {
                 if !ProgramsStorageManager::has_program(candidate_id) {
                     let expiration_block = self.block_height();
@@ -289,9 +289,7 @@ impl JournalHandler for ExtManager {
                         candidate_id,
                         Program::Active(ActiveProgram {
                             allocations_tree_len: 0,
-                            code_hash: code_id.cast(),
-                            code_exports: code.exports().clone(),
-                            static_pages: code.static_pages(),
+                            code_id: code_id.cast(),
                             state: ProgramState::Uninitialized {
                                 message_id: init_message_id,
                             },

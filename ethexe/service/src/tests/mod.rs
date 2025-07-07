@@ -71,6 +71,7 @@ async fn basics() {
         worker_threads: None,
         blocking_threads: None,
         chunk_processing_threads: 16,
+        block_gas_limit: 4_000_000_000_000,
         dev: true,
         fast_sync: false,
     };
