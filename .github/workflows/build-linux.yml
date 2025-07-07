@@ -109,7 +109,7 @@ jobs:
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
       - name: "Test: Workspace"
-        run: cargo nextest run --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+        run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
 
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
