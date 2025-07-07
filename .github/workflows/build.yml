@@ -105,7 +105,6 @@ jobs:
         with:
           target: ${{ matrix.targets.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          no-vendored: 'false'
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
