@@ -154,7 +154,8 @@ pub async fn run(
         }
 
         for chunk in chunks {
-            for (program_id, state_hash, _) in chunk {
+            let chunk_len = chunk.len();
+            for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -171,29 +172,34 @@ pub async fn run(
                         state_hash,
                         gas_allowance_for_chunk,
                     );
-                    (program_id, new_state_hash, jn, gas_spent)
+                    (chunk_pos, program_id, new_state_hash, jn, gas_spent)
                 });
             }
 
             let mut max_gas_spent_in_chunk = 0u64;
-            let mut chunk_journal = Vec::new();
+            let mut chunk_journals = vec![None; chunk_len];
             while let Some(result) = join_set
                 .join_next()
                 .await
                 .transpose()
                 .expect("Failed to join task")
             {
-                let (program_id, new_state_hash, program_journals, gas_spent) = result;
+                let (chunk_pos, program_id, new_state_hash, program_journals, gas_spent) = result;
 
-                chunk_journal.push((program_id, new_state_hash, program_journals));
-                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
-            }
-
-            for (program_id, new_state_hash, program_journals) in chunk_journal {
-                // State was updated during journal handling inside the runtime (allocations, pages)
+                // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
+                // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
                 in_block_transitions.modify(program_id, |state, _| {
                     state.hash = new_state_hash;
                 });
+
+                chunk_journals[chunk_pos] = Some((program_id, program_journals));
+                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
+            }
+
+            for program_journals in chunk_journals {
+                let Some((program_id, program_journals)) = program_journals else {
+                    unreachable!("Program journal is `None`, this should never happen");
+                };
 
                 for (journal, dispatch_origin, call_reply) in program_journals {
                     let mut journal_handler = JournalHandler {
@@ -215,7 +221,7 @@ pub async fn run(
             allowance_counter.charge(max_gas_spent_in_chunk);
 
             if is_out_of_gas_for_block {
-                // Out of gas for block, stopping processing
+                // Ran out of gas for the block, stopping processing.
                 break;
             }
         }
@@ -227,7 +233,7 @@ pub async fn run(
 fn split_to_chunks(
     chunk_size: usize,
     states: Vec<(ActorId, StateHashWithQueueSize)>,
-) -> Vec<Vec<(ActorId, H256, usize)>> {
+) -> Vec<Vec<(ActorId, H256)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
         debug_assert_ne!(queue_size, 0);
@@ -247,7 +253,7 @@ fn split_to_chunks(
     {
         let queue_size = cached_queue_size as usize;
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
-        chunks[chunk_idx].push((actor_id, hash, queue_size));
+        chunks[chunk_idx].push((actor_id, hash));
     }
 
     chunks
@@ -289,6 +295,8 @@ fn run_runtime(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use gprimitives::ActorId;
 
     use super::*;
@@ -299,13 +307,21 @@ mod tests {
         const CHUNK_PROCESSING_THREADS: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
 
+        let mut i = 0;
+        let mut states_to_queue_size = HashMap::new();
+
         let states = Vec::from_iter(
             std::iter::repeat_with(|| {
+                i += 1;
+                let hash = H256::from_low_u64_le(i);
+                let cached_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+                states_to_queue_size.insert(hash, cached_queue_size as usize);
+
                 (
-                    ActorId::from(0),
+                    ActorId::from(i),
                     StateHashWithQueueSize {
-                        hash: H256::zero(),
-                        cached_queue_size: (rand::random::<u8>() % MAX_QUEUE_SIZE + 1),
+                        hash,
+                        cached_queue_size,
                     },
                 )
             })
@@ -320,7 +336,11 @@ mod tests {
             .map(|chunk| {
                 chunk
                     .into_iter()
-                    .map(|(_, _, queue_size)| queue_size)
+                    .map(|(_, hash)| {
+                        states_to_queue_size
+                            .get(&hash)
+                            .expect("State hash must be in the map")
+                    })
                     .sum::<usize>()
             })
             .collect::<Vec<_>>();
