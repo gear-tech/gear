@@ -108,6 +108,12 @@ jobs:
       - name: "Build: Workspace"
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
+      - name: "ACTIONS: Download node and runtime"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-unknown-linux-gnu
+          path: target/release
+
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
 
