@@ -34,6 +34,6 @@ threads-required = 4
 
 # ethexe
 [[profile.ci.overrides]]
-filter = 'package(ethexe-service) or package(ethexe-observer) or package(ethexe-processor)'
+filter = 'package(ethexe-service) or package(ethexe-observer)'
 retries = 5
 threads-required = 4
