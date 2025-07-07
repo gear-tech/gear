@@ -112,7 +112,7 @@ jobs:
       - name: "Test: Pack everything"
         run: >-
           cargo nextest archive
-          --archive-file=workspace.tar.zst --zstd-level=6
+          --archive-file=workspace.tar.zst --zstd-level=15
           --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload nextest archive"
