@@ -21,18 +21,18 @@
 use super::Exec;
 use crate::{
     builtin::BuiltinDispatcherFactory,
-    manager::{CodeInfo, ExtManager, HandleKind},
+    manager::{ExtManager, HandleKind},
     Config, CurrencyOf, LazyPagesInterface, LazyPagesRuntimeInterface, MailboxOf, Pallet as Gear,
     ProgramStorageOf, QueueOf,
 };
 use common::{storage::*, CodeStorage, Origin, Program, ProgramStorage};
 use core_processor::{
-    common::ExecutableActorData, configs::BlockConfig, ContextChargedForCode,
-    ContextChargedForInstrumentation,
+    common::ExecutableActorData, configs::BlockConfig, precharge::ContextCharged,
+    ProcessExecutionContext,
 };
 use frame_support::traits::{Currency, Get};
 use gear_core::{
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
@@ -99,13 +99,13 @@ where
             .map_err(|_| "Code failed to load")?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
+            let code_id = code_and_id.code_id();
 
-            let _ = Gear::<T>::set_code_with_metadata(code_and_id, source);
+            let _ = Gear::<T>::set_code(code_and_id);
 
             ext_manager.set_program(
                 program_id,
-                &code_info,
+                code_id,
                 root_message_id,
                 DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
             );
@@ -126,12 +126,9 @@ where
         HandleKind::InitByHash(code_id) => {
             let program_id = ActorId::generate_from_user(code_id, b"bench_salt");
 
-            let code = T::CodeStorage::get_code(code_id).ok_or("Code not found in storage")?;
-            let code_info = CodeInfo::from_code(&code_id, &code);
-
             ext_manager.set_program(
                 program_id,
-                &code_info,
+                code_id,
                 root_message_id,
                 DEFAULT_BLOCK_NUMBER.saturating_add(DEFAULT_INTERVAL).into(),
             );
@@ -216,56 +213,76 @@ where
         ..pallet_config
     };
 
-    let context = core_processor::precharge_for_program(
-        &block_config,
-        config.gas_allowance,
-        queued_dispatch.into_incoming(config.gas_limit),
+    let context = ContextCharged::new(
         actor_id,
-    )
-    .map_err(|_| "core_processor::precharge_for_program failed")?;
+        queued_dispatch.into_incoming(config.gas_limit),
+        config.gas_allowance,
+    );
+
+    let context = context
+        .charge_for_program(&block_config)
+        .map_err(|_| "core_processor::precharge_for_program failed")?;
 
     let active = match ProgramStorageOf::<T>::get_program(actor_id) {
         Some(Program::Active(active)) => active,
         _ => return Err("Program not found"),
     };
-    let balance = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
 
-    let context = core_processor::precharge_for_allocations(
-        &block_config,
-        context,
-        active.allocations_tree_len,
-    )
-    .map_err(|_| "core_processor::precharge_for_allocations failed")?;
+    let balance: u128 = CurrencyOf::<T>::free_balance(&actor_id.cast()).unique_saturated_into();
+
+    let context = context
+        .charge_for_code_metadata(&block_config)
+        .map_err(|_| "core_processor::precharge_for_code_metadata failed")?;
+
+    let code_metadata =
+        T::CodeStorage::get_code_metadata(active.code_id).ok_or("Code metadata not found")?;
+
+    let context = context
+        .charge_for_instrumented_code(
+            &block_config,
+            code_metadata
+                .instrumented_code_len()
+                .ok_or("Failed to get instrumented code length")?,
+        )
+        .map_err(|_| "core_processor::precharge_for_instrumented_code failed")?;
+
+    let code =
+        T::CodeStorage::get_instrumented_code(active.code_id).ok_or("Program code not found")?;
+
+    let context = context
+        .charge_for_allocations(&block_config, active.allocations_tree_len)
+        .map_err(|_| "core_processor::precharge_for_allocations failed")?;
 
     let allocations = ProgramStorageOf::<T>::allocations(actor_id).unwrap_or_default();
 
     let actor_data = ExecutableActorData {
         allocations,
-        code_id: active.code_hash.cast(),
-        code_exports: active.code_exports,
-        static_pages: active.static_pages,
         gas_reservation_map: active.gas_reservation_map,
         memory_infix: active.memory_infix,
     };
 
-    let context = core_processor::precharge_for_code_length(&block_config, context, actor_data)
-        .map_err(|_| "core_processor::precharge_for_code failed")?;
+    let context = context
+        .charge_for_module_instantiation(
+            &block_config,
+            actor_data,
+            code.instantiated_section_sizes(),
+            &code_metadata,
+        )
+        .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
 
-    let code =
-        T::CodeStorage::get_code(context.actor_data().code_id).ok_or("Program code not found")?;
-
-    let context = ContextChargedForCode::from(context);
-    let context = core_processor::precharge_for_module_instantiation(
-        &block_config,
-        ContextChargedForInstrumentation::from(context),
-        code.instantiated_section_sizes(),
-    )
-    .map_err(|_| "core_processor::precharge_for_module_instantiation failed")?;
+    let process_exec_context = ProcessExecutionContext::new(
+        context,
+        InstrumentedCodeAndMetadata {
+            instrumented_code: code,
+            metadata: code_metadata,
+        },
+        balance,
+    );
 
     Ok(Exec {
         ext_manager,
         block_config,
-        context: (context, code, balance).into(),
+        context: process_exec_context,
         random_data: (vec![0u8; 32], 0),
     })
 }

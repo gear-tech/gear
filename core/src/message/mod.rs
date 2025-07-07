@@ -43,10 +43,8 @@ pub use user::{UserMessage, UserStoredMessage};
 
 use core::fmt::Debug;
 use gear_wasm_instrument::syscalls::SyscallName;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Gas limit type for message.
 pub type GasLimit = u64;
@@ -59,7 +57,7 @@ pub type Salt = crate::buffer::Payload;
 
 /// Entry point for dispatch processing.
 #[derive(
-    Copy, Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Decode, Encode, TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum DispatchKind {

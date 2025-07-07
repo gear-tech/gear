@@ -162,10 +162,33 @@ mod tests {
     };
     use gear_core::{
         ids::{ActorId, MessageId},
-        message::{DispatchKind, StoredDelayedDispatch, StoredDispatch},
+        message::{
+            DispatchKind, StoredDelayedDispatch, StoredDispatch, StoredMessage, UserStoredMessage,
+        },
         tasks::VaraScheduledTask,
     };
     use sp_core::H256;
+
+    fn default_stored_message() -> StoredMessage {
+        StoredMessage::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+    }
+
+    fn default_user_stored_message() -> UserStoredMessage {
+        UserStoredMessage::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+    }
 
     #[test]
     fn overlay_works() {
@@ -214,7 +237,7 @@ mod tests {
 
         // Fill the dispatches queue storage.
         let qm = QueueManager;
-        let dispatch = StoredDispatch::new(DispatchKind::Init, Default::default(), None);
+        let dispatch = StoredDispatch::new(DispatchKind::Init, default_stored_message(), None);
         qm.push_back(dispatch.clone());
         qm.push_back(dispatch.clone());
         qm.push_back(dispatch.clone());
@@ -226,7 +249,7 @@ mod tests {
         let mid1 = MessageId::from(52);
         let mid2 = MessageId::from(53);
         let stash_value = (
-            StoredDelayedDispatch::new(DispatchKind::Init, Default::default()),
+            StoredDelayedDispatch::new(DispatchKind::Init, default_stored_message()),
             Interval {
                 start: 0,
                 finish: 10,
@@ -308,7 +331,7 @@ mod tests {
         qm.pop_front();
         qm.push_front(StoredDispatch::new(
             DispatchKind::Handle,
-            Default::default(),
+            default_stored_message(),
             None,
         ));
 
@@ -419,7 +442,7 @@ mod tests {
             pid1,
             mid1,
             (
-                Default::default(),
+                default_user_stored_message(),
                 Interval {
                     start: 0,
                     finish: 10,
@@ -430,7 +453,7 @@ mod tests {
             pid2,
             mid2,
             (
-                Default::default(),
+                default_user_stored_message(),
                 Interval {
                     start: 0,
                     finish: 10,
@@ -452,7 +475,8 @@ mod tests {
         let waitlist_key1_2 = H256::random().cast();
         let waitlist_key2_1 = H256::random().cast();
         let waitlist_key2_2 = H256::random().cast();
-        let waitlisted_msg = WaitlistedMessage::new(DispatchKind::Init, Default::default(), None);
+        let waitlisted_msg =
+            WaitlistedMessage::new(DispatchKind::Init, default_stored_message(), None);
 
         WaitlistStorageWrap::insert(
             waitlist_key1_1,
@@ -516,7 +540,7 @@ mod tests {
             pid3,
             mid3,
             (
-                Default::default(),
+                default_user_stored_message(),
                 Interval {
                     start: 0,
                     finish: 10,
@@ -562,7 +586,8 @@ mod tests {
         assert!(WaitlistStorageWrap::take(waitlist_key1_1, waitlist_key1_2).is_some());
         WaitlistStorageWrap::mutate(waitlist_key2_1, waitlist_key2_2, |maybe_m| {
             if let Some((m, _)) = maybe_m {
-                let new_m = WaitlistedMessage::new(DispatchKind::Handle, Default::default(), None);
+                let new_m =
+                    WaitlistedMessage::new(DispatchKind::Handle, default_stored_message(), None);
                 *m = new_m;
             }
         });

@@ -21,8 +21,8 @@
 use crate::state::WithOverlay;
 use core_processor::common::ExecutableActorData;
 use gear_core::{
-    code::InstrumentedCode,
-    ids::{ActorId, CodeId, MessageId},
+    code::{CodeMetadata, InstrumentedCode},
+    ids::{ActorId, MessageId},
     memory::PageBuf,
     pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
     reservation::GasReservationMap,
@@ -178,32 +178,34 @@ impl TestActor {
     }
 
     // Gets a new executable actor derived from the inner program.
-    pub(crate) fn executable_actor_data(&self) -> Option<(ExecutableActorData, InstrumentedCode)> {
+    pub(crate) fn executable_actor_data(
+        &self,
+    ) -> Option<(ExecutableActorData, InstrumentedCode, CodeMetadata)> {
         self.program().map(Program::executable_actor_data)
     }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Program {
-    pub code_id: CodeId,
     pub code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
     pub allocations: IntervalsTree<WasmPage>,
     pub pages_data: BTreeMap<GearPage, PageBuf>,
     pub gas_reservation_map: GasReservationMap,
 }
 
 impl Program {
-    pub(crate) fn executable_actor_data(&self) -> (ExecutableActorData, InstrumentedCode) {
+    pub(crate) fn executable_actor_data(
+        &self,
+    ) -> (ExecutableActorData, InstrumentedCode, CodeMetadata) {
         (
             ExecutableActorData {
                 allocations: self.allocations.clone(),
-                code_id: self.code_id,
-                code_exports: self.code.exports().clone(),
-                static_pages: self.code.static_pages(),
                 gas_reservation_map: self.gas_reservation_map.clone(),
                 memory_infix: Default::default(),
             },
             self.code.clone(),
+            self.code_metadata.clone(),
         )
     }
 }

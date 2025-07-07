@@ -37,10 +37,7 @@ use crate::{
     Result, TestError, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS,
     MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS,
 };
-use core_processor::{
-    common::*, configs::BlockConfig, ContextChargedForInstrumentation, ContextChargedForProgram,
-    Ext,
-};
+use core_processor::{common::*, configs::BlockConfig, Ext};
 use gear_common::{
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
     gas_provider::auxiliary::PlainNodeId,

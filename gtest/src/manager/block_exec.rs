@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::state::blocks;
-use gear_core::{code::MAX_WASM_PAGES_AMOUNT, message::StoredDispatch};
-use task::get_maximum_task_gas;
-
 use super::*;
+use crate::state::blocks;
+use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    message::StoredDispatch,
+};
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -189,7 +191,7 @@ impl ExtManager {
                 // decreasing allowance due to DB deletion
                 self.on_task_pool_change();
 
-                let max_task_gas = get_maximum_task_gas(&task);
+                let max_task_gas = task::get_maximum_task_gas(&task);
                 log::debug!(
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );
@@ -302,13 +304,14 @@ impl ExtManager {
 
         let balance = Accounts::reducible_balance(destination_id);
 
-        let context = match core_processor::precharge_for_program(
-            block_config,
-            self.gas_allowance,
-            dispatch.into_incoming(gas_limit),
+        let context = ContextCharged::new(
             destination_id,
-        ) {
-            Ok(dispatch) => dispatch,
+            dispatch.into_incoming(gas_limit),
+            self.gas_allowance,
+        );
+
+        let context = match context.charge_for_program(block_config) {
+            Ok(context) => context,
             Err(journal) => {
                 return journal;
             }
@@ -318,8 +321,8 @@ impl ExtManager {
         enum Exec {
             Notes(Vec<JournalNote>),
             ExecutableActor(
-                (ExecutableActorData, InstrumentedCode),
-                ContextChargedForProgram,
+                (ExecutableActorData, InstrumentedCode, CodeMetadata),
+                ContextCharged<ForProgram>,
             ),
         }
 
@@ -401,10 +404,11 @@ impl ExtManager {
 
         match exec {
             Exec::Notes(journal) => journal,
-            Exec::ExecutableActor((actor_data, instrumented_code), context) => self
+            Exec::ExecutableActor((actor_data, instrumented_code, code_metadata), context) => self
                 .process_executable_actor(
                     actor_data,
                     instrumented_code,
+                    code_metadata,
                     block_config,
                     context,
                     balance,
@@ -416,57 +420,51 @@ impl ExtManager {
         &self,
         actor_data: ExecutableActorData,
         instrumented_code: InstrumentedCode,
+        code_metadata: CodeMetadata,
         block_config: &BlockConfig,
-        context: ContextChargedForProgram,
+        context: ContextCharged<ForProgram>,
         balance: Value,
     ) -> Vec<JournalNote> {
-        let context = match core_processor::precharge_for_allocations(
+        let context = match context.charge_for_code_metadata(block_config) {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
+
+        let context = match context
+            .charge_for_instrumented_code(block_config, instrumented_code.bytes().len() as u32)
+        {
+            Ok(context) => context,
+            Err(journal) => return journal,
+        };
+
+        let context = match context.charge_for_allocations(
             block_config,
-            context,
             actor_data.allocations.intervals_amount() as u32,
         ) {
             Ok(context) => context,
-            Err(journal) => {
-                return journal;
-            }
+            Err(journal) => return journal,
         };
 
-        let context =
-            match core_processor::precharge_for_code_length(block_config, context, actor_data) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-        let code_id = context.actor_data().code_id;
-        let code_len_bytes = self
-            .read_code(code_id)
-            .map(|code| code.len().try_into().expect("too big code len"))
-            .unwrap_or_else(|| unreachable!("can't find code for the existing code id {code_id}"));
-        let context =
-            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-        let context = match core_processor::precharge_for_module_instantiation(
+        let context = match context.charge_for_module_instantiation(
             block_config,
-            // No re-instrumentation
-            ContextChargedForInstrumentation::from(context),
+            actor_data,
             instrumented_code.instantiated_section_sizes(),
+            &code_metadata,
         ) {
             Ok(context) => context,
-            Err(journal) => {
-                return journal;
-            }
+            Err(journal) => return journal,
         };
 
         core_processor::process::<Ext<LazyPagesNative>>(
             block_config,
-            (context, instrumented_code, balance).into(),
+            ProcessExecutionContext::new(
+                context,
+                InstrumentedCodeAndMetadata {
+                    instrumented_code,
+                    metadata: code_metadata,
+                },
+                balance,
+            ),
             (
                 blocks::current_epoch_random(),
                 block_config.block_info.height,
