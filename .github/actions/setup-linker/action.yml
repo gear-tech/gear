@@ -6,6 +6,7 @@ runs:
       uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: mold
+        execute_install_scripts: true
         version: 1.0
 
     - name: "Setup linker on Linux"
