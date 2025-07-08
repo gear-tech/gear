@@ -108,6 +108,12 @@ jobs:
       - name: "Build: Workspace"
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
+      - name: "ACTIONS: Upload example WASMs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: examples-${{ matrix.profiles.name }}-wasm32-gear
+          path: target/wasm32-gear/${{ matrix.profiles.name }}
+
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
@@ -312,20 +318,21 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "ACTIONS: Download nextest archive"
+      - name: "ACTIONS: Download example WASMs"
         uses: actions/download-artifact@v4
         with:
-          name: nextest-workspace-release-x86_64-unknown-linux-gnu
+          name: examples-release-wasm32-gear
+          path: examples-artifact
 
       - name: "Build: Production binaries"
-        run: cargo build -p wasm-proc -p gear-cli -p "demo-*" -F cli --profile production
+        run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 
       - name: Prepare artifacts
         run: |
           mkdir artifact
           
           # examples
-          tar czvf artifact/examples.tar.gz target/wasm32-gear/production/*.wasm
+          (cd examples-artifact && tar czvf ../artifact/examples.tar.gz *.wasm)
           
           # runtime
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
