@@ -316,16 +316,14 @@ jobs:
           name: nextest-workspace-release-x86_64-unknown-linux-gnu
 
       - name: "Build: Production binaries"
-        run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
+        run: cargo build -p wasm-proc -p gear-cli -p "demo-*" -F cli --profile production
 
       - name: Prepare artifacts
         run: |
           mkdir artifact
           
           # examples
-          mkdir nextest-workspace
-          tar xvf workspace.tar.zst -C nextest-workspace
-          tar czvf artifact/examples.tar.gz nextest-workspace/target/wasm32-gear/release/*.wasm
+          tar czvf artifact/examples.tar.gz target/wasm32-gear/production/*.wasm
           
           # runtime
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
