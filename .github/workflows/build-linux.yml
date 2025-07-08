@@ -117,6 +117,30 @@ jobs:
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
 
+  crates-io:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: workspace
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
+          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+
+      - name: "Test: crates-io packages publishing"
+        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
