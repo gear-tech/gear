@@ -1,12 +1,16 @@
 runs:
   using: composite
   steps:
+    - name: "Install mold on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: mold
+        version: 1.0
+
     - name: "Setup linker on Linux"
       if: ${{ runner.os == 'Linux' }}
       run: |
-        sudo apt update
-        sudo apt install -y mold
-        
         targets=("X86_64_UNKNOWN_LINUX_GNU" "X86_64_UNKNOWN_LINUX_MUSL" "AARCH64_UNKNOWN_LINUX_GNU" "AARCH64_UNKNOWN_LINUX_MUSL")
         for target in "${targets[@]}"
         do
