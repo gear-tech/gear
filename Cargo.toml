@@ -590,10 +590,5 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-# these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
-parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
-wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
-wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
-
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
