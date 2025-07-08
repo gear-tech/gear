@@ -24,6 +24,9 @@ runs:
         aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
 
     - uses: mozilla-actions/sccache-action@v0.0.9
+      with:
+        disable_annotations: true
+
     - run: |
         echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
         echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
