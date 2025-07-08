@@ -35,7 +35,7 @@ runs:
 
     - uses: gear-tech/rust-cache@runs-on
       with:
-        prefix-key: 'rust-cache/'
+        prefix-key: 'rust-cache/v0'
         key: ${{ inputs.key }}
         workspaces: ${{ inputs.workspaces }}
         cache-provider: 's3'
