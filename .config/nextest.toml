@@ -1,7 +1,10 @@
 experimental = ["setup-scripts"]
 
 [scripts.setup.replace-node-and-runtime]
-command = "rsync -av node-and-runtime-release/ target/release/ && chmod +x target/release/gear"
+command = ["bash", "-c", '''
+rsync -av node-and-runtime-release/ target/release/
+chmod +x target/release/gear
+''']
 
 [profile.default]
 leak-timeout = { period = "1s", result = "fail" }
