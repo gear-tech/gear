@@ -22,11 +22,16 @@ runs:
       run: brew install protobuf binaryen
       shell: bash
 
+    - name: "Install: apt-fast on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      run: /bin/bash -c "$(curl -sL https://git.io/vokNn)"
+      shell: bash
+
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'
       run: |
-        sudo apt update
-        sudo apt install -y protobuf-compiler binaryen
+        sudo apt-fast update
+        sudo apt-fast install -y protobuf-compiler binaryen
       shell: bash
 
     - name: "Install: Linux cross compilers"
@@ -41,8 +46,8 @@ runs:
         deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
         EOF
         
-        sudo apt update
-        sudo apt install -y gcc-x86-64-linux-gnu g++-x86-64-linux-gnu pkg-config
+        sudo apt-fast update
+        sudo apt-fast install -y gcc-x86-64-linux-gnu g++-x86-64-linux-gnu pkg-config
         
         echo "CC_x86_64-unknown-linux-gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
         echo "CXX_x86_64-unknown-linux-gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
@@ -65,8 +70,8 @@ runs:
           exit 1
         fi
         
-        sudo apt update
-        sudo apt install -y protobuf-compiler binaryen innoextract
+        sudo apt-fast update
+        sudo apt-fast install -y protobuf-compiler binaryen innoextract
 
         wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
         innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
