@@ -3069,8 +3069,9 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crunchy"
-version = "0.2.3"
-source = "git+https://github.com/nmathewson/crunchy?branch=cross-compilation-fix#260ec5f08969480c342bb3fe47f88870ed5c6cce"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "crypto-bigint"
@@ -12512,6 +12513,12 @@ dependencies = [
 [[package]]
 name = "parity-wasm"
 version = "0.45.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1ad0aff30c1da14b1254fcb2af73e1fa9a28670e584a626f53a369d0e157304"
+
+[[package]]
+name = "parity-wasm"
+version = "0.45.0"
 source = "git+https://github.com/gear-tech/parity-wasm?branch=v0.45.0-sign-ext#bad3e1ec78f655f3eec5a0c9c12a3546c8c9d432"
 
 [[package]]
@@ -17609,7 +17616,7 @@ source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot
 dependencies = [
  "impl-serde 0.5.0",
  "parity-scale-codec",
- "parity-wasm",
+ "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "scale-info",
  "serde",
  "sp-crypto-hashing-proc-macro",
@@ -18049,7 +18056,7 @@ dependencies = [
  "jobserver",
  "merkleized-metadata",
  "parity-scale-codec",
- "parity-wasm",
+ "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "polkavm-linker",
  "sc-executor",
  "shlex",
@@ -19799,9 +19806,10 @@ dependencies = [
 [[package]]
 name = "wasm-instrument"
 version = "0.4.0"
-source = "git+https://github.com/gear-tech/wasm-instrument?branch=v0.4.0-sign-ext#e57b713873d4364e41ed495893a2f06a80cca5ab"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a47ecb37b9734d1085eaa5ae1a81e60801fd8c28d4cabdd8aedb982021918bc"
 dependencies = [
- "parity-wasm",
+ "parity-wasm 0.45.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -20035,7 +20043,7 @@ name = "wasmi"
 version = "0.13.2"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
- "parity-wasm",
+ "parity-wasm 0.45.0 (git+https://github.com/gear-tech/parity-wasm?branch=v0.45.0-sign-ext)",
  "wasmi-validation",
  "wasmi_core 0.2.1",
 ]
@@ -20091,7 +20099,7 @@ name = "wasmi-validation"
 version = "0.5.0"
 source = "git+https://github.com/gear-tech/wasmi?branch=v0.13.2-sign-ext#3a0b1022377919e62aadf4d78b762abd1c3e9a04"
 dependencies = [
- "parity-wasm",
+ "parity-wasm 0.45.0 (git+https://github.com/gear-tech/parity-wasm?branch=v0.45.0-sign-ext)",
 ]
 
 [[package]]
