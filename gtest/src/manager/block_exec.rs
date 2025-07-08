@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
-use gear_core::code::{CodeMetadata, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT};
-use task::get_maximum_task_gas;
-
 use super::*;
+use crate::state::blocks;
+use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    message::StoredDispatch,
+};
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -189,7 +191,7 @@ impl ExtManager {
                 // decreasing allowance due to DB deletion
                 self.on_task_pool_change();
 
-                let max_task_gas = get_maximum_task_gas(&task);
+                let max_task_gas = task::get_maximum_task_gas(&task);
                 log::debug!(
                     "⚙️  Processing task {task:?} at the block {bn}, max gas = {max_task_gas}"
                 );
@@ -268,7 +270,8 @@ impl ExtManager {
                 None => break,
             };
 
-            self.process_dispatch(&block_config, dispatch);
+            let journal = self.process_dispatch(&block_config, dispatch);
+            core_processor::handle_journal(journal, self);
 
             total_processed += 1;
         }
@@ -276,7 +279,11 @@ impl ExtManager {
         total_processed
     }
 
-    fn process_dispatch(&mut self, block_config: &BlockConfig, dispatch: StoredDispatch) {
+    pub(crate) fn process_dispatch(
+        &mut self,
+        block_config: &BlockConfig,
+        dispatch: StoredDispatch,
+    ) -> Vec<JournalNote> {
         let destination_id = dispatch.destination();
         let dispatch_id = dispatch.id();
         let dispatch_kind = dispatch.kind();
@@ -306,8 +313,7 @@ impl ExtManager {
         let context = match context.charge_for_program(block_config) {
             Ok(context) => context,
             Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
+                return journal;
             }
         };
 
@@ -396,7 +402,7 @@ impl ExtManager {
             }
         });
 
-        let journal = match exec {
+        match exec {
             Exec::Notes(journal) => journal,
             Exec::ExecutableActor((actor_data, instrumented_code, code_metadata), context) => self
                 .process_executable_actor(
@@ -407,9 +413,7 @@ impl ExtManager {
                     context,
                     balance,
                 ),
-        };
-
-        core_processor::handle_journal(journal, self)
+        }
     }
 
     fn process_executable_actor(
@@ -461,12 +465,15 @@ impl ExtManager {
                 },
                 balance,
             ),
-            self.random_data.clone(),
+            (
+                blocks::current_epoch_random(),
+                block_config.block_info.height,
+            ),
         )
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
-    fn block_config(&self) -> BlockConfig {
+    pub(crate) fn block_config(&self) -> BlockConfig {
         let schedule = Schedule::default();
         BlockConfig {
             block_info: self.blocks_manager.get(),
