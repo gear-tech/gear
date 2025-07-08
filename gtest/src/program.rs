@@ -22,7 +22,7 @@ use crate::{
     manager::ExtManager,
     state::programs::{ProgramsStorageManager, PLACEHOLDER_MESSAGE_ID},
     system::System,
-    Block, Result, Value, MAX_USER_GAS_LIMIT,
+    BlockNumber, Result, Value, MAX_USER_GAS_LIMIT,
 };
 use gear_common::Origin;
 use gear_core::{
@@ -274,11 +274,12 @@ pub struct Program<'a> {
     pub(crate) id: ActorId,
 }
 
+/// Program creation related impl.
 impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram<Block>,
+        program: InnerProgram<BlockNumber>,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -471,7 +472,10 @@ impl<'a> Program<'a> {
 
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
+}
 
+/// Program misc ops impl.
+impl Program<'_> {
     /// Get program id.
     pub fn id(&self) -> ActorId {
         self.id

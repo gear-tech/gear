@@ -18,15 +18,13 @@
 
 //! Programs storage.
 
-use gear_common::{
-    auxiliary::{BlockNumber, DoubleBTreeMap},
-    ActorId, GearPage, MessageId, PageBuf,
-};
+use crate::{state::WithOverlay, BlockNumber};
+use gear_common::{storage::DoubleBTreeMap, ActorId, GearPage, MessageId, PageBuf};
 use gear_core::{
     pages::{numerated::tree::IntervalsTree, WasmPage},
     program::Program,
 };
-use std::{cell::RefCell, collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, fmt, thread::LocalKey};
 
 /// Message id used when program is set to the programs storage (with
 /// [`crate::Program`]), but no message is sent yet. So for uninitialized state
@@ -45,10 +43,27 @@ const _: () = {
     }
 };
 
+type ProgramsStorage = WithOverlay<BTreeMap<ActorId, Program<BlockNumber>>>;
+type AllocationsStorage = WithOverlay<BTreeMap<ActorId, IntervalsTree<WasmPage>>>;
+type MemoryPagesStorage = WithOverlay<DoubleBTreeMap<ActorId, GearPage, PageBuf>>;
 thread_local! {
-    static PROGRAMS_STORAGE: RefCell<BTreeMap<ActorId, Program<BlockNumber>>> = RefCell::new(Default::default());
-    static ALLOCATIONS_STORAGE: RefCell<BTreeMap<ActorId, IntervalsTree<WasmPage>>> = RefCell::new(Default::default());
-    static MEMORY_PAGES_STORAGE: RefCell<DoubleBTreeMap<ActorId, GearPage, PageBuf>> = RefCell::new(Default::default());
+    static PROGRAMS_STORAGE: ProgramsStorage = WithOverlay::new(Default::default());
+    static ALLOCATIONS_STORAGE: AllocationsStorage = WithOverlay::new(Default::default());
+    static MEMORY_PAGES_STORAGE: MemoryPagesStorage = WithOverlay::new(Default::default());
+}
+
+fn programs_storage() -> &'static LocalKey<WithOverlay<BTreeMap<ActorId, Program<BlockNumber>>>> {
+    &PROGRAMS_STORAGE
+}
+
+fn allocations_storage(
+) -> &'static LocalKey<WithOverlay<BTreeMap<ActorId, IntervalsTree<WasmPage>>>> {
+    &ALLOCATIONS_STORAGE
+}
+
+fn memory_pages_storage(
+) -> &'static LocalKey<WithOverlay<DoubleBTreeMap<ActorId, GearPage, PageBuf>>> {
+    &MEMORY_PAGES_STORAGE
 }
 
 pub(crate) struct ProgramsStorageManager;
@@ -59,7 +74,7 @@ impl ProgramsStorageManager {
         program_id: ActorId,
         access: impl FnOnce(Option<&Program<BlockNumber>>) -> R,
     ) -> R {
-        PROGRAMS_STORAGE.with_borrow(|storage| access(storage.get(&program_id)))
+        programs_storage().with(|storage| access(storage.data().get(&program_id)))
     }
 
     // Modifies actor by program id.
@@ -67,7 +82,7 @@ impl ProgramsStorageManager {
         program_id: ActorId,
         modify: impl FnOnce(Option<&mut Program<BlockNumber>>) -> R,
     ) -> R {
-        PROGRAMS_STORAGE.with_borrow_mut(|storage| modify(storage.get_mut(&program_id)))
+        programs_storage().with(|storage| modify(storage.data_mut().get_mut(&program_id)))
     }
 
     // Inserts actor by program id.
@@ -75,24 +90,25 @@ impl ProgramsStorageManager {
         program_id: ActorId,
         actor: Program<BlockNumber>,
     ) -> Option<Program<BlockNumber>> {
-        PROGRAMS_STORAGE.with_borrow_mut(|storage| storage.insert(program_id, actor))
+        programs_storage().with(|storage| storage.data_mut().insert(program_id, actor))
     }
 
     // Checks if actor by program id exists.
     pub(crate) fn has_program(program_id: ActorId) -> bool {
-        PROGRAMS_STORAGE.with_borrow(|storage| storage.contains_key(&program_id))
+        programs_storage().with(|storage| storage.data().contains_key(&program_id))
     }
 
     // Checks if actor by program id is a user.
     pub(crate) fn is_user(id: ActorId) -> bool {
         // Non-existent program is a user
-        PROGRAMS_STORAGE.with_borrow(|storage| storage.get(&id).is_none())
+        programs_storage().with(|storage| storage.data().get(&id).is_none())
     }
 
     // Checks if actor by program id is active.
     pub(crate) fn is_active_program(id: ActorId) -> bool {
-        PROGRAMS_STORAGE.with_borrow(|storage| {
+        programs_storage().with(|storage| {
             storage
+                .data()
                 .get(&id)
                 .map(|program| program.is_active())
                 .unwrap_or(false)
@@ -107,21 +123,21 @@ impl ProgramsStorageManager {
 
     // Returns all program ids.
     pub(crate) fn program_ids() -> Vec<ActorId> {
-        PROGRAMS_STORAGE.with_borrow(|storage| storage.keys().copied().collect())
+        programs_storage().with(|storage| storage.data().keys().copied().collect())
     }
 
     // Clears programs storage.
     pub(crate) fn clear() {
-        PROGRAMS_STORAGE.with_borrow_mut(|storage| storage.clear())
+        programs_storage().with(|storage| storage.data_mut().clear())
     }
 
     pub(crate) fn allocations(program_id: ActorId) -> Option<IntervalsTree<WasmPage>> {
-        ALLOCATIONS_STORAGE.with_borrow(|storage| storage.get(&program_id).cloned())
+        allocations_storage().with(|storage| storage.data().get(&program_id).cloned())
     }
 
     pub(crate) fn set_allocations(program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
-        PROGRAMS_STORAGE.with_borrow_mut(|storage| {
-            if let Some(Program::Active(active_program)) = storage.get_mut(&program_id) {
+        programs_storage().with(|storage| {
+            if let Some(Program::Active(active_program)) = storage.data_mut().get_mut(&program_id) {
                 active_program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
                     .unwrap_or_else(|err| {
                         // This panic is impossible because page numbers are u32.
@@ -129,34 +145,34 @@ impl ProgramsStorageManager {
                     });
             }
         });
-        ALLOCATIONS_STORAGE.with_borrow_mut(|storage| {
-            storage.insert(program_id, allocations);
+        allocations_storage().with(|storage| {
+            storage.data_mut().insert(program_id, allocations);
         });
     }
 
     pub(crate) fn program_page(program_id: ActorId, page: GearPage) -> Option<PageBuf> {
-        MEMORY_PAGES_STORAGE.with_borrow(|storage| storage.get(&program_id, &page).cloned())
+        memory_pages_storage().with(|storage| storage.data().get(&program_id, &page).cloned())
     }
 
     pub(crate) fn program_pages(program_id: ActorId) -> BTreeMap<GearPage, PageBuf> {
-        MEMORY_PAGES_STORAGE.with_borrow(|storage| storage.iter_key(&program_id).collect())
+        memory_pages_storage().with(|storage| storage.data().iter_key(&program_id).collect())
     }
 
     pub(crate) fn set_program_page(program_id: ActorId, page: GearPage, buf: PageBuf) {
-        MEMORY_PAGES_STORAGE.with_borrow_mut(|storage| {
-            storage.insert(program_id, page, buf);
+        memory_pages_storage().with(|storage| {
+            storage.data_mut().insert(program_id, page, buf);
         });
     }
 
     pub(crate) fn remove_program_page(program_id: ActorId, page: GearPage) {
-        MEMORY_PAGES_STORAGE.with_borrow_mut(|storage| {
-            storage.remove(program_id, page);
+        memory_pages_storage().with(|storage| {
+            storage.data_mut().remove(program_id, page);
         });
     }
 }
 
 impl fmt::Debug for ProgramsStorageManager {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        PROGRAMS_STORAGE.with_borrow(|storage| f.debug_map().entries(storage.iter()).finish())
+        programs_storage().with(|storage| f.debug_map().entries(storage.data().iter()).finish())
     }
 }

@@ -23,8 +23,6 @@
 #[macro_use]
 extern crate gear_common_codegen;
 
-#[cfg(feature = "std")]
-pub mod auxiliary;
 pub mod event;
 pub mod scheduler;
 pub mod storage;

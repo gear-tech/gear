@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod actor;
-mod manager;
+pub mod manager;
 
 pub use actor::ActorMailbox;
-pub(crate) use manager::MailboxManager;

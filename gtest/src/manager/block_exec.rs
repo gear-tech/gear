@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::state::programs::PLACEHOLDER_MESSAGE_ID;
+use crate::state::{blocks, programs::PLACEHOLDER_MESSAGE_ID};
 use core_processor::{ContextCharged, ProcessExecutionContext};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    message::StoredDispatch,
     program::ProgramState,
 };
 
@@ -270,7 +271,8 @@ impl ExtManager {
                 None => break,
             };
 
-            self.process_dispatch(&block_config, dispatch);
+            let journal = self.process_dispatch(&block_config, dispatch);
+            core_processor::handle_journal(journal, self);
 
             total_processed += 1;
         }
@@ -278,7 +280,11 @@ impl ExtManager {
         total_processed
     }
 
-    fn process_dispatch(&mut self, block_config: &BlockConfig, dispatch: StoredDispatch) {
+    pub(crate) fn process_dispatch(
+        &mut self,
+        block_config: &BlockConfig,
+        dispatch: StoredDispatch,
+    ) -> Vec<JournalNote> {
         let destination_id = dispatch.destination();
         let dispatch_id = dispatch.id();
         let dispatch_kind = dispatch.kind();
@@ -308,12 +314,11 @@ impl ExtManager {
         let context = match context.charge_for_program(block_config) {
             Ok(context) => context,
             Err(journal) => {
-                core_processor::handle_journal(journal, self);
-                return;
+                return journal;
             }
         };
 
-        let journal = ProgramsStorageManager::modify_program(destination_id, |program| {
+        ProgramsStorageManager::modify_program(destination_id, |program| {
             let program = match program {
                 Some(Program::Active(active_program)) => active_program,
                 Some(Program::Terminated(_)) => {
@@ -477,15 +482,16 @@ impl ExtManager {
                     },
                     balance,
                 ),
-                self.random_data.clone(),
+                (
+                    blocks::current_epoch_random(),
+                    block_config.block_info.height,
+                ),
             )
             .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
-        });
-
-        core_processor::handle_journal(journal, self)
+        })
     }
 
-    fn block_config(&self) -> BlockConfig {
+    pub(crate) fn block_config(&self) -> BlockConfig {
         let schedule = Schedule::default();
         BlockConfig {
             block_info: self.blocks_manager.get(),
