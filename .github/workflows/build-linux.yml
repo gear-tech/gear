@@ -116,6 +116,8 @@ jobs:
 
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   crates-io:
     runs-on: [ kuberunner, github-runner-02 ]
