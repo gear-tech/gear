@@ -17,30 +17,30 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::{Gas, Value},
+    constants::{BlockNumber, Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     state::{
+        self,
         accounts::Accounts,
         actors::{Actors, Program, TestActor},
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
-        mailbox::MailboxManager,
+        mailbox::manager::{MailboxErrorImpl, MailboxManager},
+        nonce::NonceManager,
+        queue::QueueManager,
+        stash::DispatchStashManager,
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
-    VALUE_PER_GAS,
+    Result, TestError, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS,
+    MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS,
 };
 use core_processor::{common::*, configs::BlockConfig, Ext};
 use gear_common::{
-    auxiliary::{
-        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
-        BlockNumber,
-    },
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
+    gas_provider::auxiliary::PlainNodeId,
     scheduler::StorageType,
     storage::Interval,
     LockId, Origin,
@@ -50,18 +50,14 @@ use gear_core::{
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
-    message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, StoredDelayedDispatch, StoredDispatch,
-        StoredMessage, UserMessage, UserStoredMessage,
-    },
+    message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredMessage, UserStoredMessage},
     pages::{num_traits::Zero, GearPage},
     tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     convert::TryInto,
     fmt::Debug,
     mem,
@@ -82,27 +78,24 @@ const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
-    // State metadata
+    // State with possible overlay
     pub(crate) blocks_manager: BlocksManager,
-    pub(crate) random_data: (Vec<u8>, u32),
-
-    // Messaging and programs meta
-    pub(crate) msg_nonce: u64,
-    pub(crate) id_nonce: u64,
-
-    // State
+    pub(crate) nonce_manager: NonceManager,
     pub(crate) bank: Bank,
-    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
-    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
-    pub(crate) dispatches: VecDeque<StoredDispatch>,
+    pub(crate) dispatches: QueueManager,
     pub(crate) mailbox: MailboxManager,
     pub(crate) task_pool: TaskPoolManager,
     pub(crate) waitlist: WaitlistManager,
     pub(crate) gas_tree: GasTreeManager,
+    pub(crate) dispatches_stash: DispatchStashManager,
+
+    // State with no overlay
     pub(crate) gas_allowance: Gas,
-    pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
+    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
+
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
     pub(crate) failed: BTreeSet<MessageId>,
@@ -115,20 +108,8 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     pub(crate) fn new() -> Self {
         Self {
-            msg_nonce: 1,
-            id_nonce: 1,
-            blocks_manager: BlocksManager::new(),
+            blocks_manager: BlocksManager,
             messages_processing_enabled: true,
-            random_data: (
-                {
-                    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
-                    let mut random = [0u8; 32];
-                    rng.fill_bytes(&mut random);
-
-                    random.to_vec()
-                },
-                0,
-            ),
             ..Default::default()
         }
     }
@@ -155,31 +136,17 @@ impl ExtManager {
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
-        let nonce = self.msg_nonce;
-        self.msg_nonce += 1;
-        nonce
+        self.nonce_manager.fetch_inc_message_nonce()
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while Actors::contains_key(self.id_nonce.into()) {
-            self.id_nonce += 1;
+        let mut id_nonce = self.nonce_manager.id_nonce();
+        while Actors::contains_key(id_nonce.into()) {
+            self.nonce_manager.inc_id_nonce();
+            id_nonce = self.nonce_manager.id_nonce();
         }
-        self.id_nonce
-    }
 
-    /// Check if the current block number should trigger new epoch and reset
-    /// the provided random data.
-    pub(crate) fn check_epoch(&mut self) {
-        let block_height = self.block_height();
-        if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
-            let mut rng = StdRng::seed_from_u64(
-                INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64,
-            );
-            let mut random = [0u8; 32];
-            rng.fill_bytes(&mut random);
-
-            self.random_data = (random.to_vec(), block_height + 1);
-        }
+        id_nonce
     }
 
     pub(crate) fn update_storage_pages(
@@ -288,5 +255,17 @@ impl ExtManager {
             });
 
         Ok(message)
+    }
+
+    /// Enables the overlay mode for gear-runtime emulating storages
+    /// (auxiliaries and internal ones).
+    pub(crate) fn enable_overlay(&self) {
+        state::enable_overlay();
+    }
+
+    /// Disables the overlay mode for gear-runtime emulating storages
+    /// (auxiliaries and internal ones).
+    pub(crate) fn disable_overlay(&self) {
+        state::disable_overlay();
     }
 }

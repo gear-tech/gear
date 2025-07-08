@@ -24,15 +24,22 @@ use crate::{
     state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
     Gas, Value, GAS_ALLOWANCE,
 };
+use core_processor::common::JournalNote;
+use gear_common::MessageId;
 use gear_core::{
-    ids::{prelude::CodeIdExt, ActorId, CodeId},
+    ids::{
+        prelude::{CodeIdExt, MessageIdExt},
+        ActorId, CodeId,
+    },
+    message::{Dispatch, DispatchKind, Message, ReplyDetails},
     pages::GearPage,
+    rpc::ReplyInfo,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use parity_scale_codec::{Decode, DecodeAll};
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, mem, path::Path};
+use std::{borrow::Cow, cell::RefCell, env, fs, mem, panic, path::Path};
 use tracing_subscriber::EnvFilter;
 
 thread_local! {
@@ -225,8 +232,6 @@ impl System {
 
         (block_height..block_height + amount)
             .map(|_| {
-                manager.check_epoch();
-
                 let block_info = manager.blocks_manager.next_block();
                 let next_block_number = block_info.height;
                 manager.process_tasks(next_block_number);
@@ -407,16 +412,118 @@ impl System {
         let actor_id = id.into().0;
         self.0.borrow().balance_of(&actor_id)
     }
+
+    /// Calculate reply that would be received when sending
+    /// message to initialized program with any of `Program::send*` methods.
+    pub fn calculate_reply_for_handle(
+        &self,
+        origin: impl Into<ProgramIdWrapper>,
+        destination: impl Into<ProgramIdWrapper>,
+        payload: impl Into<Vec<u8>>,
+        gas_limit: u64,
+        value: Value,
+    ) -> Result<ReplyInfo, String> {
+        let mut manager_mut = self.0.borrow_mut();
+
+        // Enter the overlay mode
+        manager_mut.enable_overlay();
+
+        // Clear the queue
+        manager_mut.dispatches.clear();
+
+        let origin = origin.into().0;
+        let destination = destination.into().0;
+        let payload = payload
+            .into()
+            .try_into()
+            .expect("failed to convert payload to limited payload");
+
+        // Prepare the message
+        let block_number = manager_mut.block_height() + 1;
+        let message = Message::new(
+            MessageId::generate_from_user(
+                block_number,
+                origin,
+                manager_mut.fetch_inc_message_nonce() as u128,
+            ),
+            origin,
+            destination,
+            payload,
+            Some(gas_limit),
+            value,
+            None,
+        );
+
+        if !Actors::is_active_program(destination) {
+            usage_panic!("Actor with {destination} id is not active");
+        }
+
+        let dispatch = Dispatch::new(DispatchKind::Handle, message);
+
+        // Validate and route the dispatch
+        let message_id = manager_mut.validate_and_route_dispatch(dispatch);
+
+        // Run queue for reply to the `message_id`.
+        let block_config = manager_mut.block_config();
+
+        while let Some(dispatch) = manager_mut.dispatches.pop_front() {
+            // For testing purposes, we set the gas allowance to the maximum for each
+            // message
+            manager_mut.gas_allowance = GAS_ALLOWANCE;
+            // No need to check the flag after the execution, as we give infinite
+            // allowance for the reply calculation.
+            manager_mut.messages_processing_enabled = true;
+
+            // Process the dispatch and obtain the journal.
+            let journal = manager_mut.process_dispatch(&block_config, dispatch);
+
+            // Search for the reply in the journal.
+            for note in &journal {
+                let JournalNote::SendDispatch { dispatch, .. } = note else {
+                    continue;
+                };
+
+                if let Some(code) = dispatch
+                    .reply_details()
+                    .map(ReplyDetails::into_parts)
+                    .and_then(|(replied_to, code)| replied_to.eq(&message_id).then_some(code))
+                {
+                    // Before any return from the function, overlay must be disabled.
+                    manager_mut.disable_overlay();
+
+                    return Ok(ReplyInfo {
+                        payload: dispatch.payload_bytes().to_vec(),
+                        value: dispatch.value(),
+                        code,
+                    });
+                }
+            }
+
+            // As long as no reply was found, we need to handle the journal.
+            core_processor::handle_journal(journal, &mut *manager_mut);
+        }
+
+        // Before any return from the function, overlay must be disabled.
+        manager_mut.disable_overlay();
+
+        Err(String::from("Queue is empty, but reply wasn't found"))
+    }
 }
 
 impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
-        self.0.borrow().gas_tree.reset();
-        self.0.borrow().mailbox.reset();
-        self.0.borrow().task_pool.clear();
-        self.0.borrow().waitlist.reset();
+        let manager = self.0.borrow();
+        manager.gas_tree.clear();
+        manager.mailbox.clear();
+        manager.task_pool.clear();
+        manager.waitlist.clear();
+        manager.blocks_manager.reset();
+        manager.bank.clear();
+        manager.nonce_manager.reset();
+        manager.dispatches.clear();
+        manager.dispatches_stash.clear();
 
         // Clear actors and accounts storages
         Actors::clear();
@@ -427,6 +534,8 @@ impl Drop for System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Log, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, MAX_USER_GAS_LIMIT};
+    use gear_core_errors::{ReplyCode, SuccessReplyReason};
 
     #[test]
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
@@ -451,6 +560,8 @@ mod tests {
         });
 
         h.join().expect("internal error failed joining thread");
+
+        assert_eq!(first_instance.block_height(), 5);
     }
 
     #[test]
@@ -495,5 +606,130 @@ mod tests {
         );
 
         assert_eq!(last_run.block_info.height, 15);
+    }
+
+    #[test]
+    #[should_panic(expected = "Got message sent to incomplete user program")]
+    fn panic_calculate_reply_no_actor() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let origin = DEFAULT_USER_ALICE;
+        let pid = 42;
+        let ping_program = Program::from_binary_with_id(&sys, pid, demo_ping::WASM_BINARY);
+        let destination = ping_program.id();
+
+        // Try send calculate reply for handle.
+        // Must fail because the program is not initialized.
+        let _ = sys.calculate_reply_for_handle(
+            origin,
+            destination,
+            b"PING".to_vec(),
+            MAX_USER_GAS_LIMIT,
+            0,
+        );
+    }
+
+    #[test]
+    fn test_calculate_reply_for_handle() {
+        use demo_piggy_bank::WASM_BINARY;
+
+        let sys = System::new();
+
+        let program = Program::from_binary_with_id(&sys, 42, WASM_BINARY);
+        let pid = program.id();
+
+        // Initialize the program
+        let init_mid = program.send_bytes(DEFAULT_USER_ALICE, b"");
+        let block_result = sys.run_next_block();
+        assert!(block_result.succeed.contains(&init_mid));
+
+        let program_balance_before_overlay = sys.balance_of(pid);
+        let alice_balance_before_overlay = sys.balance_of(DEFAULT_USER_ALICE);
+        let reply_info = sys
+            .calculate_reply_for_handle(
+                DEFAULT_USER_ALICE,
+                pid,
+                b"",
+                MAX_USER_GAS_LIMIT,
+                EXISTENTIAL_DEPOSIT * 10,
+            )
+            .expect("Failed to calculate reply for handle");
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+
+        // Check that overlay didn't change the state
+        assert_eq!(sys.balance_of(pid), program_balance_before_overlay);
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_balance_before_overlay
+        );
+
+        // Send message with value
+        let storing_value = EXISTENTIAL_DEPOSIT * 10;
+        let handle_mid1 = program.send_bytes_with_value(DEFAULT_USER_ALICE, b"", storing_value);
+        let block_result = sys.run_next_block();
+        assert!(block_result.succeed.contains(&handle_mid1));
+        assert!(block_result.contains(
+            &Log::builder()
+                .dest(DEFAULT_USER_ALICE)
+                .reply_code(reply_info.code)
+        ));
+
+        let alice_expected_balance_after_msg1 =
+            alice_balance_before_overlay - storing_value - block_result.spent_value();
+
+        assert_eq!(
+            sys.balance_of(pid),
+            program_balance_before_overlay + storing_value
+        );
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_expected_balance_after_msg1
+        );
+
+        let reply_info = sys
+            .calculate_reply_for_handle(DEFAULT_USER_ALICE, pid, b"smash", MAX_USER_GAS_LIMIT, 0)
+            .expect("Failed to calculate reply for handle");
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+
+        // Check that overlay didn't change the state
+        assert_eq!(
+            sys.balance_of(pid),
+            program_balance_before_overlay + storing_value
+        );
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_expected_balance_after_msg1
+        );
+        let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
+        let log = Log::builder()
+            .dest(DEFAULT_USER_ALICE)
+            .payload_bytes(b"send");
+        assert!(!mailbox.contains(&log));
+
+        let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"smash");
+        let block_result = sys.run_next_block();
+        assert!(block_result.succeed.contains(&handle_mid));
+        assert_eq!(sys.balance_of(pid), EXISTENTIAL_DEPOSIT);
+        let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
+        let log = Log::builder()
+            .dest(DEFAULT_USER_ALICE)
+            .payload_bytes(b"send");
+        assert!(mailbox.contains(&log));
+
+        mailbox.claim_value(log).expect("Failed to claim value");
+
+        let alice_expected_balance_after_msg2 =
+            alice_expected_balance_after_msg1 - block_result.spent_value() + storing_value;
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_expected_balance_after_msg2
+        );
     }
 }

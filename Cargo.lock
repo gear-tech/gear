@@ -7082,6 +7082,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "sp-core",
  "thiserror 2.0.12",
  "tracing-subscriber",
 ]
