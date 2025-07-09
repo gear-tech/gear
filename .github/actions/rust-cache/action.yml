@@ -36,11 +36,23 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
+    - run: |
+        mkdir -p target/debug/wbuild/ethexe-runtime/target
+        mkdir -p target/debug/wbuild/vara-runtime/target
+        mkdir -p target/wasm-projects/debug
+        mkdir -p target/wasm-projects/release
+      shell: bash
+
     - uses: gear-tech/rust-cache@runs-on
       with:
         prefix-key: 'rust-cache/v0'
         key: ${{ inputs.key }}
-        workspaces: ${{ inputs.workspaces }}
+        workspaces: |
+          ${{ inputs.workspaces }}
+          . -> target/debug/wbuild/ethexe-runtime/target
+          . -> target/debug/wbuild/vara-runtime/target
+          . -> target/wasm-projects/debug
+          . -> target/wasm-projects/release
         cache-provider: 's3'
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
