@@ -10,10 +10,6 @@ inputs:
   key:
     required: false
     description: Cache key
-  workspaces:
-    required: false
-    description: Workspaces to cache
-    default: ". -> target"
 
 runs:
   using: composite
@@ -49,11 +45,12 @@ runs:
         prefix-key: 'rust-cache/v0'
         key: ${{ inputs.key }}
         workspaces: |
-          ${{ inputs.workspaces }}
-          . -> target/debug/wbuild/ethexe-runtime/target
-          . -> target/debug/wbuild/vara-runtime/target
+          . -> target/debug
+          . -> target/release
           . -> target/wasm-projects/debug
           . -> target/wasm-projects/release
+          utils/wasm-builder/test-program -> target
+          utils/cargo-gbuild/test-program -> target
         cache-provider: 's3'
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
