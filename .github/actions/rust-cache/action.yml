@@ -13,6 +13,7 @@ inputs:
   workspaces:
     required: false
     description: Workspaces to cache
+    default: ". -> target"
 
 runs:
   using: composite
