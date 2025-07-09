@@ -93,6 +93,10 @@ jobs:
           aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
           aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
+          workspaces: |
+            . -> target
+            utils/wasm-builder/test-program -> target
+            utils/cargo-gbuild/test-program -> target
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
