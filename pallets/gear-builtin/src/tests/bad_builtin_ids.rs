@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+    self as pallet_gear_builtin, ActorHandleResult, ActorWithId, BuiltinActor, BuiltinActorError,
+    BuiltinContext,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -26,7 +27,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
+use gear_core::{ids::ActorId, message::StoredDispatch};
 use sp_core::H256;
 use sp_runtime::{
     traits::{BlakeTwo256, IdentityLookup},
@@ -100,11 +101,14 @@ impl BuiltinActor for SomeBuiltinActor {
     fn handle(
         _dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<ActorHandleResult, BuiltinActorError> {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_u64)?;
 
-        Ok(payload)
+        Ok(ActorHandleResult {
+            payload,
+            return_value: 0,
+        })
     }
 
     fn max_gas() -> u64 {
