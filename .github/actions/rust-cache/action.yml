@@ -52,13 +52,6 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
-    - run: |
-        mkdir -p target/debug/wbuild/ethexe-runtime/target
-        mkdir -p target/debug/wbuild/vara-runtime/target
-        mkdir -p target/wasm-projects/debug
-        mkdir -p target/wasm-projects/release
-      shell: bash
-
     - uses: gear-tech/rust-cache@runs-on
       with:
         prefix-key: 'rust-cache/v0'
