@@ -61,14 +61,7 @@ runs:
         prefix-key: 'rust-cache/v0'
         key: ${{ inputs.key }}
         workspaces: |
-          . -> target/debug
-          . -> target/release
-          . -> target/x86_64-unknown-linux-gnu
-          . -> target/aarch64-apple-darwin
-          . -> target/x86_64-apple-darwin
-          . -> target/x86_64-pc-windows-msvc
-          . -> target/wasm-projects
-          . -> target/wasm32v1-none
+          . -> target
           utils/wasm-builder/test-program -> target
           utils/cargo-gbuild/test-program -> target
         cache-provider: 's3'
