@@ -41,8 +41,10 @@ jobs:
       - name: Cache
         uses: ./.github/actions/rust-cache
         with:
-          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
-          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: Test docs
         run: ./scripts/gear.sh test docs
@@ -90,8 +92,10 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
-          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
 
       - name: "Install: Foundry"
@@ -143,8 +147,10 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
-          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Test: crates-io packages publishing"
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
@@ -168,8 +174,10 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
-          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Build: gear-cli with enabled benchmarks"
         run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
@@ -225,8 +233,10 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
-          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
 
       - name: "Install: try-runtime CLI"
@@ -287,8 +297,10 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          aws-access-key-id: "${{ secrets.GEAR_CI_S3_ACCESS_KEY_ID }}"
-          aws-secret-access-key: "${{ secrets.GEAR_CI_S3_SECRET_ACCESS_KEY }}"
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

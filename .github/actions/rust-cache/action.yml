@@ -1,12 +1,18 @@
-name: sccache
+name: rust-cache
 
 inputs:
-  aws-access-key-id:
+  us-access-key-id:
     required: true
-    description: AWS Access Key ID
-  aws-secret-access-key:
+    description: US S3 access key ID
+  us-secret-access-key:
     required: true
-    description: AWS Secret Access Key
+    description: US secret access key
+  eu-access-key-id:
+    required: true
+    description: EU S3 access key ID
+  eu-secret-access-key:
+    required: true
+    description: EU secret access key
   key:
     required: false
     description: Cache key
@@ -14,11 +20,18 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-region: 'us-west-2'
-        aws-access-key-id: ${{ inputs.aws-access-key-id }}
-        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+    - run: |
+        if [[ "${{ runner.environment }}" == "github-hosted" ]]; then
+          echo "AWS_ACCESS_KEY_ID=${{ inputs.us-access-key-id }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ inputs.us-secret-access-key }}" >> $GITHUB_ENV
+        else
+          echo "AWS_ACCESS_KEY_ID=${{ inputs.eu-access-key-id }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ inputs.eu-secret-access-key }}" >> $GITHUB_ENV
+        
+          echo "SCCACHE_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
+          echo "RUNS_ON_S3_BUCKET_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
+        fi
+      shell: bash
 
     - uses: mozilla-actions/sccache-action@v0.0.9
       with:
@@ -26,7 +39,7 @@ runs:
 
     - run: |
         echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
-        echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
+        echo "SCCACHE_REGION=auto" >> $GITHUB_ENV
         echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
         
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
