@@ -16,6 +16,9 @@ inputs:
   key:
     required: false
     description: Cache key
+  cache-all-crates:
+    required: false
+    description: Whether to cache every crate
 
 runs:
   using: composite
@@ -65,5 +68,6 @@ runs:
           utils/wasm-builder/test-program -> target
           utils/cargo-gbuild/test-program -> target
         cache-provider: 's3'
+        cache-all-crates: ${{ inputs.cache-all-crates }}
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
