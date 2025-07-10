@@ -188,7 +188,7 @@ async fn collect_code_ids(
 
     let response = net_fetch(
         network,
-        db_sync::Request::valid_codes(latest_committed_block, codes_count),
+        db_sync::Request::validated_codes(latest_committed_block, codes_count),
     )
     .await?;
 

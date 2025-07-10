@@ -21,7 +21,7 @@ use crate::{
         Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour, InnerHashesResponse,
         InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest, InnerResponse,
         NewRequestRoundReason, PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId,
-        Response, ValidCodesRequest,
+        Response, ValidatedCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
@@ -143,6 +143,7 @@ impl OngoingRequests {
         let RetriableRequest {
             request_id,
             request,
+            error: _,
         } = request;
         self.requests.insert(
             request_id,
@@ -243,8 +244,8 @@ impl OngoingRequests {
                             request: RetriableRequest {
                                 request_id,
                                 request,
+                                error
                             },
-                            error,
                         }
                     };
                     self.pending_events.push_back(event);
@@ -334,7 +335,7 @@ enum ResponseHandler {
         request: ProgramIdsRequest,
     },
     ValidCodes {
-        request: ValidCodesRequest,
+        request: ValidatedCodesRequest,
     },
 }
 
@@ -347,7 +348,7 @@ impl ResponseHandler {
                 reduced_request: request,
             },
             Request::ProgramIds(request) => Self::ProgramIds { request },
-            Request::ValidCodes(request) => Self::ValidCodes { request },
+            Request::ValidatedCodes(request) => Self::ValidCodes { request },
         }
     }
 
@@ -365,7 +366,7 @@ impl ResponseHandler {
             } => InnerRequest::ProgramIds(InnerProgramIdsRequest { at: *at }),
             ResponseHandler::ValidCodes {
                 request:
-                    ValidCodesRequest {
+                    ValidatedCodesRequest {
                         at: _,
                         validated_count: _,
                     },
@@ -450,7 +451,7 @@ impl ResponseHandler {
 
     async fn handle_valid_codes(
         response: BTreeSet<CodeId>,
-        request: &ValidCodesRequest,
+        request: &ValidatedCodesRequest,
         external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
         // validated count at specified block can be less than
@@ -732,6 +733,7 @@ impl OngoingRequestContext {
 pub struct RetriableRequest {
     request_id: RequestId,
     request: OngoingRequest,
+    error: RequestFailure,
 }
 
 impl PartialEq for RetriableRequest {
