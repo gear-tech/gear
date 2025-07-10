@@ -75,7 +75,7 @@ impl OngoingResponses {
                     .unwrap_or_default(), // FIXME: Option might be more suitable
             )
             .into(),
-            InnerRequest::ValidCodes => db.valid_codes().into(),
+            InnerRequest::ValidCodes => db.validated_codes().into(),
         }
     }
 

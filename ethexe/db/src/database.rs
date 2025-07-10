@@ -59,7 +59,7 @@ enum Key {
     InstrumentedCode(u32, CodeId) = 6,
     CodeMetadata(CodeId) = 7,
     CodeUploadInfo(CodeId) = 8,
-    CodeValid(CodeId) = 9,
+    CodeValidated(CodeId) = 9,
 
     SignedTransaction(H256) = 10,
 
@@ -97,7 +97,7 @@ impl Key {
 
             Self::CodeMetadata(code_id)
             | Self::CodeUploadInfo(code_id)
-            | Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
+            | Self::CodeValidated(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
 
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
@@ -439,9 +439,9 @@ impl CodesStorageRead for Database {
             })
     }
 
-    fn code_valid(&self, code_id: CodeId) -> Option<bool> {
+    fn code_validated(&self, code_id: CodeId) -> Option<bool> {
         self.kv
-            .get(&Key::CodeValid(code_id).to_bytes())
+            .get(&Key::CodeValidated(code_id).to_bytes())
             .map(|data| {
                 bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
             })
@@ -474,13 +474,13 @@ impl CodesStorageWrite for Database {
         );
     }
 
-    fn set_code_valid(&self, code_id: CodeId, valid: bool) {
+    fn set_code_validated(&self, code_id: CodeId, valid: bool) {
         self.kv
-            .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
+            .put(&Key::CodeValidated(code_id).to_bytes(), valid.encode());
     }
 
-    fn valid_codes(&self) -> BTreeSet<CodeId> {
-        let key_prefix = Key::CodeValid(Default::default()).prefix();
+    fn validated_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValidated(Default::default()).prefix();
         self.kv
             .iter_prefix(&key_prefix)
             .map(|(key, valid)| {
@@ -1083,8 +1083,8 @@ mod tests {
         let db = Database::memory();
 
         let code_id = CodeId::default();
-        db.set_code_valid(code_id, true);
-        assert_eq!(db.code_valid(code_id), Some(true));
+        db.set_code_validated(code_id, true);
+        assert_eq!(db.code_validated(code_id), Some(true));
     }
 
     #[test]

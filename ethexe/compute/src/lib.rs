@@ -200,7 +200,7 @@ impl ComputeService {
     }
 
     pub fn process_code(&mut self, code_id: CodeId, _timestamp: u64, code: Vec<u8>) {
-        if let Some(valid) = self.db.code_valid(code_id) {
+        if let Some(valid) = self.db.code_validated(code_id) {
             // TODO: #4712 test this case
             log::warn!("Code {code_id:?} already processed");
 

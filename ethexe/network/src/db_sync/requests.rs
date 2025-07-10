@@ -21,7 +21,7 @@ use crate::{
         Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour, InnerHashesResponse,
         InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest, InnerResponse,
         NewRequestRoundReason, PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId,
-        Response, ValidCodesRequest,
+        Response, ValidatedCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
@@ -343,7 +343,7 @@ enum ResponseHandler {
         request: ProgramIdsRequest,
     },
     ValidCodes {
-        request: ValidCodesRequest,
+        request: ValidatedCodesRequest,
     },
 }
 
@@ -355,7 +355,7 @@ impl ResponseHandler {
                 request,
             },
             Request::ProgramIds(request) => Self::ProgramIds { request },
-            Request::ValidCodes(request) => Self::ValidCodes { request },
+            Request::ValidatedCodes(request) => Self::ValidCodes { request },
         }
     }
 
@@ -374,7 +374,7 @@ impl ResponseHandler {
             } => InnerRequest::ProgramIds(InnerProgramIdsRequest { at: *at }),
             ResponseHandler::ValidCodes {
                 request:
-                    ValidCodesRequest {
+                    ValidatedCodesRequest {
                         at: _,
                         validated_count: _,
                     },
@@ -456,9 +456,9 @@ impl ResponseHandler {
         Ok(program_code_ids)
     }
 
-    async fn handle_valid_codes(
+    async fn handle_validated_codes(
         response: BTreeSet<CodeId>,
-        request: &ValidCodesRequest,
+        request: &ValidatedCodesRequest,
         external_data_provider: Box<dyn ExternalDataProvider>,
     ) -> Result<BTreeSet<CodeId>, ValidCodesResponseError> {
         // validated count at specified block can be less than
@@ -548,7 +548,7 @@ impl ResponseHandler {
                     .map_err(|err| (Self::ProgramIds { request }, err.into()))
             }
             (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => {
-                Self::handle_valid_codes(response, &request, external_data_provider)
+                Self::handle_validated_codes(response, &request, external_data_provider)
                     .await
                     .map(Into::into)
                     .map_err(|err| (Self::ValidCodes { request }, err.into()))
