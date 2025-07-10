@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::{constants::BlockNumber, state::waitlist::WaitlistErrorImpl};
+use gear_core::message::StoredDispatch;
 
 impl ExtManager {
     pub(crate) fn wait_dispatch_impl(
