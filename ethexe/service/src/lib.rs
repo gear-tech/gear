@@ -23,10 +23,7 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
-use ethexe_common::{
-    ecdsa::PublicKey,
-    gear::CodeState,
-};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
