@@ -47,16 +47,23 @@ library Gear {
 
     struct CodeCommitment {
         bytes32 id;
-        uint48 timestamp;
         bool valid;
     }
 
-    struct BlockCommitment {
+    struct GearBlock {
+        /// @dev Hash of corresponding ethereum block.
         bytes32 hash;
-        uint48 timestamp;
-        bytes32 previousCommittedBlock;
-        bytes32 predecessorBlock;
+        /// @dev Gas allowance for programs execution.
+        uint64 gasAllowance;
+        /// @dev Hash (keccak256) of off-chain transaction hashes list.
+        bytes32 offchainTransactionsHash;
+    }
+
+    struct ChainCommitment {
+        /// @dev Transitions of program states, value and messages.
         StateTransition[] transitions;
+        /// @dev List of blocks in chain.
+        GearBlock[] blocks;
     }
 
     struct ValidatorsCommitment {
@@ -67,9 +74,20 @@ library Gear {
     }
 
     struct BatchCommitment {
+        /// @dev Hash of ethereum block for which the batch was created.
+        bytes32 blockHash;
+        /// @dev Timestamp of ethereum block for which this batch was created.
+        uint48 blockTimestamp;
+        /// @dev Hash of previously committed batch hash.
+        bytes32 previousCommittedBatchHash;
+        /// @dev Chain commitment (contains one or zero commitments)
+        ChainCommitment[] chainCommitment;
+        /// @dev Code commitments
         CodeCommitment[] codeCommitments;
-        BlockCommitment[] blockCommitments;
-        RewardsCommitment[] rewardCommitments;
+        /// @dev Rewards commitment (contains one or zero commitments)
+        RewardsCommitment[] rewardsCommitment;
+        /// @dev Validators commitment (contains one or zero commitments)
+        ValidatorsCommitment[] validatorsCommitment;
     }
 
     struct RewardsCommitment {
@@ -100,7 +118,7 @@ library Gear {
         Validated
     }
 
-    struct CommittedBlockInfo {
+    struct CommittedBatchInfo {
         bytes32 hash;
         uint48 timestamp;
     }
@@ -184,6 +202,40 @@ library Gear {
         ECDSA
     }
 
+    function batchCommitmentHash(
+        bytes32 _block,
+        uint48 _timestamp,
+        bytes32 _prevCommittedBlock,
+        bytes32 _chainCommitmentHash,
+        bytes32 _codeCommitmentsHash,
+        bytes32 _rewardsCommitmentHash,
+        bytes32 _validatorsCommitmentHash
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                _block,
+                _timestamp,
+                _prevCommittedBlock,
+                _chainCommitmentHash,
+                _codeCommitmentsHash,
+                _rewardsCommitmentHash,
+                _validatorsCommitmentHash
+            )
+        );
+    }
+
+    function gearBlockHash(GearBlock memory gearBlock) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(gearBlock.hash, gearBlock.gasAllowance, gearBlock.offchainTransactionsHash));
+    }
+
+    function gearBlocksHash(bytes32[] memory gearBlockHashes) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(gearBlockHashes));
+    }
+
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _gearBlocksHash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_transitionsHash, _gearBlocksHash));
+    }
+
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
@@ -192,18 +244,6 @@ library Gear {
                 commitment.validators,
                 commitment.eraIndex
             )
-        );
-    }
-
-    function blockCommitmentHash(
-        bytes32 hash,
-        uint48 timestamp,
-        bytes32 previousCommittedBlock,
-        bytes32 predecessorBlock,
-        bytes32 transitionsHashesHash
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(hash, timestamp, previousCommittedBlock, predecessorBlock, transitionsHashesHash)
         );
     }
 
@@ -225,7 +265,7 @@ library Gear {
     }
 
     function codeCommitmentHash(CodeCommitment memory codeCommitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.timestamp, codeCommitment.valid));
+        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {

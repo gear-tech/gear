@@ -39,7 +39,7 @@ use ethexe_blob_loader::{
 use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    Address,
+    Address, CodeAndId,
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
@@ -51,7 +51,6 @@ use ethexe_rpc::{test_utils::RpcClient, RpcConfig, RpcService};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
-use gear_core::ids::prelude::CodeIdExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
 use rand::{prelude::StdRng, SeedableRng};
@@ -375,9 +374,9 @@ impl TestEnv {
 
         let listener = self.observer_events_publisher().subscribe().await;
 
-        // Lock the blob reader to lock any other threads that may use it
-        let code_id = CodeId::generate(code);
-        self.blobs_storage.add_code(code_id, code.to_vec()).await;
+        let code_and_id = CodeAndId::new(code.to_vec());
+        let code_id = code_and_id.code_id();
+        self.blobs_storage.add_code(code_and_id).await;
 
         let pending_builder = self
             .ethereum
@@ -841,8 +840,7 @@ impl Node {
             .await
             .unwrap();
 
-        let blob_loader =
-            LocalBlobLoader::new(self.db.clone(), self.blob_storage.clone()).into_box();
+        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 

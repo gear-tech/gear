@@ -17,13 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{utils::*, IRouter};
-use ethexe_common::events::RouterEvent;
+use ethexe_common::{events::RouterEvent, Digest};
 
-impl From<IRouter::BlockCommitted> for RouterEvent {
-    fn from(value: IRouter::BlockCommitted) -> Self {
-        Self::BlockCommitted {
-            hash: bytes32_to_h256(value.hash),
+impl From<IRouter::BatchCommitted> for RouterEvent {
+    fn from(value: IRouter::BatchCommitted) -> Self {
+        Self::BatchCommitted {
+            digest: Digest(bytes32_to_h256(value.hash).0),
         }
+    }
+}
+
+impl From<IRouter::GearBlockCommitted> for RouterEvent {
+    fn from(value: IRouter::GearBlockCommitted) -> Self {
+        Self::GearBlockCommitted(value.block.into())
     }
 }
 
