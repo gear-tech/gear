@@ -71,7 +71,7 @@ pub trait CodesStorageRead {
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
-    fn code_validated(&self, code_id: CodeId) -> Option<bool>;
+    fn code_valid(&self, code_id: CodeId) -> Option<bool>;
 }
 
 pub trait CodesStorageWrite {
@@ -79,8 +79,8 @@ pub trait CodesStorageWrite {
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
-    fn set_code_validated(&self, code_id: CodeId, valid: bool);
-    fn validated_codes(&self) -> BTreeSet<CodeId>;
+    fn set_code_valid(&self, code_id: CodeId, valid: bool);
+    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 pub trait OnChainStorageRead {

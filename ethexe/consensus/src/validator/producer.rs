@@ -208,7 +208,7 @@ impl Producer {
 
         codes_queue
             .into_iter()
-            .filter_map(|id| Some((id, ctx.db.code_validated(id)?)))
+            .filter_map(|id| Some((id, ctx.db.code_valid(id)?)))
             .map(|(id, valid)| {
                 ctx.db
                     .code_blob_info(id)

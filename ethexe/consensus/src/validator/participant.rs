@@ -168,7 +168,7 @@ impl Participant {
         );
 
         let local_valid = db
-            .code_validated(id)
+            .code_valid(id)
             .ok_or_else(|| anyhow!("Code {id} is not validated by this node"))?;
 
         ensure!(

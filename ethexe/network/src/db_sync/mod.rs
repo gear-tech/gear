@@ -194,7 +194,7 @@ pub struct ProgramIdsRequest {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ValidatedCodesRequest {
+pub struct ValidCodesRequest {
     pub at: H256,
     pub validated_count: u64,
 }
@@ -203,7 +203,7 @@ pub struct ValidatedCodesRequest {
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
-    ValidatedCodes(ValidatedCodesRequest),
+    ValidCodes(ValidCodesRequest),
 }
 
 impl Request {
@@ -215,8 +215,8 @@ impl Request {
         Self::ProgramIds(ProgramIdsRequest { at, expected_count })
     }
 
-    pub fn validated_codes(at: H256, validated_count: u64) -> Self {
-        Self::ValidatedCodes(ValidatedCodesRequest {
+    pub fn valid_codes(at: H256, validated_count: u64) -> Self {
+        Self::ValidCodes(ValidCodesRequest {
             at,
             validated_count,
         })
