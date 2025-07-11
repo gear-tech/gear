@@ -299,10 +299,6 @@ where
 
         let block_config = Self::block_config();
 
-        if T::DebugInfo::is_remap_id_enabled() {
-            T::DebugInfo::remap_id();
-        }
-
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue() {
                 Ok(Some(d)) => d,
@@ -336,16 +332,6 @@ where
                 gas_limit,
                 GasAllowanceOf::<T>::get(),
             );
-
-            let _guard = scopeguard::guard((), |_| {
-                if T::DebugInfo::is_enabled() {
-                    T::DebugInfo::do_snapshot();
-                }
-
-                if T::DebugInfo::is_remap_id_enabled() {
-                    T::DebugInfo::remap_id();
-                }
-            });
 
             let program_id = dispatch.destination();
 
