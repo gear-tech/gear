@@ -489,11 +489,12 @@ impl CodesStorageWrite for Database {
                 let code_id =
                     CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
 
-                #[cfg(debug_assertions)]
-                bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+                let valid =
+                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
 
-                code_id
+                (code_id, valid)
             })
+            .filter_map(|(code_id, valid)| valid.then_some(code_id))
             .collect()
     }
 }
