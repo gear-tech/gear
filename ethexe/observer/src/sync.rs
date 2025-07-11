@@ -22,7 +22,12 @@ use crate::{
     utils::{load_block_data, load_blocks_data_batched},
     BlockSyncedData, RuntimeConfig,
 };
-use alloy::{eips::BlockNumberOrTag, primitives::BlockNumber, providers::{Provider, RootProvider}, rpc::types::eth::Header};
+use alloy::{
+    eips::BlockNumberOrTag,
+    primitives::BlockNumber,
+    providers::{Provider, RootProvider},
+    rpc::types::eth::Header,
+};
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     self,
@@ -169,7 +174,10 @@ impl<DB: SyncDB> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        let finalized_block = self.provider.get_block(BlockNumberOrTag::Finalized.into()).await?;
+        let finalized_block = self
+            .provider
+            .get_block(BlockNumberOrTag::Finalized.into())
+            .await?;
 
         load_blocks_data_batched(
             self.provider.clone(),

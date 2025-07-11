@@ -486,7 +486,7 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.process_block(block),
+                    ConsensusEvent::ComputeBlock(block) => compute.compute_announce(block),
                     ConsensusEvent::ComputeProducerBlock(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
@@ -494,7 +494,7 @@ impl Service {
                             todo!("#4638 #4639 off-chain transactions and gas allowance are not supported yet");
                         }
 
-                        compute.process_block(producer_block.block_hash);
+                        compute.compute_announce(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {

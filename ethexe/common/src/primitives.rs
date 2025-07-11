@@ -21,7 +21,7 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gear_core::ids::prelude::CodeIdExt as _;
+use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -92,14 +92,6 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
-pub struct BlockMeta {
-    pub prepared: bool,
-    pub announces: Option<Vec<AnnounceHash>>,
-    pub codes_queue: Option<Vec<CodeId>>,
-    pub last_committed_batch: Option<H256>,
-}
-
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ProducerBlock {
     pub block_hash: H256,
@@ -110,8 +102,7 @@ pub struct ProducerBlock {
 
 impl ProducerBlock {
     pub fn hash(&self) -> AnnounceHash {
-        // +_+_+
-        AnnounceHash(H256(gear_core::utils::hash(&self.encode())))
+        AnnounceHash(H256(utils::hash(&self.encode())))
     }
 
     pub fn base(block_hash: H256, parent: AnnounceHash) -> Self {
@@ -121,6 +112,10 @@ impl ProducerBlock {
             gas_allowance: None,
             off_chain_transactions: Vec::new(),
         }
+    }
+
+    pub fn is_base(&self) -> bool {
+        self.gas_allowance.is_none() && self.off_chain_transactions.is_empty()
     }
 }
 
@@ -218,3 +213,15 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DataRequest {
+    Codes(BTreeSet<CodeId>),
+    Announces(AnnouncesRequest),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnouncesRequest {
+    pub head: AnnounceHash,
+    pub deepness: u32,
+}

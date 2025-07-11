@@ -21,16 +21,35 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo,
+    events::BlockEvent, gear::StateTransition, AnnounceHash, BlockHeader, CodeBlobInfo, Digest,
     ProducerBlock, ProgramStates, Schedule,
 };
-use alloc::vec::Vec;
+use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
     code::InstrumentedCode,
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct BlockMeta {
+    pub prepared: bool,
+    pub announces: Option<Vec<AnnounceHash>>,
+    pub codes_queue: Option<VecDeque<CodeId>>,
+    pub last_committed_batch: Option<Digest>,
+}
+
+impl BlockMeta {
+    pub fn default_prepared() -> Self {
+        Self {
+            prepared: true,
+            announces: Some(Default::default()),
+            codes_queue: Some(Default::default()),
+            last_committed_batch: Some(Default::default()),
+        }
+    }
+}
 
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -40,9 +59,7 @@ pub trait BlockMetaStorageRead {
 pub trait BlockMetaStorageWrite {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
-    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
-    where
-        F: FnOnce(&mut BlockMeta);
+    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
 }
 
 pub trait CodesStorageRead {
@@ -78,6 +95,7 @@ pub trait OnChainStorageWrite {
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AnnounceMeta {
     pub computed: bool,
+    pub announces_queue: Option<VecDeque<Option<AnnounceHash>>>,
 }
 
 pub trait AnnounceStorageRead {

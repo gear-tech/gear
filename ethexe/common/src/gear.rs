@@ -59,6 +59,10 @@ pub struct GearBlock {
 }
 
 impl GearBlock {
+    pub fn is_base(&self) -> bool {
+        self.gas_allowance == 0 && self.off_chain_transactions_hash == H256::zero()
+    }
+
     pub fn hash(&self) -> AnnounceHash {
         todo!()
     }

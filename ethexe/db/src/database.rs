@@ -259,10 +259,7 @@ impl BlockMetaStorageRead for Database {
 }
 
 impl BlockMetaStorageWrite for Database {
-    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
-    where
-        F: FnOnce(&mut BlockMeta),
-    {
+    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
         log::trace!("For block {block_hash} mutate meta");
         self.mutate_small_data(block_hash, |data| {
             f(&mut data.meta);
