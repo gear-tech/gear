@@ -23,8 +23,6 @@
 #[macro_use]
 extern crate gear_common_codegen;
 
-#[cfg(feature = "std")]
-pub mod auxiliary;
 pub mod event;
 pub mod scheduler;
 pub mod storage;
@@ -224,24 +222,6 @@ pub trait BlockLimiter {
 
     /// Type manages a gas that is available at the moment of call.
     type GasAllowance: storage::Limiter<Value = Self::Balance>;
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub struct CodeMetadata {
-    pub author: H256,
-    #[codec(compact)]
-    pub block_number: u32,
-}
-
-impl CodeMetadata {
-    pub fn new(author: H256, block_number: u32) -> Self {
-        CodeMetadata {
-            author,
-            block_number,
-        }
-    }
 }
 
 /// A trait whose purpose is to extract the `Call` variant of an extrinsic

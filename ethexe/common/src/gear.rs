@@ -20,7 +20,7 @@
 
 use crate::{Address, Digest, ToDigest};
 use alloc::vec::Vec;
-use gear_core::message::{ReplyDetails, StoredMessage};
+use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
@@ -30,6 +30,12 @@ use sha3::Digest as _;
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
 pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
+
+/// Gas limit for chunk processing.
+pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+
+/// Max block gas limit for the node.
+pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
@@ -307,7 +313,11 @@ impl ToDigest for Message {
             call,
         } = self;
 
-        let (reply_details_to, reply_details_code) = reply_details.unwrap_or_default().into_parts();
+        let (reply_details_to, reply_details_code) =
+            reply_details.map(|d| d.into_parts()).unwrap_or((
+                MessageId::default(),
+                ReplyCode::Success(SuccessReplyReason::Auto),
+            ));
 
         hasher.update(id);
         hasher.update(destination.to_address_lossy());
