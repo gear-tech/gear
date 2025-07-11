@@ -149,7 +149,11 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
                         waiting_codes: missing_validated_codes,
                     };
 
-                    return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(missing_codes))));
+                    if !missing_codes.is_empty() {
+                        return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(
+                            missing_codes,
+                        ))));
+                    }
                 }
                 Some(BlockAction::Process(block)) => {
                     if !self.db.block_meta(block).prepared {
@@ -249,25 +253,7 @@ mod tests {
 
         // Poll service to process the preparation request
         let event = service.next().await.unwrap().unwrap();
-
-        // Should receive RequestLoadCodes event (even if empty)
-        match event {
-            ComputeEvent::RequestLoadCodes(codes) => {
-                assert!(codes.is_empty()); // No missing codes for this simple case
-            }
-            _ => panic!("Expected RequestLoadCodes event"),
-        }
-
-        // Poll again to get BlockPrepared event
-        let event = service.next().await.unwrap().unwrap();
-
-        // Should receive BlockPrepared event
-        match event {
-            ComputeEvent::BlockPrepared(prepared_block) => {
-                assert_eq!(prepared_block, block_hash);
-            }
-            _ => panic!("Expected BlockPrepared event"),
-        }
+        assert_eq!(event, ComputeEvent::BlockPrepared(block_hash));
 
         // Verify block is marked as prepared in DB
         assert!(db.block_meta(block_hash).prepared);
@@ -307,14 +293,10 @@ mod tests {
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();
-
-        // Should receive BlockProcessed event
-        match event {
-            ComputeEvent::BlockProcessed(processed_block) => {
-                assert_eq!(processed_block.block_hash, block_hash);
-            }
-            _ => panic!("Expected BlockProcessed event"),
-        }
+        assert_eq!(
+            event,
+            ComputeEvent::BlockProcessed(BlockProcessed { block_hash })
+        );
 
         // Verify block is marked as computed in DB
         assert!(db.block_meta(block_hash).computed);
@@ -343,11 +325,6 @@ mod tests {
         let event = service.next().await.unwrap().unwrap();
 
         // Should receive CodeProcessed event with correct code_id
-        match event {
-            ComputeEvent::CodeProcessed(processed_code_id) => {
-                assert_eq!(processed_code_id, code_id);
-            }
-            _ => panic!("Expected CodeProcessed event"),
-        }
+        assert_eq!(event, ComputeEvent::CodeProcessed(code_id));
     }
 }
