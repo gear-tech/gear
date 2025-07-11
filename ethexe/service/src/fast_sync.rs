@@ -132,9 +132,10 @@ impl EventData {
             return Ok(None);
         };
 
-        // impossible situation, because block can be committed only if batch is committed
-        let latest_committed_batch =
-            latest_committed_batch.ok_or_else(|| anyhow!("latest committed batch not found"))?;
+        let latest_committed_batch = latest_committed_batch.ok_or_else(|| {
+            log::error!("Inconsistent block events: block commitment without batch commitment");
+            anyhow!("latest committed batch not found")
+        })?;
 
         // recover data we haven't seen in events by the latest computed block
         // NOTE: we use `block` instead of `db.latest_computed_block()` so
