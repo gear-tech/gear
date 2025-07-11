@@ -225,7 +225,8 @@ impl From<u8> for CodeState {
             0 => Self::Unknown,
             1 => Self::ValidationRequested,
             2 => Self::Validated,
-            _ => unreachable!(),
+            // NOTE: newly added variants should be updated accordingly
+            _ => Self::Unknown,
         }
     }
 }
