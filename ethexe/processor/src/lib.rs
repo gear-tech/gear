@@ -28,7 +28,10 @@ use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, MessageId, H256};
-use handling::{run, ProcessingHandler};
+use handling::{
+    run::{self, RunnerConfig},
+    ProcessingHandler,
+};
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
@@ -40,6 +43,12 @@ mod handling;
 
 #[cfg(test)]
 mod tests;
+
+// Default amount of virtual threads to use for programs processing.
+pub const DEFAULT_CHUNK_PROCESSING_THREADS: u8 = 16;
+
+// Default block gas limit for the node.
+pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -112,12 +121,14 @@ pub struct BlockProcessingResult {
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            chunk_processing_threads: 16,
+            chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
         }
     }
 }
@@ -217,10 +228,13 @@ impl Processor {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.config().chunk_processing_threads,
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
+            RunnerConfig {
+                chunk_processing_threads: self.config().chunk_processing_threads,
+                block_gas_limit: self.config().block_gas_limit,
+            },
         )
         .await;
     }

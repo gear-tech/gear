@@ -30,15 +30,13 @@ use alloc::{
     vec::Vec,
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use super::{DispatchKind, IncomingDispatch, Packet};
 
 /// Context settings.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ContextSettings {
     /// Fee for sending message.
     pub sending_fee: u64,
@@ -86,7 +84,7 @@ pub struct ContextOutcomeDrain {
 /// Context outcome.
 ///
 /// Contains all outgoing messages and wakes that should be done after execution.
-#[derive(Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
@@ -106,10 +104,14 @@ impl ContextOutcome {
     /// Create new ContextOutcome.
     fn new(program_id: ActorId, source: ActorId, origin_msg_id: MessageId) -> Self {
         Self {
+            init: Vec::new(),
+            handle: Vec::new(),
+            reply: None,
+            awakening: Vec::new(),
+            reply_deposits: Vec::new(),
             program_id,
             source,
             origin_msg_id,
-            ..Default::default()
         }
     }
 
@@ -143,7 +145,7 @@ impl ContextOutcome {
     }
 }
 /// Store of current temporary message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct OutgoingPayloads {
     handles: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
@@ -151,7 +153,7 @@ pub struct OutgoingPayloads {
 }
 
 /// Store of previous message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
     initialized: BTreeSet<ActorId>,
@@ -210,7 +212,7 @@ impl ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MessageContext {
     kind: DispatchKind,
     current: IncomingMessage,
@@ -412,7 +414,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -425,17 +427,17 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input = self.current.payload_bytes();
+        let input_len = self.current.payload().inner().len();
         let offset = offset as usize;
         let len = len as usize;
 
         // Check `offset` is not out of bounds.
-        if offset >= input.len() {
+        if offset >= input_len {
             return Err(Error::OutOfBoundsInputSliceOffset);
         }
 
         // Check `len` for the current `offset` doesn't refer to the slice out of input bounds.
-        let available_len = input.len() - offset;
+        let available_len = input_len - offset;
         if len > available_len {
             return Err(Error::OutOfBoundsInputSliceLength);
         }
@@ -515,7 +517,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+            .try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -566,11 +568,6 @@ impl MessageContext {
     /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
-    }
-
-    /// Mutable reference to currently processed incoming message.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        self.current.payload_mut()
     }
 
     /// Current program's id.
