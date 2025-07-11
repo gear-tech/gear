@@ -31,7 +31,7 @@ use anyhow::{anyhow, Result};
 use ethexe_common::{
     ecdsa::ContractSignature,
     gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
-    Address as LocalAddress,
+    Address as LocalAddress, Digest,
 };
 use events::signatures;
 use futures::StreamExt;
@@ -242,12 +242,12 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn latest_committed_block_hash(&self) -> Result<H256> {
+    pub async fn latest_committed_batch_hash(&self) -> Result<Digest> {
         self.instance
-            .latestCommittedBlockHash()
+            .latestCommittedBatchHash()
             .call()
             .await
-            .map(|res| H256(*res))
+            .map(|res| Digest(res.0))
             .map_err(Into::into)
     }
 

@@ -9,7 +9,6 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-gear-core.workspace = true
 ethexe-common.workspace = true
 gprimitives.workspace = true
 
