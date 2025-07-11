@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{MessageDetails, StoredMessage};
 use crate::{
     buffer::Payload,
     ids::{ActorId, MessageId},
@@ -23,15 +24,11 @@ use crate::{
 };
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
-
-use super::{MessageDetails, StoredMessage};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Message sent to user and deposited as event.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct UserMessage {
     /// Message id.
     id: MessageId,
@@ -104,7 +101,7 @@ impl UserMessage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FromStoredMessageError;
 
 impl TryFrom<StoredMessage> for UserMessage {
@@ -148,7 +145,7 @@ impl From<UserMessage> for StoredMessage {
 ///
 /// May be represented only with `DispatchKind::Handle`,
 /// so does not contain message details.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct UserStoredMessage {
     /// Message id.
     id: MessageId,
@@ -207,7 +204,7 @@ impl UserStoredMessage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UserStoredMessageConvertError;
 
 impl TryFrom<StoredMessage> for UserStoredMessage {

@@ -22,7 +22,7 @@ use crate::{
         runtime_types::{
             frame_system::pallet::Call,
             gear_core::{
-                code::instrumented::InstrumentedCode,
+                code::{instrumented::InstrumentedCode, metadata::CodeMetadata},
                 program::{ActiveProgram, Program},
             },
             pallet_gear_bank::pallet::BankAccount,
@@ -117,22 +117,30 @@ impl SignerStorage {
 
 // pallet-gear-program
 impl SignerStorage {
-    /// Writes `InstrumentedCode` length into storage at `CodeId`
-    pub async fn set_code_len_storage(&self, code_id: CodeId, code_len: u32) -> EventsResult {
-        let addr = Api::storage(
-            GearProgramStorage::CodeLenStorage,
-            vec![Value::from_bytes(code_id)],
-        );
-        self.set_storage(&[(addr, code_len)]).await
-    }
-
     /// Writes `InstrumentedCode` into storage at `CodeId`
-    pub async fn set_code_storage(&self, code_id: CodeId, code: &InstrumentedCode) -> EventsResult {
+    pub async fn set_instrumented_code_storage(
+        &self,
+        code_id: CodeId,
+        code: &InstrumentedCode,
+    ) -> EventsResult {
         let addr = Api::storage(
-            GearProgramStorage::CodeStorage,
+            GearProgramStorage::InstrumentedCodeStorage,
             vec![Value::from_bytes(code_id)],
         );
         self.set_storage(&[(addr, code)]).await
+    }
+
+    /// Writes `CodeMetadata` into storage at `CodeId`
+    pub async fn set_code_metadata_storage(
+        &self,
+        code_id: CodeId,
+        code_metadata: &CodeMetadata,
+    ) -> EventsResult {
+        let addr = Api::storage(
+            GearProgramStorage::CodeMetadataStorage,
+            vec![Value::from_bytes(code_id)],
+        );
+        self.set_storage(&[(addr, code_metadata)]).await
     }
 
     /// Writes `GearPages` into storage at `program_id`

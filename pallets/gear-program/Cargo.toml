@@ -15,6 +15,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
+primitive-types = { workspace = true, features = ["scale-info"] }
+log.workspace = true
 
 # Internal deps
 common.workspace = true
@@ -40,16 +42,19 @@ pallet-timestamp = { workspace = true, features = ["std"] }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
 pallet-treasury = { workspace = true, features = ["std"] }
+tracing-subscriber.workspace = true
 
 [features]
 default = ['std']
 std = [
-	"common/std",
-	"frame-support/std",
-	"frame-system/std",
-	"sp-io/std",
-	"sp-std/std",
-	"sp-core/std",
-	"sp-runtime/std",
+    "log/std",
+    "common/std",
+    "frame-support/std",
+    "frame-system/std",
+    "sp-io/std",
+    "sp-std/std",
+    "sp-core/std",
+    "sp-runtime/std",
+    "primitive-types/std",
 ]
 try-runtime = ["frame-support/try-runtime"]

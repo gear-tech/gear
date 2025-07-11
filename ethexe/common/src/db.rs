@@ -26,7 +26,7 @@ use crate::{
 };
 use alloc::{collections::VecDeque, vec::Vec};
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
@@ -69,6 +69,7 @@ pub trait CodesStorageRead {
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
 }
 
@@ -76,6 +77,7 @@ pub trait CodesStorageWrite {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
 }
 
