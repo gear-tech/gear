@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
-vara-runtime = { workspace = true, features = ["std", "dev"] }
 wasmer.workspace = true
 wasmer-types.workspace = true
 log.workspace = true

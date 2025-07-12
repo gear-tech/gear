@@ -11,21 +11,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: short
-  RUST_LIB_BACKTRACE: 1
-  TERM: xterm-256color
-
 jobs:
   check:
     uses: ./.github/workflows/check.yml
+    secrets: inherit
 
   build:
     uses: ./.github/workflows/build.yml
+    secrets: inherit
     with:
       macos: true
-      win-native: true
+      windows: true
       release: true
       production: true
 

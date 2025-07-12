@@ -19,7 +19,10 @@ fn main() {
         return;
     }
 
-    let generated = format!("{}/{GENERATED_API_PATH}", env!("CARGO_MANIFEST_DIR"));
+    let generated = format!(
+        "{}/{GENERATED_API_PATH}",
+        env::var("CARGO_MANIFEST_DIR").unwrap()
+    );
     fs::write(generated, generate_api()).expect("Failed to write generated api");
 }
 
@@ -30,16 +33,13 @@ fn main() {
 // using an extra tool for doing this is for preventing the
 // build-dependencies slow down the compilation speed.
 fn generate_api() -> Vec<u8> {
-    let root = env!("CARGO_MANIFEST_DIR");
-    let profile = env::var("PROFILE").expect("Environment PROFILE not found.");
-
     // NOTE: use vara here since vara includes all pallets gear have,
     // and the API we are building here is for both vara and gear.
     let [vara_runtime, api_gen] = [
         (VARA_RUNTIME_RELATIVE_PATH, VARA_RUNTIME_PKG, vec!["dev"]),
         (GSDK_API_GEN_RELATIVE_PATH, GSDK_API_GEN_PKG, vec![]),
     ]
-    .map(|(relative_path, pkg, features)| get_path(root, &profile, relative_path, pkg, features));
+    .map(|(relative_path, pkg, features)| get_path(relative_path, pkg, features));
 
     // Generate api
     let code = Command::new(api_gen)
@@ -57,14 +57,35 @@ fn generate_api() -> Vec<u8> {
 }
 
 // Get the path of the compiled package.
-fn get_path(
-    root: &str,
-    profile: &str,
-    relative_path: &str,
-    pkg: &str,
-    features: Vec<&'static str>,
-) -> PathBuf {
-    let path = PathBuf::from(format!("{root}/../target/{profile}/{relative_path}"));
+fn get_path(relative_path: &str, pkg: &str, features: Vec<&'static str>) -> PathBuf {
+    let out_dir: PathBuf = env::var("OUT_DIR")
+        .expect("`OUT_DIR` is always set in build scripts")
+        .into();
+
+    let profile: String = out_dir
+        .components()
+        .rev()
+        .take_while(|c| c.as_os_str() != "target")
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .take_while(|c| c.as_os_str() != "build")
+        .last()
+        .expect("Path should have subdirs in the `target` dir")
+        .as_os_str()
+        .to_string_lossy()
+        .into();
+
+    let target_dir = out_dir
+        .ancestors()
+        .find(|path| path.ends_with(&profile))
+        .and_then(|path| path.parent())
+        .expect("Could not find target directory");
+
+    let path = PathBuf::from(format!(
+        "{target_dir}/{profile}/{relative_path}",
+        target_dir = target_dir.display()
+    ));
 
     // If package has not been compiled, compile it.
     if !path.exists() {

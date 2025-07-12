@@ -64,7 +64,7 @@ impl Publisher {
         let version = workspace.version()?;
 
         for name in self.index.iter() {
-            let Some(pkg) = self.metadata.packages.iter().find(|pkg| pkg.name == *name) else {
+            let Some(pkg) = self.metadata.packages.iter().find(|pkg| *pkg.name == *name) else {
                 println!("Package {name}@{version} not found in cargo metadata!");
                 continue;
             };

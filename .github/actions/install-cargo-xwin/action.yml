@@ -1,0 +1,34 @@
+name: install-cargo-xwin
+
+inputs:
+  token:
+    description: 'GitHub token'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - run: |
+        if [[ "${{ runner.arch }}" == "ARM64" ]]; then
+          ARCH="aarch64"
+        elif [[ "${{ runner.arch }}" == "X64" ]]; then
+          ARCH="x86_64"
+        else
+          echo "Unsupported arch"
+          exit 1
+        fi
+        
+        wget --header='Authorization: token ${{ inputs.token }}' -O - https://api.github.com/repos/rust-cross/cargo-xwin/releases | \
+        jq -r '.[] | .assets[]? | select(.name | endswith("-unknown-linux-musl.tar.gz")) | .browser_download_url' | \
+        grep "$ARCH" | head -n1 | xargs -r wget -qO - | tar -xzf - -C ${CARGO_HOME:-~/.cargo}/bin
+        
+        echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
+        cargo xwin --version >> ${{ runner.temp }}/cargo-xwin-version.txt
+      shell: bash
+    - name: "Cache MSVC CRT"
+      uses: actions/cache@v4
+      with:
+        path: /home/runner/.cache/cargo-xwin/xwin
+        key: xwin-msvc-crt-x86_64-${{ hashFiles(format('{0}/cargo-xwin-version.txt', runner.temp)) }}
+        restore-keys: |
+          xwin-msvc-crt-x86_64-
