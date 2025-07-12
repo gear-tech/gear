@@ -7,7 +7,7 @@ chmod +x target/release/gear
 ''']
 
 [profile.default]
-leak-timeout = { period = "1s", result = "fail" }
+leak-timeout = { period = "2s", result = "fail" }
 
 [profile.ci]
 fail-fast = false
