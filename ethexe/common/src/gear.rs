@@ -269,12 +269,24 @@ impl ToDigest for Option<ValidatorsCommitment> {
     }
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,
     ValidationRequested,
     Validated,
+}
+
+impl From<u8> for CodeState {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Unknown,
+            1 => Self::ValidationRequested,
+            2 => Self::Validated,
+            // NOTE: newly added variants should be updated accordingly
+            _ => Self::Unknown,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
