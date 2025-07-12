@@ -19,7 +19,10 @@
 //! Staking rewards pallet tests.
 
 use crate::{mock::*, *};
-use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
+use frame_support::{
+    assert_noop, assert_ok, assert_storage_noop,
+    traits::{Currency, EstimateNextNewSession},
+};
 use sp_runtime::{traits::Convert, DispatchError, PerThing, Perbill};
 
 macro_rules! assert_approx_eq {
@@ -602,72 +605,60 @@ fn nominators_rewards_disbursement_works() {
 
 #[test]
 fn staking_blacklist_works() {
-    use sp_runtime::{testing::TestXt, transaction_validity::InvalidTransaction};
+    use frame_support::dispatch::GetDispatchInfo;
+    use parity_scale_codec::Encode;
+    use sp_runtime::{
+        traits::DispatchTransaction,
+        transaction_validity::{InvalidTransaction, TransactionSource},
+    };
 
     init_logger();
 
-    let extra: SignedExtra = StakingBlackList::<Test>::new();
+    // TransactionExtension instance used for validation
+    let bl = StakingBlackList::<Test>::new();
 
-    let invalid_call = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Staking(pallet_staking::Call::bond {
+    // ─── calls that MUST be rejected ─────────────────────────────────────────
+    let invalid_call = RuntimeCall::Staking(pallet_staking::Call::bond {
+        value: 10_000_u128,
+        payee: pallet_staking::RewardDestination::Stash,
+    });
+
+    let invalid_batch = RuntimeCall::Utility(pallet_utility::Call::batch {
+        calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
+        })],
+    });
 
-    // Wrapping `bond` call in a batch is also illegal
-    let invalid_batch = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Utility(pallet_utility::Call::batch {
-            calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                value: 10_000_u128,
-                payee: pallet_staking::RewardDestination::Stash,
-            })],
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    let invalid_batch_all = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Utility(pallet_utility::Call::batch_all {
-            calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
-                value: 10_000_u128,
-                payee: pallet_staking::RewardDestination::Stash,
-            })],
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    // Nested batches and/or other `Utility` calls shouldn't work, as well
-    let nested_batches = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Utility(pallet_utility::Call::batch {
-            calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
-                calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
-                    index: 0,
-                    call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
-                        value: 10_000_u128,
-                        payee: pallet_staking::RewardDestination::Stash,
-                    })),
-                })],
-            })],
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    let valid_call = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
-            dest: NOM_1_STASH,
-            value: 10_000_u128,
-        }),
-        Some((NOM_1_STASH, extra.clone())),
-    );
-
-    let valid_signer = TestXt::<RuntimeCall, SignedExtra>::new(
-        RuntimeCall::Staking(pallet_staking::Call::bond {
+    let invalid_batch_all = RuntimeCall::Utility(pallet_utility::Call::batch_all {
+        calls: vec![RuntimeCall::Staking(pallet_staking::Call::bond {
             value: 10_000_u128,
             payee: pallet_staking::RewardDestination::Stash,
-        }),
-        Some((SIGNER, extra)),
-    );
+        })],
+    });
+
+    let nested_batches = RuntimeCall::Utility(pallet_utility::Call::batch {
+        calls: vec![RuntimeCall::Utility(pallet_utility::Call::batch_all {
+            calls: vec![RuntimeCall::Utility(pallet_utility::Call::as_derivative {
+                index: 0,
+                call: Box::new(RuntimeCall::Staking(pallet_staking::Call::bond {
+                    value: 10_000_u128,
+                    payee: pallet_staking::RewardDestination::Stash,
+                })),
+            })],
+        })],
+    });
+
+    // ─── calls that MUST be accepted ────────────────────────────────────────
+    let valid_call = RuntimeCall::Balances(pallet_balances::Call::transfer_allow_death {
+        dest: NOM_1_STASH,
+        value: 10_000_u128,
+    });
+
+    let valid_signer = RuntimeCall::Staking(pallet_staking::Call::bond {
+        value: 10_000_u128,
+        payee: pallet_staking::RewardDestination::Stash,
+    });
 
     ExtBuilder::<Test>::default()
         .initial_authorities(vec![
@@ -681,57 +672,37 @@ fn staking_blacklist_works() {
         .filtered_accounts(vec![NOM_1_STASH])
         .build()
         .execute_with(|| {
-            assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid_call,
-                    Default::default(),
+            // helper to call `validate_only`
+            let check = |origin: u64, call: &RuntimeCall| {
+                bl.validate_only(
+                    Some(origin).into(),
+                    call,
+                    &call.get_dispatch_info(),
+                    call.using_encoded(|v| v.len()),
+                    TransactionSource::External,
+                    0,
                 )
-                .unwrap_err(),
+            };
+
+            assert_eq!(
+                check(NOM_1_STASH, &invalid_call).unwrap_err(),
+                InvalidTransaction::Call.into()
+            );
+            assert_eq!(
+                check(NOM_1_STASH, &invalid_batch).unwrap_err(),
+                InvalidTransaction::Call.into()
+            );
+            assert_eq!(
+                check(NOM_1_STASH, &invalid_batch_all).unwrap_err(),
+                InvalidTransaction::Call.into()
+            );
+            assert_eq!(
+                check(NOM_1_STASH, &nested_batches).unwrap_err(),
                 InvalidTransaction::Call.into()
             );
 
-            assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid_batch,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    invalid_batch_all,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_eq!(
-                Executive::validate_transaction(
-                    sp_runtime::transaction_validity::TransactionSource::External,
-                    nested_batches,
-                    Default::default(),
-                )
-                .unwrap_err(),
-                InvalidTransaction::Call.into()
-            );
-
-            assert_ok!(Executive::validate_transaction(
-                sp_runtime::transaction_validity::TransactionSource::External,
-                valid_call,
-                Default::default(),
-            ));
-
-            assert_ok!(Executive::validate_transaction(
-                sp_runtime::transaction_validity::TransactionSource::External,
-                valid_signer,
-                Default::default(),
-            ));
+            assert_ok!(check(NOM_1_STASH, &valid_call));
+            assert_ok!(check(SIGNER, &valid_signer));
         });
 }
 
@@ -1230,7 +1201,7 @@ fn unclaimed_rewards_burn() {
         // - since we have outdated rewards that account for some percentage of what was due, the
         //   actual rewards received by stakers will add up to only 84% of projected rewards.
 
-        let history_depth = <Test as pallet_staking::Config>::HistoryDepth::get();
+        let history_depth: u32 = <Test as pallet_staking::Config>::HistoryDepth::get();
 
         let offset = 16_u32;
         // Running chain for 100 (history_depth + offset) eras

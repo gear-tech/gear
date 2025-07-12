@@ -17,64 +17,113 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Config;
-use frame_support::{dispatch::DispatchInfo, traits::Contains};
+use frame_support::{
+    dispatch::{DispatchInfo, DispatchResult},
+    traits::{Contains, OriginTrait},
+    weights::Weight,
+};
 use scale_info::TypeInfo;
 use sp_runtime::{
-    codec::{Decode, Encode},
-    traits::{DispatchInfoOf, Dispatchable, SignedExtension},
-    transaction_validity::{InvalidTransaction, TransactionValidity, TransactionValidityError},
+    codec::{Decode, DecodeWithMemTracking, Encode},
+    traits::{
+        transaction_extension::{TransactionExtension, ValidateResult},
+        DispatchInfoOf, DispatchOriginOf, Dispatchable, Implication, PostDispatchInfoOf,
+    },
+    transaction_validity::{InvalidTransaction, TransactionSource, TransactionValidityError},
 };
+use sp_std::vec;
 
 /// Filter `Staking::bond()` extrinsic sent from accounts that are not allowed to stake.
 ///
 /// This will remain until all locked tokens for accounts in question are fully vested.
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Default, TypeInfo)]
+#[derive(Encode, Decode, DecodeWithMemTracking, Clone, Eq, PartialEq, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct StakingBlackList<T: Config>(sp_std::marker::PhantomData<T>);
 
 impl<T: Config + Send + Sync> StakingBlackList<T> {
-    /// Creates new `SignedExtension` to check the call validity.
     pub fn new() -> Self {
         Self(Default::default())
     }
 }
 
-impl<T: Config + Send + Sync> SignedExtension for StakingBlackList<T>
+impl<T: Config + Send + Sync> Default for StakingBlackList<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: Config + Send + Sync + Send + Sync>
+    TransactionExtension<<T as frame_system::Config>::RuntimeCall> for StakingBlackList<T>
 where
-    T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
+    T::RuntimeCall: Dispatchable<
+        Info = DispatchInfo,
+        PostInfo = frame_support::dispatch::PostDispatchInfo,
+        RuntimeOrigin = frame_system::pallet_prelude::OriginFor<T>,
+    >,
+    <T::RuntimeCall as Dispatchable>::RuntimeOrigin: OriginTrait<AccountId = T::AccountId>,
 {
     const IDENTIFIER: &'static str = "StakingBlackList";
-    type AccountId = T::AccountId;
-    type Call = T::RuntimeCall;
-    type AdditionalSigned = ();
+    type Implicit = ();
+    type Val = ();
     type Pre = ();
-    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+
+    fn implicit(&self) -> Result<Self::Implicit, TransactionValidityError> {
         Ok(())
     }
+
+    fn metadata() -> sp_std::vec::Vec<sp_runtime::traits::TransactionExtensionMetadata> {
+        vec![sp_runtime::traits::TransactionExtensionMetadata {
+            identifier: Self::IDENTIFIER,
+            ty: scale_info::meta_type::<()>(),
+            implicit: scale_info::meta_type::<Self::Implicit>(),
+        }]
+    }
+
+    fn weight(&self, _call: &T::RuntimeCall) -> Weight {
+        Weight::zero()
+    }
+
     fn validate(
         &self,
-        from: &Self::AccountId,
-        call: &Self::Call,
-        _: &DispatchInfoOf<Self::Call>,
-        _: usize,
-    ) -> TransactionValidity {
-        if T::BondCallFilter::contains(call) {
-            if T::AccountFilter::contains(from) {
-                Err(TransactionValidityError::Invalid(InvalidTransaction::Call))
-            } else {
-                Ok(Default::default())
-            }
-        } else {
-            Ok(Default::default())
+        origin: DispatchOriginOf<T::RuntimeCall>,
+        call: &T::RuntimeCall,
+        _info: &DispatchInfoOf<T::RuntimeCall>,
+        _len: usize,
+        _self_implicit: Self::Implicit,
+        _inherited_implication: &impl Implication,
+        _source: TransactionSource,
+    ) -> ValidateResult<Self::Val, T::RuntimeCall> {
+        let maybe_who: Option<T::AccountId> = origin.clone().into_signer();
+
+        if T::BondCallFilter::contains(call)
+            && let Some(ref who) = maybe_who
+            && T::AccountFilter::contains(who)
+        {
+            return Err(TransactionValidityError::Invalid(InvalidTransaction::Call));
         }
+        // If `maybe_who` is `None`, it's not a signed extrinsic from a regular account,
+        // so the account-based blacklist doesn't apply.
+        Ok((Default::default(), (), origin))
     }
-    fn pre_dispatch(
+
+    fn prepare(
         self,
-        _: &Self::AccountId,
-        _: &Self::Call,
-        _: &DispatchInfoOf<Self::Call>,
-        _: usize,
+        _val: Self::Val,
+        _origin: &<T::RuntimeCall as Dispatchable>::RuntimeOrigin,
+        _call: &T::RuntimeCall,
+        _info: &DispatchInfoOf<T::RuntimeCall>,
+        _len: usize,
     ) -> Result<Self::Pre, TransactionValidityError> {
+        Ok(())
+    }
+
+    fn post_dispatch(
+        _pre: Self::Pre, // Changed from Option<Self::Pre>
+        _info: &DispatchInfoOf<T::RuntimeCall>,
+        _post_info: &mut PostDispatchInfoOf<T::RuntimeCall>, // Added mut
+        _len: usize,
+        _result: &DispatchResult,
+    ) -> Result<(), TransactionValidityError> {
         Ok(())
     }
 }

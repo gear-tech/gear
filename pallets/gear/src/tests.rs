@@ -15961,7 +15961,7 @@ pub(crate) mod utils {
     #[track_caller]
     pub(super) fn assert_total_dequeued(expected: u32) {
         System::events().iter().for_each(|e| {
-            log::debug!("Event: {:?}", e);
+            log::debug!("Event: {e:?}");
         });
 
         let actual_dequeued: u32 = System::events()

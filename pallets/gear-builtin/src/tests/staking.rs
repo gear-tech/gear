@@ -619,7 +619,7 @@ fn gas_allowance_respected() {
             payee: pallet_staking::RewardDestination::None,
         }
         .get_dispatch_info()
-        .weight
+        .call_weight
         .ref_time();
 
         System::reset_events();

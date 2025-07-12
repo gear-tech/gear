@@ -150,7 +150,7 @@ fn gas_allowance_respected() {
             delay: 0_u64,
         }
         .get_dispatch_info()
-        .weight
+        .call_weight
         .ref_time();
 
         let gas_cost_send_message_to_broker = 680_000_000; // Heuristic value

@@ -28,7 +28,7 @@ use core::{
     cell::{Ref, RefMut},
     marker::PhantomData,
 };
-use sp_core::H256;
+use primitive_types::H256;
 use std::thread::LocalKey;
 
 /// Balance type used in the gas tree.
