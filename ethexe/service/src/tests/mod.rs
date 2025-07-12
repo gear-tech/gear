@@ -634,7 +634,7 @@ async fn incoming_transfers() {
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
         })
         .await
         .unwrap();
