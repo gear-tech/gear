@@ -393,7 +393,6 @@ impl RouterQuery {
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
-
     }
 }
 

@@ -25,7 +25,8 @@ use ethexe_common::{
         OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
-    Address, BlockData, ProgramStates, StateHashWithQueueSize,
+    gear::GearBlock,
+    Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
@@ -46,6 +47,8 @@ use parity_scale_codec::Decode;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 struct EventData {
+    /// Latest committed on the chain and not computed local batch
+    latest_committed_batch: Digest,
     /// Latest committed on the chain and not computed local block
     latest_committed_block: BlockData,
     /// Previous committed block
@@ -79,22 +82,34 @@ impl EventData {
     ) -> Result<Option<Self>> {
         let mut previous_committed_block = None;
         let mut latest_committed_block = None;
+        let mut latest_committed_batch = None;
 
         let mut block = highest_block;
-        'computed: while !db.block_computed(block) {
+        'computed: while !db.block_meta(block).computed {
             let block_data = Self::get_block_data(observer, db, block).await?;
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
+                if let BlockEvent::Router(RouterEvent::BatchCommitted { digest }) = event {
+                    latest_committed_batch.get_or_insert(digest);
+                }
+
                 if latest_committed_block.is_none() {
-                    if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
+                    if let BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock {
+                        hash,
+                        ..
+                    })) = event
+                    {
                         latest_committed_block = Some(hash);
                     }
                     // we don't collect any further info until the latest committed block is known
                     continue;
                 }
 
-                if let BlockEvent::Router(RouterEvent::BlockCommitted { hash }) = event {
+                if let BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock {
+                    hash, ..
+                })) = event
+                {
                     previous_committed_block = Some(hash);
                     // we don't want event data of the previous committed block
                     break 'computed;
@@ -109,6 +124,10 @@ impl EventData {
             return Ok(None);
         };
 
+        let Some(latest_committed_batch) = latest_committed_batch else {
+            anyhow::bail!("Inconsistent block events: block commitment without batch commitment");
+        };
+
         let latest_committed_block =
             Self::get_block_data(observer, db, latest_committed_block).await?;
 
@@ -121,6 +140,7 @@ impl EventData {
         }
 
         Ok(Some(Self {
+            latest_committed_batch,
             latest_committed_block,
             previous_committed_block,
         }))
@@ -188,7 +208,7 @@ async fn collect_code_ids(
 
     let response = net_fetch(
         network,
-        db_sync::Request::validated_codes(latest_committed_block, codes_count),
+        db_sync::Request::valid_codes(latest_committed_block, codes_count),
     )
     .await?;
 
@@ -550,11 +570,6 @@ async fn instrument_codes(
     db: &Database,
     mut code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
-    /// codes we instrument had already been processed by gear.exe,
-    /// so generated code commitments are never going to be submitted,
-    /// so we just pass placeholder value for their timestamp
-    const TIMESTAMP: u64 = u64::MAX;
-
     if code_ids.is_empty() {
         log::info!("No codes to instrument. Skipping...");
         return Ok(());
@@ -566,7 +581,10 @@ async fn instrument_codes(
         let original_code = db
             .original_code(code_id)
             .expect("`sync_from_network` must fulfill database");
-        compute.process_code(code_id, TIMESTAMP, original_code);
+        compute.process_code(CodeAndIdUnchecked {
+            code_id,
+            code: original_code,
+        });
     }
 
     while let Some(event) = compute.next().await {
@@ -611,6 +629,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let finalized_block = H256(finalized_block.header.hash.0);
 
     let Some(EventData {
+        latest_committed_batch,
         latest_committed_block:
             BlockData {
                 hash: latest_committed_block,
@@ -650,7 +669,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_block_events(latest_committed_block, &[]);
 
         db.set_latest_synced_block_height(latest_block_header.height);
-        db.set_block_is_synced(latest_committed_block);
+        db.mutate_block_meta(latest_committed_block, |meta| {
+            meta.computed = true;
+            meta.synced = true;
+        });
 
         // NOTE: there is no invariant that fast sync should recover queues
         db.set_block_commitment_queue(latest_committed_block, Default::default());
@@ -659,6 +681,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             latest_committed_block,
             previous_committed_block.unwrap_or_else(H256::zero),
         );
+        db.set_last_committed_batch(latest_committed_block, latest_committed_batch);
         db.set_block_program_states(latest_committed_block, program_states);
         db.set_block_schedule(latest_committed_block, schedule);
         unsafe {
@@ -666,8 +689,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
 
         db.set_latest_computed_block(latest_committed_block, latest_block_header);
-
-        db.set_block_computed(latest_committed_block);
     }
 
     log::info!("Fast synchronization done");

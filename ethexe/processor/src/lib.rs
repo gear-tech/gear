@@ -174,7 +174,7 @@ impl Processor {
 
         let valid = code_id == CodeId::generate(&code) && self.handle_new_code(code)?.is_some();
 
-        self.db.set_code_validated(code_id, valid);
+        self.db.set_code_valid(code_id, valid);
 
         Ok(valid)
     }
