@@ -13,9 +13,6 @@ gstd.workspace = true
 [build-dependencies]
 gear-wasm-builder.workspace = true
 
-[dev-dependencies]
-gtest.workspace = true
-
 [features]
 debug = ["gstd/debug"]
 std = []

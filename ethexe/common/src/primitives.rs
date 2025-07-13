@@ -21,7 +21,8 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gprimitives::{ActorId, MessageId, H256};
+use gear_core::ids::prelude::CodeIdExt as _;
+use gprimitives::{ActorId, CodeId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -70,6 +71,13 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct BlockMeta {
+    pub synced: bool,
+    pub prepared: bool,
+    pub computed: bool,
+}
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ProducerBlock {
     pub block_hash: H256,
@@ -105,6 +113,56 @@ impl StateHashWithQueueSize {
 pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
+}
+
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
+pub struct CodeAndIdUnchecked {
+    #[debug("{:#x} bytes", code.len())]
+    pub code: Vec<u8>,
+    pub code_id: CodeId,
+}
+
+#[derive(Clone, PartialEq, Eq, derive_more::Debug)]
+pub struct CodeAndId {
+    #[debug("{:#x} bytes", code.len())]
+    code: Vec<u8>,
+    code_id: CodeId,
+}
+
+impl CodeAndId {
+    pub fn new(code: Vec<u8>) -> Self {
+        let code_id = CodeId::generate(&code);
+        Self { code, code_id }
+    }
+
+    pub fn code(&self) -> &[u8] {
+        &self.code
+    }
+
+    pub fn code_id(&self) -> CodeId {
+        self.code_id
+    }
+
+    /// Creates a new `CodeAndId` from an unchecked version, asserting that the `code_id` matches the generated one.
+    /// # Panics
+    ///
+    /// If the `code_id` does not match the generated one from the `code`, this function will panic.
+    pub fn from_unchecked(code_and_id: CodeAndIdUnchecked) -> Self {
+        let CodeAndIdUnchecked { code, code_id } = code_and_id;
+        assert_eq!(
+            code_id,
+            CodeId::generate(&code),
+            "CodeId does not match the provided code"
+        );
+        Self { code, code_id }
+    }
+
+    pub fn into_unchecked(self) -> CodeAndIdUnchecked {
+        CodeAndIdUnchecked {
+            code: self.code,
+            code_id: self.code_id,
+        }
+    }
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)

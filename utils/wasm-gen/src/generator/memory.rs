@@ -82,7 +82,7 @@ impl MemoryGenerator {
                 },
         } = self;
 
-        log::trace!("Initial pages num - {}", initial_size);
+        log::trace!("Initial pages num - {initial_size}");
 
         // Define memory import in the module
         module.with(|module| {
@@ -91,7 +91,7 @@ impl MemoryGenerator {
 
             // Define optional stack-end
             if let Some(stack_end_page) = stack_end_page {
-                log::trace!("Stack end offset - {:?}", stack_end_page);
+                log::trace!("Stack end offset - {stack_end_page:?}");
 
                 let stack_end = stack_end_page * WasmPage::SIZE;
                 let stack_end_index = builder.push_global(Global::i32_value(stack_end as i32));

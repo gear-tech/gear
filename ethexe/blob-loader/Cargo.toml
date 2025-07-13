@@ -9,11 +9,10 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-gear-core.workspace = true
 ethexe-common.workspace = true
 gprimitives.workspace = true
 
-alloy.workspace = true
+alloy = { workspace = true, features = ["rpc", "rpc-types", "rpc-types-beacon"] }
 thiserror.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
 futures.workspace = true

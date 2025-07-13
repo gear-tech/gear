@@ -67,7 +67,7 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-//#[derive(Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
@@ -395,13 +395,13 @@ impl NetworkService {
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
-                if let Some(mdns4) = behaviour.mdns4.as_ref() {
-                    if mdns4.discovered_nodes().any(|&p| p == peer) {
-                        // we don't want local peers to appear in KadDHT.
-                        // event can be emitted few times in a row for
-                        // the same peer, so we just ignore `None`
-                        let _res = behaviour.kad.remove_peer(&peer);
-                    }
+                if let Some(mdns4) = behaviour.mdns4.as_ref()
+                    && mdns4.discovered_nodes().any(|&p| p == peer)
+                {
+                    // we don't want local peers to appear in KadDHT.
+                    // event can be emitted few times in a row for
+                    // the same peer, so we just ignore `None`
+                    let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
             BehaviourEvent::Kad(_) => {}
@@ -633,16 +633,17 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db_sync::ExternalDataProvider, utils::tests::init_logger};
-    use assert_matches::assert_matches;
+    use crate::{
+        db_sync::{tests::fill_data_provider, ExternalDataProvider},
+        utils::tests::init_logger,
+    };
     use async_trait::async_trait;
-    use ethexe_common::{db::BlockMetaStorageWrite, gear::CodeState, StateHashWithQueueSize};
+    use ethexe_common::gear::CodeState;
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
     use std::{
         collections::{BTreeSet, HashMap},
-        iter,
         sync::Arc,
     };
     use tokio::{
@@ -759,14 +760,14 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_matches!(
+        assert_eq!(
             event,
             NetworkEvent::DbResponse {
-                request_id: rid,
-                result
-            } if rid == request_id && result == Ok(db_sync::Response::Hashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            ))
+                request_id,
+                result: Ok(db_sync::Response::Hashes(
+                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+                ))
+            }
         );
     }
 
@@ -790,7 +791,7 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_matches!(event, NetworkEvent::PeerBlocked(peer) if peer == service2_peer_id);
+        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
     }
 
     #[tokio::test]
@@ -805,25 +806,7 @@ mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
-        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
-        alice_data_provider
-            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
-            .await;
-        bob_db.set_block_program_states(
-            H256::zero(),
-            iter::zip(
-                program_ids.clone(),
-                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
-                    hash,
-                    cached_queue_size: 0,
-                }),
-            )
-            .collect(),
-        );
-
-        let expected_response =
-            db_sync::Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
+        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
 
         let request_id = alice
             .db_sync()
@@ -833,12 +816,12 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_matches!(
+        assert_eq!(
             event,
             NetworkEvent::DbResponse {
-                request_id: rid,
-                result: Ok(response)
-            } if rid == request_id && response == expected_response
+                request_id,
+                result: Ok(expected_response)
+            }
         );
     }
 }

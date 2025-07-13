@@ -19,15 +19,13 @@
 mod requests;
 mod responses;
 
-use crate::utils::AlternateCollectionFmt;
+use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
 };
-
-use crate::db_sync::requests::OngoingRequests;
 use async_trait::async_trait;
 use ethexe_common::gear::CodeState;
 use ethexe_db::Database;
@@ -72,7 +70,7 @@ pub enum RequestFailure {
     Timeout,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Event {
     /// Request is processing new round
     NewRequestRound {
@@ -196,7 +194,7 @@ pub struct ProgramIdsRequest {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ValidatedCodesRequest {
+pub struct ValidCodesRequest {
     pub at: H256,
     pub validated_count: u64,
 }
@@ -205,7 +203,7 @@ pub struct ValidatedCodesRequest {
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
-    ValidatedCodes(ValidatedCodesRequest),
+    ValidCodes(ValidCodesRequest),
 }
 
 impl Request {
@@ -217,8 +215,8 @@ impl Request {
         Self::ProgramIds(ProgramIdsRequest { at, expected_count })
     }
 
-    pub fn validated_codes(at: H256, validated_count: u64) -> Self {
-        Self::ValidatedCodes(ValidatedCodesRequest {
+    pub fn valid_codes(at: H256, validated_count: u64) -> Self {
+        Self::ValidCodes(ValidCodesRequest {
             at,
             validated_count,
         })
@@ -485,7 +483,7 @@ impl NetworkBehaviour for Behaviour {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
@@ -586,28 +584,28 @@ mod tests {
             .request(Request::hashes([hello_hash, world_hash]));
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
+                request_id,
+                peer_id: bob_peer_id,
                 reason: NewRequestRoundReason::FromQueue,
-            } if rid == request_id && peer_id == bob_peer_id
+            }
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::RequestSucceed {
-                request_id: rid,
-                response
-            } if request_id == rid && response == Response::Hashes(
-                [
-                    (hello_hash, b"hello".to_vec()),
-                    (world_hash, b"world".to_vec())
-                ]
-                .into()
-            )
+                request_id,
+                response: Response::Hashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec())
+                    ]
+                    .into()
+                )
+            }
         )
     }
 
@@ -629,13 +627,13 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
+                request_id,
+                peer_id: *bob.local_peer_id(),
                 reason: NewRequestRoundReason::FromQueue,
-            } if rid == request_id && peer_id == *bob.local_peer_id()
+            }
         );
 
         tokio::spawn(async move {
@@ -689,13 +687,13 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
+                request_id,
+                peer_id: *bob.local_peer_id(),
                 reason: NewRequestRoundReason::FromQueue,
-            } if rid == request_id &&  peer_id == *bob.local_peer_id()
+            }
         );
 
         tokio::spawn(async move {
@@ -758,13 +756,13 @@ mod tests {
             .request(Request::hashes([data_0, data_1]));
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
+                request_id,
+                peer_id: *bob.local_peer_id(),
                 reason: NewRequestRoundReason::FromQueue,
-            } if rid == request_id &&  peer_id == *bob.local_peer_id()
+            }
         );
 
         tokio::spawn(async move {
@@ -800,14 +798,14 @@ mod tests {
         });
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::RequestSucceed {
-                request_id: rid,
-                response,
-            } if rid == request_id &&  response == Response::Hashes(
-                [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
-            )
+                request_id,
+                response: Response::Hashes(
+                    [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
+                )
+            }
         );
     }
 
@@ -829,13 +827,13 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
+                request_id,
+                peer_id: *bob.local_peer_id(),
                 reason: NewRequestRoundReason::FromQueue,
-            } if rid == request_id && peer_id == *bob.local_peer_id()
+            }
         );
 
         tokio::spawn(async move {
@@ -910,19 +908,19 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::RequestSucceed {
-                request_id: rid,
-                response
-            } if rid == request_id &&  response == Response::Hashes(
-                [
-                    (hello_hash, b"hello".to_vec()),
-                    (world_hash, b"world".to_vec()),
-                    (mark_hash, b"!".to_vec()),
-                ]
-                .into()
-            )
+                request_id,
+                response: Response::Hashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec()),
+                        (mark_hash, b"!".to_vec()),
+                    ]
+                    .into()
+                ),
+            }
         );
     }
 
@@ -932,7 +930,9 @@ mod tests {
 
         let (mut alice, _alice_db, _data_provider) = new_swarm().await;
         let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
         let (charlie, charlie_db, _data_provider) = new_swarm().await;
+        let charlie_peer_id = *charlie.local_peer_id();
         let charlie_addr = charlie.external_addresses().next().cloned().unwrap();
 
         alice.connect(&mut bob).await;
@@ -947,31 +947,45 @@ mod tests {
 
         // first round
         let event = alice.next_behaviour_event().await;
-        assert_matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id);
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: bob_peer_id,
+                reason: NewRequestRoundReason::FromQueue
+            }
+        );
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id);
+        assert_eq!(event, Event::PendingStateRequest { request_id });
 
         tokio::spawn(charlie.loop_on_next());
         alice.dial_and_wait(charlie_addr).await;
 
         // second round
         let event = alice.next_behaviour_event().await;
-        assert_matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id);
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: charlie_peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            }
+        );
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::RequestSucceed {
-                request_id: rid,
-                response
-            } if rid == request_id &&  response == Response::Hashes(
-                [
-                    (hello_hash, b"hello".to_vec()),
-                    (world_hash, b"world".to_vec())
-                ]
-                .into()
-            )
+                request_id,
+                response: Response::Hashes(
+                    [
+                        (hello_hash, b"hello".to_vec()),
+                        (world_hash, b"world".to_vec())
+                    ]
+                    .into()
+                )
+            }
         )
     }
 
@@ -996,20 +1010,20 @@ mod tests {
         let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
+                request_id,
+                peer_id: bob_peer_id,
                 reason: NewRequestRoundReason::FromQueue
-            } if rid == request_id &&  peer_id == bob_peer_id
+            }
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id);
+        assert_eq!(event, Event::PendingStateRequest { request_id });
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(event, Event::RequestFailed { request, error } if request.id() == request_id && error == RequestFailure::Timeout);
+        assert_matches!(event, Event::RequestFailed { request, error: RequestFailure::Timeout } if request.id() == request_id);
 
         let event = alice.next_swarm_event().await;
         assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
@@ -1028,7 +1042,7 @@ mod tests {
         // make request way heavier so there definitely will be a few simultaneous requests
         let request = Request::hashes(
             iter::from_fn(|| Some(H256::random()))
-                .take(16 * 1024)
+                .take(24 * 1024)
                 .collect::<BTreeSet<H256>>(),
         );
         bob.behaviour_mut().request(request.clone());
@@ -1131,12 +1145,12 @@ mod tests {
         );
 
         let event = alice.next_behaviour_event().await;
-        assert_matches!(
+        assert_eq!(
             event,
             Event::RequestSucceed {
-                request_id: rid,
-                response
-            } if rid == request_id && response == Response::Hashes([(request_key, b"test".to_vec())].into())
+                request_id,
+                response: Response::Hashes([(request_key, b"test".to_vec())].into()),
+            }
         );
     }
 
@@ -1149,12 +1163,55 @@ mod tests {
         let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
+        let expected_response = fill_data_provider(alice_data_provider, charlie_db).await;
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::program_ids(H256::zero(), 2));
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: bob_peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            }
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::PendingStateRequest { request_id });
+
+        alice.connect(&mut charlie).await;
+        tokio::spawn(charlie.loop_on_next());
+
+        // `Event::NewRequestRound` skipped by `connect()` above
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestSucceed {
+                request_id,
+                response: expected_response,
+            }
+        );
+    }
+
+    pub(crate) async fn fill_data_provider(
+        // data provider of the first peer
+        left_data_provider: DataProvider,
+        // database of the second peer
+        right_db: Database,
+    ) -> Response {
         let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
         let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
-        alice_data_provider
+        left_data_provider
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
-        charlie_db.set_block_program_states(
+        right_db.set_block_program_states(
             H256::zero(),
             iter::zip(
                 program_ids.clone(),
@@ -1166,43 +1223,6 @@ mod tests {
             .collect(),
         );
 
-        let expected_response = Response::ProgramIds(iter::zip(program_ids, code_ids).collect());
-
-        alice.connect(&mut bob).await;
-        tokio::spawn(bob.loop_on_next());
-
-        let request_id = alice
-            .behaviour_mut()
-            .request(Request::program_ids(H256::zero(), 2));
-
-        let event = alice.next_behaviour_event().await;
-        assert_matches!(
-            event,
-            Event::NewRequestRound {
-                request_id: rid,
-                peer_id,
-                reason: NewRequestRoundReason::FromQueue,
-            } if rid == request_id && peer_id == bob_peer_id
-        );
-
-        let event = alice.next_behaviour_event().await;
-        assert_matches!(
-            event,
-            Event::PendingStateRequest { request_id: rid } if rid == request_id
-        );
-
-        alice.connect(&mut charlie).await;
-        tokio::spawn(charlie.loop_on_next());
-
-        // `Event::NewRequestRound` skipped by `connect()` above
-
-        let event = alice.next_behaviour_event().await;
-        assert_matches!(
-            event,
-            Event::RequestSucceed {
-                request_id: rid,
-                response,
-            } if rid == request_id && response == expected_response
-        );
+        Response::ProgramIds(iter::zip(program_ids, code_ids).collect())
     }
 }

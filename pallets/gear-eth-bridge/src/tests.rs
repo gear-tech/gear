@@ -1,5 +1,6 @@
 use crate::{
     builtin,
+    internal::EthMessageExt,
     mock::{mock_builtin_id as builtin_id, *},
     Config, EthMessage, WeightInfo,
 };
@@ -192,7 +193,9 @@ fn bridge_send_eth_message_works() {
         let mut builtin_balance = balance_of(&builtin_id);
         let fee = MockTransportFee::get();
 
-        let message = EthMessage::new(0.into(), SIGNER.cast(), destination, payload.clone());
+        let message = unsafe {
+            EthMessage::new_unchecked(0.into(), SIGNER.cast(), destination, payload.clone())
+        };
         let hash = message.hash();
         let mut queue = vec![hash];
 
@@ -216,7 +219,9 @@ fn bridge_send_eth_message_works() {
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
 
-        let message = EthMessage::new(1.into(), SIGNER.cast(), destination, payload.clone());
+        let message = unsafe {
+            EthMessage::new_unchecked(1.into(), SIGNER.cast(), destination, payload.clone())
+        };
         let nonce = message.nonce();
         let hash = message.hash();
 
@@ -425,6 +430,55 @@ fn bridge_updates_authorities_and_clears() {
 
         on_initialize(ERA_BLOCKS * 3 + 2);
         do_events_assertion(18, 110, [Event::BridgeCleared.into()]);
+    })
+}
+
+#[test]
+fn bridge_queues_governance_messages_when_over_capacity() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let queue_capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+
+        for _ in 0..queue_capacity {
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::zero(),
+                vec![]
+            ));
+        }
+
+        let msg_queue_len = Queue::get().len();
+        assert_eq!(msg_queue_len, queue_capacity as usize);
+
+        GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
+            H160::zero(),
+            vec![],
+        )
+        .unwrap();
+
+        assert_eq!(Queue::get().len(), msg_queue_len + 1);
+
+        let _ = run_block_with_builtin_call(
+            <Test as crate::Config>::BridgePauser::get(),
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            None,
+            0,
+        );
+
+        assert_eq!(Queue::get().len(), msg_queue_len + 2);
     })
 }
 

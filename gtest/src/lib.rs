@@ -504,7 +504,6 @@ pub use error::{Result, TestError};
 pub use parity_scale_codec;
 pub use program::{
     calculate_program_id, gbuild::ensure_gbuild, Program, ProgramBuilder, ProgramIdWrapper,
-    WasmProgram,
 };
 pub use state::mailbox::ActorMailbox;
 pub use system::System;
@@ -525,7 +524,7 @@ pub mod constants {
     pub type Gas = u64;
 
     /// Numeric type representing blocks in Gear protocol.
-    pub type Block = u32;
+    pub type BlockNumber = u32;
 
     /* Gas logic related constants */
 
@@ -551,11 +550,11 @@ pub mod constants {
     /// Duration of one block in msecs.
     pub const BLOCK_DURATION_IN_MSECS: u64 = 3000;
     /// Duration of one epoch.
-    pub const EPOCH_DURATION_IN_BLOCKS: Block = 600;
+    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 600;
 
     /* Storage-related constants */
     /// Extra amount of blocks must be reserved for storing in storage.
-    pub const RESERVE_FOR: Block = 1;
+    pub const RESERVE_FOR: BlockNumber = 1;
 
     /* Execution-related constants */
 

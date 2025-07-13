@@ -28,12 +28,12 @@ use std::{
 macro_rules! task_local {
     ($(#[$attr:meta])* static $vis:vis $name:ident: $t:ty;) => {
         $(#[$attr])*
-        $vis static $name: $crate::task_local::LocalKey<$t> = {
-            std::thread_local! {
-                static __KEY: std::cell::RefCell<Option<$t>> = const { std::cell::RefCell::new(None) };
+        $vis static $name: $crate::LocalKey<$t> = {
+            ::std::thread_local! {
+                static __KEY: ::std::cell::RefCell<Option<$t>> = const { ::std::cell::RefCell::new(None) };
             }
 
-            $crate::task_local::LocalKey { inner: __KEY }
+            $crate::LocalKey { inner: __KEY }
         };
     };
 }

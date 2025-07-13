@@ -25,12 +25,12 @@ actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-tracing-subscriber.workspace = true
 enum-iterator.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
 std = ["gear-core-backend/std", "gear-wasm-instrument/std"]
 strict = []
-mock = []
+mock = ["gear-core/mock"]
 gtest = []

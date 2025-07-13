@@ -26,7 +26,10 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{Address, BlockData, BlockHeader, SimpleBlockData};
+use ethexe_common::{
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+    Address, BlockData, BlockHeader, SimpleBlockData,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
@@ -147,19 +150,19 @@ impl Stream for ObserverService {
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        if self.sync_future.is_none() {
-            if let Some(header) = self.block_sync_queue.pop_back() {
-                self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
-            }
+        if self.sync_future.is_none()
+            && let Some(header) = self.block_sync_queue.pop_back()
+        {
+            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
         }
 
-        if let Some(fut) = self.sync_future.as_mut() {
-            if let Poll::Ready(result) = fut.poll_unpin(cx) {
-                self.sync_future = None;
+        if let Some(fut) = self.sync_future.as_mut()
+            && let Poll::Ready(result) = fut.poll_unpin(cx)
+        {
+            self.sync_future = None;
 
-                let maybe_event = result.map(ObserverEvent::BlockSynced);
-                return Poll::Ready(Some(maybe_event));
-            }
+            let maybe_event = result.map(ObserverEvent::BlockSynced);
+            return Poll::Ready(Some(maybe_event));
         }
 
         Poll::Pending
@@ -230,16 +233,16 @@ impl ObserverService {
     // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db(
-        db: &Database,
+    async fn pre_process_genesis_for_db<
+        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageWrite,
+    >(
+        db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
-        use ethexe_common::db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite};
-
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_computed(genesis_block_hash) {
+        if db.block_meta(genesis_block_hash).computed {
             return Ok(());
         }
 
@@ -259,16 +262,19 @@ impl ObserverService {
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
-        db.set_block_is_synced(genesis_block_hash);
+        db.mutate_block_meta(genesis_block_hash, |meta| {
+            meta.computed = true;
+            meta.synced = true;
+        });
 
         db.set_block_commitment_queue(genesis_block_hash, Default::default());
         db.set_block_codes_queue(genesis_block_hash, Default::default());
         db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
+        db.set_last_committed_batch(genesis_block_hash, Default::default());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_block_computed(genesis_block_hash);
 
         Ok(())
     }

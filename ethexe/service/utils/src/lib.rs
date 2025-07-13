@@ -21,9 +21,10 @@
 use futures::{future, stream::FusedStream, StreamExt};
 use std::future::Future;
 
+pub use task_local::LocalKey;
 pub use timer::Timer;
 
-pub mod task_local;
+mod task_local;
 mod timer;
 
 mod private {

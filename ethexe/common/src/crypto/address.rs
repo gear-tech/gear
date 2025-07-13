@@ -58,6 +58,12 @@ impl Address {
     }
 }
 
+impl AsRef<[u8]> for Address {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 impl From<PublicKey> for Address {
     fn from(key: PublicKey) -> Self {
         let public_key_uncompressed = key.to_uncompressed();
