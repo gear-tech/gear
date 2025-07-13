@@ -90,8 +90,13 @@ impl EventData {
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
-                if let BlockEvent::Router(RouterEvent::BatchCommitted { digest }) = event {
-                    latest_committed_batch.get_or_insert(digest);
+                if latest_committed_batch.is_none() {
+                    if let BlockEvent::Router(RouterEvent::BatchCommitted { digest }) = event {
+                        latest_committed_batch = Some(digest);
+                    }
+                    // we don't collect any further info
+                    // because the latest committed batch is the first event we need
+                    continue;
                 }
 
                 if latest_committed_block.is_none() {
@@ -102,7 +107,9 @@ impl EventData {
                     {
                         latest_committed_block = Some(hash);
                     }
-                    // we don't collect any further info until the latest committed block is known
+
+                    // we don't collect any further info
+                    // because the latest committed block is the second event we need
                     continue;
                 }
 
@@ -111,7 +118,7 @@ impl EventData {
                 })) = event
                 {
                     previous_committed_block = Some(hash);
-                    // we don't want event data of the previous committed block
+                    // the previous committed block is the last event we need
                     break 'computed;
                 }
             }
@@ -120,12 +127,12 @@ impl EventData {
             block = parent;
         }
 
-        let Some(latest_committed_block) = latest_committed_block else {
+        let Some(latest_committed_batch) = latest_committed_batch else {
             return Ok(None);
         };
 
-        let Some(latest_committed_batch) = latest_committed_batch else {
-            anyhow::bail!("Inconsistent block events: block commitment without batch commitment");
+        let Some(latest_committed_block) = latest_committed_block else {
+            anyhow::bail!("Inconsistent block events: batch commitment without block commitment");
         };
 
         let latest_committed_block =
