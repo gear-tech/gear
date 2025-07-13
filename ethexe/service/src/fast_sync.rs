@@ -199,6 +199,7 @@ async fn collect_program_code_ids(
 async fn collect_code_ids(
     observer: &mut ObserverService,
     network: &mut NetworkService,
+    db: &Database,
     latest_committed_block: H256,
 ) -> Result<BTreeSet<CodeId>> {
     let router_query = observer.router_query();
@@ -212,7 +213,12 @@ async fn collect_code_ids(
     )
     .await?;
 
-    let code_ids = response.unwrap_valid_codes();
+    let code_ids = response
+        .unwrap_valid_codes()
+        .into_iter()
+        .filter(|&code_id| db.code_valid(code_id).is_none())
+        .collect();
+
     Ok(code_ids)
 }
 
@@ -596,7 +602,7 @@ async fn instrument_codes(
         }
     }
 
-    log::info!("Codes preparation done");
+    log::info!("Codes instrumentation done");
     Ok(())
 }
 
@@ -643,7 +649,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
-    let code_ids = collect_code_ids(observer, network, latest_committed_block).await?;
+    let code_ids = collect_code_ids(observer, network, db, latest_committed_block).await?;
     let program_code_ids =
         collect_program_code_ids(observer, network, latest_committed_block).await?;
     // we fetch program states from the finalized block
