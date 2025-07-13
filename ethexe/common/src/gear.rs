@@ -281,6 +281,7 @@ pub struct ProtocolData {
     // flatten mapping of program to codes ActorId => CodeId
     pub programs_count: U256,
     pub validated_codes_count: U256,
+    pub last_rewarded_era_index: U256,
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]

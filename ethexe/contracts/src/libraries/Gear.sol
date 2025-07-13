@@ -131,6 +131,7 @@ library Gear {
         mapping(address => bytes32) programs;
         uint256 programsCount;
         uint256 validatedCodesCount;
+        uint256 lastRewardedEraIndex;
     }
 
     struct ReplyDetails {

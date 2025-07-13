@@ -47,6 +47,8 @@ mod tests;
 
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
+type LastFinalizedBlockFuture =
+    BoxFuture<'static, std::result::Result<BlockHeader, RpcError<TransportErrorKind>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {

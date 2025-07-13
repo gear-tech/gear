@@ -338,19 +338,19 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         /* Commit Rewards */
 
         bytes memory rewardsCommitmentHashes;
-
-        if (_batchCommitment.rewardCommitments.length > 0) {
-            require(
-                _batchCommitment.rewardCommitments.length == 1,
-                "rewards commitment must be empty or contains only one commitment"
-            );
-
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
+        if (_batchCommitment.rewardCommitments.length > 0 && currentEraIndex > router.protocolData.lastRewardedEraIndex)
+        {
             Gear.RewardsCommitment calldata rewardsCommitment = _batchCommitment.rewardCommitments[0];
             rewardsCommitmentHashes = abi.encodePacked(_commitRewards(router, rewardsCommitment));
+
+            router.protocolData.lastRewardedEraIndex = currentEraIndex;
 
             if (rewardsCommitment.timestamp > maxTimestamp) {
                 maxTimestamp = rewardsCommitment.timestamp;
             }
+
+            emit RewardsDistributed(currentEraIndex);
         }
 
         // NOTE: Use maxTimestamp to validate signatures for all commitments.

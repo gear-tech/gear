@@ -137,9 +137,10 @@ impl Producer {
     ) -> Result<Option<BatchCommitment>, AggregationError> {
         let block_commitments = Self::aggregate_block_commitments_for_block(ctx, block_hash)?;
         let code_commitments = Self::aggregate_code_commitments_for_block(ctx, block_hash)?;
-        let rewards_commitments = RewardsManager::new(ctx.db.clone())
-            .create_commitment()
-            .unwrap();
+        // let rewards_commitments = RewardsManager::new(ctx.db.clone())
+        //     .create_commitment()
+        //     .unwrap();
+        let rewards_commitments = Vec::new();
 
         Ok(
             (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(

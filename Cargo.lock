@@ -4696,6 +4696,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.8.1"
 dependencies = [
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
@@ -4709,6 +4710,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "thiserror 2.0.12",
  "tokio",
 ]
 

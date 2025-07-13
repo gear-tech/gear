@@ -374,6 +374,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
         let mut committed_blocks_in_current = BTreeSet::new();
         let mut validated_codes_in_current = BTreeSet::new();
         let mut requested_codes_in_current = Vec::new();
+        let mut rewards_distributed = false;
 
         for event in events {
             match event {
@@ -385,6 +386,9 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
                 }
                 BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
                     requested_codes_in_current.push(*code_id);
+                }
+                BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
+                    rewards_distributed = true;
                 }
                 _ => {}
             }

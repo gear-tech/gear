@@ -38,6 +38,7 @@ pub mod signatures {
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
         NEXT_ERA_VALIDATORS_COMMITTED: NextEraValidatorsCommitted,
+        REWARDS_DISTRIBUTED: RewardsDistributed,
     }
 
     pub const REQUESTS: &[B256] = &[
