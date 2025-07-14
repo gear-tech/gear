@@ -18,11 +18,12 @@
 
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{bail, Context, Result};
+use async_trait::async_trait;
 use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
-use ethexe_common::ecdsa::PublicKey;
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
@@ -30,7 +31,7 @@ use ethexe_consensus::{
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{NetworkEvent, NetworkService};
+use ethexe_network::{db_sync::ExternalDataProvider, NetworkEvent, NetworkService};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -39,9 +40,9 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use futures::StreamExt;
-use gprimitives::H256;
+use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::pin::Pin;
+use std::{collections::BTreeSet, pin::Pin};
 
 pub mod config;
 
@@ -58,6 +59,43 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
+}
+
+// TODO #4176: consider to move this to another module
+#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
+pub enum NetworkMessage {
+    ProducerBlock(SignedProducerBlock),
+    RequestBatchValidation(SignedValidationRequest),
+    ApproveBatch(BatchCommitmentValidationReply),
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
+    },
+}
+
+#[derive(Clone)]
+struct RouterDataProvider(RouterQuery);
+
+#[async_trait]
+impl ExternalDataProvider for RouterDataProvider {
+    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+        Box::new(self.clone())
+    }
+
+    async fn programs_code_ids_at(
+        self: Box<Self>,
+        program_ids: BTreeSet<ActorId>,
+        block: H256,
+    ) -> Result<Vec<CodeId>> {
+        self.0.programs_code_ids_at(program_ids, block).await
+    }
+
+    async fn codes_states_at(
+        self: Box<Self>,
+        code_ids: BTreeSet<CodeId>,
+        block: H256,
+    ) -> Result<Vec<CodeState>> {
+        self.0.codes_states_at(code_ids, block).await
+    }
 }
 
 /// ethexe service.
@@ -79,17 +117,6 @@ pub struct Service {
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
-}
-
-// TODO #4176: consider to move this to another module
-#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedProducerBlock),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
 }
 
 impl Service {
@@ -207,8 +234,13 @@ impl Service {
 
         let network = if let Some(net_config) = &config.network {
             Some(
-                NetworkService::new(net_config.clone(), &signer, db.clone())
-                    .with_context(|| "failed to create network service")?,
+                NetworkService::new(
+                    net_config.clone(),
+                    &signer,
+                    Box::new(RouterDataProvider(router_query)),
+                    db.clone(),
+                )
+                .with_context(|| "failed to create network service")?,
             )
         } else {
             None
