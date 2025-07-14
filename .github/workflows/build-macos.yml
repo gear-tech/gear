@@ -6,26 +6,23 @@ on:
       profiles:
         type: string
         required: true
-  workflow_dispatch:
-    inputs:
-      profiles:
-        type: string
-        default: '[{ "name": "debug", "flags": "" }]'
 
 env:
   TERM: xterm-256color
-  CARGO_TERM_COLOR: always
-  CARGO_PROFILE_DEV_DEBUG: 0
-  CARGO_PROFILE_TEST_DEBUG: 0
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  RUSTUP_HOME: /tmp/rustup_home
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  CARGO_INCREMENTAL: 0
+  NEXTEST_PROFILE: ci
+  __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
 
 jobs:
   macos:
     strategy:
       matrix:
-        profiles: ${{ fromJson(inputs.profiles) }}
+        profiles: ${{ fromJSON(inputs.profiles) }}
         arch:
           - name: aarch64
             target: aarch64-apple-darwin
@@ -38,36 +35,32 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Packages"
-        run: brew install protobuf binaryen
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-${{ matrix.arch.target }}
+          path: target/release
 
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
-      - name: "Install: Target"
-        run: |
-          rustup target add ${{ matrix.arch.target }}
-          echo "CARGO_BUILD_TARGET=${{ matrix.arch.target }}" >> $GITHUB_ENV
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: "${{ matrix.arch.target }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
-        uses: Swatinem/rust-cache@v2
+        uses: ./.github/actions/rust-cache
         with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
-          save-if: ${{ github.ref == 'refs/heads/master' }}
 
       - name: "Install: cargo-nextest"
         run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: "Build: Node"
-        # the node is not used in the following test sequence,
-        # so we just check compilation
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo build -p gear-cli --release --locked
-
-      - name: "Check: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo run -p calc-stack-height --release --locked
 
       - name: "Test: Lazy pages"
         run: >-
