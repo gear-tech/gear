@@ -39,7 +39,7 @@ jobs:
       - id: profiles
         run: |
           profiles=$(jq -c -n '[{name: "debug", flags: ""}]')
-          if [ ${{ inputs.release }} ]; then
+          if ${{ inputs.release }}; then
             profiles=$(echo "$profiles" | jq -c '. += [{name: "release", flags: "--release"}]')
           fi
           echo "Profiles: ${profiles}"
@@ -54,7 +54,7 @@ jobs:
             }
           ]')
           
-          if [ ${{ inputs.macos }} ]; then
+          if ${{ inputs.macos }}; then
             targets=$(echo "$targets" | jq -c '. += [
               {
                 name: "macos-aarch64",
@@ -69,7 +69,7 @@ jobs:
             ]')
           fi
           
-          if [ ${{ inputs.windows }} ]; then
+          if ${{ inputs.windows }}; then
             targets=$(echo "$targets" | jq -c '. += [
               {
                 name: "windows-x86_64",
