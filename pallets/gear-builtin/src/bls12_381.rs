@@ -61,7 +61,7 @@ impl<T: Config> BuiltinActor for Actor<T> {
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}")
             }),
-            return_value: 0,
+            value: 0,
         })
     }
 

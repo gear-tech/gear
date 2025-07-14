@@ -135,7 +135,8 @@ where
         Ok(ActorHandleResult {
             payload: Pallet::<T>::dispatch_call(origin, call, context)
                 .map(|_| Default::default())?,
-            return_value: 0,
+            // The value is not used in the staking actor, it will be fully returned to the caller.
+            value: dispatch.value(),
         })
     }
 

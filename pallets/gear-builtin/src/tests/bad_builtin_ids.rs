@@ -105,10 +105,7 @@ impl BuiltinActor for SomeBuiltinActor {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_u64)?;
 
-        Ok(ActorHandleResult {
-            payload,
-            return_value: 0,
-        })
+        Ok(ActorHandleResult { payload, value: 0 })
     }
 
     fn max_gas() -> u64 {

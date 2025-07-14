@@ -48,8 +48,7 @@ pub mod pallet_tests;
 
 pub use crate::{
     builtin::{
-        BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, HandleFnResult,
-        WeightFn,
+        BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, BuiltinReply, HandleFn, WeightFn,
     },
     manager::{ExtManager, HandleKind},
     pallet::*,

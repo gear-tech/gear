@@ -73,7 +73,7 @@ use gear_core::{
 use impl_trait_for_tuples::impl_for_tuples;
 pub use pallet::*;
 use pallet_gear::{
-    BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, HandleFnResult, WeightFn,
+    BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, BuiltinReply, HandleFn, WeightFn,
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
@@ -83,7 +83,7 @@ pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasA
 
 const LOG_TARGET: &str = "gear::builtin";
 
-pub type ActorHandleResult = HandleFnResult;
+pub type ActorHandleResult = BuiltinReply;
 pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 
 /// Built-in actor error type
@@ -427,16 +427,12 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
 
                 let mut dispatch_result = DispatchResult::success(&dispatch, actor_id, gas_amount);
 
-                debug_assert!(dispatch.value() >= handle_result.return_value,
-                              "BuiltinRegistry::run: Dispatch value should be greater than or equal to return value"
-                );
-
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
                 // Dispatch clone is cheap here since it only contains Arc<Payload>
                 let mut message_context =
                     MessageContext::new(dispatch.clone(), actor_id, Default::default());
-                let packet = ReplyPacket::new(handle_result.payload, handle_result.return_value);
+                let packet = ReplyPacket::new(handle_result.payload, handle_result.value);
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {

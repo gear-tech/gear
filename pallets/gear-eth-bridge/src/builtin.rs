@@ -57,11 +57,14 @@ where
 
         if !is_governance_origin && dispatch.value() < fee {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                error_to_str(&Error::<T>::IncorrectValueApplied),
+                error_to_str(&Error::<T>::InsufficientValueApplied),
             )));
         }
 
-        let unused_value = dispatch.value().saturating_sub(fee);
+        // If the origin is governance, we do not charge a fee and return the full value.
+        let unused_value = is_governance_origin
+            .then(|| dispatch.value())
+            .unwrap_or_else(|| dispatch.value().saturating_sub(fee));
 
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
@@ -78,7 +81,7 @@ where
                     context,
                     is_governance_origin,
                 )?,
-                return_value: unused_value,
+                value: unused_value,
             }),
         }
     }
@@ -115,7 +118,7 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
-        Error::IncorrectValueApplied => "Send message: incorrect value applied",
+        Error::InsufficientValueApplied => "Send message: incorrect value applied",
         _ => unimplemented!(),
     }
 }

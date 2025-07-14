@@ -22,13 +22,13 @@ use gear_core::{ids::ActorId, message::StoredDispatch};
 
 /// The result of a builtin actor `handle` call.
 #[derive(Debug)]
-pub struct HandleFnResult {
+pub struct BuiltinReply {
     pub payload: Payload,
-    pub return_value: Value,
+    pub value: Value,
 }
 
 /// Builtin actor `handle` function signature.
-pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<HandleFnResult, E>;
+pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<BuiltinReply, E>;
 
 /// Builtin actor `max_gas` function signature.
 // TODO: #4395. Let the weight function take complexity arguments for more accurate gas estimation.

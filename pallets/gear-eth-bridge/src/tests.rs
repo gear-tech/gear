@@ -567,7 +567,7 @@ fn bridge_queue_capacity_exceeded_err() {
 fn bridge_incorrect_value_applied_err() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::IncorrectValueApplied;
+        const ERR: Error = Error::InsufficientValueApplied;
 
         run_to_block(WHEN_INITIALIZED);
 
