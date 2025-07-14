@@ -78,7 +78,7 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<ActorHandleResult, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
 
@@ -86,7 +86,7 @@ where
 
         let call = Self::cast(request)?;
 
-        Ok(ActorHandleResult {
+        Ok(BuiltinReply {
             payload: Pallet::<T>::dispatch_call(origin, call, context)
                 .map(|_| Default::default())?,
             // The value is not used in the proxy actor, it will be fully returned to the caller.

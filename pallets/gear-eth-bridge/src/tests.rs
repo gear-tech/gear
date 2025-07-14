@@ -1,5 +1,4 @@
 use crate::{
-    builtin,
     internal::EthMessageExt,
     mock::{mock_builtin_id as builtin_id, *},
     Config, EthMessage, WeightInfo,
@@ -11,6 +10,7 @@ use frame_support::{
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use pallet_gear::Event as GearEvent;
+use pallet_gear_builtin::BuiltinActorError;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
 use parity_scale_codec::{Decode, Encode};
@@ -567,8 +567,6 @@ fn bridge_queue_capacity_exceeded_err() {
 fn bridge_incorrect_value_applied_err() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::InsufficientValueApplied;
-
         run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::set_fee(
@@ -592,7 +590,7 @@ fn bridge_incorrect_value_applied_err() {
 
         assert_eq!(
             String::from_utf8_lossy(&response),
-            builtin::error_to_str(&ERR)
+            format!("{}", BuiltinActorError::InsufficientValue)
         );
 
         // Check that value/fee was not charged

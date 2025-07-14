@@ -33,7 +33,7 @@ impl<T: Config> BuiltinActor for Actor<T> {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<ActorHandleResult, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let message = dispatch.message();
         let payload = message.payload_bytes();
         match payload.first().copied() {
@@ -51,7 +51,7 @@ impl<T: Config> BuiltinActor for Actor<T> {
             Some(REQUEST_MAP_TO_G2AFFINE) => map_to_g2affine::<T>(&payload[1..], context),
             _ => Err(BuiltinActorError::DecodingError),
         }
-        .map(|response| ActorHandleResult {
+        .map(|response| BuiltinReply {
             payload: response.encode().try_into().unwrap_or_else(|err| {
                 let err_msg = format!(
                     "Actor::handle: Response message is too large. \
@@ -61,7 +61,8 @@ impl<T: Config> BuiltinActor for Actor<T> {
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}")
             }),
-            value: 0,
+            // The value is not used in the bls12_381 actor, it will be fully returned to the caller.
+            value: dispatch.value(),
         })
     }
 

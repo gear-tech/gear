@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, ActorHandleResult, ActorWithId, BuiltinActor, BuiltinActorError,
-    BuiltinContext,
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+    BuiltinReply,
 };
 use frame_support::{
     construct_runtime, parameter_types,
@@ -99,13 +99,16 @@ pallet_gear::impl_config!(
 pub struct SomeBuiltinActor {}
 impl BuiltinActor for SomeBuiltinActor {
     fn handle(
-        _dispatch: &StoredDispatch,
+        dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<ActorHandleResult, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_u64)?;
 
-        Ok(ActorHandleResult { payload, value: 0 })
+        Ok(BuiltinReply {
+            payload,
+            value: dispatch.value(),
+        })
     }
 
     fn max_gas() -> u64 {
