@@ -47,6 +47,7 @@ runs:
     - run: |
         echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
         echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
+        echo "SCCACHE_STARTUP_TIMEOUT=30" >> $GITHUB_ENV
         
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
