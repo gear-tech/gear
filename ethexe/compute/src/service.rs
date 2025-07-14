@@ -26,6 +26,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, SimpleBlockData,
 };
 use ethexe_db::Database;
+use ethexe_processor::Processor;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
 use gprimitives::{CodeId, H256};
 use std::{
@@ -54,7 +55,7 @@ enum State {
 }
 
 // TODO #4548: add state monitoring in prometheus
-pub struct ComputeService<P: ProcessorExt> {
+pub struct ComputeService<P: ProcessorExt = Processor> {
     db: Database,
     processor: P,
 

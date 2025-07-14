@@ -156,7 +156,7 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
 
 // A wrapper around the `ComputeService` to correctly handle code processing and block preparation
 struct WrappedComputeService {
-    inner: ComputeService<Processor>,
+    inner: ComputeService,
     codes_storage: HashMap<CodeId, Vec<u8>>,
 }
 
