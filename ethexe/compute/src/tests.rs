@@ -51,9 +51,9 @@ impl ProcessorExt for MockProcessor {
         _block: H256,
         _events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        let result = PROCESSOR_RESULT.with(|r| r.borrow().clone());
-        PROCESSOR_RESULT.with(|r| {
-            *r.borrow_mut() = BlockProcessingResult {
+        let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
+        PROCESSOR_RESULT.with_borrow_mut(|r| {
+            *r = BlockProcessingResult {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
@@ -156,7 +156,7 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
 
 // A wrapper around the `ComputeService` to correctly handle code processing and block preparation
 struct WrappedComputeService {
-    inner: ComputeService<Processor>,
+    inner: ComputeService,
     codes_storage: HashMap<CodeId, Vec<u8>>,
 }
 
