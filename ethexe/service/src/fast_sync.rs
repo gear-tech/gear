@@ -75,6 +75,8 @@ impl EventData {
         }
     }
 
+    /// Collects metadata regarding the latest committed batch, block, and the previous committed block
+    /// for a given blockchain observer and database.
     async fn collect(
         observer: &mut ObserverService,
         db: &Database,
@@ -183,6 +185,7 @@ async fn net_fetch(
     }
 }
 
+/// Сollects program code IDs for the latest committed block.
 async fn collect_program_code_ids(
     observer: &mut ObserverService,
     network: &mut NetworkService,
@@ -203,6 +206,7 @@ async fn collect_program_code_ids(
     Ok(program_code_ids)
 }
 
+/// Collects a set of valid code IDs that are not yet validated in the local database.
 async fn collect_code_ids(
     observer: &mut ObserverService,
     network: &mut NetworkService,
@@ -229,6 +233,7 @@ async fn collect_code_ids(
     Ok(code_ids)
 }
 
+/// Collects the program states for a given set of program IDs at a specified block height.
 async fn collect_program_states(
     observer: &mut ObserverService,
     at: H256,
@@ -405,6 +410,11 @@ impl Drop for RequestManager {
     }
 }
 
+/// Synchronize program states and related data from the network.
+///
+/// This asynchronous function fetches data from the network based on program
+/// state hashes and associated metadata using a request-manager mechanism. It also enriches
+/// the program states with cached queue sizes.
 async fn sync_from_network(
     network: &mut NetworkService,
     db: &Database,
@@ -578,6 +588,7 @@ async fn sync_from_network(
         .collect()
 }
 
+/// Instruments a set of codes by delegating their processing to the `ComputeService`.
 async fn instrument_codes(
     compute: &mut ComputeService,
     db: &Database,
