@@ -29,34 +29,27 @@ pub type VaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool
 /// Scheduled task sense and required data for processing action.
 ///
 /// CAUTION: NEVER ALLOW `ScheduledTask` BE A BIG DATA.
-/// To avoid redundant migrations only append new variant(s) to the enum
-/// with an explicit corresponding scale codec index.
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum ScheduledTask<RFM, SD, SUM> {
     /// Remove message from mailbox as out of rent one.
-    #[codec(index = 2)]
     RemoveFromMailbox(RFM, MessageId),
 
     /// Remove message from waitlist as out of rent one.
-    #[codec(index = 3)]
     RemoveFromWaitlist(ActorId, MessageId),
 
     // Time chained section.
     // -----
     /// Delayed wake of the message at concrete block.
-    #[codec(index = 5)]
     WakeMessage(ActorId, MessageId),
 
     /// Delayed message to program sending.
     ///
     /// The message itself stored in DispatchStash.
-    #[codec(index = 6)]
     SendDispatch(SD),
 
     /// Delayed message to user sending.
     ///
     /// The message itself stored in DispatchStash.
-    #[codec(index = 7)]
     SendUserMessage {
         /// What message to send.
         message_id: MessageId,
@@ -65,11 +58,7 @@ pub enum ScheduledTask<RFM, SD, SUM> {
     },
 
     /// Remove gas reservation.
-    #[codec(index = 8)]
     RemoveGasReservation(ActorId, ReservationId),
-    //
-    // There was a RemoveResumeSession task with codec(index = 9), but it was removed
-    // The next index should be 10, so we leave a gap here.
 }
 
 impl<RFM, SD, SUM> ScheduledTask<RFM, SD, SUM> {

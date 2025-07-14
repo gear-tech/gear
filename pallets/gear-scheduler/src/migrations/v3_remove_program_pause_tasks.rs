@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2023-2024 Gear Technologies Inc.
+// Copyright (C) 2023-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet};
+use crate::{pallet::TaskPool, Config, Pallet};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
 };
-use sp_std::marker::PhantomData;
+use frame_system::pallet_prelude::BlockNumberFor;
+use gear_core::tasks::VaraScheduledTask;
+use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData};
 
 #[cfg(feature = "try-runtime")]
 use {
-    crate::pallet::TaskPool,
     frame_support::ensure,
     sp_runtime::{
         codec::{Decode, Encode},
         TryRuntimeError,
     },
-    sp_std::vec::Vec,
 };
 
 const MIGRATE_FROM_VERSION: u16 = 2;
@@ -62,26 +62,68 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
             let mut total_counter = 0;
             let mut removed_tasks = 0;
 
-            v2::TaskPool::<T>::translate(
-                |_, task: v2::VaraScheduledTask<<T as frame_system::Config>::AccountId>, value| {
-                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+            let mut new_tasks: BTreeMap<BlockNumberFor<T>, VaraScheduledTask<T::AccountId>> =
+                BTreeMap::new();
 
-                    total_counter += 1;
+            v2::TaskPool::<T>::drain().for_each(|(block_number, task, _)| {
+                // We need to read the task from storage, and then write it back in the new format.
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-                    match task {
-                        v2::VaraScheduledTask::PauseProgram(_)
-                        | v2::VaraScheduledTask::RemoveCode(_)
-                        | v2::VaraScheduledTask::RemovePausedProgram(_)
-                        | v2::VaraScheduledTask::RemoveResumeSession(_) => {
-                            removed_tasks += 1;
-
-                            // We need to remove these tasks, so we return None.
-                            None
-                        }
-                        _ => Some(value),
+                match task {
+                    v2::VaraScheduledTask::PauseProgram(_)
+                    | v2::VaraScheduledTask::RemoveCode(_)
+                    | v2::VaraScheduledTask::RemovePausedProgram(_)
+                    | v2::VaraScheduledTask::RemoveResumeSession(_) => {
+                        removed_tasks += 1;
                     }
-                },
-            );
+                    // We need to convert the task to the new format.
+                    v2::VaraScheduledTask::RemoveFromMailbox(rfm, message_id) => {
+                        new_tasks.insert(
+                            block_number,
+                            VaraScheduledTask::RemoveFromMailbox(rfm, message_id),
+                        );
+                    }
+                    v2::VaraScheduledTask::RemoveFromWaitlist(actor_id, message_id) => {
+                        new_tasks.insert(
+                            block_number,
+                            VaraScheduledTask::RemoveFromWaitlist(actor_id, message_id),
+                        );
+                    }
+                    v2::VaraScheduledTask::WakeMessage(actor_id, message_id) => {
+                        new_tasks.insert(
+                            block_number,
+                            VaraScheduledTask::WakeMessage(actor_id, message_id),
+                        );
+                    }
+                    v2::VaraScheduledTask::SendDispatch(sd) => {
+                        new_tasks.insert(block_number, VaraScheduledTask::SendDispatch(sd));
+                    }
+                    v2::VaraScheduledTask::SendUserMessage {
+                        message_id,
+                        to_mailbox,
+                    } => {
+                        new_tasks.insert(
+                            block_number,
+                            VaraScheduledTask::SendUserMessage {
+                                message_id,
+                                to_mailbox,
+                            },
+                        );
+                    }
+                    v2::VaraScheduledTask::RemoveGasReservation(actor_id, reservation_id) => {
+                        new_tasks.insert(
+                            block_number,
+                            VaraScheduledTask::RemoveGasReservation(actor_id, reservation_id),
+                        );
+                    }
+                }
+
+                total_counter += 1;
+            });
+
+            new_tasks.into_iter().for_each(|(block_number, task)| {
+                TaskPool::<T>::insert(block_number, task, ());
+            });
 
             // Put new storage version
             weight = weight.saturating_add(T::DbWeight::get().writes(1));

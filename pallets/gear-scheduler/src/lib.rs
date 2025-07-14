@@ -27,7 +27,9 @@
 #[cfg(test)]
 mod mock;
 
-pub mod migrations;
+pub mod migrations {
+    pub mod v3_remove_program_pause_tasks;
+}
 
 // Unit tests module.
 #[cfg(test)]
