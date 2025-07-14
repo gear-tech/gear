@@ -19,13 +19,12 @@
 use crate::{self as pallet_gear_payment, Config, DelegateFee};
 use common::storage::Messenger;
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU32, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize,
+        ConstU8, ConstU32, ConstU128, Contains, Currency, FindAuthor, OnFinalize, OnInitialize,
         OnUnbalanced,
     },
-    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
-    PalletId,
+    weights::{ConstantMultiplier, Weight, constants::WEIGHT_REF_TIME_PER_SECOND},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
@@ -34,9 +33,9 @@ use pallet_gear_voucher::VoucherId;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
+    BuildStorage,
     testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
-    BuildStorage,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},

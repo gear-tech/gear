@@ -18,9 +18,9 @@
 
 //! Wasmer specific impls for sandbox
 
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue};
 use parity_scale_codec::{Decode, Encode};
-use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
+use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize, util};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmer::{AsStoreMut, RuntimeError, Store};
 use wasmer_types::TrapCode;
@@ -44,7 +44,7 @@ mod store_refcell_ctx {
 
     use wasmer::StoreMut;
 
-    use super::{store_refcell::BorrowScopeError, StoreRefCell};
+    use super::{StoreRefCell, store_refcell::BorrowScopeError};
 
     // We cannot store `StoreRefCell` in `wasmer::FunctionEnv` because it doesn't implement Send/Sync,
     // so we have to use `environment!` to access it from `dispatch_function` functions.

@@ -65,7 +65,7 @@ pub trait ReservationIdExt: private::Sealed + Sized {
     /// gas back:
     ///
     /// ```
-    /// use gstd::{msg, prelude::*, ReservationId};
+    /// use gstd::{ReservationId, msg, prelude::*};
     ///
     /// #[unsafe(no_mangle)]
     /// extern "C" fn handle() {

@@ -19,12 +19,11 @@
 use crate as pallet_gear_debug;
 use common::storage::Limiter;
 use frame_support::{
-    construct_runtime,
+    PalletId, construct_runtime,
     dispatch::DispatchClass,
     parameter_types,
     traits::{ConstU32, FindAuthor, Get, OnFinalize, OnInitialize},
     weights::Weight,
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -32,8 +31,8 @@ use pallet_gear::GasAllowanceOf;
 use primitive_types::H256;
 use sp_core::ConstBool;
 use sp_runtime::{
-    traits::{BlakeTwo256, ConstU64, IdentityLookup},
     BuildStorage,
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

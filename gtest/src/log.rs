@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{error::usage_panic, program::ProgramIdWrapper, Gas, Value, GAS_MULTIPLIER};
+use crate::{GAS_MULTIPLIER, Gas, Value, error::usage_panic, program::ProgramIdWrapper};
 use core_processor::configs::BlockInfo;
 use gear_core::{
     buffer::Payload,

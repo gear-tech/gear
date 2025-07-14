@@ -19,20 +19,18 @@
 use crate::{self as pallet_gear_eth_bridge};
 use common::Origin as _;
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
-    PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureSignedBy};
+use frame_system::{self as system, EnsureSignedBy, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, H256};
+use sp_core::{H256, ed25519::Public};
 use sp_runtime::{
-    impl_opaque_keys,
+    BuildStorage, impl_opaque_keys,
     traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 

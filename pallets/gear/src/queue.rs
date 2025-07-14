@@ -18,8 +18,8 @@
 
 use super::*;
 use core_processor::{
-    common::{DispatchResult, SuccessfulDispatchResultKind},
     ContextCharged, ProcessExecutionContext,
+    common::{DispatchResult, SuccessfulDispatchResultKind},
 };
 use gear_core::{code::InstrumentedCodeAndMetadata, program::ProgramState};
 

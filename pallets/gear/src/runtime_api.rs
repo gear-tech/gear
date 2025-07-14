@@ -22,7 +22,7 @@ use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
     rpc::ReplyInfo,
 };

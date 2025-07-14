@@ -18,12 +18,12 @@
 
 use crate::*;
 use ethexe_common::{
+    BlockHeader,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
         OnChainStorageWrite,
     },
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
-    BlockHeader,
 };
 use ethexe_runtime_common::ScheduleRestorer;
 use gear_core::ids::prelude::CodeIdExt;
@@ -167,10 +167,12 @@ fn handle_new_code_valid() {
     let original_code_len = original_code.len();
 
     assert!(processor.db.original_code(code_id).is_none());
-    assert!(processor
-        .db
-        .instrumented_code(ethexe_runtime::VERSION, code_id)
-        .is_none());
+    assert!(
+        processor
+            .db
+            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .is_none()
+    );
 
     assert!(processor.db.code_metadata(code_id).is_none());
 
@@ -220,23 +222,29 @@ fn handle_new_code_invalid() {
     let (code_id, original_code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
     assert!(processor.db.original_code(code_id).is_none());
-    assert!(processor
-        .db
-        .instrumented_code(ethexe_runtime::VERSION, code_id)
-        .is_none());
+    assert!(
+        processor
+            .db
+            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .is_none()
+    );
 
     assert!(processor.db.code_metadata(code_id).is_none());
 
-    assert!(processor
-        .handle_new_code(&original_code)
-        .expect("failed to call runtime api")
-        .is_none());
+    assert!(
+        processor
+            .handle_new_code(&original_code)
+            .expect("failed to call runtime api")
+            .is_none()
+    );
 
     assert!(processor.db.original_code(code_id).is_none());
-    assert!(processor
-        .db
-        .instrumented_code(ethexe_runtime::VERSION, code_id)
-        .is_none());
+    assert!(
+        processor
+            .db
+            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .is_none()
+    );
 
     assert!(processor.db.code_metadata(code_id).is_none());
 }

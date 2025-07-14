@@ -44,11 +44,11 @@ use derive_more::{AsMut, AsRef, From, Into};
 use gear_ss58::RawSs58Address;
 #[cfg(feature = "codec")]
 use scale_info::{
-    scale::{self, Decode, Encode, MaxEncodedLen},
     TypeInfo,
+    scale::{self, Decode, Encode, MaxEncodedLen},
 };
 #[cfg(feature = "serde")]
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

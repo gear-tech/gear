@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use proc_macro2::Span;
 use syn::{
+    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier, TypeParam, TypeParamBound,
     parse_quote,
     punctuated::Punctuated,
     token::{Comma, Plus},
-    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier, TypeParam, TypeParamBound,
 };
 
 /// Describes how to output documentation for `_for_reply_(as)`

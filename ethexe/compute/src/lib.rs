@@ -17,14 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
+    CodeAndIdUnchecked, SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::GearBlock,
-    CodeAndIdUnchecked, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
@@ -453,7 +453,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageWrite + BlockMetaStorageRead>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{db::OnChainStorageWrite, BlockHeader, Digest};
+    use ethexe_common::{BlockHeader, Digest, db::OnChainStorageWrite};
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use std::collections::HashMap;

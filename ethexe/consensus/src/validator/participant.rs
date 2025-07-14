@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
-    ValidatorState,
+    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
+    initial::Initial,
 };
 use crate::{
-    utils, BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    SignedValidationRequest,
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
+    SignedValidationRequest, utils,
 };
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
-use ethexe_common::{db::BlockMetaStorageRead, Address, SimpleBlockData, ToDigest};
+use ethexe_common::{Address, SimpleBlockData, ToDigest, db::BlockMetaStorageRead};
 use std::collections::HashSet;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -207,8 +207,8 @@ mod tests {
         validator::mock::*,
     };
     use ethexe_common::{
-        gear::{CodeCommitment, GearBlock},
         Digest,
+        gear::{CodeCommitment, GearBlock},
     };
     use gprimitives::H256;
 

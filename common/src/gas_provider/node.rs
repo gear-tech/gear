@@ -212,11 +212,11 @@ pub struct ChildrenRefs {
 }
 
 impl<
-        ExternalId: Clone,
-        Id: Clone + Copy,
-        Balance: Default + Zero + Clone + Copy + sp_runtime::traits::Saturating,
-        Funds: Clone,
-    > GasNode<ExternalId, Id, Balance, Funds>
+    ExternalId: Clone,
+    Id: Clone + Copy,
+    Balance: Default + Zero + Clone + Copy + sp_runtime::traits::Saturating,
+    Funds: Clone,
+> GasNode<ExternalId, Id, Balance, Funds>
 {
     /// Returns total gas value inside GasNode.
     pub fn total_value(&self) -> Balance {

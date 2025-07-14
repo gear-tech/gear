@@ -19,8 +19,8 @@
 //! Create program call generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
-    Seed,
+    CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs, Seed,
+    impl_convert_traits,
 };
 use gear_core::ids::CodeId;
 use gear_utils::{NonEmpty, RingGet};

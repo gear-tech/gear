@@ -24,12 +24,12 @@ use frame_support::{
     sp_runtime::{FixedPointNumber, FixedU128 as Fixed},
     weights::Weight,
 };
-use gear_utils::codegen::{format_with_rustfmt, LICENSE};
+use gear_utils::codegen::{LICENSE, format_with_rustfmt};
 use heck::ToSnakeCase;
 use indexmap::IndexMap;
 use pallet_gear::Schedule;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -38,12 +38,12 @@ use std::{
     str::FromStr,
 };
 use syn::{
-    ext::IdentExt,
-    visit::{self, Visit},
     AngleBracketedGenericArguments, Fields, FnArg, GenericArgument, Generics, ImplItem, Item,
     ItemImpl, ItemStruct, Path, PathArguments, PathSegment, Type, TypePath,
+    ext::IdentExt,
+    visit::{self, Visit},
 };
-use tabled::{builder::Builder, Style};
+use tabled::{Style, builder::Builder};
 
 /// Utility for working with weights
 #[derive(Debug, Parser)]

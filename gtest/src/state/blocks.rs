@@ -19,12 +19,12 @@
 //! Block timestamp and height management.
 
 use crate::{
-    constants::BlockNumber, state::WithOverlay, BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS,
-    INITIAL_RANDOM_SEED,
+    BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS, INITIAL_RANDOM_SEED, constants::BlockNumber,
+    state::WithOverlay,
 };
 use core_processor::configs::BlockInfo;
 use gear_common::storage::GetCallback;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::StdRng};
 use std::{
     thread::LocalKey,
     time::{SystemTime, UNIX_EPOCH},

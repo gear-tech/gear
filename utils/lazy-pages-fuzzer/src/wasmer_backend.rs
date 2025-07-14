@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    globals::{get_globals, globals_list, InstanceAccessGlobal},
+    INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS, RunResult, Runner,
+    globals::{InstanceAccessGlobal, get_globals, globals_list},
     lazy_pages::{self, FuzzerLazyPagesContext},
-    RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{Module, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{GLOBAL_NAME_GAS, Module};
 use wasmer::{
     Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
     Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,

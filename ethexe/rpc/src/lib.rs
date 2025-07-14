@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
@@ -24,14 +24,14 @@ use apis::{
 use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
-use futures::{stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, stream::FusedStream};
 use gprimitives::H256;
 use jsonrpsee::{
-    server::{
-        serve_with_graceful_shutdown, stop_channel, Server, ServerHandle, StopHandle,
-        TowerServiceBuilder,
-    },
     Methods, RpcModule as JsonrpcModule,
+    server::{
+        Server, ServerHandle, StopHandle, TowerServiceBuilder, serve_with_graceful_shutdown,
+        stop_channel,
+    },
 };
 use std::{
     net::SocketAddr,

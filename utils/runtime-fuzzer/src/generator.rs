@@ -27,15 +27,15 @@ use crate::{
 };
 use gear_call_gen::GearCall;
 use gear_common::{
-    event::{CodeChangeKind, ProgramChangeKind},
     Origin,
+    event::{CodeChangeKind, ProgramChangeKind},
 };
 use gear_core::ids::{ActorId, CodeId, MessageId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
-use vara_runtime::{RuntimeEvent, System, EXISTENTIAL_DEPOSIT};
+use vara_runtime::{EXISTENTIAL_DEPOSIT, RuntimeEvent, System};
 
 // Max code size - 25 KiB.
 const MAX_CODE_SIZE: usize = 25 * 1024;

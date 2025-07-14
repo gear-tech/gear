@@ -1,8 +1,8 @@
 //! Utils for checking blocks production.
 use gsdk::{config::GearConfig, ext::sp_runtime::AccountId32};
 use parity_scale_codec::Decode;
-use sp_consensus_babe::{digests::PreDigest as BabePreDigest, BABE_ENGINE_ID};
-use subxt::{blocks, config::substrate::DigestItem, OnlineClient};
+use sp_consensus_babe::{BABE_ENGINE_ID, digests::PreDigest as BabePreDigest};
+use subxt::{OnlineClient, blocks, config::substrate::DigestItem};
 
 /// Gear block.
 pub type Block = blocks::Block<GearConfig, OnlineClient<GearConfig>>;

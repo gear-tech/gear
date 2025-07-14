@@ -44,7 +44,7 @@ mod tests {
     use crate::State;
     use gear_core::ids::prelude::MessageIdExt;
     use gstd::MessageId;
-    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn payload_received() {

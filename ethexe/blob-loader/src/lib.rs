@@ -23,13 +23,13 @@ use alloy::{
     rpc::types::beacon::sidecar::BeaconBlobBundle,
 };
 use ethexe_common::{
-    db::{CodesStorageRead, OnChainStorageRead},
     CodeAndIdUnchecked, CodeBlobInfo,
+    db::{CodesStorageRead, OnChainStorageRead},
 };
 use futures::{
+    FutureExt, Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
 };
 use gprimitives::{CodeId, H256};
 use reqwest::Client;

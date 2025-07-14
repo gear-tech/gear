@@ -27,8 +27,8 @@ use core::{
 use alloc::{sync::Arc, vec, vec::Vec};
 use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 use crate::str::LimitedStr;
