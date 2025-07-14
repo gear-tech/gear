@@ -104,26 +104,35 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use ethexe_common::{db::CodesStorageRead, StateHashWithQueueSize};
+use ethexe_common::{
+    db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT, StateHashWithQueueSize,
+};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use gear_core::ids::ActorId;
-use gprimitives::H256;
+use gear_core::gas::GasAllowanceCounter;
+use gprimitives::{ActorId, H256};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
 use crate::host::{InstanceCreator, InstanceWrapper};
 
+pub struct RunnerConfig {
+    pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
+}
+
 pub async fn run(
-    chunk_processing_threads: usize,
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
+    config: RunnerConfig,
 ) {
     let mut join_set = JoinSet::new();
-    let chunk_size = chunk_processing_threads;
+    let chunk_size = config.chunk_processing_threads;
+    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let mut is_out_of_gas_for_block = false;
 
     loop {
         let states: Vec<_> = in_block_transitions
@@ -140,38 +149,57 @@ pub async fn run(
         let chunks = split_to_chunks(chunk_size, states);
 
         if chunks.is_empty() {
+            // No more chunks to process. Stopping.
             break;
         }
 
         for chunk in chunks {
-            for (program_id, state_hash, _) in chunk {
+            let chunk_len = chunk.len();
+            for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
                     .expect("Failed to instantiate executor");
 
+                let gas_allowance_for_chunk =
+                    allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+
                 let _ = join_set.spawn_blocking(move || {
-                    let (jn, new_state_hash) =
-                        run_runtime(db, &mut executor, program_id, state_hash);
-                    (program_id, new_state_hash, jn)
+                    let (jn, new_state_hash, gas_spent) = run_runtime(
+                        db,
+                        &mut executor,
+                        program_id,
+                        state_hash,
+                        gas_allowance_for_chunk,
+                    );
+                    (chunk_pos, program_id, new_state_hash, jn, gas_spent)
                 });
             }
 
-            let mut chunk_journal = Vec::new();
+            let mut max_gas_spent_in_chunk = 0u64;
+            let mut chunk_journals = vec![None; chunk_len];
             while let Some(result) = join_set
                 .join_next()
                 .await
                 .transpose()
                 .expect("Failed to join task")
             {
-                chunk_journal.push(result);
-            }
+                let (chunk_pos, program_id, new_state_hash, program_journals, gas_spent) = result;
 
-            for (program_id, new_state_hash, program_journals) in chunk_journal {
-                // State was updated during journal handling inside the runtime (allocations, pages)
+                // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
+                // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
                 in_block_transitions.modify(program_id, |state, _| {
                     state.hash = new_state_hash;
                 });
+
+                chunk_journals[chunk_pos] = Some((program_id, program_journals));
+                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
+            }
+
+            for program_journals in chunk_journals {
+                let Some((program_id, program_journals)) = program_journals else {
+                    unreachable!("Program journal is `None`, this should never happen");
+                };
 
                 for (journal, dispatch_origin, call_reply) in program_journals {
                     let mut journal_handler = JournalHandler {
@@ -182,9 +210,19 @@ pub async fn run(
                             transitions: in_block_transitions,
                             storage: &db,
                         },
+                        gas_allowance_counter: &allowance_counter,
+                        chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
+                        out_of_gas_for_block: &mut is_out_of_gas_for_block,
                     };
                     core_processor::handle_journal(journal, &mut journal_handler);
                 }
+            }
+
+            allowance_counter.charge(max_gas_spent_in_chunk);
+
+            if is_out_of_gas_for_block {
+                // Ran out of gas for the block, stopping processing.
+                break;
             }
         }
     }
@@ -195,7 +233,7 @@ pub async fn run(
 fn split_to_chunks(
     chunk_size: usize,
     states: Vec<(ActorId, StateHashWithQueueSize)>,
-) -> Vec<Vec<(ActorId, H256, usize)>> {
+) -> Vec<Vec<(ActorId, H256)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
         debug_assert_ne!(queue_size, 0);
@@ -215,7 +253,7 @@ fn split_to_chunks(
     {
         let queue_size = cached_queue_size as usize;
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
-        chunks[chunk_idx].push((actor_id, hash, queue_size));
+        chunks[chunk_idx].push((actor_id, hash));
     }
 
     chunks
@@ -236,19 +274,29 @@ fn run_runtime(
     executor: &mut InstanceWrapper,
     program_id: ActorId,
     state_hash: H256,
-) -> (ProgramJournals, H256) {
+    gas_allowance: u64,
+) -> (ProgramJournals, H256, u64) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
     let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
     let code_metadata = db.code_metadata(code_id);
 
     executor
-        .run(db, program_id, state_hash, instrumented_code, code_metadata)
+        .run(
+            db,
+            program_id,
+            state_hash,
+            instrumented_code,
+            code_metadata,
+            gas_allowance,
+        )
         .expect("Some error occurs while running program in instance")
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use gprimitives::ActorId;
 
     use super::*;
@@ -259,13 +307,21 @@ mod tests {
         const CHUNK_PROCESSING_THREADS: usize = 16;
         const MAX_QUEUE_SIZE: u8 = 20;
 
+        let mut i = 0;
+        let mut states_to_queue_size = HashMap::new();
+
         let states = Vec::from_iter(
             std::iter::repeat_with(|| {
+                i += 1;
+                let hash = H256::from_low_u64_le(i);
+                let cached_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+                states_to_queue_size.insert(hash, cached_queue_size as usize);
+
                 (
-                    ActorId::from(0),
+                    ActorId::from(i),
                     StateHashWithQueueSize {
-                        hash: H256::zero(),
-                        cached_queue_size: (rand::random::<u8>() % MAX_QUEUE_SIZE + 1),
+                        hash,
+                        cached_queue_size,
                     },
                 )
             })
@@ -280,7 +336,11 @@ mod tests {
             .map(|chunk| {
                 chunk
                     .into_iter()
-                    .map(|(_, _, queue_size)| queue_size)
+                    .map(|(_, hash)| {
+                        states_to_queue_size
+                            .get(&hash)
+                            .expect("State hash must be in the map")
+                    })
                     .sum::<usize>()
             })
             .collect::<Vec<_>>();

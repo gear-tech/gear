@@ -4623,7 +4623,6 @@ dependencies = [
  "alloy",
  "ethexe-common",
  "futures",
- "gear-core",
  "gprimitives",
  "log",
  "reqwest",
@@ -4642,6 +4641,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
+ "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
@@ -4753,6 +4753,7 @@ name = "ethexe-network"
 version = "1.8.1"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "derive_more 2.0.1",
  "ethexe-common",
@@ -4761,6 +4762,7 @@ dependencies = [
  "ethexe-signer",
  "futures",
  "gprimitives",
+ "itertools 0.13.0",
  "libp2p 0.55.0",
  "libp2p-swarm-test",
  "log",
@@ -4896,6 +4898,7 @@ version = "1.8.1"
 dependencies = [
  "alloy",
  "anyhow",
+ "async-trait",
  "demo-async",
  "demo-async-init",
  "demo-mul-by-const",
@@ -6200,6 +6203,7 @@ name = "gear-core-errors"
 version = "1.8.1"
 dependencies = [
  "enum-iterator 1.5.0",
+ "parity-scale-codec",
  "scale-info",
  "serde",
  "thiserror 2.0.12",
@@ -7080,6 +7084,7 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "sp-core",
  "thiserror 2.0.12",
  "tracing-subscriber",
 ]
