@@ -26,19 +26,19 @@ EOF
 }
 
 gear_build() {
-  $CARGO build --workspace "$@"
+  cargo build --workspace "$@"
 }
 
 fuzzer_build() {
-  RUSTFLAGS="--cfg fuzz" $CARGO build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
+  RUSTFLAGS="--cfg fuzz" cargo build "$@" -p runtime-fuzzer -p runtime-fuzzer-fuzz
 }
 
 node_build() {
-  $CARGO build -p gear-cli "$@"
+  cargo build -p gear-cli "$@"
 }
 
 wasm_proc_build() {
-  $CARGO build -p wasm-proc "$@"
+  cargo build -p wasm-proc "$@"
 }
 
 gear_replay_build() {
@@ -58,5 +58,5 @@ examples_build() {
   shift
 
   cd "$ROOT_DIR"
-  $CARGO build -p "demo-*" -p test-syscalls "$@"
+  cargo build -p "demo-*" -p test-syscalls "$@"
 }
