@@ -79,10 +79,10 @@ pub fn get_exports(module: &Module) -> BTreeSet<DispatchKind> {
         .as_ref()
         .expect("Exports section has been checked for already")
     {
-        if let ExternalKind::Func = entry.kind {
-            if let Some(entry) = DispatchKind::try_from_entry(&entry.name) {
-                entries.insert(entry);
-            }
+        if let ExternalKind::Func = entry.kind
+            && let Some(entry) = DispatchKind::try_from_entry(&entry.name)
+        {
+            entries.insert(entry);
         }
     }
 
@@ -342,7 +342,7 @@ pub fn check_and_canonize_gear_stack_end(
         .unwrap_or_else(|| unreachable!("Cannot find export section"))
         .retain(|export| export.name != STACK_END_EXPORT_NAME);
 
-    if stack_end_offset % WasmPage::SIZE != 0 {
+    if !stack_end_offset.is_multiple_of(WasmPage::SIZE) {
         return Err(StackEndError::NotAligned(stack_end_offset).into());
     }
 

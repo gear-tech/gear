@@ -612,7 +612,7 @@ benchmarks! {
             benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![]);
 
             ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = common::Program::Terminated(inheritor);
                 } else {
                     *program = common::Program::Exited(inheritor);

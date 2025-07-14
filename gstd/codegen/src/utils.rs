@@ -71,11 +71,12 @@ pub fn with_suffix(i: &Ident, suffix: &str) -> Ident {
 /// Get arguments from the inputs for function signature
 pub fn get_args(inputs: &Punctuated<syn::FnArg, syn::token::Comma>) -> Expr {
     let idents = inputs.iter().filter_map(|param| {
-        if let syn::FnArg::Typed(pat_type) = param {
-            if let syn::Pat::Ident(pat_ident) = *pat_type.pat.clone() {
-                return Some(pat_ident.ident);
-            }
+        if let syn::FnArg::Typed(pat_type) = param
+            && let syn::Pat::Ident(pat_ident) = *pat_type.pat.clone()
+        {
+            return Some(pat_ident.ident);
         }
+
         None
     });
 

@@ -66,7 +66,7 @@ mod tests {
     use std::io::Write;
 
     // Creates a new factory and initializes it.
-    fn prepare_factory(sys: &System) -> Program {
+    fn prepare_factory(sys: &System) -> Program<'_> {
         // Store child
         let code_hash_stored = sys.submit_local_code_file("./child_contract.wasm");
         assert_eq!(code_hash_stored, CHILD_CODE_HASH.into());

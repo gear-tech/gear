@@ -378,32 +378,32 @@ impl AllocationsContext {
             });
         }
 
-        if let Some(stack_end) = stack_end {
-            if stack_end > static_pages {
-                return Err(MemorySetupError::StackEndOutOfStaticMemory {
-                    stack_end,
-                    static_pages,
-                });
-            }
+        if let Some(stack_end) = stack_end
+            && stack_end > static_pages
+        {
+            return Err(MemorySetupError::StackEndOutOfStaticMemory {
+                stack_end,
+                static_pages,
+            });
         }
 
-        if let Some(page) = allocations.end() {
-            if page >= memory_size {
-                return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                    page,
-                    static_pages,
-                    memory_size,
-                });
-            }
+        if let Some(page) = allocations.end()
+            && page >= memory_size
+        {
+            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
+                page,
+                static_pages,
+                memory_size,
+            });
         }
-        if let Some(page) = allocations.start() {
-            if page < static_pages {
-                return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                    page,
-                    static_pages,
-                    memory_size,
-                });
-            }
+        if let Some(page) = allocations.start()
+            && page < static_pages
+        {
+            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
+                page,
+                static_pages,
+                memory_size,
+            });
         }
 
         Ok(())
@@ -460,12 +460,15 @@ impl AllocationsContext {
 
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        if let Some(heap) = self.heap {
-            if page >= heap.start() && page <= heap.end() && self.allocations.remove(page) {
-                self.allocations_changed = true;
-                return Ok(());
-            }
+        if let Some(heap) = self.heap
+            && page >= heap.start()
+            && page <= heap.end()
+            && self.allocations.remove(page)
+        {
+            self.allocations_changed = true;
+            return Ok(());
         }
+
         Err(AllocError::InvalidFree(page))
     }
 

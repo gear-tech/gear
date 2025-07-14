@@ -6706,7 +6706,7 @@ fn test_sequence_inheritor_of() {
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.cast());
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = Program::Exited(inheritor);
                 } else {
                     *program = Program::Terminated(inheritor);
@@ -6796,7 +6796,7 @@ fn test_cyclic_inheritor_of() {
                     .last()
                     .copied()
                     .unwrap_or_else(|| 2099.into());
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = Program::Exited(inheritor);
                 } else {
                     *program = Program::Terminated(inheritor);
@@ -16153,12 +16153,12 @@ pub(crate) mod utils {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some(details) = message.details() {
-                    let (mid, code) = details.into_parts();
-                    if mid == message_id && code.is_error() {
-                        actual_error = Some((message.payload_bytes().to_vec(), code));
-                    }
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event
+                && let Some(details) = message.details()
+            {
+                let (mid, code) = details.into_parts();
+                if mid == message_id && code.is_error() {
+                    actual_error = Some((message.payload_bytes().to_vec(), code));
                 }
             }
         });

@@ -128,14 +128,13 @@ type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
 pub struct DealWithFees;
 impl OnUnbalanced<NegativeImbalance> for DealWithFees {
     fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
-        if let Some(fees) = fees_then_tips.next() {
-            if let Some(author) = Authorship::author() {
-                Balances::resolve_creating(&author, fees);
-            }
+        if let Some(fees) = fees_then_tips.next()
+            && let Some(author) = Authorship::author()
+        {
+            Balances::resolve_creating(&author, fees);
+
             if let Some(tips) = fees_then_tips.next() {
-                if let Some(author) = Authorship::author() {
-                    Balances::resolve_creating(&author, tips);
-                }
+                Balances::resolve_creating(&author, tips);
             }
         }
     }

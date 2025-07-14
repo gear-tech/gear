@@ -62,7 +62,7 @@ impl InBlockTransitions {
         self.states.len()
     }
 
-    pub fn states_iter(&self) -> Iter<ActorId, StateHashWithQueueSize> {
+    pub fn states_iter(&self) -> Iter<'_, ActorId, StateHashWithQueueSize> {
         self.states.iter()
     }
 

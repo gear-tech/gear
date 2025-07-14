@@ -38,7 +38,7 @@ const WASM_PAGE_SIZE: u32 = 64 * 1024;
 /// Currently equal to 16KiB to be bigger than most common host page sizes.
 const GEAR_PAGE_SIZE: u32 = 16 * 1024;
 
-const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
+const _: () = assert!(WASM_PAGE_SIZE.is_multiple_of(GEAR_PAGE_SIZE));
 
 /// Struct represents memory pages amount with some constant size `SIZE` in bytes.
 /// - `SIZE` type is u32, so page size < 4GiB (wasm32 memory size limit).

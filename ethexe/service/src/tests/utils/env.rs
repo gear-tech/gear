@@ -340,7 +340,7 @@ impl TestEnv {
             .map(|(_, bootstrap_address, nonce)| {
                 *nonce += 1;
 
-                if *nonce % MAX_NETWORK_SERVICES_PER_TEST == 0 {
+                if (*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST) {
                     panic!("Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}");
                 }
 
@@ -924,7 +924,7 @@ impl Node {
             .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
     }
 
-    pub fn listener(&mut self) -> ServiceEventsListener {
+    pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
         }

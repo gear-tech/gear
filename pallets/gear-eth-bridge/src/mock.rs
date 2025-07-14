@@ -225,7 +225,7 @@ pub struct TestSessionRotator;
 impl ShouldEndSession<BlockNumber> for TestSessionRotator {
     fn should_end_session(now: BlockNumber) -> bool {
         if now > 1 {
-            (now - 1) % EpochDuration::get() == 0
+            (now - 1).is_multiple_of(EpochDuration::get())
         } else {
             false
         }
@@ -277,7 +277,9 @@ pub struct TestSessionManager;
 
 impl SessionManager<AccountId> for TestSessionManager {
     fn new_session(session_idx: u32) -> Option<Vec<AccountId>> {
-        (session_idx % SessionsPerEra::get() == 0).then(|| era_validators(session_idx, true))
+        session_idx
+            .is_multiple_of(SessionsPerEra::get())
+            .then(|| era_validators(session_idx, true))
     }
     fn start_session(_: u32) {}
     fn end_session(_: u32) {}

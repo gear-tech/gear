@@ -362,22 +362,22 @@ impl PartialEq<CoreLog> for Log {
             return false;
         }
 
-        if let Some(source) = self.source {
-            if source != other.source {
-                return false;
-            }
+        if let Some(source) = self.source
+            && source != other.source
+        {
+            return false;
         }
 
-        if let Some(destination) = self.destination {
-            if destination != other.destination {
-                return false;
-            }
+        if let Some(destination) = self.destination
+            && destination != other.destination
+        {
+            return false;
         }
 
-        if let Some(payload) = &self.payload {
-            if payload.inner() != other.payload.inner() {
-                return false;
-            }
+        if let Some(payload) = &self.payload
+            && payload.inner() != other.payload.inner()
+        {
+            return false;
         }
 
         true

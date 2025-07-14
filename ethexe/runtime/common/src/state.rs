@@ -1066,7 +1066,7 @@ impl MemoryPages {
 
     /// Pages amount per each region.
     pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
-    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES.is_multiple_of(Self::REGIONS_AMOUNT));
 
     pub fn page_region(page: GearPage) -> RegionIdx {
         RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)

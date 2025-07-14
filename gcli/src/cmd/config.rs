@@ -80,10 +80,11 @@ impl ConfigSettings {
     /// there are more options in the settings.
     pub fn write(&self, path: Option<PathBuf>) -> Result<()> {
         let conf = path.unwrap_or(Self::config()?);
-        if let Some(parent) = conf.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)?;
-            }
+
+        if let Some(parent) = conf.parent()
+            && !parent.exists()
+        {
+            fs::create_dir_all(parent)?;
         }
 
         fs::write(conf, toml::to_string_pretty(self)?).map_err(Into::into)

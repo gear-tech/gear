@@ -385,7 +385,7 @@ impl WasmWords {
         let data = data.as_ref();
         let data_size = data.len();
 
-        if data_size % Self::WASM_WORD_SIZE != 0 {
+        if !data_size.is_multiple_of(Self::WASM_WORD_SIZE) {
             panic!("data size isn't multiply of wasm word size")
         }
 

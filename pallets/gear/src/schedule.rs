@@ -1252,7 +1252,7 @@ impl<T: Config> Default for MemoryWeights<T> {
         const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GearPage::SIZE as u64 / KB_SIZE;
         const {
             assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-            assert!(GearPage::SIZE as u64 % KB_SIZE == 0);
+            assert!((GearPage::SIZE as u64).is_multiple_of(KB_SIZE));
         }
 
         type W<T> = <T as Config>::WeightInfo;

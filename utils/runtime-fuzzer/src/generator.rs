@@ -166,7 +166,10 @@ impl RuntimeStateViewProducer {
         }
     }
 
-    pub(crate) fn produce_state_view(&mut self, balance_state: BalanceState) -> RuntimeStateView {
+    pub(crate) fn produce_state_view(
+        &mut self,
+        balance_state: BalanceState,
+    ) -> RuntimeStateView<'_> {
         self.update_state_view();
 
         RuntimeStateView {

@@ -109,7 +109,7 @@ mod tests {
         program_1_id: u64,
         program_2_id: u64,
         program_3_id: u64,
-    ) -> (Program, Program, Program) {
+    ) -> (Program<'_>, Program<'_>, Program<'_>) {
         system.init_logger();
 
         let from = DEFAULT_USER_ALICE;

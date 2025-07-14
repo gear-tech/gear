@@ -146,14 +146,15 @@ impl FungibleToken {
         if from == &source || self.balances.get(&source).unwrap_or(&0) >= &amount {
             return true;
         }
-        if let Some(allowed_amount) = self.allowances.get(from).and_then(|m| m.get(&source)) {
-            if allowed_amount >= &amount {
-                self.allowances.entry(*from).and_modify(|m| {
-                    m.entry(source).and_modify(|a| *a -= amount);
-                });
-                return true;
-            }
+        if let Some(allowed_amount) = self.allowances.get(from).and_then(|m| m.get(&source))
+            && allowed_amount >= &amount
+        {
+            self.allowances.entry(*from).and_modify(|m| {
+                m.entry(source).and_modify(|a| *a -= amount);
+            });
+            return true;
         }
+
         false
     }
 }

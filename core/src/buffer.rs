@@ -318,7 +318,7 @@ impl PanicBuffer {
         &self.0
     }
 
-    fn to_limited_str(&self) -> Option<LimitedStr> {
+    fn to_limited_str(&self) -> Option<LimitedStr<'_>> {
         let s = core::str::from_utf8(self.0.inner()).ok()?;
         LimitedStr::try_from(s).ok()
     }

@@ -96,7 +96,7 @@ fn read_write_flag_works() {
 
     impl UserSignalHandler for TestHandler {
         unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
-            let write_expected = unsafe { COUNTER } % 2 == 0;
+            let write_expected = unsafe { COUNTER }.is_multiple_of(2);
             assert_eq!(info.is_write, Some(write_expected));
 
             unsafe {

@@ -202,7 +202,7 @@ impl ProgramBuilder {
     }
 
     /// Build program with set parameters.
-    pub fn build(self, system: &System) -> Program {
+    pub fn build(self, system: &System) -> Program<'_> {
         let id = self
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
