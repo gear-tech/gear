@@ -71,6 +71,7 @@ async fn basics() {
         worker_threads: None,
         blocking_threads: None,
         chunk_processing_threads: 16,
+        block_gas_limit: 4_000_000_000_000,
         dev: true,
         fast_sync: false,
     };
@@ -633,7 +634,7 @@ async fn incoming_transfers() {
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
         })
         .await
         .unwrap();

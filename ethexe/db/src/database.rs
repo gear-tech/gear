@@ -31,7 +31,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -45,7 +45,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[repr(u64)]
 enum Key {
@@ -272,6 +272,7 @@ struct BlockSmallData {
     block_header: Option<BlockHeader>,
     meta: BlockMeta,
     prev_not_empty_block: Option<H256>,
+    last_committed_batch: Option<Digest>,
     commitment_queue: Option<VecDeque<H256>>,
     codes_queue: Option<VecDeque<CodeId>>,
 }
@@ -292,6 +293,10 @@ impl BlockMetaStorageRead for Database {
 
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
         self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
+    }
+
+    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest> {
+        self.with_small_data(block_hash, |data| data.last_committed_batch)?
     }
 
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
@@ -366,6 +371,11 @@ impl BlockMetaStorageWrite for Database {
         self.mutate_small_data(block_hash, |data| {
             data.prev_not_empty_block = Some(prev_not_empty_block_hash)
         });
+    }
+
+    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest) {
+        log::trace!("For block {block_hash} set last committed batch: {batch:?}");
+        self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {
@@ -477,6 +487,25 @@ impl CodesStorageWrite for Database {
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
+    }
+
+    fn valid_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValid(Default::default()).prefix();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, valid)| {
+                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
+                let code_id =
+                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
+
+                let valid =
+                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+
+                (code_id, valid)
+            })
+            .filter_map(|(code_id, valid)| valid.then_some(code_id))
+            .collect()
     }
 }
 

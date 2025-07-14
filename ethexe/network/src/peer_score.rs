@@ -294,6 +294,7 @@ mod tests {
         let mut chad = new_swarm().await;
         let chad_peer_id = *chad.local_peer_id();
         alice.connect(&mut chad).await;
+        tokio::spawn(chad.loop_on_next());
 
         let handle = alice.behaviour_mut().handle();
         handle.excessive_data(chad_peer_id);
