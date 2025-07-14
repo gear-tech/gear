@@ -28,7 +28,7 @@ use ethexe_common::{
     gear::GearBlock,
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
 };
-use ethexe_compute::{ComputeEvent, ComputeService};
+use ethexe_compute::ComputeService;
 use ethexe_db::Database;
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{db_sync, NetworkEvent, NetworkService};
