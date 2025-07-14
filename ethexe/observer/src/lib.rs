@@ -264,6 +264,7 @@ impl ObserverService {
         db.set_latest_synced_block_height(genesis_header.height);
         db.mutate_block_meta(genesis_block_hash, |meta| {
             meta.computed = true;
+            meta.prepared = true;
             meta.synced = true;
         });
 
