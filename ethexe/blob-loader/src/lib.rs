@@ -217,7 +217,8 @@ impl<DB: Database> Stream for BlobLoader<DB> {
             self.codes_loading.remove(&code_and_id.code_id);
             Ok(BlobLoaderEvent::BlobLoaded(code_and_id))
         });
-        Poll::Ready(res)
+
+        res.map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
     }
 }
 
