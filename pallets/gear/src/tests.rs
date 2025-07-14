@@ -57,7 +57,7 @@ use gear_core::{
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
-        WasmPage,
+        WasmPage, WasmPagesAmount,
     },
     program::ActiveProgram,
     rpc::ReplyInfo,
@@ -15733,7 +15733,7 @@ fn vec() {
 
         let code_id = CodeId::generate(WASM_BINARY);
 
-        let code_metadata = <Test as crate::Config>::CodeStorage::get_code_metadata(code_id)
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id)
             .expect("code should be in the storage");
 
         let static_pages = code_metadata.static_pages();
@@ -15752,21 +15752,17 @@ fn vec() {
         let reply = maybe_last_message(1).expect("Should be");
         assert_eq!(reply.payload_bytes(), 131072i32.encode());
 
-        let snapshot = do_snapshot();
+        assert!(QueueOf::<Test>::is_empty());
 
-        assert!(snapshot.dispatch_queue.is_empty());
-        assert_eq!(snapshot.programs.len(), 1);
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(vec_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
 
-        let program_details = snapshot.programs.first().unwrap();
-        assert_eq!(program_details.id, vec_id);
+        assert_eq!(program.code_id, code_id);
 
-        let ProgramState::Active(ref program_info) = program_details.state else {
-            panic!("Inactive program")
-        };
-        assert_eq!(program_info.code_hash, code_id.into_origin());
-
-        let pages = program_info
-            .persistent_pages
+        let pages = ProgramStorageOf::<Test>::get_program_pages_data(vec_id, program.memory_infix)
+            .expect("Program pages data not found")
             .keys()
             .fold(BTreeSet::new(), |mut set, page| {
                 let wasm_page: WasmPage = page.to_page();
@@ -15918,8 +15914,6 @@ fn check_not_allocated_pages() {
 
         run_to_block(2, None);
 
-        let snapshot = do_snapshot();
-
         let gear_page0 = GearPage::from_offset(0x0);
         let mut page0_data = PageBuf::new_zeroed();
         page0_data[0] = 0x42;
@@ -15932,21 +15926,24 @@ fn check_not_allocated_pages() {
         persistent_pages.insert(gear_page0, page0_data.clone());
         persistent_pages.insert(gear_page7, page7_data);
 
-        assert_eq!(
-            snapshot,
-            DebugData {
-                dispatch_queue: vec![],
-                programs: [ProgramDetails {
-                    id: program_id,
-                    state: ProgramState::Active(ProgramInfo {
-                        static_pages: 0.into(),
-                        persistent_pages: persistent_pages.clone(),
-                        code_hash: h256_code_hash(&code),
-                    }),
-                }]
-                .into(),
-            }
-        );
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPage::from(0);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
 
         assert_ok!(Gear::send_message(
             origin,
@@ -15959,26 +15956,27 @@ fn check_not_allocated_pages() {
 
         run_to_block(3, None);
 
-        let snapshot = do_snapshot();
-
         page0_data[0] = 0x1;
         persistent_pages.insert(gear_page0, page0_data);
 
-        assert_eq!(
-            snapshot,
-            DebugData {
-                dispatch_queue: vec![],
-                programs: [ProgramDetails {
-                    id: program_id,
-                    state: ProgramState::Active(ProgramInfo {
-                        static_pages: 0.into(),
-                        persistent_pages: persistent_pages.clone(),
-                        code_hash: h256_code_hash(&code),
-                    }),
-                }]
-                .into(),
-            }
-        );
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPage::from(0);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
     })
 }
 
@@ -16126,7 +16124,7 @@ fn check_changed_pages_in_storage() {
         let origin = RuntimeOrigin::signed(1);
 
         // Code info. Must be in consensus with wasm code.
-        let static_pages = 8.into();
+        let static_pages: WasmPagesAmount = 8.into();
         let page1_accessed_addr = 0x10000;
         let page3_accessed_addr = 0x3fffd;
         let page4_accessed_addr = 0x40000;
@@ -16163,23 +16161,22 @@ fn check_changed_pages_in_storage() {
         persistent_pages.insert(gear_page8, page8_data);
         persistent_pages.insert(gear_page9, page9_data);
 
-        let snapshot = do_snapshot();
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
 
-        assert_eq!(
-            snapshot,
-            DebugData {
-                dispatch_queue: vec![],
-                programs: [ProgramDetails {
-                    id: program_id,
-                    state: ProgramState::Active(ProgramInfo {
-                        static_pages,
-                        persistent_pages: persistent_pages.clone(),
-                        code_hash: h256_code_hash(&code),
-                    }),
-                }]
-                .into(),
-            }
-        );
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        assert_eq!(program_static_pages, static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
 
         assert_ok!(Gear::send_message(
             origin,
@@ -16192,8 +16189,6 @@ fn check_changed_pages_in_storage() {
 
         run_to_block(3, None);
 
-        let snapshot = do_snapshot();
-
         let gear_page3 = GearPage::from_offset(page3_accessed_addr);
         let mut page3_data = PageBuf::new_zeroed();
         page3_data[(page3_accessed_addr % GearPage::SIZE) as usize] = 0x42;
@@ -16203,21 +16198,22 @@ fn check_changed_pages_in_storage() {
         persistent_pages.insert(gear_page3, page3_data);
         persistent_pages.insert(gear_page4, PageBuf::new_zeroed());
 
-        assert_eq!(
-            snapshot,
-            DebugData {
-                dispatch_queue: vec![],
-                programs: [ProgramDetails {
-                    id: program_id,
-                    state: ProgramState::Active(ProgramInfo {
-                        static_pages,
-                        persistent_pages,
-                        code_hash: h256_code_hash(&code),
-                    }),
-                }]
-                .into(),
-            }
-        );
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        assert_eq!(program_static_pages, static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
     })
 }
 
@@ -16275,8 +16271,6 @@ fn check_gear_stack_end() {
 
         run_to_block(2, None);
 
-        let snapshot = do_snapshot();
-
         let mut persistent_pages = BTreeMap::new();
 
         let gear_page2 = WasmPage::from(2).to_page();
@@ -16287,21 +16281,24 @@ fn check_gear_stack_end() {
         persistent_pages.insert(gear_page2, page_data.clone());
         persistent_pages.insert(gear_page3, page_data);
 
-        assert_eq!(
-            snapshot,
-            DebugData {
-                dispatch_queue: vec![],
-                programs: [ProgramDetails {
-                    id: program_id,
-                    state: ProgramState::Active(ProgramInfo {
-                        static_pages: 4.into(),
-                        persistent_pages,
-                        code_hash: utils::h256_code_hash(&code),
-                    }),
-                }]
-                .into(),
-            }
-        );
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPagesAmount::from(4);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
     })
 }
 
@@ -17343,31 +17340,6 @@ pub(crate) mod utils {
             .collect()
     }
 
-    #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-    pub(super) struct ProgramInfo {
-        pub static_pages: WasmPagesAmount,
-        pub persistent_pages: BTreeMap<GearPage, PageBuf>,
-        pub code_hash: H256,
-    }
-
-    #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-    pub(super) enum ProgramState {
-        Active(ProgramInfo),
-        Terminated,
-    }
-
-    #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-    pub(super) struct ProgramDetails {
-        pub id: ActorId,
-        pub state: ProgramState,
-    }
-
-    #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
-    pub(super) struct DebugData {
-        pub dispatch_queue: Vec<StoredDispatch>,
-        pub programs: BTreeSet<ProgramDetails>,
-    }
-
     pub(super) fn parse_wat(source: &str) -> Vec<u8> {
         let code = wat::parse_str(source).expect("failed to parse module");
         wasmparser::validate(&code).expect("failed to validate module");
@@ -17376,62 +17348,5 @@ pub(crate) mod utils {
 
     pub(super) fn h256_code_hash(code: &[u8]) -> H256 {
         CodeId::generate(code).into_origin()
-    }
-
-    #[track_caller]
-    pub(super) fn do_snapshot() -> DebugData {
-        let dispatch_queue = QueueOf::<Test>::iter()
-            .map(|v| {
-                v.unwrap_or_else(|e| {
-                    let err_msg = format!(
-                        "DebugInfo::do_snapshot: Message queue corrupted. \
-                            Got error - {e:?}"
-                    );
-
-                    log::error!("{err_msg}");
-                    unreachable!("{err_msg}")
-                })
-            })
-            .collect();
-
-        let programs = ProgramStorageOf::<Test>::iter()
-            .map(|(id, program)| {
-                let active = match program {
-                    Program::Active(active) => active,
-                    _ => {
-                        return ProgramDetails {
-                            id,
-                            state: ProgramState::Terminated,
-                        };
-                    }
-                };
-
-                let static_pages =
-                    match <Test as Config>::CodeStorage::get_code_metadata(active.code_id) {
-                        Some(code) => code.static_pages(),
-                        None => 0.into(),
-                    };
-
-                let persistent_pages =
-                    ProgramStorageOf::<Test>::get_program_pages_data(id, active.memory_infix)
-                        .unwrap();
-
-                ProgramDetails {
-                    id,
-                    state: {
-                        ProgramState::Active(ProgramInfo {
-                            static_pages,
-                            persistent_pages,
-                            code_hash: active.code_id.cast(),
-                        })
-                    },
-                }
-            })
-            .collect();
-
-        DebugData {
-            dispatch_queue,
-            programs,
-        }
     }
 }

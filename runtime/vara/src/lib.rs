@@ -25,7 +25,9 @@
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
-extern crate frame_benchmarking; // Make the WASM binary available.
+extern crate frame_benchmarking;
+
+// Make the WASM binary available.
 #[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
