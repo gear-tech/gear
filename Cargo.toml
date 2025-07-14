@@ -126,7 +126,7 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
-cargo_metadata = "0.19.2"
+cargo_metadata = "0.20.0"
 clap = "4.5.8"
 color-eyre = "0.6.3"
 colored = "2.1.0"
@@ -206,6 +206,7 @@ arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+assert_matches = "1.5.0"
 
 # Published deps
 #
@@ -575,6 +576,7 @@ opt-level = "s"
 
 [profile.production]
 inherits = "release"
+strip = true
 
 # Sacrifice compile speed for execution speed by using optimization flags:
 

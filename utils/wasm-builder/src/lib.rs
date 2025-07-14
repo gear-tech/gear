@@ -93,18 +93,8 @@ impl WasmBuilder {
     /// Returns `Some(_)` with a tuple of paths to wasm & opt wasm file
     /// if the build was successful.
     pub fn build(self) -> Option<(PathBuf, PathBuf)> {
-        // it means we are inside a Substrate runtime build script,
-        // so WASM is already built, and we just return paths
-        if env::var("CARGO_CFG_SUBSTRATE_RUNTIME").is_ok() {
-            return self
-                .provide_paths_for_substrate_runtime()
-                .expect("failed to provide paths");
-        }
-
-        let gear_wasm_builder_no_build = env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok();
-        let skip_wasm_build = env::var("SKIP_WASM_BUILD").is_ok();
-        if gear_wasm_builder_no_build || skip_wasm_build || is_intellij_sync() {
-            let _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
+        if env::var("__GEAR_WASM_BUILDER_NO_BUILD").is_ok() || is_intellij_sync() {
+            _ = self.wasm_project.provide_dummy_wasm_binary_if_not_exist();
             return None;
         }
 
@@ -118,11 +108,6 @@ impl WasmBuilder {
             }
             Ok(r) => r,
         }
-    }
-
-    fn provide_paths_for_substrate_runtime(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
-        self.wasm_project.generate()?;
-        self.wasm_project.postprocess()
     }
 
     fn build_project(mut self) -> Result<Option<(PathBuf, PathBuf)>> {

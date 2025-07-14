@@ -18,10 +18,20 @@
 
 //! Auxiliary (for tests) gas tree management implementation for the crate.
 
-use crate::GAS_MULTIPLIER;
+use std::{
+    cell::{Ref, RefMut},
+    collections::BTreeMap,
+};
+
+use crate::{state::WithOverlay, GAS_MULTIPLIER};
 use gear_common::{
-    auxiliary::gas_provider::{AuxiliaryGasProvider, GasTreeError, PlainNodeId},
-    gas_provider::{ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree},
+    gas_provider::{
+        auxiliary::{
+            AuxiliaryGasProvider, GasNodesProvider, GasNodesStorage, GasTreeError, Node, NodeId,
+            PlainNodeId, TotalIssuanceProvider, TotalIssuanceStorage,
+        },
+        ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree,
+    },
     Gas, GasMultiplier, LockId, Origin,
 };
 use gear_core::ids::{ActorId, MessageId, ReservationId};
@@ -33,13 +43,57 @@ pub type OriginNodeDataOf = (
     GasMultiplier<<GasTree as Tree>::Funds, <GasTree as Tree>::Balance>,
     <GasTree as Tree>::NodeId,
 );
-type GasTree = <AuxiliaryGasProvider as Provider>::GasTree;
+type GtestGasProvider = AuxiliaryGasProvider<
+    GTestTotalIssuanceStorage,
+    GTestTotalIssuanceProvider,
+    GTestGasNodesStorage,
+    GTestGasNodesProvider,
+>;
+type GasTree = <GtestGasProvider as Provider>::GasTree;
 
-/// Gas tree manager which operates under the hood over
-/// [`gear_common::auxiliary::gas_provider::AuxiliaryGasProvider`].
-///
-/// Manager is needed mainly to adapt arguments of the gas tree methods to the
-/// crate.
+std::thread_local! {
+    pub(super) static GTEST_TOTAL_ISSUANCE: GTestTotalIssuanceProvider = Default::default();
+    pub(super) static GTEST_GAS_NODES: GTestGasNodesProvider = Default::default();
+}
+
+pub struct GTestTotalIssuanceStorage;
+pub type GTestTotalIssuanceProvider = WithOverlay<Option<Gas>>;
+
+impl TotalIssuanceStorage<GTestTotalIssuanceProvider> for GTestTotalIssuanceStorage {
+    fn storage() -> &'static std::thread::LocalKey<GTestTotalIssuanceProvider> {
+        &GTEST_TOTAL_ISSUANCE
+    }
+}
+
+impl TotalIssuanceProvider for GTestTotalIssuanceProvider {
+    fn data(&self) -> Ref<'_, Option<Gas>> {
+        self.data()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, Option<Gas>> {
+        self.data_mut()
+    }
+}
+
+pub struct GTestGasNodesStorage;
+pub type GTestGasNodesProvider = WithOverlay<BTreeMap<NodeId, Node>>;
+
+impl GasNodesStorage<GTestGasNodesProvider> for GTestGasNodesStorage {
+    fn storage() -> &'static std::thread::LocalKey<GTestGasNodesProvider> {
+        &GTEST_GAS_NODES
+    }
+}
+
+impl GasNodesProvider for GTestGasNodesProvider {
+    fn data(&self) -> Ref<'_, BTreeMap<NodeId, Node>> {
+        self.data()
+    }
+
+    fn data_mut(&self) -> RefMut<'_, BTreeMap<NodeId, Node>> {
+        self.data_mut()
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct GasTreeManager;
 
@@ -176,8 +230,8 @@ impl GasTreeManager {
     /// Adapted by argument types version of the gas tree `reset` method.
     ///
     /// *Note* Call with caution as it completely resets the storage.
-    pub(crate) fn reset(&self) {
-        <AuxiliaryGasProvider as Provider>::reset();
+    pub(crate) fn clear(&self) {
+        <GtestGasProvider as Provider>::reset();
     }
 
     /// Unreserve some value from underlying balance.

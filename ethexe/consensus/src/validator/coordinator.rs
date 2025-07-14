@@ -18,8 +18,8 @@
 
 use super::{submitter::Submitter, StateHandler, ValidatorContext, ValidatorState};
 use crate::{
-    utils::{BatchCommitmentValidationRequest, MultisignedBatchCommitment},
-    BatchCommitmentValidationReply, ConsensusEvent,
+    utils::MultisignedBatchCommitment, BatchCommitmentValidationReply,
+    BatchCommitmentValidationRequest, ConsensusEvent,
 };
 use anyhow::{anyhow, ensure, Result};
 use derive_more::{Debug, Display};
@@ -117,7 +117,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{Digest, ToDigest};
+    use ethexe_common::ToDigest;
     use gprimitives::H256;
 
     #[test]
@@ -169,16 +169,33 @@ mod tests {
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();
 
-        let reply1 = mock_validation_reply(&ctx.signer, keys[0], ctx.router_address, digest);
-        let reply2_invalid =
-            mock_validation_reply(&ctx.signer, keys[4], ctx.router_address, digest);
-        let reply3_invalid = mock_validation_reply(
-            &ctx.signer,
+        let reply1 = BatchCommitmentValidationReply::mock((
+            ctx.signer.clone(),
+            keys[0],
+            ctx.router_address,
+            digest,
+        ));
+
+        let reply2_invalid = BatchCommitmentValidationReply::mock((
+            ctx.signer.clone(),
+            keys[4],
+            ctx.router_address,
+            digest,
+        ));
+
+        let reply3_invalid = BatchCommitmentValidationReply::mock((
+            ctx.signer.clone(),
             keys[1],
             ctx.router_address,
-            Digest(H256::random().0),
-        );
-        let reply4 = mock_validation_reply(&ctx.signer, keys[2], ctx.router_address, digest);
+            H256::random().0.into(),
+        ));
+
+        let reply4 = BatchCommitmentValidationReply::mock((
+            ctx.signer.clone(),
+            keys[2],
+            ctx.router_address,
+            digest,
+        ));
 
         let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());

@@ -93,7 +93,7 @@ where
         }
 
         // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or init message.
+        // to process message, if it's a reply (async init case) or init message.
         // Otherwise, we return error reply.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)

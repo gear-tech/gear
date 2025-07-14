@@ -17,19 +17,19 @@
 //! Simple errors being used for status codes
 
 use enum_iterator::Sequence;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "codec")]
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
+use {
+    parity_scale_codec::{Decode, Encode},
+    scale_info::TypeInfo,
 };
 
-#[repr(u8)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ReplyCode {
     /// Success reply.
     #[error("Success reply sent due to {0}")]
@@ -41,7 +41,6 @@ pub enum ReplyCode {
 
     /// Unsupported code.
     /// Variant exists for backward compatibility.
-    #[default]
     #[error("<unsupported reply code>")]
     Unsupported = 255,
 }
@@ -70,11 +69,11 @@ impl ReplyCode {
     /// Parses 4 bytes array to `ReplyCode`.
     pub fn from_bytes(bytes: [u8; 4]) -> Self {
         match bytes[0] {
-            b if Self::Success(Default::default()).discriminant() == b => {
+            b if Self::Success(SuccessReplyReason::Unsupported).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Success(SuccessReplyReason::from_bytes(reason_bytes))
             }
-            b if Self::Error(Default::default()).discriminant() == b => {
+            b if Self::Error(ErrorReplyReason::Unsupported).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Error(ErrorReplyReason::from_bytes(reason_bytes))
             }
@@ -103,13 +102,11 @@ impl ReplyCode {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
     #[error("automatic sending")]
@@ -121,7 +118,6 @@ pub enum SuccessReplyReason {
 
     /// Unsupported reason of success reply.
     /// Variant exists for backward compatibility.
-    #[default]
     #[error("<unsupported reason>")]
     Unsupported = 255,
 }
@@ -140,15 +136,13 @@ impl SuccessReplyReason {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
 // NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
 // `ErrorReplyReason::from_bytes` methods.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
     #[error("execution error ({0})")]
@@ -164,7 +158,6 @@ pub enum ErrorReplyReason {
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
-    #[default]
     #[error("<unsupported reason>")]
     Unsupported = 255,
 }
@@ -206,11 +199,11 @@ impl ErrorReplyReason {
         match bytes[0] {
             1 /* removed `FailedToCreateProgram` variant */ |
             4 /* moved `ReinstrumentationFailure` variant */ => Self::Unsupported,
-            b if Self::Execution(Default::default()).discriminant() == b => {
+            b if Self::Execution(SimpleExecutionError::Unsupported).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Execution(SimpleExecutionError::from_bytes(err_bytes))
             }
-            b if Self::UnavailableActor(Default::default()).discriminant() == b => {
+            b if Self::UnavailableActor(SimpleUnavailableActorError::Unsupported).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::UnavailableActor(SimpleUnavailableActorError::from_bytes(err_bytes))
             }
@@ -220,13 +213,11 @@ impl ErrorReplyReason {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, PartialOrd, Ord, Eq, Hash, Sequence, thiserror::Error,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
     #[error("Message ran out of gas")]
@@ -256,7 +247,6 @@ pub enum SimpleExecutionError {
 
     /// Unsupported reason of execution error.
     /// Variant exists for backward compatibility.
-    #[default]
     #[error("<unsupported error>")]
     Unsupported = 255,
 }
@@ -279,13 +269,11 @@ impl SimpleExecutionError {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred because of actor unavailability.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
     ///
@@ -311,7 +299,6 @@ pub enum SimpleUnavailableActorError {
 
     /// Unsupported reason of inactive actor error.
     /// Variant exists for backward compatibility.
-    #[default]
     #[error("<unsupported error>")]
     Unsupported = 255,
 }
@@ -333,22 +320,20 @@ impl SimpleUnavailableActorError {
     }
 }
 
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, thiserror::Error,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
 ///
 /// # Testing
 /// See [this document](../signal-code-testing.md).
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
     #[error("Signal message sent due to execution error ({0})")]
     Execution(#[from] SimpleExecutionError),
 
     /// Signal was sent due to removal from waitlist as out of rent.
-    #[default]
     #[error("Signal message sent due to removal from waitlist")]
     RemovedFromWaitlist,
 }

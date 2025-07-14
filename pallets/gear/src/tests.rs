@@ -6422,10 +6422,11 @@ fn terminated_locking_funds() {
         // Value, which will be returned to `USER1` after init message processing complete.
         let returned_from_system_reservation = gas_price(system_reservation);
 
-        // Because we set gas for init message second execution only for resources loading, then
-        // after execution system reserved gas and sent value and price for wait list must be returned
-        // to user. This is because program will stop his execution on first wasm block, because of gas
-        // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
+        // Since we set the gas for the second execution of the init message only for resource loading,
+        // after execution, the system-reserved gas, the sent value, and the price for the waitlist must
+        // be returned to the user. This is because the program will stop its execution on the first wasm
+        // block due to exceeding the gas limit. Therefore, the gas counter will equal the amount of gas
+        // returned from the waitlist in the handle reply.
         let expected_balance_difference =
             prog_free + returned_from_wait_list + returned_from_system_reservation + ed;
 
