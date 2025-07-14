@@ -32,6 +32,7 @@ use {
         codec::{Decode, Encode},
         TryRuntimeError,
     },
+    sp_std::vec::Vec,
 };
 
 const MIGRATE_FROM_VERSION: u16 = 2;
