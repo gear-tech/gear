@@ -129,12 +129,12 @@ impl EventData {
             block = parent;
         }
 
-        let Some(latest_committed_batch) = latest_committed_batch else {
+        let Some(latest_committed_block) = latest_committed_block else {
             return Ok(None);
         };
 
-        let Some(latest_committed_block) = latest_committed_block else {
-            anyhow::bail!("Inconsistent block events: batch commitment without block commitment");
+        let Some(latest_committed_batch) = latest_committed_batch else {
+            anyhow::bail!("Inconsistent block events: block commitment without batch commitment");
         };
 
         let latest_committed_block =
