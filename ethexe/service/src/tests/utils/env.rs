@@ -24,7 +24,7 @@ use crate::{
         },
         TestingEvent,
     },
-    Service,
+    RouterDataProvider, Service,
 };
 use alloy::{
     eips::BlockId,
@@ -43,7 +43,7 @@ use ethexe_common::{
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{router::RouterQuery, Ethereum};
 use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkService};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
@@ -89,6 +89,7 @@ pub struct TestEnv {
     pub block_time: Duration,
     pub continuous_block_generation: bool,
 
+    router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     broadcaster: Sender<ObserverEvent>,
     db: Database,
@@ -269,7 +270,13 @@ impl TestEnv {
             let mut config = NetworkConfig::new_test(config_path);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
-            let mut service = NetworkService::new(config, &signer, db.clone()).unwrap();
+            let mut service = NetworkService::new(
+                config,
+                &signer,
+                Box::new(RouterDataProvider(router_query.clone())),
+                db.clone(),
+            )
+            .unwrap();
 
             let local_peer_id = service.local_peer_id();
 
@@ -307,6 +314,7 @@ impl TestEnv {
             threshold,
             block_time,
             continuous_block_generation,
+            router_query,
             broadcaster,
             db,
             bootstrap_network,
@@ -345,6 +353,7 @@ impl TestEnv {
             db,
             multiaddr: None,
             latest_fast_synced_block: None,
+            router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
             blob_storage: self.blobs_storage.clone(),
@@ -756,6 +765,7 @@ pub struct Node {
     pub multiaddr: Option<String>,
     pub latest_fast_synced_block: Option<H256>,
 
+    router_query: RouterQuery,
     eth_cfg: EthereumConfig,
     receiver: Option<TestingEventReceiver>,
     blob_storage: LocalBlobStorage,
@@ -792,7 +802,13 @@ impl Node {
                 let multiaddr = bootstrap_addr.parse().unwrap();
                 config.bootstrap_addresses = [multiaddr].into();
             }
-            let network = NetworkService::new(config, &self.signer, self.db.clone()).unwrap();
+            let network = NetworkService::new(
+                config,
+                &self.signer,
+                Box::new(RouterDataProvider(self.router_query.clone())),
+                self.db.clone(),
+            )
+            .unwrap();
             self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
             network
         });
