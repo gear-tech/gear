@@ -119,17 +119,6 @@ pub struct Service {
     sender: tests::utils::TestingEventSender,
 }
 
-// TODO #4176: consider to move this to another module
-#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedProducerBlock),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
-}
-
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
         let rocks_db = RocksDatabase::open(
