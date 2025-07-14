@@ -18,10 +18,13 @@
 
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
 pub fn dev_node() -> NodeInstance {
     // Use release build because of performance reasons.
-    let bin_path = env!("CARGO_MANIFEST_DIR").to_owned() + "/../target/release/gear";
+    let bin_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let mut bin_path = bin_path.join("../target/release/gear");
+    bin_path.set_extension(EXE_EXTENSION);
 
     Node::from_path(bin_path)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
