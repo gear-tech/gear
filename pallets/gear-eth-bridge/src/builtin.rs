@@ -62,11 +62,11 @@ where
         }
 
         // If the origin is governance, we do not charge a fee and return the full value.
-        if is_governance_origin {
+        let unused_value = if is_governance_origin {
             dispatch.value()
         } else {
             dispatch.value().saturating_sub(fee)
-        }
+        };
 
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
