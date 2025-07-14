@@ -601,11 +601,10 @@ async fn instrument_codes(
     }
 
     while let Some(event) = compute.next().await {
-        if let ComputeEvent::CodeProcessed(id) = event? {
-            code_ids.remove(&id);
-            if code_ids.is_empty() {
-                break;
-            }
+        let id = event?.unwrap_code_processed();
+        code_ids.remove(&id);
+        if code_ids.is_empty() {
+            break;
         }
     }
 
