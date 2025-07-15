@@ -19,13 +19,14 @@
 use super::{
     coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
 };
-use crate::{utils, ConsensusEvent};
+use crate::{rewards::RewardsManager, utils, ConsensusEvent};
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     db::BlockMetaStorageRead,
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+        BatchCommitment, ChainCommitment, CodeCommitment, OperatorRewardsCommitment,
+        RewardsCommitment, StakerRewardsCommitment, ValidatorsCommitment,
     },
     Address, ProducerBlock, SimpleBlockData,
 };

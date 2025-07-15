@@ -32,6 +32,7 @@
 //! - [`utils`]: Utility functions and shared data structures
 
 mod connect;
+mod rewards;
 mod utils;
 mod validator;
 

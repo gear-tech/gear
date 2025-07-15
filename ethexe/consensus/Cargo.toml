@@ -22,6 +22,24 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true
+# alloy = { workspace = true, features = [
+#     "rpc",
+#     "rpc-types",
+#     "rpc-types-beacon",
+
+#     "consensus",
+#     "eips",
+#     "node-bindings",
+#     "provider-http",
+#     "provider-ws",
+#     "provider-anvil-api",
+#     "pubsub",
+#     "rpc-client",
+#     "rpc-types-eth",
+#     "signer-local",
+# ] }
+thiserror.workspace = true
+alloy.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
