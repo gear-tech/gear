@@ -203,7 +203,7 @@ impl CallBuilder {
             TestCall::ExhaustResources => {
                 // Using 75% of the max possible weight so that two such calls will inevitably
                 // exhaust block resources while one call will very likely fit in.
-                RuntimeCall::GearDebug(pallet_gear_debug::Call::exhaust_block_resources {
+                RuntimeCall::Gear(pallet_gear::Call::exhaust_block_resources {
                     fraction: Percent::from_percent(75),
                 })
             }
