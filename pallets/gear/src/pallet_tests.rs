@@ -58,7 +58,6 @@ macro_rules! impl_config_inner {
             type Scheduler = GearScheduler;
             type QueueRunner = Gear;
             type BuiltinDispatcherFactory = GearConfigBuiltinDispatcherFactory;
-
             type RentPoolId = GearRentPoolId;
         }
     };
