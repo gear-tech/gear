@@ -1,0 +1,129 @@
+name: Build native Windows
+
+on:
+  workflow_call:
+    inputs:
+      profiles:
+        type: string
+        required: true
+
+env:
+  TERM: xterm-256color
+  RUST_BACKTRACE: short
+  RUST_LIB_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  CARGO_INCREMENTAL: 0
+  NEXTEST_PROFILE: ci
+  __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
+  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: "-Ctarget-feature=+crt-static"
+
+jobs:
+  build-windows:
+    runs-on: [kuberunner, github-runner-02]
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+      fail-fast: false
+    name: build-windows (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "ACTIONS: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-pc-windows-msvc
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "Build: Specific tests"
+        run: >-
+          cargo nextest archive --archive-file=workspace.tar.zst 
+          -p gsdk
+          -p gclient
+          -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
+          --zstd-level=6
+          --target=x86_64-pc-windows-msvc
+          ${{ matrix.profiles.flags }}
+
+      - name: "ACTIONS: Upload workspace"
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
+          path: workspace.tar.zst
+          compression-level: 0
+
+  test-windows:
+    # TODO: enable when #4341 is fixed
+    if: false
+    runs-on: windows-latest
+    needs: build-windows
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+      fail-fast: false
+    name: test-windows (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: cargo-nextest"
+        run: |
+          $tmp = "cargo-nextest.zip"
+          Invoke-WebRequest -OutFile $tmp https://get.nexte.st/latest/windows
+          $outputDir = if ($Env:CARGO_HOME) { Join-Path $Env:CARGO_HOME "bin" } else { "~/.cargo/bin" }
+          $tmp | Expand-Archive -DestinationPath $outputDir -Force
+          $tmp | Remove-Item
+
+      - name: "ACTIONS: Download workspace"
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
+
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-pc-windows-msvc
+          path: target/release
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst
+          -E 'platform(target) and (rdeps(pallet-*) or package(gear-lazy-pages) or package(gear-runtime-interface))'
+          --workspace-remap=${{ github.workspace }}
+          --extract-to=${{ github.workspace }}
+          --extract-overwrite
+
+      - name: "Test: gsdk tests"
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst
+          -E 'platform(target) and package(gsdk)'
+          --workspace-remap=${{ github.workspace }}
+
+      - name: "Test: Client tests"
+        run: >-
+          cargo nextest run --archive-file=workspace.tar.zst
+          -E 'platform(target) and package(gclient)'
+          --workspace-remap=${{ github.workspace }}

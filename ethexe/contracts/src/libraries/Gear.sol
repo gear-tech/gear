@@ -55,7 +55,7 @@ library Gear {
         bytes32 hash;
         /// @dev Gas allowance for programs execution.
         uint64 gasAllowance;
-        /// @dev Hash (keccak256) of off-chain transactions list.
+        /// @dev Hash (keccak256) of off-chain transaction hashes list.
         bytes32 offchainTransactionsHash;
     }
 

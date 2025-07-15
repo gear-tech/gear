@@ -19,6 +19,7 @@
 use crate::abi::{utils::*, Gear};
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
+use gear_core_errors::{ReplyCode, SuccessReplyReason};
 
 //                          //
 // From Rust types to alloy //
@@ -167,7 +168,12 @@ impl From<Message> for Gear::Message {
 
 impl From<Option<ReplyDetails>> for Gear::ReplyDetails {
     fn from(value: Option<ReplyDetails>) -> Self {
-        value.unwrap_or_default().into()
+        value
+            .unwrap_or(ReplyDetails::new(
+                Default::default(),
+                ReplyCode::Success(SuccessReplyReason::Auto),
+            ))
+            .into()
     }
 }
 

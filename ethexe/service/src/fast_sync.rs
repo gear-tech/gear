@@ -45,7 +45,7 @@ use ethexe_runtime_common::{
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 struct EventData {
     program_states: BTreeMap<ActorId, H256>,
@@ -133,9 +133,10 @@ impl EventData {
             return Ok(None);
         };
 
-        // impossible situation, because block can be committed only if batch is committed
-        let latest_committed_batch =
-            latest_committed_batch.ok_or_else(|| anyhow!("latest committed batch not found"))?;
+        let latest_committed_batch = latest_committed_batch.ok_or_else(|| {
+            log::error!("Inconsistent block events: block commitment without batch commitment");
+            anyhow!("latest committed batch not found")
+        })?;
 
         // recover data we haven't seen in events by the latest computed block
         // NOTE: we use `block` instead of `db.latest_computed_block()` so
@@ -228,8 +229,8 @@ impl RequestManager {
         let pending_network_requests = self.handle_pending_requests(db);
 
         if !pending_network_requests.is_empty() {
-            let request = pending_network_requests.keys().copied().collect();
-            let request_id = network.db_sync().request(db_sync::Request(request));
+            let request: BTreeSet<H256> = pending_network_requests.keys().copied().collect();
+            let request_id = network.db_sync().request(db_sync::Request::hashes(request));
 
             let result = loop {
                 let event = network
@@ -294,7 +295,7 @@ impl RequestManager {
         response: db_sync::Response,
         db: &Database,
     ) {
-        let db_sync::Response(data) = response;
+        let data = response.unwrap_hashes();
 
         for (hash, data) in data {
             let metadata = pending_network_requests

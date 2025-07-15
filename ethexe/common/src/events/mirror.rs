@@ -21,7 +21,7 @@ use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, MessageId, H256};
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub enum Event {
     ExecutableBalanceTopUpRequested {
         value: u128,
@@ -117,7 +117,7 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
     ExecutableBalanceTopUpRequested {

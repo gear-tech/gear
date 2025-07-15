@@ -22,15 +22,16 @@ use crate::wasm::{
 };
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{process_queue, state::Storage, ProgramJournals, RuntimeInterface};
-use gear_core::code::InstrumentedCode;
-use gprimitives::{ActorId, CodeId, H256};
+use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gprimitives::{ActorId, H256};
 
 pub fn run(
     program_id: ActorId,
-    original_code_id: CodeId,
     state_root: H256,
     maybe_instrumented_code: Option<InstrumentedCode>,
-) -> ProgramJournals {
+    code_metadata: Option<CodeMetadata>,
+    gas_allowance: u64,
+) -> (ProgramJournals, u64) {
     log::debug!("You're calling 'run(..)'");
 
     let block_info = BlockInfo {
@@ -45,12 +46,13 @@ pub fn run(
 
     let program_state = ri.storage().read_state(state_root).unwrap();
 
-    let journals = process_queue(
+    let (journals, gas_spent) = process_queue(
         program_id,
         program_state,
         maybe_instrumented_code,
-        original_code_id,
+        code_metadata,
         &ri,
+        gas_allowance,
     );
 
     for (journal, origin, call_reply) in &journals {
@@ -60,5 +62,5 @@ pub fn run(
         log::debug!("Origin: {origin:?}, call_reply {call_reply:?}");
     }
 
-    journals
+    (journals, gas_spent)
 }

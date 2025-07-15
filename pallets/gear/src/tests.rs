@@ -19,7 +19,7 @@
 use crate::{
     builtin::BuiltinDispatcherFactory,
     internal::{HoldBound, HoldBoundBuilder, InheritorForError},
-    manager::{CodeInfo, HandleKind},
+    manager::HandleKind,
     mock::{
         self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
         run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
@@ -46,18 +46,18 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
     buffer::Payload,
     code::{
-        self, Code, CodeAndId, CodeError, ExportError, InstantiatedSectionSizes,
-        InstrumentedCodeAndId, MAX_WASM_PAGES_AMOUNT,
+        self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
     ids::{prelude::*, ActorId, CodeId, MessageId},
+    memory::PageBuf,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         StoredDispatch, UserStoredMessage,
     },
     pages::{
         numerated::{self, tree::IntervalsTree},
-        WasmPage,
+        WasmPage, WasmPagesAmount,
     },
     program::ActiveProgram,
     rpc::ReplyInfo,
@@ -409,11 +409,24 @@ fn state_rpc_calls_trigger_reinstrumentation() {
         )
         .expect("Failed to create dummy code");
 
-        let code_and_id =
-            unsafe { CodeAndId::from_incompatible_parts(code, program.code_hash.cast()) };
-        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
+        let (_, instrumented_code, invalid_metadata) = code.into_parts();
 
-        <Test as Config>::CodeStorage::update_code(code_and_id);
+        // Code metadata doesn't have to be completely wrong, just a version of instrumentation
+        let old_code_metadata =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id).unwrap();
+        let code_metadata = old_code_metadata.into_failed_instrumentation(
+            invalid_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+        );
+
+        <Test as Config>::CodeStorage::update_instrumented_code_and_metadata(
+            program.code_id,
+            InstrumentedCodeAndMetadata {
+                instrumented_code,
+                metadata: code_metadata,
+            },
+        );
         /* ends here */
 
         assert_ok!(Gear::read_state_impl(program_id, Default::default(), None));
@@ -2664,10 +2677,15 @@ fn delayed_program_creation_no_code() {
         );
         let read_program_from_storage_fee =
             gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
+        let read_code_metadata_from_storage_fee =
+            gas_price(DbWeightOf::<Test>::get().reads(1).ref_time());
 
         assert_eq!(
             Balances::free_balance(USER_1),
-            free_balance + reserved_balance - delay_holding_fee - 2 * read_program_from_storage_fee
+            free_balance + reserved_balance
+                - delay_holding_fee
+                - 2 * read_program_from_storage_fee
+                - read_code_metadata_from_storage_fee
         );
         assert!(GearBank::<Test>::account_total(&USER_1).is_zero());
     })
@@ -4916,7 +4934,7 @@ fn test_code_submission_pass() {
             code.clone()
         ));
 
-        let saved_code = <Test as Config>::CodeStorage::get_code(code_id);
+        let saved_code = <Test as Config>::CodeStorage::get_instrumented_code(code_id);
 
         let schedule = <Test as Config>::Schedule::get();
         let code = Code::try_new(
@@ -4927,11 +4945,10 @@ fn test_code_submission_pass() {
             schedule.limits.data_segments_amount.into(),
         )
         .expect("Error creating Code");
-        assert_eq!(saved_code.unwrap().code(), code.code());
-
-        let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
-        let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
-        assert_eq!(expected_meta, actual_meta);
+        assert_eq!(
+            saved_code.unwrap().bytes(),
+            code.instrumented_code().bytes()
+        );
 
         // TODO: replace this temporary (`None`) value
         // for expiration block number with properly
@@ -4997,7 +5014,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             }
             .into(),
         );
-        assert!(<Test as Config>::CodeStorage::exists(code_id));
+        assert!(<Test as Config>::CodeStorage::original_code_exists(code_id));
 
         // Trying to set the same code twice.
         assert_noop!(
@@ -5012,7 +5029,6 @@ fn test_code_is_not_reset_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_id = CodeId::generate(&code);
 
         // First submit code
         assert_ok!(Gear::upload_code(
@@ -5020,8 +5036,6 @@ fn test_code_is_not_reset_within_program_submission() {
             code.clone()
         ));
         let expected_code_saved_events = 1;
-        let expected_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
-        assert!(expected_meta.is_some());
 
         // Submit program from another origin. Should not change meta or code.
         assert_ok!(Gear::upload_program(
@@ -5033,7 +5047,7 @@ fn test_code_is_not_reset_within_program_submission() {
             0,
             false,
         ));
-        let actual_meta = <Test as Config>::CodeStorage::get_metadata(code_id);
+
         let actual_code_saved_events = System::events()
             .iter()
             .filter(|e| {
@@ -5047,7 +5061,6 @@ fn test_code_is_not_reset_within_program_submission() {
             })
             .count();
 
-        assert_eq!(expected_meta, actual_meta);
         assert_eq!(expected_code_saved_events, actual_code_saved_events);
     })
 }
@@ -6153,7 +6166,9 @@ fn test_message_processing_for_non_existing_destination() {
         assert!(user_balance_before <= Balances::free_balance(USER_1));
 
         assert!(!utils::is_active(program_id));
-        assert!(<Test as Config>::CodeStorage::exists(code_hash));
+        assert!(<Test as Config>::CodeStorage::original_code_exists(
+            code_hash
+        ));
     })
 }
 
@@ -6331,54 +6346,47 @@ fn terminated_locking_funds() {
 
         let schedule = Schedule::<Test>::default();
         let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id)
+        let code = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
             .expect("code should be in the storage");
-        let code_length = code.code().len() as u64;
+        let code_length = code.bytes().len() as u64;
         let system_reservation = demo_init_fail_sender::system_reserve();
         let reply_duration = demo_init_fail_sender::reply_duration();
 
         let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         let gas_for_module_instantiation = {
-            let InstantiatedSectionSizes {
-                code_section: code_section_bytes,
-                data_section: data_section_bytes,
-                global_section: global_section_bytes,
-                table_section: table_section_bytes,
-                element_section: element_section_bytes,
-                type_section: type_section_bytes,
-            } = *code.instantiated_section_sizes();
+            let instantiated_section_sizes = code.instantiated_section_sizes();
 
             let instantiation_weights = schedule.instantiation_weights;
 
             let mut gas_for_code_instantiation = instantiation_weights
                 .code_section_per_byte
                 .ref_time()
-                .saturating_mul(code_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.code_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .data_section_per_byte
                 .ref_time()
-                .saturating_mul(data_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.data_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .global_section_per_byte
                 .ref_time()
-                .saturating_mul(global_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.global_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .table_section_per_byte
                 .ref_time()
-                .saturating_mul(table_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.table_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .element_section_per_byte
                 .ref_time()
-                .saturating_mul(element_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.element_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .type_section_per_byte
                 .ref_time()
-                .saturating_mul(type_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.type_section() as u64);
 
             gas_for_code_instantiation
         };
@@ -6414,10 +6422,11 @@ fn terminated_locking_funds() {
         // Value, which will be returned to `USER1` after init message processing complete.
         let returned_from_system_reservation = gas_price(system_reservation);
 
-        // Because we set gas for init message second execution only for resources loading, then
-        // after execution system reserved gas and sended value and price for wait list must be returned
-        // to user. This is because program will stop his execution on first wasm block, because of gas
-        // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
+        // Since we set the gas for the second execution of the init message only for resource loading,
+        // after execution, the system-reserved gas, the sent value, and the price for the waitlist must
+        // be returned to the user. This is because the program will stop its execution on the first wasm
+        // block due to exceeding the gas limit. Therefore, the gas counter will equal the amount of gas
+        // returned from the waitlist in the handle reply.
         let expected_balance_difference =
             prog_free + returned_from_wait_list + returned_from_system_reservation + ed;
 
@@ -6687,8 +6696,6 @@ fn test_sequence_inheritor_of() {
             demo_ping::WASM_BINARY.to_vec(),
         ));
         let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        let code_info = CodeInfo::from_code(&code_id, &code);
 
         let message_id = MessageId::from(1);
 
@@ -6696,12 +6703,7 @@ fn test_sequence_inheritor_of() {
         let mut programs = vec![];
         for i in 1000..1100 {
             let program_id = i.cast();
-            manager.set_program(
-                program_id,
-                &code_info,
-                message_id,
-                1.unique_saturated_into(),
-            );
+            manager.set_program(program_id, code_id, message_id, 1.unique_saturated_into());
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.cast());
@@ -6781,8 +6783,6 @@ fn test_cyclic_inheritor_of() {
             demo_ping::WASM_BINARY.to_vec(),
         ));
         let code_id = get_last_code_id();
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        let code_info = CodeInfo::from_code(&code_id, &code);
 
         let message_id = MessageId::from(1);
 
@@ -6790,12 +6790,7 @@ fn test_cyclic_inheritor_of() {
         let mut cyclic_programs = vec![];
         for i in 2000..2100 {
             let program_id = ActorId::from(i);
-            manager.set_program(
-                program_id,
-                &code_info,
-                message_id,
-                1.unique_saturated_into(),
-            );
+            manager.set_program(program_id, code_id, message_id, 1.unique_saturated_into());
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = cyclic_programs
@@ -7454,7 +7449,7 @@ fn exit_handle() {
         assert!(!Gear::is_initialized(program_id));
         assert!(!utils::is_active(program_id));
 
-        assert!(<Test as Config>::CodeStorage::exists(code_id));
+        assert!(<Test as Config>::CodeStorage::original_code_exists(code_id));
 
         // Program is not removed and can't be submitted again
         assert_noop!(
@@ -7878,17 +7873,17 @@ fn gas_spent_precalculated() {
             let code_id = ProgramStorageOf::<Test>::get_program(pid)
                 .and_then(|program| ActiveProgram::try_from(program).ok())
                 .expect("program must exist")
-                .code_hash
+                .code_id
                 .cast();
 
-            <Test as Config>::CodeStorage::get_code(code_id).unwrap()
+            <Test as Config>::CodeStorage::get_instrumented_code(code_id).unwrap()
         };
 
         let get_gas_charged_for_code = |pid| {
             let schedule = <Test as Config>::Schedule::get();
             let read_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
             let instrumented_prog = get_program_code(pid);
-            let code_len = instrumented_prog.code().len() as u64;
+            let code_len = instrumented_prog.bytes().len() as u64;
             let gas_for_code_read = schedule
                 .db_weights
                 .read_per_byte
@@ -7896,52 +7891,45 @@ fn gas_spent_precalculated() {
                 .saturating_mul(code_len)
                 .saturating_add(read_cost);
 
-            let InstantiatedSectionSizes {
-                code_section: code_section_bytes,
-                data_section: data_section_bytes,
-                global_section: global_section_bytes,
-                table_section: table_section_bytes,
-                element_section: element_section_bytes,
-                type_section: type_section_bytes,
-            } = *instrumented_prog.instantiated_section_sizes();
+            let instantiated_section_sizes = instrumented_prog.instantiated_section_sizes();
 
             let instantiation_weights = schedule.instantiation_weights;
 
             let mut gas_for_code_instantiation = instantiation_weights
                 .code_section_per_byte
                 .ref_time()
-                .saturating_mul(code_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.code_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .data_section_per_byte
                 .ref_time()
-                .saturating_mul(data_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.data_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .global_section_per_byte
                 .ref_time()
-                .saturating_mul(global_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.global_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .table_section_per_byte
                 .ref_time()
-                .saturating_mul(table_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.table_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .element_section_per_byte
                 .ref_time()
-                .saturating_mul(element_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.element_section() as u64);
 
             gas_for_code_instantiation += instantiation_weights
                 .type_section_per_byte
                 .ref_time()
-                .saturating_mul(type_section_bytes as u64);
+                .saturating_mul(instantiated_section_sizes.type_section() as u64);
 
             gas_for_code_read + gas_for_code_instantiation
         };
 
         let instrumented_code = get_program_code(pid);
-        let module = Module::new(instrumented_code.code()).expect("invalid wasm bytes");
+        let module = Module::new(instrumented_code.bytes()).expect("invalid wasm bytes");
 
         let (handle_export_func_body, gas_charge_func_body) = module
             .code_section
@@ -10075,8 +10063,9 @@ fn missing_functions_are_not_executed() {
         .expect("calculate_gas_info failed");
 
         let program_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
+        let metadata_cost = DbWeightOf::<Test>::get().reads(1).ref_time();
         // there is no execution so the values should be equal
-        assert_eq!(min_limit, program_cost);
+        assert_eq!(min_limit, program_cost + metadata_cost);
 
         run_to_next_block(None);
 
@@ -10084,7 +10073,7 @@ fn missing_functions_are_not_executed() {
         // no execution is performed at all and hence user was not charged for program execution.
         assert_eq!(
             balance_before,
-            Balances::free_balance(USER_1) + gas_price(program_cost) + ed
+            Balances::free_balance(USER_1) + gas_price(program_cost + metadata_cost) + ed
         );
 
         // this value is actually a constant in the wat.
@@ -10119,7 +10108,7 @@ fn missing_functions_are_not_executed() {
         )
         .expect("calculate_gas_info failed");
 
-        assert_eq!(min_limit, program_cost);
+        assert_eq!(min_limit, program_cost + metadata_cost);
 
         let balance_before = Balances::free_balance(USER_1);
         let reply_value = 1_500;
@@ -10136,7 +10125,7 @@ fn missing_functions_are_not_executed() {
 
         assert_eq!(
             balance_before - reply_value + locked_value,
-            Balances::free_balance(USER_1) + gas_price(program_cost)
+            Balances::free_balance(USER_1) + gas_price(program_cost + metadata_cost)
         );
     });
 }
@@ -10267,9 +10256,11 @@ fn test_reinstrumentation_works() {
 
         // check old version
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
-            let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
+            let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
             assert_eq!(
-                code.instruction_weights_version(),
+                code_metadata
+                    .instruction_weights_version()
+                    .expect("Failed to get instructions weight version"),
                 schedule.instruction_weights.version
             );
 
@@ -10288,8 +10279,13 @@ fn test_reinstrumentation_works() {
         run_to_block(3, None);
 
         // check new version
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+            0xdeadbeef
+        );
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(USER_1),
@@ -10303,8 +10299,13 @@ fn test_reinstrumentation_works() {
         run_to_block(4, None);
 
         // check new version stands still
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), 0xdeadbeef);
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+            0xdeadbeef
+        );
     })
 }
 
@@ -10317,16 +10318,14 @@ fn test_reinstrumentation_failure() {
 
         run_to_block(2, None);
 
-        let mut old_version = 0;
+        let new_weights_version = 0xdeadbeef;
+
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             // Insert new original code to cause re-instrumentation failure.
             let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
-            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
-                code_id, wasm,
-            );
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeMap::insert(code_id, wasm);
 
-            old_version = schedule.instruction_weights.version;
-            schedule.instruction_weights.version = 0xdeadbeef;
+            schedule.instruction_weights.version = new_weights_version;
         });
 
         assert_ok!(Gear::send_message(
@@ -10346,9 +10345,14 @@ fn test_reinstrumentation_failure() {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         assert!(program.is_active());
 
-        // After message processing the code must have the old instrumentation version.
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), old_version);
+        // After message processing the code must have the new instrumentation version.
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+            new_weights_version
+        );
 
         // Error reply must be returned with the reason of re-instrumentation failure.
         assert_failed(
@@ -10368,16 +10372,14 @@ fn test_init_reinstrumentation_failure() {
         let code_id = CodeId::generate(&ProgramCodeKind::Default.to_bytes());
         let pid = upload_program_default(USER_1, ProgramCodeKind::Default).unwrap();
 
-        let mut old_version = 0;
+        let new_weights_version = 0xdeadbeef;
+
         let _reset_guard = DynamicSchedule::mutate(|schedule| {
             // Insert new original code to cause init re-instrumentation failure.
             let wasm = ProgramCodeKind::Custom("(module)").to_bytes();
-            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeStorage::insert(
-                code_id, wasm,
-            );
+            <<Test as Config>::CodeStorage as CodeStorage>::OriginalCodeMap::insert(code_id, wasm);
 
-            old_version = schedule.instruction_weights.version;
-            schedule.instruction_weights.version = 0xdeadbeef;
+            schedule.instruction_weights.version = new_weights_version;
         });
 
         let mid = get_last_message_id();
@@ -10388,9 +10390,14 @@ fn test_init_reinstrumentation_failure() {
         let program = ProgramStorageOf::<Test>::get_program(pid).unwrap();
         assert!(program.is_terminated());
 
-        // After message processing the code must have the old instrumentation version.
-        let code = <Test as Config>::CodeStorage::get_code(code_id).unwrap();
-        assert_eq!(code.instruction_weights_version(), old_version);
+        // After message processing the code must have the new instrumentation version.
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id).unwrap();
+        assert_eq!(
+            code_metadata
+                .instruction_weights_version()
+                .expect("Failed to get instructions weight version"),
+            new_weights_version
+        );
 
         // Error reply must be returned with the reason of re-instrumentation failure.
         assert_failed(
@@ -15704,6 +15711,597 @@ fn use_big_memory() {
     });
 }
 
+#[test]
+fn vec() {
+    use demo_vec::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let vec_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let code_id = CodeId::generate(WASM_BINARY);
+
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id)
+            .expect("code should be in the storage");
+
+        let static_pages = code_metadata.static_pages();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            vec_id,
+            131072i32.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(1).expect("Should be");
+        assert_eq!(reply.payload_bytes(), 131072i32.encode());
+
+        assert!(QueueOf::<Test>::is_empty());
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(vec_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        assert_eq!(program.code_id, code_id);
+
+        let pages = ProgramStorageOf::<Test>::get_program_pages_data(vec_id, program.memory_infix)
+            .expect("Program pages data not found")
+            .keys()
+            .fold(BTreeSet::new(), |mut set, page| {
+                let wasm_page: WasmPage = page.to_page();
+                if wasm_page >= static_pages {
+                    set.insert(u32::from(wasm_page));
+                }
+                set
+            });
+
+        let pages = pages.into_iter().collect::<Vec<_>>();
+        assert_eq!(pages, vec![17, 18]);
+    });
+}
+
+#[test]
+fn check_not_allocated_pages() {
+    // Currently we has no mechanism to restrict not allocated pages access during wasm execution
+    // (this is true only for pages, which is laying inside allocated wasm memory,
+    //  but which is not marked as allocated for program)
+    // So, the test checks, that these pages can be used during execution,
+    // but wont' be updated or uploaded to storage after execution.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (local $i i32)
+
+                ;; alloc 8 pages, so mem pages are: 0..=7
+                (block
+                    i32.const 8
+                    call $alloc
+                    i32.eqz
+                    br_if 0
+                    unreachable
+                )
+
+                ;; free all pages between 0 and 7
+                (loop
+                    local.get $i
+                    i32.const 1
+                    i32.add
+                    local.set $i
+
+                    local.get $i
+                    call $free
+                    drop
+
+                    local.get $i
+                    i32.const 6
+                    i32.ne
+                    br_if 0
+                )
+
+                ;; write data in all pages, even in free one
+                i32.const 0
+                local.set $i
+                (loop
+                    local.get $i
+                    i32.const 0x10000
+                    i32.mul
+                    i32.const 0x42
+                    i32.store
+
+                    local.get $i
+                    i32.const 1
+                    i32.add
+                    local.set $i
+
+                    local.get $i
+                    i32.const 8
+                    i32.ne
+                    br_if 0
+                )
+            )
+            (func $handle
+                (local $i i32)
+
+                ;; checks that all not allocated pages (0..=6) has zero values
+                ;; !!! currently we can use not allocated pages during execution
+                (loop
+                    local.get $i
+                    i32.const 1
+                    i32.add
+                    local.set $i
+
+                    (block
+                        local.get $i
+                        i32.const 0x10000
+                        i32.mul
+                        i32.load
+                        i32.eqz
+                        br_if 0
+                        unreachable
+                    )
+
+                    local.get $i
+                    i32.const 6
+                    i32.ne
+                    br_if 0
+                )
+
+                ;; page 1 is allocated, so must have value, which we set in init
+                (block
+                    i32.const 0
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; page 7 is allocated, so must have value, which we set in init
+                (block
+                    i32.const 0x70000
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; store 1 to the begin of memory to identify that test goes right
+                i32.const 0
+                i32.const 1
+                i32.store
+            )
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let origin = RuntimeOrigin::signed(1);
+
+        assert_ok!(Gear::upload_program(
+            origin.clone(),
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(2, None);
+
+        let gear_page0 = GearPage::from_offset(0x0);
+        let mut page0_data = PageBuf::new_zeroed();
+        page0_data[0] = 0x42;
+
+        let gear_page7 = GearPage::from_offset(0x70000);
+        let mut page7_data = PageBuf::new_zeroed();
+        page7_data[0] = 0x42;
+
+        let mut persistent_pages = BTreeMap::new();
+        persistent_pages.insert(gear_page0, page0_data.clone());
+        persistent_pages.insert(gear_page7, page7_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPage::from(0);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+
+        assert_ok!(Gear::send_message(
+            origin,
+            program_id,
+            vec![],
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        page0_data[0] = 0x1;
+        persistent_pages.insert(gear_page0, page0_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPage::from(0);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+    })
+}
+
+#[test]
+fn check_changed_pages_in_storage() {
+    // This test checks that only pages, which has been write accessed,
+    // will be stored in storage. Also it checks that data in storage is correct.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 8))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                ;; alloc 4 pages, so mem pages are: 0..=11
+                (block
+                    i32.const 4
+                    call $alloc
+                    i32.const 8
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 1 (static)
+                i32.const 0x10009  ;; is symbol "9" address
+                i32.const 0x30     ;; write symbol "0" there
+                i32.store
+
+                ;; access page 7 (static) but do not change it
+                (block
+                    i32.const 0x70001
+                    i32.load
+                    i32.const 0x52414547 ;; is "GEAR"
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 8 (dynamic)
+                i32.const 0x87654
+                i32.const 0x42
+                i32.store
+
+                ;; then free page 8
+                i32.const 8
+                call $free
+                drop
+
+                ;; then alloc page 8 again
+                (block
+                    i32.const 1
+                    call $alloc
+                    i32.const 8
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 9 (dynamic)
+                i32.const 0x98765
+                i32.const 0x42
+                i32.store
+
+                ;; access page 10 (dynamic) but do not change it
+                (block
+                    i32.const 0xa9876
+                    i32.load
+                    i32.eqz             ;; must be zero by default
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 11 (dynamic)
+                i32.const 0xb8765
+                i32.const 0x42
+                i32.store
+
+                ;; then free page 11
+                i32.const 11
+                call $free
+                drop
+            )
+
+            (func $handle
+                (block
+                    ;; check page 1 data
+                    i32.const 0x10002
+                    i64.load
+                    i64.const 0x3038373635343332  ;; is symbols "23456780",
+                                                  ;; "0" in the end because we change it in init
+                    i64.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 7 data
+                    i32.const 0x70001
+                    i32.load
+                    i32.const 0x52414547 ;; is "GEAR"
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 8 data
+                    ;; currently free + allocation must save page data,
+                    ;; but this behavior may change in future.
+                    i32.const 0x87654
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 9 data
+                    i32.const 0x98765
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; change page 3 and 4
+                ;; because we store 0x00_00_00_42 then bits will be changed
+                ;; in 3th page only. But because we store by write access, then
+                ;; both data will be for gear pages from 3th and 4th wasm page.
+                i32.const 0x3fffd
+                i32.const 0x42
+                i32.store
+            )
+
+            (data $.rodata (i32.const 0x10000) "0123456789")
+            (data $.rodata (i32.const 0x70001) "GEAR TECH")
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let origin = RuntimeOrigin::signed(1);
+
+        // Code info. Must be in consensus with wasm code.
+        let static_pages: WasmPagesAmount = 8.into();
+        let page1_accessed_addr = 0x10000;
+        let page3_accessed_addr = 0x3fffd;
+        let page4_accessed_addr = 0x40000;
+        let page8_accessed_addr = 0x87654;
+        let page9_accessed_addr = 0x98765;
+
+        assert_ok!(Gear::upload_program(
+            origin.clone(),
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(2, None);
+
+        let mut persistent_pages = BTreeMap::new();
+
+        let gear_page1 = GearPage::from_offset(page1_accessed_addr);
+        let mut page1_data = PageBuf::new_zeroed();
+        page1_data[..10].copy_from_slice(b"0123456780".as_slice());
+
+        let gear_page8 = GearPage::from_offset(page8_accessed_addr);
+        let mut page8_data = PageBuf::new_zeroed();
+        page8_data[(page8_accessed_addr % GearPage::SIZE) as usize] = 0x42;
+
+        let gear_page9 = GearPage::from_offset(page9_accessed_addr);
+        let mut page9_data = PageBuf::new_zeroed();
+        page9_data[(page9_accessed_addr % GearPage::SIZE) as usize] = 0x42;
+
+        persistent_pages.insert(gear_page1, page1_data);
+        persistent_pages.insert(gear_page8, page8_data);
+        persistent_pages.insert(gear_page9, page9_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        assert_eq!(program_static_pages, static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+
+        assert_ok!(Gear::send_message(
+            origin,
+            program_id,
+            vec![],
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let gear_page3 = GearPage::from_offset(page3_accessed_addr);
+        let mut page3_data = PageBuf::new_zeroed();
+        page3_data[(page3_accessed_addr % GearPage::SIZE) as usize] = 0x42;
+
+        let gear_page4 = GearPage::from_offset(page4_accessed_addr);
+
+        persistent_pages.insert(gear_page3, page3_data);
+        persistent_pages.insert(gear_page4, PageBuf::new_zeroed());
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        assert_eq!(program_static_pages, static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+    })
+}
+
+#[test]
+fn check_gear_stack_end() {
+    // This test checks that all pages, before stack end addr, must not be updated in storage.
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 4))
+            (export "init" (func $init))
+            (func $init
+                ;; write to 0 wasm page (virtual stack)
+                i32.const 0x0
+                i32.const 0x42
+                i32.store
+
+                ;; write to 1 wasm page (virtual stack)
+                i32.const 0x10000
+                i32.const 0x42
+                i32.store
+
+                ;; write to 2 wasm page
+                i32.const 0x20000
+                i32.const 0x42
+                i32.store
+
+                ;; write to 3 wasm page
+                i32.const 0x30000
+                i32.const 0x42
+                i32.store
+            )
+            ;; "stack" contains 0 and 1 wasm pages
+            (global (;0;) (mut i32) (i32.const 0x20000))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )
+    "#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = utils::parse_wat(wat.as_str());
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let origin = RuntimeOrigin::signed(1);
+
+        assert_ok!(Gear::upload_program(
+            origin,
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(2, None);
+
+        let mut persistent_pages = BTreeMap::new();
+
+        let gear_page2 = WasmPage::from(2).to_page();
+        let gear_page3 = WasmPage::from(3).to_page();
+        let mut page_data = PageBuf::new_zeroed();
+        page_data[0] = 0x42;
+
+        persistent_pages.insert(gear_page2, page_data.clone());
+        persistent_pages.insert(gear_page3, page_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPagesAmount::from(4);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+    })
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 
@@ -15713,15 +16311,16 @@ pub(crate) mod utils {
     };
     use crate::{
         mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, CurrencyOf, GasHandlerOf, GasInfo,
-        GearBank, HandleKind, ProgramStorageOf, SentOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, Config, CurrencyOf, GasHandlerOf,
+        GasInfo, GearBank, HandleKind, ProgramStorageOf, QueueOf, SentOf,
+        EXISTENTIAL_DEPOSIT_LOCK_ID,
     };
     use common::{
         event::*,
-        storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage, ReservableTree,
+        storage::{CountedByKey, Counter, IterableByKeyMap, IterableMap},
+        CodeStorage, Origin, ProgramStorage, ReservableTree,
     };
-    use core::fmt::Display;
+    use core::{fmt, fmt::Display};
     use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
@@ -15732,17 +16331,23 @@ pub(crate) mod utils {
     use gear_core::{
         buffer::Payload,
         ids::{prelude::*, ActorId, CodeId, MessageId},
-        message::{Message, ReplyDetails, UserMessage, UserStoredMessage},
+        memory::PageBuf,
+        message::{Message, ReplyDetails, StoredDispatch, UserMessage, UserStoredMessage},
+        pages::{GearPage, WasmPagesAmount},
         program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
+    use gstd::TypeInfo;
     use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;
     use sp_core::H256;
     use sp_runtime::{codec::Decode, traits::UniqueSaturatedInto};
     use sp_std::{convert::TryFrom, fmt::Debug};
-    use std::iter;
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        iter,
+    };
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -15954,6 +16559,10 @@ pub(crate) mod utils {
 
     #[track_caller]
     pub(super) fn assert_total_dequeued(expected: u32) {
+        System::events().iter().for_each(|e| {
+            log::debug!("Event: {:?}", e);
+        });
+
         let actual_dequeued: u32 = System::events()
             .iter()
             .filter_map(|e| {
@@ -16015,7 +16624,7 @@ pub(crate) mod utils {
                 ProgramStorageOf::<Test>::get_program(prog_id)
                     .and_then(|program| ActiveProgram::try_from(program).ok())
                     .expect("program must exist")
-                    .code_hash,
+                    .code_id,
                 generate_code_hash(&expected_code).into(),
                 "can invoke send to mailbox only from `ProgramCodeKind::OutgoingWithValueInHandle` program"
             );
@@ -16026,7 +16635,7 @@ pub(crate) mod utils {
 
     #[track_caller]
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: ActorId) {
-        let expected_code_hash: H256 = generate_code_hash(
+        let expected_code_hash: CodeId = generate_code_hash(
             ProgramCodeKind::OutgoingWithValueInHandle
                 .to_bytes()
                 .as_slice(),
@@ -16034,7 +16643,7 @@ pub(crate) mod utils {
         .into();
         let actual_code_hash = ProgramStorageOf::<Test>::get_program(program_id)
             .and_then(|program| ActiveProgram::try_from(program).ok())
-            .map(|prog| prog.code_hash)
+            .map(|prog| prog.code_id)
             .expect("invalid program address for the test");
         assert_eq!(
             expected_code_hash, actual_code_hash,
@@ -16729,5 +17338,15 @@ pub(crate) mod utils {
                 }
             })
             .collect()
+    }
+
+    pub(super) fn parse_wat(source: &str) -> Vec<u8> {
+        let code = wat::parse_str(source).expect("failed to parse module");
+        wasmparser::validate(&code).expect("failed to validate module");
+        code
+    }
+
+    pub(super) fn h256_code_hash(code: &[u8]) -> H256 {
+        CodeId::generate(code).into_origin()
     }
 }

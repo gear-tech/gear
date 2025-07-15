@@ -24,42 +24,41 @@ impl ExtManager {
     pub(crate) fn read_state_bytes(
         &mut self,
         payload: Vec<u8>,
-        program_id: &ActorId,
+        program_id: ActorId,
     ) -> Result<Vec<u8>> {
-        let executable_actor_data = Actors::modify(*program_id, |actor| {
-            if let Some(actor) = actor {
-                Ok(actor.executable_actor_data())
-            } else {
-                Err(TestError::ActorNotFound(*program_id))
-            }
-        })?;
-
-        if let Some((data, code)) = executable_actor_data {
-            core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
-                String::from("state"),
-                code,
-                Some(data.allocations),
-                Some((*program_id, Default::default())),
-                payload,
-                MAX_USER_GAS_LIMIT,
-                self.blocks_manager.get(),
-            )
-            .map_err(TestError::ReadStateError)
-        } else {
-            Err(TestError::ActorIsNotExecutable(*program_id))
-        }
-    }
-    pub(crate) fn read_memory_pages(&self, program_id: &ActorId) -> BTreeMap<GearPage, PageBuf> {
-        Actors::access(*program_id, |actor| {
-            let program = match actor.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-            {
-                TestActor::Initialized(program) => program,
-                TestActor::Uninitialized(_, program) => program.as_ref().unwrap(),
-                TestActor::Exited(_) => panic!("Actor {program_id} is exited"),
-                TestActor::FailedInit => panic!("Actor {program_id} failed to init"),
-            };
-
-            program.pages_data.clone()
+        let allocations = ProgramsStorageManager::allocations(program_id);
+        let code_id = ProgramsStorageManager::access_program(program_id, |program| {
+            program.and_then(|p| {
+                if let Program::Active(ActiveProgram { code_id, .. }) = p {
+                    Some(code_id.cast())
+                } else {
+                    None
+                }
+            })
         })
+        .ok_or(TestError::ActorNotFound(program_id))?;
+        let code_metadata = self
+            .code_metadata(code_id)
+            .cloned()
+            .ok_or(TestError::ActorNotFound(program_id))?;
+        let instrumented_code = self
+            .instrumented_code(code_id)
+            .cloned()
+            .ok_or(TestError::ActorNotFound(program_id))?;
+        core_processor::informational::execute_for_reply::<Ext<LazyPagesNative>, _>(
+            String::from("state"),
+            instrumented_code,
+            code_metadata,
+            allocations,
+            Some((program_id, Default::default())),
+            payload,
+            MAX_USER_GAS_LIMIT,
+            self.blocks_manager.get(),
+        )
+        .map_err(TestError::ReadStateError)
+    }
+
+    pub(crate) fn read_memory_pages(&self, program_id: ActorId) -> BTreeMap<GearPage, PageBuf> {
+        ProgramsStorageManager::program_pages(program_id)
     }
 }

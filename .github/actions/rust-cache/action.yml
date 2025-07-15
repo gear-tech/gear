@@ -1,0 +1,67 @@
+name: rust-cache
+
+inputs:
+  us-access-key-id:
+    required: true
+    description: US S3 access key ID
+  us-secret-access-key:
+    required: true
+    description: US secret access key
+  eu-access-key-id:
+    required: true
+    description: EU S3 access key ID
+  eu-secret-access-key:
+    required: true
+    description: EU secret access key
+  key:
+    required: false
+    description: Cache key
+  cache-all-crates:
+    required: false
+    description: Whether to cache every crate
+
+runs:
+  using: composite
+  steps:
+    - run: |
+        if [[ "${{ runner.environment }}" == "github-hosted" ]]; then
+          echo "AWS_ACCESS_KEY_ID=${{ inputs.us-access-key-id }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ inputs.us-secret-access-key }}" >> $GITHUB_ENV
+          echo "AWS_REGION=us-west-2" >> $GITHUB_ENV
+          echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
+        else
+          echo "AWS_ACCESS_KEY_ID=${{ inputs.eu-access-key-id }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ inputs.eu-secret-access-key }}" >> $GITHUB_ENV
+          echo "AWS_REGION=fsn1" >> $GITHUB_ENV
+          echo "SCCACHE_REGION=fsn1" >> $GITHUB_ENV
+        
+          echo "SCCACHE_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
+          echo "RUNS_ON_S3_BUCKET_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
+        fi
+      shell: bash
+
+    - uses: mozilla-actions/sccache-action@v0.0.9
+      with:
+        disable_annotations: true
+
+    - run: |
+        echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
+        echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
+        echo "SCCACHE_STARTUP_TIMEOUT=30" >> $GITHUB_ENV
+        
+        echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+      shell: bash
+
+    - uses: gear-tech/rust-cache@runs-on
+      with:
+        prefix-key: 'rust-cache/v0'
+        key: ${{ inputs.key }}
+        workspaces: |
+          . -> target
+          utils/wasm-builder/test-program -> target
+          utils/cargo-gbuild/test-program -> target
+        cache-provider: 's3'
+        cache-all-crates: ${{ inputs.cache-all-crates }}
+      env:
+        RUNS_ON_S3_BUCKET_CACHE: gear-ci

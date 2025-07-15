@@ -35,3 +35,16 @@ roast-secp256k1-evm.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
+alloy = { workspace = true, features = [
+    "consensus",
+    "contract",
+    "network",
+    "provider-http",
+    "provider-ws",
+    "pubsub",
+    "rpc-types-eth",
+    "rpc-client",
+    "signers",
+    "kzg",
+    "node-bindings"
+] }

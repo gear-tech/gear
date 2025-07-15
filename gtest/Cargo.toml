@@ -32,9 +32,11 @@ etc.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+sp-core.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true
 demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
