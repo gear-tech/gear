@@ -28,6 +28,8 @@ pub type Migrations = (
     pallet_gear_program::migrations::v12_program_code_id_migration::MigrateProgramCodeHashToCodeId<Runtime>,
     // split instrumented code into separate storage items
     pallet_gear_program::migrations::v13_split_instrumented_code_migration::MigrateSplitInstrumentedCode<Runtime>,
+    // migrate to v3 of the Gear Scheduler with removal of program pause tasks
+    pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
 );
 
 pub struct BagsListMigrate<T>(core::marker::PhantomData<T>);
