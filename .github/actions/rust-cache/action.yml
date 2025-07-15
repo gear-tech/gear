@@ -55,7 +55,7 @@ runs:
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/wasm-projects'
+        prefix-key: 'rust-cache/wbuild'
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
