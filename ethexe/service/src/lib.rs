@@ -479,6 +479,15 @@ impl Service {
 
                             p.update_observer_metrics(last_block, pending_codes);
 
+                            // Collect compute service metrics
+                            let metrics = compute.get_metrics();
+
+                            p.update_compute_metrics(
+                                metrics.blocks_queue_len,
+                                metrics.waiting_codes_count,
+                                metrics.process_codes_count,
+                            );
+
                             // TODO #4643: support metrics for consensus service
                         }
                     }
