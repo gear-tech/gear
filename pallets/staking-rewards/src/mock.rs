@@ -35,26 +35,19 @@ use pallet_election_provider_multi_phase::{self as multi_phase};
 use pallet_session::historical::{self as pallet_session_historical};
 use sp_core::{crypto::key_types, H256};
 use sp_runtime::{
+    generic::UncheckedExtrinsic,
     testing::{Block as TestBlock, UintAuthorityId},
     traits::{BlakeTwo256, IdentityLookup, One, OpaqueKeys, Scale},
     BuildStorage, KeyTypeId, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
-pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
-type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
+pub(crate) type TxExtension = (pallet_gear_staking_rewards::StakingBlackList<Test>,);
+type TestXt = sp_runtime::testing::TestXt<RuntimeCall, TxExtension>;
 type Block = TestBlock<TestXt>;
 type AccountId = u64;
 pub type BlockNumber = BlockNumberFor<Test>;
 type Balance = u128;
-
-pub(crate) type Executive = frame_executive::Executive<
-    Test,
-    Block,
-    frame_system::ChainContext<Test>,
-    Test,
-    AllPalletsWithSystem,
->;
 
 pub(crate) const SIGNER: AccountId = 1;
 pub(crate) const VAL_1_STASH: AccountId = 10;
@@ -287,6 +280,7 @@ impl pallet_treasury::Config for Test {
     type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
     type BalanceConverter = UnityAssetBalanceConversion;
     type PayoutPeriod = ConstU64<10>;
+    type BlockNumberProvider = System;
 }
 
 parameter_types! {
@@ -370,12 +364,21 @@ impl multi_phase::Config for Test {
     type Solver = SequentialPhragmen<AccountId, multi_phase::SolutionAccuracyOf<Self>, ()>;
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+impl<C> frame_system::offchain::CreateTransactionBase<C> for Test
 where
     RuntimeCall: From<C>,
 {
-    type OverarchingCall = RuntimeCall;
+    type RuntimeCall = RuntimeCall;
     type Extrinsic = TestXt;
+}
+
+impl<LocalCall> frame_system::offchain::CreateInherent<LocalCall> for Test
+where
+    RuntimeCall: From<LocalCall>,
+{
+    fn create_inherent(call: Self::RuntimeCall) -> Self::Extrinsic {
+        UncheckedExtrinsic::new_bare(call)
+    }
 }
 
 pub type ValidatorAccountId = (
@@ -696,8 +699,8 @@ pub(crate) fn chain_state() -> (u128, u128, u128, u128) {
 pub(crate) mod two_block_producers {
     use super::*;
 
-    pub(crate) type SignedExtra = pallet_gear_staking_rewards::StakingBlackList<Test>;
-    type TestXt = sp_runtime::testing::TestXt<RuntimeCall, SignedExtra>;
+    pub(crate) type TxExtension = (pallet_gear_staking_rewards::StakingBlackList<Test>,);
+    type TestXt = sp_runtime::testing::TestXt<RuntimeCall, TxExtension>;
     type Block = TestBlock<TestXt>;
 
     construct_runtime!(
@@ -718,12 +721,21 @@ pub(crate) mod two_block_producers {
         }
     );
 
-    impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+    impl<C> frame_system::offchain::CreateTransactionBase<C> for Test
     where
         RuntimeCall: From<C>,
     {
-        type OverarchingCall = RuntimeCall;
+        type RuntimeCall = RuntimeCall;
         type Extrinsic = TestXt;
+    }
+
+    impl<LocalCall> frame_system::offchain::CreateInherent<LocalCall> for Test
+    where
+        RuntimeCall: From<LocalCall>,
+    {
+        fn create_inherent(call: Self::RuntimeCall) -> Self::Extrinsic {
+            UncheckedExtrinsic::new_bare(call)
+        }
     }
 
     common::impl_pallet_system!(Test, DbWeight = RocksDbWeight, BlockWeights = ());
@@ -792,6 +804,7 @@ pub(crate) mod two_block_producers {
         type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
         type BalanceConverter = UnityAssetBalanceConversion;
         type PayoutPeriod = ConstU64<10>;
+        type BlockNumberProvider = System;
     }
 
     impl pallet_sudo::Config for Test {
@@ -843,7 +856,7 @@ pub(crate) mod two_block_producers {
         type SignedMaxSubmissions = SignedMaxSubmissions;
         type SignedMaxRefunds = SignedMaxRefunds;
         type SlashHandler = Treasury;
-        type RewardHandler = StakingRewards;
+        type RewardHandler = ();
         type DataProvider = Staking;
         type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;
         type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen<Self>>;

@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-// `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit = "256"]
+// `construct_runtime!` does a lot of recursion and requires us to increase the limits.
+#![recursion_limit = "1024"]
 #![allow(clippy::items_after_test_module)]
 #![allow(clippy::legacy_numeric_constants)]
 #![allow(non_local_definitions)]
+
+extern crate alloc;
 
 // Make the WASM binary available.
 #[cfg(all(feature = "std", not(fuzz)))]
@@ -51,6 +53,7 @@ use pallet_grandpa::{
 };
 use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_nomination_pools::PoolId;
 use pallet_session::historical::{self as pallet_session_historical};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
@@ -59,19 +62,24 @@ use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
 use sp_runtime::{
-    create_runtime_str, generic, impl_opaque_keys,
+    generic, impl_opaque_keys,
     traits::{
-        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
-        DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
+        AccountIdConversion, AccountIdLookup, AsSystemOriginSigner, BlakeTwo256, Block as BlockT,
+        ConvertInto, DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One,
+        PostDispatchInfoOf, TransactionExtension, ValidateResult,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
+    ApplyExtrinsicResult, DispatchResult, FixedU128, Perbill, Percent, Permill, Perquintill,
+    RuntimeDebug, Saturating,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
 };
 use sp_version::RuntimeVersion;
+
+#[cfg(feature = "dev")]
+use common::Origin;
 
 #[cfg(not(feature = "dev"))]
 use sp_runtime::traits::OpaqueKeys;
@@ -177,15 +185,15 @@ static _WASM_BLOB_VERSION: [u8; const_str::to_byte_array!(env!("SUBSTRATE_CLI_IM
 #[cfg(not(feature = "dev"))]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("vara"),
-    impl_name: create_runtime_str!("vara"),
+    spec_name: alloc::borrow::Cow::Borrowed("vara"),
+    impl_name: alloc::borrow::Cow::Borrowed("vara"),
 
     spec_version: 1810,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
     impl_version: 1,
-    state_version: 1,
+    system_version: 1,
     transaction_version: 1,
 };
 
@@ -193,15 +201,15 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 #[cfg(feature = "dev")]
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("vara-testnet"),
-    impl_name: create_runtime_str!("vara-testnet"),
+    spec_name: alloc::borrow::Cow::Borrowed("vara-testnet"),
+    impl_name: alloc::borrow::Cow::Borrowed("vara-testnet"),
 
     spec_version: 1810,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
     impl_version: 1,
-    state_version: 1,
+    system_version: 1,
     transaction_version: 1,
 };
 
@@ -281,11 +289,13 @@ impl frame_system::Config for Runtime {
     type AccountData = pallet_balances::AccountData<Balance>;
     /// Weight information for the extrinsics of this pallet.
     type SystemWeightInfo = weights::frame_system::SubstrateWeight<Runtime>;
+    type ExtensionsWeightInfo = weights::frame_system_extensions::WeightInfo<Runtime>;
     /// This is used as an identifier of the chain. 42 is the generic substrate prefix.
     type SS58Prefix = SS58Prefix;
     /// The set code logic, just the default since we're not a parachain.
     type OnSetCode = ();
     type MaxConsumers = ConstU32<16>;
+    type MultiBlockMigrator = MultiBlockMigrations;
 }
 
 parameter_types! {
@@ -400,6 +410,7 @@ impl pallet_balances::Config for Runtime {
     type WeightInfo = ();
     type FreezeIdentifier = RuntimeFreezeReason;
     type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
+    type DoneSlashHandler = ();
 }
 
 parameter_types! {
@@ -418,6 +429,7 @@ impl pallet_transaction_payment::Config for Runtime {
     type WeightToFee = ConstantMultiplier<u128, ConstU128<VALUE_PER_GAS>>;
     type LengthToFee = ConstantMultiplier<u128, ConstU128<VALUE_PER_GAS>>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Runtime, QueueLengthStep>;
+    type WeightInfo = pallet_transaction_payment::weights::SubstrateWeight<Runtime>;
 }
 
 // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
@@ -859,6 +871,7 @@ impl pallet_treasury::Config for Runtime {
     type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
     type BalanceConverter = UnityAssetBalanceConversion;
     type PayoutPeriod = PayoutSpendPeriod;
+    type BlockNumberProvider = System;
 }
 
 parameter_types! {
@@ -908,6 +921,26 @@ parameter_types! {
     pub const MaxPeerInHeartbeats: u32 = 10_000;
 }
 
+impl<LocalCall> frame_system::offchain::CreateTransaction<LocalCall> for Runtime
+where
+    RuntimeCall: From<LocalCall>,
+{
+    type Extension = TxExtension;
+
+    fn create_transaction(call: RuntimeCall, extension: TxExtension) -> UncheckedExtrinsic {
+        UncheckedExtrinsic::new_transaction(call, extension)
+    }
+}
+
+impl<LocalCall> frame_system::offchain::CreateInherent<LocalCall> for Runtime
+where
+    RuntimeCall: From<LocalCall>,
+{
+    fn create_inherent(call: RuntimeCall) -> UncheckedExtrinsic {
+        UncheckedExtrinsic::new_bare(call)
+    }
+}
+
 impl pallet_im_online::Config for Runtime {
     type AuthorityId = ImOnlineId;
     type RuntimeEvent = RuntimeEvent;
@@ -927,6 +960,7 @@ impl pallet_authority_discovery::Config for Runtime {
 parameter_types! {
     pub const BasicDeposit: Balance = 10 * ECONOMIC_UNITS;       // 258 bytes on-chain
     pub const ByteDeposit: Balance = deposit(0, 1);
+    pub const UsernameDeposit: Balance = deposit(0, 32);
     pub const SubAccountDeposit: Balance = 2 * ECONOMIC_UNITS;   // 53 bytes on-chain
     pub const MaxSubAccounts: u32 = 100;
     pub const MaxAdditionalFields: u32 = 100;
@@ -938,6 +972,7 @@ impl pallet_identity::Config for Runtime {
     type Currency = Balances;
     type BasicDeposit = BasicDeposit;
     type ByteDeposit = ByteDeposit;
+    type UsernameDeposit = UsernameDeposit;
     type SubAccountDeposit = SubAccountDeposit;
     type MaxSubAccounts = MaxSubAccounts;
     type IdentityInformation = IdentityInfo<MaxAdditionalFields>;
@@ -949,6 +984,7 @@ impl pallet_identity::Config for Runtime {
     type SigningPublicKey = <Signature as sp_runtime::traits::Verify>::Signer;
     type UsernameAuthorityOrigin = EnsureRoot<Self::AccountId>;
     type PendingUsernameExpiration = ConstU32<{ 7 * DAYS }>;
+    type UsernameGracePeriod = ConstU32<{ 30 * DAYS }>;
     type MaxSuffixLength = ConstU32<7>;
     type MaxUsernameLength = ConstU32<32>;
     type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
@@ -966,6 +1002,25 @@ impl pallet_utility::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type WeightInfo = weights::pallet_utility::SubstrateWeight<Runtime>;
     type PalletsOrigin = OriginCaller;
+}
+
+parameter_types! {
+    pub MbmServiceWeight: Weight = Perbill::from_percent(80) * RuntimeBlockWeights::get().max_block;
+}
+
+impl pallet_migrations::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    #[cfg(not(feature = "runtime-benchmarks"))]
+    type Migrations = pallet_identity::migration::v2::LazyMigrationV1ToV2<Runtime>;
+    // Benchmarks need mocked migrations to guarantee that they succeed.
+    #[cfg(feature = "runtime-benchmarks")]
+    type Migrations = pallet_migrations::mock_helpers::MockedMigrations;
+    type CursorMaxLen = ConstU32<65_536>;
+    type IdentifierMaxLen = ConstU32<256>;
+    type MigrationStatusHandler = ();
+    type FailedMigrationHandler = frame_support::migrations::FreezeChainOnFailedMigration;
+    type MaxServiceWeight = MbmServiceWeight;
+    type WeightInfo = ();
 }
 
 parameter_types! {
@@ -1351,12 +1406,12 @@ impl pallet_gear_voucher::Config for Runtime {
     type MinDuration = MinVoucherDuration;
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+impl<C> frame_system::offchain::CreateTransactionBase<C> for Runtime
 where
     RuntimeCall: From<C>,
 {
     type Extrinsic = UncheckedExtrinsic;
-    type OverarchingCall = RuntimeCall;
+    type RuntimeCall = RuntimeCall;
 }
 
 parameter_types! {
@@ -1491,6 +1546,9 @@ mod runtime {
 
     #[runtime::pallet_index(31)]
     pub type NominationPools = pallet_nomination_pools;
+
+    #[runtime::pallet_index(32)]
+    pub type MultiBlockMigrations = pallet_migrations;
 
     // Gear
     // NOTE (!): if adding new pallet, don't forget to extend non payable proxy filter.
@@ -1653,6 +1711,9 @@ mod runtime {
     #[runtime::pallet_index(31)]
     pub type NominationPools = pallet_nomination_pools;
 
+    #[runtime::pallet_index(32)]
+    pub type MultiBlockMigrations = pallet_migrations;
+
     // Gear
 
     #[runtime::pallet_index(100)]
@@ -1699,8 +1760,8 @@ pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-/// The SignedExtension to the basic transaction logic.
-pub type SignedExtra = (
+/// The TransactionExtension to the basic transaction logic.
+pub type TxExtension = (
     // Keep as long as it's needed
     StakingBlackList<Runtime>,
     frame_system::CheckNonZeroSender<Runtime>,
@@ -1715,9 +1776,14 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
-    generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+    generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, TxExtension>;
+/// Unchecked signature payload type as expected by this runtime.
+pub type UncheckedSignaturePayload =
+    generic::UncheckedSignaturePayload<Address, Signature, TxExtension>;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, TxExtension>;
+/// Extrinsic type that has already been checked.
+pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, RuntimeCall, TxExtension>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
     Runtime,
@@ -1748,6 +1814,7 @@ mod benches {
     define_benchmarks!(
         // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
+        [frame_system_extensions, SystemExtensionsBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
@@ -1764,6 +1831,7 @@ mod benches {
     define_benchmarks!(
         // Substrate pallets
         [frame_system, SystemBench::<Runtime>]
+        [frame_system_extensions, SystemExtensionsBench::<Runtime>]
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_utility, Utility]
@@ -1887,6 +1955,10 @@ impl_runtime_apis_plus_common! {
         fn pool_balance(pool_id: pallet_nomination_pools::PoolId) -> Balance {
             NominationPools::api_pool_balance(pool_id)
         }
+
+        fn pool_accounts(pool_id: PoolId) -> (AccountId, AccountId) {
+            NominationPools::api_pool_accounts(pool_id)
+        }
     }
 
     impl pallet_staking_runtime_api::StakingApi<Block, Balance, AccountId> for Runtime {
@@ -1924,7 +1996,7 @@ impl_runtime_apis_plus_common! {
                     None
                 },
                 #[cfg(feature = "dev")]
-                () => GearEthBridge::merkle_proof(hash),
+                () => GearEthBridge::merkle_proof(hash.cast()),
             }
         }
     }
@@ -2073,68 +2145,98 @@ impl<T: frame_system::Config> sp_std::fmt::Debug for CustomCheckNonce<T> {
     }
 }
 
-impl<T: frame_system::Config> SignedExtension for CustomCheckNonce<T>
+impl<T: frame_system::Config> TransactionExtension<T::RuntimeCall> for CustomCheckNonce<T>
 where
     T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
+    <T::RuntimeCall as Dispatchable>::RuntimeOrigin: AsSystemOriginSigner<T::AccountId> + Clone,
 {
-    type AccountId = <frame_system::CheckNonce<T> as SignedExtension>::AccountId;
-    type Call = <frame_system::CheckNonce<T> as SignedExtension>::Call;
-    type AdditionalSigned = <frame_system::CheckNonce<T> as SignedExtension>::AdditionalSigned;
-    type Pre = <frame_system::CheckNonce<T> as SignedExtension>::Pre;
-    const IDENTIFIER: &'static str = <frame_system::CheckNonce<T> as SignedExtension>::IDENTIFIER;
+    const IDENTIFIER: &'static str =
+        <frame_system::CheckNonce<T> as TransactionExtension<T::RuntimeCall>>::IDENTIFIER;
+    type Implicit = <frame_system::CheckNonce<T> as TransactionExtension<T::RuntimeCall>>::Implicit;
+    type Val = <frame_system::CheckNonce<T> as TransactionExtension<T::RuntimeCall>>::Val;
+    type Pre = <frame_system::CheckNonce<T> as TransactionExtension<T::RuntimeCall>>::Pre;
 
-    fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> {
-        Ok(())
-    }
-
-    fn pre_dispatch(
-        self,
-        who: &Self::AccountId,
-        _call: &Self::Call,
-        _info: &DispatchInfoOf<Self::Call>,
-        _len: usize,
-    ) -> Result<(), TransactionValidityError> {
-        let mut account = frame_system::Account::<T>::get(who);
-
-        if self.0 != account.nonce {
-            return Err(if self.0 < account.nonce {
-                InvalidTransaction::Stale
-            } else {
-                InvalidTransaction::Future
-            }
-            .into());
-        }
-        account.nonce += T::Nonce::one();
-        frame_system::Account::<T>::insert(who, account);
-        Ok(())
+    fn weight(&self, _: &T::RuntimeCall) -> Weight {
+        <T::ExtensionsWeightInfo as frame_system::ExtensionsWeightInfo>::check_nonce()
     }
 
     fn validate(
         &self,
-        who: &Self::AccountId,
-        _call: &Self::Call,
-        _info: &DispatchInfoOf<Self::Call>,
+        origin: T::RuntimeOrigin,
+        call: &T::RuntimeCall,
+        _info: &DispatchInfoOf<T::RuntimeCall>,
         _len: usize,
-    ) -> TransactionValidity {
+        _self_implicit: Self::Implicit,
+        _inherited_implication: &impl Encode,
+        _source: TransactionSource,
+    ) -> ValidateResult<Self::Val, T::RuntimeCall> {
+        let Some(who) = origin.as_system_origin_signer() else {
+            return Ok((
+                Default::default(),
+                Self::Val::Refund(self.weight(call)),
+                origin,
+            ));
+        };
         let account = frame_system::Account::<T>::get(who);
 
         if self.0 < account.nonce {
-            return InvalidTransaction::Stale.into();
+            return Err(InvalidTransaction::Stale.into());
         }
 
-        let provides = vec![Encode::encode(&(who, self.0))];
+        let provides = vec![Encode::encode(&(&who, self.0))];
         let requires = if account.nonce < self.0 {
-            vec![Encode::encode(&(who, self.0 - One::one()))]
+            vec![Encode::encode(&(who, self.0.saturating_sub(One::one())))]
         } else {
             vec![]
         };
 
-        Ok(ValidTransaction {
+        let validity = ValidTransaction {
             priority: 0,
             requires,
             provides,
             longevity: TransactionLongevity::max_value(),
             propagate: true,
-        })
+        };
+
+        Ok((
+            validity,
+            Self::Val::CheckNonce((who.clone(), account.nonce)),
+            origin,
+        ))
+    }
+
+    fn prepare(
+        self,
+        val: Self::Val,
+        _origin: &T::RuntimeOrigin,
+        _call: &T::RuntimeCall,
+        _info: &DispatchInfoOf<T::RuntimeCall>,
+        _len: usize,
+    ) -> Result<Self::Pre, TransactionValidityError> {
+        let (who, mut nonce) = match val {
+            Self::Val::CheckNonce((who, nonce)) => (who, nonce),
+            Self::Val::Refund(weight) => return Ok(Self::Pre::Refund(weight)),
+        };
+
+        // `self.0 < nonce` already checked in `validate`.
+        if self.0 > nonce {
+            return Err(InvalidTransaction::Future.into());
+        }
+        nonce += T::Nonce::one();
+        frame_system::Account::<T>::mutate(who, |account| account.nonce = nonce);
+        Ok(Self::Pre::NonceChecked)
+    }
+
+    fn post_dispatch_details(
+        pre: Self::Pre,
+        _info: &DispatchInfo,
+        _post_info: &PostDispatchInfoOf<T::RuntimeCall>,
+        _len: usize,
+        _result: &DispatchResult,
+    ) -> Result<Weight, TransactionValidityError> {
+        match pre {
+            Self::Pre::NonceChecked => Ok(Weight::zero()),
+            Self::Pre::Refund(weight) => Ok(weight),
+        }
     }
 }

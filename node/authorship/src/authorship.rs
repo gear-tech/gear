@@ -486,7 +486,7 @@ where
         let mut skipped = 0;
         let mut unqueue_invalid = Vec::new();
 
-        let mut t1 = self.transaction_pool.ready_at(self.parent_number).fuse();
+        let mut t1 = self.transaction_pool.ready_at(self.parent_hash).fuse();
         let mut t2 =
             futures_timer::Delay::new(deadline.saturating_duration_since((self.now)()) / 8).fuse();
 
@@ -564,7 +564,7 @@ where
             }
 
             trace!(target: LOG_TARGET, "[{pending_tx_hash:?}] Pushing to the block.");
-            match block_builder.push(pending_tx_data) {
+            match block_builder.push((*pending_tx_data).clone()) {
                 Ok(()) => {
                     transaction_pushed = true;
                     debug!(target: LOG_TARGET, "[{pending_tx_hash:?}] Pushed to the block.");

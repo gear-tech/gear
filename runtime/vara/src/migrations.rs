@@ -17,6 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
+use pallet_balances::WeightInfo;
+
+parameter_types! {
+    pub BalanceTransferAllowDeath: Weight = weights::pallet_balances::SubstrateWeight::<Runtime>::transfer_allow_death();
+}
 
 /// All migrations that will run on the next runtime upgrade.
 pub type Migrations = (
@@ -28,6 +33,7 @@ pub type Migrations = (
     pallet_gear_program::migrations::v12_program_code_id_migration::MigrateProgramCodeHashToCodeId<Runtime>,
     // split instrumented code into separate storage items
     pallet_gear_program::migrations::v13_split_instrumented_code_migration::MigrateSplitInstrumentedCode<Runtime>,
+    pallet_child_bounties::migration::MigrateV0ToV1<Runtime, BalanceTransferAllowDeath>,
 );
 
 pub struct BagsListMigrate<T>(core::marker::PhantomData<T>);

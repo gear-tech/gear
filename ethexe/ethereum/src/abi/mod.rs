@@ -106,8 +106,7 @@ pub(crate) mod utils {
     }
 
     pub fn u256_to_uint256(value: U256) -> Uint256 {
-        let mut bytes = [0u8; Uint256::BYTES];
-        value.to_little_endian(&mut bytes);
+        let bytes = value.to_little_endian();
         Uint256::from_le_bytes(bytes)
     }
 

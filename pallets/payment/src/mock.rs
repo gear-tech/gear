@@ -34,7 +34,6 @@ use pallet_gear_voucher::VoucherId;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
-    testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
     BuildStorage,
 };
@@ -107,6 +106,7 @@ impl pallet_transaction_payment::Config for Test {
     type WeightToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
     type LengthToFee = ConstantMultiplier<u128, ConstU128<1_000>>;
     type FeeMultiplierUpdate = pallet_gear_payment::GearFeeMultiplier<Test, QueueLengthStep>;
+    type WeightInfo = ();
 }
 
 parameter_types! {
@@ -224,12 +224,6 @@ pub fn run_to_block(n: u64) {
         System::set_block_number(i);
         System::on_initialize(i);
         TransactionPayment::on_finalize(i);
-    }
-}
-
-impl common::ExtractCall<RuntimeCall> for TestXt<RuntimeCall, ()> {
-    fn extract_call(&self) -> RuntimeCall {
-        self.call.clone()
     }
 }
 

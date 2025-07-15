@@ -299,7 +299,7 @@ pub mod pallet {
             let call_info = call.get_dispatch_info();
 
             // Necessary upfront gas sufficiency checks
-            let gas_cost = call_info.weight.ref_time();
+            let gas_cost = call_info.call_weight.ref_time();
             context.can_charge_gas(gas_cost)?;
 
             // Execute call

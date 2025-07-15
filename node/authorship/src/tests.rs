@@ -40,7 +40,7 @@ use parking_lot::Mutex;
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
 use sc_service::client::Client;
-use sc_transaction_pool::{BasicPool, FullPool};
+use sc_transaction_pool::{BasicPool, FullChainApi};
 use sc_transaction_pool_api::{
     ChainEvent, MaintainedTransactionPool, TransactionPool, TransactionSource,
 };
@@ -53,7 +53,7 @@ use sp_consensus_babe::{
 };
 use sp_inherents::InherentDataProvider;
 use sp_runtime::{
-    generic::BlockId,
+    generic::{BlockId, ExtrinsicFormat},
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
     Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
@@ -69,7 +69,7 @@ use testing::{
         Backend as TestBackend, Client as TestClient, ClientBlockImportExt, RuntimeExecutor,
         TestClientBuilder, TestClientBuilderExt,
     },
-    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
+    keyring::{alice, bob, sign, tx_ext, CheckedExtrinsic},
 };
 use vara_runtime::{
     AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
@@ -117,7 +117,7 @@ where
     let last_nonce = starting_nonce + n;
     (starting_nonce..last_nonce)
         .map(|nonce| CheckedExtrinsic {
-            signed: Some((signer.clone(), signed_extra(nonce))),
+            format: ExtrinsicFormat::Signed(signer.clone(), tx_ext(nonce)),
             function: f(),
         })
         .collect()
@@ -218,7 +218,7 @@ pub(crate) fn init_logger() {
 pub fn init() -> (
     Arc<TestClient>,
     Arc<TestBackend>,
-    Arc<FullPool<TestBlock, TestClient>>,
+    Arc<BasicPool<FullChainApi<TestClient, TestBlock>, TestBlock>>,
     sp_core::testing::TaskExecutor,
     [u8; 32],
 ) {
@@ -226,13 +226,13 @@ pub fn init() -> (
     let backend = client_builder.backend();
     let client = Arc::new(client_builder.build(Some(EXECUTOR.clone())));
     let spawner = sp_core::testing::TaskExecutor::new();
-    let txpool = BasicPool::new_full(
+    let txpool = Arc::from(BasicPool::new_full(
         Default::default(),
         true.into(),
         None,
         spawner.clone(),
         client.clone(),
-    );
+    ));
 
     let genesis_hash =
         <[u8; 32]>::try_from(&client.info().best_hash[..]).expect("H256 is a 32 byte type");
@@ -365,7 +365,7 @@ fn test_queue_remains_intact_if_processing_fails() {
 
     // Disable queue processing in Gear pallet as the root
     checked.push(CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
+        format: ExtrinsicFormat::Signed(alice(), tx_ext(0)),
         function: CallBuilder::toggle_run_queue(false).build(),
     });
     let extrinsics = sign_extrinsics(
@@ -585,12 +585,10 @@ fn test_pseudo_inherent_discarded_from_txpool() {
 
     // Create Gear::run() extrinsic - both unsigned and signed
     let unsigned_gear_run_xt =
-        UncheckedExtrinsic::new_unsigned(RuntimeCall::Gear(pallet_gear::Call::run {
-            max_gas: None,
-        }));
+        UncheckedExtrinsic::new_bare(RuntimeCall::Gear(pallet_gear::Call::run { max_gas: None }));
     let signed_gear_run_xt = sign(
         CheckedExtrinsic {
-            signed: Some((bob(), signed_extra(0))),
+            format: ExtrinsicFormat::Signed(bob(), tx_ext(0)),
             function: RuntimeCall::Gear(pallet_gear::Call::run { max_gas: None }),
         },
         VERSION.spec_version,
@@ -601,7 +599,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
     // A `DispatchClass::Normal` extrinsic - supposed to end up in the txpool
     let legit_xt = sign(
         CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(0))),
+            format: ExtrinsicFormat::Signed(alice(), tx_ext(0)),
             function: CallBuilder::noop().build(),
         },
         VERSION.spec_version,
@@ -714,7 +712,7 @@ fn test_proposal_timing_consistent() {
 
     // Disable queue processing in block #1
     let mut checked = vec![CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
+        format: ExtrinsicFormat::Signed(alice(), tx_ext(0)),
         function: CallBuilder::toggle_run_queue(false).build(),
     }];
 
@@ -767,7 +765,7 @@ fn test_proposal_timing_consistent() {
     // Re-enable queue processing in block #2
     let extrinsics = sign_extrinsics(
         vec![CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(1))),
+            format: ExtrinsicFormat::Signed(alice(), tx_ext(1)),
             function: CallBuilder::toggle_run_queue(true).build(),
         }],
         VERSION.spec_version,
@@ -897,7 +895,7 @@ mod basic_tests {
     {
         sign_extrinsics::<E>(
             vec![CheckedExtrinsic {
-                signed: Some((alice(), signed_extra(nonce))),
+                format: ExtrinsicFormat::Signed(alice(), tx_ext(nonce)),
                 function: CallBuilder::toggle_run_queue(false).build(),
             }],
             VERSION.spec_version,

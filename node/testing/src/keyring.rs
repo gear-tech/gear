@@ -20,15 +20,16 @@
 
 use parity_scale_codec::Encode;
 use runtime_primitives::{AccountId, Nonce};
+use sp_io::hashing::blake2_256;
 use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
-use sp_runtime::generic::Era;
+use sp_runtime::generic::{Era, ExtrinsicFormat, EXTRINSIC_FORMAT_VERSION};
 use vara_runtime::{
-    CustomChargeTransactionPayment, CustomCheckNonce, RuntimeCall, SessionKeys, SignedExtra,
-    StakingBlackList, UncheckedExtrinsic,
+    CustomChargeTransactionPayment, CustomCheckNonce, RuntimeCall, SessionKeys, StakingBlackList,
+    TxExtension, UncheckedExtrinsic,
 };
 
 pub type CheckedExtrinsic =
-    sp_runtime::generic::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra>;
+    sp_runtime::generic::CheckedExtrinsic<AccountId, RuntimeCall, TxExtension>;
 
 /// Alice's account id.
 pub fn alice() -> AccountId {
@@ -74,7 +75,7 @@ pub fn to_session_keys(
 }
 
 /// Creates transaction extra.
-pub fn signed_extra(nonce: Nonce) -> SignedExtra {
+pub fn tx_ext(nonce: Nonce) -> TxExtension {
     (
         StakingBlackList::new(),
         frame_system::CheckNonZeroSender::new(),
@@ -97,34 +98,42 @@ pub fn sign(
     genesis_hash: [u8; 32],
     metadata_hash: Option<[u8; 32]>,
 ) -> UncheckedExtrinsic {
-    match xt.signed {
-        Some((signed, extra)) => {
+    match xt.format {
+        ExtrinsicFormat::Signed(signed, tx_ext) => {
             let payload = (
                 xt.function,
-                extra.clone(),
+                tx_ext.clone(),
                 spec_version,
                 tx_version,
                 genesis_hash,
                 genesis_hash,
                 metadata_hash,
             );
-            let key = AccountKeyring::from_account_id(&signed).unwrap();
+            let key = Sr25519Keyring::from_account_id(&signed).unwrap();
             let signature = payload
                 .using_encoded(|b| {
                     if b.len() > 256 {
-                        key.sign(&sp_io::hashing::blake2_256(b))
+                        key.sign(&blake2_256(b))
                     } else {
                         key.sign(b)
                     }
                 })
                 .into();
             UncheckedExtrinsic {
-                signature: Some((sp_runtime::MultiAddress::Id(signed), signature, extra)),
+                preamble: sp_runtime::generic::Preamble::Signed(
+                    sp_runtime::MultiAddress::Id(signed),
+                    signature,
+                    tx_ext,
+                ),
                 function: payload.0,
             }
         }
-        None => UncheckedExtrinsic {
-            signature: None,
+        ExtrinsicFormat::Bare => UncheckedExtrinsic {
+            preamble: sp_runtime::generic::Preamble::Bare(EXTRINSIC_FORMAT_VERSION),
+            function: xt.function,
+        },
+        ExtrinsicFormat::General(ext_version, tx_ext) => UncheckedExtrinsic {
+            preamble: sp_runtime::generic::Preamble::General(ext_version, tx_ext),
             function: xt.function,
         },
     }

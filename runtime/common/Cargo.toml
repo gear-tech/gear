@@ -39,6 +39,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-gear/std",
 	"pallet-gear-bank/std",
+	"pallet-treasury/std",
 	"runtime-primitives/std",
 	"sp-runtime/std",
 	"sp-std/std",

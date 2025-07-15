@@ -26,7 +26,9 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519, Pair, Public};
 use sp_genesis_builder::{PresetId, DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET};
-use sp_runtime::{format, traits::IdentifyAccount};
+use sp_runtime::traits::IdentifyAccount;
+#[cfg(not(feature = "std"))]
+use sp_std::alloc::format;
 
 /// Configure initial storage state for FRAME modules.
 pub fn testnet_genesis(
@@ -224,9 +226,7 @@ pub fn local_testnet_genesis() -> RuntimeGenesisConfig {
 
 /// Provides the JSON representation of predefined genesis config for given `id`.
 pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
-    // TODO: remove after Substrate update
-    let id: &str = id.try_into().ok()?;
-    let patch = match id {
+    let patch = match id.as_str() {
         DEV_RUNTIME_PRESET => development_genesis(),
         LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis(),
         _ => return None,

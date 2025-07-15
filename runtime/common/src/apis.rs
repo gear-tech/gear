@@ -182,7 +182,7 @@ macro_rules! impl_runtime_apis_plus_common {
 				}
 
 				fn gear_run_extrinsic(max_gas: Option<u64>) -> <Block as BlockT>::Extrinsic {
-					UncheckedExtrinsic::new_unsigned(
+					UncheckedExtrinsic::new_bare(
 						pallet_gear::Call::run { max_gas }.into()
 					).into()
 				}
@@ -216,6 +216,7 @@ macro_rules! impl_runtime_apis_plus_common {
 					use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
 					use frame_support::traits::StorageInfoTrait;
 					use frame_system_benchmarking::Pallet as SystemBench;
+					use frame_system_benchmarking::extensions::Pallet as SystemExtensionsBench;
 					use baseline::Pallet as BaselineBench;
 
 					let mut list = Vec::<BenchmarkList>::new();
@@ -228,10 +229,11 @@ macro_rules! impl_runtime_apis_plus_common {
 
 				fn dispatch_benchmark(
 					config: frame_benchmarking::BenchmarkConfig
-				) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
+				) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, alloc::string::String> {
 					use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch};
 					use sp_storage::TrackedStorageKey;
 					use frame_system_benchmarking::Pallet as SystemBench;
+					use frame_system_benchmarking::extensions::Pallet as SystemExtensionsBench;
 					use baseline::Pallet as BaselineBench;
 
 					impl frame_system_benchmarking::Config for Runtime {}

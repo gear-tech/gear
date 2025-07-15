@@ -29,7 +29,13 @@ use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch, UserSt
 use pallet_gear_voucher::{Call as VoucherCall, PrepaidCall};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
-use sp_runtime::{codec::Encode, testing::TestXt, traits::SignedExtension, FixedPointNumber};
+use sp_runtime::{
+    codec::Encode,
+    testing::TestXt,
+    traits::{TransactionExtension, TxBaseImplication},
+    transaction_validity::TransactionSource,
+    FixedPointNumber,
+};
 use utils::*;
 
 type WeightToFeeFor<T> = <T as pallet_transaction_payment::Config>::WeightToFee;
@@ -92,9 +98,8 @@ fn fee_rounding_error_bounded_by_multiplier() {
                 let alice_initial_balance = Balances::free_balance(ALICE);
                 let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
-                let pre = CustomChargeTransactionPayment::<Test>::from(0)
-                    .pre_dispatch(&ALICE, call, &info_from_weight(w), len)
-                    .unwrap();
+                // validate → prepare (charges the fee)
+                let pre = validate_prepare(ALICE, call, w, len);
 
                 let fee = WeightToFeeFor::<Test>::weight_to_fee(&w);
                 assert_approx_eq!(
@@ -103,13 +108,9 @@ fn fee_rounding_error_bounded_by_multiplier() {
                     rounding_error
                 );
 
-                assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-                    Some(pre),
-                    &info_from_weight(w),
-                    &default_post_info(),
-                    len,
-                    &Ok(())
-                ));
+                // post_dispatch (rewards the block author)
+                post_dispatch_ok(pre, w, len, &Ok(()));
+
                 assert_approx_eq!(
                     Balances::free_balance(BLOCK_AUTHOR),
                     author_initial_balance + fee,
@@ -178,9 +179,7 @@ fn mq_size_affecting_fee_works() {
 
         let weight = Weight::from_parts(1_000, 0);
 
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(ALICE, call, weight, len);
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
         // Can use strict equality for calls that do not introduce rounding error
@@ -189,13 +188,7 @@ fn mq_size_affecting_fee_works() {
             alice_initial_balance - fee_weight - fee_length
         );
 
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
         assert_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance - fee_weight - fee_length
@@ -214,22 +207,14 @@ fn mq_size_affecting_fee_works() {
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
         // Fee multiplier should have been set to 5
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(ALICE, call, weight, len);
 
         assert_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance - (fee_weight * 5 + fee_length)
         );
 
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
         assert_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance - (fee_weight * 5 + fee_length)
@@ -268,9 +253,7 @@ fn mq_size_not_affecting_fee_works() {
 
         let weight = Weight::from_parts(1_000, 0);
 
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(ALICE, call, weight, len);
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
         assert_approx_eq!(
@@ -279,13 +262,7 @@ fn mq_size_not_affecting_fee_works() {
             1
         );
 
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
         assert_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance - fee_weight - fee_length
@@ -310,9 +287,7 @@ fn mq_size_not_affecting_fee_works() {
         let author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
 
         // Fee multiplier should have been set to 16
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&ALICE, call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(ALICE, call, weight, len);
 
         let rounding_error = WeightToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(16, 0));
         // Now we may have some rounding error somewhere at the least significant digits
@@ -322,13 +297,7 @@ fn mq_size_not_affecting_fee_works() {
             rounding_error
         );
 
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
         assert_approx_eq!(
             Balances::free_balance(ALICE),
             alice_initial_balance - fee_weight - fee_length,
@@ -358,27 +327,27 @@ fn query_info_and_fee_details_work() {
     });
     let extra = ();
 
-    let xt_affecting_mq = TestXt::new(call_affecting_mq.clone(), Some((ALICE, extra)));
+    let xt_affecting_mq = TestXt::new_signed(call_affecting_mq.clone(), ALICE, (), extra);
     let info_affecting_mq = xt_affecting_mq.get_dispatch_info();
     let ext_affecting_mq = xt_affecting_mq.encode();
     let len_affecting_mq = ext_affecting_mq.len() as u32;
 
-    let xt_not_affecting_mq = TestXt::new(call_not_affecting_mq, Some((ALICE, extra)));
+    let xt_not_affecting_mq = TestXt::new_signed(call_not_affecting_mq.clone(), ALICE, (), extra);
     let info_not_affecting_mq = xt_not_affecting_mq.get_dispatch_info();
     let ext_not_affecting_mq = xt_not_affecting_mq.encode();
     let len_not_affecting_mq = ext_not_affecting_mq.len() as u32;
 
-    let unsigned_xt = TestXt::<_, ()>::new(call_affecting_mq, None);
+    let unsigned_xt = TestXt::<_, ()>::new_bare(call_affecting_mq);
     let unsigned_xt_info = unsigned_xt.get_dispatch_info();
 
     new_test_ext().execute_with(|| {
         // Empty Message queue => extra fee is not applied
-        let fee_affecting_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_affecting_mq.weight);
+        let fee_affecting_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_affecting_mq.call_weight);
         let fee_affecting_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len_affecting_mq.into(), 0));
         assert_eq!(
             GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
-                weight: info_affecting_mq.weight,
+                weight: info_affecting_mq.call_weight,
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + fee_affecting_length  /* len * 1 */
@@ -386,12 +355,12 @@ fn query_info_and_fee_details_work() {
             },
         );
 
-        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_not_affecting_mq.weight);
+        let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&info_not_affecting_mq.call_weight);
         let fee_length = LengthToFeeFor::<Test>::weight_to_fee(&Weight::from_parts(len_not_affecting_mq.into(), 0));
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
-                weight: info_not_affecting_mq.weight,
+                weight: info_not_affecting_mq.call_weight,
                 class: info_not_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + fee_length  /* len * 1 */
@@ -402,7 +371,7 @@ fn query_info_and_fee_details_work() {
         assert_eq!(
             GearPayment::query_info(unsigned_xt.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
-                weight: unsigned_xt_info.weight,
+                weight: unsigned_xt_info.call_weight,
                 class: unsigned_xt_info.class,
                 partial_fee: 0,
             },
@@ -448,7 +417,7 @@ fn query_info_and_fee_details_work() {
         assert_eq!(
             GearPayment::query_info(xt_affecting_mq.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
-                weight: info_affecting_mq.weight,
+                weight: info_affecting_mq.call_weight,
                 class: info_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + fee_affecting_length  /* len * 1 */
@@ -462,7 +431,7 @@ fn query_info_and_fee_details_work() {
         assert_eq!(
             GearPayment::query_info(xt_not_affecting_mq.clone(), len_not_affecting_mq),
             RuntimeDispatchInfo {
-                weight: info_not_affecting_mq.weight,
+                weight: info_not_affecting_mq.call_weight,
                 class: info_not_affecting_mq.class,
                 partial_fee: 0 /* base_fee */
                     + fee_length  /* len * 1 */
@@ -473,7 +442,7 @@ fn query_info_and_fee_details_work() {
         assert_eq!(
             GearPayment::query_info(unsigned_xt.clone(), len_affecting_mq),
             RuntimeDispatchInfo {
-                weight: unsigned_xt_info.weight,
+                weight: unsigned_xt_info.call_weight,
                 class: unsigned_xt_info.class,
                 partial_fee: 0,
             },
@@ -554,9 +523,7 @@ fn fee_payer_replacement_works() {
 
         let weight = Weight::from_parts(1_000, 0);
 
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(BOB, call, weight, len);
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
 
@@ -569,13 +536,7 @@ fn fee_payer_replacement_works() {
             synthesized_initial_balance - fee_weight - fee_length
         );
 
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
         assert_eq!(
             Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>()),
@@ -654,9 +615,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
         let voucher_initial_balance =
             Balances::free_balance(voucher_id.cast::<AccountIdOf<Test>>());
 
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(BOB, call, weight, len);
 
         let fee_weight = WeightToFeeFor::<Test>::weight_to_fee(&weight);
 
@@ -669,13 +628,7 @@ fn reply_with_voucher_pays_fee_from_voucher_ok() {
             voucher_initial_balance - fee_weight - fee_length
         );
 
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
 
         // Block author has got his cut.
         assert_eq!(
@@ -724,9 +677,7 @@ fn voucher_call_send_payer_ok() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, &call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(BOB, &call, weight, len);
 
         // Bob hasn't paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -744,13 +695,7 @@ fn voucher_call_send_payer_ok() {
         );
 
         // Post-dispatch of the call.
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
 
         // Validating balances and validator reward.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -785,14 +730,7 @@ fn voucher_call_send_payer_inexistent_voucher_err() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
+        let _ = validate_prepare(BOB, &call, weight, len);
 
         // Bob has paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
@@ -838,14 +776,7 @@ fn voucher_call_send_payer_wrong_program_err() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
+        let _ = validate_prepare(BOB, &call, weight, len);
 
         // Bob has paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
@@ -899,14 +830,7 @@ fn voucher_call_send_payer_expiry_err() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
+        let _ = validate_prepare(BOB, &call, weight, len);
 
         // Bob has paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
@@ -971,9 +895,7 @@ fn voucher_call_reply_payer_ok() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, &call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(BOB, &call, weight, len);
 
         // Bob hasn't paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -991,13 +913,7 @@ fn voucher_call_reply_payer_ok() {
         );
 
         // Post-dispatch of the call.
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
 
         // Validating balances and validator reward.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -1050,9 +966,7 @@ fn voucher_call_upload_payer_ok() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, &call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(BOB, &call, weight, len);
 
         // Bob hasn't paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -1070,13 +984,12 @@ fn voucher_call_upload_payer_ok() {
         );
 
         // Post-dispatch of the call.
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
+        post_dispatch_ok(
+            pre,
+            weight,
             len,
-            &Err(pallet_gear::Error::<Test>::ProgramConstructionFailed.into())
-        ));
+            &Err(pallet_gear::Error::<Test>::ProgramConstructionFailed.into()),
+        );
 
         // Validating balances and validator reward.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -1128,14 +1041,7 @@ fn voucher_call_upload_payer_forbidden_err() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
+        let _ = validate_prepare(BOB, &call, weight, len);
 
         // Bob has paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
@@ -1189,9 +1095,7 @@ fn voucher_call_decline_payer_ok() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        let pre = CustomChargeTransactionPayment::<Test>::from(0)
-            .pre_dispatch(&BOB, &call, &info_from_weight(weight), len)
-            .unwrap();
+        let pre = validate_prepare(BOB, &call, weight, len);
 
         // Bob hasn't paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -1209,13 +1113,7 @@ fn voucher_call_decline_payer_ok() {
         );
 
         // Post-dispatch of the call.
-        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
-            Some(pre),
-            &info_from_weight(weight),
-            &default_post_info(),
-            len,
-            &Ok(())
-        ));
+        post_dispatch_ok(pre, weight, len, &Ok(()));
 
         // Validating balances and validator reward.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance);
@@ -1272,14 +1170,7 @@ fn voucher_call_decline_payer_expired_err() {
         let call_fee = fee_length + fee_weight;
 
         // Pre-dispatch of the call.
-        assert_ok!(
-            CustomChargeTransactionPayment::<Test>::from(0).pre_dispatch(
-                &BOB,
-                &call,
-                &info_from_weight(weight),
-                len
-            )
-        );
+        let _ = validate_prepare(BOB, &call, weight, len);
 
         // Bob has paid fees.
         assert_eq!(Balances::free_balance(BOB), bob_initial_balance - call_fee);
@@ -1345,9 +1236,10 @@ mod utils {
     }
 
     pub fn info_from_weight(weight: Weight) -> DispatchInfo {
+        // todo: Update comment
         // DispatchInfo { weight: w, class: DispatchClass::Normal, pays_fee: Pays::Yes }
         DispatchInfo {
-            weight,
+            call_weight: weight,
             ..Default::default()
         }
     }
@@ -1390,5 +1282,67 @@ mod utils {
                 QueueOf::<T>::queue(dispatch).map_err(|_| "Error pushing back stored dispatch")
             );
         }
+    }
+
+    /// Shortcut to the `Pre` type returned by `prepare`.
+    type TxPre = <CustomChargeTransactionPayment<Test> as TransactionExtension<
+        <Test as frame_system::Config>::RuntimeCall,
+    >>::Pre;
+
+    /// Runs `validate → prepare` for the custom payment extension and returns the `Pre`
+    /// object that must later be supplied to `post_dispatch`.
+    ///
+    /// * `origin_account` – the numeric account id (`ALICE`, `BOB`, …).
+    /// * `call`  – the runtime call to execute.
+    /// * `weight` / `len` – values normally passed to the extension.
+    pub fn validate_prepare(
+        origin_account: u64,
+        call: &<Test as frame_system::Config>::RuntimeCall,
+        weight: Weight,
+        len: usize,
+    ) -> TxPre {
+        // Build common data once.
+        let origin = RuntimeOrigin::signed(origin_account);
+        let info = info_from_weight(weight);
+
+        // Create the extension instance.
+        let ext = CustomChargeTransactionPayment::<Test>::from(0);
+
+        // ── validate ──
+        let (_, val, _) = ext
+            .validate(
+                origin.clone(),
+                call,
+                &info,
+                len,
+                (),                       // additional_signed
+                &TxBaseImplication(call), // signer implication
+                TransactionSource::External,
+            )
+            .expect("validation must pass in unit tests");
+
+        // ── prepare ──
+        ext.prepare(val, &origin, call, &info, len)
+            .expect("prepare must pass in unit tests")
+    }
+
+    /// Convenience wrapper around `post_dispatch` that asserts `Ok` result
+    /// and hides the boiler‑plate `info` / `post_info` creation.
+    pub fn post_dispatch_ok(
+        pre: TxPre,
+        weight: Weight,
+        len: usize,
+        res: &Result<(), sp_runtime::DispatchError>,
+    ) {
+        let info = info_from_weight(weight);
+        let mut post_info = default_post_info();
+
+        assert_ok!(CustomChargeTransactionPayment::<Test>::post_dispatch(
+            pre,
+            &info,
+            &mut post_info,
+            len,
+            res,
+        ));
     }
 }

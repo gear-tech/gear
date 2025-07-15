@@ -43,9 +43,7 @@ where
     let num_params = unsafe { (*exception_record).NumberParameters };
     if !is_access_violation || num_params != 2 {
         log::trace!(
-            "Skip exception in handler: is access violation: {}, parameters: {}",
-            is_access_violation,
-            num_params
+            "Skip exception in handler: is access violation: {is_access_violation}, parameters: {num_params}",
         );
         return EXCEPTION_CONTINUE_SEARCH;
     }

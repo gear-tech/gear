@@ -25,15 +25,18 @@ use common::{storage::*, DelegateFee, ExtractCall};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
-    traits::Contains,
+    traits::{Contains, OriginTrait},
 };
 use pallet_transaction_payment::{
     ChargeTransactionPayment, FeeDetails, Multiplier, MultiplierUpdate, OnChargeTransaction,
     RuntimeDispatchInfo,
 };
 use sp_runtime::{
-    traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
-    transaction_validity::TransactionValidityError,
+    traits::{
+        Bounded, Convert, DispatchInfoOf, Dispatchable, Implication, PostDispatchInfoOf,
+        TransactionExtension, ValidateResult,
+    },
+    transaction_validity::{TransactionSource, TransactionValidityError, ValidTransaction},
     FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
 use sp_std::borrow::Cow;
@@ -80,55 +83,86 @@ impl<T: Config> sp_std::fmt::Debug for CustomChargeTransactionPayment<T> {
 }
 
 // Follow pallet-transaction-payment implementation
-impl<T: Config> SignedExtension for CustomChargeTransactionPayment<T>
+impl<T: Config> TransactionExtension<CallOf<T>> for CustomChargeTransactionPayment<T>
 where
     T: TypeInfo,
     BalanceOf<T>: Send + Sync + From<u64> + FixedPointOperand,
     CallOf<T>: Dispatchable<Info = DispatchInfo, PostInfo = PostDispatchInfo>,
 {
-    const IDENTIFIER: &'static str = <ChargeTransactionPayment<T> as SignedExtension>::IDENTIFIER;
-    type AccountId = <ChargeTransactionPayment<T> as SignedExtension>::AccountId;
-    type Call = CallOf<T>;
-    type AdditionalSigned = <ChargeTransactionPayment<T> as SignedExtension>::AdditionalSigned;
-    type Pre = <ChargeTransactionPayment<T> as SignedExtension>::Pre;
-    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
-        self.0.additional_signed()
+    const IDENTIFIER: &'static str =
+        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::IDENTIFIER;
+    type Implicit = <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::Implicit;
+    type Val = <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::Val;
+    type Pre = <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::Pre;
+
+    fn weight(&self, call: &CallOf<T>) -> Weight {
+        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::weight(&self.0, call)
     }
 
     fn validate(
         &self,
-        who: &Self::AccountId,
-        call: &Self::Call,
-        info: &DispatchInfoOf<Self::Call>,
+        origin: <T::RuntimeCall as Dispatchable>::RuntimeOrigin,
+        call: &T::RuntimeCall,
+        info: &DispatchInfoOf<T::RuntimeCall>,
         len: usize,
-    ) -> TransactionValidity {
-        // Override DispatchInfo struct for call variants exempted from weight fee multiplication
-        let info = Self::pre_dispatch_info(call, info);
-        let payer = Self::fee_payer_account(call, who);
-        self.0.validate(&payer, call, &info, len)
+        _: (),
+        implication: &impl Implication,
+        source: TransactionSource,
+    ) -> ValidateResult<Self::Val, CallOf<T>> {
+        // extract signer if present
+        let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
+            return Ok((ValidTransaction::default(), Self::Val::NoCharge, origin));
+        };
+        let payer = Self::fee_payer_account(call, &who);
+
+        // patch the `DispatchInfo` if the call is exempt from multiplier
+        let patched_info = Self::pre_dispatch_info(call, info);
+
+        // delegate to the inner extension
+        let (valid, val, _inner_origin) = self.0.validate(
+            <T::RuntimeCall as Dispatchable>::RuntimeOrigin::signed(payer.clone().into_owned()),
+            call,
+            &patched_info,
+            len,
+            (),
+            implication,
+            source,
+        )?;
+
+        // Pass original origin to the pipeline
+        Ok((valid, val, origin))
     }
 
-    fn pre_dispatch(
+    fn prepare(
         self,
-        who: &Self::AccountId,
-        call: &Self::Call,
-        info: &DispatchInfoOf<Self::Call>,
+        val: Self::Val,
+        origin: &<CallOf<T> as Dispatchable>::RuntimeOrigin,
+        call: &CallOf<T>,
+        info: &DispatchInfoOf<CallOf<T>>,
         len: usize,
     ) -> Result<Self::Pre, TransactionValidityError> {
-        // Override DispatchInfo struct for call variants exempted from weight fee multiplication
-        let info = Self::pre_dispatch_info(call, info);
-        // Replace payer if delegated
-        let payer = Self::fee_payer_account(call, who);
-        self.0.pre_dispatch(&payer, call, &info, len)
+        let Ok(who) = frame_system::ensure_signed(origin.clone()) else {
+            return self.0.prepare(val, origin, call, info, len);
+        };
+
+        let payer = Self::fee_payer_account(call, &who);
+
+        self.0.prepare(
+            val,
+            &<T::RuntimeCall as Dispatchable>::RuntimeOrigin::signed(payer.clone().into_owned()),
+            call,
+            info,
+            len,
+        )
     }
 
-    fn post_dispatch(
-        maybe_pre: Option<Self::Pre>,
-        info: &DispatchInfoOf<Self::Call>,
-        post_info: &PostDispatchInfoOf<Self::Call>,
+    fn post_dispatch_details(
+        pre: Self::Pre,
+        info: &DispatchInfoOf<CallOf<T>>,
+        post_info: &PostDispatchInfoOf<CallOf<T>>,
         len: usize,
         result: &sp_runtime::DispatchResult,
-    ) -> Result<(), TransactionValidityError> {
+    ) -> Result<Weight, TransactionValidityError> {
         // There is no easy way to modify the original `DispatchInfo` struct similarly
         // it's done in `pre_dispatch()` because a call is not supplied.
         // However, we can just leave it as is and yet get the correct fee refund if any:
@@ -139,8 +173,8 @@ where
         //   weight normalization before returning it from the extrinsic.
         //
         // TODO: still think of a more robust way to deal with fee refunds
-        <ChargeTransactionPayment<T> as SignedExtension>::post_dispatch(
-            maybe_pre, info, post_info, len, result,
+        <ChargeTransactionPayment<T> as TransactionExtension<CallOf<T>>>::post_dispatch_details(
+            pre, info, post_info, len, result,
         )
     }
 }
@@ -167,15 +201,17 @@ where
         if !T::ExtraFeeCallFilter::contains(call) {
             let multiplier = TransactionPayment::<T>::next_fee_multiplier();
             if multiplier > Multiplier::saturating_from_integer(1) {
-                let mut info: DispatchInfo = *info;
-                info.weight = Weight::from_parts(
+                let mut new_info: DispatchInfo = *info;
+                new_info.call_weight = Weight::from_parts(
                     multiplier
                         .reciprocal() // take inverse
                         .unwrap_or_else(Multiplier::max_value)
-                        .saturating_mul_int(info.weight.ref_time()),
+                        .saturating_mul_int(info.call_weight.ref_time()),
                     0,
                 );
-                Cow::Owned(info)
+                // Assuming extension weight is not affected here or should be reset
+                new_info.extension_weight = Weight::zero();
+                Cow::Owned(new_info)
             } else {
                 Cow::Borrowed(info)
             }
@@ -207,7 +243,7 @@ where
     S: Get<u128>,
 {
     fn convert(_previous: Multiplier) -> Multiplier {
-        let len_step = S::get().max(1); // Avoiding division by 0.
+        let len_step = sp_std::cmp::max(S::get(), 1u128); // Avoiding division by 0.
 
         let queue_len: u128 = QueueOf::<T>::len().saturated_into();
         let multiplier = queue_len.saturating_div(len_step).saturating_add(1);
@@ -238,7 +274,7 @@ impl<T: Config> Pallet<T> {
     /// Modification of the `pallet_transaction_payment::Pallet<T>::query_info()`
     /// that is aware of the transaction fee customization based on a specific call
     pub fn query_info<
-        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall<CallOf<T>>,
+        Extrinsic: sp_runtime::traits::ExtrinsicLike + GetDispatchInfo + ExtractCall<CallOf<T>>,
     >(
         unchecked_extrinsic: Extrinsic,
         len: u32,
@@ -247,31 +283,34 @@ impl<T: Config> Pallet<T> {
         CallOf<T>: Dispatchable<Info = DispatchInfo>,
         BalanceOf<T>: FixedPointOperand,
     {
+        let dispatch_info = <Extrinsic as GetDispatchInfo>::get_dispatch_info(&unchecked_extrinsic);
         let DispatchInfo {
-            weight,
+            call_weight,
+            extension_weight,
             class,
             pays_fee,
-        } = <Extrinsic as GetDispatchInfo>::get_dispatch_info(&unchecked_extrinsic);
+        } = dispatch_info;
 
-        let partial_fee = if unchecked_extrinsic.is_signed().unwrap_or(false) {
+        let partial_fee = if !unchecked_extrinsic.is_bare() {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
             // If call is exempted from weight multiplication pre-divide it with the fee multiplier
-            let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
+            let adjusted_call_weight = if !T::ExtraFeeCallFilter::contains(&call) {
                 Weight::from_parts(
                     TransactionPayment::<T>::next_fee_multiplier()
                         .reciprocal()
                         .unwrap_or_else(Multiplier::max_value)
-                        .saturating_mul_int(weight.ref_time()),
+                        .saturating_mul_int(call_weight.ref_time()),
                     0,
                 )
             } else {
-                weight
+                call_weight
             };
             TransactionPayment::<T>::compute_fee(
                 len,
                 &DispatchInfo {
-                    weight: adjusted_weight,
+                    call_weight: adjusted_call_weight,
+                    extension_weight,
                     class,
                     pays_fee,
                 },
@@ -283,7 +322,8 @@ impl<T: Config> Pallet<T> {
         };
 
         RuntimeDispatchInfo {
-            weight,
+            // Combine for total weight
+            weight: call_weight.saturating_add(extension_weight),
             class,
             partial_fee,
         }
@@ -291,7 +331,7 @@ impl<T: Config> Pallet<T> {
 
     /// Modification of the `pallet_transaction_payment::Pallet<T>::query_fee_details()`
     pub fn query_fee_details<
-        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall<CallOf<T>>,
+        Extrinsic: sp_runtime::traits::ExtrinsicLike + GetDispatchInfo + ExtractCall<CallOf<T>>,
     >(
         unchecked_extrinsic: Extrinsic,
         len: u32,
@@ -300,32 +340,35 @@ impl<T: Config> Pallet<T> {
         CallOf<T>: Dispatchable<Info = DispatchInfo>,
         BalanceOf<T>: FixedPointOperand,
     {
+        let dispatch_info = <Extrinsic as GetDispatchInfo>::get_dispatch_info(&unchecked_extrinsic);
         let DispatchInfo {
-            weight,
+            call_weight,
+            extension_weight,
             class,
             pays_fee,
-        } = <Extrinsic as GetDispatchInfo>::get_dispatch_info(&unchecked_extrinsic);
+        } = dispatch_info;
 
         let tip = 0u32.into();
 
-        if unchecked_extrinsic.is_signed().unwrap_or(false) {
+        if !unchecked_extrinsic.is_bare() {
             let call: CallOf<T> =
                 <Extrinsic as ExtractCall<CallOf<T>>>::extract_call(&unchecked_extrinsic);
-            let adjusted_weight = if !T::ExtraFeeCallFilter::contains(&call) {
+            let adjusted_call_weight = if !T::ExtraFeeCallFilter::contains(&call) {
                 Weight::from_parts(
                     TransactionPayment::<T>::next_fee_multiplier()
                         .reciprocal()
                         .unwrap_or_else(Multiplier::max_value)
-                        .saturating_mul_int(weight.ref_time()),
+                        .saturating_mul_int(call_weight.ref_time()),
                     0,
                 )
             } else {
-                weight
+                call_weight
             };
             TransactionPayment::<T>::compute_fee_details(
                 len,
                 &DispatchInfo {
-                    weight: adjusted_weight,
+                    call_weight: adjusted_call_weight,
+                    extension_weight,
                     class,
                     pays_fee,
                 },
