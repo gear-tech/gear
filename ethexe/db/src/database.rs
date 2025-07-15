@@ -22,7 +22,6 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase, MemDb,
 };
-use anyhow::{bail, Result};
 use ethexe_common::{
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead,
@@ -31,9 +30,8 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProducerBlock, ProgramStates,
-    Schedule,
+    tx_pool::SignedOffchainTransaction,
+    AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, ProducerBlock, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -47,7 +45,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::BTreeSet;
 
 #[repr(u64)]
 enum Key {
@@ -61,12 +59,13 @@ enum Key {
 
     ProgramToCodeId(ActorId) = 6,
     InstrumentedCode(u32, CodeId) = 7,
-    CodeUploadInfo(CodeId) = 8,
-    CodeValid(CodeId) = 9,
+    CodeMetadata(CodeId) = 8,
+    CodeUploadInfo(CodeId) = 9,
+    CodeValid(CodeId) = 10,
 
-    SignedTransaction(H256) = 10,
+    SignedTransaction(H256) = 11,
 
-    LatestData = 11,
+    LatestData = 12,
 }
 
 impl Key {
@@ -658,7 +657,9 @@ impl LatestDataStorageWrite for Database {
 mod tests {
     use super::*;
     use ethexe_common::{
-        ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
+        ecdsa::PrivateKey,
+        events::RouterEvent,
+        tx_pool::{OffchainTransaction, RawOffchainTransaction::SendMessage},
     };
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 

@@ -25,6 +25,7 @@ use ethexe_common::{
     events::{BlockEvent, RouterEvent},
     AnnounceHash, BlockMeta, ProducerBlock,
 };
+use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
 use gprimitives::{CodeId, H256};
 use std::collections::{HashSet, VecDeque};
@@ -36,10 +37,8 @@ pub(crate) struct MissingData {
     pub announces_request: Option<(AnnounceHash, u32)>,
 }
 
-pub(crate) fn missing_data<
-    DB: OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + AnnounceStorageRead,
->(
-    db: &DB,
+pub(crate) fn missing_data(
+    db: &Database,
     block_hash: H256,
     commitment_delay_limit: u32,
 ) -> Result<MissingData> {
@@ -104,19 +103,12 @@ pub(crate) fn missing_data<
     })
 }
 
-pub(crate) fn prepare<
-    DB: OnChainStorageRead
-        + BlockMetaStorageRead
-        + BlockMetaStorageWrite
-        + CodesStorageRead
-        + AnnounceStorageRead
-        + AnnounceStorageWrite,
->(
-    db: DB,
+pub(crate) fn prepare(
+    db: Database,
     mut processor: impl ProcessorExt,
     block_hash: H256,
 ) -> Result<()> {
-    // +_+_+ debug assert that all missing data is loaded now
+    // +_+_+ debug assert that all data is loaded
 
     validate(&db, block_hash)?;
 
@@ -149,19 +141,12 @@ pub(crate) fn prepare<
 }
 
 // TODO +_+_+: Implement validation logic
-fn validate<DB>(_db: &DB, _block_hash: H256) -> Result<()> {
+fn validate(_db: &Database, _block_hash: H256) -> Result<()> {
     Ok(())
 }
 
-fn propagate_from_parent_block<
-    'a,
-    DB: BlockMetaStorageRead
-        + CodesStorageRead
-        + AnnounceStorageRead
-        + BlockMetaStorageWrite
-        + AnnounceStorageWrite,
->(
-    db: &DB,
+fn propagate_from_parent_block<'a>(
+    db: &Database,
     processor: &mut impl ProcessorExt,
     meta: &mut BlockMeta,
     block_hash: H256,

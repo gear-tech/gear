@@ -31,7 +31,10 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use ethexe_common::{
     self,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageRead, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::{BlockEvent, RouterEvent},
     BlockData, BlockHeader, CodeBlobInfo,
 };
