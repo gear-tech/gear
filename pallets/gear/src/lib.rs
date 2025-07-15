@@ -146,24 +146,6 @@ pub const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-pub trait DebugInfo {
-    fn is_remap_id_enabled() -> bool;
-    fn remap_id();
-    fn do_snapshot();
-    fn is_enabled() -> bool;
-}
-
-impl DebugInfo for () {
-    fn is_remap_id_enabled() -> bool {
-        false
-    }
-    fn remap_id() {}
-    fn do_snapshot() {}
-    fn is_enabled() -> bool {
-        false
-    }
-}
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -202,8 +184,6 @@ pub mod pallet {
         /// Performance multiplier.
         #[pallet::constant]
         type PerformanceMultiplier: Get<Percent>;
-
-        type DebugInfo: DebugInfo;
 
         /// Implementation of a storage for program binary codes.
         type CodeStorage: CodeStorage;
@@ -1768,6 +1748,30 @@ pub mod pallet {
                 holders_amount as u32,
             ))
             .into())
+        }
+
+        /// A dummy extrinsic with programmatically set weight.
+        ///
+        /// Used in tests to exhaust block resources.
+        ///
+        /// Parameters:
+        /// - `fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        #[cfg(feature = "dev")]
+        #[pallet::call_index(255)]
+        #[pallet::weight({
+            if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
+                *fraction * max
+            } else {
+                Weight::zero()
+            }
+        })]
+        pub fn exhaust_block_resources(
+            origin: OriginFor<T>,
+            fraction: sp_runtime::Percent,
+        ) -> DispatchResultWithPostInfo {
+            let _ = fraction; // We dont need to check the weight witness.
+            ensure_root(origin)?;
+            Ok(Pays::No.into())
         }
     }
 
