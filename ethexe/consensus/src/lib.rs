@@ -39,15 +39,17 @@ mod validator;
 #[cfg(test)]
 mod mock;
 
-pub use connect::SimpleConnectService;
-pub use utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
-pub use validator::{ValidatorConfig, ValidatorService};
-
 use anyhow::Result;
-use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
+pub use connect::SimpleConnectService;
+use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
 use futures::{stream::FusedStream, Stream};
 use gprimitives::H256;
+pub use utils::{
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
+    SignedValidationRequest,
+};
+pub use validator::{ValidatorConfig, ValidatorService};
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static
@@ -65,33 +67,33 @@ pub trait ConsensusService:
     fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
 
     /// Process a received producer block
-    fn receive_block_from_producer(&mut self, block: SignedData<ProducerBlock>) -> Result<()>;
+    fn receive_block_from_producer(&mut self, block: SignedProducerBlock) -> Result<()>;
 
     /// Process a received validation request
-    fn receive_validation_request(
-        &mut self,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<()>;
+    fn receive_validation_request(&mut self, request: SignedValidationRequest) -> Result<()>;
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub enum ConsensusEvent {
     /// Outer service have to compute block
+    #[from(skip)]
     ComputeBlock(H256),
     /// Outer service have to compute producer block
     ComputeProducerBlock(ProducerBlock),
     /// Outer service have to publish signed producer block
-    PublishProducerBlock(SignedData<ProducerBlock>),
+    PublishProducerBlock(SignedProducerBlock),
     /// Outer service have to publish signed validation request
-    PublishValidationRequest(SignedData<BatchCommitmentValidationRequest>),
+    PublishValidationRequest(SignedValidationRequest),
     /// Outer service have to publish signed validation reply
     PublishValidationReply(BatchCommitmentValidationReply),
     /// Informational event: commitment was successfully submitted, tx hash is provided
+    #[from(skip)]
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected
+    #[from(skip)]
     Warning(String),
 }
 

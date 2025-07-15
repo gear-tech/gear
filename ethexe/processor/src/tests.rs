@@ -78,18 +78,12 @@ async fn process_observer_event() {
 
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
+    let code_and_id = CodeAndIdUnchecked { code, code_id };
 
-    let outcomes = processor
-        .process_upload_code(code_id, &code)
+    let valid = processor
+        .process_upload_code(code_and_id)
         .expect("failed to upload code");
-    log::debug!("\n\nUpload code outcomes: {outcomes:?}\n\n");
-    assert_eq!(
-        outcomes,
-        vec![LocalOutcome::CodeValidated {
-            id: code_id,
-            valid: true
-        }]
-    );
+    assert!(valid);
 
     // Process ch0 and save results
     let result0 = processor.process_block_events(ch0, vec![]).await.unwrap();
@@ -178,6 +172,8 @@ fn handle_new_code_valid() {
         .instrumented_code(ethexe_runtime::VERSION, code_id)
         .is_none());
 
+    assert!(processor.db.code_metadata(code_id).is_none());
+
     let calculated_id = processor
         .handle_new_code(&original_code)
         .expect("failed to call runtime api")
@@ -192,14 +188,24 @@ fn handle_new_code_valid() {
             .expect("failed to read original code"),
         original_code
     );
+
     assert!(
         processor
             .db
             .instrumented_code(ethexe_runtime::VERSION, code_id)
-            .expect("failed to read original code")
-            .code()
+            .expect("failed to read instrumented code")
+            .bytes()
             .len()
             > original_code_len
+    );
+
+    assert_eq!(
+        processor
+            .db
+            .code_metadata(code_id)
+            .expect("failed to read code metadata")
+            .original_code_len(),
+        original_code_len as u32
     );
 }
 
@@ -219,6 +225,8 @@ fn handle_new_code_invalid() {
         .instrumented_code(ethexe_runtime::VERSION, code_id)
         .is_none());
 
+    assert!(processor.db.code_metadata(code_id).is_none());
+
     assert!(processor
         .handle_new_code(&original_code)
         .expect("failed to call runtime api")
@@ -229,6 +237,8 @@ fn handle_new_code_invalid() {
         .db
         .instrumented_code(ethexe_runtime::VERSION, code_id)
         .is_none());
+
+    assert!(processor.db.code_metadata(code_id).is_none());
 }
 
 #[tokio::test(flavor = "multi_thread")]

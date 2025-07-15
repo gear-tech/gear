@@ -21,12 +21,15 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates,
-    Schedule,
+    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, Digest,
+    ProgramStates, Schedule,
 };
-use alloc::{collections::VecDeque, vec::Vec};
+use alloc::{
+    collections::{BTreeSet, VecDeque},
+    vec::Vec,
+};
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
@@ -39,6 +42,7 @@ pub trait BlockMetaStorageRead {
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>>;
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256>;
+    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest>;
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
@@ -57,6 +61,7 @@ pub trait BlockMetaStorageWrite {
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>);
     fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
     fn set_previous_not_empty_block(&self, block_hash: H256, prev_commitment: H256);
+    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest);
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates);
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
     fn set_block_schedule(&self, block_hash: H256, map: Schedule);
@@ -70,6 +75,7 @@ pub trait CodesStorageRead {
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
     fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
 }
 
@@ -77,7 +83,9 @@ pub trait CodesStorageWrite {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
+    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 pub trait OnChainStorageRead {
