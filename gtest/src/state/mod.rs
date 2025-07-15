@@ -19,12 +19,12 @@
 // States and state managers that are used to emulate gear runtime.
 
 pub(crate) mod accounts;
-pub(crate) mod actors;
 pub(crate) mod bank;
 pub(crate) mod blocks;
 pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
 pub(crate) mod nonce;
+pub(crate) mod programs;
 pub(crate) mod queue;
 pub(crate) mod stash;
 pub(crate) mod task_pool;
@@ -139,7 +139,6 @@ mod tests {
     use crate::{
         state::{
             accounts::Accounts,
-            actors::{Actors, TestActor},
             bank::Bank,
             blocks::BlocksManager,
             gas_tree::{
@@ -148,23 +147,25 @@ mod tests {
             },
             mailbox::manager::{MailboxStorageWrap, MailboxedMessage},
             nonce::NonceManager,
+            programs::{ProgramsStorageManager, PLACEHOLDER_MESSAGE_ID},
             queue::QueueManager,
             stash::DispatchStashManager,
             task_pool::TaskPoolStorageWrap,
             waitlist::{WaitlistStorageWrap, WaitlistedMessage},
         },
-        EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
+        BlockNumber, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
     use gear_common::{
         gas_provider::auxiliary::{GasNodesWrap, Node, NodeId, TotalIssuanceWrap},
         storage::{DoubleMapStorage, Interval, MapStorage, ValueStorage},
-        GasMultiplier, Origin,
+        ActiveProgram, GasMultiplier, Origin, Program,
     };
     use gear_core::{
         ids::{ActorId, MessageId},
         message::{
             DispatchKind, StoredDelayedDispatch, StoredDispatch, StoredMessage, UserStoredMessage,
         },
+        program::ProgramState,
         tasks::VaraScheduledTask,
     };
     use sp_core::H256;
@@ -190,6 +191,19 @@ mod tests {
         )
     }
 
+    fn create_active_program() -> ActiveProgram<BlockNumber> {
+        ActiveProgram {
+            allocations_tree_len: 0,
+            memory_infix: Default::default(),
+            gas_reservation_map: Default::default(),
+            code_id: H256::random().cast(),
+            state: ProgramState::Uninitialized {
+                message_id: PLACEHOLDER_MESSAGE_ID,
+            },
+            expiration_block: 100,
+        }
+    }
+
     #[test]
     fn overlay_works() {
         assert!(!overlay_enabled());
@@ -202,10 +216,17 @@ mod tests {
         Accounts::increase(predef_acc2, EXISTENTIAL_DEPOSIT * 1000);
         Accounts::increase(predef_acc3, EXISTENTIAL_DEPOSIT * 1000);
 
+        let prog1 = create_active_program();
+        let prog2 = create_active_program();
+        let prog3 = create_active_program();
+        let code_id1 = prog1.code_id;
+        let code_id2 = prog2.code_id;
+        let code_id3 = prog3.code_id;
+
         // Fill the actors storage.
-        Actors::insert(predef_acc1, TestActor::Uninitialized(None, None));
-        Actors::insert(predef_acc2, TestActor::Uninitialized(None, None));
-        Actors::insert(predef_acc3, TestActor::Uninitialized(None, None));
+        ProgramsStorageManager::insert_program(predef_acc1, Program::Active(prog1));
+        ProgramsStorageManager::insert_program(predef_acc2, Program::Active(prog2));
+        ProgramsStorageManager::insert_program(predef_acc3, Program::Active(prog3));
 
         // Fill the bank storage.
         let bank = Bank;
@@ -285,13 +306,13 @@ mod tests {
         assert_eq!(new_acc1_balance_overlaid, EXISTENTIAL_DEPOSIT * 1000);
 
         // Adjust actors storage the same way.
-        let acc2_actor_ty = TestActor::Exited(Default::default());
-        let acc3_actor_ty = TestActor::FailedInit;
-        Actors::insert(new_acc, TestActor::Uninitialized(None, None));
-        Actors::modify(predef_acc1, |actor| {
+        let acc2_actor_ty = Program::Exited(H256::random().cast());
+        let acc3_actor_ty = Program::Terminated(H256::random().cast());
+        ProgramsStorageManager::insert_program(new_acc, Program::Active(create_active_program()));
+        ProgramsStorageManager::modify_program(predef_acc1, |actor| {
             *actor.expect("checked") = acc2_actor_ty;
         });
-        Actors::modify(predef_acc2, |actor| {
+        ProgramsStorageManager::modify_program(predef_acc2, |actor| {
             *actor.expect("checked") = acc3_actor_ty;
         });
 
@@ -350,7 +371,7 @@ mod tests {
 
         // New acc doesn't exist.
         assert_eq!(Accounts::balance(new_acc), 0);
-        assert!(!Actors::contains_key(new_acc));
+        assert!(!ProgramsStorageManager::has_program(new_acc));
 
         // Balances hasn't changed.
         assert_eq!(Accounts::balance(predef_acc1), acc1_balance_before_overlaid);
@@ -358,14 +379,35 @@ mod tests {
         assert_eq!(Accounts::balance(predef_acc3), acc3_balance_before_overlaid);
 
         // Actors haven't changed.
-        let check_actor = |id| {
-            Actors::access(id, |a| {
-                assert!(matches!(a, Some(TestActor::Uninitialized(None, None))));
+        let check_actor = |idx, id, code_id_expected| {
+            ProgramsStorageManager::access_program(id, |a| {
+                let Some(Program::Active(active_program)) = a else {
+                    panic!("Expected active program for actor {id}");
+                };
+
+                assert_eq!(
+                    active_program.code_id, code_id_expected,
+                    "failed check for test {idx}"
+                );
+                assert_eq!(
+                    active_program.state,
+                    ProgramState::Uninitialized {
+                        message_id: PLACEHOLDER_MESSAGE_ID
+                    },
+                    "failed check for test {idx}"
+                );
             });
         };
-        check_actor(predef_acc1);
-        check_actor(predef_acc2);
-        check_actor(predef_acc3);
+        for (idx, (acc, code_id)) in [
+            (predef_acc1, code_id1),
+            (predef_acc2, code_id2),
+            (predef_acc3, code_id3),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            check_actor(idx + 1, acc, code_id);
+        }
 
         // Block info storage hasn't changed.
         assert_eq!(bm.get().height, 1);

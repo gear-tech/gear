@@ -34,7 +34,13 @@ contract WrappedVara is
         _mint(initialOwner, TOKEN_INITIAL_SUPPLY * 10 ** decimals());
     }
 
-    function reinitialize() public onlyOwner reinitializer(2) {}
+    /// @custom:oz-upgrades-validate-as-initializer
+    function reinitialize() public onlyOwner reinitializer(2) {
+        __ERC20_init(TOKEN_NAME, TOKEN_SYMBOL);
+        __ERC20Burnable_init();
+        __Ownable_init(owner());
+        __ERC20Permit_init(TOKEN_NAME);
+    }
 
     function decimals() public pure override returns (uint8) {
         return 12;

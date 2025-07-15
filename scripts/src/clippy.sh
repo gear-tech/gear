@@ -20,7 +20,7 @@ EOF
 }
 
 gear_clippy() {
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 $CARGO clippy --workspace "$@" -- --no-deps -D warnings
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 cargo clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 examples_clippy() {
@@ -42,7 +42,7 @@ examples_clippy() {
 no_std_clippy() {
   mapfile -t no_std < <(
     cargo metadata --no-deps --format-version=1 |
-    jq -r '.packages.[] | select(any(.dependencies.[]; .name == "gear-wasm-builder") | not) | select(.features | index("std")) | "-p=" + .name'
+    jq -r '.packages.[] | select(.features | index("std")) | "-p=" + .name'
   )
   RUSTFLAGS="--cfg=substrate_runtime" \
   __GEAR_WASM_BUILDER_NO_BUILD=1 \

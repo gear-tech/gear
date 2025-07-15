@@ -36,7 +36,7 @@ use futures::executor::block_on;
 use gear_core::program::Program;
 use pallet_gear_rpc_runtime_api::GearApi;
 use parity_scale_codec::{Decode, Encode};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
 use sc_service::client::Client;
@@ -61,7 +61,7 @@ use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
 use std::{
     ops::Deref,
-    sync::{Arc, OnceLock},
+    sync::{Arc, LazyLock},
     time::{self, SystemTime, UNIX_EPOCH},
 };
 use testing::{
@@ -77,10 +77,7 @@ use vara_runtime::{
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
-fn get_executor() -> &'static RwLock<RuntimeExecutor> {
-    static EXECUTOR: OnceLock<RwLock<RuntimeExecutor>> = OnceLock::new();
-    EXECUTOR.get_or_init(|| RwLock::new(RuntimeExecutor::builder().build()))
-}
+static EXECUTOR: LazyLock<RuntimeExecutor> = LazyLock::new(|| RuntimeExecutor::builder().build());
 
 const SOURCE: TransactionSource = TransactionSource::External;
 const DEFAULT_GAS_LIMIT: u64 = 10_000_000_000;
@@ -227,8 +224,7 @@ pub fn init() -> (
 ) {
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
-    let executor = get_executor().read();
-    let client = Arc::new(client_builder.build(Some(executor.clone())));
+    let client = Arc::new(client_builder.build(Some(EXECUTOR.clone())));
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = Arc::from(BasicPool::new_full(
         Default::default(),
@@ -300,46 +296,30 @@ where
     )));
 }
 
-type TestCase = Box<dyn Fn() + Send + 'static>;
-
 #[test]
 fn run_all_tests() {
-    init_logger();
-
     use basic_tests::*;
 
-    let tests = vec![
-        Box::new(test_pseudo_inherent_placed_in_each_block) as TestCase,
-        Box::new(test_queue_remains_intact_if_processing_fails) as TestCase,
-        Box::new(test_block_max_gas_works) as TestCase,
-        Box::new(test_pseudo_inherent_discarded_from_txpool) as TestCase,
-        Box::new(test_block_builder_cloned_ok) as TestCase,
-        Box::new(test_proposal_timing_consistent) as TestCase,
-        Box::new(test_building_block_ceased_when_deadline_is_reached) as TestCase,
-        Box::new(test_no_panic_when_deadline_is_reached) as TestCase,
-        Box::new(test_proposed_storage_changes_match_execute_block_storage_changes) as TestCase,
-        Box::new(test_invalid_transactions_not_removed_when_skipping) as TestCase,
-        Box::new(test_building_block_ceased_when_block_limit_is_reached) as TestCase,
-        Box::new(test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline)
-            as TestCase,
-        Box::new(test_skipping_only_up_to_some_limit_after_soft_deadline) as TestCase,
+    const TESTS: &[fn()] = &[
+        test_pseudo_inherent_placed_in_each_block,
+        test_queue_remains_intact_if_processing_fails,
+        test_block_max_gas_works,
+        test_pseudo_inherent_discarded_from_txpool,
+        test_block_builder_cloned_ok,
+        test_proposal_timing_consistent,
+        test_building_block_ceased_when_deadline_is_reached,
+        test_no_panic_when_deadline_is_reached,
+        test_proposed_storage_changes_match_execute_block_storage_changes,
+        test_invalid_transactions_not_removed_when_skipping,
+        test_building_block_ceased_when_block_limit_is_reached,
+        test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline,
+        test_skipping_only_up_to_some_limit_after_soft_deadline,
     ];
 
-    let handles: Vec<_> = tests
-        .into_iter()
-        .map(|test| {
-            std::thread::spawn(move || {
-                test();
-            })
-        })
-        .collect();
+    init_logger();
 
-    let mut output = vec![];
-    for handle in handles {
-        output.push(handle.join());
-    }
-    for result in output {
-        assert!(result.is_ok());
+    for &test in TESTS {
+        test();
     }
 }
 
