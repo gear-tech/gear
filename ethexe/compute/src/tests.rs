@@ -18,9 +18,9 @@
 
 use super::*;
 use ethexe_common::{
-    BlockHeader, CodeAndIdUnchecked, Digest, Address,
+    Address, BlockHeader, CodeAndIdUnchecked, Digest,
     db::{BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
-    events::{BlockEvent, RouterEvent}
+    events::{BlockEvent, RouterEvent},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
