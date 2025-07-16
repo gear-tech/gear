@@ -22,15 +22,15 @@ use gear_core::utils;
 use gprimitives::H256;
 
 mod database;
-mod integrity;
 mod mem;
 mod overlay;
 mod rocks;
+mod visitor;
 
 pub use database::Database;
-pub use integrity::{DatabaseVisitor, IntegrityVerifier, IntegrityVerifierError};
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
+pub use visitor::{DatabaseVisitor, IntegrityVerifier, IntegrityVerifierError};
 
 pub fn hash(data: &[u8]) -> H256 {
     utils::hash(data).into()
