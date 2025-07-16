@@ -18,28 +18,28 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use ethexe_blob_loader::{BlobLoaderEvent, BlobLoaderService};
 use ethexe_common::{
+    Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead,
     },
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::GearBlock,
-    Digest, ProgramStates, StateHashWithQueueSize,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_db::Database;
-use ethexe_network::{db_sync, NetworkEvent, NetworkService};
+use ethexe_network::{NetworkEvent, NetworkService, db_sync};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_runtime_common::{
+    ScheduleRestorer,
     state::{
         ActiveProgram, DispatchStash, Expiring, Mailbox, MaybeHashOf, MemoryPages,
         MemoryPagesRegion, MessageQueue, PayloadLookup, Program, ProgramState, UserMailbox,
         Waitlist,
     },
-    ScheduleRestorer,
 };
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
@@ -552,7 +552,7 @@ async fn prepare_codes(
         Some(Ok(event)) => {
             return Err(anyhow!(
                 "expect codes to load, but got another event: {event:?}"
-            ))
+            ));
         }
         Some(Err(e)) => return Err(anyhow!("expect codes to load, but got err: {e:?}")),
         None => return Err(anyhow!("expect codes to load, but got None")),

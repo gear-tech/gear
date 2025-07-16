@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    host::{api::MemoryWrap, threads},
     Result,
+    host::{api::MemoryWrap, threads},
 };
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;

@@ -105,7 +105,7 @@
 //! This weight multiplier could be calculated based on program execution time statistics.
 
 use ethexe_common::{
-    db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT, StateHashWithQueueSize,
+    StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{

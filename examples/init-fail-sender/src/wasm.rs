@@ -1,4 +1,4 @@
-use gstd::{msg, ActorId};
+use gstd::{ActorId, msg};
 
 #[gstd::async_init]
 async fn init() {

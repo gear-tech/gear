@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendAllocSyscallError, BackendSyscallError, RunFallibleError, UndefinedTerminationReason,
     },
-    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{fmt, fmt::Debug, mem};

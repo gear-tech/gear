@@ -18,7 +18,7 @@
 
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Salt, StoredDispatch, StoredMessage,
         Value,

@@ -32,9 +32,9 @@ use sp_runtime::traits::StaticLookup;
 use {
     frame_support::{ensure, traits::Currency},
     sp_runtime::{
+        TryRuntimeError,
         codec::{Decode, Encode},
         traits::Zero,
-        TryRuntimeError,
     },
     sp_std::vec::Vec,
 };
@@ -140,15 +140,14 @@ mod tests {
     use super::*;
     use crate as pallet_gear_bank;
     use frame_support::{
-        assert_ok, construct_runtime, parameter_types,
+        PalletId, assert_ok, construct_runtime, parameter_types,
         traits::{ConstU32, FindAuthor, StorageVersion},
         weights::constants::RocksDbWeight,
-        PalletId,
     };
     use primitive_types::H256;
     use sp_runtime::{
-        traits::{BlakeTwo256, IdentityLookup},
         AccountId32, BuildStorage,
+        traits::{BlakeTwo256, IdentityLookup},
     };
 
     static BLOCK_AUTHOR: AccountId32 = AccountId32::new(*b"blk/author/blk/author/blk/author");

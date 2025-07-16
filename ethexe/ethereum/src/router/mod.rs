@@ -17,22 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{utils::uint256_to_u256, IRouter},
-    wvara::WVara,
     AlloyEthereum, AlloyProvider, TryGetReceipt,
+    abi::{IRouter, utils::uint256_to_u256},
+    wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::BlockId,
-    primitives::{fixed_bytes, Address, Bytes, B256},
+    primitives::{Address, B256, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{eth::state::AccountOverride, Filter},
+    rpc::types::{Filter, eth::state::AccountOverride},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
+    Address as LocalAddress, Digest,
     ecdsa::ContractSignature,
     gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
-    Address as LocalAddress, Digest,
 };
 use events::signatures;
 use futures::StreamExt;

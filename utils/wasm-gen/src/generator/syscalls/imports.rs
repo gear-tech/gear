@@ -19,16 +19,16 @@
 //! Syscalls imports generator module.
 
 use crate::{
+    InvocableSyscall, MemoryLayout, SyscallInjectionType, SyscallsConfig,
     generator::{
         CallIndexes, CallIndexesHandle, FrozenGearWasmGenerator, GearEntryPointGenerationProof,
         GearWasmGenerator, MemoryImportGenerationProof, ModuleWithCallIndexes,
     },
     wasm::{PageCount as WasmPageCount, WasmModule},
-    InvocableSyscall, MemoryLayout, SyscallInjectionType, SyscallsConfig,
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
-    syscalls::SyscallName, Function, Import, Instruction, MemArg, ModuleBuilder,
+    Function, Import, Instruction, MemArg, ModuleBuilder, syscalls::SyscallName,
 };
 use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, num::NonZero};
@@ -557,8 +557,12 @@ impl SyscallsImportsGenerator<'_, '_> {
         &mut self,
         syscall: SyscallName,
     ) -> Result<CallIndexesHandle, PreciseSyscallError> {
-        let [size_idx, send_init_idx, send_push_input_idx, send_commit_wgas_idx] =
-            self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
+        let [
+            size_idx,
+            send_init_idx,
+            send_push_input_idx,
+            send_commit_wgas_idx,
+        ] = self.invocable_syscalls_indexes(InvocableSyscall::required_imports(syscall))?;
 
         // subtract to be sure we are in memory boundaries.
         let handle_ptr = self.reserve_memory();

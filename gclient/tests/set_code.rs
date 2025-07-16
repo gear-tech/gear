@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gclient::{
-    errors::{self, ModuleError},
     GearApi,
+    errors::{self, ModuleError},
 };
 
 const RUNTIME_WASM: &str =

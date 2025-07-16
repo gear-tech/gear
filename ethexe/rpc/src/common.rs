@@ -18,8 +18,8 @@
 
 use crate::errors;
 use ethexe_common::{
-    db::{BlockMetaStorageRead, OnChainStorageRead},
     BlockHeader,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use gprimitives::H256;
 use jsonrpsee::core::RpcResult;

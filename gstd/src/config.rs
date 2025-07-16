@@ -21,8 +21,8 @@
 
 //! This module is for configuring `gstd` inside gear programs.
 use crate::{
-    errors::{Error, Result, UsageError},
     BlockCount,
+    errors::{Error, Result, UsageError},
 };
 
 /// Constant declaring default `Config::system_reserve()` in case of not

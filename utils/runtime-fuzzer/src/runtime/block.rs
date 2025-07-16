@@ -24,8 +24,8 @@ use frame_system::pallet_prelude::BlockNumberFor;
 use pallet_gear::Event as GearEvent;
 use parity_scale_codec::Encode;
 use sp_consensus_babe::{
-    digests::{PreDigest, SecondaryPlainPreDigest},
     BABE_ENGINE_ID,
+    digests::{PreDigest, SecondaryPlainPreDigest},
 };
 use sp_consensus_slots::Slot;
 use sp_runtime::{Digest, DigestItem, Perbill};
@@ -62,9 +62,11 @@ fn run_to_block(n: u32) {
         Gear::run(RawOrigin::None.into(), None).unwrap();
         on_finalize_without_system();
 
-        assert!(!System::events()
-            .iter()
-            .any(|e| { matches!(e.event, RuntimeEvent::Gear(GearEvent::QueueNotProcessed)) }))
+        assert!(
+            !System::events()
+                .iter()
+                .any(|e| { matches!(e.event, RuntimeEvent::Gear(GearEvent::QueueNotProcessed)) })
+        )
     }
 }
 

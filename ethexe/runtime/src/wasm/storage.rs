@@ -20,11 +20,11 @@ use super::interface::database_ri;
 use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
+    RuntimeInterface,
     state::{
         Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
         ProgramState, Storage, UserMailbox, Waitlist,
     },
-    RuntimeInterface,
 };
 use gear_core::{buffer::Payload, memory::PageBuf};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};

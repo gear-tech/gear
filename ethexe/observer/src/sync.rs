@@ -19,16 +19,15 @@
 //! Implementation of the on-chain data synchronization.
 
 use crate::{
-    utils::{load_block_data, load_blocks_data_batched},
     BlockSyncedData, RuntimeConfig,
+    utils::{load_block_data, load_blocks_data_batched},
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self,
+    self, BlockData, BlockHeader, CodeBlobInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
-    BlockData, BlockHeader, CodeBlobInfo,
 };
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
@@ -39,12 +38,8 @@ pub(crate) trait SyncDB:
 {
 }
 impl<
-        T: OnChainStorageRead
-            + OnChainStorageWrite
-            + BlockMetaStorageRead
-            + BlockMetaStorageWrite
-            + Clone,
-    > SyncDB for T
+    T: OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone,
+> SyncDB for T
 {
 }
 
@@ -178,11 +173,11 @@ impl<DB: SyncDB> ChainSync<DB> {
         if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
-                    "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
-                    header.height,
-                    latest_synced_block_height,
-                    self.config.max_sync_depth
-                ));
+                "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
+                header.height,
+                latest_synced_block_height,
+                self.config.max_sync_depth
+            ));
         }
 
         if header.height - latest_synced_block_height < self.config.batched_sync_depth {

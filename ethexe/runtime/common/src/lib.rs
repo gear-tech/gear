@@ -24,11 +24,11 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core_processor::{
+    ContextCharged, Ext, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
-    ContextCharged, Ext, ProcessExecutionContext,
 };
-use ethexe_common::gear::{Origin, CHUNK_PROCESSING_GAS_LIMIT};
+use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, Origin};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
@@ -291,7 +291,9 @@ where
     // to process message, if it's a reply or init message.
     // Otherwise, we return error reply.
     if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
-        log::trace!("Program {program_id} is not yet finished initialization, so cannot process handle message");
+        log::trace!(
+            "Program {program_id} is not yet finished initialization, so cannot process handle message"
+        );
         return core_processor::process_uninitialized(context);
     }
 

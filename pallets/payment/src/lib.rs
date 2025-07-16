@@ -21,7 +21,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![allow(clippy::manual_inspect)]
 
-use common::{storage::*, DelegateFee, ExtractCall};
+use common::{DelegateFee, ExtractCall, storage::*};
 use frame_support::{
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
     pallet_prelude::*,
@@ -32,9 +32,9 @@ use pallet_transaction_payment::{
     RuntimeDispatchInfo,
 };
 use sp_runtime::{
+    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
     traits::{Bounded, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
     transaction_validity::TransactionValidityError,
-    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
 };
 use sp_std::borrow::Cow;
 

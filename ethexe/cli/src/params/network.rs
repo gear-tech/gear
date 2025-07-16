@@ -20,8 +20,8 @@ use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_network::{
-    export::{Multiaddr, Protocol},
     NetworkConfig,
+    export::{Multiaddr, Protocol},
 };
 use serde::Deserialize;
 use std::path::PathBuf;
