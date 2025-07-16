@@ -657,7 +657,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             BlockData {
                 hash: latest_committed_block,
                 header: latest_block_header,
-                events: _,
+                events: latest_block_events,
             },
         previous_committed_block,
     }) = EventData::collect(observer, db, finalized_block).await?
@@ -689,12 +689,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     // from `pre_process_genesis_for_db`
     {
         db.set_block_header(latest_committed_block, latest_block_header.clone());
-        db.set_block_events(latest_committed_block, &[]);
+        db.set_block_events(latest_committed_block, &latest_block_events);
 
         db.set_latest_synced_block_height(latest_block_header.height);
         db.mutate_block_meta(latest_committed_block, |meta| {
-            meta.computed = true;
             meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
         });
 
         // NOTE: there is no invariant that fast sync should recover queues
