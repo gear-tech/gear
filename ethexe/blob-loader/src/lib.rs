@@ -212,17 +212,13 @@ impl<DB: Database> Stream for BlobLoader<DB> {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let future = self.futures.poll_next_unpin(cx);
-        match future {
-            Poll::Ready(Some(result)) => match result {
-                Ok(code_and_id) => {
-                    self.codes_loading.remove(&code_and_id.code_id);
-                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(code_and_id))))
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            _ => Poll::Pending,
-        }
+        let res = futures::ready!(self.futures.poll_next_unpin(cx)).map(|result| {
+            let code_and_id = result?;
+            self.codes_loading.remove(&code_and_id.code_id);
+            Ok(BlobLoaderEvent::BlobLoaded(code_and_id))
+        });
+
+        res.map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
     }
 }
 
