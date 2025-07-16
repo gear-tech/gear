@@ -80,7 +80,7 @@ impl EventData {
                     valid: true,
                 }) = event
                 {
-                    if !db.instrumented_code_exists(ethexe_runtime::VERSION, code_id) {
+                    if !db.instrumented_code_exists(ethexe_runtime_common::VERSION, code_id) {
                         needs_instrumentation_codes.insert(code_id);
                     }
                     continue;

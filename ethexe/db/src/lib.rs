@@ -22,11 +22,13 @@ use gear_core::utils;
 use gprimitives::H256;
 
 mod database;
+mod integrity;
 mod mem;
 mod overlay;
 mod rocks;
 
 pub use database::Database;
+pub use integrity::{DatabaseVisitor, IntegrityVerifier, IntegrityVerifierError};
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 

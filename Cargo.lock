@@ -4692,7 +4692,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
- "ethexe-runtime",
+ "ethexe-runtime-common",
  "futures",
  "gear-core",
  "gear-utils",

@@ -53,7 +53,10 @@ mod journal;
 mod schedule;
 mod transitions;
 
-pub const RUNTIME_ID: u32 = 0;
+// TODO: consider format.
+/// Version of the runtime.
+pub const VERSION: u32 = 1;
+pub const RUNTIME_ID: u32 = 1;
 
 pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin, bool)>;
 

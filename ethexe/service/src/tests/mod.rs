@@ -34,7 +34,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
 };
-use ethexe_db::Database;
+use ethexe_db::{Database, DatabaseVisitor, IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -1098,6 +1098,14 @@ async fn fast_sync() {
 
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
+
+        IntegrityVerifier
+            .visit_chain(&alice.db, latest_block, fast_synced_block)
+            .expect("failed to verify Alice database");
+
+        IntegrityVerifier
+            .visit_chain(&bob.db, latest_block, fast_synced_block)
+            .expect("failed to verify Bob database");
 
         assert_eq!(
             alice.db.latest_computed_block(),
