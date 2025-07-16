@@ -28,7 +28,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
+use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext, BuiltinReply};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -45,7 +45,7 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let source = dispatch.source();
 
         let is_governance_origin = <T as Config>::ControlOrigin::ensure_origin(
@@ -55,11 +55,16 @@ where
 
         let fee: Value = TransportFee::<T>::get().unique_saturated_into();
 
-        if !(is_governance_origin || dispatch.value() == fee) {
-            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                error_to_str(&Error::<T>::IncorrectValueApplied),
-            )));
+        if !is_governance_origin && dispatch.value() < fee {
+            return Err(BuiltinActorError::InsufficientValue);
         }
+
+        // If the origin is governance, we do not charge a fee and return the full value.
+        let value_refund = if is_governance_origin {
+            dispatch.value()
+        } else {
+            dispatch.value().saturating_sub(fee)
+        };
 
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
@@ -68,13 +73,16 @@ where
             Request::SendEthMessage {
                 destination,
                 payload,
-            } => send_message_request::<T>(
-                source,
-                destination,
-                payload,
-                context,
-                is_governance_origin,
-            ),
+            } => Ok(BuiltinReply {
+                payload: send_message_request::<T>(
+                    source,
+                    destination,
+                    payload,
+                    context,
+                    is_governance_origin,
+                )?,
+                value: value_refund,
+            }),
         }
     }
 
@@ -110,7 +118,6 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
-        Error::IncorrectValueApplied => "Send message: incorrect value applied",
         _ => unimplemented!(),
     }
 }
