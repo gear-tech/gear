@@ -648,8 +648,8 @@ mod util {
         BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
         VAL_1_STASH, VAL_2_STASH, VAL_3_STASH, message_queue_empty,
     };
-    use crate::{self as pallet_gear_builtin, staking::Actor as StakingBuiltin, GasAllowanceOf};
-    pub(super) use common::{storage::Limiter, Origin};
+    use crate::{self as pallet_gear_builtin, GasAllowanceOf, staking::Actor as StakingBuiltin};
+    pub(super) use common::{Origin, storage::Limiter};
     pub(super) use demo_staking_broker::WASM_BINARY;
     use frame_election_provider_support::{
         SequentialPhragmen,

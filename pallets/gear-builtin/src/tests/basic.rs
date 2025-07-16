@@ -20,7 +20,7 @@
 
 #![cfg(test)]
 
-use crate::{mock::*, BuiltinActorType};
+use crate::{BuiltinActorType, mock::*};
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;

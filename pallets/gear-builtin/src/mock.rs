@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, bls12_381, proxy, BuiltinActor, BuiltinActorError, BuiltinActorId,
-    BuiltinActorType, BuiltinContext, GasAllowanceOf,
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, BuiltinActorId, BuiltinActorType,
+    BuiltinContext, GasAllowanceOf, bls12_381, proxy,
 };
-use common::{storage::Limiter, GasProvider, GasTree, Origin};
+use common::{GasProvider, GasTree, Origin, storage::Limiter};
 use core::cell::RefCell;
 use frame_support::{
     PalletId, construct_runtime,
