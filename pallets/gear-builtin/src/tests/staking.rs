@@ -648,9 +648,7 @@ mod util {
         message_queue_empty, BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK,
         SIGNER, UNITS, VAL_1_STASH, VAL_2_STASH, VAL_3_STASH,
     };
-    use crate::{
-        self as pallet_gear_builtin, staking::Actor as StakingBuiltin, ActorWithId, GasAllowanceOf,
-    };
+    use crate::{self as pallet_gear_builtin, staking::Actor as StakingBuiltin, GasAllowanceOf};
     pub(super) use common::{storage::Limiter, Origin};
     pub(super) use demo_staking_broker::WASM_BINARY;
     use frame_election_provider_support::{
@@ -670,7 +668,7 @@ mod util {
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
     pub(super) use gear_core::ids::{prelude::*, ActorId, CodeId};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
-    use pallet_session::historical::{self as pallet_session_historical};
+    use pallet_session::historical as pallet_session_historical;
     pub(super) use parity_scale_codec::Encode;
     use sp_core::{crypto::key_types, H256};
     use sp_runtime::{
@@ -820,7 +818,7 @@ mod util {
 
     impl pallet_gear_builtin::Config for Test {
         type RuntimeCall = RuntimeCall;
-        type Builtins = (ActorWithId<2, StakingBuiltin<Self>>,);
+        type Builtins = (StakingBuiltin<Self>,);
         type BlockLimiter = GearGas;
         type WeightInfo = ();
     }

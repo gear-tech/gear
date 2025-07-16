@@ -20,6 +20,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+extern crate alloc;
 #[macro_use]
 extern crate gear_common_codegen;
 
@@ -68,7 +69,6 @@ use sp_runtime::{
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use storage::ValueStorage;
-extern crate alloc;
 
 pub use gas_provider::{
     LockId, LockableTree, Provider as GasProvider, ReservableTree, Tree as GasTree,
@@ -88,16 +88,36 @@ pub trait Origin: Sized {
 
 impl Origin for u64 {
     fn into_origin(self) -> H256 {
-        let mut result = H256::zero();
-        result[0..8].copy_from_slice(&self.to_le_bytes());
-        result
+        let bytes = self.to_le_bytes();
+        let mut result = [0u8; 32];
+
+        result[0] = bytes[0];
+        result[5] = bytes[1];
+        result[10] = bytes[2];
+        result[15] = bytes[3];
+        result[20] = bytes[4];
+        result[21] = bytes[5];
+        result[30] = bytes[6];
+        result[31] = bytes[7];
+
+        H256::from(result)
     }
 
     fn from_origin(v: H256) -> Self {
         // h256 -> u64 should not be used anywhere other than in tests!
-        let mut val = [0u8; 8];
-        val.copy_from_slice(&v[0..8]);
-        Self::from_le_bytes(val)
+        let v = v.as_bytes();
+        let mut bytes = [0u8; 8];
+
+        bytes[0] = v[0];
+        bytes[1] = v[5];
+        bytes[2] = v[10];
+        bytes[3] = v[15];
+        bytes[4] = v[20];
+        bytes[5] = v[21];
+        bytes[6] = v[30];
+        bytes[7] = v[31];
+
+        u64::from_le_bytes(bytes)
     }
 }
 

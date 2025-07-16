@@ -93,20 +93,20 @@ substrate-state-trie-migration-rpc.workspace = true
 
 [features]
 vara-native = [
-	"vara-runtime",
-	"sp-authority-discovery"
+    "vara-runtime",
+    "sp-authority-discovery"
 ]
 runtime-benchmarks = [
- 	"frame-benchmarking/runtime-benchmarks",
- 	"frame-benchmarking-cli/runtime-benchmarks",
-	"vara-runtime?/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-benchmarking-cli/runtime-benchmarks",
+    "vara-runtime?/runtime-benchmarks",
 ]
 runtime-benchmarks-checkers = [
-	"vara-runtime?/runtime-benchmarks-checkers",
+    "vara-runtime?/runtime-benchmarks-checkers",
 ]
 try-runtime = [
-	"vara-runtime?/try-runtime",
+    "vara-runtime?/try-runtime",
 ]
 metadata-hash = [
-	"vara-runtime?/metadata-hash",
+    "vara-runtime?/metadata-hash",
 ]

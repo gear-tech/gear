@@ -23,6 +23,7 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::{error::ErrorObject, ErrorObjectOwned},
 };
+use pallet_gear_builtin::BuiltinActorType;
 pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi as GearBuiltinRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -31,9 +32,15 @@ use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
 
 #[rpc(server)]
-pub trait GearBuiltinApi<BlockHash, ResponseType> {
+pub trait GearBuiltinApi<BlockHash> {
     #[method(name = "gearBuiltin_queryId")]
-    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<ResponseType>;
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<H256>;
+
+    #[method(name = "gearBuiltin_list")]
+    fn list_actors(&self) -> RpcResult<Vec<(BuiltinActorType, u16, H256)>>;
+
+    #[method(name = "gearBuiltin_actorId")]
+    fn get_actor_id(&self, actor_type: BuiltinActorType, version: u16) -> RpcResult<Option<H256>>;
 }
 
 /// Provides RPC methods to query token economics related data.
@@ -70,7 +77,7 @@ impl From<Error> for i32 {
     }
 }
 
-impl<C, Block> GearBuiltinApiServer<<Block as BlockT>::Hash, H256> for GearBuiltin<C, Block>
+impl<C, Block> GearBuiltinApiServer<<Block as BlockT>::Hash> for GearBuiltin<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -86,5 +93,29 @@ where
 
         api.query_actor_id(best_hash, builtin_id)
             .map_err(|e| map_err(e, "Unable to generate actor id"))
+    }
+
+    fn list_actors(&self) -> RpcResult<Vec<(BuiltinActorType, u16, H256)>> {
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+
+        fn map_err(error: impl ToString, desc: &'static str) -> ErrorObjectOwned {
+            ErrorObject::owned(Error::RuntimeError.into(), desc, Some(error.to_string()))
+        }
+
+        api.list_actors(best_hash)
+            .map_err(|e| map_err(e, "Unable to list actors"))
+    }
+
+    fn get_actor_id(&self, actor_type: BuiltinActorType, version: u16) -> RpcResult<Option<H256>> {
+        let api = self.client.runtime_api();
+        let best_hash = self.client.info().best_hash;
+
+        fn map_err(error: impl ToString, desc: &'static str) -> ErrorObjectOwned {
+            ErrorObject::owned(Error::RuntimeError.into(), desc, Some(error.to_string()))
+        }
+
+        api.get_actor_id(best_hash, actor_type, version)
+            .map_err(|e| map_err(e, "Unable to get actor id"))
     }
 }

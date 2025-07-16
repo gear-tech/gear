@@ -26,13 +26,10 @@ use gstd::{
     prelude::*,
     ActorId,
 };
-use hex_literal::hex;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 
-const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
-    "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
-));
+const BUILTIN_BLS381: ActorId = ActorId::new(*b"modl/bia/bls12-381\0\0\0\0\0\0\0/v-\x01\0\0\0");
 
 #[allow(dead_code)]
 #[derive(Default)]

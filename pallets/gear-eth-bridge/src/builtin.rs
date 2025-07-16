@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Builtin actor for the Gear Ethereum bridge.
+
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
@@ -28,7 +30,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
+use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinActorType, BuiltinContext};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -42,6 +44,8 @@ impl<T: Config> BuiltinActor for Actor<T>
 where
     T::AccountId: Origin,
 {
+    const TYPE: BuiltinActorType = BuiltinActorType::EthBridge;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
@@ -104,6 +108,7 @@ fn send_message_request<T: Config>(
         .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))))
 }
 
+/// Converts an error to a static string representation.
 pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
     match error {
         Error::BridgeIsNotYetInitialized => "Send message: bridge is not yet initialized",

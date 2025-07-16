@@ -75,6 +75,8 @@ where
     <T as ProxyConfig>::ProxyType: From<BuiltinProxyType>,
     CallOf<T>: From<pallet_proxy::Call<T>>,
 {
+    const TYPE: BuiltinActorType = BuiltinActorType::Proxy;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
