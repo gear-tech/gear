@@ -54,7 +54,7 @@
 //!
 //! [`exec::wait()`]: crate::exec::wait
 
-use crate::{msg, MessageId};
+use crate::{MessageId, msg};
 use alloc::boxed::Box;
 use hashbrown::HashMap;
 

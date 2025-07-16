@@ -18,8 +18,8 @@
 
 //! Manifest utils for crates-io-manager
 
-use crate::{handler, version, CARGO_REGISTRY_NAME};
-use anyhow::{anyhow, Result};
+use crate::{CARGO_REGISTRY_NAME, handler, version};
+use anyhow::{Result, anyhow};
 use cargo_metadata::Package;
 use std::{
     env, fs,

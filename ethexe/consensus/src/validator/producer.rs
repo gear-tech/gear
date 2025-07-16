@@ -17,17 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
+    StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{utils, ConsensusEvent};
-use anyhow::{anyhow, Result};
+use crate::{ConsensusEvent, utils};
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
+    Address, ProducerBlock, SimpleBlockData,
     db::BlockMetaStorageRead,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
-    Address, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
@@ -218,8 +218,8 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, SignedValidationRequest};
-    use ethexe_common::{db::BlockMetaStorageWrite, Digest, ToDigest};
+    use crate::{SignedValidationRequest, mock::*, validator::mock::*};
+    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
     use std::vec;
 
     #[tokio::test]

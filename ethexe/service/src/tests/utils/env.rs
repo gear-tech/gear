@@ -17,47 +17,46 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    RouterDataProvider, Service,
     tests::utils::{
+        TestingEvent,
         events::{
             ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
             TestingEventReceiver, TestingNetworkEvent,
         },
-        TestingEvent,
     },
-    RouterDataProvider, Service,
 };
 use alloy::{
     eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
-    providers::{ext::AnvilApi, Provider as _, RootProvider},
-    rpc::types::{anvil::MineOptions, Header as RpcHeader},
+    providers::{Provider as _, RootProvider, ext::AnvilApi},
+    rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
 use ethexe_blob_loader::{
-    local::{LocalBlobLoader, LocalBlobStorage},
     BlobLoaderService,
+    local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
+    Address, CodeAndId,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    Address, CodeAndId,
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{router::RouterQuery, Ethereum};
-use ethexe_network::{export::Multiaddr, NetworkConfig, NetworkService};
+use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
-use ethexe_rpc::{test_utils::RpcClient, RpcConfig, RpcService};
+use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
-use gprimitives::{ActorId, CodeId, MessageId, H160, H256};
-use rand::{prelude::StdRng, SeedableRng};
+use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
-    keys,
+    Identifier, SigningKey, keys,
     keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
-    Identifier, SigningKey,
 };
 use std::{
     net::SocketAddr,
@@ -340,7 +339,7 @@ impl TestEnv {
             .map(|(_, bootstrap_address, nonce)| {
                 *nonce += 1;
 
-                if *nonce % MAX_NETWORK_SERVICES_PER_TEST == 0 {
+                if (*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST) {
                     panic!("Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}");
                 }
 
@@ -924,7 +923,7 @@ impl Node {
             .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
     }
 
-    pub fn listener(&mut self) -> ServiceEventsListener {
+    pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
         }

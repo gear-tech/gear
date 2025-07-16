@@ -19,11 +19,12 @@
 //! Database for ethexe.
 
 use crate::{
-    overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase, MemDb,
+    overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ethexe_common::{
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
@@ -31,7 +32,6 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -193,7 +193,9 @@ impl Database {
             .height
             .checked_sub(reference_block_header.height)
         else {
-            bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
+            bail!(
+                "Can't calculate actual window: reference block hash doesn't suit actual blocks state"
+            );
         };
 
         if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
@@ -769,16 +771,18 @@ mod tests {
 
             // Check block near the end of the window
             let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_mid)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_mid)
+                    .unwrap()
+            );
 
             // Check block at the edge of the window
             // Block at BASE_HEIGHT
             let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_edge)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_edge)
+                    .unwrap()
+            );
         }
 
         // --- Fail: Outside Window ---
@@ -869,10 +873,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No latest valid block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No latest valid block found")
+            );
         }
 
         // --- Error: No Reference Block ---
@@ -892,10 +898,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No reference block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No reference block found")
+            );
         }
 
         // --- Error: Missing History ---
@@ -926,10 +934,12 @@ mod tests {
 
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("not found in the window"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("not found in the window")
+            );
         }
     }
 

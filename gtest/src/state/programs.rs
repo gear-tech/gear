@@ -18,10 +18,10 @@
 
 //! Programs storage.
 
-use crate::{state::WithOverlay, BlockNumber};
-use gear_common::{storage::DoubleBTreeMap, ActorId, GearPage, MessageId, PageBuf};
+use crate::{BlockNumber, state::WithOverlay};
+use gear_common::{ActorId, GearPage, MessageId, PageBuf, storage::DoubleBTreeMap};
 use gear_core::{
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::Program,
 };
 use std::{collections::BTreeMap, fmt, thread::LocalKey};
@@ -56,13 +56,13 @@ fn programs_storage() -> &'static LocalKey<WithOverlay<BTreeMap<ActorId, Program
     &PROGRAMS_STORAGE
 }
 
-fn allocations_storage(
-) -> &'static LocalKey<WithOverlay<BTreeMap<ActorId, IntervalsTree<WasmPage>>>> {
+fn allocations_storage()
+-> &'static LocalKey<WithOverlay<BTreeMap<ActorId, IntervalsTree<WasmPage>>>> {
     &ALLOCATIONS_STORAGE
 }
 
-fn memory_pages_storage(
-) -> &'static LocalKey<WithOverlay<DoubleBTreeMap<ActorId, GearPage, PageBuf>>> {
+fn memory_pages_storage()
+-> &'static LocalKey<WithOverlay<DoubleBTreeMap<ActorId, GearPage, PageBuf>>> {
     &MEMORY_PAGES_STORAGE
 }
 

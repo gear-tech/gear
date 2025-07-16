@@ -19,12 +19,12 @@
 //! Block timestamp and height management.
 
 use crate::{
-    constants::BlockNumber, state::WithOverlay, BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS,
-    INITIAL_RANDOM_SEED,
+    BLOCK_DURATION_IN_MSECS, EPOCH_DURATION_IN_BLOCKS, INITIAL_RANDOM_SEED, constants::BlockNumber,
+    state::WithOverlay,
 };
 use core_processor::configs::BlockInfo;
 use gear_common::storage::GetCallback;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::StdRng};
 use std::{
     thread::LocalKey,
     time::{SystemTime, UNIX_EPOCH},
@@ -61,7 +61,7 @@ impl BlocksManager {
         let bi = self.move_blocks_by(1);
 
         let block_height = self.get().height;
-        if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
+        if block_height.is_multiple_of(EPOCH_DURATION_IN_BLOCKS) {
             let seed = INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64;
             update_epoch_random(seed);
         }

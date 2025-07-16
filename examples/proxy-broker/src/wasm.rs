@@ -19,7 +19,7 @@
 //! Basic implementation of the proxy-broker for demo purpose only.
 
 use gbuiltin_proxy::Request;
-use gstd::{actor_id, debug, errors::Error, msg, ActorId};
+use gstd::{ActorId, actor_id, debug, errors::Error, msg};
 
 // Proxy builtin actor program id (hardcoded for all runtimes);
 //

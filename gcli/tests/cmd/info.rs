@@ -18,9 +18,8 @@
 
 //! Integration tests for command `deploy`
 use crate::common::{
-    self,
+    self, Args, Result,
     node::{Convert, NodeExec},
-    Args, Result,
 };
 
 // ExtraFlags is hardcoded

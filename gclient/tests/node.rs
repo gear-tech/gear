@@ -260,11 +260,13 @@ where
         .expect("Unable to load a program");
 
     // Asserting successful initialization.
-    assert!(listener
-        .message_processed(mid)
-        .await
-        .expect("Unable to obtain confirmation on processed message")
-        .succeed());
+    assert!(
+        listener
+            .message_processed(mid)
+            .await
+            .expect("Unable to obtain confirmation on processed message")
+            .succeed()
+    );
 
     (api, pid)
 }

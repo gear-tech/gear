@@ -335,8 +335,8 @@ fn append_set_global_function(module: Module, offset: u32, data_len: usize) -> M
 #[cfg(test)]
 mod test {
     use super::{
-        insert_stack_end_export, insert_start_call_in_export_funcs, move_mut_globals_to_static,
-        STACK_END_EXPORT_NAME,
+        STACK_END_EXPORT_NAME, insert_stack_end_export, insert_start_call_in_export_funcs,
+        move_mut_globals_to_static,
     };
     use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
     use wasmparser::ExternalKind;

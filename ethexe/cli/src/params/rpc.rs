@@ -153,17 +153,15 @@ impl<'de> Deserialize<'de> for Cors {
 
         match value {
             toml::Value::String(s) if matches!(s.as_ref(), "all" | "*") => Ok(Self::All),
-            toml::Value::Array(arr) => {
-                arr
-                    .into_iter()
-                    .map(|v| {
-                        v.as_str()
-                            .ok_or_else(|| serde::de::Error::custom("Array items must be strings"))
-                            .map(|s| s.to_string())
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map(Self::List)
-            }
+            toml::Value::Array(arr) => arr
+                .into_iter()
+                .map(|v| {
+                    v.as_str()
+                        .ok_or_else(|| serde::de::Error::custom("Array items must be strings"))
+                        .map(|s| s.to_string())
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(Self::List),
             _ => Err(serde::de::Error::custom(
                 "Invalid value for cors. Possible values: \"all\" (alias \"*\") or list of strings like [\"http://localhost:*\", \"https://127.0.0.1:*\"].",
             )),

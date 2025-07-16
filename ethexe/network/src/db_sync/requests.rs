@@ -28,12 +28,12 @@ use crate::{
 };
 use anyhow::Context as _;
 use ethexe_common::gear::CodeState;
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
 use libp2p::{
     request_response::OutboundRequestId,
-    swarm::{behaviour::ConnectionEstablished, ConnectionClosed, FromSwarm},
+    swarm::{ConnectionClosed, FromSwarm, behaviour::ConnectionEstablished},
 };
 use rand::prelude::IteratorRandom;
 use std::{

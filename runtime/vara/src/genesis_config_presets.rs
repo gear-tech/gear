@@ -24,8 +24,8 @@ use pallet_staking::{Forcing, StakerStatus};
 use runtime_primitives::AccountPublic;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{sr25519, Pair, Public};
-use sp_genesis_builder::{PresetId, DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET};
+use sp_core::{Pair, Public, sr25519};
+use sp_genesis_builder::{DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET, PresetId};
 use sp_runtime::{format, traits::IdentifyAccount};
 
 /// Configure initial storage state for FRAME modules.

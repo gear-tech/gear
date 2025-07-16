@@ -20,22 +20,22 @@
 
 use super::{ExtManager, Program};
 use crate::{
+    EXISTENTIAL_DEPOSIT, Value,
     manager::hold_bound::HoldBoundBuilder,
     state::{accounts::Accounts, programs::ProgramsStorageManager},
-    Value, EXISTENTIAL_DEPOSIT,
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
+    ActiveProgram, Origin,
     event::{MessageWaitedRuntimeReason, RuntimeReason},
     scheduler::StorageType,
-    ActiveProgram, Origin,
 };
 use gear_core::{
     env::MessageWaitedType,
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     message::{Dispatch, SignalMessage, StoredDispatch},
-    pages::{num_traits::Zero, numerated::tree::IntervalsTree, GearPage, WasmPage},
+    pages::{GearPage, WasmPage, num_traits::Zero, numerated::tree::IntervalsTree},
     program::ProgramState,
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},

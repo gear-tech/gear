@@ -31,14 +31,14 @@ use ethexe_common::gear::CodeState;
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
-    core::{transport::PortUse, Endpoint},
+    StreamProtocol,
+    core::{Endpoint, transport::PortUse},
     request_response,
     request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
     },
-    StreamProtocol,
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -487,15 +487,15 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{db::BlockMetaStorageWrite, StateHashWithQueueSize};
+    use ethexe_common::{StateHashWithQueueSize, db::BlockMetaStorageWrite};
     use ethexe_db::MemDb;
     use libp2p::{
+        Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
         futures::StreamExt,
         identity::Keypair,
         swarm,
         swarm::SwarmEvent,
-        Swarm, Transport,
     };
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};

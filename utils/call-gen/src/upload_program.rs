@@ -19,8 +19,8 @@
 //! Upload program args generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
-    Seed,
+    CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs, Seed,
+    impl_convert_traits,
 };
 
 // code, salt, payload, gas, value

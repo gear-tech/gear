@@ -54,7 +54,7 @@ pub use entry_points::*;
 pub use memory::*;
 pub use syscalls::*;
 
-use crate::{utils, GearWasmGeneratorConfig, WasmModule};
+use crate::{GearWasmGeneratorConfig, WasmModule, utils};
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::Module;
 use std::{collections::HashSet, ops::RangeInclusive};

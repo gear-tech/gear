@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Request;
-use gstd::{collections::BTreeMap, exec, msg, prelude::*, MessageId};
+use gstd::{MessageId, collections::BTreeMap, exec, msg, prelude::*};
 
 static mut ECHOES: Option<BTreeMap<MessageId, u32>> = None;
 
