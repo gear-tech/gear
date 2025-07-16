@@ -27,7 +27,6 @@ use alloy::{
 use anyhow::{anyhow, Context as _, Result};
 use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
-    gear::Timelines,
     Address, BlockHeader, SimpleBlockData,
 };
 use ethexe_db::Database;
@@ -81,14 +80,6 @@ impl fmt::Debug for ObserverEvent {
             }
         }
     }
-}
-
-#[derive(Clone, Debug)]
-struct RouterConfig {
-    router_address: Address,
-    wvara_address: Address,
-    genesis_block: BlockHeader,
-    timelines: Timelines,
 }
 
 #[derive(Clone, Debug)]
@@ -202,8 +193,7 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        let genesis_header =
-            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+        Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = provider
             .subscribe_blocks()

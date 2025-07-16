@@ -18,7 +18,10 @@
 
 use crate::{utils, ComputeError, Result};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::{BlockEvent, RouterEvent},
     SimpleBlockData,
 };
@@ -33,7 +36,11 @@ pub(crate) struct PrepareInfo {
 }
 
 pub(crate) fn prepare<
-    DB: OnChainStorageRead + BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
+    DB: OnChainStorageRead
+        + OnChainStorageWrite
+        + BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + CodesStorageRead,
 >(
     db: &DB,
     head: H256,
@@ -64,7 +71,11 @@ pub(crate) fn prepare<
 /// (all missing codes, missing codes that have been already validated)
 fn propagate_data_from_parent<
     'a,
-    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
+    DB: BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + CodesStorageRead
+        + OnChainStorageWrite
+        + OnChainStorageRead,
 >(
     db: &DB,
     block: H256,
@@ -114,6 +125,14 @@ fn propagate_data_from_parent<
     // Propagate last committed batch
     db.set_last_committed_batch(block, last_committed_batch);
 
+    // Propagate last validator set if it is not set in the `ObserverService`
+    if db.validator_set(block).is_none() {
+        let parent_validator_set = db
+            .validator_set(parent)
+            .ok_or(ComputeError::ValidatorSetNotFound(parent))?;
+        db.set_validator_set(block, parent_validator_set);
+    }
+
     // Propagate `wait for code validation` blocks queue
     let mut codes_queue = db
         .block_codes_queue(parent)
@@ -148,6 +167,7 @@ mod tests {
         let initial_digest = Digest([42; 32]);
         db.set_last_committed_batch(parent_hash, initial_digest);
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         let events = Vec::<BlockEvent>::new();
 
@@ -174,6 +194,7 @@ mod tests {
         let initial_digest = Digest([42; 32]);
         db.set_last_committed_batch(parent_hash, initial_digest);
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         let new_digest = Digest([99; 32]);
         let events = [BlockEvent::Router(
@@ -201,6 +222,7 @@ mod tests {
         // Set initial data for parent block
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -235,6 +257,7 @@ mod tests {
         // Set initial data for parent block
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         let events = [BlockEvent::Router(
             ethexe_common::events::RouterEvent::CodeValidationRequested {
@@ -266,6 +289,7 @@ mod tests {
         // Set initial data for parent block
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         let events = [BlockEvent::Router(
             ethexe_common::events::RouterEvent::CodeGotValidated {
@@ -292,6 +316,7 @@ mod tests {
         // Set initial data for parent block
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -355,6 +380,7 @@ mod tests {
         // Set initial data for parent block
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         let events = vec![
             BlockEvent::Router(
@@ -389,6 +415,7 @@ mod tests {
         // Set initial data for parent block
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         // Code2 already exists in DB
         db.set_code_valid(code_id2, true);
@@ -467,6 +494,7 @@ mod tests {
         // Set initial data for parent block (required for propagate_data_from_parent)
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -507,6 +535,7 @@ mod tests {
         // Set initial data for parent block (required for propagate_data_from_parent)
         db.set_last_committed_batch(parent_hash, Digest([42; 32]));
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validator_set(parent_hash, vec![]);
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -555,6 +584,7 @@ mod tests {
         // Set initial data for grandparent block
         db.set_last_committed_batch(grandparent_hash, Digest([42; 32]));
         db.set_block_codes_queue(grandparent_hash, VecDeque::new());
+        db.set_validator_set(grandparent_hash, vec![]);
 
         // Configure grandparent as prepared
         db.mutate_block_meta(grandparent_hash, |m| {

@@ -30,7 +30,6 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    k256::elliptic_curve::rand_core::block,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
     Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };

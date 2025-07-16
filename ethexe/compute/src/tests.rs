@@ -20,7 +20,7 @@ use super::*;
 use ethexe_common::{
     db::{BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
-    BlockHeader, CodeAndIdUnchecked, Digest,
+    Address, BlockHeader, CodeAndIdUnchecked, Digest,
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
@@ -134,6 +134,7 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
             parent_hash: H256::zero(),
         },
     );
+    db.set_validator_set(genesis_hash, vec![Address::from([0u8; 20])]);
 
     let mut chain = VecDeque::new();
 

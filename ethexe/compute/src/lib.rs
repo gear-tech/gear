@@ -73,6 +73,8 @@ pub enum ComputeError {
         local_status: bool,
         remote_status: bool,
     },
+    #[error("validator set not found for block({0})")]
+    ValidatorSetNotFound(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
