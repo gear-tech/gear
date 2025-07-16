@@ -258,7 +258,7 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
-        db.set_block_header(genesis_block_hash, genesis_header.clone());
+        db.set_block_header(genesis_block_hash, genesis_header);
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
         db.mutate_block_meta(genesis_block_hash, |meta| {

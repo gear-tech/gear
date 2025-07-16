@@ -60,7 +60,7 @@ impl BlockData {
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
-            header: self.header.clone(),
+            header: self.header,
         }
     }
 }

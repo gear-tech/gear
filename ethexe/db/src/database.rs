@@ -734,7 +734,7 @@ mod tests {
                 height: BASE_HEIGHT,
                 ..Default::default()
             };
-            db.set_block_header(block_hash, block_header.clone());
+            db.set_block_header(block_hash, block_header);
             db.set_latest_computed_block(block_hash, block_header);
             assert!(db.check_within_recent_blocks(block_hash).unwrap());
         }
@@ -748,16 +748,16 @@ mod tests {
                 height: BASE_HEIGHT + WINDOW_SIZE,
                 ..Default::default()
             };
-            db.set_latest_computed_block(current_hash, current_header.clone());
+            db.set_latest_computed_block(current_hash, current_header);
 
-            let mut history = vec![(current_hash, current_header.clone())];
+            let mut history = vec![(current_hash, current_header)];
 
             // Build history within the window
             for i in 0..WINDOW_SIZE {
                 let parent_hash = H256::random();
                 current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header.clone());
-                history.push((current_hash, current_header.clone()));
+                db.set_block_header(current_hash, current_header);
+                history.push((current_hash, current_header));
 
                 current_hash = parent_hash;
                 current_header = BlockHeader {
@@ -766,8 +766,8 @@ mod tests {
                 };
             }
             // Oldest in window
-            db.set_block_header(current_hash, current_header.clone());
-            history.push((current_hash, current_header.clone()));
+            db.set_block_header(current_hash, current_header);
+            history.push((current_hash, current_header));
 
             // Check block near the end of the window
             let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
@@ -796,7 +796,7 @@ mod tests {
                 parent_hash: H256::random(),
                 ..Default::default()
             };
-            db.set_latest_computed_block(current_hash, current_header.clone());
+            db.set_latest_computed_block(current_hash, current_header);
 
             let mut reference_block_hash = H256::zero();
 
@@ -804,7 +804,7 @@ mod tests {
             for i in 0..(WINDOW_SIZE + 1) {
                 let parent_hash = H256::random();
                 current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header.clone());
+                db.set_block_header(current_hash, current_header);
 
                 // This is the block just outside the window (height BASE_HEIGHT)
                 if i == WINDOW_SIZE {
@@ -834,13 +834,13 @@ mod tests {
                 parent_hash: H256::random(),
                 ..Default::default()
             };
-            db.set_latest_computed_block(current_hash, current_header.clone());
+            db.set_latest_computed_block(current_hash, current_header);
 
             // Build canonical chain history
             for i in 0..WINDOW_SIZE {
                 let parent_hash = H256::random();
                 current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header.clone());
+                db.set_block_header(current_hash, current_header);
 
                 current_hash = parent_hash;
                 current_header = BlockHeader {
@@ -850,7 +850,7 @@ mod tests {
                 };
             }
             // Oldest canonical block
-            db.set_block_header(current_hash, current_header.clone());
+            db.set_block_header(current_hash, current_header);
 
             // Create a fork (reference block not on the canonical chain)
             let fork_block_hash = H256::random();
@@ -890,7 +890,7 @@ mod tests {
                 height: BASE_HEIGHT,
                 ..Default::default()
             };
-            db.set_latest_computed_block(latest_hash, latest_header.clone());
+            db.set_latest_computed_block(latest_hash, latest_header);
             // Need the latest header itself
             db.set_block_header(latest_hash, latest_header);
 
@@ -918,7 +918,7 @@ mod tests {
                 parent_hash: missing_parent_hash,
                 ..Default::default()
             };
-            db.set_latest_computed_block(latest_hash, latest_header.clone());
+            db.set_latest_computed_block(latest_hash, latest_header);
             // Add latest block header
             db.set_block_header(latest_hash, latest_header);
 
@@ -979,7 +979,7 @@ mod tests {
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
-        db.set_latest_computed_block(block_hash, block_header.clone());
+        db.set_latest_computed_block(block_hash, block_header);
         assert_eq!(db.latest_computed_block(), Some((block_hash, block_header)));
     }
 
@@ -1114,7 +1114,7 @@ mod tests {
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
-        db.set_block_header(block_hash, block_header.clone());
+        db.set_block_header(block_hash, block_header);
         assert_eq!(db.block_header(block_hash), Some(block_header));
     }
 

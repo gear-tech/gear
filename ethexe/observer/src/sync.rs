@@ -96,7 +96,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                         hash,
                         self.config.router_address,
                         self.config.wvara_address,
-                        (hash == block).then_some(header.clone()),
+                        (hash == block).then_some(header),
                     )
                     .await?
                 }
