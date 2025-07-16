@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{utils, BlockProcessed, ComputeError, ProcessorExt, Result};
+use crate::{BlockProcessed, ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
+    SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
     gear::GearBlock,
-    SimpleBlockData,
 };
 use ethexe_processor::BlockProcessingResult;
 use gprimitives::H256;
@@ -139,9 +139,9 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
+        BlockHeader,
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
-        BlockHeader,
     };
     use ethexe_db::Database as DB;
     use gprimitives::H256;

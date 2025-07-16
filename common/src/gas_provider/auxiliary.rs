@@ -19,9 +19,9 @@
 //! Auxiliary implementation of the gas provider.
 
 use crate::{
+    Origin,
     gas_provider::{Error, GasNode, GasNodeId, Provider, TreeImpl},
     storage::{MapStorage, ValueStorage},
-    Origin,
 };
 use alloc::collections::BTreeMap;
 use core::{

@@ -27,7 +27,7 @@ use crate::{
 use anyhow::Result;
 use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
-use futures::{stream::FusedStream, Stream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,

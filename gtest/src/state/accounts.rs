@@ -19,8 +19,8 @@
 //! Accounts storage.
 
 use crate::{
-    default_users_list, state::WithOverlay, Value, DEFAULT_USERS_INITIAL_BALANCE,
-    EXISTENTIAL_DEPOSIT,
+    DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT, Value, default_users_list,
+    state::WithOverlay,
 };
 use gear_core::ids::ActorId;
 use std::{collections::HashMap, fmt, thread::LocalKey};

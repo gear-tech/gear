@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler,
-    ValidatorContext, ValidatorState,
+    DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
+    subordinate::Subordinate,
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
@@ -121,7 +121,7 @@ impl Initial {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, ConsensusEvent};
+    use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use gprimitives::H256;
 
     #[test]

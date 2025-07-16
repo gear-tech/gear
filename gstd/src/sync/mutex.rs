@@ -18,9 +18,9 @@
 
 use super::access::AccessQueue;
 use crate::{
-    async_runtime,
+    BlockCount, BlockNumber, Config, MessageId, async_runtime,
     errors::{Error, Result, UsageError},
-    exec, format, msg, BlockCount, BlockNumber, Config, MessageId,
+    exec, format, msg,
 };
 use core::{
     cell::UnsafeCell,

@@ -20,19 +20,18 @@ use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
     traits::{
-        fungible,
+        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons, fungible,
         tokens::{DepositConsequence, Fortitude, Preservation, Provenance},
-        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons,
     },
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
 use gear_wasm_instrument::{BlockType, Instruction, MemArg, Module, Rules};
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
-use sp_core::{ed25519, sr25519, Pair};
+use sp_core::{Pair, ed25519, sr25519};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{BuildStorage, Digest, DigestItem};
 
@@ -709,12 +708,14 @@ fn fungible_api_works() {
             );
 
             // Ok case
-            assert_ok!(<Balances as fungible::Inspect<AccountId>>::can_deposit(
-                &charlie.into(),
-                ok_value,
-                Provenance::Extant
-            )
-            .into_result());
+            assert_ok!(
+                <Balances as fungible::Inspect<AccountId>>::can_deposit(
+                    &charlie.into(),
+                    ok_value,
+                    Provenance::Extant
+                )
+                .into_result()
+            );
 
             // Trivial check of reducible balance
             Balances::make_free_balance_be(&charlie.into(), 5 * EXISTENTIAL_DEPOSIT);

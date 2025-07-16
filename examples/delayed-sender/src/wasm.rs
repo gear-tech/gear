@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::DELAY;
-use gstd::{exec, msg, prelude::*, MessageId};
+use gstd::{MessageId, exec, msg, prelude::*};
 
 static mut MID: Option<MessageId> = None;
 static mut DONE: bool = false;

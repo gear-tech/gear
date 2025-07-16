@@ -20,10 +20,10 @@
 
 use crate::{
     gas_metering::{CustomConstantCostRules, Rules},
-    ids::{prelude::*, CodeId},
+    ids::{CodeId, prelude::*},
 };
 use alloc::vec::Vec;
-use gear_wasm_instrument::{InstrumentationBuilder, Module, GEAR_SUPPORTED_FEATURES};
+use gear_wasm_instrument::{GEAR_SUPPORTED_FEATURES, InstrumentationBuilder, Module};
 
 mod errors;
 mod instrumented;
@@ -440,8 +440,8 @@ impl From<Code> for InstrumentedCodeAndMetadata {
 mod tests {
     use crate::{
         code::{
-            utils::REF_TYPE_SIZE, Code, CodeError, DataSectionError, ExportError, ImportError,
-            StackEndError, TryNewCodeConfig, GENERIC_OS_PAGE_SIZE,
+            Code, CodeError, DataSectionError, ExportError, GENERIC_OS_PAGE_SIZE, ImportError,
+            StackEndError, TryNewCodeConfig, utils::REF_TYPE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };

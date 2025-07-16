@@ -18,8 +18,8 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, OnChainStorageRead},
     BlockMeta, SimpleBlockData,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use gprimitives::H256;
 use std::collections::VecDeque;
@@ -57,8 +57,8 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
 mod tests {
     use super::*;
     use ethexe_common::{
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
         BlockHeader,
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use ethexe_db::Database as DB;
     use gprimitives::H256;

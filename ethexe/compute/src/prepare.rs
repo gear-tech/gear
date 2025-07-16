@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{utils, ComputeError, Result};
+use crate::{ComputeError, Result, utils};
 use ethexe_common::{
+    SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
-    SimpleBlockData,
 };
 use gprimitives::{CodeId, H256};
 use std::collections::{HashSet, VecDeque};
@@ -129,9 +129,9 @@ fn propagate_data_from_parent<
 mod tests {
     use super::*;
     use ethexe_common::{
+        BlockHeader, Digest,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
-        BlockHeader, Digest,
     };
     use ethexe_db::Database as DB;
     use gprimitives::{CodeId, H256};

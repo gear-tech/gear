@@ -18,7 +18,7 @@
 
 //! ethexe tx pool types
 
-use crate::{ecdsa::SignedData, ToDigest};
+use crate::{ToDigest, ecdsa::SignedData};
 use alloc::vec::Vec;
 use derive_more::{Debug, Display};
 use gprimitives::{H160, H256};

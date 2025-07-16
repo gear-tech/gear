@@ -25,9 +25,9 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
+    ProposerFactory,
     authorship::MAX_SKIPPED_TRANSACTIONS,
     block_builder::{BlockBuilder, BlockBuilderBuilder},
-    ProposerFactory,
 };
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
@@ -48,14 +48,14 @@ use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{BlockOrigin, Environment, Proposer};
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
 use sp_inherents::InherentDataProvider;
 use sp_runtime::{
+    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
-    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
 use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
@@ -69,10 +69,10 @@ use testing::{
         Backend as TestBackend, Client as TestClient, ClientBlockImportExt, RuntimeExecutor,
         TestClientBuilder, TestClientBuilderExt,
     },
-    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
+    keyring::{CheckedExtrinsic, alice, bob, sign, signed_extra},
 };
 use vara_runtime::{
-    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
+    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, SLOT_DURATION, UncheckedExtrinsic, VERSION,
 };
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
@@ -203,7 +203,7 @@ impl CallBuilder {
             TestCall::ExhaustResources => {
                 // Using 75% of the max possible weight so that two such calls will inevitably
                 // exhaust block resources while one call will very likely fit in.
-                RuntimeCall::GearDebug(pallet_gear_debug::Call::exhaust_block_resources {
+                RuntimeCall::Gear(pallet_gear::Call::exhaust_block_resources {
                     fraction: Percent::from_percent(75),
                 })
             }

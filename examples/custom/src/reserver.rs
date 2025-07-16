@@ -18,7 +18,7 @@
 
 #[cfg(not(feature = "std"))]
 pub(crate) mod wasm {
-    use gstd::{msg, prelude::*, ReservationId};
+    use gstd::{ReservationId, msg, prelude::*};
 
     #[derive(Default)]
     pub(crate) struct State {

@@ -24,7 +24,7 @@ use common::Origin;
 use demo_proxy_broker::WASM_BINARY;
 use frame_support::{assert_err, assert_ok, dispatch::GetDispatchInfo};
 use gbuiltin_proxy::{ProxyType, Request};
-use gear_core::ids::{prelude::*, ActorId, CodeId};
+use gear_core::ids::{ActorId, CodeId, prelude::*};
 use pallet_balances::Call as BalancesCall;
 use pallet_proxy::{Error as ProxyError, Event as ProxyEvent};
 use parity_scale_codec::Encode;

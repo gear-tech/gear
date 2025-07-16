@@ -24,9 +24,8 @@ use core::{
 use gear_sandbox_host::sandbox::{self as sandbox_env, env::Instantiate};
 use parity_scale_codec::{Decode, Encode};
 use sp_wasm_interface::{
-    util,
+    Caller, FunctionContext, HostPointer, Pointer, StoreData, Value, WordSize, util,
     wasmtime::{AsContext, AsContextMut, Func, Val},
-    Caller, FunctionContext, HostPointer, Pointer, StoreData, Value, WordSize,
 };
 
 struct Sandboxes {

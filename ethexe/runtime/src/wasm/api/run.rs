@@ -21,7 +21,7 @@ use crate::wasm::{
     storage::{NativeRuntimeInterface, RuntimeInterfaceStorage},
 };
 use core_processor::configs::BlockInfo;
-use ethexe_runtime_common::{process_queue, state::Storage, ProgramJournals, RuntimeInterface};
+use ethexe_runtime_common::{ProgramJournals, RuntimeInterface, process_queue, state::Storage};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{ActorId, H256};
 
