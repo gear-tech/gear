@@ -78,6 +78,7 @@ fn propagate_data_from_parent<
     let mut last_committed_batch = db
         .last_committed_batch(parent)
         .ok_or_else(|| ComputeError::LastCommittedBatchNotFound(parent))?;
+    let mut latest_rewarded_era = db.latest_rewarded_era(parent);
 
     for event in events {
         match event {
@@ -107,12 +108,28 @@ fn propagate_data_from_parent<
                     _ => {}
                 }
             }
+            BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
+                // check that era is greater than previous rewarded era
+                if let Some(latest_era) = latest_rewarded_era {
+                    debug_assert!(
+                        *era > latest_era,
+                        "Rewards distributed for the same or earlier era: {} <= {}",
+                        era,
+                        latest_era
+                    );
+                }
+
+                latest_rewarded_era = Some(*era);
+            }
             _ => {}
         }
     }
 
     // Propagate last committed batch
     db.set_last_committed_batch(block, last_committed_batch);
+
+    // Propagate latest rewarded era
+    db.set_latest_rewarded_era(block, latest_rewarded_era);
 
     // Propagate `wait for code validation` blocks queue
     let mut codes_queue = db

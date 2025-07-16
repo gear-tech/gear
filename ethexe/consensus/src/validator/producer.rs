@@ -19,7 +19,10 @@
 use super::{
     coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
 };
-use crate::{rewards::RewardsManager, utils, ConsensusEvent};
+use crate::{
+    rewards::{RewardsManager, RewardsManagerConfig},
+    utils, ConsensusEvent,
+};
 use anyhow::{anyhow, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -32,7 +35,7 @@ use ethexe_common::{
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -191,10 +194,17 @@ impl Producer {
 
     // TODO #4742
     fn aggregate_rewards_commitment(
-        _ctx: &ValidatorContext,
-        _block_hash: H256,
+        ctx: &ValidatorContext,
+        block_hash: H256,
     ) -> Result<Option<RewardsCommitment>> {
-        Ok(None)
+        // Replace with actual implementation
+        let config = RewardsManagerConfig {
+            genesis_timestamp: 0,
+            era_duration: 10,
+            wvara_digets: U256::from(10),
+        };
+        let manager = RewardsManager::new(ctx.db.clone(), config);
+        Ok(manager.create_commitment(block_hash)?)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
