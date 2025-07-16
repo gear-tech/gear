@@ -126,7 +126,7 @@ byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
-cargo_metadata = "0.19.2"
+cargo_metadata = "0.20.0"
 clap = "4.5.8"
 color-eyre = "0.6.3"
 colored = "2.1.0"
@@ -176,7 +176,7 @@ static_init = "1.0.3"
 subxt = "0.37.0"
 subxt-codegen = "0.37.0"
 syn = "2.0.71"
-thiserror = "2.0.12"
+thiserror = { version = "2.0.12", default-features = false }
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
@@ -206,6 +206,7 @@ arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+assert_matches = "1.5.0"
 
 # Published deps
 #
@@ -265,7 +266,6 @@ gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = fals
 junit-common = { path = "utils/junit-common" }
 actor-system-error = { path = "utils/actor-system-error" }
 pallet-gear = { path = "pallets/gear", default-features = false }
-pallet-gear-debug = { path = "pallets/gear-debug", default-features = false }
 pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
 pallet-gear-eth-bridge-primitives = { path = "pallets/gear-eth-bridge/primitives", default-features = false }
 pallet-gear-eth-bridge-rpc = { path = "pallets/gear-eth-bridge/rpc", default-features = false }
@@ -576,6 +576,7 @@ opt-level = "s"
 
 [profile.production]
 inherits = "release"
+strip = true
 
 # Sacrifice compile speed for execution speed by using optimization flags:
 

@@ -30,8 +30,9 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
+    k256::elliptic_curve::rand_core::block,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    Address, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -39,13 +40,13 @@ use ethexe_runtime_common::state::{
 };
 use gear_core::{
     buffer::Payload,
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
     memory::PageBuf,
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[repr(u64)]
 enum Key {
@@ -57,14 +58,15 @@ enum Key {
 
     ProgramToCodeId(ActorId) = 5,
     InstrumentedCode(u32, CodeId) = 6,
-    CodeUploadInfo(CodeId) = 7,
-    CodeValid(CodeId) = 8,
+    CodeMetadata(CodeId) = 7,
+    CodeUploadInfo(CodeId) = 8,
+    CodeValid(CodeId) = 9,
 
-    SignedTransaction(H256) = 9,
+    SignedTransaction(H256) = 10,
 
-    LatestComputedBlock = 10,
-    LatestSyncedBlockHeight = 11,
-    ValidatorSet(u64) = 12,
+    LatestComputedBlock = 11,
+    LatestSyncedBlockHeight = 12,
+    ValidatorSet(H256) = 13,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -91,13 +93,14 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash)
+            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
-            Self::CodeUploadInfo(code_id) | Self::CodeValid(code_id) => {
-                [prefix.as_ref(), code_id.as_ref()].concat()
-            }
+            Self::CodeMetadata(code_id)
+            | Self::CodeUploadInfo(code_id)
+            | Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
 
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
@@ -105,10 +108,6 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-
-            Self::ValidatorSet(era_index) => {
-                [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
-            }
 
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
@@ -275,23 +274,17 @@ impl Database {
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
-    block_synced: bool,
-    block_pre_computed: bool,
-    block_computed: bool,
+    meta: BlockMeta,
     prev_not_empty_block: Option<H256>,
+    last_committed_batch: Option<Digest>,
     commitment_queue: Option<VecDeque<H256>>,
     codes_queue: Option<VecDeque<CodeId>>,
 }
 
 impl BlockMetaStorageRead for Database {
-    fn block_prepared(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_pre_computed)
-            .unwrap_or(false)
-    }
-
-    fn block_computed(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_computed)
-            .unwrap_or(false)
+    fn block_meta(&self, block_hash: H256) -> BlockMeta {
+        self.with_small_data(block_hash, |data| data.meta)
+            .unwrap_or_default()
     }
 
     fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
@@ -304,6 +297,10 @@ impl BlockMetaStorageRead for Database {
 
     fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
         self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
+    }
+
+    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest> {
+        self.with_small_data(block_hash, |data| data.last_committed_batch)?
     }
 
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
@@ -353,14 +350,14 @@ impl BlockMetaStorageRead for Database {
 }
 
 impl BlockMetaStorageWrite for Database {
-    fn set_block_prepared(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set pre-computed");
-        self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
-    }
-
-    fn set_block_computed(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set block computed");
-        self.mutate_small_data(block_hash, |data| data.block_computed = true);
+    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
+    where
+        F: FnOnce(&mut BlockMeta),
+    {
+        log::trace!("For block {block_hash} mutate meta");
+        self.mutate_small_data(block_hash, |data| {
+            f(&mut data.meta);
+        });
     }
 
     fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
@@ -378,6 +375,11 @@ impl BlockMetaStorageWrite for Database {
         self.mutate_small_data(block_hash, |data| {
             data.prev_not_empty_block = Some(prev_not_empty_block_hash)
         });
+    }
+
+    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest) {
+        log::trace!("For block {block_hash} set last committed batch: {batch:?}");
+        self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {
@@ -442,6 +444,15 @@ impl CodesStorageRead for Database {
             })
     }
 
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata> {
+        self.kv
+            .get(&Key::CodeMetadata(code_id).to_bytes())
+            .map(|data| {
+                CodeMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeMetadata`")
+            })
+    }
+
     fn code_valid(&self, code_id: CodeId) -> Option<bool> {
         self.kv
             .get(&Key::CodeValid(code_id).to_bytes())
@@ -470,9 +481,35 @@ impl CodesStorageWrite for Database {
         );
     }
 
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        self.kv.put(
+            &Key::CodeMetadata(code_id).to_bytes(),
+            code_metadata.encode(),
+        );
+    }
+
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
+    }
+
+    fn valid_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValid(Default::default()).prefix();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, valid)| {
+                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
+                let code_id =
+                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
+
+                let valid =
+                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+
+                (code_id, valid)
+            })
+            .filter_map(|(code_id, valid)| valid.then_some(code_id))
+            .collect()
     }
 }
 
@@ -626,11 +663,6 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn block_is_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_synced)
-            .unwrap_or(false)
-    }
-
     fn latest_synced_block_height(&self) -> Option<u32> {
         self.kv
             .get(&Key::LatestSyncedBlockHeight.to_bytes())
@@ -639,9 +671,9 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn validator_set_at(&self, era_index: u64) -> Option<Vec<Address>> {
+    fn validator_set(&self, block_hash: H256) -> Option<Vec<Address>> {
         self.kv
-            .get(&Key::ValidatorSet(era_index).to_bytes())
+            .get(&Key::ValidatorSet(block_hash).to_bytes())
             .map(|data| {
                 Vec::<Address>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `Vec<Address>`")
@@ -664,18 +696,14 @@ impl OnChainStorageWrite for Database {
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
-    fn set_block_is_synced(&self, block_hash: H256) {
-        self.mutate_small_data(block_hash, |data| data.block_synced = true);
-    }
-
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_validator_set(&self, era_index: u64, validator_set: Vec<Address>) {
+    fn set_validator_set(&self, block_hash: H256, validator_set: Vec<Address>) {
         self.kv.put(
-            &Key::ValidatorSet(era_index).to_bytes(),
+            &Key::ValidatorSet(block_hash).to_bytes(),
             validator_set.encode(),
         );
     }
@@ -687,7 +715,7 @@ mod tests {
     use ethexe_common::{
         ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
     };
-    use gear_core::code::InstantiatedSectionSizes;
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_offchain_transaction() {
@@ -990,8 +1018,8 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        db.set_block_is_synced(block_hash);
-        assert!(db.block_is_synced(block_hash));
+        db.mutate_block_meta(block_hash, |meta| meta.synced = true);
+        assert!(db.block_meta(block_hash).synced);
     }
 
     #[test]
@@ -1028,23 +1056,56 @@ mod tests {
 
         let runtime_id = 1;
         let code_id = CodeId::default();
-        let instrumented_code = unsafe {
-            InstrumentedCode::new_unchecked(
-                vec![1, 2, 3, 4],
-                2,
-                Default::default(),
-                0.into(),
-                None,
-                InstantiatedSectionSizes::EMPTY,
-                1,
-            )
-        };
+        let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
+        let instrumented_code = InstrumentedCode::new(vec![1, 2, 3, 4], section_sizes);
         db.set_instrumented_code(runtime_id, code_id, instrumented_code.clone());
         assert_eq!(
             db.instrumented_code(runtime_id, code_id)
                 .as_ref()
-                .map(|c| c.code()),
-            Some(instrumented_code.code())
+                .map(|c| c.bytes()),
+            Some(instrumented_code.bytes())
+        );
+    }
+
+    #[test]
+    fn test_code_metadata() {
+        let db = Database::memory();
+
+        let code_id = CodeId::default();
+        let code_metadata = CodeMetadata::new(
+            1,
+            Default::default(),
+            0.into(),
+            None,
+            InstrumentationStatus::Instrumented {
+                version: 3,
+                code_len: 2,
+            },
+        );
+        db.set_code_metadata(code_id, code_metadata.clone());
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.original_code_len()),
+            Some(code_metadata.original_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumented_code_len()),
+            Some(code_metadata.instrumented_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumentation_status()),
+            Some(code_metadata.instrumentation_status())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instruction_weights_version()),
+            Some(code_metadata.instruction_weights_version())
         );
     }
 

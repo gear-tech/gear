@@ -24,14 +24,13 @@ use alloy::{
 };
 use ethexe_common::{
     db::{CodesStorageRead, OnChainStorageRead},
-    CodeBlobInfo,
+    CodeAndIdUnchecked, CodeBlobInfo,
 };
 use futures::{
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
     FutureExt, Stream, StreamExt,
 };
-use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
 use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
@@ -40,25 +39,8 @@ use tokio::time::{self, Duration};
 pub mod local;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct BlobData {
-    pub code_id: CodeId,
-    pub timestamp: u64,
-    pub code: Vec<u8>,
-}
-
-impl fmt::Debug for BlobData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BlobData")
-            .field("code_id", &self.code_id)
-            .field("timestamp", &self.timestamp)
-            .field("code", &format_args!("{} bytes", self.code.len()))
-            .finish()
-    }
-}
-
-#[derive(Clone, Eq, PartialEq)]
 pub enum BlobLoaderEvent {
-    BlobLoaded(BlobData),
+    BlobLoaded(CodeAndIdUnchecked),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -133,27 +115,15 @@ impl ConsensusLayerBlobReader {
     /// Note: if `attempts` is `None`, it will be trying to read blob only once.
     async fn read_code_from_tx_hash(
         self,
-        expected_code_id: CodeId,
-        timestamp: u64,
+        code_id: CodeId,
         tx_hash: H256,
         attempts: Option<u8>,
-    ) -> Result<BlobData> {
+    ) -> Result<CodeAndIdUnchecked> {
         let code = self.read_blob_from_tx_hash(tx_hash, attempts).await?;
 
-        let code_id = CodeId::generate(&code);
-        if code_id != expected_code_id {
-            return Err(BlobLoaderError::ReadUnexpectedCode {
-                code,
-                code_id,
-                expected_code_id,
-            });
-        }
+        let code_and_id = CodeAndIdUnchecked { code, code_id };
 
-        Ok(BlobData {
-            code_id: expected_code_id,
-            timestamp,
-            code,
-        })
+        Ok(code_and_id)
     }
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
@@ -228,7 +198,7 @@ pub trait Database: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone
 impl<T: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static> Database for T {}
 
 pub struct BlobLoader<DB: Database> {
-    futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
+    futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,
     codes_loading: HashSet<CodeId>,
 
     blobs_reader: ConsensusLayerBlobReader,
@@ -242,18 +212,13 @@ impl<DB: Database> Stream for BlobLoader<DB> {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let future = self.futures.poll_next_unpin(cx);
-        match future {
-            Poll::Ready(Some(result)) => match result {
-                Ok(blob_data) => {
-                    let code_id = &blob_data.code_id;
-                    self.codes_loading.remove(code_id);
-                    Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(blob_data))))
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            _ => Poll::Pending,
-        }
+        let res = futures::ready!(self.futures.poll_next_unpin(cx)).map(|result| {
+            let code_and_id = result?;
+            self.codes_loading.remove(&code_and_id.code_id);
+            Ok(BlobLoaderEvent::BlobLoaded(code_and_id))
+        });
+
+        res.map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
     }
 }
 
@@ -296,34 +261,22 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                 continue;
             }
 
-            let CodeBlobInfo { timestamp, tx_hash } = self
+            let CodeBlobInfo { tx_hash, .. } = self
                 .db
                 .code_blob_info(code_id)
                 .ok_or(BlobLoaderError::CodeBlobInfoNotFound(code_id))?;
 
             if let Some(code) = self.db.original_code(code_id) {
                 log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
-                self.futures.push(
-                    futures::future::ready(Ok(BlobData {
-                        code_id,
-                        timestamp,
-                        code,
-                    }))
-                    .boxed(),
-                );
+                self.futures
+                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
                 continue;
             }
 
             if let Some(code) = self.db.original_code(code_id) {
                 log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
-                self.futures.push(
-                    futures::future::ready(Ok(BlobData {
-                        code_id,
-                        timestamp,
-                        code,
-                    }))
-                    .boxed(),
-                );
+                self.futures
+                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
                 continue;
             }
 
@@ -331,7 +284,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
             self.futures.push(
                 self.blobs_reader
                     .clone()
-                    .read_code_from_tx_hash(code_id, timestamp, tx_hash, attempts)
+                    .read_code_from_tx_hash(code_id, tx_hash, attempts)
                     .boxed(),
             );
         }

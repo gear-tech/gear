@@ -11,11 +11,12 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+enum-iterator.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
 scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
-derive_more.workspace = true
-enum-iterator.workspace = true
+thiserror.workspace = true
 
 [features]
-codec = ["scale-info"]
+codec = ["parity-scale-codec", "scale-info"]
 serde = ["dep:serde"]

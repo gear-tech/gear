@@ -25,7 +25,11 @@ use alloy::{
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{gear::Timelines, Address, BlockHeader, SimpleBlockData};
+use ethexe_common::{
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+    gear::Timelines,
+    Address, BlockHeader, SimpleBlockData,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
@@ -89,10 +93,11 @@ struct RouterConfig {
 
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
+    router_address: Address,
+    wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
-    router_config: RouterConfig,
 }
 
 // TODO #4552: make tests for observer service
@@ -190,7 +195,7 @@ impl ObserverService {
         let router_query = RouterQuery::new(rpc, *router_address).await?;
 
         let wvara_address = Address(router_query.wvara_address().await?.0 .0);
-        let timelines = router_query.timelines().await?;
+        // let timelines = router_query.timelines().await?;
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -206,26 +211,19 @@ impl ObserverService {
             .context("failed to subscribe blocks")?
             .into_stream();
 
-        let router_config = RouterConfig {
+        let config = RuntimeConfig {
             router_address: *router_address,
             wvara_address,
-            genesis_block: genesis_header,
-            timelines,
-        };
-
-        let config = RuntimeConfig {
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
             block_time: *block_time,
-            router_config: router_config.clone(),
         };
 
         let chain_sync = ChainSync {
             db,
             provider: provider.clone(),
             config: config.clone(),
-            router_config,
         };
 
         Ok(Self {
@@ -245,21 +243,17 @@ impl ObserverService {
     // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db(
-        db: &Database,
+    async fn pre_process_genesis_for_db<
+        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageWrite,
+    >(
+        db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<BlockHeader> {
-        use ethexe_common::db::{
-            BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
-        };
-
+    ) -> Result<()> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_computed(genesis_block_hash) {
-            return db.block_header(genesis_block_hash).ok_or(anyhow!(
-                "Genesis block with hash {genesis_block_hash:?} already exists in the database"
-            ));
+        if db.block_meta(genesis_block_hash).computed {
+            return Ok(());
         }
 
         let genesis_block = provider
@@ -278,18 +272,22 @@ impl ObserverService {
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
-        db.set_block_is_synced(genesis_block_hash);
+        db.mutate_block_meta(genesis_block_hash, |meta| {
+            meta.computed = true;
+            meta.prepared = true;
+            meta.synced = true;
+        });
 
         db.set_block_commitment_queue(genesis_block_hash, Default::default());
         db.set_block_codes_queue(genesis_block_hash, Default::default());
         db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
+        db.set_last_committed_batch(genesis_block_hash, Default::default());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header.clone());
-        db.set_block_computed(genesis_block_hash);
+        db.set_latest_computed_block(genesis_block_hash, genesis_header);
 
-        Ok(genesis_header)
+        Ok(())
     }
 
     pub fn provider(&self) -> &RootProvider {

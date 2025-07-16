@@ -25,7 +25,7 @@ use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
 use std::{
-    collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
+    collections::btree_map::BTreeMap, env, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
     sync::OnceLock,
 };
 use wasmer::{
@@ -47,7 +47,26 @@ fn cache_base_path() -> PathBuf {
     static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
     CACHE_DIR
         .get_or_init(|| {
+            // We acquire workspace root dir during runtime and compile-time.
+            //
+            // During development, runtime workspace dir equals to compile-time one,
+            // so all compiled WASMs are cached in usual `OUT_DIR`
+            // like we don't rewrite it.
+            //
+            // During cross-compile, runtime workspace dir differs from compile-time one and
+            // accordingly `OUT_DIR` beginning differs too,
+            // so we change its beginning to successfully run tests.
+            //
+            // `OUT_DIR` is used for caching instead of some platform-specific project folder to
+            // not maintain ever-growing number of cached WASMs
+
+            let runtime_workspace_dir = PathBuf::from(env::var("GEAR_WORKSPACE_DIR").unwrap());
+            let compiled_workspace_dir = PathBuf::from(env!("GEAR_WORKSPACE_DIR"));
+
             let out_dir = PathBuf::from(env!("OUT_DIR"));
+            let out_dir = pathdiff::diff_paths(out_dir, compiled_workspace_dir).unwrap();
+            let out_dir = runtime_workspace_dir.join(out_dir);
+
             let cache = out_dir.join("wasmer-cache");
             fs::create_dir_all(&cache).unwrap();
             cache

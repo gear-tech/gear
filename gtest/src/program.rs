@@ -20,15 +20,17 @@ use crate::{
     default_users_list,
     error::usage_panic,
     manager::ExtManager,
-    state::actors::{Actors, GenuineProgram, Program as InnerProgram, TestActor},
+    state::programs::{ProgramsStorageManager, PLACEHOLDER_MESSAGE_ID},
     system::System,
-    Result, Value, MAX_USER_GAS_LIMIT,
+    BlockNumber, Result, Value, MAX_USER_GAS_LIMIT,
 };
+use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCode, InstrumentedCodeAndId},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     gas_metering::Schedule,
     ids::{prelude::*, ActorId, CodeId, MessageId},
     message::{Dispatch, DispatchKind, Message},
+    program::{ActiveProgram, Program as InnerProgram, ProgramState},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
@@ -43,39 +45,6 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
-
-/// Trait for mocking gear programs.
-///
-/// See [`Program`] and [`Program::mock`] for the usages.
-pub trait WasmProgram: Debug {
-    /// Init wasm program with given `payload`.
-    ///
-    /// Returns `Ok(Some(payload))` if program has reply logic
-    /// with given `payload`.
-    ///
-    /// If error occurs, the program will be terminated which
-    /// means that `handle` and `handle_reply` will not be
-    /// called.
-    fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Message handler with given `payload`.
-    ///
-    /// Returns `Ok(Some(payload))` if program has reply logic.
-    fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Reply message handler with given `payload`.
-    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// Signal handler with given `payload`.
-    fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    /// State of wasm program.
-    ///
-    /// See [`Program::read_state`] for the usage.
-    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
-    /// Emit debug message in program with given `data`.
-    ///
-    /// Logging target `gwasm` is used in this method.
-    fn debug(&mut self, data: &str) {
-        log::debug!(target: "gwasm", "{data}");
-    }
-}
 
 /// Wrapper for program id.
 #[derive(Clone, Debug)]
@@ -238,8 +207,7 @@ impl ProgramBuilder {
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code, code_id) = Self::build_instrumented_code_and_id(self.code.clone());
-
+        let code_id = CodeId::generate(&self.code);
         system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
@@ -249,14 +217,20 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
+        // Expiration block logic isn't yet fully implemented in Gear protocol,
+        // so we set it to the current block height.
+        let expiration_block = system.block_height();
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Genuine(GenuineProgram {
-                code,
-                code_id,
-                allocations: Default::default(),
-                pages_data: Default::default(),
+            InnerProgram::Active(ActiveProgram {
+                allocations_tree_len: 0,
+                code_id: code_id.cast(),
+                state: ProgramState::Uninitialized {
+                    message_id: PLACEHOLDER_MESSAGE_ID,
+                },
+                expiration_block,
+                memory_infix: Default::default(),
                 gas_reservation_map: Default::default(),
             }),
         )
@@ -264,7 +238,7 @@ impl ProgramBuilder {
 
     pub(crate) fn build_instrumented_code_and_id(
         original_code: Vec<u8>,
-    ) -> (InstrumentedCode, CodeId) {
+    ) -> (CodeId, InstrumentedCodeAndMetadata) {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
@@ -275,7 +249,9 @@ impl ProgramBuilder {
         )
         .expect("Failed to create Program from provided code");
 
-        InstrumentedCodeAndId::from(CodeAndId::new(code)).into_parts()
+        let (code, code_id) = CodeAndId::new(code).into_parts();
+
+        (code_id, code.into())
     }
 }
 
@@ -298,11 +274,12 @@ pub struct Program<'a> {
     pub(crate) id: ActorId,
 }
 
+/// Program creation related impl.
 impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram,
+        program: InnerProgram<BlockNumber>,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -316,7 +293,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .store_new_actor(program_id, program, None)
+            .store_new_actor(program_id, program)
             .is_some()
         {
             usage_panic!(
@@ -374,27 +351,6 @@ impl<'a> Program<'a> {
         ProgramBuilder::from_binary(binary)
             .with_id(id)
             .build(system)
-    }
-
-    /// Mock a program with provided `system` and `mock`.
-    ///
-    /// See [`WasmProgram`] for more details.
-    pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
-        let nonce = system.0.borrow_mut().free_id_nonce();
-
-        Self::mock_with_id(system, nonce, mock)
-    }
-
-    /// Create a mock program with provided `system` and `mock`,
-    /// and initialize it with provided `id`.
-    ///
-    /// See also [`Program::mock`].
-    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
-    where
-        T: WasmProgram + 'static,
-        ID: Into<ProgramIdWrapper> + Clone + Debug,
-    {
-        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
     /// Send message to the program.
@@ -497,19 +453,29 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let kind = Actors::modify(self.id, |actor| {
-            let actor = actor.expect("Can't fail");
-            if let TestActor::Uninitialized(id @ None, _) = actor {
-                *id = Some(message.id());
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
+        let kind = ProgramsStorageManager::modify_program(self.id, |program| {
+            let program = program.expect("Can't fail");
+            let InnerProgram::Active(active_program) = program else {
+                usage_panic!("Program with id {} is not active - {program:?}", self.id);
+            };
+            match active_program.state {
+                ProgramState::Uninitialized { ref mut message_id }
+                    if *message_id == PLACEHOLDER_MESSAGE_ID =>
+                {
+                    *message_id = message.id();
+
+                    DispatchKind::Init
+                }
+                _ => DispatchKind::Handle,
             }
         });
 
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
+}
 
+/// Program misc ops impl.
+impl Program<'_> {
     /// Get program id.
     pub fn id(&self) -> ActorId {
         self.id
@@ -517,9 +483,7 @@ impl<'a> Program<'a> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .read_state_bytes(payload, &self.id)
+        self.manager.borrow_mut().read_state_bytes(payload, self.id)
     }
 
     /// Reads and decodes the program's state .
@@ -530,14 +494,14 @@ impl<'a> Program<'a> {
 
     /// Returns the balance of the account.
     pub fn balance(&self) -> Value {
-        self.manager.borrow().balance_of(&self.id())
+        self.manager.borrow().balance_of(self.id())
     }
 
     /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
-        let mem = manager.read_memory_pages(&self.id);
-        let balance = manager.balance_of(&self.id);
+        let mem = manager.read_memory_pages(self.id);
+        let balance = manager.balance_of(self.id);
 
         ProgramMemoryDump {
             balance,
@@ -566,12 +530,8 @@ impl<'a> Program<'a> {
             .balance
             .saturating_add(memory_dump.reserved_balance);
 
-        self.manager
-            .borrow_mut()
-            .update_storage_pages(&self.id, mem);
-        self.manager
-            .borrow_mut()
-            .override_balance(&self.id, balance);
+        self.manager.borrow_mut().update_storage_pages(self.id, mem);
+        self.manager.borrow_mut().override_balance(self.id, balance);
     }
 }
 
@@ -1148,9 +1108,9 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_genuine_program(prog.id(), |genuine_prog| {
-                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
-                genuine_prog
+            .update_program(prog.id(), |active_prog| {
+                assert_eq!(active_prog.gas_reservation_map.len(), 1);
+                active_prog
                     .gas_reservation_map
                     .iter()
                     .next()
@@ -1197,9 +1157,9 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_genuine_program(prog.id(), |genuine_prog| {
-                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
-                genuine_prog
+            .update_program(prog.id(), |active_prog| {
+                assert_eq!(active_prog.gas_reservation_map.len(), 1);
+                active_prog
                     .gas_reservation_map
                     .iter()
                     .next()
