@@ -17,17 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, ActorId, MessageId},
+    ids::{ActorId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message, SignalDetails},
 };
 use gear_core_errors::SignalCode;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Message for signal entry point.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SignalMessage {
     /// Message id.
     id: MessageId,

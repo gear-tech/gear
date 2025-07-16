@@ -110,7 +110,6 @@ pallet-gear-messenger.workspace = true
 pallet-gear-program.workspace = true
 pallet-gear.workspace = true
 pallet-gear-bank.workspace = true
-pallet-gear-debug = { workspace = true, optional = true }
 pallet-gear-gas.workspace = true
 pallet-gear-payment.workspace = true
 pallet-gear-builtin.workspace = true
@@ -163,7 +162,6 @@ std = [
     "pallet-gear-gas/std",
     "pallet-gear/std",
     "pallet-gear-bank/std",
-    "pallet-gear-debug?/std",
     "pallet-gear-messenger/std",
     "pallet-gear-payment/std",
     "pallet-gear-program/std",
@@ -259,7 +257,6 @@ try-runtime = [
     "pallet-gear-builtin/try-runtime",
     "pallet-gear-eth-bridge?/try-runtime",
     "pallet-gear-voucher/try-runtime",
-    "pallet-gear-debug?/try-runtime",
     "pallet-authority-discovery/try-runtime",
     "pallet-authorship/try-runtime",
     "pallet-babe/try-runtime",
@@ -293,5 +290,5 @@ try-runtime = [
     "pallet-bags-list/try-runtime",
     "gear-runtime-common/try-runtime",
 ]
-dev = ["pallet-gear-debug", "pallet-gear-eth-bridge", "pallet-sudo", "pallet-gear-eth-bridge/dev"]
+dev = ["pallet-gear-eth-bridge", "pallet-sudo", "pallet-gear/dev", "pallet-gear-eth-bridge/dev"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]

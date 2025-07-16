@@ -1,0 +1,91 @@
+name: setup-compilation-env
+
+inputs:
+  target:
+    description: "Rust build target"
+    required: true
+  token:
+    description: 'GitHub token'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: "Install: Rust target"
+      run: |
+        rustup target add ${{ inputs.target }}
+        echo "CARGO_BUILD_TARGET=${{ inputs.target }}" >> $GITHUB_ENV
+      shell: bash
+
+    - name: "Install: macOS aarch64 packages"
+      if: runner.os == 'macOS'
+      run: brew install protobuf binaryen
+      shell: bash
+
+    - name: "Install: apt-fast on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      run: /bin/bash -c "$(curl -sL https://git.io/vokNn)"
+      shell: bash
+
+    - name: "Install: Linux packages"
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-fast update
+        sudo apt-fast install -y protobuf-compiler binaryen
+      shell: bash
+
+    - name: "Install: Linux cross compilers"
+      if: runner.arch == 'ARM64' && runner.os == 'Linux'
+      run: |
+        sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
+        sudo dpkg --add-architecture amd64
+        sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
+        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+        EOF
+        
+        sudo apt-fast update
+        sudo apt-fast install -y gcc-x86-64-linux-gnu g++-x86-64-linux-gnu pkg-config
+        
+        echo "CC_x86_64-unknown-linux-gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "CXX_x86_64-unknown-linux-gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
+        
+        echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
+        echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+      shell: bash
+
+    - name: "Install: cargo-xwin"
+      if: inputs.target == 'x86_64-pc-windows-msvc'
+      uses: ./.github/actions/install-cargo-xwin
+      with:
+        token: ${{ inputs.token }}
+
+    - name: "Install: Windows packages"
+      if: inputs.target == 'x86_64-pc-windows-msvc'
+      run: |
+        if ! [[ "${{ runner.os }}" == "Linux" ]]; then
+          echo "Linux runner expected for 'x86_64-pc-windows-msvc' target"
+          exit 1
+        fi
+        
+        sudo apt-fast update
+        sudo apt-fast install -y protobuf-compiler binaryen innoextract
+
+        wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
+        innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
+        
+        echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+        echo "OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
+        echo "OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
+        
+        cargo xwin env | sed -e 's/^export //' -e 's/;$//' -e 's/="\(.*\)"$/=\1/' >> $GITHUB_ENV
+      shell: bash
+
+    - name: "Install: Dev Drive"
+      if: runner.os == 'Windows'
+      uses: samypr100/setup-dev-drive@v3
+      with:
+        drive-size: 50GB
+        mount-path: ${{ github.workspace }}/target

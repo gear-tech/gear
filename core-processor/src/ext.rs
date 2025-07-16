@@ -32,7 +32,7 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -41,19 +41,19 @@ use gear_core::{
         InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
-        numerated::{interval::Interval, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount,
+        numerated::{interval::Interval, tree::IntervalsTree},
     },
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
     },
-    BackendExternalities,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
@@ -107,13 +107,17 @@ pub struct ProcessorContext {
 impl ProcessorContext {
     /// Create new mock [`ProcessorContext`] for usage in tests.
     pub fn new_mock() -> ProcessorContext {
+        use gear_core::message::IncomingDispatch;
+
         const MAX_RESERVATIONS: u64 = 256;
+
+        let incoming_dispatch = IncomingDispatch::default();
 
         ProcessorContext {
             gas_counter: GasCounter::new(0),
             gas_allowance_counter: GasAllowanceCounter::new(0),
             gas_reserver: GasReserver::new(
-                &Default::default(),
+                &incoming_dispatch,
                 Default::default(),
                 MAX_RESERVATIONS,
             ),
@@ -128,7 +132,7 @@ impl ProcessorContext {
             )
             .unwrap(),
             message_context: MessageContext::new(
-                Default::default(),
+                incoming_dispatch,
                 Default::default(),
                 Default::default(),
             ),
@@ -1436,7 +1440,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use gear_core::{
-        buffer::{Payload, MAX_PAYLOAD_SIZE},
+        buffer::{MAX_PAYLOAD_SIZE, Payload},
         costs::{CostOf, RentCosts, SyscallCosts},
         message::{ContextSettings, IncomingDispatch, IncomingMessage},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
@@ -1822,7 +1826,8 @@ mod tests {
             ))
         );
 
-        let msg = ext.send_commit(handle, HandlePacket::default(), 0);
+        let data = HandlePacket::default();
+        let msg = ext.send_commit(handle, data, 0);
         assert!(msg.is_ok());
 
         let res = ext.send_push_input(handle, 0, 1);
@@ -2065,10 +2070,12 @@ mod tests {
         // creating reservation to be used
         let reservation_id = ext.reserve_gas(1_000_000, 1_000).expect("Shouldn't fail");
 
+        let data = HandlePacket::default();
+
         // this one fails due to absence of init nonce, BUT [bug] marks reservation used,
         // so another `reservation_send_commit` fails due to used reservation.
         assert_eq!(
-            ext.reservation_send_commit(reservation_id, u32::MAX, Default::default(), 0)
+            ext.reservation_send_commit(reservation_id, u32::MAX, data, 0)
                 .unwrap_err(),
             MessageError::OutOfBounds.into()
         );
@@ -2076,7 +2083,8 @@ mod tests {
         // initializing send message
         let i = ext.send_init().expect("Shouldn't fail");
 
-        let res = ext.reservation_send_commit(reservation_id, i, Default::default(), 0);
+        let data = HandlePacket::default();
+        let res = ext.reservation_send_commit(reservation_id, i, data, 0);
         assert!(res.is_ok());
     }
 
@@ -2195,7 +2203,6 @@ mod tests {
         );
 
         let data = InitPacket::default();
-
         let msg = ext.create_program(data.clone(), 0);
         assert_eq!(
             msg.unwrap_err(),
@@ -2308,12 +2315,13 @@ mod tests {
         );
 
         // Check all the reseravations are in "existing" state.
-        assert!(ext
-            .context
-            .gas_reserver
-            .states()
-            .iter()
-            .all(|(_, state)| matches!(state, GasReservationState::Exists { .. })));
+        assert!(
+            ext.context
+                .gas_reserver
+                .states()
+                .iter()
+                .all(|(_, state)| matches!(state, GasReservationState::Exists { .. }))
+        );
 
         // Unreserving existing and checking no gas reimbursed.
         let gas_before = ext.gas_amount();

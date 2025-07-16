@@ -18,8 +18,8 @@
 
 use super::*;
 use core_processor::{
-    common::{DispatchResult, SuccessfulDispatchResultKind},
     ContextCharged, ProcessExecutionContext,
+    common::{DispatchResult, SuccessfulDispatchResultKind},
 };
 use gear_core::{code::InstrumentedCodeAndMetadata, program::ProgramState};
 
@@ -93,7 +93,7 @@ where
         }
 
         // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or init message.
+        // to process message, if it's a reply (async init case) or init message.
         // Otherwise, we return error reply.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
@@ -299,10 +299,6 @@ where
 
         let block_config = Self::block_config();
 
-        if T::DebugInfo::is_remap_id_enabled() {
-            T::DebugInfo::remap_id();
-        }
-
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue() {
                 Ok(Some(d)) => d,
@@ -336,16 +332,6 @@ where
                 gas_limit,
                 GasAllowanceOf::<T>::get(),
             );
-
-            let _guard = scopeguard::guard((), |_| {
-                if T::DebugInfo::is_enabled() {
-                    T::DebugInfo::do_snapshot();
-                }
-
-                if T::DebugInfo::is_remap_id_enabled() {
-                    T::DebugInfo::remap_id();
-                }
-            });
 
             let program_id = dispatch.destination();
 

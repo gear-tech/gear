@@ -41,10 +41,10 @@
 //! the program execution and enqueued after the execution successfully ends.
 
 use crate::{
+    ActorId, MessageHandle, MessageId,
     errors::{Error, Result, SyscallError},
     stack_buffer,
     utils::AsRawPtr,
-    ActorId, MessageHandle, MessageId,
 };
 use gear_core_errors::ReplyCode;
 use gsys::{ErrorWithHandle, ErrorWithHash, ErrorWithReplyCode, HashWithValue};
@@ -122,7 +122,7 @@ pub fn signal_code() -> Result<Option<SignalCode>> {
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, MessageId};
+/// use gcore::{MessageId, msg};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {

@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, BatchCommitter, StateHandler, ValidatorContext, ValidatorState};
-use crate::{utils::MultisignedBatchCommitment, ConsensusEvent};
+use super::{BatchCommitter, StateHandler, ValidatorContext, ValidatorState, initial::Initial};
+use crate::{ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
 use ethexe_ethereum::router::Router;
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
 use std::task::{Context, Poll};
 
@@ -108,14 +108,7 @@ mod tests {
     #[tokio::test]
     async fn submitter() {
         let (ctx, _) = mock_validator_context();
-        let batch = BatchCommitment {
-            code_commitments: vec![mock_code_commitment(), mock_code_commitment()],
-            block_commitments: vec![
-                mock_block_commitment(H256::random(), H256::random(), H256::random()).1,
-            ],
-            rewards_commitments: vec![],
-        };
-
+        let batch = BatchCommitment::mock(());
         let multisigned_batch =
             MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)
                 .unwrap();

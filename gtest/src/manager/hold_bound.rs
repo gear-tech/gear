@@ -20,8 +20,8 @@
 //! holding data.
 
 use super::ExtManager;
-use crate::RESERVE_FOR;
-use gear_common::{auxiliary::BlockNumber, scheduler::StorageType, LockId, MessageId};
+use crate::{RESERVE_FOR, constants::BlockNumber};
+use gear_common::{LockId, MessageId, scheduler::StorageType};
 use std::cmp::Ordering;
 
 /// Hold bound, specifying cost of storage, expected block number for task to

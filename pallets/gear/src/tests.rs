@@ -17,24 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
+    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
+    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
     builtin::BuiltinDispatcherFactory,
     internal::{HoldBound, HoldBoundBuilder, InheritorForError},
     manager::HandleKind,
     mock::{
-        self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
-        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
-        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
+        self, BLOCK_AUTHOR, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
+        LOW_BALANCE_USER, RENT_POOL, RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test,
+        USER_1, USER_2, USER_3, new_test_ext, run_for_blocks, run_to_block,
+        run_to_block_maybe_with_queue, run_to_next_block,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
-    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
-    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
-    Origin as _, Program, ProgramStorage, ReservableTree,
+    CodeStorage, GasTree, GearPage, LockId, LockableTree, Origin as _, Program, ProgramStorage,
+    ReservableTree, event::*, scheduler::*, storage::*,
 };
 use demo_constructor::{Calls, Scheme};
 use frame_support::{
@@ -49,14 +49,15 @@ use gear_core::{
         self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
+    memory::PageBuf,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         StoredDispatch, UserStoredMessage,
     },
     pages::{
+        WasmPage, WasmPagesAmount,
         numerated::{self, tree::IntervalsTree},
-        WasmPage,
     },
     program::ActiveProgram,
     rpc::ReplyInfo,
@@ -72,9 +73,9 @@ use gstd::{
 use pallet_gear_voucher::PrepaidCall;
 use sp_core::H256;
 use sp_runtime::{
+    SaturatedConversion,
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
-    SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
 use std::{collections::BTreeSet, num::NonZero};
@@ -669,37 +670,41 @@ fn calculate_gas_delayed_reservations_sending() {
         assert!(Gear::is_initialized(pid));
 
         // I. In-place case
-        assert!(Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
-                reservation_delay: 1_000,
-                sending_delay: 10,
-            }
-            .encode(),
-            0,
-            true,
-            true,
-        )
-        .is_ok());
+        assert!(
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                ReservationSendingShowcase::ToSourceInPlace {
+                    reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                    reservation_delay: 1_000,
+                    sending_delay: 10,
+                }
+                .encode(),
+                0,
+                true,
+                true,
+            )
+            .is_ok()
+        );
 
         // II. After-wait case (never failed before, added for test coverage).
-        assert!(Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            ReservationSendingShowcase::ToSourceAfterWait {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
-                reservation_delay: 1_000,
-                wait_for: 3,
-                sending_delay: 10,
-            }
-            .encode(),
-            0,
-            true,
-            true,
-        )
-        .is_ok());
+        assert!(
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                ReservationSendingShowcase::ToSourceAfterWait {
+                    reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                    reservation_delay: 1_000,
+                    wait_for: 3,
+                    sending_delay: 10,
+                }
+                .encode(),
+                0,
+                true,
+                true,
+            )
+            .is_ok()
+        );
     });
 }
 
@@ -1215,7 +1220,7 @@ fn auto_reply_from_user_no_mailbox() {
 #[test]
 fn auto_reply_out_of_rent_waitlist() {
     use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY as WAITER_WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY as WAITER_WASM_BINARY, WaitSubcommand};
 
     init_logger();
 
@@ -2039,7 +2044,7 @@ fn terminated_program_zero_gas() {
 
 #[test]
 fn exited_program_zero_gas_and_value() {
-    use crate::{fungible, Fortitude, Preservation};
+    use crate::{Fortitude, Preservation, fungible};
 
     init_logger();
 
@@ -2789,7 +2794,7 @@ fn read_state_works() {
 
 #[test]
 fn mailbox_rent_out_of_rent() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2879,7 +2884,7 @@ fn mailbox_rent_out_of_rent() {
 
 #[test]
 fn mailbox_rent_claimed() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2969,7 +2974,7 @@ fn mailbox_rent_claimed() {
 
 #[test]
 fn mailbox_sending_instant_transfer() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5298,7 +5303,7 @@ fn wake_messages_after_program_inited() {
 
 #[test]
 fn test_different_waits_success() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5452,7 +5457,7 @@ fn test_different_waits_success() {
 
 #[test]
 fn test_different_waits_fail() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5655,7 +5660,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn wait_after_reply() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     let test = |subcommand: WaitSubcommand| {
         new_test_ext().execute_with(|| {
@@ -5929,8 +5934,10 @@ fn test_wait_timeout() {
         run_to_next_block(None);
 
         // Timeout still works.
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
     })
 }
 
@@ -5987,15 +5994,19 @@ fn test_join_wait_timeout() {
         //
         // The timeout message has not been triggered yet.
         run_to_target(targets[0]);
-        assert!(!MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            !MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
 
         // Run to the end of the second duration.
         //
         // The timeout message has been triggered.
         run_to_target(targets[1]);
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
     })
 }
 
@@ -6048,8 +6059,10 @@ fn test_select_wait_timeout() {
         Gear::set_block_number(target);
         run_to_next_block(None);
 
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
     })
 }
 
@@ -6115,8 +6128,10 @@ fn test_wait_lost() {
         //
         // The timeout message has been triggered.
         run_to_target(targets[0]);
-        assert!(!MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable"));
+        assert!(
+            !MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable")
+        );
 
         // Run to the end of the second duration.
         //
@@ -6125,8 +6140,10 @@ fn test_wait_lost() {
         assert!(
             MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"timeout")
         );
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2")
+        );
         assert!(
             MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"success")
         );
@@ -6238,7 +6255,7 @@ fn exit_locking_funds() {
 
 #[test]
 fn frozen_funds_remain_on_exit() {
-    use crate::{fungible, Fortitude, Preservation};
+    use crate::{Fortitude, Preservation, fungible};
     use demo_constructor::{Calls, Scheme};
     use frame_support::traits::{LockableCurrency, WithdrawReasons};
 
@@ -6421,10 +6438,11 @@ fn terminated_locking_funds() {
         // Value, which will be returned to `USER1` after init message processing complete.
         let returned_from_system_reservation = gas_price(system_reservation);
 
-        // Because we set gas for init message second execution only for resources loading, then
-        // after execution system reserved gas and sent value and price for wait list must be returned
-        // to user. This is because program will stop his execution on first wasm block, because of gas
-        // limit exceeded. So, gas counter will be equal to amount of returned from wait list gas in handle reply.
+        // Since we set the gas for the second execution of the init message only for resource loading,
+        // after execution, the system-reserved gas, the sent value, and the price for the waitlist must
+        // be returned to the user. This is because the program will stop its execution on the first wasm
+        // block due to exceeding the gas limit. Therefore, the gas counter will equal the amount of gas
+        // returned from the waitlist in the handle reply.
         let expected_balance_difference =
             prog_free + returned_from_wait_list + returned_from_system_reservation + ed;
 
@@ -6705,7 +6723,7 @@ fn test_sequence_inheritor_of() {
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.cast());
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = Program::Exited(inheritor);
                 } else {
                     *program = Program::Terminated(inheritor);
@@ -6796,7 +6814,7 @@ fn test_cyclic_inheritor_of() {
                     .last()
                     .copied()
                     .unwrap_or_else(|| 2099.into());
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = Program::Exited(inheritor);
                 } else {
                     *program = Program::Terminated(inheritor);
@@ -7108,8 +7126,8 @@ fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
         use demo_custom::{
-            btree::{Request, StateRequest},
             InitMessage, WASM_BINARY,
+            btree::{Request, StateRequest},
         };
 
         let code = WASM_BINARY;
@@ -7423,7 +7441,7 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use demo_constructor::{demo_exit_handle, WASM_BINARY};
+    use demo_constructor::{WASM_BINARY, demo_exit_handle};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7737,7 +7755,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
+    use demo_custom::{InitMessage, WASM_BINARY, btree::Request};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8701,7 +8719,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn free_storage_hold_on_scheduler_overwhelm() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13024,7 +13042,7 @@ fn check_reply_push_payload_exceed() {
 /// Check that random works and it's changing on next epoch.
 #[test]
 fn check_random_works() {
-    use blake2::{digest::typenum::U32, Blake2b, Digest};
+    use blake2::{Blake2b, Digest, digest::typenum::U32};
 
     /// BLAKE2b-256 hasher state.
     type Blake2b256 = Blake2b<U32>;
@@ -15366,7 +15384,7 @@ fn allocate_in_init_free_in_handle() {
 
 #[test]
 fn create_program_with_reentrance_works() {
-    use crate::{fungible, Fortitude, Preservation};
+    use crate::{Fortitude, Preservation, fungible};
     use demo_constructor::demo_ping;
     use demo_create_program_reentrance::WASM_BINARY;
     use demo_distributor::WASM_BINARY as CHILD_WASM_BINARY;
@@ -15710,45 +15728,643 @@ fn use_big_memory() {
     });
 }
 
+#[test]
+fn vec() {
+    use demo_vec::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(1),
+            WASM_BINARY.to_vec(),
+            b"salt".to_vec(),
+            vec![],
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        let vec_id = get_last_program_id();
+
+        run_to_next_block(None);
+
+        let code_id = CodeId::generate(WASM_BINARY);
+
+        let code_metadata = <Test as Config>::CodeStorage::get_code_metadata(code_id)
+            .expect("code should be in the storage");
+
+        let static_pages = code_metadata.static_pages();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(1),
+            vec_id,
+            131072i32.encode(),
+            10_000_000_000,
+            0,
+            false,
+        ));
+
+        run_to_next_block(None);
+
+        let reply = maybe_last_message(1).expect("Should be");
+        assert_eq!(reply.payload_bytes(), 131072i32.encode());
+
+        assert!(QueueOf::<Test>::is_empty());
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(vec_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        assert_eq!(program.code_id, code_id);
+
+        let pages = ProgramStorageOf::<Test>::get_program_pages_data(vec_id, program.memory_infix)
+            .expect("Program pages data not found")
+            .keys()
+            .fold(BTreeSet::new(), |mut set, page| {
+                let wasm_page: WasmPage = page.to_page();
+                if wasm_page >= static_pages {
+                    set.insert(u32::from(wasm_page));
+                }
+                set
+            });
+
+        let pages = pages.into_iter().collect::<Vec<_>>();
+        assert_eq!(pages, vec![17, 18]);
+    });
+}
+
+#[test]
+fn check_not_allocated_pages() {
+    // Currently we has no mechanism to restrict not allocated pages access during wasm execution
+    // (this is true only for pages, which is laying inside allocated wasm memory,
+    //  but which is not marked as allocated for program)
+    // So, the test checks, that these pages can be used during execution,
+    // but wont' be updated or uploaded to storage after execution.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                (local $i i32)
+
+                ;; alloc 8 pages, so mem pages are: 0..=7
+                (block
+                    i32.const 8
+                    call $alloc
+                    i32.eqz
+                    br_if 0
+                    unreachable
+                )
+
+                ;; free all pages between 0 and 7
+                (loop
+                    local.get $i
+                    i32.const 1
+                    i32.add
+                    local.set $i
+
+                    local.get $i
+                    call $free
+                    drop
+
+                    local.get $i
+                    i32.const 6
+                    i32.ne
+                    br_if 0
+                )
+
+                ;; write data in all pages, even in free one
+                i32.const 0
+                local.set $i
+                (loop
+                    local.get $i
+                    i32.const 0x10000
+                    i32.mul
+                    i32.const 0x42
+                    i32.store
+
+                    local.get $i
+                    i32.const 1
+                    i32.add
+                    local.set $i
+
+                    local.get $i
+                    i32.const 8
+                    i32.ne
+                    br_if 0
+                )
+            )
+            (func $handle
+                (local $i i32)
+
+                ;; checks that all not allocated pages (0..=6) has zero values
+                ;; !!! currently we can use not allocated pages during execution
+                (loop
+                    local.get $i
+                    i32.const 1
+                    i32.add
+                    local.set $i
+
+                    (block
+                        local.get $i
+                        i32.const 0x10000
+                        i32.mul
+                        i32.load
+                        i32.eqz
+                        br_if 0
+                        unreachable
+                    )
+
+                    local.get $i
+                    i32.const 6
+                    i32.ne
+                    br_if 0
+                )
+
+                ;; page 1 is allocated, so must have value, which we set in init
+                (block
+                    i32.const 0
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; page 7 is allocated, so must have value, which we set in init
+                (block
+                    i32.const 0x70000
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; store 1 to the begin of memory to identify that test goes right
+                i32.const 0
+                i32.const 1
+                i32.store
+            )
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let origin = RuntimeOrigin::signed(1);
+
+        assert_ok!(Gear::upload_program(
+            origin.clone(),
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(2, None);
+
+        let gear_page0 = GearPage::from_offset(0x0);
+        let mut page0_data = PageBuf::new_zeroed();
+        page0_data[0] = 0x42;
+
+        let gear_page7 = GearPage::from_offset(0x70000);
+        let mut page7_data = PageBuf::new_zeroed();
+        page7_data[0] = 0x42;
+
+        let mut persistent_pages = BTreeMap::new();
+        persistent_pages.insert(gear_page0, page0_data.clone());
+        persistent_pages.insert(gear_page7, page7_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPage::from(0);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+
+        assert_ok!(Gear::send_message(
+            origin,
+            program_id,
+            vec![],
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        page0_data[0] = 0x1;
+        persistent_pages.insert(gear_page0, page0_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPage::from(0);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+    })
+}
+
+#[test]
+fn check_changed_pages_in_storage() {
+    // This test checks that only pages, which has been write accessed,
+    // will be stored in storage. Also it checks that data in storage is correct.
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 8))
+            (import "env" "alloc" (func $alloc (param i32) (result i32)))
+            (import "env" "free" (func $free (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init
+                ;; alloc 4 pages, so mem pages are: 0..=11
+                (block
+                    i32.const 4
+                    call $alloc
+                    i32.const 8
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 1 (static)
+                i32.const 0x10009  ;; is symbol "9" address
+                i32.const 0x30     ;; write symbol "0" there
+                i32.store
+
+                ;; access page 7 (static) but do not change it
+                (block
+                    i32.const 0x70001
+                    i32.load
+                    i32.const 0x52414547 ;; is "GEAR"
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 8 (dynamic)
+                i32.const 0x87654
+                i32.const 0x42
+                i32.store
+
+                ;; then free page 8
+                i32.const 8
+                call $free
+                drop
+
+                ;; then alloc page 8 again
+                (block
+                    i32.const 1
+                    call $alloc
+                    i32.const 8
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 9 (dynamic)
+                i32.const 0x98765
+                i32.const 0x42
+                i32.store
+
+                ;; access page 10 (dynamic) but do not change it
+                (block
+                    i32.const 0xa9876
+                    i32.load
+                    i32.eqz             ;; must be zero by default
+                    br_if 0
+                    unreachable
+                )
+
+                ;; access page 11 (dynamic)
+                i32.const 0xb8765
+                i32.const 0x42
+                i32.store
+
+                ;; then free page 11
+                i32.const 11
+                call $free
+                drop
+            )
+
+            (func $handle
+                (block
+                    ;; check page 1 data
+                    i32.const 0x10002
+                    i64.load
+                    i64.const 0x3038373635343332  ;; is symbols "23456780",
+                                                  ;; "0" in the end because we change it in init
+                    i64.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 7 data
+                    i32.const 0x70001
+                    i32.load
+                    i32.const 0x52414547 ;; is "GEAR"
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 8 data
+                    ;; currently free + allocation must save page data,
+                    ;; but this behavior may change in future.
+                    i32.const 0x87654
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+                (block
+                    ;; check page 9 data
+                    i32.const 0x98765
+                    i32.load
+                    i32.const 0x42
+                    i32.eq
+                    br_if 0
+                    unreachable
+                )
+
+                ;; change page 3 and 4
+                ;; because we store 0x00_00_00_42 then bits will be changed
+                ;; in 3th page only. But because we store by write access, then
+                ;; both data will be for gear pages from 3th and 4th wasm page.
+                i32.const 0x3fffd
+                i32.const 0x42
+                i32.store
+            )
+
+            (data $.rodata (i32.const 0x10000) "0123456789")
+            (data $.rodata (i32.const 0x70001) "GEAR TECH")
+        )
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let origin = RuntimeOrigin::signed(1);
+
+        // Code info. Must be in consensus with wasm code.
+        let static_pages: WasmPagesAmount = 8.into();
+        let page1_accessed_addr = 0x10000;
+        let page3_accessed_addr = 0x3fffd;
+        let page4_accessed_addr = 0x40000;
+        let page8_accessed_addr = 0x87654;
+        let page9_accessed_addr = 0x98765;
+
+        assert_ok!(Gear::upload_program(
+            origin.clone(),
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(2, None);
+
+        let mut persistent_pages = BTreeMap::new();
+
+        let gear_page1 = GearPage::from_offset(page1_accessed_addr);
+        let mut page1_data = PageBuf::new_zeroed();
+        page1_data[..10].copy_from_slice(b"0123456780".as_slice());
+
+        let gear_page8 = GearPage::from_offset(page8_accessed_addr);
+        let mut page8_data = PageBuf::new_zeroed();
+        page8_data[(page8_accessed_addr % GearPage::SIZE) as usize] = 0x42;
+
+        let gear_page9 = GearPage::from_offset(page9_accessed_addr);
+        let mut page9_data = PageBuf::new_zeroed();
+        page9_data[(page9_accessed_addr % GearPage::SIZE) as usize] = 0x42;
+
+        persistent_pages.insert(gear_page1, page1_data);
+        persistent_pages.insert(gear_page8, page8_data);
+        persistent_pages.insert(gear_page9, page9_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        assert_eq!(program_static_pages, static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+
+        assert_ok!(Gear::send_message(
+            origin,
+            program_id,
+            vec![],
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(3, None);
+
+        let gear_page3 = GearPage::from_offset(page3_accessed_addr);
+        let mut page3_data = PageBuf::new_zeroed();
+        page3_data[(page3_accessed_addr % GearPage::SIZE) as usize] = 0x42;
+
+        let gear_page4 = GearPage::from_offset(page4_accessed_addr);
+
+        persistent_pages.insert(gear_page3, page3_data);
+        persistent_pages.insert(gear_page4, PageBuf::new_zeroed());
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        assert_eq!(program_static_pages, static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+    })
+}
+
+#[test]
+fn check_gear_stack_end() {
+    // This test checks that all pages, before stack end addr, must not be updated in storage.
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 4))
+            (export "init" (func $init))
+            (func $init
+                ;; write to 0 wasm page (virtual stack)
+                i32.const 0x0
+                i32.const 0x42
+                i32.store
+
+                ;; write to 1 wasm page (virtual stack)
+                i32.const 0x10000
+                i32.const 0x42
+                i32.store
+
+                ;; write to 2 wasm page
+                i32.const 0x20000
+                i32.const 0x42
+                i32.store
+
+                ;; write to 3 wasm page
+                i32.const 0x30000
+                i32.const 0x42
+                i32.store
+            )
+            ;; "stack" contains 0 and 1 wasm pages
+            (global (;0;) (mut i32) (i32.const 0x20000))
+            (export "{STACK_END_EXPORT_NAME}" (global 0))
+        )
+    "#
+    );
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = utils::parse_wat(wat.as_str());
+        let program_id = ActorId::generate_from_user(CodeId::generate(&code), DEFAULT_SALT);
+        let origin = RuntimeOrigin::signed(1);
+
+        assert_ok!(Gear::upload_program(
+            origin,
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            Vec::new(),
+            5_000_000_000_u64,
+            0_u128,
+            false,
+        ));
+
+        run_to_block(2, None);
+
+        let mut persistent_pages = BTreeMap::new();
+
+        let gear_page2 = WasmPage::from(2).to_page();
+        let gear_page3 = WasmPage::from(3).to_page();
+        let mut page_data = PageBuf::new_zeroed();
+        page_data[0] = 0x42;
+
+        persistent_pages.insert(gear_page2, page_data.clone());
+        persistent_pages.insert(gear_page3, page_data);
+
+        let program: ActiveProgram<_> = ProgramStorageOf::<Test>::get_program(program_id)
+            .expect("Failed to find program with such id")
+            .try_into()
+            .expect("Program should be active");
+
+        let program_static_pages =
+            <Test as Config>::CodeStorage::get_code_metadata(program.code_id)
+                .expect("Failed to get code metadata")
+                .static_pages();
+
+        let program_persistent_pages =
+            ProgramStorageOf::<Test>::get_program_pages_data(program_id, program.memory_infix)
+                .expect("Failed to get program pages data");
+
+        let expected_static_pages = WasmPagesAmount::from(4);
+
+        assert_eq!(program_static_pages, expected_static_pages);
+        assert_eq!(program_persistent_pages, persistent_pages);
+    })
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, BlockNumber, Event, MailboxOf, MockRuntimeEvent,
-        RuntimeOrigin, Test,
+        BlockNumber, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test, assert_ok, pallet,
+        run_to_block,
     };
     use crate::{
-        mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, CurrencyOf, GasHandlerOf, GasInfo,
-        GearBank, HandleKind, ProgramStorageOf, SentOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, Config, CurrencyOf,
+        EXISTENTIAL_DEPOSIT_LOCK_ID, GasHandlerOf, GasInfo, GearBank, HandleKind, ProgramStorageOf,
+        QueueOf, SentOf,
+        mock::{Balances, Gear, System, USER_1, run_to_next_block},
     };
     use common::{
+        CodeStorage, Origin, ProgramStorage, ReservableTree,
         event::*,
-        storage::{CountedByKey, Counter, IterableByKeyMap},
-        Origin, ProgramStorage, ReservableTree,
+        storage::{CountedByKey, Counter, IterableByKeyMap, IterableMap},
     };
-    use core::fmt::Display;
+    use core::{fmt, fmt::Display};
     use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
-        traits::tokens::{currency::Currency, Balance},
+        traits::tokens::{Balance, currency::Currency},
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
         buffer::Payload,
-        ids::{prelude::*, ActorId, CodeId, MessageId},
-        message::{Message, ReplyDetails, UserMessage, UserStoredMessage},
+        ids::{ActorId, CodeId, MessageId, prelude::*},
+        memory::PageBuf,
+        message::{Message, ReplyDetails, StoredDispatch, UserMessage, UserStoredMessage},
+        pages::{GearPage, WasmPagesAmount},
         program::{ActiveProgram, Program},
         reservation::GasReservationMap,
     };
     use gear_core_errors::*;
+    use gstd::TypeInfo;
     use pallet_gear_voucher::VoucherId;
     use parity_scale_codec::Encode;
     use sp_core::H256;
     use sp_runtime::{codec::Decode, traits::UniqueSaturatedInto};
     use sp_std::{convert::TryFrom, fmt::Debug};
-    use std::iter;
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        iter,
+    };
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
@@ -16153,12 +16769,12 @@ pub(crate) mod utils {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some(details) = message.details() {
-                    let (mid, code) = details.into_parts();
-                    if mid == message_id && code.is_error() {
-                        actual_error = Some((message.payload_bytes().to_vec(), code));
-                    }
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event
+                && let Some(details) = message.details()
+            {
+                let (mid, code) = details.into_parts();
+                if mid == message_id && code.is_error() {
+                    actual_error = Some((message.payload_bytes().to_vec(), code));
                 }
             }
         });
@@ -16739,5 +17355,15 @@ pub(crate) mod utils {
                 }
             })
             .collect()
+    }
+
+    pub(super) fn parse_wat(source: &str) -> Vec<u8> {
+        let code = wat::parse_str(source).expect("failed to parse module");
+        wasmparser::validate(&code).expect("failed to validate module");
+        code
+    }
+
+    pub(super) fn h256_code_hash(code: &[u8]) -> H256 {
+        CodeId::generate(code).into_origin()
     }
 }

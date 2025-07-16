@@ -19,16 +19,19 @@
 //! Program's execution service for eGPU.
 
 use ethexe_common::{
+    CodeAndIdUnchecked, ProgramStates, Schedule,
     db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
-use gprimitives::{ActorId, CodeId, MessageId, H256};
-use handling::{run, ProcessingHandler};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
+use handling::{
+    ProcessingHandler,
+    run::{self, RunnerConfig},
+};
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
@@ -40,6 +43,12 @@ mod handling;
 
 #[cfg(test)]
 mod tests;
+
+// Default amount of virtual threads to use for programs processing.
+pub const DEFAULT_CHUNK_PROCESSING_THREADS: u8 = 16;
+
+// Default block gas limit for the node.
+pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -87,7 +96,9 @@ pub enum ProcessorError {
     // `ProcessingHandler` errors
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
-    #[error("db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}")]
+    #[error(
+        "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}"
+    )]
     DuplicatedProgram(ActorId),
 
     #[error(transparent)]
@@ -112,12 +123,14 @@ pub struct BlockProcessingResult {
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            chunk_processing_threads: 16,
+            chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
         }
     }
 }
@@ -156,20 +169,12 @@ impl Processor {
         OverlaidProcessor(self)
     }
 
-    pub fn process_upload_code(
-        &mut self,
-        code_id: CodeId,
-        code: &[u8],
-    ) -> Result<Vec<LocalOutcome>> {
-        let valid = self.process_upload_code_raw(code_id, code)?;
+    pub fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
+        log::debug!("Processing upload code {code_and_id:?}");
 
-        Ok(vec![LocalOutcome::CodeValidated { id: code_id, valid }])
-    }
+        let CodeAndIdUnchecked { code, code_id } = code_and_id;
 
-    pub fn process_upload_code_raw(&mut self, code_id: CodeId, code: &[u8]) -> Result<bool> {
-        log::debug!("Processing upload code {code_id:?}");
-
-        let valid = code_id == CodeId::generate(code) && self.handle_new_code(code)?.is_some();
+        let valid = code_id == CodeId::generate(&code) && self.handle_new_code(code)?.is_some();
 
         self.db.set_code_valid(code_id, valid);
 
@@ -225,10 +230,13 @@ impl Processor {
         self.creator.set_chain_head(handler.block_hash);
 
         run::run(
-            self.config().chunk_processing_threads,
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
+            RunnerConfig {
+                chunk_processing_threads: self.config().chunk_processing_threads,
+                block_gas_limit: self.config().block_gas_limit,
+            },
         )
         .await;
     }

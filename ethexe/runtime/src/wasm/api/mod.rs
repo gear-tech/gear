@@ -44,14 +44,15 @@ extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
 fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
-    let (program_id, state_root, maybe_instrumented_code, maybe_code_metadata) =
+    let (program_id, state_root, maybe_instrumented_code, maybe_code_metadata, gas_allowance) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    let program_journals = run::run(
+    let (program_journals, gas_spent) = run::run(
         program_id,
         state_root,
         maybe_instrumented_code,
         maybe_code_metadata,
+        gas_allowance,
     );
 
     // Split to chunks to prevent alloc limit (32MiB)
@@ -71,7 +72,7 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
         })
         .collect();
 
-    return_val(res)
+    return_val((res, gas_spent))
 }
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {

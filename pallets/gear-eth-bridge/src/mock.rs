@@ -19,20 +19,18 @@
 use crate as pallet_gear_eth_bridge;
 use common::Origin as _;
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
-    PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureSignedBy};
+use frame_system::{self as system, EnsureSignedBy, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_gear_builtin::BuiltinActor;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, H256};
+use sp_core::{H256, ed25519::Public};
 use sp_runtime::{
-    impl_opaque_keys,
+    BuildStorage, impl_opaque_keys,
     traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -223,7 +221,7 @@ pub struct TestSessionRotator;
 impl ShouldEndSession<BlockNumber> for TestSessionRotator {
     fn should_end_session(now: BlockNumber) -> bool {
         if now > 1 {
-            (now - 1) % EpochDuration::get() == 0
+            (now - 1).is_multiple_of(EpochDuration::get())
         } else {
             false
         }
@@ -275,7 +273,9 @@ pub struct TestSessionManager;
 
 impl SessionManager<AccountId> for TestSessionManager {
     fn new_session(session_idx: u32) -> Option<Vec<AccountId>> {
-        (session_idx % SessionsPerEra::get() == 0).then(|| era_validators(session_idx, true))
+        session_idx
+            .is_multiple_of(SessionsPerEra::get())
+            .then(|| era_validators(session_idx, true))
     }
     fn start_session(_: u32) {}
     fn end_session(_: u32) {}

@@ -18,20 +18,44 @@
 
 //! Waitlist manager.
 
-#![allow(unused)]
-
-use crate::state::blocks::GetBlockNumberImpl;
-use gear_common::{
-    auxiliary::{waitlist::*, BlockNumber},
-    storage::{Interval, IterableByKeyMap, Waitlist, WaitlistCallbacks},
+use crate::{
+    constants::BlockNumber,
+    state::{WithOverlay, blocks::GetBlockNumberImpl},
+};
+use gear_common::storage::{
+    AuxiliaryDoubleStorageWrap, DoubleBTreeMap, Interval, IterableByKeyMap, Waitlist,
+    WaitlistCallbacks, WaitlistError, WaitlistImpl, WaitlistKeyGen,
 };
 use gear_core::{
     ids::{ActorId, MessageId},
     message::StoredDispatch,
 };
+use std::thread::LocalKey;
 
-/// Waitlist manager which operates under the hood over
-/// [`gear_common::auxiliary::waitlist::AuxiliaryWaitlist`].
+/// Waitlist implementation that can be used in a native, non-wasm runtimes.
+pub type AuxiliaryWaitlist = WaitlistImpl<
+    WaitlistStorageWrap,
+    WaitlistedMessage,
+    BlockNumber,
+    WaitlistErrorImpl,
+    WaitlistErrorImpl,
+    WaitlistCallbacksImpl,
+    WaitlistKeyGen,
+>;
+/// Type represents message stored in the waitlist.
+pub type WaitlistedMessage = StoredDispatch;
+
+pub(crate) type WaitlistStorage =
+    WithOverlay<DoubleBTreeMap<ActorId, MessageId, (WaitlistedMessage, Interval<BlockNumber>)>>;
+std::thread_local! {
+    // Definition of the waitlist (`StorageDoubleMap`) global storage, accessed by the `Waitlist` trait implementor.
+    pub(crate) static WAITLIST_STORAGE: WaitlistStorage = Default::default();
+}
+
+fn storage() -> &'static LocalKey<WaitlistStorage> {
+    &WAITLIST_STORAGE
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct WaitlistManager;
 
@@ -39,7 +63,7 @@ impl WaitlistManager {
     /// Check if message with `message_id` to a program with `program_id` is in
     /// the waitlist.
     pub(crate) fn contains(&self, program_id: ActorId, message_id: MessageId) -> bool {
-        <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::contains(&program_id, &message_id)
+        <AuxiliaryWaitlist as Waitlist>::contains(&program_id, &message_id)
     }
 
     /// Insert message into waitlist.
@@ -48,7 +72,7 @@ impl WaitlistManager {
         message: WaitlistedMessage,
         expected: BlockNumber,
     ) -> Result<(), WaitlistErrorImpl> {
-        <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::insert(message, expected)
+        <AuxiliaryWaitlist as Waitlist>::insert(message, expected)
     }
 
     /// Remove message from the waitlist.
@@ -57,7 +81,7 @@ impl WaitlistManager {
         program_id: ActorId,
         message_id: MessageId,
     ) -> Result<(WaitlistedMessage, Interval<BlockNumber>), WaitlistErrorImpl> {
-        <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::remove(program_id, message_id)
+        <AuxiliaryWaitlist as Waitlist>::remove(program_id, message_id)
     }
 
     /// Fully reset waitlist.
@@ -65,18 +89,17 @@ impl WaitlistManager {
     /// # Note:
     /// Must be called by `WaitlistManager` owner to reset waitlist
     /// when the owner is dropped.
-    pub(crate) fn reset(&self) {
-        <AuxiliaryWaitlist<WaitlistCallbacksImpl> as Waitlist>::clear();
+    pub(crate) fn clear(&self) {
+        <AuxiliaryWaitlist as Waitlist>::clear();
     }
 
     pub(crate) fn drain_key(
         &self,
         program_id: ActorId,
-    ) -> impl Iterator<Item = (StoredDispatch, Interval<BlockNumber>)> + use<> {
-        <AuxiliaryWaitlist<WaitlistCallbacksImpl> as IterableByKeyMap<(
-            StoredDispatch,
-            Interval<BlockNumber>,
-        )>>::drain_key(program_id)
+    ) -> impl Iterator<Item = (StoredDispatch, Interval<BlockNumber>)> + Send + 'static {
+        <AuxiliaryWaitlist as IterableByKeyMap<(StoredDispatch, Interval<BlockNumber>)>>::drain_key(
+            program_id,
+        )
     }
 }
 
@@ -91,4 +114,44 @@ impl WaitlistCallbacks for WaitlistCallbacksImpl {
 
     type OnInsert = ();
     type OnRemove = ();
+}
+
+/// `Waitlist` double storage map manager.
+pub struct WaitlistStorageWrap;
+
+impl AuxiliaryDoubleStorageWrap for WaitlistStorageWrap {
+    type Key1 = ActorId;
+    type Key2 = MessageId;
+    type Value = (WaitlistedMessage, Interval<BlockNumber>);
+
+    fn with_storage<F, R>(f: F) -> R
+    where
+        F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
+    {
+        storage().with(|wls| f(&wls.data()))
+    }
+
+    fn with_storage_mut<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
+    {
+        storage().with(|wls| f(&mut wls.data_mut()))
+    }
+}
+
+/// An implementor of the error returned from calling `Waitlist` trait functions
+#[derive(Debug)]
+pub enum WaitlistErrorImpl {
+    DuplicateKey,
+    ElementNotFound,
+}
+
+impl WaitlistError for WaitlistErrorImpl {
+    fn duplicate_key() -> Self {
+        Self::DuplicateKey
+    }
+
+    fn element_not_found() -> Self {
+        Self::ElementNotFound
+    }
 }

@@ -18,11 +18,11 @@
 
 //! Manifest utils for crates-io-manager
 
-use crate::{handler, version, CARGO_REGISTRY_NAME};
-use anyhow::{anyhow, Result};
+use crate::{CARGO_REGISTRY_NAME, handler, version};
+use anyhow::{Result, anyhow};
 use cargo_metadata::Package;
 use std::{
-    fs,
+    env, fs,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
@@ -82,7 +82,7 @@ impl Workspace {
 
     /// Resolve path to file in workspace.
     pub fn resolve_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
             .ancestors()
             .nth(2)
             .map(|workspace_dir| workspace_dir.join(path.as_ref()))
@@ -203,7 +203,7 @@ impl Manifest {
         let mut mutable_manifest = original_manifest.clone();
 
         // Complete documentation as from <https://docs.rs>
-        let name = pkg.name.clone();
+        let name = pkg.name.clone().into_inner();
         mutable_manifest["package"]["documentation"] =
             toml_edit::value(format!("https://docs.rs/{name}"));
 

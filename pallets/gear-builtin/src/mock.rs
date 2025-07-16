@@ -23,13 +23,12 @@ use crate::{
 use common::{storage::Limiter, GasProvider, GasTree, Origin};
 use core::cell::RefCell;
 use frame_support::{
-    construct_runtime,
+    PalletId, construct_runtime,
     pallet_prelude::{DispatchClass, Weight},
     parameter_types,
     traits::{
         ConstBool, ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize,
     },
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -38,8 +37,8 @@ use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill, Permill, RuntimeDebug,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 

@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `upload_program`
-use crate::{result::Result, utils::Hex, App};
-use anyhow::{anyhow, Context};
+use crate::{App, result::Result, utils::Hex};
+use anyhow::{Context, anyhow};
 use clap::Parser;
 use gsdk::{
+    Event,
     metadata::{gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry},
     signer::Signer,
-    Event,
 };
 use std::{fs, path::PathBuf};
 use tokio::{io, io::AsyncReadExt};

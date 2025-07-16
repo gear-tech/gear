@@ -24,11 +24,14 @@ use alloy::{
     rpc::types::eth::Header,
     transports::{RpcError, TransportErrorKind},
 };
-use anyhow::{anyhow, Context as _, Result};
-use ethexe_common::{Address, BlockHeader, SimpleBlockData};
+use anyhow::{Context as _, Result, anyhow};
+use ethexe_common::{
+    Address, BlockHeader, SimpleBlockData,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+};
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -112,7 +115,7 @@ impl Stream for ObserverService {
                 Poll::Ready(Err(e)) => {
                     return Poll::Ready(Some(Err(anyhow!(
                         "failed to create new headers stream: {e}"
-                    ))))
+                    ))));
                 }
                 Poll::Pending => return Poll::Pending,
             }
@@ -182,7 +185,7 @@ impl ObserverService {
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
 
-        let wvara_address = Address(router_query.wvara_address().await?.0 .0);
+        let wvara_address = Address(router_query.wvara_address().await?.0.0);
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -229,13 +232,13 @@ impl ObserverService {
     // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db(
-        db: &Database,
+    async fn pre_process_genesis_for_db<
+        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageWrite,
+    >(
+        db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<()> {
-        use ethexe_common::db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite};
-
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_meta(genesis_block_hash).computed {
@@ -260,12 +263,14 @@ impl ObserverService {
         db.set_latest_synced_block_height(genesis_header.height);
         db.mutate_block_meta(genesis_block_hash, |meta| {
             meta.computed = true;
+            meta.prepared = true;
             meta.synced = true;
         });
 
         db.set_block_commitment_queue(genesis_block_hash, Default::default());
         db.set_block_codes_queue(genesis_block_hash, Default::default());
         db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
+        db.set_last_committed_batch(genesis_block_hash, Default::default());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());

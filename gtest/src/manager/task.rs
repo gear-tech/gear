@@ -19,9 +19,9 @@
 //! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
 use super::ExtManager;
-use crate::{state::actors::Actors, Gas};
+use crate::{Gas, state::programs::ProgramsStorageManager};
 use core_processor::common::JournalHandler;
-use gear_common::{scheduler::StorageType, Gas as GearCommonGas};
+use gear_common::{Gas as GearCommonGas, scheduler::StorageType};
 use gear_core::{
     gas_metering::TaskWeights,
     ids::{ActorId, CodeId, MessageId, ReservationId},
@@ -122,7 +122,7 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
 
             let trap_reply = ReplyMessage::system(message_id, err_payload, 0, err);
 
-            if Actors::is_program(waitlisted.source()) {
+            if ProgramsStorageManager::is_program(waitlisted.source()) {
                 let trap_dispatch =
                     trap_reply.into_stored_dispatch(program_id, waitlisted.source(), message_id);
 

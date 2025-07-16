@@ -17,51 +17,48 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    constants::{Gas, Value},
+    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
+    ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
+    constants::{BlockNumber, Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     state::{
+        self,
         accounts::Accounts,
-        actors::{Actors, Program, TestActor},
         bank::Bank,
         blocks::BlocksManager,
         gas_tree::GasTreeManager,
-        mailbox::MailboxManager,
+        mailbox::manager::{MailboxErrorImpl, MailboxManager},
+        nonce::NonceManager,
+        programs::ProgramsStorageManager,
+        queue::QueueManager,
+        stash::DispatchStashManager,
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    Result, TestError, EPOCH_DURATION_IN_BLOCKS, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE,
-    GAS_MULTIPLIER, INITIAL_RANDOM_SEED, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR,
-    VALUE_PER_GAS,
 };
-use core_processor::{common::*, configs::BlockConfig, Ext};
+use core_processor::{Ext, common::*, configs::BlockConfig};
 use gear_common::{
-    auxiliary::{
-        gas_provider::PlainNodeId, mailbox::MailboxErrorImpl, waitlist::WaitlistErrorImpl,
-        BlockNumber,
-    },
+    LockId, Origin,
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
+    gas_provider::auxiliary::PlainNodeId,
     scheduler::StorageType,
     storage::Interval,
-    LockId, Origin,
 };
 use gear_core::{
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::PageBuf,
-    message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, StoredDelayedDispatch, StoredDispatch,
-        StoredMessage, UserMessage, UserStoredMessage,
-    },
-    pages::{num_traits::Zero, GearPage},
+    message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredMessage, UserStoredMessage},
+    pages::{GearPage, num_traits::Zero},
+    program::{ActiveProgram, Program, ProgramState},
     tasks::ScheduledTask,
 };
 use gear_lazy_pages_native_interface::LazyPagesNative;
 use hold_bound::HoldBoundBuilder;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     convert::TryInto,
     fmt::Debug,
     mem,
@@ -82,27 +79,26 @@ const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
-    // State metadata
+    // State with possible overlay
     pub(crate) blocks_manager: BlocksManager,
-    pub(crate) random_data: (Vec<u8>, u32),
-
-    // Messaging and programs meta
-    pub(crate) msg_nonce: u64,
-    pub(crate) id_nonce: u64,
-
-    // State
+    pub(crate) nonce_manager: NonceManager,
     pub(crate) bank: Bank,
-    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
-    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
-    pub(crate) dispatches: VecDeque<StoredDispatch>,
+    pub(crate) dispatches: QueueManager,
     pub(crate) mailbox: MailboxManager,
     pub(crate) task_pool: TaskPoolManager,
     pub(crate) waitlist: WaitlistManager,
     pub(crate) gas_tree: GasTreeManager,
+    pub(crate) dispatches_stash: DispatchStashManager,
+
+    // State with no overlay
     pub(crate) gas_allowance: Gas,
-    pub(crate) dispatches_stash: HashMap<MessageId, (StoredDelayedDispatch, Interval<BlockNumber>)>,
+    pub(crate) opt_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) meta_binaries: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) instrumented_codes: BTreeMap<CodeId, InstrumentedCode>,
+    pub(crate) code_metadata: BTreeMap<CodeId, CodeMetadata>,
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
+
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
     pub(crate) failed: BTreeSet<MessageId>,
@@ -115,20 +111,8 @@ pub(crate) struct ExtManager {
 impl ExtManager {
     pub(crate) fn new() -> Self {
         Self {
-            msg_nonce: 1,
-            id_nonce: 1,
-            blocks_manager: BlocksManager::new(),
+            blocks_manager: BlocksManager,
             messages_processing_enabled: true,
-            random_data: (
-                {
-                    let mut rng = StdRng::seed_from_u64(INITIAL_RANDOM_SEED);
-                    let mut random = [0u8; 32];
-                    rng.fill_bytes(&mut random);
-
-                    random.to_vec()
-                },
-                0,
-            ),
             ..Default::default()
         }
     }
@@ -140,75 +124,68 @@ impl ExtManager {
     pub(crate) fn store_new_actor(
         &mut self,
         program_id: ActorId,
-        program: Program,
-        init_message_id: Option<MessageId>,
-    ) -> Option<TestActor> {
-        Actors::insert(program_id, TestActor::new(init_message_id, program))
+        program: Program<BlockNumber>,
+    ) -> Option<Program<BlockNumber>> {
+        ProgramsStorageManager::insert_program(program_id, program)
     }
 
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
-        self.opt_binaries.insert(code_id, code);
+        self.opt_binaries.insert(code_id, code.clone());
+
+        let (instrumented_code, code_metadata) =
+            ProgramBuilder::build_instrumented_code_and_id(code)
+                .1
+                .into_parts();
+        self.instrumented_codes.insert(code_id, instrumented_code);
+        self.code_metadata.insert(code_id, code_metadata);
     }
 
-    pub(crate) fn read_code(&self, code_id: CodeId) -> Option<&[u8]> {
+    pub(crate) fn instrumented_code(&self, code_id: CodeId) -> Option<&InstrumentedCode> {
+        self.instrumented_codes.get(&code_id)
+    }
+
+    pub(crate) fn code_metadata(&self, code_id: CodeId) -> Option<&CodeMetadata> {
+        self.code_metadata.get(&code_id)
+    }
+
+    pub(crate) fn original_code(&self, code_id: CodeId) -> Option<&[u8]> {
         self.opt_binaries.get(&code_id).map(|code| code.as_ref())
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
-        let nonce = self.msg_nonce;
-        self.msg_nonce += 1;
-        nonce
+        self.nonce_manager.fetch_inc_message_nonce()
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while Actors::contains_key(self.id_nonce.into()) {
-            self.id_nonce += 1;
+        let mut id_nonce = self.nonce_manager.id_nonce();
+        while ProgramsStorageManager::has_program(id_nonce.into()) {
+            self.nonce_manager.inc_id_nonce();
+            id_nonce = self.nonce_manager.id_nonce();
         }
-        self.id_nonce
-    }
 
-    /// Check if the current block number should trigger new epoch and reset
-    /// the provided random data.
-    pub(crate) fn check_epoch(&mut self) {
-        let block_height = self.block_height();
-        if block_height % EPOCH_DURATION_IN_BLOCKS == 0 {
-            let mut rng = StdRng::seed_from_u64(
-                INITIAL_RANDOM_SEED + (block_height / EPOCH_DURATION_IN_BLOCKS) as u64,
-            );
-            let mut random = [0u8; 32];
-            rng.fill_bytes(&mut random);
-
-            self.random_data = (random.to_vec(), block_height + 1);
-        }
+        id_nonce
     }
 
     pub(crate) fn update_storage_pages(
         &mut self,
-        program_id: &ActorId,
+        program_id: ActorId,
         memory_pages: BTreeMap<GearPage, PageBuf>,
     ) {
-        Actors::modify(*program_id, |actor| {
-            let pages_data = actor
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .pages_mut()
-                .expect("No pages data found for program");
-
-            for (page, buf) in memory_pages {
-                pages_data.insert(page, buf);
-            }
-        });
+        for (page, buf) in memory_pages {
+            ProgramsStorageManager::set_program_page(program_id, page, buf);
+        }
     }
 
-    pub(crate) fn mint_to(&mut self, id: &ActorId, value: Value) {
-        Accounts::increase(*id, value);
+    pub(crate) fn mint_to(&mut self, id: ActorId, value: Value) {
+        Accounts::increase(id, value);
     }
 
-    pub(crate) fn balance_of(&self, id: &ActorId) -> Value {
-        Accounts::balance(*id)
+    pub(crate) fn balance_of(&self, id: ActorId) -> Value {
+        Accounts::balance(id)
     }
 
-    pub(crate) fn override_balance(&mut self, &id: &ActorId, balance: Value) {
-        if Actors::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
+    pub(crate) fn override_balance(&mut self, id: ActorId, balance: Value) {
+        if ProgramsStorageManager::is_user(id) && balance < crate::EXISTENTIAL_DEPOSIT {
             usage_panic!(
                 "An attempt to override balance with value ({}) less than existential deposit ({}. \
                 Please try to use bigger balance value",
@@ -225,21 +202,37 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, program_id: ActorId) {
-        Actors::modify(program_id, |actor| {
-            actor
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
-                .set_initialized()
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            let Program::Active(active_program) =
+                program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+            else {
+                unreachable!(
+                    "Before init finishes, program must always be active. But {program_id:?} program is not active."
+                );
+            };
+
+            active_program.state = ProgramState::Initialized;
         });
     }
 
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
-        Actors::modify(program_id, |actor| {
-            if let Some(actor) = actor {
-                *actor = TestActor::FailedInit;
+        self.clean_waitlist(program_id);
+        self.remove_gas_reservation_map(program_id);
+        ProgramsStorageManager::modify_program(program_id, |program| {
+            if let Some(program) = program {
+                if !program.is_active() {
+                    // Guaranteed to be called only on active program
+                    unreachable!(
+                        "ExtManager::init_failure: failed to exit active program. \
+                    Program - {program_id}, actual program - {program:?}"
+                    );
+                }
+
+                *program = Program::Terminated(program_id);
             } else {
                 // That's a case if no code exists for the program
                 // requested to be created from another program and
-                // there was not enough to get program from storage.
+                // there was not enough gas to get program from storage.
                 log::debug!("Failed init is set for non-existing actor");
             }
         });
@@ -250,13 +243,19 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn update_program<R, F: FnOnce(&mut Program) -> R>(
+    pub(crate) fn update_program<R, F: FnOnce(&mut ActiveProgram<BlockNumber>) -> R>(
         &mut self,
         id: ActorId,
         op: F,
     ) -> Option<R> {
-        Actors::modify(id, |actor| {
-            actor.and_then(|actor| actor.program_mut().map(op))
+        ProgramsStorageManager::modify_program(id, |program| {
+            program.and_then(|actor| {
+                if let Program::Active(active_program) = actor {
+                    Some(op(active_program))
+                } else {
+                    None
+                }
+            })
         })
     }
 
@@ -288,5 +287,24 @@ impl ExtManager {
             });
 
         Ok(message)
+    }
+
+    pub(crate) fn clean_waitlist(&mut self, id: ActorId) {
+        self.waitlist.drain_key(id).for_each(|entry| {
+            let message = self.wake_dispatch_requirements(entry);
+
+            self.dispatches.push_back(message);
+        });
+    }
+    /// Enables the overlay mode for gear-runtime emulating storages
+    /// (auxiliaries and internal ones).
+    pub(crate) fn enable_overlay(&self) {
+        state::enable_overlay();
+    }
+
+    /// Disables the overlay mode for gear-runtime emulating storages
+    /// (auxiliaries and internal ones).
+    pub(crate) fn disable_overlay(&self) {
+        state::disable_overlay();
     }
 }

@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendAllocSyscallError, BackendSyscallError, RunFallibleError, UndefinedTerminationReason,
     },
-    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{fmt, fmt::Debug, mem};
@@ -184,10 +184,10 @@ impl Externalities for MockExt {
         Ok(ActorId::from(0))
     }
     fn reply_code(&self) -> Result<ReplyCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(ReplyCode::Unsupported)
     }
     fn signal_code(&self) -> Result<SignalCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(SignalCode::RemovedFromWaitlist)
     }
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())

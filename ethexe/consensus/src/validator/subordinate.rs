@@ -17,13 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
-    ValidatorState,
+    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
+    initial::Initial,
 };
-use crate::{validator::participant::Participant, ConsensusEvent};
+use crate::{
+    ConsensusEvent, SignedProducerBlock, SignedValidationRequest,
+    validator::participant::Participant,
+};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{ecdsa::SignedData, Address, ProducerBlock, SimpleBlockData};
+use ethexe_common::{Address, SimpleBlockData};
 use gprimitives::H256;
 use std::mem;
 
@@ -85,10 +88,7 @@ impl StateHandler for Subordinate {
         }
     }
 
-    fn process_block_from_producer(
-        mut self,
-        block: SignedData<ProducerBlock>,
-    ) -> Result<ValidatorState> {
+    fn process_block_from_producer(mut self, block: SignedProducerBlock) -> Result<ValidatorState> {
         if self.state == State::WaitingForProducerBlock
             && block.address() == self.producer
             && block.data().block_hash == self.block.hash
@@ -108,7 +108,7 @@ impl StateHandler for Subordinate {
 
     fn process_validation_request(
         mut self,
-        request: SignedData<crate::BatchCommitmentValidationRequest>,
+        request: SignedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
@@ -181,13 +181,13 @@ impl Subordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::mock_validator_context};
+    use crate::{SignedProducerBlock, SignedValidationRequest, mock::*, validator::mock::*};
 
     #[test]
     fn create_empty() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
@@ -203,25 +203,25 @@ mod tests {
     fn create_with_producer_blocks() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = mock_simple_block_data();
-        let (pb1, signed_pb1) = mock_producer_block(&ctx.signer, producer, block.hash);
-        let (_, signed_pb2) = mock_producer_block(&ctx.signer, keys[1], block.hash);
+        let block = SimpleBlockData::mock(());
+        let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
 
-        ctx.pending(signed_pb1);
-        ctx.pending(signed_pb2.clone());
+        ctx.pending(pb1.clone());
+        ctx.pending(pb2.clone());
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
-            vec![ConsensusEvent::ComputeProducerBlock(pb1)]
+            vec![ConsensusEvent::ComputeProducerBlock(pb1.data().clone())]
         );
 
         // Second block must stay in pending events, because it's not from current producer.
         assert_eq!(
             s.context().pending_events,
-            vec![PendingEvent::ProducerBlock(signed_pb2)]
+            vec![PendingEvent::ProducerBlock(pb2)]
         );
     }
 
@@ -229,12 +229,12 @@ mod tests {
     fn create_with_validation_requests() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = mock_simple_block_data();
-        let (_, signed_request1) = mock_validation_request(&ctx.signer, producer);
-        let (_, signed_request2) = mock_validation_request(&ctx.signer, keys[1]);
+        let block = SimpleBlockData::mock(());
+        let request1 = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
+        let request2 = SignedValidationRequest::mock((ctx.signer.clone(), keys[1], ()));
 
-        ctx.pending(signed_request1.clone());
-        ctx.pending(signed_request2.clone());
+        ctx.pending(request1.clone());
+        ctx.pending(request2.clone());
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
@@ -245,10 +245,7 @@ mod tests {
         );
         assert_eq!(
             s.context().pending_events,
-            vec![
-                PendingEvent::ValidationRequest(signed_request2),
-                PendingEvent::ValidationRequest(signed_request1)
-            ]
+            vec![request2.into(), request1.into()]
         );
     }
 
@@ -256,23 +253,21 @@ mod tests {
     fn create_with_many_pending_events() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = mock_simple_block_data();
-        let (pb, signed_pb) = mock_producer_block(&ctx.signer, producer, block.hash);
+        let block = SimpleBlockData::mock(());
+        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
-        ctx.pending(signed_pb);
+        ctx.pending(pb.clone());
 
         // Fill with fake blocks
         for _ in 0..10 * MAX_PENDING_EVENTS {
-            ctx.pending(mock_producer_block(&ctx.signer, keys[1], block.hash).1);
+            let pb = SignedProducerBlock::mock((ctx.signer.clone(), keys[0], block.hash));
+            ctx.pending(pb);
         }
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
         assert!(s.is_subordinate());
-        assert_eq!(
-            s.context().output,
-            vec![ConsensusEvent::ComputeProducerBlock(pb)]
-        );
+        assert_eq!(s.context().output, vec![pb.data().clone().into()]);
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
     }
 
@@ -280,24 +275,20 @@ mod tests {
     fn simple() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
-        let (pb, signed_pb) = mock_producer_block(&ctx.signer, producer, block.hash);
+        let block = SimpleBlockData::mock(());
+        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output.len(), 1);
         assert_eq!(
-            s.context().output[0],
-            ConsensusEvent::ComputeBlock(block.header.parent_hash)
+            s.context().output,
+            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
         );
 
-        let s = s.process_block_from_producer(signed_pb).unwrap();
+        let s = s.process_block_from_producer(pb.clone()).unwrap();
         assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 2);
-        assert_eq!(
-            s.context().output[1],
-            ConsensusEvent::ComputeProducerBlock(pb)
-        );
+        assert_eq!(s.context().output[1], pb.data().clone().into());
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
         assert!(s.is_subordinate());
@@ -312,8 +303,8 @@ mod tests {
     fn simple_not_validator() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
-        let (pb, signed_pb) = mock_producer_block(&ctx.signer, producer, block.hash);
+        let block = SimpleBlockData::mock(());
+        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
         assert!(s.is_subordinate());
@@ -323,13 +314,10 @@ mod tests {
             ConsensusEvent::ComputeBlock(block.header.parent_hash)
         );
 
-        let s = s.process_block_from_producer(signed_pb).unwrap();
+        let s = s.process_block_from_producer(pb.clone()).unwrap();
         assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 2);
-        assert_eq!(
-            s.context().output[1],
-            ConsensusEvent::ComputeProducerBlock(pb)
-        );
+        assert_eq!(s.context().output[1], pb.data().clone().into());
 
         let s = s.process_computed_block(block.header.parent_hash).unwrap();
         assert!(s.is_subordinate());
@@ -341,33 +329,27 @@ mod tests {
 
     #[test]
     fn create_with_multiple_producer_blocks() {
-        let (mut ctx, pub_keys) = mock_validator_context();
-        let producer = pub_keys[0];
-        let block = mock_simple_block_data();
-        let (pb1, signed_pb1) = mock_producer_block(&ctx.signer, producer, block.hash);
-        let (_, signed_pb2) = mock_producer_block(&ctx.signer, producer, block.hash);
+        let (mut ctx, keys) = mock_validator_context();
+        let producer = keys[0];
+        let block = SimpleBlockData::mock(());
+        let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
 
-        ctx.pending(signed_pb1);
-        ctx.pending(signed_pb2.clone());
+        ctx.pending(pb1.clone());
+        ctx.pending(pb2.clone());
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
-        assert_eq!(
-            s.context().output,
-            vec![ConsensusEvent::ComputeProducerBlock(pb1)]
-        );
-        assert_eq!(
-            s.context().pending_events,
-            vec![PendingEvent::ProducerBlock(signed_pb2)]
-        );
+        assert_eq!(s.context().output, vec![pb1.data().clone().into()]);
+        assert_eq!(s.context().pending_events, vec![pb2.into()]);
     }
 
     #[test]
     fn process_external_event_with_invalid_producer_block() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
-        let (_, invalid_pb) = mock_producer_block(&ctx.signer, pub_keys[1], block.hash);
+        let block = SimpleBlockData::mock(());
+        let invalid_pb = SignedProducerBlock::mock((ctx.signer.clone(), pub_keys[1], block.hash));
 
         let mut s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
@@ -382,7 +364,7 @@ mod tests {
     fn process_computed_block_with_unexpected_hash() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
         let unexpected_hash = H256::random();
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
