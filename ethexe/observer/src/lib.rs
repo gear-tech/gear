@@ -275,6 +275,9 @@ impl ObserverService {
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
+        // TODO: think about validators set for genesis block
+        // Maybe should be fill with the value from config
+        db.set_validator_set(genesis_block_hash, Default::default());
 
         Ok(())
     }
