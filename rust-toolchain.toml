@@ -1,5 +1,5 @@
 [toolchain]
 # TODO: bump nightly and wasmer once https://github.com/wasmerio/wasmer/issues/5610 is fixed.
-channel = "nightly-2025-06-09"
+channel = "nightly-2025-06-06"
 components = [ "clippy", "rustfmt", "llvm-tools" ]
 targets = [ "wasm32v1-none" ]
