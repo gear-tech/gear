@@ -83,11 +83,11 @@ pub(crate) fn missing_data(
 
     let announces_request = last_committed_unknown
         .map(|announce| -> Result<(AnnounceHash, u32)> {
-            let corresponding_block_height = db
+            let announce_block_height = db
                 .block_header(announce.hash)
                 .ok_or(ComputeError::BlockHeaderNotFound(announce.hash))?
                 .height;
-            let request_len = corresponding_block_height
+            let request_len = announce_block_height
                 .checked_sub(first_not_prepared_block_height.saturating_sub(commitment_delay_limit))
                 .expect(
                     "TODO +_+_+: announce committed too far from corresponding block - currently not supported",
