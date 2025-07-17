@@ -18,8 +18,8 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, OnChainStorageRead},
     BlockMeta, SimpleBlockData,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use gprimitives::H256;
 use std::collections::VecDeque;

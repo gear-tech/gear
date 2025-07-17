@@ -17,16 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    ComputeError, ComputeEvent, ProcessorExt, Result,
     compute::{self, ComputationStatus},
     prepare::{self, MissingData},
-    ComputeError, ComputeEvent, ProcessorExt, Result,
 };
 use ethexe_common::{
     AnnounceHash, AnnouncesRequest, BlockMetaStorageRead, CodeAndIdUnchecked, CodesStorageRead,
     DataRequest, ProducerBlock,
 };
 use ethexe_db::Database;
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::VecDeque,
@@ -284,8 +284,8 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        db::{BlockMeta, BlockMetaStorageWrite, OnChainStorageWrite},
         AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, CodeAndIdUnchecked,
+        db::{BlockMeta, BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use ethexe_db::Database as DB;
     use futures::StreamExt;

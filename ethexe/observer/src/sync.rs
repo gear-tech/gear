@@ -28,7 +28,7 @@ use alloy::{
     providers::{Provider, RootProvider},
     rpc::types::eth::Header,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
     self,
     db::{

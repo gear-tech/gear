@@ -18,8 +18,8 @@
 
 use crate::{Processor, ProcessorError, Result};
 use ethexe_common::{
-    db::{AnnounceStorageRead, CodesStorageWrite, OnChainStorageRead},
     ProducerBlock,
+    db::{AnnounceStorageRead, CodesStorageWrite, OnChainStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{

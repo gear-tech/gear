@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{compute, utils, ComputeError, ProcessorExt, Result};
+use crate::{ComputeError, ProcessorExt, Result, compute, utils};
 use ethexe_common::{
+    AnnounceHash, ProducerBlock, SimpleBlockData,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
         CodesStorageRead, OnChainStorageRead,
     },
     events::{BlockEvent, RouterEvent},
-    AnnounceHash, ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;

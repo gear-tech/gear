@@ -19,10 +19,10 @@
 //! Program's execution service for eGPU.
 
 use ethexe_common::{
+    AnnounceHash, CodeAndIdUnchecked, ProducerBlock, ProgramStates, Schedule,
     db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    AnnounceHash, CodeAndIdUnchecked, ProducerBlock, ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;

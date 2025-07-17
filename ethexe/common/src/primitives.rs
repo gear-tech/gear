@@ -22,7 +22,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
-use gprimitives::{ActorId, CodeId, MessageId, H256};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
