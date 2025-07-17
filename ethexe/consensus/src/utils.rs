@@ -285,7 +285,6 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     }))
 }
 
-// TODO #4744: improve squashing - removing redundant state transitions
 pub fn squash_chain_commitments(
     chain_commitments: Vec<ChainCommitment>,
 ) -> Option<ChainCommitment> {
@@ -293,16 +292,42 @@ pub fn squash_chain_commitments(
         return None;
     }
 
-    let mut transitions = Vec::new();
     let mut gear_blocks = Vec::new();
 
-    for commitment in chain_commitments {
-        transitions.extend(commitment.transitions);
-        gear_blocks.extend(commitment.gear_blocks);
+    // Use a map to track the latest transition for each actor
+    let mut latest_transitions = std::collections::HashMap::new();
+
+    // Process transitions in order to preserve the final state for each actor
+    for commitment in &chain_commitments {
+        for transition in &commitment.transitions {
+            // Always keep the latest transition for each actor_id
+            latest_transitions.insert(transition.actor_id, transition);
+        }
+        gear_blocks.extend(commitment.gear_blocks.clone());
     }
 
+    // Collect the latest transitions for each actor, preserving original order
+    // by processing the flattened transitions and keeping only the latest for each actor
+    let mut seen_actors = std::collections::HashSet::new();
+    let mut deduped_transitions = Vec::new();
+
+    // Process in reverse to get latest occurrences first, then reverse to maintain order
+    let all_transitions: Vec<_> = chain_commitments
+        .into_iter()
+        .flat_map(|c| c.transitions)
+        .collect();
+
+    for transition in all_transitions.into_iter().rev() {
+        if seen_actors.insert(transition.actor_id) {
+            deduped_transitions.push(transition);
+        }
+    }
+
+    // Reverse to restore original order (latest for each actor)
+    deduped_transitions.reverse();
+
     Some(ChainCommitment {
-        transitions,
+        transitions: deduped_transitions,
         gear_blocks,
     })
 }
@@ -495,6 +520,96 @@ mod tests {
 
         let squashed = squash_chain_commitments(vec![]);
         assert!(squashed.is_none());
+    }
+
+    #[test]
+    fn test_squash_chain_commitments_removes_redundant_transitions() {
+        use gprimitives::ActorId;
+
+        let block1 = H256::from([1; 32]);
+        let block2 = H256::from([2; 32]);
+
+        let actor1 = ActorId::from([1; 32]);
+        let actor2 = ActorId::from([2; 32]);
+
+        // Create redundant transitions for the same actors
+        let transition1 = StateTransition {
+            actor_id: actor1,
+            new_state_hash: H256::from([10; 32]),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 100,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        // Later transition for actor1 that should override transition1
+        let transition1_updated = StateTransition {
+            actor_id: actor1,
+            new_state_hash: H256::from([11; 32]), // Different state
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 200,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let transition2 = StateTransition {
+            actor_id: actor2,
+            new_state_hash: H256::from([20; 32]),
+            exited: true, // This actor exits
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_claims: vec![],
+            messages: vec![],
+        };
+
+        let gb1 = GearBlock {
+            hash: block1,
+            off_chain_transactions_hash: H256::zero(),
+            gas_allowance: 0,
+        };
+        let gb2 = GearBlock {
+            hash: block2,
+            off_chain_transactions_hash: H256::zero(),
+            gas_allowance: 0,
+        };
+
+        // Create chain commitments with redundant transitions
+        let chain_commitment1 = ChainCommitment {
+            // actor1 and actor2 transitions
+            transitions: vec![transition1, transition2.clone()],
+            gear_blocks: vec![gb1.clone()],
+        };
+
+        let chain_commitment2 = ChainCommitment {
+            // Updated actor1 transition
+            transitions: vec![transition1_updated],
+            gear_blocks: vec![gb2.clone()],
+        };
+
+        let squashed =
+            squash_chain_commitments(vec![chain_commitment1, chain_commitment2]).unwrap();
+
+        // Should have 2 transitions (latest for actor1 and actor2)
+        assert_eq!(squashed.transitions.len(), 2);
+        assert_eq!(squashed.gear_blocks, vec![gb1, gb2]);
+
+        // Verify we have the latest transitions
+        let actor1_transition = squashed
+            .transitions
+            .iter()
+            .find(|t| t.actor_id == actor1)
+            .unwrap();
+        assert_eq!(actor1_transition.new_state_hash, H256::from([11; 32]));
+        assert_eq!(actor1_transition.value_to_receive, 200);
+
+        let actor2_transition = squashed
+            .transitions
+            .iter()
+            .find(|t| t.actor_id == actor2)
+            .unwrap();
+        assert!(actor2_transition.exited);
     }
 
     #[test]
