@@ -268,6 +268,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
+        db.set_validators(block_hash, vec![]);
 
         // Request block preparation
         service.prepare_block(block_hash);

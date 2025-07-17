@@ -32,7 +32,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address as LocalAddress, Digest,
     ecdsa::ContractSignature,
-    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType},
+    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
 };
 use events::signatures;
 use futures::StreamExt;
@@ -368,6 +368,19 @@ impl RouterQuery {
             .block(BlockId::hash(block.0.into()))
             .await
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn timelines(&self) -> Result<Timelines> {
+        self.instance
+            .timelines()
+            .call()
+            .await
+            .map(|res| Timelines {
+                era: res.era.to::<u64>(),
+                election: res.election.to::<u64>(),
+                validation_delay: res.validationDelay.to::<u64>(),
+            })
             .map_err(Into::into)
     }
 }
