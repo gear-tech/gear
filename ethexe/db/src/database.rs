@@ -672,7 +672,7 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn validator_set(&self, block_hash: H256) -> Option<Vec<Address>> {
+    fn validators(&self, block_hash: H256) -> Option<Vec<Address>> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
             .map(|data| {
@@ -702,7 +702,7 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_validator_set(&self, block_hash: H256, validator_set: Vec<Address>) {
+    fn set_validators(&self, block_hash: H256, validator_set: Vec<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             validator_set.encode(),

@@ -27,7 +27,7 @@ use alloy::{
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -89,6 +89,8 @@ struct RuntimeConfig {
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
+    genesis_timestamp: u64,
+    era_duration: u64,
 }
 
 // TODO #4552: make tests for observer service
@@ -192,7 +194,10 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+        let genesis_header =
+            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+
+        let timelines = router_query.timelines().await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -207,6 +212,8 @@ impl ObserverService {
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
             block_time: *block_time,
+            genesis_timestamp: genesis_header.timestamp,
+            era_duration: timelines.era,
         };
 
         let chain_sync = ChainSync {
@@ -233,16 +240,18 @@ impl ObserverService {
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db<
-        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageWrite,
+        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead + OnChainStorageWrite,
     >(
         db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<()> {
+    ) -> Result<BlockHeader> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_meta(genesis_block_hash).computed {
-            return Ok(());
+            return db
+                .block_header(genesis_block_hash)
+                .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
         }
 
         let genesis_block = provider
@@ -274,12 +283,12 @@ impl ObserverService {
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header);
+        db.set_latest_computed_block(genesis_block_hash, genesis_header.clone());
         // TODO: think about validators set for genesis block
         // Maybe should be fill with the value from config
-        db.set_validator_set(genesis_block_hash, Default::default());
+        db.set_validators(genesis_block_hash, Default::default());
 
-        Ok(())
+        Ok(genesis_header)
     }
 
     pub fn provider(&self) -> &RootProvider {

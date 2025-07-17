@@ -90,7 +90,7 @@ pub trait OnChainStorageRead {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
-    fn validator_set(&self, block_hash: H256) -> Option<Vec<Address>>;
+    fn validators(&self, block_hash: H256) -> Option<Vec<Address>>;
 }
 
 pub trait OnChainStorageWrite {
@@ -98,5 +98,5 @@ pub trait OnChainStorageWrite {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
-    fn set_validator_set(&self, block_hash: H256, validator_set: Vec<Address>);
+    fn set_validators(&self, block_hash: H256, validator_set: Vec<Address>);
 }

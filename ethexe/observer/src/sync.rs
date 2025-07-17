@@ -61,11 +61,13 @@ impl<DB: SyncDB> ChainSync<DB> {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        let chain = self.load_chain(block, header, blocks_data).await?;
+        let chain = self.load_chain(block, &header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        let validators = if let Some(validators) = self.db.validator_set(block) {
+        let validators = if !self.first_era_block(&header)?
+            && let Some(validators) = self.db.validators(block)
+        {
             validators
         } else {
             let validators = RouterQuery::from_provider(
@@ -74,7 +76,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             )
             .validators_at(block)
             .await?;
-            self.db.set_validator_set(block, validators.clone());
+            self.db.set_validators(block, validators.clone());
             validators
         };
 
@@ -88,7 +90,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     async fn load_chain(
         &self,
         block: H256,
-        header: BlockHeader,
+        header: &BlockHeader,
         mut blocks_data: HashMap<H256, BlockData>,
     ) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
@@ -125,20 +127,6 @@ impl<DB: SyncDB> ChainSync<DB> {
                 {
                     self.db
                         .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
-                } else if let BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted {
-                    ..
-                }) = event
-                {
-                    log::trace!(
-                        "NextEraValidatorsCommitted event detected. Setting a new validator set."
-                    );
-                    let validators = RouterQuery::from_provider(
-                        self.config.router_address.0.into(),
-                        self.provider.clone(),
-                    )
-                    .validators()
-                    .await?;
-                    self.db.set_validator_set(block, validators);
                 }
             }
 
@@ -206,5 +194,21 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
+    }
+
+    fn first_era_block(&self, chain_head: &BlockHeader) -> Result<bool> {
+        let chain_head_era = self.block_era_index(chain_head.timestamp);
+
+        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
+            "header not found for block({:?})",
+            chain_head.parent_hash
+        ))?;
+
+        let parent_era_index = self.block_era_index(parent.timestamp);
+        Ok(chain_head_era == parent_era_index + 1)
+    }
+
+    fn block_era_index(&self, block_ts: u64) -> u64 {
+        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
     }
 }
