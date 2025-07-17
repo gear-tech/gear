@@ -24,13 +24,12 @@ use std::{
     ptr,
 };
 
+use crate::{OS_PAGE_SIZE, globals::InstanceAccessGlobal};
 use gear_lazy_pages::{
     ExceptionInfo, LazyPagesError as Error, LazyPagesVersion, UserSignalHandler,
 };
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
-
-use crate::{globals::InstanceAccessGlobal, OS_PAGE_SIZE};
 
 pub type HostPageAddr = usize;
 

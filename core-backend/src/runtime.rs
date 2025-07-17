@@ -19,6 +19,7 @@
 //! sp-sandbox runtime (here it's program execution state) realization.
 
 use crate::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, RunFallibleError, TrapExplanation,
         UndefinedTerminationReason,
@@ -27,7 +28,6 @@ use crate::{
         BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistry,
     },
     state::{HostState, State},
-    BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};

@@ -19,12 +19,11 @@
 //! Integration tests for command `upload`
 
 use crate::common::{
-    self,
+    self, Args, Result,
     node::{Convert, NodeExec},
-    Args, Result,
 };
 use demo_fungible_token::InitConfig;
-use gear_core::ids::{prelude::*, CodeId};
+use gear_core::ids::{CodeId, prelude::*};
 use gsdk::Api;
 use scale_info::scale::Encode;
 

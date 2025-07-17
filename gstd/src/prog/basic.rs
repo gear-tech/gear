@@ -37,7 +37,7 @@ use gstd_codegen::wait_create_program_for_reply;
 /// Create a new program from the provided code identifier:
 ///
 /// ```
-/// use gstd::{msg, prog, CodeId};
+/// use gstd::{CodeId, msg, prog};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {
@@ -67,7 +67,7 @@ pub fn create_program_bytes(
 /// send a message to it after 200 blocks:
 ///
 /// ```
-/// use gstd::{msg, prog, CodeId};
+/// use gstd::{CodeId, msg, prog};
 ///
 /// #[unsafe(no_mangle)]
 /// extern "C" fn handle() {

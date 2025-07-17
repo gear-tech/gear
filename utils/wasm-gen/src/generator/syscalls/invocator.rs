@@ -19,28 +19,28 @@
 //! Syscalls invocator module.
 
 use crate::{
+    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
+    SyscallsConfig, SyscallsParamsConfig,
     generator::{
         CallIndexes, CallIndexesHandle, DisabledAdditionalDataInjector, FunctionIndex,
         ModuleWithCallIndexes,
     },
     utils::{self, MemcpyUnit, WasmWords},
     wasm::{PageCount as WasmPageCount, WasmModule},
-    ActorKind, InvocableSyscall, MemoryLayout, PtrParamAllowedValues, RegularParamAllowedValues,
-    SyscallsConfig, SyscallsParamsConfig,
 };
 use arbitrary::{Result, Unstructured};
 use gear_core::ids::CodeId;
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
+    Instruction, MemArg,
     syscalls::{
         FallibleSyscallSignature, ParamType, Ptr, RegularParamType, SyscallName, SyscallSignature,
         SystemSyscallSignature,
     },
-    Instruction, MemArg,
 };
 use gsys::{ErrorCode, Handle, Hash};
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BinaryHeap, HashSet},
+    collections::{BTreeMap, BinaryHeap, HashSet, btree_map::Entry},
     fmt::{self, Debug, Display},
     iter,
     num::NonZero,
@@ -449,7 +449,9 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                         ValType::I32 => true,
                         ValType::I64 => false,
                         ValType::F32 | ValType::F64 | ValType::V128 | ValType::Ref(_) => {
-                            panic!("gear wasm must not have any floating nums, SIMD or reference types")
+                            panic!(
+                                "gear wasm must not have any floating nums, SIMD or reference types"
+                            )
                         }
                     };
                     let param_instructions = if let Some(allowed_values) = allowed_values {

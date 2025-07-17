@@ -18,7 +18,7 @@
 
 //! Runtime constants query methods
 
-use crate::{metadata::runtime_types::gear_common::GasMultiplier, result::Result, Api};
+use crate::{Api, metadata::runtime_types::gear_common::GasMultiplier, result::Result};
 use parity_scale_codec::Decode;
 use sp_runtime::Percent;
 use subxt::utils::AccountId32;

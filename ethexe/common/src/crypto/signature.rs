@@ -25,9 +25,8 @@ use super::{
 };
 use derive_more::{Debug, Display};
 use k256::ecdsa::{
-    self,
-    signature::{hazmat::PrehashVerifier, Result as SignResult},
-    RecoveryId, SigningKey, VerifyingKey,
+    self, RecoveryId, SigningKey, VerifyingKey,
+    signature::{Result as SignResult, hazmat::PrehashVerifier},
 };
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,

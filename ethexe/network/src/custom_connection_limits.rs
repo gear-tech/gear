@@ -18,12 +18,12 @@
 
 use crate::utils::ConnectionMap;
 use libp2p::{
-    core::{transport::PortUse, ConnectedPoint, Endpoint},
-    swarm::{
-        dummy, ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour,
-        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
-    },
     Multiaddr, PeerId,
+    core::{ConnectedPoint, Endpoint, transport::PortUse},
+    swarm::{
+        ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler,
+        THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
+    },
 };
 use std::{
     convert::Infallible,
@@ -168,12 +168,12 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use libp2p::{
-        futures::{stream, StreamExt},
-        swarm::{
-            dial_opts::{DialOpts, PeerCondition},
-            DialError, ListenError, SwarmEvent,
-        },
         Swarm,
+        futures::{StreamExt, stream},
+        swarm::{
+            DialError, ListenError, SwarmEvent,
+            dial_opts::{DialOpts, PeerCondition},
+        },
     };
     use libp2p_swarm_test::SwarmExt;
 

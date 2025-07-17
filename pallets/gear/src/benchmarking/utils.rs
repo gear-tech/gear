@@ -20,20 +20,20 @@
 
 use super::Exec;
 use crate::{
-    builtin::BuiltinDispatcherFactory,
-    manager::{ExtManager, HandleKind},
     Config, CurrencyOf, LazyPagesInterface, LazyPagesRuntimeInterface, MailboxOf, Pallet as Gear,
     ProgramStorageOf, QueueOf,
+    builtin::BuiltinDispatcherFactory,
+    manager::{ExtManager, HandleKind},
 };
-use common::{storage::*, CodeStorage, Origin, Program, ProgramStorage};
+use common::{CodeStorage, Origin, Program, ProgramStorage, storage::*};
 use core_processor::{
-    common::ExecutableActorData, configs::BlockConfig, precharge::ContextCharged,
-    ProcessExecutionContext,
+    ProcessExecutionContext, common::ExecutableActorData, configs::BlockConfig,
+    precharge::ContextCharged,
 };
 use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
 };

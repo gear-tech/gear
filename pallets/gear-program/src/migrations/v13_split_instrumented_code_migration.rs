@@ -30,8 +30,8 @@ use {
     crate::InstrumentedCodeStorage,
     frame_support::ensure,
     sp_runtime::{
-        codec::{Decode, Encode},
         TryRuntimeError,
+        codec::{Decode, Encode},
     },
     sp_std::vec::Vec,
 };
@@ -60,7 +60,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
 
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
 
-            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+            log::info!(
+                "🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
+            );
 
             v12::CodeStorage::<T>::drain().for_each(|(code_id, instrumented_code)| {
                 // 1 read for instrumented code and 1 write for code metadata, also 1 write to delete instrumented code from previous storage
@@ -102,7 +104,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateSplitInstrumentedCode<T> {
 
             log::info!("✅ Successfully migrated storage. {counter} codes have been migrated");
         } else {
-            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!(
+                "🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"
+            );
         }
 
         weight

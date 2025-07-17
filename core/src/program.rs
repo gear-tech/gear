@@ -24,8 +24,8 @@ use crate::{
 };
 use gprimitives::CodeId;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Program in different states in storage.

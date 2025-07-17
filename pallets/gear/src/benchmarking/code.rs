@@ -29,16 +29,16 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
-    ids::{prelude::*, CodeId},
+    ids::{CodeId, prelude::*},
     pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
     SandboxEnvironmentBuilder, SandboxMemory,
+    default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
 };
 use gear_wasm_instrument::{
-    syscalls::SyscallName, BlockType, Data, Element, Export, FuncType, Function, Global, Import,
-    Instruction, ModuleBuilder, Table, ValType, STACK_END_EXPORT_NAME,
+    BlockType, Data, Element, Export, FuncType, Function, Global, Import, Instruction,
+    ModuleBuilder, STACK_END_EXPORT_NAME, Table, ValType, syscalls::SyscallName,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -374,11 +374,11 @@ where
             }
 
             // Add residual bytes to the last data segment
-            if residual_bytes != 0 {
-                if let Some(last) = module.data_segments.last_mut() {
-                    last.value
-                        .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
-                }
+            if residual_bytes != 0
+                && let Some(last) = module.data_segments.last_mut()
+            {
+                last.value
+                    .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
             }
         }
 
@@ -508,7 +508,7 @@ where
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
     use super::*;
-    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
+    use gear_core::pages::{GearPage, WasmPage, numerated::iterators::IntervalIterator};
     use gear_wasm_instrument::{BlockType, MemArg};
 
     /// When generating program code by repeating a wasm sequence, it's sometimes necessary

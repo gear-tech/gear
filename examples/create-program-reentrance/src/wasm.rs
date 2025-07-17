@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{debug, msg, prog, ActorId, CodeId};
+use gstd::{ActorId, CodeId, debug, msg, prog};
 
 static mut DST_PROGRAM_ID: ActorId = ActorId::new([0u8; 32]);
 

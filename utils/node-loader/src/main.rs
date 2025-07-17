@@ -5,9 +5,9 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
-use anyhow::{anyhow, Result};
-use args::{parse_cli_params, LoadParams, Params};
-use batch_pool::{api::GearApiFacade, BatchPool};
+use anyhow::{Result, anyhow};
+use args::{LoadParams, Params, parse_cli_params};
+use batch_pool::{BatchPool, api::GearApiFacade};
 use gsdk::subscription::BlockEvents;
 use names::Generator;
 use rand::rngs::SmallRng;

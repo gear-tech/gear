@@ -22,7 +22,7 @@
 //! implementation of a liquid staking contract, for example, would be more complex.
 
 use gbuiltin_staking::*;
-use gstd::{debug, errors::Error, msg, prelude::*, ActorId};
+use gstd::{ActorId, debug, errors::Error, msg, prelude::*};
 use hashbrown::HashMap;
 use hex_literal::hex;
 use parity_scale_codec::Encode;

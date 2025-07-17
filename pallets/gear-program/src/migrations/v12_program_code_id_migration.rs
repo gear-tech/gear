@@ -29,8 +29,8 @@ use sp_std::marker::PhantomData;
 use {
     frame_support::ensure,
     sp_runtime::{
-        codec::{Decode, Encode},
         TryRuntimeError,
+        codec::{Decode, Encode},
     },
     sp_std::vec::Vec,
 };

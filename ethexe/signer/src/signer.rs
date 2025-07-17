@@ -19,8 +19,8 @@
 use crate::storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
 use anyhow::Result;
 use ethexe_common::{
-    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
     Address, Digest,
+    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
 };
 use std::{
     fs,
@@ -126,7 +126,7 @@ impl Signer {
 mod tests {
     use super::*;
 
-    use alloy::primitives::{keccak256, Signature};
+    use alloy::primitives::{Signature, keccak256};
     use std::str::FromStr;
 
     #[test]

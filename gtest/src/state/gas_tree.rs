@@ -23,16 +23,16 @@ use std::{
     collections::BTreeMap,
 };
 
-use crate::{state::WithOverlay, GAS_MULTIPLIER};
+use crate::{GAS_MULTIPLIER, state::WithOverlay};
 use gear_common::{
+    Gas, GasMultiplier, LockId, Origin,
     gas_provider::{
+        ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree,
         auxiliary::{
             AuxiliaryGasProvider, GasNodesProvider, GasNodesStorage, GasTreeError, Node, NodeId,
             PlainNodeId, TotalIssuanceProvider, TotalIssuanceStorage,
         },
-        ConsumeResultOf, GasNodeId, LockableTree, Provider, ReservableTree, Tree,
     },
-    Gas, GasMultiplier, LockId, Origin,
 };
 use gear_core::ids::{ActorId, MessageId, ReservationId};
 

@@ -22,7 +22,7 @@ pub fn median(values: &[u64]) -> u64 {
     assert!(!values.is_empty());
 
     let len = values.len();
-    if len % 2 == 0 {
+    if len.is_multiple_of(2) {
         let i = len / 2;
         values[i - 1] / 2 + values[i] / 2 + values[i - 1] % 2 + values[i] % 2
     } else {

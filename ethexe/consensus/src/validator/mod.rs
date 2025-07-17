@@ -41,23 +41,23 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest,
     utils::MultisignedBatchCommitment,
     validator::{
         coordinator::Coordinator, participant::Participant, producer::Producer,
         submitter::Submitter, subordinate::Subordinate,
     },
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
-    SignedValidationRequest,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{ecdsa::PublicKey, Address, SimpleBlockData};
+use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Signer;
-use futures::{stream::FusedStream, Stream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{

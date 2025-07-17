@@ -24,7 +24,7 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use core::{
     any::Any,
     cell::RefCell,
@@ -40,11 +40,11 @@ use gear_core::{
     ids::prelude::MessageIdExt as _,
     memory::PageBuf,
     message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gprimitives::{ActorId, MessageId, H256};
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
@@ -1066,7 +1066,7 @@ impl MemoryPages {
 
     /// Pages amount per each region.
     pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
-    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES.is_multiple_of(Self::REGIONS_AMOUNT));
 
     pub fn page_region(page: GearPage) -> RegionIdx {
         RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)

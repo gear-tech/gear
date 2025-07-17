@@ -52,8 +52,8 @@ use crate::{
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
     pages::{
-        GearPagesAmount, GearSizeNo, PagesAmountTrait, SizeNumber, WasmPage, WasmPagesAmount,
-        WasmSizeNo, SIZES_AMOUNT,
+        GearPagesAmount, GearSizeNo, PagesAmountTrait, SIZES_AMOUNT, SizeNumber, WasmPage,
+        WasmPagesAmount, WasmSizeNo,
     },
     signal::DefaultUserSignalHandler,
 };
@@ -122,10 +122,10 @@ pub fn initialize_for_program(
         let runtime_ctx = ctx.runtime_context_mut()?;
 
         // Check wasm program memory host address
-        if let Some(addr) = wasm_mem_addr {
-            if addr % region::page::size() != 0 {
-                return Err(Error::WasmMemAddrIsNotAligned(addr));
-            }
+        if let Some(addr) = wasm_mem_addr
+            && !addr.is_multiple_of(region::page::size())
+        {
+            return Err(Error::WasmMemAddrIsNotAligned(addr));
         }
 
         // Check stack_end is less or equal than wasm memory size

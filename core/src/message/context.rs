@@ -18,7 +18,7 @@
 
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, MessageId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId, prelude::*},
     message::{
         Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
         ReplyMessage, ReplyPacket,
@@ -987,12 +987,14 @@ mod tests {
         );
 
         // And checking that it is not formed
-        assert!(context
-            .outgoing_payloads
-            .handles
-            .get(&expected_handle)
-            .expect("This key should be")
-            .is_some());
+        assert!(
+            context
+                .outgoing_payloads
+                .handles
+                .get(&expected_handle)
+                .expect("This key should be")
+                .is_some()
+        );
 
         // Checking that we are able to push payload for the
         // message that we have not committed yet

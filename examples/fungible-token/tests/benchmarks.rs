@@ -21,8 +21,8 @@
 use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
 use gear_core::ids::MessageId;
-use gstd::{vec, ActorId, Encode, Vec};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use gstd::{ActorId, Encode, Vec, vec};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use statrs::statistics::Statistics;
 
 /// Path to the gear node binary.
@@ -232,11 +232,13 @@ async fn stress_transfer() -> Result<()> {
         .await
         .unwrap();
 
-    assert!(listener
-        .message_processed(message_id)
-        .await
-        .unwrap()
-        .succeed());
+    assert!(
+        listener
+            .message_processed(message_id)
+            .await
+            .unwrap()
+            .succeed()
+    );
 
     // Fill program with test users balances
     let mut actions: Vec<FTAction> = vec![];

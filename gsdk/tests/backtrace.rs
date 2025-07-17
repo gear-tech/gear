@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gsdk::{backtrace::BacktraceStatus, signer::Signer, Api, Result};
+use gsdk::{Api, Result, backtrace::BacktraceStatus, signer::Signer};
 use utils::{alice_account_id, dev_node};
 
 mod utils;

@@ -19,14 +19,14 @@
 //! Gas reservation structures.
 
 use crate::{
-    ids::{prelude::*, MessageId, ReservationId},
+    ids::{MessageId, ReservationId, prelude::*},
     message::IncomingDispatch,
 };
 use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// An unchangeable wrapper over u64 value, which is required

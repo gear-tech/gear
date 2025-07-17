@@ -23,7 +23,7 @@
 // Effectively, this procedure executes a composition of `MAX_ITER` programs `f`
 // where the output of the previous call is fed to the input of the next call.
 
-use gstd::{debug, exec, msg, prelude::*, String};
+use gstd::{String, debug, exec, msg, prelude::*};
 
 static mut DEBUG: DebugInfo = DebugInfo { me: String::new() };
 static mut STATE: State = State { intrinsic: 0 };

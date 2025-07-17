@@ -1,7 +1,7 @@
 use super::seed;
 use crate::{
     args::SeedVariant,
-    batch_pool::{api::GearApiFacade, context::Context, Seed},
+    batch_pool::{Seed, api::GearApiFacade, context::Context},
     utils,
 };
 use anyhow::Result;

@@ -27,8 +27,8 @@ use core::{
 use alloc::{sync::Arc, vec, vec::Vec};
 use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 use crate::str::LimitedStr;
@@ -318,7 +318,7 @@ impl PanicBuffer {
         &self.0
     }
 
-    fn to_limited_str(&self) -> Option<LimitedStr> {
+    fn to_limited_str(&self) -> Option<LimitedStr<'_>> {
         let s = core::str::from_utf8(self.0.inner()).ok()?;
         LimitedStr::try_from(s).ok()
     }

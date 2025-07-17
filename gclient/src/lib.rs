@@ -134,7 +134,7 @@ mod api;
 mod utils;
 mod ws;
 
-pub use api::{error::*, listener::*, GearApi};
+pub use api::{GearApi, error::*, listener::*};
 pub use gsdk::{
     ext,
     metadata::{self, errors},

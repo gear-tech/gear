@@ -17,7 +17,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_instrument::{gas_metering, stack_limiter, Module};
+use gear_wasm_instrument::{Module, gas_metering, stack_limiter};
 use std::{
     env, fs,
     io::{self, Read, Write},

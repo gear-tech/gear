@@ -17,11 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    IRouter,
     abi::utils::{bytes32_to_code_id, bytes32_to_h256},
-    decode_log, IRouter,
+    decode_log,
 };
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::events::{RouterEvent, RouterRequestEvent};
 use signatures::*;
 

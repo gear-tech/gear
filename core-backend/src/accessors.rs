@@ -19,13 +19,13 @@
 //! Memory accessors
 
 use crate::{
+    BackendExternalities,
     memory::{
         BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry, WasmMemoryRead,
         WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::MemoryCallerContext,
     state::HostState,
-    BackendExternalities,
 };
 use alloc::vec::Vec;
 use gear_core::buffer::{Payload, PayloadSizeError};

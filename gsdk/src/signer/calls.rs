@@ -19,17 +19,17 @@
 //! gear api calls
 use super::Inner;
 use crate::{
+    Result, TxInBlock,
     metadata::{
+        Convert,
         calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
         runtime_types::{
             pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
             sp_weights::weight_v2::Weight,
         },
         vara_runtime::RuntimeCall,
-        Convert,
     },
     signer::utils::EventsResult,
-    Result, TxInBlock,
 };
 use gear_core::ids::*;
 use sp_runtime::AccountId32;

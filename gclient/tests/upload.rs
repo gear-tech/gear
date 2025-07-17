@@ -21,7 +21,7 @@
 use std::time::Duration;
 
 use demo_wat::WatExample;
-use gclient::{errors, Error, EventProcessor, GearApi};
+use gclient::{Error, EventProcessor, GearApi, errors};
 use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::WasmPage};
 
 async fn upload_programs_and_check(

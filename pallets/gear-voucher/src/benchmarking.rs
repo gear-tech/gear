@@ -19,10 +19,10 @@
 //! Benchmarks for Pallet Gear Voucher.
 
 use crate::*;
-use common::{benchmarking, Origin};
+use common::{Origin, benchmarking};
 use frame_benchmarking::benchmarks;
 use frame_support::traits::Currency;
-use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
+use frame_system::{RawOrigin, pallet_prelude::BlockNumberFor};
 use sp_runtime::traits::{One, UniqueSaturatedInto, Zero};
 
 pub(crate) type CurrencyOf<T> = <T as Config>::Currency;

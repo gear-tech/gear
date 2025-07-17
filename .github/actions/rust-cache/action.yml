@@ -34,7 +34,7 @@ runs:
           echo "AWS_SECRET_ACCESS_KEY=${{ inputs.eu-secret-access-key }}" >> $GITHUB_ENV
           echo "AWS_REGION=fsn1" >> $GITHUB_ENV
           echo "SCCACHE_REGION=fsn1" >> $GITHUB_ENV
-        
+
           echo "SCCACHE_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
           echo "RUNS_ON_S3_BUCKET_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
         fi
@@ -48,14 +48,14 @@ runs:
         echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
         echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
         echo "SCCACHE_STARTUP_TIMEOUT=30" >> $GITHUB_ENV
-        
+
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
-    - uses: gear-tech/rust-cache@runs-on
+    - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/v0'
+        prefix-key: 'rust-cache/wbuild'
         key: ${{ inputs.key }}
         workspaces: |
           . -> target

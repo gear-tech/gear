@@ -157,7 +157,7 @@ pub use pallet::*;
 pub mod pallet {
     pub use frame_support::weights::Weight;
 
-    use common::{storage::*, BlockLimiter, Origin};
+    use common::{BlockLimiter, Origin, storage::*};
     use frame_support::{pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{

@@ -19,9 +19,9 @@
 //! `gtest` bank
 
 use crate::{
+    GAS_MULTIPLIER, Gas,
     constants::Value,
-    state::{accounts::Accounts, WithOverlay},
-    Gas, GAS_MULTIPLIER,
+    state::{WithOverlay, accounts::Accounts},
 };
 use gear_common::GasMultiplier;
 use gear_core::ids::ActorId;

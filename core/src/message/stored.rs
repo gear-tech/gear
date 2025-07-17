@@ -20,8 +20,8 @@ use crate::{
     buffer::Payload,
     ids::{ActorId, MessageId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, ReplyDetails, Value,
+        ContextStore, DispatchKind, GasLimit, IncomingDispatch, IncomingMessage, ReplyDetails,
+        Value, common::MessageDetails,
     },
 };
 use core::ops::Deref;

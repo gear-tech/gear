@@ -1,8 +1,8 @@
 //! Utils for checking blocks production.
 use gsdk::{config::GearConfig, ext::sp_runtime::AccountId32};
 use parity_scale_codec::Decode;
-use sp_consensus_babe::{digests::PreDigest as BabePreDigest, BABE_ENGINE_ID};
-use subxt::{blocks, config::substrate::DigestItem, OnlineClient};
+use sp_consensus_babe::{BABE_ENGINE_ID, digests::PreDigest as BabePreDigest};
+use subxt::{OnlineClient, blocks, config::substrate::DigestItem};
 
 /// Gear block.
 pub type Block = blocks::Block<GearConfig, OnlineClient<GearConfig>>;
@@ -35,22 +35,21 @@ impl BlocksProduction {
         }
 
         let logs = &block.header().digest.logs;
-        if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.first() {
-            if *engine == BABE_ENGINE_ID {
-                if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())
-                    .ok()
-                    .and_then(|pre| self.all_validators.get(pre.authority_index() as usize))
-                {
-                    if let Ok(index) = self.validators.binary_search(author) {
-                        log::info!(
-                            "Validated {:?} for blocks production.",
-                            self.validators.remove(index)
-                        );
-                    }
-                }
-
-                return self.validators.is_empty();
+        if let Some(DigestItem::PreRuntime(engine, bytes)) = logs.first()
+            && *engine == BABE_ENGINE_ID
+        {
+            if let Some(author) = BabePreDigest::decode(&mut bytes.as_ref())
+                .ok()
+                .and_then(|pre| self.all_validators.get(pre.authority_index() as usize))
+                && let Ok(index) = self.validators.binary_search(author)
+            {
+                log::info!(
+                    "Validated {:?} for blocks production.",
+                    self.validators.remove(index)
+                );
             }
+
+            return self.validators.is_empty();
         }
 
         false

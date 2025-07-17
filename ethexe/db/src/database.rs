@@ -19,10 +19,11 @@
 //! Database for ethexe.
 
 use crate::{
-    overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase, MemDb,
+    overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead,
         BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData,
@@ -184,13 +185,15 @@ impl Database {
     //         bail!("No reference block found");
     //     };
 
-    //     // If reference block is far away from the latest valid block, it's not in the window.
-    //     let Some(actual_window) = latest_computed_block_header
-    //         .height
-    //         .checked_sub(reference_block_header.height)
-    //     else {
-    //         bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
-    //     };
+        // If reference block is far away from the latest valid block, it's not in the window.
+        // let Some(actual_window) = latest_computed_block_header
+        //     .height
+        //     .checked_sub(reference_block_header.height)
+        // else {
+        //     bail!(
+        //         "Can't calculate actual window: reference block hash doesn't suit actual blocks state"
+        //     );
+        // };
 
     //     if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
     //         return Ok(false);
@@ -733,19 +736,21 @@ mod tests {
     //         db.set_block_header(current_hash, current_header.clone());
     //         history.push((current_hash, current_header.clone()));
 
-    //         // Check block near the end of the window
-    //         let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
-    //         assert!(db
-    //             .check_within_recent_blocks(reference_block_hash_mid)
-    //             .unwrap());
+            // Check block near the end of the window
+        //     let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
+        //     assert!(
+        //         db.check_within_recent_blocks(reference_block_hash_mid)
+        //             .unwrap()
+        //     );
 
-    //         // Check block at the edge of the window
-    //         // Block at BASE_HEIGHT
-    //         let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
-    //         assert!(db
-    //             .check_within_recent_blocks(reference_block_hash_edge)
-    //             .unwrap());
-    //     }
+        //     // Check block at the edge of the window
+        //     // Block at BASE_HEIGHT
+        //     let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
+        //     assert!(
+        //         db.check_within_recent_blocks(reference_block_hash_edge)
+        //             .unwrap()
+        //     );
+        // }
 
     //     // --- Fail: Outside Window ---
     //     {
@@ -828,18 +833,20 @@ mod tests {
     //         assert!(!db.check_within_recent_blocks(fork_block_hash).unwrap());
     //     }
 
-    //     // --- Error: No Latest Block ---
-    //     {
-    //         println!("Scenario: Error - No Latest Block");
-    //         let db = Database::memory();
-    //         let reference_block_hash = H256::random();
-    //         let result = db.check_within_recent_blocks(reference_block_hash);
-    //         assert!(result.is_err());
-    //         assert!(result
-    //             .unwrap_err()
-    //             .to_string()
-    //             .contains("No latest valid block found"));
-    //     }
+        // --- Error: No Latest Block ---
+        // {
+        //     println!("Scenario: Error - No Latest Block");
+        //     let db = Database::memory();
+        //     let reference_block_hash = H256::random();
+        //     let result = db.check_within_recent_blocks(reference_block_hash);
+        //     assert!(result.is_err());
+        //     assert!(
+        //         result
+        //             .unwrap_err()
+        //             .to_string()
+        //             .contains("No latest valid block found")
+        //     );
+        // }
 
     //     // --- Error: No Reference Block ---
     //     {
@@ -854,15 +861,17 @@ mod tests {
     //         // Need the latest header itself
     //         db.set_block_header(latest_hash, latest_header);
 
-    //         // This block doesn't exist
-    //         let reference_block_hash = H256::random();
-    //         let result = db.check_within_recent_blocks(reference_block_hash);
-    //         assert!(result.is_err());
-    //         assert!(result
-    //             .unwrap_err()
-    //             .to_string()
-    //             .contains("No reference block found"));
-    //     }
+            // This block doesn't exist
+        //     let reference_block_hash = H256::random();
+        //     let result = db.check_within_recent_blocks(reference_block_hash);
+        //     assert!(result.is_err());
+        //     assert!(
+        //         result
+        //             .unwrap_err()
+        //             .to_string()
+        //             .contains("No reference block found")
+        //     );
+        // }
 
     //     // --- Error: Missing History ---
     //     {
@@ -892,10 +901,12 @@ mod tests {
 
     //         let result = db.check_within_recent_blocks(reference_block_hash);
     //         assert!(result.is_err());
-    //         assert!(result
-    //             .unwrap_err()
-    //             .to_string()
-    //             .contains("not found in the window"));
+    //         assert!(
+    //             result
+    //                 .unwrap_err()
+    //                 .to_string()
+    //                 .contains("not found in the window")
+    //         );
     //     }
     // }
 

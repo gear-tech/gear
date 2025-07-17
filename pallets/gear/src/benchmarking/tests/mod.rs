@@ -28,11 +28,11 @@ pub mod syscalls_integrity;
 mod utils;
 
 use crate::{
+    Ext, HandleKind,
     benchmarking::{
-        code::{body, WasmModule},
+        code::{WasmModule, body},
         utils as common_utils,
     },
-    Ext, HandleKind,
 };
 use common::benchmarking;
 use gear_wasm_instrument::Instruction;

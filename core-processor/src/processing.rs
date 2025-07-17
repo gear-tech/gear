@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
         ExecutionError, JournalNote, SuccessfulDispatchResultKind, SystemExecutionError,
@@ -26,20 +27,19 @@ use crate::{
     context::*,
     executor,
     ext::ProcessorExternalities,
-    ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
 };
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
     buffer::{Payload, PayloadSizeError},
     env::Externalities,
-    ids::{prelude::*, ActorId, MessageId},
+    ids::{ActorId, MessageId, prelude::*},
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{
-    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleUnavailableActorError};
 
@@ -156,11 +156,12 @@ where
                         system_reservation_ctx.previous_reservation
                             == res.system_reservation_context.previous_reservation
                     );
-                    debug_assert!(res
-                        .gas_reserver
-                        .as_ref()
-                        .map(|reserver| initial_reservations_amount <= reserver.states().len())
-                        .unwrap_or(true));
+                    debug_assert!(
+                        res.gas_reserver
+                            .as_ref()
+                            .map(|reserver| initial_reservations_amount <= reserver.states().len())
+                            .unwrap_or(true)
+                    );
                 }
                 // reservation does not change in case of failure
                 _ => (),

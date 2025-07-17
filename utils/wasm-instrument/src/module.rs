@@ -249,7 +249,7 @@ macro_rules! define_instruction {
                 }
             }
 
-            fn reencode(&self) -> Result<wasm_encoder::Instruction> {
+            fn reencode(&self) -> Result<wasm_encoder::Instruction<'_>> {
                 Ok(match self {
                     $(
                         Self::$op $(( $($arg),+ ))? => {
@@ -1055,10 +1055,10 @@ impl ModuleFuncIndexShifter {
         {
             for func in section {
                 for instruction in &mut func.instructions {
-                    if let Instruction::Call(function_index) = instruction {
-                        if *function_index >= self.inserted_at {
-                            *function_index += 1
-                        }
+                    if let Instruction::Call(function_index) = instruction
+                        && *function_index >= self.inserted_at
+                    {
+                        *function_index += 1
                     }
                 }
             }
@@ -1072,10 +1072,10 @@ impl ModuleFuncIndexShifter {
             .filter(|_| self.export_section)
         {
             for export in section {
-                if let ExternalKind::Func = export.kind {
-                    if export.index >= self.inserted_at {
-                        export.index += 1
-                    }
+                if let ExternalKind::Func = export.kind
+                    && export.index >= self.inserted_at
+                {
+                    export.index += 1
                 }
             }
         }
@@ -1107,10 +1107,9 @@ impl ModuleFuncIndexShifter {
             .start_section
             .as_mut()
             .filter(|_| self.start_section)
+            && *start_idx >= self.inserted_at
         {
-            if *start_idx >= self.inserted_at {
-                *start_idx += 1
-            }
+            *start_idx += 1
         }
 
         if let Some(section) = self

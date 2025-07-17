@@ -23,8 +23,8 @@ use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
 use gprimitives::ActorId;
 use roast_secp256k1_evm::frost::{
-    keys::{self, IdentifierList},
     Identifier,
+    keys::{self, IdentifierList},
 };
 use std::time::Duration;
 

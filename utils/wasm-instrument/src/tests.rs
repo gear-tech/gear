@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    GLOBAL_NAME_GAS, InstrumentationBuilder, InstrumentationError, Module, Rules,
     gas_metering::ConstantCostRules,
     module::{Function, Global, Instruction, Instruction::*, ModuleBuilder},
     syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
-    InstrumentationBuilder, InstrumentationError, Module, Rules, GLOBAL_NAME_GAS,
 };
 use alloc::format;
 use wasmparser::{BlockType, FuncType, ValType};

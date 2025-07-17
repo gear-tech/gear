@@ -18,7 +18,7 @@
 
 use super::utils;
 use crate::params::Params;
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;

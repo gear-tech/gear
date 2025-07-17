@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![cfg(feature = "cli")]
 
-use anyhow::{anyhow, Result};
-use gring::{cmd::Command, Keystore};
+use anyhow::{Result, anyhow};
+use gring::{Keystore, cmd::Command};
 use std::{env, process};
 
 fn gring(args: &[&str]) -> Result<String> {

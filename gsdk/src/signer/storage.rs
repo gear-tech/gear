@@ -18,6 +18,7 @@
 
 //! Storage interfaces
 use crate::{
+    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
@@ -30,9 +31,8 @@ use crate::{
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
         vara_runtime::RuntimeCall,
     },
-    signer::{utils::EventsResult, Inner},
+    signer::{Inner, utils::EventsResult},
     utils::storage_address_bytes,
-    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
 };
 use gear_core::{
     ids::*,

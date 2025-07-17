@@ -19,10 +19,10 @@
 //! Replaying a block on top of the corresponding chain state
 
 use crate::{
-    build_executor, fetch_block, fetch_header, full_extensions,
+    BlockHashOrNumber, LOG_TARGET, build_executor, fetch_block, fetch_header, full_extensions,
     shared_parameters::SharedParams,
     state::{LiveState, SnapState, State},
-    state_machine_call, BlockHashOrNumber, LOG_TARGET,
+    state_machine_call,
 };
 use clap::Parser;
 use parity_scale_codec::{Decode, Encode};
@@ -31,8 +31,8 @@ use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
 #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
 use service::VaraExecutorDispatch;
 use sp_runtime::{
-    traits::{Block as BlockT, Header as HeaderT, One},
     DeserializeOwned,
+    traits::{Block as BlockT, Header as HeaderT, One},
 };
 use std::fmt::Debug;
 use substrate_rpc_client::ws_client;

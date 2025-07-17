@@ -22,11 +22,11 @@ use core::fmt;
 use ethexe_common::db::OnChainStorageRead;
 use ethexe_db::Database;
 use ethexe_runtime_common::{
+    BlockInfo,
     state::{
         ActiveProgram, HashOf, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
         RegionIdx, Storage,
     },
-    BlockInfo,
 };
 use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;

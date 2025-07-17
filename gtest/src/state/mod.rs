@@ -137,6 +137,7 @@ pub(crate) fn overlay_enabled() -> bool {
 mod tests {
     use super::*;
     use crate::{
+        BlockNumber, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
         state::{
             accounts::Accounts,
             bank::Bank,
@@ -147,18 +148,17 @@ mod tests {
             },
             mailbox::manager::{MailboxStorageWrap, MailboxedMessage},
             nonce::NonceManager,
-            programs::{ProgramsStorageManager, PLACEHOLDER_MESSAGE_ID},
+            programs::{PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
             queue::QueueManager,
             stash::DispatchStashManager,
             task_pool::TaskPoolStorageWrap,
             waitlist::{WaitlistStorageWrap, WaitlistedMessage},
         },
-        BlockNumber, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER,
     };
     use gear_common::{
+        ActiveProgram, GasMultiplier, Origin, Program,
         gas_provider::auxiliary::{GasNodesWrap, Node, NodeId, TotalIssuanceWrap},
         storage::{DoubleMapStorage, Interval, MapStorage, ValueStorage},
-        ActiveProgram, GasMultiplier, Origin, Program,
     };
     use gear_core::{
         ids::{ActorId, MessageId},

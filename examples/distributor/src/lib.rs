@@ -20,7 +20,7 @@
 
 extern crate alloc;
 
-use gstd::{prelude::*, ActorId};
+use gstd::{ActorId, prelude::*};
 use parity_scale_codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
@@ -58,7 +58,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::{Reply, Request};
-    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
+    use gtest::{Log, Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn program_can_be_initialized() {
@@ -109,7 +109,7 @@ mod tests {
         program_1_id: u64,
         program_2_id: u64,
         program_3_id: u64,
-    ) -> (Program, Program, Program) {
+    ) -> (Program<'_>, Program<'_>, Program<'_>) {
         system.init_logger();
 
         let from = DEFAULT_USER_ALICE;

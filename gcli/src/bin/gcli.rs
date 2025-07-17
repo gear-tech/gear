@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gcli::{clap::Parser, cmd::Opt, App};
+use gcli::{App, clap::Parser, cmd::Opt};
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {

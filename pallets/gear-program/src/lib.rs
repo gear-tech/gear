@@ -150,17 +150,17 @@ pub mod pallet {
     use super::*;
     use common::{scheduler::*, storage::*};
     use frame_support::{
+        StoragePrefixedMap,
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
         traits::StorageVersion,
-        StoragePrefixedMap,
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
         code::{CodeMetadata, InstrumentedCode},
         ids::{ActorId, CodeId},
         memory::PageBuf,
-        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+        pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
         program::{MemoryInfix, Program},
         tasks::VaraScheduledTask,
     };
@@ -172,10 +172,7 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// Scheduler.
-        type Scheduler: Scheduler<
-            BlockNumber = BlockNumberFor<Self>,
-            Task = VaraScheduledTask<Self::AccountId>,
-        >;
+        type Scheduler: Scheduler<BlockNumber = BlockNumberFor<Self>, Task = VaraScheduledTask<Self::AccountId>>;
 
         /// Custom block number tracker.
         type CurrentBlockNumber: Get<BlockNumberFor<Self>>;

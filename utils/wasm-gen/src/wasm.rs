@@ -18,7 +18,7 @@
 
 //! Wasm related entities.
 
-use crate::{config::WasmModuleConfig, EntryPointName};
+use crate::{EntryPointName, config::WasmModuleConfig};
 use arbitrary::{Result, Unstructured};
 use core::mem;
 use gear_core::pages::WasmPage;
@@ -48,7 +48,9 @@ impl WasmModule {
         let module = Module::new(&wasm_smith_module)
             .expect("internal error: wasm smith generated non-deserializable module");
         if module.function_section.is_none() {
-            panic!("WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!");
+            panic!(
+                "WasmModule::generate_with_config: `wasm-smith` config doesn't guarantee having function section!"
+            );
         }
 
         Ok(WasmModule(module))

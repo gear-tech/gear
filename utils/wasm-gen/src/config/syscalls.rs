@@ -59,14 +59,14 @@ impl SyscallsConfigBuilder {
             | ActorIdWithValue {
                 actor_kind: actor, ..
             } = v
+                && actor.is_source()
             {
-                if actor.is_source() {
-                    self.0
-                        .injection_types
-                        .enable_syscall_import(InvocableSyscall::Loose(SyscallName::Source));
-                }
+                self.0
+                    .injection_types
+                    .enable_syscall_import(InvocableSyscall::Loose(SyscallName::Source));
             }
         }
+
         self.0.params_config = params_config;
 
         self

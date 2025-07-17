@@ -1,6 +1,6 @@
 //! CLI args for the `gear-node-loader`
 
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use clap::Parser;
 use std::str::FromStr;
 

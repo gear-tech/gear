@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, VALUE_SIZE};
+use super::{AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, RuntimeStateView, VALUE_SIZE};
 use gear_call_gen::{GearCall, SendMessageArgs};
 use gear_core::ids::ActorId;
 use gear_utils::NonEmpty;

@@ -20,7 +20,7 @@
 
 use crate::{
     constants::BlockNumber,
-    state::{blocks::GetBlockNumberImpl, WithOverlay},
+    state::{WithOverlay, blocks::GetBlockNumberImpl},
 };
 use gear_common::storage::{
     AuxiliaryDoubleStorageWrap, DoubleBTreeMap, Interval, IterableByKeyMap, Mailbox,

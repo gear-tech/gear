@@ -19,6 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
@@ -26,7 +27,6 @@ use crate::{
     funcs::FuncsHandler,
     memory::{BackendMemory, ExecutorMemory},
     state::{HostState, State},
-    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
 use core::{fmt::Debug, marker::Send};
@@ -38,13 +38,13 @@ use gear_core::{
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, GlobalsAccessMod};
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
     AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
 };
 use gear_wasm_instrument::{
-    syscalls::SyscallName::{self, *},
     GLOBAL_NAME_GAS,
+    syscalls::SyscallName::{self, *},
 };
 #[cfg(feature = "std")]
 use {

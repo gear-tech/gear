@@ -23,7 +23,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
-    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
+    InBlockTransitions, ScheduleHandler, TransitionController, state::ProgramState,
 };
 use gprimitives::{ActorId, CodeId};
 

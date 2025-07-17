@@ -279,7 +279,7 @@ impl Reservations {
 
 #[cfg(test)]
 mod tests {
-    use crate::{prelude::*, Reservations};
+    use crate::{Reservations, prelude::*};
     use gcore::errors::Result;
     use parity_scale_codec::{Decode, Encode};
 

@@ -18,13 +18,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    instrument_call,
+    Context, instrument_call,
     max_height::{MaxStackHeightCounter, MaxStackHeightCounterContext},
-    resolve_func_type, Context,
+    resolve_func_type,
 };
 use crate::{
-    module::{ElementItems, Function, Instruction, ModuleBuilder},
     Module,
+    module::{ElementItems, Function, Instruction, ModuleBuilder},
 };
 use alloc::{collections::BTreeMap as Map, vec::Vec};
 use wasmparser::{ExternalKind, FuncType};

@@ -25,7 +25,7 @@ extern crate alloc;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, quote_spanned};
-use syn::{parse_macro_input, Data, DeriveInput, Ident};
+use syn::{Data, DeriveInput, Ident, parse_macro_input};
 #[cfg(feature = "full")]
 use {alloc::string::ToString, syn::spanned::Spanned};
 

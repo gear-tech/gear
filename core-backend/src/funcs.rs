@@ -19,6 +19,7 @@
 //! Syscall implementations generic over wasmi and sandbox backends.
 
 use crate::{
+    BackendExternalities,
     accessors::{
         Read, ReadAs, ReadDecoded, ReadDecodedSpecial, ReadPayloadLimited, SyscallArg,
         SyscallValue, WriteAs, WriteInGrRead,
@@ -31,10 +32,9 @@ use crate::{
     memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
     runtime::MemoryCallerContext,
     state::HostState,
-    BackendExternalities,
 };
 use alloc::{format, string::String};
-use blake2::{digest::typenum::U32, Blake2b, Digest};
+use blake2::{Blake2b, Digest, digest::typenum::U32};
 use core::marker::PhantomData;
 use gear_core::{
     buffer::{Payload, RuntimeBuffer, RuntimeBufferSizeError},

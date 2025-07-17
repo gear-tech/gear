@@ -1,13 +1,13 @@
 use crate::utils;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use gclient::{Error as GClientError, Result as GClientResult};
 use parking_lot::{Mutex, MutexGuard};
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
     sync::{
-        atomic::{AtomicU64, Ordering},
         OnceLock,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -54,10 +54,10 @@ fn hold_missed_nonces<'a>() -> Result<MissedNoncesGuard<'a>> {
 }
 
 pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u64) -> Result<()> {
-    if let Err(err) = batch_res {
-        if is_missed_nonce_err(err) {
-            hold_missed_nonces()?.push(Reverse(nonce));
-        }
+    if let Err(err) = batch_res
+        && is_missed_nonce_err(err)
+    {
+        hold_missed_nonces()?.push(Reverse(nonce));
     }
 
     Ok(())

@@ -21,13 +21,13 @@
 //! This module provides utility functions and data structures for handling batch commitments,
 //! validation requests, and multi-signature operations in the Ethexe system.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
+    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageRead, CodesStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock},
     sha3::{self, digest::Update},
-    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
 };
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
@@ -212,7 +212,7 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
         match db.code_valid(id) {
             Some(valid) => commitments.push(CodeCommitment { id, valid }),
             None if fail_if_not_found => {
-                return Err(anyhow::anyhow!("Code status not found in db: {id}"))
+                return Err(anyhow::anyhow!("Code status not found in db: {id}"));
             }
             None => {}
         }

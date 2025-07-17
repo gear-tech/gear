@@ -18,15 +18,15 @@
 
 use super::manager::{MailboxErrorImpl, MailboxedMessage};
 use crate::{
+    Log, MAX_USER_GAS_LIMIT, Value,
     constants::BlockNumber,
     error::usage_panic,
     manager::ExtManager,
     state::{accounts::Accounts, programs::ProgramsStorageManager},
-    Log, Value, MAX_USER_GAS_LIMIT,
 };
 use gear_common::storage::Interval;
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, ActorId, MessageId},
+    ids::{ActorId, MessageId, prelude::MessageIdExt as _},
     message::{ReplyMessage, ReplyPacket},
 };
 use parity_scale_codec::Encode;
@@ -175,7 +175,7 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Log, Program, System, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, Log, Program, System};
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::{gas_metering::RentWeights, ids::ActorId};
     use parity_scale_codec::Encode;

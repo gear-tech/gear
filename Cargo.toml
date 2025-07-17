@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [workspace]
 resolver = "3"

@@ -23,7 +23,7 @@ use std::{
     slice,
 };
 
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue};
 use parity_scale_codec::{Decode, Encode};
 use region::{Allocation, Protection};
 use wasmi::{

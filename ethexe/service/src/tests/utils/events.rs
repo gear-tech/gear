@@ -20,12 +20,12 @@ use crate::Event;
 use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction, SimpleBlockData,
+    SimpleBlockData, db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{db_sync, export::PeerId, NetworkEvent};
+use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;

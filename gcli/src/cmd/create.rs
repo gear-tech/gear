@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `create`
-use crate::{result::Result, utils::Hex, App};
+use crate::{App, result::Result, utils::Hex};
 use clap::Parser;
 
 /// Deploy program to gear node

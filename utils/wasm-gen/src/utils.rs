@@ -18,7 +18,7 @@
 
 use gear_utils::NonEmpty;
 use gear_wasm_instrument::{
-    syscalls::SyscallName, Function, Import, Instruction, MemArg, Module, ModuleBuilder,
+    Function, Import, Instruction, MemArg, Module, ModuleBuilder, syscalls::SyscallName,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -385,7 +385,7 @@ impl WasmWords {
         let data = data.as_ref();
         let data_size = data.len();
 
-        if data_size % Self::WASM_WORD_SIZE != 0 {
+        if !data_size.is_multiple_of(Self::WASM_WORD_SIZE) {
             panic!("data size isn't multiply of wasm word size")
         }
 

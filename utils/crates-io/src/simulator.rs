@@ -18,7 +18,7 @@
 
 //! Packages publishing simulator
 
-use crate::{Workspace, CARGO_REGISTRY_NAME};
+use crate::{CARGO_REGISTRY_NAME, Workspace};
 use anyhow::Result;
 use std::{
     fs,

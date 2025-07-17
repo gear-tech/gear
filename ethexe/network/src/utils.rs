@@ -19,14 +19,14 @@
 use crate::db_sync::PeerId;
 use async_trait::async_trait;
 use libp2p::{
+    StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     request_response,
     swarm::ConnectionId,
-    StreamProtocol,
 };
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{
-    collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     fmt, io,
     marker::PhantomData,
 };
@@ -142,11 +142,7 @@ impl ConnectionMap {
             .map(|connections| connections.len())
             .unwrap_or(0) as u32;
         let limit = self.limit.unwrap_or(u32::MAX);
-        if current < limit {
-            Ok(())
-        } else {
-            Err(limit)
-        }
+        if current < limit { Ok(()) } else { Err(limit) }
     }
 
     pub fn peers(&self) -> impl Iterator<Item = PeerId> {

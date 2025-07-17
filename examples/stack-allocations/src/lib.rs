@@ -64,7 +64,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
     use parity_scale_codec::Decode;
     use rand::{Rng, SeedableRng};
 

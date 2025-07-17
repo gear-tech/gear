@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{decode_log, IMirror};
+use crate::{IMirror, decode_log};
 use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
 use anyhow::Result;
 use ethexe_common::events::{MirrorEvent, MirrorRequestEvent};

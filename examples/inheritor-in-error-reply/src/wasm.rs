@@ -18,10 +18,10 @@
 
 use crate::State;
 use gstd::{
+    ActorId,
     errors::{ReplyCode, SimpleUnavailableActorError},
     exec, msg,
     prelude::*,
-    ActorId,
 };
 
 static mut STATE: Option<State> = None;

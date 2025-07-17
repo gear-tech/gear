@@ -24,14 +24,14 @@ use alloy::{
     rpc::types::eth::Header,
     transports::{RpcError, TransportErrorKind},
 };
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
     Address, BlockHeader, SimpleBlockData,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -115,7 +115,7 @@ impl Stream for ObserverService {
                 Poll::Ready(Err(e)) => {
                     return Poll::Ready(Some(Err(anyhow!(
                         "failed to create new headers stream: {e}"
-                    ))))
+                    ))));
                 }
                 Poll::Pending => return Poll::Pending,
             }
@@ -185,7 +185,7 @@ impl ObserverService {
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
 
-        let wvara_address = Address(router_query.wvara_address().await?.0 .0);
+        let wvara_address = Address(router_query.wvara_address().await?.0.0);
 
         let provider = ProviderBuilder::default()
             .connect(rpc)

@@ -27,8 +27,8 @@
 mod validation;
 
 use crate::{
-    module::{Function, Import, Instruction, ModuleBuilder},
     Module,
+    module::{Function, Import, Instruction, ModuleBuilder},
 };
 use alloc::vec::Vec;
 use core::{cmp::min, mem, num::NonZeroU32};

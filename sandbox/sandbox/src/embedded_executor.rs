@@ -29,14 +29,14 @@ use std::{
     sync::OnceLock,
 };
 use wasmer::{
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
+    Value as RuntimeValue,
     sys::{BaseTunables, VMConfig},
     vm::{
         LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
         VMTableDefinition,
     },
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
-    Value as RuntimeValue,
 };
 use wasmer_types::ExternType;
 
@@ -680,11 +680,11 @@ fn to_interface(value: RuntimeValue) -> Option<Value> {
 mod tests {
     use super::{Caller, EnvironmentDefinitionBuilder, Instance};
     use crate::{
-        default_executor::Store, AsContextExt, Error, HostError, ReturnValue,
-        SandboxEnvironmentBuilder, SandboxInstance, SandboxStore, Value,
+        AsContextExt, Error, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+        SandboxStore, Value, default_executor::Store,
     };
     use assert_matches::assert_matches;
-    use gear_sandbox_env::{WasmReturnValue, GLOBAL_NAME_GAS};
+    use gear_sandbox_env::{GLOBAL_NAME_GAS, WasmReturnValue};
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, Error> {
         struct State {

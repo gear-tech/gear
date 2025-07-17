@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{utils::*, Gear};
+use crate::abi::{Gear, utils::*};
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 use gear_core_errors::{ReplyCode, SuccessReplyReason};

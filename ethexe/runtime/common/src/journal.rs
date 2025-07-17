@@ -1,27 +1,27 @@
 use crate::{
-    state::{
-        ActiveProgram, Dispatch, Expiring, MailboxMessage, Program, ProgramState, Storage,
-        MAILBOX_VALIDITY,
-    },
     TransitionController,
+    state::{
+        ActiveProgram, Dispatch, Expiring, MAILBOX_VALIDITY, MailboxMessage, Program, ProgramState,
+        Storage,
+    },
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
-    gear::{Message, Origin},
     ScheduledTask,
+    gear::{Message, Origin},
 };
 use gear_core::{
     env::MessageWaitedType,
     gas::GasAllowanceCounter,
     memory::PageBuf,
     message::{Dispatch as CoreDispatch, StoredDispatch},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId, H256};
+use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage> {

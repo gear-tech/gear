@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{error::usage_panic, program::ProgramIdWrapper, Gas, Value, GAS_MULTIPLIER};
+use crate::{GAS_MULTIPLIER, Gas, Value, error::usage_panic, program::ProgramIdWrapper};
 use core_processor::configs::BlockInfo;
 use gear_core::{
     buffer::Payload,
@@ -362,22 +362,22 @@ impl PartialEq<CoreLog> for Log {
             return false;
         }
 
-        if let Some(source) = self.source {
-            if source != other.source {
-                return false;
-            }
+        if let Some(source) = self.source
+            && source != other.source
+        {
+            return false;
         }
 
-        if let Some(destination) = self.destination {
-            if destination != other.destination {
-                return false;
-            }
+        if let Some(destination) = self.destination
+            && destination != other.destination
+        {
+            return false;
         }
 
-        if let Some(payload) = &self.payload {
-            if payload.inner() != other.payload.inner() {
-                return false;
-            }
+        if let Some(payload) = &self.payload
+            && payload.inner() != other.payload.inner()
+        {
+            return false;
         }
 
         true

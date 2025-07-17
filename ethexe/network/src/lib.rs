@@ -22,28 +22,28 @@ pub mod peer_score;
 mod utils;
 
 pub mod export {
-    pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
+    pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use ethexe_common::ecdsa::PublicKey;
 use ethexe_db::Database;
 use ethexe_signer::Signer;
-use futures::{future::Either, ready, stream::FusedStream, Stream};
+use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
-    connection_limits,
+    Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
+        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
         behaviour::toggle::Toggle,
         dial_opts::{DialOpts, PeerCondition},
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
-    yamux, Multiaddr, PeerId, Swarm, Transport,
+    yamux,
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
@@ -634,7 +634,7 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 mod tests {
     use super::*;
     use crate::{
-        db_sync::{tests::fill_data_provider, ExternalDataProvider},
+        db_sync::{ExternalDataProvider, tests::fill_data_provider},
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
@@ -648,7 +648,7 @@ mod tests {
     };
     use tokio::{
         sync::RwLock,
-        time::{timeout, Duration},
+        time::{Duration, timeout},
     };
 
     #[derive(Default)]
