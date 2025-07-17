@@ -18,12 +18,10 @@
 
 use crate::{ComputeError, ProcessorExt, Result};
 use ethexe_common::{
-    db::{
-        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead,
-        BlockMetaStorageWrite, OnChainStorageRead,
-    },
+    db::{AnnounceStorageRead, AnnounceStorageWrite, OnChainStorageRead},
     ProducerBlock,
 };
+use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
 
 pub(crate) enum ComputationStatus {
@@ -31,15 +29,8 @@ pub(crate) enum ComputationStatus {
     Computed,
 }
 
-pub(crate) async fn compute<
-    DB: BlockMetaStorageRead
-        + BlockMetaStorageWrite
-        + OnChainStorageRead
-        + AnnounceStorageRead
-        + AnnounceStorageWrite,
-    P: ProcessorExt,
->(
-    db: DB,
+pub(crate) async fn compute<P: ProcessorExt>(
+    db: Database,
     mut processor: P,
     announce: ProducerBlock,
 ) -> Result<ComputationStatus> {
@@ -57,42 +48,6 @@ pub(crate) async fn compute<
         );
         return Ok(ComputationStatus::Rejected);
     }
-
-    // One from the base announces of the block should have the same parent announce.
-    let Some(base_announce_hash) = db
-        .block_meta(announce.block_hash)
-        .announces
-        .expect("BlockMeta must have announces")
-        .into_iter()
-        .find(|&hash| {
-            let a = db.announce(hash).expect("Cannot get announce meta from db");
-            a.is_base() && a.parent == announce.parent
-        })
-    else {
-        log::warn!("{announce:?} announce block conflicts with parent announce");
-        return Ok(ComputationStatus::Rejected);
-    };
-
-    let AnnounceMeta {
-        computed,
-        announces_queue,
-    } = db.announce_meta(base_announce_hash);
-    debug_assert!(computed, "Base announce must be already computed");
-
-    let mut base_announces_queue =
-        announces_queue.expect("Base announce meta must have announces queue");
-
-    // Remove last (None) from queue
-    let last = base_announces_queue
-        .pop_back()
-        .expect("At least one must be in queue");
-    debug_assert!(
-        last.is_none(),
-        "Base announce queue must end with None, but got {last:?}"
-    );
-
-    // Add new waiting announce to the queue
-    base_announces_queue.push_back(Some(announce_hash));
 
     debug_assert!(
         !announce.is_base(),
@@ -123,7 +78,6 @@ pub(crate) async fn compute<
     db.set_announce_program_states(announce_hash, states);
     db.set_announce_schedule(announce_hash, schedule);
     db.mutate_announce_meta(announce_hash, |meta| {
-        meta.announces_queue = Some(base_announces_queue);
         meta.computed = true;
     });
 

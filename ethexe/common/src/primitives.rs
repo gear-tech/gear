@@ -32,6 +32,7 @@ pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
     Debug,
     Clone,
     Copy,
+    Default,
     PartialEq,
     Eq,
     Encode,

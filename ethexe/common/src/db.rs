@@ -101,7 +101,6 @@ pub trait OnChainStorageWrite {
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AnnounceMeta {
     pub computed: bool,
-    pub announces_queue: Option<VecDeque<Option<AnnounceHash>>>,
 }
 
 pub trait AnnounceStorageRead {

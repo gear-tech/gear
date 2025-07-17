@@ -517,7 +517,7 @@ impl OnChainStorageRead for Database {
     }
 
     fn block_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.meta.prepared)
+        self.with_small_data(block_hash, |data| data.block_is_synced)
             .unwrap_or_default()
     }
 }

@@ -56,6 +56,10 @@ enum State {
         block_hash: H256,
         requests: Vec<DataRequest>,
     },
+    Preparation {
+        block_hash: H256,
+        future: BoxFuture<'static, Result<()>>,
+    },
     Computation {
         announce_hash: AnnounceHash,
         future: BoxFuture<'static, Result<ComputationStatus>>,
@@ -179,7 +183,7 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             }
         }
 
-        if matches!(self.blocks_state, State::WaitForBlock) {
+        if let State::WaitForBlock = &self.blocks_state {
             match self.blocks_queue.pop_back() {
                 Some(BlockAction::Prepare(block)) => {
                     let MissingData {
@@ -233,13 +237,21 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             block_hash,
             requests,
         } = &self.blocks_state
+            && requests.is_empty()
         {
-            if requests.is_empty() {
-                prepare::prepare(self.db.clone(), self.processor.clone(), *block_hash)?;
-                let event = ComputeEvent::BlockPrepared(*block_hash);
-                self.blocks_state = State::WaitForBlock;
-                return Poll::Ready(Some(Ok(event)));
-            }
+            self.blocks_state = State::Preparation {
+                block_hash: *block_hash,
+                future: prepare::prepare(self.db.clone(), self.processor.clone(), *block_hash, 3)
+                    .boxed(),
+            };
+        }
+
+        if let State::Preparation { block_hash, future } = &mut self.blocks_state
+            && let Poll::Ready(res) = future.poll_unpin(cx)
+        {
+            let result = res.map(|_| ComputeEvent::BlockPrepared(*block_hash));
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(result));
         }
 
         if let State::Computation {
@@ -291,10 +303,10 @@ mod tests {
         let block_hash = H256::from([2; 32]);
 
         // Setup parent block as prepared and with computed announce
-        let parent_announce = ProducerBlock::base(parent_hash, AnnounceHash(H256::from([3; 32])));
+        let parent_announce = ProducerBlock::base(parent_hash, Default::default());
+        db.set_announce(parent_announce.clone());
         db.mutate_announce_meta(parent_announce.hash(), |meta| {
             meta.computed = true;
-            meta.announces_queue = Some(vec![None].into());
         });
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta::default_prepared();
@@ -334,10 +346,10 @@ mod tests {
         let block_hash = H256::from([2; 32]);
 
         // Setup parent block and one computed announce inside
-        let parent_announce = ProducerBlock::base(parent_hash, AnnounceHash(H256::from([3; 32])));
+        let parent_announce = ProducerBlock::base(parent_hash, Default::default());
+        db.set_announce(parent_announce.clone());
         db.mutate_announce_meta(parent_announce.hash(), |meta| {
             meta.computed = true;
-            meta.announces_queue = Some(vec![None].into());
         });
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta::default_prepared();
@@ -376,7 +388,7 @@ mod tests {
 
     /// Test ComputeService code processing functionality
     #[tokio::test]
-    async fn test_compute_service_process_code() {
+    async fn process_code() {
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);

@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{utils, ComputeError, ProcessorExt, Result};
+use crate::{compute, utils, ComputeError, ProcessorExt, Result};
 use ethexe_common::{
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
         CodesStorageRead, OnChainStorageRead,
     },
     events::{BlockEvent, RouterEvent},
-    AnnounceHash, BlockMeta, ProducerBlock,
+    AnnounceHash, ProducerBlock, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
@@ -103,56 +103,35 @@ pub(crate) fn missing_data(
     })
 }
 
-pub(crate) fn prepare(
+pub(crate) async fn prepare(
     db: Database,
     mut processor: impl ProcessorExt,
     block_hash: H256,
+    commitment_delay_limit: u32,
 ) -> Result<()> {
     // +_+_+ debug assert that all data is loaded
 
-    validate(&db, block_hash)?;
-
     let chain = utils::collect_chain(&db, block_hash, |meta| !meta.prepared)?;
     for block in chain {
-        let mut meta = db.block_meta(block.hash);
-        debug_assert!(
-            meta == BlockMeta::default(),
-            "Meta for not prepared block should be default"
-        );
-
-        let events = db
-            .block_events(block.hash)
-            .ok_or(ComputeError::BlockEventsNotFound(block.hash))?;
-
-        propagate_from_parent_block(
-            &db,
-            &mut processor,
-            &mut meta,
-            block_hash,
-            block.header.parent_hash,
-            events.iter(),
-        )?;
-
-        meta.prepared = true;
-        db.mutate_block_meta(block_hash, |old_meta| *old_meta = meta);
+        propagate_from_parent_block(&db, &mut processor, block, commitment_delay_limit).await?;
     }
 
     Ok(())
 }
 
 // TODO +_+_+: Implement validation logic
-fn validate(_db: &Database, _block_hash: H256) -> Result<()> {
+#[allow(unused)]
+pub(crate) fn validate(_db: &Database, _block_hash: H256) -> Result<()> {
     Ok(())
 }
 
-fn propagate_from_parent_block<'a>(
+async fn propagate_from_parent_block(
     db: &Database,
     processor: &mut impl ProcessorExt,
-    meta: &mut BlockMeta,
-    block_hash: H256,
-    parent: H256,
-    events: impl Iterator<Item = &'a BlockEvent>,
+    block: SimpleBlockData,
+    commitment_delay_limit: u32,
 ) -> Result<()> {
+    let parent = block.header.parent_hash;
     let mut requested_codes = HashSet::new();
     let mut validated_codes = HashSet::new();
 
@@ -164,52 +143,142 @@ fn propagate_from_parent_block<'a>(
         .codes_queue
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
-    let mut committed_announces = vec![];
+    // last committed announce hash
+    let mut head_announce_hash = None;
 
+    let events = db
+        .block_events(block.hash)
+        .ok_or(ComputeError::BlockEventsNotFound(block.hash))?;
     for event in events {
         match event {
             BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
-                last_committed_batch = *digest;
+                last_committed_batch = digest;
             }
             BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
-                requested_codes.insert(*code_id);
+                requested_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                validated_codes.insert(*code_id);
+                validated_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::GearBlockCommitted(announce)) => {
-                committed_announces.push(announce.hash());
+                head_announce_hash = Some(announce.hash());
             }
             _ => {}
         }
     }
 
-    // Propagate last committed batch
-    meta.last_committed_batch = Some(last_committed_batch);
+    let last_committed_announce_hash = if let Some(head_announce_hash) = head_announce_hash {
+        let head_announce = db
+            .announce(head_announce_hash)
+            .expect("Announce must be loaded before block prepare");
 
-    // Propagate `wait for code validation` blocks queue
-    codes_queue.retain(|code_id| !validated_codes.contains(code_id));
-    codes_queue.extend(requested_codes);
-    meta.codes_queue = Some(codes_queue);
+        let head_announce_height = db
+            .block_header(head_announce.block_hash)
+            .expect("Block header must be loaded before block prepare")
+            .height;
+        assert!(
+            head_announce_height < block.header.height,
+            "Any committed announce must be from previous blocks"
+        );
 
+        if block.header.height - head_announce_height > commitment_delay_limit {
+            assert!(
+                head_announce.is_base(),
+                "Head announce must be base announce"
+            );
+            assert!(
+                db.announce_meta(head_announce_hash).computed,
+                "Head announce must be already computed"
+            );
+            assert!({
+                let mut is_predecessor: bool = true;
+                for announce in db
+                    .block_meta(parent)
+                    .announces
+                    .expect("Announces must be set for parent block")
+                {
+                    let mut predecessor = announce;
+                    for _ in head_announce_height..block.header.height {
+                        predecessor = db
+                            .announce(predecessor)
+                            .expect("Announce must be loaded before block prepare")
+                            .parent;
+                    }
+                    if predecessor != head_announce_hash {
+                        is_predecessor = false;
+                        break;
+                    }
+                }
+
+                is_predecessor
+            });
+
+            None
+        } else {
+            // in that case head announce can be not computed by this node
+
+            let mut not_computed_chain = VecDeque::new();
+            let mut announce_hash = head_announce_hash;
+            let mut counter = 0;
+            while !db.announce_meta(announce_hash).computed {
+                counter += 1;
+                assert!(
+                    counter <= commitment_delay_limit,
+                    "Chain of announces must not be longer than commitment delay limit"
+                );
+
+                let announce = db
+                    .announce(announce_hash)
+                    .expect("Announce must be loaded before block prepare");
+                announce_hash = announce.parent;
+                not_computed_chain.push_front(announce);
+            }
+
+            for announce in not_computed_chain {
+                compute::compute(db.clone(), processor.clone(), announce).await?;
+            }
+
+            Some(head_announce_hash)
+        }
+    } else {
+        None
+    };
+
+    let latest_announce_hash = last_committed_announce_hash.unwrap_or_default();
+
+    // Propagate new base announces from all parent announces
     let parent_announces = parent_meta.announces.expect("Parent announces must be set");
-    assert!(!parent_announces.is_empty());
-
+    assert!(
+        !parent_announces.is_empty(),
+        "Parent block must have at least one announce"
+    );
+    let mut new_base_announce_hashes = Vec::new();
     for parent_announce_hash in parent_announces {
-        let new_announce = propagate_from_parent_announce(
+        if let Some(new_announce_hash) = propagate_from_parent_announce(
             db,
             processor,
-            block_hash,
+            block.hash,
             parent_announce_hash,
-            committed_announces.iter(),
-        )?;
-
-        if let Some(new_announce_hash) = new_announce {
-            meta.announces
-                .get_or_insert_with(Vec::new)
-                .push(new_announce_hash);
+            latest_announce_hash,
+            commitment_delay_limit,
+        )? {
+            new_base_announce_hashes.push(new_announce_hash);
         }
     }
+    assert!(
+        !new_base_announce_hashes.is_empty(),
+        "At least one announce must be propagated from parent block"
+    );
+
+    codes_queue.retain(|code_id| !validated_codes.contains(code_id));
+    codes_queue.extend(requested_codes);
+
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_batch = Some(last_committed_batch);
+        meta.codes_queue = Some(codes_queue);
+        meta.announces = Some(new_base_announce_hashes);
+        meta.prepared = true;
+    });
 
     Ok(())
 }
@@ -222,48 +291,31 @@ fn propagate_from_parent_announce<
     processor: &mut impl ProcessorExt,
     block_hash: H256,
     parent: AnnounceHash,
-    committed_announces: impl Iterator<Item = &'a AnnounceHash> + Clone,
+    latest_announce_hash: AnnounceHash,
+    commitment_delay_limit: u32,
 ) -> Result<Option<AnnounceHash>> {
-    let parent_queue = db
-        .announce_meta(parent)
-        .announces_queue
-        .expect("Parent announce queue must be set");
-
-    let mut propagated_queue = VecDeque::new();
-    for announce_hash in parent_queue {
-        if let Some(announce_hash) = announce_hash {
-            if db.announce(announce_hash).is_some() {
-                if committed_announces
-                    .clone()
-                    .any(|committed_announce_hash| *committed_announce_hash == announce_hash)
-                {
-                    propagated_queue.push_back(None);
-                } else {
-                    propagated_queue.push_back(Some(announce_hash));
-                }
-            } else {
-                propagated_queue.push_back(None);
-            }
-        } else {
-            propagated_queue.push_back(None);
+    let mut predecessor = parent;
+    for i in 0..commitment_delay_limit {
+        if predecessor == latest_announce_hash {
+            break;
         }
-    }
 
-    if propagated_queue
-        .iter()
-        .next()
-        .expect("At least one must be in queue")
-        .is_some()
-    {
-        // do not propagate this branch any more cause old not base announce cannot be committed any more
-        return Ok(None);
+        let predecessor_announce = db
+            .announce(predecessor)
+            .ok_or_else(|| ComputeError::AnnounceNotFound(predecessor))?;
+
+        if i == commitment_delay_limit - 1 && !predecessor_announce.is_base() {
+            // We reached the oldest announce in commitment delay limit and which is not not committed.
+            // This announce cannot be committed any more,
+            // so if it is not base announce, we have to skip propagation from `parent`.
+            return Ok(None);
+        }
+
+        predecessor = predecessor_announce.parent;
     }
 
     let new_base_announce = ProducerBlock::base(block_hash, parent);
     let new_base_announce_hash = new_base_announce.hash();
-
-    propagated_queue.pop_front();
-    propagated_queue.push_back(None);
 
     let BlockProcessingResult {
         transitions,
@@ -276,7 +328,6 @@ fn propagate_from_parent_announce<
     db.set_announce_program_states(new_base_announce_hash, states);
     db.set_announce_schedule(new_base_announce_hash, schedule);
     db.mutate_announce_meta(new_base_announce_hash, |meta| {
-        meta.announces_queue = Some(propagated_queue);
         meta.computed = true;
     });
 

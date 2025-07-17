@@ -18,10 +18,7 @@
 
 use super::*;
 use ethexe_common::CodeAndIdUnchecked;
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-};
+use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
     pub(crate) static PROCESSOR_RESULT: RefCell<BlockProcessingResult> = const { RefCell::new(
