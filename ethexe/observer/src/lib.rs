@@ -267,6 +267,8 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
+        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
+
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
@@ -284,9 +286,7 @@ impl ObserverService {
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header.clone());
-        // TODO: think about validators set for genesis block
-        // Maybe should be fill with the value from config
-        db.set_validators(genesis_block_hash, Default::default());
+        db.set_validators(genesis_block_hash, genesis_validators);
 
         Ok(genesis_header)
     }

@@ -28,6 +28,7 @@ use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
+    gear_core::pages::num_traits::Zero,
 };
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
@@ -65,7 +66,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        let validators = if !self.first_era_block(&header)?
+        let validators = if !self.should_fetch_validators(&header)?
             && let Some(validators) = self.db.validators(block)
         {
             validators
@@ -196,8 +197,14 @@ impl<DB: SyncDB> ChainSync<DB> {
         }
     }
 
-    fn first_era_block(&self, chain_head: &BlockHeader) -> Result<bool> {
+    /// NOTE: we don't need to fetch validators for block from zero era, because of
+    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
+    fn should_fetch_validators(&self, chain_head: &BlockHeader) -> Result<bool> {
         let chain_head_era = self.block_era_index(chain_head.timestamp);
+
+        if chain_head_era.is_zero() {
+            return Ok(false);
+        }
 
         let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
             "header not found for block({:?})",
