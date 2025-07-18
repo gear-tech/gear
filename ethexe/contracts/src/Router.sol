@@ -460,6 +460,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.ValidatorsCommitment calldata _commitment = _batch.validatorsCommitment[0];
 
+        require(_commitment.validators.length > 0, "new validators list must not be empty");
+
         uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 
         require(_commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");

@@ -703,6 +703,7 @@ impl OnChainStorageWrite for Database {
     }
 
     fn set_validators(&self, block_hash: H256, validator_set: Vec<Address>) {
+        assert!(!validator_set.is_empty(), "validator set can not be empty");
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             validator_set.encode(),
