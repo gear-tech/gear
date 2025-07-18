@@ -69,7 +69,7 @@ impl EventData {
             })
         } else {
             let data = observer.load_block_data(block).await?;
-            db.set_block_header(block, data.header.clone());
+            db.set_block_header(block, data.header);
             db.set_block_events(block, &data.events);
             Ok(data)
         }
@@ -688,7 +688,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     // TODO #4563: this is a temporary solution.
     // from `pre_process_genesis_for_db`
     {
-        db.set_block_header(latest_committed_block, latest_block_header.clone());
+        db.set_block_header(latest_committed_block, latest_block_header);
         db.set_block_events(latest_committed_block, &latest_block_events);
 
         db.set_latest_synced_block_height(latest_block_header.height);
