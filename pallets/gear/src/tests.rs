@@ -70,6 +70,7 @@ use gstd::{
     collections::BTreeMap,
     errors::{CoreError, Error as GstdError},
 };
+use mimalloc::MiMalloc;
 use pallet_gear_voucher::PrepaidCall;
 use sp_core::H256;
 use sp_runtime::{
@@ -83,6 +84,9 @@ pub use utils::init_logger;
 use utils::*;
 
 type Gas = <<Test as Config>::GasProvider as common::GasProvider>::GasTree;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[test]
 fn err_reply_comes_with_value() {

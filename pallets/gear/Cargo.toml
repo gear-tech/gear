@@ -124,6 +124,7 @@ demo-vec.workspace = true
 test-syscalls = { workspace = true, features = ["debug"] }
 frame-support-test = { workspace = true, features = ["std"] }
 common = { workspace = true, features = ["std"] }
+mimalloc = { workspace = true, default-features = false }
 pallet-gear-gas = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
 pallet-gear-scheduler = { workspace = true, features = ["std"] }
