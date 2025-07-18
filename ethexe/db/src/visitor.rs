@@ -29,94 +29,73 @@ use ethexe_runtime_common::state::{
 use gprimitives::{CodeId, H256};
 use std::collections::VecDeque;
 
+pub trait DatabaseVisitorStorage:
+    OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage
+{
+}
+
+impl<T: OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage>
+    DatabaseVisitorStorage for T
+{
+}
+
 pub trait DatabaseVisitor: Sized {
     type Error: DatabaseVisitorError;
 
-    fn visit_chain(&mut self, db: &Database, head: H256, bottom: H256) -> Result<(), Self::Error> {
-        walk_chain(self, db, head, bottom)
+    fn db(&self) -> &dyn DatabaseVisitorStorage;
+
+    fn visit_chain(&mut self, head: H256, bottom: H256) -> Result<(), Self::Error> {
+        walk_chain(self, head, bottom)
     }
 
-    fn visit_block(&mut self, db: &Database, block: H256) -> Result<(), Self::Error> {
-        walk_block(self, db, block)
+    fn visit_block(&mut self, block: H256) -> Result<(), Self::Error> {
+        walk_block(self, block)
     }
 
-    fn visit_block_meta(&mut self, db: &Database, meta: &BlockMeta) -> Result<(), Self::Error>;
+    fn visit_block_meta(&mut self, meta: &BlockMeta) -> Result<(), Self::Error>;
 
-    fn visit_block_header(&mut self, db: &Database, header: BlockHeader)
-    -> Result<(), Self::Error>;
+    fn visit_block_header(&mut self, header: BlockHeader) -> Result<(), Self::Error>;
 
-    fn visit_block_codes_queue(
-        &mut self,
-        db: &Database,
-        queue: &VecDeque<CodeId>,
-    ) -> Result<(), Self::Error>;
+    fn visit_block_codes_queue(&mut self, queue: &VecDeque<CodeId>) -> Result<(), Self::Error>;
 
-    fn visit_program_state(
-        &mut self,
-        db: &Database,
-        state: &ProgramState,
-    ) -> Result<(), Self::Error> {
-        walk_program_state(self, db, state)
+    fn visit_program_state(&mut self, state: &ProgramState) -> Result<(), Self::Error> {
+        walk_program_state(self, state)
     }
 
-    fn visit_allocations(
-        &mut self,
-        _db: &Database,
-        _allocations: &Allocations,
-    ) -> Result<(), Self::Error> {
+    fn visit_allocations(&mut self, _allocations: &Allocations) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    fn visit_memory_pages(
-        &mut self,
-        db: &Database,
-        memory_pages: &MemoryPages,
-    ) -> Result<(), Self::Error> {
-        walk_memory_pages(self, db, memory_pages)
+    fn visit_memory_pages(&mut self, memory_pages: &MemoryPages) -> Result<(), Self::Error> {
+        walk_memory_pages(self, memory_pages)
     }
 
     fn visit_memory_pages_region(
         &mut self,
-        db: &Database,
+
         memory_pages_region: &MemoryPagesRegion,
     ) -> Result<(), Self::Error>;
 
-    fn visit_payload_lookup(
-        &mut self,
-        db: &Database,
-        payload_lookup: &PayloadLookup,
-    ) -> Result<(), Self::Error>;
+    fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) -> Result<(), Self::Error>;
 
-    fn visit_message_queue(
-        &mut self,
-        db: &Database,
-        queue: &MessageQueue,
-    ) -> Result<(), Self::Error> {
-        walk_message_queue(self, db, queue)
+    fn visit_message_queue(&mut self, queue: &MessageQueue) -> Result<(), Self::Error> {
+        walk_message_queue(self, queue)
     }
 
-    fn visit_waitlist(&mut self, db: &Database, waitlist: &Waitlist) -> Result<(), Self::Error> {
-        walk_waitlist(self, db, waitlist)
+    fn visit_waitlist(&mut self, waitlist: &Waitlist) -> Result<(), Self::Error> {
+        walk_waitlist(self, waitlist)
     }
 
-    fn visit_mailbox(&mut self, db: &Database, mailbox: &Mailbox) -> Result<(), Self::Error> {
-        walk_mailbox(self, db, mailbox)
+    fn visit_mailbox(&mut self, mailbox: &Mailbox) -> Result<(), Self::Error> {
+        walk_mailbox(self, mailbox)
     }
 
-    fn visit_user_mailbox(
-        &mut self,
-        db: &Database,
-        user_mailbox: &UserMailbox,
-    ) -> Result<(), Self::Error> {
-        walk_user_mailbox(self, db, user_mailbox)
+    fn visit_user_mailbox(&mut self, user_mailbox: &UserMailbox) -> Result<(), Self::Error> {
+        walk_user_mailbox(self, user_mailbox)
     }
 
-    fn visit_dispatch_stash(
-        &mut self,
-        db: &Database,
-        stash: &DispatchStash,
-    ) -> Result<(), Self::Error> {
-        walk_dispatch_stash(self, db, stash)
+    fn visit_dispatch_stash(&mut self, stash: &DispatchStash) -> Result<(), Self::Error> {
+        walk_dispatch_stash(self, stash)
     }
 }
 
@@ -150,7 +129,7 @@ pub trait DatabaseVisitorError {
 
 pub fn walk_chain<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     head: H256,
     bottom: H256,
 ) -> Result<(), E>
@@ -159,66 +138,86 @@ where
 {
     let mut block = head;
     while block != bottom {
-        visitor.visit_block(db, block)?;
+        visitor.visit_block(block)?;
 
-        let header = db.block_header(block).ok_or(E::no_block_header(block))?;
+        let header = visitor
+            .db()
+            .block_header(block)
+            .ok_or(E::no_block_header(block))?;
         block = header.parent_hash;
     }
 
     Ok(())
 }
 
-pub fn walk_block<E>(
-    visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
-    block: H256,
-) -> Result<(), E>
+pub fn walk_block<E>(visitor: &mut impl DatabaseVisitor<Error = E>, block: H256) -> Result<(), E>
 where
     E: DatabaseVisitorError,
 {
-    let meta = db.block_meta(block);
-    visitor.visit_block_meta(db, &meta)?;
+    let meta = visitor.db().block_meta(block);
+    visitor.visit_block_meta(&meta)?;
 
-    let block_header = db.block_header(block).ok_or(E::no_block_header(block))?;
-    visitor.visit_block_header(db, block_header)?;
+    let block_header = visitor
+        .db()
+        .block_header(block)
+        .ok_or(E::no_block_header(block))?;
+    visitor.visit_block_header(block_header)?;
 
-    let _events = db.block_events(block).ok_or(E::no_block_events())?;
+    let _events = visitor
+        .db()
+        .block_events(block)
+        .ok_or(E::no_block_events())?;
     // TODO: verification might be required for events
 
-    let _commitment_queue = db
+    let _commitment_queue = visitor
+        .db()
         .block_commitment_queue(block)
         .ok_or(E::no_block_commitment_queue())?;
 
-    let codes_queue = db
+    let codes_queue = visitor
+        .db()
         .block_codes_queue(block)
         .ok_or(E::no_block_codes_queue())?;
-    visitor.visit_block_codes_queue(db, &codes_queue)?;
+    visitor.visit_block_codes_queue(&codes_queue)?;
 
-    let _previous_non_empty_block = db
+    let _previous_non_empty_block = visitor
+        .db()
         .previous_not_empty_block(block)
         .ok_or(E::no_previous_non_empty_block())?;
 
-    let _last_committed_batch = db
+    let _last_committed_batch = visitor
+        .db()
         .last_committed_batch(block)
         .ok_or(E::no_last_committed_batch())?;
 
-    let program_states = db
+    let program_states = visitor
+        .db()
         .block_program_states(block)
         .ok_or(E::no_block_program_states())?;
     for (_program_id, state) in program_states {
-        let program_state = db.read_state(state.hash).ok_or(E::no_program_state())?;
+        let program_state = visitor
+            .db()
+            .read_state(state.hash)
+            .ok_or(E::no_program_state())?;
         // TODO: verify state.cached_queue_size
-        visitor.visit_program_state(db, &program_state)?;
+        visitor.visit_program_state(&program_state)?;
     }
 
-    let _schedule = db.block_schedule(block).ok_or(E::no_block_schedule())?;
+    let _schedule = visitor
+        .db()
+        .block_schedule(block)
+        .ok_or(E::no_block_schedule())?;
     // TODO: verification might be required for schedule
 
-    let block_outcome_is_empty = db
+    let block_outcome_is_empty = visitor
+        .db()
         .block_outcome_is_empty(block)
         .ok_or(E::no_block_outcome())?;
     if !block_outcome_is_empty {
-        let _outcome = db.block_outcome(block).ok_or(E::no_block_outcome())?;
+        let _outcome = visitor
+            .db()
+            .block_outcome(block)
+            .ok_or(E::no_block_outcome())?;
         // TODO: verification required for codes queue
     }
 
@@ -227,7 +226,7 @@ where
 
 pub fn walk_program_state<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     state: &ProgramState,
 ) -> Result<(), E>
 where
@@ -251,36 +250,46 @@ where
     }) = program
     {
         if let Some(allocations) = allocations_hash.to_inner() {
-            let allocations = db
+            let allocations = visitor
+                .db()
                 .read_allocations(allocations)
                 .ok_or(E::no_allocations())?;
-            visitor.visit_allocations(db, &allocations)?;
+            visitor.visit_allocations(&allocations)?;
         }
 
         if let Some(pages) = pages_hash.to_inner() {
-            let pages = db.read_pages(pages).ok_or(E::no_memory_pages())?;
-            visitor.visit_memory_pages(db, &pages)?;
+            let pages = visitor.db().read_pages(pages).ok_or(E::no_memory_pages())?;
+            visitor.visit_memory_pages(&pages)?;
         }
     }
 
     if let Some(queue) = queue.hash.to_inner() {
-        let queue = db.read_queue(queue).ok_or(E::no_message_queue())?;
-        visitor.visit_message_queue(db, &queue)?;
+        let queue = visitor
+            .db()
+            .read_queue(queue)
+            .ok_or(E::no_message_queue())?;
+        visitor.visit_message_queue(&queue)?;
     }
 
     if let Some(waitlist) = waitlist_hash.to_inner() {
-        let waitlist = db.read_waitlist(waitlist).ok_or(E::no_waitlist())?;
-        visitor.visit_waitlist(db, &waitlist)?;
+        let waitlist = visitor
+            .db()
+            .read_waitlist(waitlist)
+            .ok_or(E::no_waitlist())?;
+        visitor.visit_waitlist(&waitlist)?;
     }
 
     if let Some(stash) = stash_hash.to_inner() {
-        let stash = db.read_stash(stash).ok_or(E::no_dispatch_stash())?;
-        visitor.visit_dispatch_stash(db, &stash)?;
+        let stash = visitor
+            .db()
+            .read_stash(stash)
+            .ok_or(E::no_dispatch_stash())?;
+        visitor.visit_dispatch_stash(&stash)?;
     }
 
     if let Some(mailbox) = mailbox_hash.to_inner() {
-        let mailbox = db.read_mailbox(mailbox).ok_or(E::no_mailbox())?;
-        visitor.visit_mailbox(db, &mailbox)?;
+        let mailbox = visitor.db().read_mailbox(mailbox).ok_or(E::no_mailbox())?;
+        visitor.visit_mailbox(&mailbox)?;
     }
 
     Ok(())
@@ -288,17 +297,18 @@ where
 
 pub fn walk_memory_pages<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     pages: &MemoryPages,
 ) -> Result<(), E>
 where
     E: DatabaseVisitorError,
 {
     for pages_region in pages.to_inner().into_iter().flat_map(MaybeHashOf::to_inner) {
-        let pages_region = db
+        let pages_region = visitor
+            .db()
             .read_pages_region(pages_region)
             .ok_or(E::no_memory_pages_region())?;
-        visitor.visit_memory_pages_region(db, &pages_region)?;
+        visitor.visit_memory_pages_region(&pages_region)?;
     }
 
     Ok(())
@@ -306,14 +316,14 @@ where
 
 pub fn walk_message_queue<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     queue: &MessageQueue,
 ) -> Result<(), E>
 where
     E: DatabaseVisitorError,
 {
     for dispatch in queue.as_ref() {
-        visitor.visit_payload_lookup(db, &dispatch.payload)?;
+        visitor.visit_payload_lookup(&dispatch.payload)?;
     }
 
     Ok(())
@@ -321,7 +331,7 @@ where
 
 pub fn walk_waitlist<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     waitlist: &Waitlist,
 ) -> Result<(), E>
 where
@@ -332,7 +342,7 @@ where
         expiry: _,
     } in waitlist.as_ref().values()
     {
-        visitor.visit_payload_lookup(db, &dispatch.payload)?;
+        visitor.visit_payload_lookup(&dispatch.payload)?;
     }
 
     Ok(())
@@ -340,17 +350,18 @@ where
 
 pub fn walk_mailbox<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     mailbox: &Mailbox,
 ) -> Result<(), E>
 where
     E: DatabaseVisitorError,
 {
     for &user_mailbox in mailbox.as_ref().values() {
-        let user_mailbox = db
+        let user_mailbox = visitor
+            .db()
             .read_user_mailbox(user_mailbox)
             .ok_or(E::no_user_mailbox())?;
-        visitor.visit_user_mailbox(db, &user_mailbox)?;
+        visitor.visit_user_mailbox(&user_mailbox)?;
     }
 
     Ok(())
@@ -358,7 +369,7 @@ where
 
 pub fn walk_user_mailbox<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     user_mailbox: &UserMailbox,
 ) -> Result<(), E>
 where
@@ -369,7 +380,7 @@ where
         expiry: _,
     } in user_mailbox.as_ref().values()
     {
-        visitor.visit_payload_lookup(db, &msg.payload)?;
+        visitor.visit_payload_lookup(&msg.payload)?;
     }
 
     Ok(())
@@ -377,7 +388,7 @@ where
 
 pub fn walk_dispatch_stash<E>(
     visitor: &mut impl DatabaseVisitor<Error = E>,
-    db: &Database,
+
     stash: &DispatchStash,
 ) -> Result<(), E>
 where
@@ -388,7 +399,7 @@ where
         expiry: _,
     } in stash.as_ref().values()
     {
-        visitor.visit_payload_lookup(db, &dispatch.payload)?;
+        visitor.visit_payload_lookup(&dispatch.payload)?;
     }
 
     Ok(())
@@ -523,12 +534,16 @@ impl DatabaseVisitorError for IntegrityVerifierError {
     }
 }
 
-pub struct IntegrityVerifier;
+pub struct IntegrityVerifier<'a>(pub &'a Database);
 
-impl DatabaseVisitor for IntegrityVerifier {
+impl DatabaseVisitor for IntegrityVerifier<'_> {
     type Error = IntegrityVerifierError;
 
-    fn visit_block_meta(&mut self, _db: &Database, meta: &BlockMeta) -> Result<(), Self::Error> {
+    fn db(&self) -> &dyn DatabaseVisitorStorage {
+        self.0
+    }
+
+    fn visit_block_meta(&mut self, meta: &BlockMeta) -> Result<(), Self::Error> {
         if !meta.synced {
             return Err(IntegrityVerifierError::BlockIsNotSynced);
         }
@@ -542,12 +557,9 @@ impl DatabaseVisitor for IntegrityVerifier {
         Ok(())
     }
 
-    fn visit_block_header(
-        &mut self,
-        db: &Database,
-        header: BlockHeader,
-    ) -> Result<(), Self::Error> {
-        let parent_header = db
+    fn visit_block_header(&mut self, header: BlockHeader) -> Result<(), Self::Error> {
+        let parent_header = self
+            .db()
             .block_header(header.parent_hash)
             .ok_or(IntegrityVerifierError::NoBlockHeader(header.parent_hash))?; // TODO: we might want to mention its a parent
 
@@ -568,28 +580,28 @@ impl DatabaseVisitor for IntegrityVerifier {
         Ok(())
     }
 
-    fn visit_block_codes_queue(
-        &mut self,
-        db: &Database,
-        queue: &VecDeque<CodeId>,
-    ) -> Result<(), Self::Error> {
+    fn visit_block_codes_queue(&mut self, queue: &VecDeque<CodeId>) -> Result<(), Self::Error> {
         for &code in queue {
-            let valid = db
+            let valid = self
+                .db()
                 .code_valid(code)
                 .ok_or(IntegrityVerifierError::NoCodeValid)?;
             if !valid {
                 return Err(IntegrityVerifierError::CodeIsNotValid);
             }
 
-            let original_code = db
+            let original_code = self
+                .db()
                 .original_code(code)
                 .ok_or(IntegrityVerifierError::NoOriginalCode)?;
 
-            let _instrumented_code = db
+            let _instrumented_code = self
+                .db()
                 .instrumented_code(ethexe_runtime_common::VERSION, code)
                 .ok_or(IntegrityVerifierError::NoInstrumentedCode(code))?;
 
-            let code_metadata = db
+            let code_metadata = self
+                .db()
                 .code_metadata(code)
                 .ok_or(IntegrityVerifierError::NoCodeMetadata)?;
             if code_metadata.original_code_len() != original_code.len() as u32 {
@@ -605,11 +617,12 @@ impl DatabaseVisitor for IntegrityVerifier {
 
     fn visit_memory_pages_region(
         &mut self,
-        db: &Database,
+
         memory_pages_region: &MemoryPagesRegion,
     ) -> Result<(), Self::Error> {
         for &page_buf_hash in memory_pages_region.as_inner().values() {
-            let _page_data = db
+            let _page_data = self
+                .db()
                 .read_page_data(page_buf_hash)
                 .ok_or(IntegrityVerifierError::NoMemoryPageData)?;
         }
@@ -617,15 +630,12 @@ impl DatabaseVisitor for IntegrityVerifier {
         Ok(())
     }
 
-    fn visit_payload_lookup(
-        &mut self,
-        db: &Database,
-        payload_lookup: &PayloadLookup,
-    ) -> Result<(), Self::Error> {
+    fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) -> Result<(), Self::Error> {
         match payload_lookup {
             PayloadLookup::Direct(_payload) => {}
             PayloadLookup::Stored(hash) => {
-                let _payload = db
+                let _payload = self
+                    .db()
                     .read_payload(*hash)
                     .ok_or(IntegrityVerifierError::NoPayload)?;
             }

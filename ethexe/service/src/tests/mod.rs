@@ -1099,12 +1099,12 @@ async fn fast_sync() {
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
 
-        IntegrityVerifier
-            .visit_chain(&alice.db, latest_block, fast_synced_block)
+        IntegrityVerifier(&alice.db)
+            .visit_chain(latest_block, fast_synced_block)
             .expect("failed to verify Alice database");
 
-        IntegrityVerifier
-            .visit_chain(&bob.db, latest_block, fast_synced_block)
+        IntegrityVerifier(&bob.db)
+            .visit_chain(latest_block, fast_synced_block)
             .expect("failed to verify Bob database");
 
         assert_eq!(
