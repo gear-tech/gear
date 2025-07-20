@@ -28,7 +28,7 @@ use ethexe_runtime_common::state::{
     MemoryPagesRegion, MessageQueue, PayloadLookup, Program, ProgramState, Storage, UserMailbox,
     Waitlist,
 };
-use gear_core::memory::PageBuf;
+use gear_core::{buffer::Payload, memory::PageBuf};
 use gprimitives::{CodeId, H256};
 use std::collections::{HashSet, VecDeque};
 
@@ -99,7 +99,11 @@ pub trait DatabaseVisitor: Sized {
 
     fn visit_page_data(&mut self, _page_data: &[u8]) {}
 
-    fn visit_payload_lookup(&mut self, _payload_lookup: &PayloadLookup) {}
+    fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
+        walk_payload_lookup(self, payload_lookup)
+    }
+
+    fn visit_payload(&mut self, _payload: &Payload) {}
 
     fn visit_message_queue(&mut self, queue: &MessageQueue) {
         walk_message_queue(self, queue)
@@ -149,46 +153,7 @@ pub trait DatabaseVisitorError {
     fn no_user_mailbox(hash: HashOf<UserMailbox>) -> Self;
     fn no_allocations(hash: HashOf<Allocations>) -> Self;
     fn no_program_state(hash: H256) -> Self;
-}
-
-impl DatabaseVisitorError for () {
-    fn no_block_header(_block: H256) -> Self {}
-
-    fn no_block_events(_block: H256) -> Self {}
-
-    fn no_block_program_states(_block: H256) -> Self {}
-
-    fn no_block_schedule(_block: H256) -> Self {}
-
-    fn no_block_outcome(_block: H256) -> Self {}
-
-    fn no_block_commitment_queue(_block: H256) -> Self {}
-
-    fn no_block_codes_queue(_block: H256) -> Self {}
-
-    fn no_previous_non_empty_block(_block: H256) -> Self {}
-
-    fn no_last_committed_batch(_block: H256) -> Self {}
-
-    fn no_memory_pages(_hash: HashOf<MemoryPages>) -> Self {}
-
-    fn no_memory_pages_region(_hash: HashOf<MemoryPagesRegion>) -> Self {}
-
-    fn no_page_data(_hash: HashOf<PageBuf>) -> Self {}
-
-    fn no_message_queue(_hash: HashOf<MessageQueue>) -> Self {}
-
-    fn no_waitlist(_hash: HashOf<Waitlist>) -> Self {}
-
-    fn no_dispatch_stash(_hash: HashOf<DispatchStash>) -> Self {}
-
-    fn no_mailbox(_hash: HashOf<Mailbox>) -> Self {}
-
-    fn no_user_mailbox(_hash: HashOf<UserMailbox>) -> Self {}
-
-    fn no_allocations(_hash: HashOf<Allocations>) -> Self {}
-
-    fn no_program_state(_hash: H256) -> Self {}
+    fn no_payload(hash: HashOf<Payload>) -> Self;
 }
 
 macro_rules! visit_or_error {
@@ -439,6 +404,23 @@ pub fn walk_dispatch_stash<E>(
     }
 }
 
+pub fn walk_payload_lookup<E>(
+    visitor: &mut impl DatabaseVisitor<DbError = E>,
+    payload_lookup: &PayloadLookup,
+) where
+    E: DatabaseVisitorError,
+{
+    match payload_lookup {
+        PayloadLookup::Direct(payload) => {
+            visitor.visit_payload(payload);
+        }
+        PayloadLookup::Stored(payload) => {
+            let payload = *payload;
+            visit_or_error!(visitor, payload.as_ref());
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
     /* block meta */
@@ -490,7 +472,7 @@ pub enum IntegrityVerifierError {
     NoMailbox(HashOf<Mailbox>),
     NoUserMailbox(HashOf<UserMailbox>),
     NoAllocations(HashOf<Allocations>),
-    NoPayload,
+    NoPayload(HashOf<Payload>),
     NoProgramState(H256),
 }
 
@@ -569,6 +551,10 @@ impl DatabaseVisitorError for IntegrityVerifierError {
 
     fn no_program_state(hash: H256) -> Self {
         Self::NoProgramState(hash)
+    }
+
+    fn no_payload(hash: HashOf<Payload>) -> Self {
+        Self::NoPayload(hash)
     }
 }
 
@@ -704,17 +690,6 @@ impl DatabaseVisitor for IntegrityVerifier {
                         metadata_len: code_metadata.original_code_len(),
                         original_len: original_code.len() as u32,
                     });
-            }
-        }
-    }
-
-    fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
-        match payload_lookup {
-            PayloadLookup::Direct(_payload) => {}
-            PayloadLookup::Stored(hash) => {
-                if self.db().payload(*hash).is_none() {
-                    self.errors.push(IntegrityVerifierError::NoPayload);
-                }
             }
         }
     }

@@ -40,11 +40,11 @@ use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
         Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
-        PayloadLookup, ProgramState, UserMailbox, Waitlist,
+        ProgramState, UserMailbox, Waitlist,
     },
 };
 use futures::StreamExt;
-use gear_core::memory::PageBuf;
+use gear_core::{buffer::Payload, memory::PageBuf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -392,6 +392,13 @@ impl DatabaseVisitorError for RequestError {
     fn no_program_state(_hash: H256) -> Self {
         unreachable!()
     }
+
+    fn no_payload(hash: HashOf<Payload>) -> Self {
+        Self {
+            hash: hash.hash(),
+            metadata: RequestMetadata::Data,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -525,15 +532,6 @@ impl DatabaseVisitor for RequestManager {
 
     fn on_db_error(&mut self, RequestError { hash, metadata }: Self::DbError) {
         self.add(hash, metadata);
-    }
-
-    fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
-        match payload_lookup {
-            PayloadLookup::Direct(_) => {}
-            PayloadLookup::Stored(hash) => {
-                self.add(hash.hash(), RequestMetadata::Data);
-            }
-        }
     }
 }
 
