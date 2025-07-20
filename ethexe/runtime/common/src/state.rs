@@ -29,6 +29,7 @@ use core::{
     any::Any,
     cell::RefCell,
     cmp::Ordering,
+    hash::{Hash, Hasher},
     marker::PhantomData,
     mem,
     ops::{Index, IndexMut},
@@ -146,7 +147,7 @@ impl PayloadLookup {
         match self {
             Self::Direct(payload) => Ok(payload),
             Self::Stored(hash) => storage
-                .read_payload(hash)
+                .payload(hash)
                 .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash")),
         }
     }
@@ -191,6 +192,12 @@ impl<S: Sealed> Clone for HashOf<S> {
 }
 
 impl<S: Sealed> Copy for HashOf<S> {}
+
+impl<S: Sealed> Hash for HashOf<S> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash.hash(state)
+    }
+}
 
 impl<S: Sealed> HashOf<S> {
     /// # Safety
@@ -282,7 +289,7 @@ impl<S: Sealed + 'static> From<HashOf<S>> for MaybeHashOf<S> {
 impl MaybeHashOf<Allocations> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Allocations> {
         self.try_map_or_default(|hash| {
-            storage.read_allocations(hash).ok_or(anyhow!(
+            storage.allocations(hash).ok_or(anyhow!(
                 "failed to read ['Allocations'] from storage by hash"
             ))
         })
@@ -306,7 +313,7 @@ impl MaybeHashOf<Allocations> {
 impl MaybeHashOf<DispatchStash> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<DispatchStash> {
         self.try_map_or_default(|hash| {
-            storage.read_stash(hash).ok_or(anyhow!(
+            storage.dispatch_stash(hash).ok_or(anyhow!(
                 "failed to read ['DispatchStash'] from storage by hash"
             ))
         })
@@ -331,7 +338,7 @@ impl MaybeHashOf<Mailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Mailbox> {
         self.try_map_or_default(|hash| {
             storage
-                .read_mailbox(hash)
+                .mailbox(hash)
                 .ok_or(anyhow!("failed to read ['Mailbox'] from storage by hash"))
         })
     }
@@ -354,7 +361,7 @@ impl MaybeHashOf<Mailbox> {
 impl MaybeHashOf<UserMailbox> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<UserMailbox> {
         self.try_map_or_default(|hash| {
-            storage.read_user_mailbox(hash).ok_or(anyhow!(
+            storage.user_mailbox(hash).ok_or(anyhow!(
                 "failed to read ['UserMailbox'] from storage by hash"
             ))
         })
@@ -364,7 +371,7 @@ impl MaybeHashOf<UserMailbox> {
 impl MaybeHashOf<MemoryPages> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MemoryPages> {
         self.try_map_or_default(|hash| {
-            storage.read_pages(hash).ok_or(anyhow!(
+            storage.memory_pages(hash).ok_or(anyhow!(
                 "failed to read ['MemoryPages'] from storage by hash"
             ))
         })
@@ -397,7 +404,7 @@ pub struct MessageQueueHashWithSize {
 impl MessageQueueHashWithSize {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
         self.hash.try_map_or_default(|hash| {
-            storage.read_queue(hash).ok_or(anyhow!(
+            storage.message_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
         })
@@ -428,7 +435,7 @@ impl MaybeHashOf<Payload> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Payload> {
         self.try_map_or_default(|hash| {
             storage
-                .read_payload(hash)
+                .payload(hash)
                 .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
         })
     }
@@ -440,7 +447,7 @@ impl MaybeHashOf<Waitlist> {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<Waitlist> {
         self.try_map_or_default(|hash| {
             storage
-                .read_waitlist(hash)
+                .waitlist(hash)
                 .ok_or(anyhow!("failed to read ['Waitlist'] from storage by hash"))
         })
     }
@@ -757,7 +764,7 @@ impl MessageQueue {
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
-        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_queue(self)))
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_message_queue(self)))
     }
 }
 
@@ -864,7 +871,7 @@ impl DispatchStash {
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
-        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_stash(self)))
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_dispatch_stash(self)))
     }
 }
 
@@ -1008,7 +1015,7 @@ impl Mailbox {
                 (
                     k,
                     storage
-                        .read_user_mailbox(v)
+                        .user_mailbox(v)
                         .expect("failed to read user mailbox from store")
                         .0
                         .into_iter()
@@ -1092,7 +1099,7 @@ impl MemoryPages {
                         .take()
                         .map(|region_hash| {
                             storage
-                                .read_pages_region(region_hash)
+                                .memory_pages_region(region_hash)
                                 .expect("failed to read region from storage")
                         })
                         .unwrap_or_default()
@@ -1135,7 +1142,7 @@ impl MemoryPages {
                         .take()
                         .map(|region_hash| {
                             storage
-                                .read_pages_region(region_hash)
+                                .memory_pages_region(region_hash)
                                 .expect("failed to read region from storage")
                         })
                         .unwrap_or_default()
@@ -1160,7 +1167,7 @@ impl MemoryPages {
     }
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
-        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages(self)))
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_memory_pages(self)))
     }
 
     pub fn to_inner(&self) -> MemoryPagesInner {
@@ -1176,7 +1183,7 @@ pub type MemoryPagesRegionInner = BTreeMap<GearPage, HashOf<PageBuf>>;
 
 impl MemoryPagesRegion {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
-        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages_region(self)))
+        MaybeHashOf((!self.0.is_empty()).then(|| storage.write_memory_pages_region(self)))
     }
 
     pub fn as_inner(&self) -> &MemoryPagesRegionInner {
@@ -1228,61 +1235,64 @@ impl Allocations {
 
 pub trait Storage {
     /// Reads program state by state hash.
-    fn read_state(&self, hash: H256) -> Option<ProgramState>;
+    fn program_state(&self, hash: H256) -> Option<ProgramState>;
 
     /// Writes program state and returns its hash.
-    fn write_state(&self, state: ProgramState) -> H256;
+    fn write_program_state(&self, state: ProgramState) -> H256;
 
     /// Reads message queue by queue hash.
-    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue>;
+    fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue>;
 
     /// Writes message queue and returns its hash.
-    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue>;
+    fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue>;
 
     /// Reads waitlist by waitlist hash.
-    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist>;
+    fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist>;
 
     /// Writes waitlist and returns its hash.
     fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist>;
 
     /// Reads dispatch stash by its hash.
-    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash>;
+    fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash>;
 
     /// Writes dispatch stash and returns its hash.
-    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash>;
+    fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash>;
 
     /// Reads mailbox by mailbox hash.
-    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox>;
+    fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox>;
 
     /// Writes mailbox and returns its hash.
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
 
     /// Reads user mailbox and returns its hash.
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
+    fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
 
     /// Writes user mailbox and returns its hash.
     fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox>;
 
     /// Reads memory pages by pages hash.
-    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
+    fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
 
     /// Writes memory pages region and returns its hash.
-    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion>;
+    fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion>;
 
     /// Writes memory pages and returns its hash.
-    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages>;
+    fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages>;
 
     /// Writes memory pages region and returns its hash.
-    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion>;
+    fn write_memory_pages_region(
+        &self,
+        pages_region: MemoryPagesRegion,
+    ) -> HashOf<MemoryPagesRegion>;
 
     /// Reads allocations by allocations hash.
-    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations>;
+    fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations>;
 
     /// Writes allocations and returns its hash.
     fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations>;
 
     /// Reads payload by payload hash.
-    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload>;
+    fn payload(&self, hash: HashOf<Payload>) -> Option<Payload>;
 
     /// Writes payload and returns its hash.
     fn write_payload(&self, payload: Payload) -> HashOf<Payload>;
@@ -1302,7 +1312,7 @@ pub trait Storage {
     }
 
     /// Reads page data by page data hash.
-    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf>;
+    fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf>;
 
     /// Writes page data and returns its hash.
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf>;
@@ -1343,23 +1353,23 @@ impl MemStorage {
 }
 
 impl Storage for MemStorage {
-    fn read_state(&self, hash: H256) -> Option<ProgramState> {
+    fn program_state(&self, hash: H256) -> Option<ProgramState> {
         self.read(hash)
     }
 
-    fn write_state(&self, state: ProgramState) -> H256 {
+    fn write_program_state(&self, state: ProgramState) -> H256 {
         self.write(state)
     }
 
-    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+    fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
         self.read(hash.hash())
     }
 
-    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+    fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
         unsafe { HashOf::new(self.write(queue)) }
     }
 
-    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+    fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
         self.read(hash.hash())
     }
 
@@ -1367,15 +1377,15 @@ impl Storage for MemStorage {
         unsafe { HashOf::new(self.write(waitlist)) }
     }
 
-    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+    fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
         self.read(hash.hash())
     }
 
-    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+    fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
         unsafe { HashOf::new(self.write(stash)) }
     }
 
-    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+    fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
         self.read(hash.hash())
     }
 
@@ -1383,7 +1393,7 @@ impl Storage for MemStorage {
         unsafe { HashOf::new(self.write(mailbox)) }
     }
 
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+    fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
         self.read(hash.hash())
     }
 
@@ -1391,23 +1401,26 @@ impl Storage for MemStorage {
         unsafe { HashOf::new(self.write(user_mailbox)) }
     }
 
-    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+    fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
         self.read(hash.hash())
     }
 
-    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+    fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
         self.read(hash.hash())
     }
 
-    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+    fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(self.write(pages)) }
     }
 
-    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+    fn write_memory_pages_region(
+        &self,
+        pages_region: MemoryPagesRegion,
+    ) -> HashOf<MemoryPagesRegion> {
         unsafe { HashOf::new(self.write(pages_region)) }
     }
 
-    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+    fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
         self.read(hash.hash())
     }
 
@@ -1415,7 +1428,7 @@ impl Storage for MemStorage {
         unsafe { HashOf::new(self.write(allocations)) }
     }
 
-    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+    fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         self.read(hash.hash())
     }
 
@@ -1423,7 +1436,7 @@ impl Storage for MemStorage {
         unsafe { HashOf::new(self.write(payload)) }
     }
 
-    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+    fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
         self.read(hash.hash())
     }
 

@@ -293,7 +293,7 @@ impl BlockMetaStorageRead for Database {
         self.with_small_data(block_hash, |data| data.codes_queue)?
     }
 
-    fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
+    fn previous_non_empty_block(&self, block_hash: H256) -> Option<H256> {
         self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
     }
 
@@ -513,7 +513,7 @@ impl CodesStorageWrite for Database {
 
 // TODO: consider to change decode panics to Results.
 impl Storage for Database {
-    fn read_state(&self, hash: H256) -> Option<ProgramState> {
+    fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             return Some(ProgramState::zero());
         }
@@ -526,7 +526,7 @@ impl Storage for Database {
         Some(state)
     }
 
-    fn write_state(&self, state: ProgramState) -> H256 {
+    fn write_program_state(&self, state: ProgramState) -> H256 {
         if state.is_zero() {
             return H256::zero();
         }
@@ -534,17 +534,17 @@ impl Storage for Database {
         self.cas.write(&state.encode())
     }
 
-    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+    fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
         self.cas.read(hash.hash()).map(|data| {
             MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
         })
     }
 
-    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+    fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
         unsafe { HashOf::new(self.cas.write(&queue.encode())) }
     }
 
-    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+    fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
         self.cas.read(hash.hash()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
@@ -554,18 +554,18 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&waitlist.encode())) }
     }
 
-    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+    fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
         self.cas.read(hash.hash()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
     }
 
-    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+    fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
         unsafe { HashOf::new(self.cas.write(&stash.encode())) }
     }
 
-    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+    fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
         self.cas.read(hash.hash()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
@@ -575,7 +575,7 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
     }
 
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+    fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
         self.cas.read(hash.hash()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
@@ -586,28 +586,31 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&use_mailbox.encode())) }
     }
 
-    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+    fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
         self.cas.read(hash.hash()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
         })
     }
 
-    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+    fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
         self.cas.read(hash.hash()).map(|data| {
             MemoryPagesRegion::decode(&mut &data[..])
                 .expect("Failed to decode data into `MemoryPagesRegion`")
         })
     }
 
-    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+    fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(self.cas.write(&pages.encode())) }
     }
 
-    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+    fn write_memory_pages_region(
+        &self,
+        pages_region: MemoryPagesRegion,
+    ) -> HashOf<MemoryPagesRegion> {
         unsafe { HashOf::new(self.cas.write(&pages_region.encode())) }
     }
 
-    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+    fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
         self.cas.read(hash.hash()).map(|data| {
             Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
         })
@@ -617,7 +620,7 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&allocations.encode())) }
     }
 
-    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+    fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         self.cas
             .read(hash.hash())
             .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
@@ -627,7 +630,7 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(payload.inner())) }
     }
 
-    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+    fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
         self.cas.read(hash.hash()).map(|data| {
             PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
         })
@@ -1123,8 +1126,8 @@ mod tests {
         let db = Database::memory();
 
         let state = ProgramState::zero();
-        let hash = db.write_state(state.clone());
-        assert_eq!(db.read_state(hash), Some(state));
+        let hash = db.write_program_state(state.clone());
+        assert_eq!(db.program_state(hash), Some(state));
     }
 
     #[test]
@@ -1132,8 +1135,8 @@ mod tests {
         let db = Database::memory();
 
         let queue = MessageQueue::default();
-        let hash = db.write_queue(queue.clone());
-        assert_eq!(db.read_queue(hash), Some(queue));
+        let hash = db.write_message_queue(queue.clone());
+        assert_eq!(db.message_queue(hash), Some(queue));
     }
 
     #[test]
@@ -1142,7 +1145,7 @@ mod tests {
 
         let waitlist = Waitlist::default();
         let hash = db.write_waitlist(waitlist.clone());
-        assert_eq!(db.read_waitlist(hash), Some(waitlist));
+        assert_eq!(db.waitlist(hash), Some(waitlist));
     }
 
     #[test]
@@ -1150,8 +1153,8 @@ mod tests {
         let db = Database::memory();
 
         let stash = DispatchStash::default();
-        let hash = db.write_stash(stash.clone());
-        assert_eq!(db.read_stash(hash), Some(stash));
+        let hash = db.write_dispatch_stash(stash.clone());
+        assert_eq!(db.dispatch_stash(hash), Some(stash));
     }
 
     #[test]
@@ -1160,7 +1163,7 @@ mod tests {
 
         let mailbox = Mailbox::default();
         let hash = db.write_mailbox(mailbox.clone());
-        assert_eq!(db.read_mailbox(hash), Some(mailbox));
+        assert_eq!(db.mailbox(hash), Some(mailbox));
     }
 
     #[test]
@@ -1168,8 +1171,8 @@ mod tests {
         let db = Database::memory();
 
         let pages = MemoryPages::default();
-        let hash = db.write_pages(pages.clone());
-        assert_eq!(db.read_pages(hash), Some(pages));
+        let hash = db.write_memory_pages(pages.clone());
+        assert_eq!(db.memory_pages(hash), Some(pages));
     }
 
     #[test]
@@ -1177,8 +1180,8 @@ mod tests {
         let db = Database::memory();
 
         let pages_region = MemoryPagesRegion::default();
-        let hash = db.write_pages_region(pages_region.clone());
-        assert_eq!(db.read_pages_region(hash), Some(pages_region));
+        let hash = db.write_memory_pages_region(pages_region.clone());
+        assert_eq!(db.memory_pages_region(hash), Some(pages_region));
     }
 
     #[test]
@@ -1187,7 +1190,7 @@ mod tests {
 
         let allocations = Allocations::default();
         let hash = db.write_allocations(allocations.clone());
-        assert_eq!(db.read_allocations(hash), Some(allocations));
+        assert_eq!(db.allocations(hash), Some(allocations));
     }
 
     #[test]
@@ -1196,7 +1199,7 @@ mod tests {
 
         let payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let hash = db.write_payload(payload.clone());
-        assert_eq!(db.read_payload(hash), Some(payload));
+        assert_eq!(db.payload(hash), Some(payload));
     }
 
     #[test]
@@ -1206,6 +1209,6 @@ mod tests {
         let mut page_data = PageBuf::new_zeroed();
         page_data[42] = 42;
         let hash = db.write_page_data(page_data.clone());
-        assert_eq!(db.read_page_data(hash), Some(page_data));
+        assert_eq!(db.page_data(hash), Some(page_data));
     }
 }

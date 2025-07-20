@@ -105,7 +105,7 @@ fn propagate_data_from_parent<'a, DB: BlockMetaStorageRead + BlockMetaStorageWri
         .ok_or(ComputeError::ParentNotFound(block))?
     {
         let parent_prev_commitment = db
-            .previous_not_empty_block(parent)
+            .previous_non_empty_block(parent)
             .ok_or(ComputeError::PreviousCommitmentNotFound(parent))?;
         db.set_previous_not_empty_block(block, parent_prev_commitment);
     } else {
@@ -283,7 +283,7 @@ mod tests {
         assert_eq!(result[0], H256::from([4; 32]));
 
         // Verify previous not empty block was set correctly
-        let prev_not_empty = db.previous_not_empty_block(block_hash).unwrap();
+        let prev_not_empty = db.previous_non_empty_block(block_hash).unwrap();
         assert_eq!(prev_not_empty, parent_hash);
     }
 
@@ -308,7 +308,7 @@ mod tests {
         assert!(result.is_empty());
 
         // Should propagate grandparent as previous not empty block
-        let prev_not_empty = db.previous_not_empty_block(block_hash).unwrap();
+        let prev_not_empty = db.previous_non_empty_block(block_hash).unwrap();
         assert_eq!(prev_not_empty, grandparent_hash);
     }
 

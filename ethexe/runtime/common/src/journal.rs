@@ -462,7 +462,7 @@ where
 
         // Some notes were processed, thus state changed
         let maybe_state_hash = (notes_cnt != filtered.len())
-            .then(|| self.storage.write_state(self.program_state.clone()));
+            .then(|| self.storage.write_program_state(self.program_state.clone()));
 
         (filtered, maybe_state_hash)
     }
