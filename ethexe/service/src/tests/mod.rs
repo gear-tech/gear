@@ -34,7 +34,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
 };
-use ethexe_db::{Database, IntegrityVerifier};
+use ethexe_db::{Database, visitor::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;

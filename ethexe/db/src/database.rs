@@ -110,6 +110,8 @@ impl Key {
     }
 }
 
+#[derive(derive_more::Debug)]
+#[debug("Database(CAS + KV)")]
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,

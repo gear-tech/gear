@@ -4730,6 +4730,7 @@ version = "1.8.1"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
