@@ -4736,6 +4736,7 @@ dependencies = [
  "gprimitives",
  "log",
  "parity-scale-codec",
+ "paste",
  "rocksdb",
  "scopeguard",
  "tempfile",

@@ -17,6 +17,7 @@ anyhow.workspace = true
 dashmap = "5.5.3"
 parity-scale-codec.workspace = true
 log = { workspace = true, features = ["std"] }
+paste.workspace = true
 
 # TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
 [target.'cfg(target_env = "msvc")'.dependencies.rocksdb]
