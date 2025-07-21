@@ -20,11 +20,11 @@
 
 #![cfg(test)]
 
-use crate::{BuiltinActorType, mock::*};
+use crate::{mock::*, BuiltinActorType};
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_core::ids::{ActorId, CodeId, prelude::*};
+use gear_core::ids::{prelude::*, ActorId, CodeId};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
 
@@ -78,7 +78,6 @@ fn builtin_actor_ids_are_correct() {
         let bls_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
             <crate::bls12_381::Actor<Test> as crate::BuiltinActor>::TYPE.id(),
         );
-        #[cfg(feature = "dev")]
         let eth_bridge_actor_id: ActorId =
             GearBuiltin::builtin_id_into_actor_id(BuiltinActorType::EthBridge.id());
 
@@ -106,7 +105,6 @@ fn builtin_actor_ids_are_correct() {
             bls_actor_id,
             ActorId::from(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0")
         );
-        #[cfg(feature = "dev")]
         assert_eq!(
             eth_bridge_actor_id,
             ActorId::from(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0")

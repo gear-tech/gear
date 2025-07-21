@@ -294,7 +294,6 @@ dev = [
     "pallet-gear-eth-bridge",
     "pallet-sudo",
     "pallet-gear/dev",
-    "pallet-gear-builtin/dev",
     "pallet-gear-eth-bridge/dev",
 ]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]

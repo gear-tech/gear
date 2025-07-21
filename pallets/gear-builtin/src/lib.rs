@@ -51,18 +51,18 @@ pub use pallet::*;
 pub use weights::WeightInfo;
 
 use alloc::{
-    collections::{BTreeMap, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap},
     format,
 };
-use common::{BlockLimiter, Origin, storage::Limiter};
+use common::{storage::Limiter, BlockLimiter, Origin};
 use core::marker::PhantomData;
 use core_processor::{
-    SystemReservationContext,
     common::{
         ActorExecutionErrorReplyReason, DispatchResult, JournalNote, SuccessfulDispatchResultKind,
         TrapExplanation,
     },
-    process_allowance_exceed, process_execution_error, process_success,
+    process_allowance_exceed,
+    process_execution_error, process_success, SystemReservationContext,
 };
 use frame_support::{
     dispatch::extract_actual_weight, pallet_prelude::TypeInfo, traits::StorageVersion,
@@ -200,7 +200,6 @@ pub enum BuiltinActorType {
     /// BLS12-381 actor
     BLS12_381,
     /// Eth bridge actor
-    #[cfg(feature = "dev")]
     EthBridge,
 }
 
@@ -214,7 +213,6 @@ impl BuiltinActorType {
             Self::Staking => BuiltinActorId::new(b"staking", 1),
             Self::Proxy => BuiltinActorId::new(b"proxy", 1),
             Self::BLS12_381 => BuiltinActorId::new(b"bls12-381", 1),
-            #[cfg(feature = "dev")]
             Self::EthBridge => BuiltinActorId::new(b"eth-bridge", 1),
         }
     }
@@ -224,7 +222,6 @@ impl BuiltinActorType {
         match index {
             1 => Some(BuiltinActorType::BLS12_381),
             2 => Some(BuiltinActorType::Staking),
-            #[cfg(feature = "dev")]
             3 => Some(BuiltinActorType::EthBridge),
             4 => Some(BuiltinActorType::Proxy),
             _ => None,
