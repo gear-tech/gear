@@ -208,11 +208,8 @@ contract Base is POCBaseTest {
         uint48 _timestamp,
         bool revertExpected
     ) internal {
-        Gear.GearBlock[] memory _blocks = new Gear.GearBlock[](1);
-        _blocks[0] = Gear.GearBlock({hash: _blockHash, gasAllowance: 1234, offchainTransactionsHash: keccak256("1234")});
-
         Gear.ChainCommitment memory _chainCommitment =
-            Gear.ChainCommitment({transitions: _transactions, blocks: _blocks});
+            Gear.ChainCommitment({transitions: _transactions, head: keccak256("head")});
 
         Gear.ChainCommitment[] memory _chainCommitments = new Gear.ChainCommitment[](1);
         _chainCommitments[0] = _chainCommitment;
@@ -332,14 +329,8 @@ contract Base is POCBaseTest {
             );
         }
 
-        bytes32[] memory _gearBlockHashes = new bytes32[](_commitment.blocks.length);
-        for (uint256 i = 0; i < _commitment.blocks.length; i++) {
-            Gear.GearBlock memory _gearBlock = _commitment.blocks[i];
-            _gearBlockHashes[i] = Gear.gearBlockHash(_gearBlock);
-        }
-
         return Gear.chainCommitmentHash(
-            keccak256(abi.encodePacked(_transitionsHashes)), Gear.gearBlocksHash(_gearBlockHashes)
+            keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head
         );
     }
 
