@@ -53,18 +53,18 @@ mod mock;
 mod tests;
 
 use frame_support::{
+    PalletId,
     traits::{
-        fungible, Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced,
-        WithdrawReasons,
+        Contains, Currency, ExistenceRequirement, Get, Imbalance, OnUnbalanced, WithdrawReasons,
+        fungible,
     },
     weights::Weight,
-    PalletId,
 };
 use pallet_staking::{ActiveEraInfo, EraPayout};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::{
-    traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
     PerThing, Perquintill,
+    traits::{AccountIdConversion, Saturating, StaticLookup, UniqueSaturatedInto},
 };
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
@@ -270,7 +270,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|e| {
-                log::error!("Failed to replenish the staking rewards pool: {:?}", e);
+                log::error!("Failed to replenish the staking rewards pool: {e:?}");
                 Error::<T>::FailureToRefillPool
             })?;
             Self::deposit_event(Event::Deposited { amount: value });
@@ -294,7 +294,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|e| {
-                log::error!("Failed to replenish the staking rewards pool: {:?}", e);
+                log::error!("Failed to replenish the staking rewards pool: {e:?}");
                 Error::<T>::FailureToRefillPool
             })?;
             Self::deposit_event(Event::Deposited { amount: value });
@@ -318,10 +318,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )
             .map_err(|e| {
-                log::error!(
-                    "Failed to withdraw funds from the staking rewards pool: {:?}",
-                    e
-                );
+                log::error!("Failed to withdraw funds from the staking rewards pool: {e:?}");
                 Error::<T>::FailureToWithdrawFromPool
             })?;
             Self::deposit_event(Event::Withdrawn { amount: value });

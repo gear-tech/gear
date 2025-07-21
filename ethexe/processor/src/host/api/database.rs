@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{api::MemoryWrap, threads};
-use anyhow::Result;
+use crate::{
+    Result,
+    host::{api::MemoryWrap, threads},
+};
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
@@ -31,8 +33,20 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
         "ext_get_block_timestamp_version_1",
         get_block_timestamp,
     )?;
+    linker.func_wrap("env", "ext_update_state_hash_version_1", update_state_hash)?;
 
     Ok(())
+}
+
+fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: i32) {
+    log::trace!(target: "host_call", "update_state_hash(program_state_hash={program_state_hash_ptr:?})");
+
+    let memory = MemoryWrap(caller.data().memory());
+
+    let hash_slice = memory.slice(&caller, program_state_hash_ptr as usize, size_of::<H256>());
+    let program_state_hash = H256::from_slice(hash_slice);
+
+    threads::update_state_hash(program_state_hash);
 }
 
 fn read_by_hash(caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {

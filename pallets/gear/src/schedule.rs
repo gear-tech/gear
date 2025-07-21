@@ -19,7 +19,7 @@
 //! This module contains the cost schedule and supporting code that constructs a
 //! sane default schedule from a `WeightInfo` implementation.
 
-use crate::{weights::WeightInfo, Config, CostsPerBlockOf, DbWeightOf};
+use crate::{Config, CostsPerBlockOf, DbWeightOf, weights::WeightInfo};
 use common::scheduler::SchedulingCostsPerBlock;
 use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
@@ -28,20 +28,19 @@ use gear_core::{
         ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
         SyscallCosts,
     },
-    message,
     pages::{GearPage, WasmPage},
 };
 use gear_wasm_instrument::{
-    gas_metering::{MemoryGrowCost, Rules},
     Instruction, Module,
+    gas_metering::{MemoryGrowCost, Rules},
 };
 use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::{
-    codec::{Decode, Encode},
     RuntimeDebug,
+    codec::{Decode, Encode},
 };
 use sp_std::{marker::PhantomData, vec::Vec};
 
@@ -830,7 +829,7 @@ impl Default for Limits {
             br_table_size: 256,
             subject_len: 32,
             call_depth: 32,
-            payload_len: message::MAX_PAYLOAD_SIZE as u32,
+            payload_len: gear_core::buffer::MAX_PAYLOAD_SIZE as u32,
             code_len: 512 * 1024,
         }
     }
@@ -1253,7 +1252,7 @@ impl<T: Config> Default for MemoryWeights<T> {
         const KB_AMOUNT_IN_ONE_GEAR_PAGE: u64 = GearPage::SIZE as u64 / KB_SIZE;
         const {
             assert!(KB_AMOUNT_IN_ONE_GEAR_PAGE > 0);
-            assert!(GearPage::SIZE as u64 % KB_SIZE == 0);
+            assert!((GearPage::SIZE as u64).is_multiple_of(KB_SIZE));
         }
 
         type W<T> = <T as Config>::WeightInfo;

@@ -94,7 +94,7 @@ mod tests {
     use super::{Reply, Request};
     use crate::InitMessage;
     use alloc::vec;
-    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
+    use gtest::{Log, Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn program_can_be_initialized() {

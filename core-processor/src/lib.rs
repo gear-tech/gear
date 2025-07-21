@@ -31,29 +31,22 @@ mod context;
 mod executor;
 mod ext;
 mod handler;
-mod precharge;
+pub mod precharge;
 mod processing;
 #[cfg(all(test, feature = "std"))]
 mod tests;
 
-pub use context::{
-    ContextChargedForCode, ContextChargedForInstrumentation, ContextChargedForProgram,
-    ProcessExecutionContext, SystemReservationContext,
-};
+pub use context::{ProcessExecutionContext, SystemReservationContext};
 pub use ext::{
     AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,
 };
 pub use handler::handle_journal;
-pub use precharge::{
-    precharge_for_allocations, precharge_for_code, precharge_for_code_length,
-    precharge_for_instrumentation, precharge_for_module_instantiation, precharge_for_program,
-    SuccessfulDispatchResultKind,
-};
+pub use precharge::*;
 pub use processing::{
     process, process_allowance_exceed, process_code_not_exists, process_execution_error,
-    process_failed_init, process_program_exited, process_reinstrumentation_error, process_success,
-    process_uninitialized,
+    process_failed_init, process_instrumentation_failed, process_program_exited,
+    process_reinstrumentation_error, process_success, process_uninitialized,
 };
 
 /// Informational functions for core-processor and executor.

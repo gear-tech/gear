@@ -17,11 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_common::{events::BlockRequestEvent, gear::StateTransition};
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database, OnChainStorage};
+use ethexe_common::{
+    BlockHeader,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
+    events::BlockRequestEvent,
+    gear::StateTransition,
+};
+use ethexe_db::Database;
 use gprimitives::H256;
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
 use std::collections::VecDeque;

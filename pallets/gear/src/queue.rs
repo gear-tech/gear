@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use core_processor::ContextChargedForInstrumentation;
-use gear_core::program::ProgramState;
+use core_processor::{
+    ContextCharged, ProcessExecutionContext,
+    common::{DispatchResult, SuccessfulDispatchResultKind},
+};
+use gear_core::{code::InstrumentedCodeAndMetadata, program::ProgramState};
 
 pub(crate) struct QueueStep<'a, T: Config> {
     pub block_config: &'a BlockConfig,
@@ -43,16 +46,17 @@ where
         let dispatch_id = dispatch.id();
         let dispatch_kind = dispatch.kind();
 
+        let context = ContextCharged::new(
+            destination_id,
+            dispatch.into_incoming(gas_limit),
+            GasAllowanceOf::<T>::get(),
+        );
+
         // To start executing a message resources of a destination program should be
         // fetched from the storage.
         // The first step is to get program data so charge gas for the operation.
-        let context = match core_processor::precharge_for_program(
-            block_config,
-            GasAllowanceOf::<T>::get(),
-            dispatch.into_incoming(gas_limit),
-            destination_id,
-        ) {
-            Ok(dispatch) => dispatch,
+        let context = match context.charge_for_program(block_config) {
+            Ok(context) => context,
             Err(journal) => return journal,
         };
 
@@ -89,7 +93,7 @@ where
         }
 
         // If the destination program is uninitialized, then we allow
-        // to process message, if it's a reply or init message.
+        // to process message, if it's a reply (async init case) or init message.
         // Otherwise, we return error reply.
         if matches!(program.state, ProgramState::Uninitialized { message_id }
             if message_id != dispatch_id && dispatch_kind != DispatchKind::Reply)
@@ -109,14 +113,136 @@ where
             return core_processor::process_uninitialized(context);
         }
 
-        let context = match core_processor::precharge_for_allocations(
-            block_config,
-            context,
-            program.allocations_tree_len,
-        ) {
+        // Adjust gas counters for fetching code metadata.
+        let context = match context.charge_for_code_metadata(block_config) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
+
+        let code_id = program.code_id;
+
+        // The second step is to load code metadata
+        let code_metadata = T::CodeStorage::get_code_metadata(code_id).unwrap_or_else(|| {
+            let err_msg = format!(
+                "run_queue_step: failed to get code metadata for the existing program. \
+                Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
+
+        // TODO: This is an early check, it should be moved after re-instrumentation, in case re-instrumentation will change/add exports
+        if !code_metadata.exports().contains(&dispatch_kind) {
+            let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+            return core_processor::process_success(
+                SuccessfulDispatchResultKind::Success,
+                DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
+                dispatch,
+            );
+        }
+
+        let schedule = T::Schedule::get();
+
+        // Check if the code needs to be reinstrumented.
+        let needs_reinstrumentation = match code_metadata.instrumentation_status() {
+            InstrumentationStatus::NotInstrumented => {
+                log::debug!(
+                    "Instrumented code doesn't exists for program '{destination_id:?}' \
+                     we need to instrument it with instructions weights version {}",
+                    schedule.instruction_weights.version
+                );
+
+                true
+            }
+            InstrumentationStatus::Instrumented { version, .. } => {
+                version != schedule.instruction_weights.version
+            }
+            InstrumentationStatus::InstrumentationFailed { version } => {
+                if version == schedule.instruction_weights.version {
+                    log::debug!(
+                        "Re-instrumentation already failed for program '{destination_id:?}' \
+                        with instructions weights version {version}"
+                    );
+
+                    return core_processor::process_instrumentation_failed(context);
+                }
+
+                true
+            }
+        };
+
+        // Reinstrument the code if necessary.
+        let (instrumented_code, code_metadata, context) = if needs_reinstrumentation {
+            log::debug!("Re-instrumenting code for program '{destination_id:?}'");
+
+            let context = match context
+                .charge_for_original_code(block_config, code_metadata.original_code_len())
+            {
+                Ok(code) => code,
+                Err(journal) => return journal,
+            };
+
+            // TODO: Instrumentation cost should have "write-to-storage" cost inside
+            let context = match context
+                .charge_for_instrumentation(block_config, code_metadata.original_code_len())
+            {
+                Ok(code) => code,
+                Err(journal) => return journal,
+            };
+
+            let instrumented_code_and_metadata =
+                match Pallet::<T>::reinstrument_code(code_id, code_metadata, &schedule) {
+                    Ok(code_and_metadata) => code_and_metadata,
+                    Err(e) => {
+                        log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
+                        return core_processor::process_reinstrumentation_error(context);
+                    }
+                };
+
+            (
+                instrumented_code_and_metadata.instrumented_code,
+                instrumented_code_and_metadata.metadata,
+                context,
+            )
+        } else {
+            let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
+                let err_msg = format!(
+                    "run_queue_step: code metadata for the existing program does not contain \
+                    instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            // Adjust gas counters for fetching instrumented binary code.
+            let context =
+                match context.charge_for_instrumented_code(block_config, instrumented_code_len) {
+                    Ok(context) => context,
+                    Err(journal) => return journal,
+                };
+
+            let code = T::CodeStorage::get_instrumented_code(code_id).unwrap_or_else(|| {
+                // `Program` exists, so instrumented code must exist as well.
+                let err_msg = format!(
+                    "run_queue_step: failed to get code for the existing program. \
+                    Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+
+            (code, code_metadata, context)
+        };
+
+        let context =
+            match context.charge_for_allocations(block_config, program.allocations_tree_len) {
+                Ok(context) => context,
+                Err(journal) => return journal,
+            };
 
         let allocations = if program.allocations_tree_len != 0 {
             {
@@ -133,86 +259,16 @@ where
 
         let actor_data = ExecutableActorData {
             allocations,
-            code_id: program.code_hash.cast(),
-            code_exports: program.code_exports,
-            static_pages: program.static_pages,
             gas_reservation_map: program.gas_reservation_map,
             memory_infix: program.memory_infix,
         };
 
-        // The second step is to load instrumented binary code of the program but
-        // first its correct length should be obtained.
-        let context =
-            match core_processor::precharge_for_code_length(block_config, context, actor_data) {
-                Ok(context) => context,
-                Err(journal) => return journal,
-            };
-
-        // Load correct code length value.
-        let code_id = context.actor_data().code_id;
-        let code_len_bytes = T::CodeStorage::get_code_len(code_id).unwrap_or_else(|| {
-            // `Program` exists, so do code and code len.
-            let err_msg = format!(
-                "run_queue_step: failed to get code len for the existing program. \
-                Program id -'{destination_id:?}', Code id - '{code_id:?}'."
-            );
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
-
-        // Adjust gas counters for fetching instrumented binary code.
-        let context =
-            match core_processor::precharge_for_code(block_config, context, code_len_bytes) {
-                Ok(context) => context,
-                Err(journal) => return journal,
-            };
-
-        // Load instrumented binary code from storage.
-        let code = T::CodeStorage::get_code(code_id).unwrap_or_else(|| {
-            // `Program` exists, so do code and code len.
-            let err_msg = format!(
-                "run_queue_step: failed to get code for the existing program. \
-                Program id -'{destination_id:?}', Code id - '{code_id:?}'."
-            );
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
-
-        // Reinstrument the code if necessary.
-        let schedule = T::Schedule::get();
-        let (code, context) =
-            if code.instruction_weights_version() == schedule.instruction_weights.version {
-                (code, ContextChargedForInstrumentation::from(context))
-            } else {
-                log::debug!("Re-instrumenting code for program '{destination_id:?}'");
-
-                let context = match core_processor::precharge_for_instrumentation(
-                    block_config,
-                    context,
-                    code.original_code_len(),
-                ) {
-                    Ok(context) => context,
-                    Err(journal) => return journal,
-                };
-
-                let code = match Pallet::<T>::reinstrument_code(code_id, &schedule) {
-                    Ok(code) => code,
-                    Err(e) => {
-                        log::debug!("Re-instrumentation error for code {code_id:?}: {e:?}");
-                        return core_processor::process_reinstrumentation_error(context);
-                    }
-                };
-
-                (code, context)
-            };
-
         // The last one thing is to load program memory. Adjust gas counters for memory pages.
-        let context = match core_processor::precharge_for_module_instantiation(
+        let context = match context.charge_for_module_instantiation(
             block_config,
-            context,
-            code.instantiated_section_sizes(),
+            actor_data,
+            instrumented_code.instantiated_section_sizes(),
+            &code_metadata,
         ) {
             Ok(context) => context,
             Err(journal) => return journal,
@@ -222,7 +278,8 @@ where
 
         core_processor::process::<Ext>(
             block_config,
-            (context, code, balance).into(),
+            ProcessExecutionContext::new
+            (context, InstrumentedCodeAndMetadata{instrumented_code, metadata: code_metadata}, balance),
             (random.encode(), bn.unique_saturated_into()),
         )
         .unwrap_or_else(|e| {
@@ -241,10 +298,6 @@ where
         Self::enable_lazy_pages();
 
         let block_config = Self::block_config();
-
-        if T::DebugInfo::is_remap_id_enabled() {
-            T::DebugInfo::remap_id();
-        }
 
         while QueueProcessingOf::<T>::allowed() {
             let dispatch = match QueueOf::<T>::dequeue() {
@@ -279,16 +332,6 @@ where
                 gas_limit,
                 GasAllowanceOf::<T>::get(),
             );
-
-            let _guard = scopeguard::guard((), |_| {
-                if T::DebugInfo::is_enabled() {
-                    T::DebugInfo::do_snapshot();
-                }
-
-                if T::DebugInfo::is_remap_id_enabled() {
-                    T::DebugInfo::remap_id();
-                }
-            });
 
             let program_id = dispatch.destination();
 

@@ -17,43 +17,31 @@
 //! Simple errors being used for status codes
 
 use enum_iterator::Sequence;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "codec")]
-use scale_info::{
-    scale::{self, Decode, Encode},
-    TypeInfo,
+use {
+    parity_scale_codec::{Decode, Encode},
+    scale_info::TypeInfo,
 };
 
-#[repr(u8)]
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    derive_more::From,
-    Sequence,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing reply code with reason of its creation.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ReplyCode {
     /// Success reply.
-    #[display("Success reply sent due to {_0}")]
-    Success(SuccessReplyReason) = 0,
+    #[error("Success reply sent due to {0}")]
+    Success(#[from] SuccessReplyReason) = 0,
 
     /// Error reply.
-    #[display("Error reply sent due to {_0}")]
-    Error(ErrorReplyReason) = 1,
+    #[error("Error reply sent due to {0}")]
+    Error(#[from] ErrorReplyReason) = 1,
 
     /// Unsupported code.
     /// Variant exists for backward compatibility.
-    #[default]
-    #[display("<unsupported reply code>")]
+    #[error("<unsupported reply code>")]
     Unsupported = 255,
 }
 
@@ -81,11 +69,11 @@ impl ReplyCode {
     /// Parses 4 bytes array to `ReplyCode`.
     pub fn from_bytes(bytes: [u8; 4]) -> Self {
         match bytes[0] {
-            b if Self::Success(Default::default()).discriminant() == b => {
+            b if Self::Success(SuccessReplyReason::Unsupported).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Success(SuccessReplyReason::from_bytes(reason_bytes))
             }
-            b if Self::Error(Default::default()).discriminant() == b => {
+            b if Self::Error(ErrorReplyReason::Unsupported).discriminant() == b => {
                 let reason_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Error(ErrorReplyReason::from_bytes(reason_bytes))
             }
@@ -114,36 +102,23 @@ impl ReplyCode {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    Sequence,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of success reply creation.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
-    #[display("automatic sending")]
+    #[error("automatic sending")]
     Auto = 0,
 
     /// Success reply was created by actor manually.
-    #[display("manual sending")]
+    #[error("manual sending")]
     Manual = 1,
 
     /// Unsupported reason of success reply.
     /// Variant exists for backward compatibility.
-    #[default]
-    #[display("<unsupported reason>")]
+    #[error("<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -161,43 +136,29 @@ impl SuccessReplyReason {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    derive_more::From,
-    Sequence,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Reason of error reply creation.
 // NOTE: Adding new variants to this enum you must also update `ErrorReplyReason::to_bytes` and
 // `ErrorReplyReason::from_bytes` methods.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
-    #[display("execution error ({_0})")]
-    Execution(SimpleExecutionError) = 0,
+    #[error("execution error ({0})")]
+    Execution(#[from] SimpleExecutionError) = 0,
 
     /// Destination actor is unavailable, so it can't process the message.
-    #[display("destination actor is unavailable ({_0})")]
-    UnavailableActor(SimpleUnavailableActorError) = 2,
+    #[error("destination actor is unavailable ({0})")]
+    UnavailableActor(#[from] SimpleUnavailableActorError) = 2,
 
     /// Message has died in Waitlist as out of rent one.
-    #[display("removal from waitlist")]
+    #[error("removal from waitlist")]
     RemovedFromWaitlist = 3,
 
     /// Unsupported reason of error reply.
     /// Variant exists for backward compatibility.
-    #[default]
-    #[display("<unsupported reason>")]
+    #[error("<unsupported reason>")]
     Unsupported = 255,
 }
 
@@ -238,11 +199,11 @@ impl ErrorReplyReason {
         match bytes[0] {
             1 /* removed `FailedToCreateProgram` variant */ |
             4 /* moved `ReinstrumentationFailure` variant */ => Self::Unsupported,
-            b if Self::Execution(Default::default()).discriminant() == b => {
+            b if Self::Execution(SimpleExecutionError::Unsupported).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::Execution(SimpleExecutionError::from_bytes(err_bytes))
             }
-            b if Self::UnavailableActor(Default::default()).discriminant() == b => {
+            b if Self::UnavailableActor(SimpleUnavailableActorError::Unsupported).discriminant() == b => {
                 let err_bytes = bytes[1..].try_into().unwrap_or_else(|_| unreachable!());
                 Self::UnavailableActor(SimpleUnavailableActorError::from_bytes(err_bytes))
             }
@@ -252,54 +213,41 @@ impl ErrorReplyReason {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    Sequence,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred during execution.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
-    #[display("Message ran out of gas")]
+    #[error("Message ran out of gas")]
     RanOutOfGas = 0,
 
     /// Program has reached memory limit while executing.
-    #[display("Program reached memory limit")]
+    #[error("Program reached memory limit")]
     MemoryOverflow = 1,
 
     /// Execution failed with backend error that couldn't been caught.
-    #[display("Message ran into uncatchable error")]
+    #[error("Message ran into uncatchable error")]
     BackendError = 2,
 
     /// Execution failed with userspace panic.
     ///
     /// **PAYLOAD**: Arbitrary payload given by the program as `gr_panic` argument.
-    #[display("Message panicked")]
+    #[error("Message panicked")]
     UserspacePanic = 3,
 
     /// Execution failed with `unreachable` instruction call.
-    #[display("Program called WASM `unreachable` instruction")]
+    #[error("Program called WASM `unreachable` instruction")]
     UnreachableInstruction = 4,
 
     /// Program has reached stack limit while executing.
-    #[display("Program reached stack limit")]
+    #[error("Program reached stack limit")]
     StackLimitExceeded = 5,
 
     /// Unsupported reason of execution error.
     /// Variant exists for backward compatibility.
-    #[default]
-    #[display("<unsupported error>")]
+    #[error("<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -321,50 +269,37 @@ impl SimpleExecutionError {
     }
 }
 
-#[repr(u8)]
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    Sequence,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Simplified error occurred because of actor unavailability.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
     ///
     /// **PAYLOAD**: `ActorId` of the exited program's inheritor (`gr_exit` argument).
-    #[display("Program exited")]
+    #[error("Program exited")]
     ProgramExited = 0,
 
     /// Program was terminated due to failed initialization.
-    #[display("Program was terminated due failed initialization")]
+    #[error("Program was terminated due failed initialization")]
     InitializationFailure = 1,
 
     /// Program is not initialized yet.
-    #[display("Program is not initialized yet")]
+    #[error("Program is not initialized yet")]
     Uninitialized = 2,
 
     /// Program was not created.
-    #[display("Program was not created")]
+    #[error("Program was not created")]
     ProgramNotCreated = 3,
 
     /// Program re-instrumentation failed.
-    #[display("Program re-instrumentation failed")]
+    #[error("Program re-instrumentation failed")]
     ReinstrumentationFailure = 4,
 
     /// Unsupported reason of inactive actor error.
     /// Variant exists for backward compatibility.
-    #[default]
-    #[display("<unsupported error>")]
+    #[error("<unsupported error>")]
     Unsupported = 255,
 }
 
@@ -385,34 +320,21 @@ impl SimpleUnavailableActorError {
     }
 }
 
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Default,
-    derive_more::Display,
-    derive_more::From,
-    Sequence,
-)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo), codec(crate = scale), allow(clippy::unnecessary_cast))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Enum representing signal code and reason of its creation.
 ///
 /// # Testing
 /// See [this document](../signal-code-testing.md).
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
+#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.
-    #[display("Signal message sent due to execution error ({_0})")]
-    Execution(SimpleExecutionError),
+    #[error("Signal message sent due to execution error ({0})")]
+    Execution(#[from] SimpleExecutionError),
 
     /// Signal was sent due to removal from waitlist as out of rent.
-    #[default]
-    #[display("Signal message sent due to removal from waitlist")]
+    #[error("Signal message sent due to removal from waitlist")]
     RemovedFromWaitlist,
 }
 

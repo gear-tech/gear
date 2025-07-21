@@ -20,6 +20,8 @@ ethexe-service.workspace = true
 ethexe-observer.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
+ethexe-common.workspace = true
+ethexe-processor.workspace = true
 gprimitives.workspace = true
 
 anyhow.workspace = true

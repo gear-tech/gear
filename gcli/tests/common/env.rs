@@ -17,42 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! environment paths and binaries
-use std::sync::LazyLock;
 
-/// target path from the root workspace
-const TARGET: &str = "target";
-const WASM_TARGET: &str = "target/wasm32-gear";
-
-static ROOT: LazyLock<String> = LazyLock::new(|| env!("CARGO_MANIFEST_DIR").to_owned() + "/../");
-pub static PROFILE: &str = if cfg!(debug_assertions) {
-    "debug"
-} else {
-    "release"
-};
-
-fn bin_path(name: &str, profile: &str, wasm: bool) -> String {
-    ROOT.clone()
-        + &[
-            if wasm { WASM_TARGET } else { TARGET },
-            "/",
-            profile,
-            "/",
-            name,
-        ]
-        .concat()
-}
+use std::{env, path::PathBuf};
 
 /// path of gear node binary
-pub fn node_bin() -> String {
-    bin_path("gear", "release", false)
+pub fn node_bin() -> PathBuf {
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../target/release/gear")
 }
 
 /// path of binaries
-pub fn bin(name: &str) -> String {
-    bin_path(name, PROFILE, false)
-}
-
-/// path of wasm binaries
-pub fn wasm_bin(name: &str) -> String {
-    bin_path(name, PROFILE, true)
+pub fn gcli_bin() -> PathBuf {
+    let path =
+        env::var_os("NEXTEST_BIN_EXE_gcli").unwrap_or_else(|| env!("CARGO_BIN_EXE_gcli").into());
+    PathBuf::from(path)
 }

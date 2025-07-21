@@ -26,8 +26,8 @@ actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-tracing-subscriber.workspace = true
 enum-iterator.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
 demo-fungible-token.workspace = true
 gear-lazy-pages.workspace = true
 
@@ -35,5 +35,5 @@ gear-lazy-pages.workspace = true
 default = ["std"]
 std = ["gear-core-backend/std", "gear-wasm-instrument/std", "dep:gear-lazy-pages-native-interface"]
 strict = []
-mock = []
+mock = ["gear-core/mock"]
 gtest = []

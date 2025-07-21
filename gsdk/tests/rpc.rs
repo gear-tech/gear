@@ -19,15 +19,15 @@
 //! Requires node to be built in release mode
 
 use gear_core::{
-    ids::{prelude::*, CodeId, ProgramId},
-    message::ReplyInfo,
+    ids::{ActorId, CodeId, prelude::*},
+    rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{error::RpcError, utils::H256, Error as SubxtError};
+use subxt::{Error as SubxtError, error::RpcError, utils::H256};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -49,13 +49,13 @@ async fn pallet_errors_formatting() -> Result<()> {
         .await
         .expect_err("Must return error");
 
-    let expected_err = Error::Subxt(SubxtError::Rpc(RpcError::ClientError(Box::new(
+    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(RpcError::ClientError(Box::new(
         ErrorObject::owned(
             8000,
             "Runtime error",
             Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
         ),
-    ))));
+    )))));
 
     assert_eq!(format!("{err}"), format!("{expected_err}"));
 
@@ -115,7 +115,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -160,7 +160,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     let salt = vec![];
 
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
     let payload = demo_waiter::Command::SendUpTo(alice, 10);
 
     // 1. upload program.
@@ -272,31 +272,29 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
     let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
-    {
-        let no_method_block_hash = sp_core::H256::from_str(
-            "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
-        )
-        .unwrap();
+    let no_method_block_hash = sp_core::H256::from_str(
+        "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
+    )
+    .unwrap();
 
-        let wasm_blob_version_result = api
-            .runtime_wasm_blob_version(Some(no_method_block_hash))
-            .await;
+    let wasm_blob_version_err = api
+        .runtime_wasm_blob_version(Some(no_method_block_hash))
+        .await
+        .unwrap_err()
+        .unwrap_subxt();
 
-        let err = ErrorObject::owned(
-            9000,
-            "Unable to find WASM blob version in WASM blob",
-            None::<String>,
-        );
-        assert!(
-            matches!(
-                &wasm_blob_version_result,
-                Err(Error::Subxt(SubxtError::Rpc(RpcError::ClientError(e)))) if e.to_string() == err.to_string()
-            ),
-            "Error does not match: {wasm_blob_version_result:?}"
-        );
+    let err = ErrorObject::owned(
+        9000,
+        "Unable to find WASM blob version in WASM blob",
+        None::<String>,
+    );
+
+    if let SubxtError::Rpc(RpcError::ClientError(e)) = *wasm_blob_version_err {
+        assert_eq!(e.to_string(), err.to_string());
+        return Ok(());
     }
 
-    Ok(())
+    panic!("Error does not match: {wasm_blob_version_err:?}");
 }
 
 #[tokio::test]
@@ -304,7 +302,7 @@ async fn test_original_code_storage() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     let signer = Api::new(node.ws().as_str())
         .await?
@@ -326,7 +324,7 @@ async fn test_original_code_storage() -> Result<()> {
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_hash.0.into(), Some(block_hash))
+        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
         .await?;
 
     assert_eq!(
@@ -365,7 +363,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -412,7 +410,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     let node = dev_node();
 
     let salt = vec![];
-    let pid = ProgramId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
+    let pid = ActorId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
 
     // 1. upload program.
     let signer = Api::new(node.ws().as_str())
@@ -481,8 +479,8 @@ async fn query_program_counters(
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
     use gsdk::{
-        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
         BlockNumber,
+        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
     };
     use parity_scale_codec::Decode;
     use subxt::dynamic::Value;
@@ -518,7 +516,7 @@ async fn query_program_counters(
         let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
         count_program += 1;
 
-        let program_id = ProgramId::decode(&mut key.as_ref())?;
+        let program_id = ActorId::decode(&mut key.as_ref())?;
 
         if let Program::Active(_) = program {
             count_active_program += 1;

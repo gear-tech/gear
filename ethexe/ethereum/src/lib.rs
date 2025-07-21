@@ -27,32 +27,32 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, PrimitiveSignature as Signature, B256, U256},
+    primitives::{Address, B256, Bytes, ChainId, Signature, SignatureError, U256},
     providers::{
-        fillers::{
-            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            WalletFiller,
-        },
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
+        fillers::{
+            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
+            SimpleNonceManager, WalletFiller,
+        },
     },
     rpc::types::eth::Log,
     signers::{
-        self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
-        Result as SignerResult, Signer, SignerSync,
+        self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
+        sign_transaction_with_chain_id,
     },
     sol_types::{SolCall, SolEvent},
     transports::RpcError,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::gear::AggregatedPublicKey;
-use ethexe_signer::{Address as LocalAddress, PublicKey, Signer as LocalSigner};
+use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey, gear::AggregatedPublicKey};
+use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
 use roast_secp256k1_evm::frost::{
-    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
     Identifier,
+    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use router::{Router, RouterQuery};
 use std::time::Duration;
@@ -67,15 +67,14 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
+type AlloyRecommendedFillers = JoinFill<
+    GasFiller,
+    JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+>;
 type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
 
-pub(crate) type ExeFiller = JoinFill<
-    JoinFill<
-        Identity,
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
-    >,
-    WalletFiller<EthereumWallet>,
->;
+pub(crate) type ExeFiller =
+    JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
     router_address: Address,
@@ -193,7 +192,7 @@ impl Ethereum {
         let builder = wrapped_vara.approve(router_address, U256::MAX);
         builder.send().await?.try_get_receipt().await?;
 
-        assert_eq!(router.mirrorImpl().call().await?._0, *mirror.address());
+        assert_eq!(router.mirrorImpl().call().await?, *mirror.address());
 
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
@@ -238,7 +237,8 @@ async fn create_provider(
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
-    Ok(ProviderBuilder::new()
+    Ok(ProviderBuilder::default()
+        .filler(AlloyRecommendedFillers::default())
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
@@ -254,6 +254,7 @@ struct Sender {
 impl Sender {
     pub fn new(signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
         let sender = signer
+            .storage()
             .get_key_by_addr(sender_address)?
             .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
 
@@ -300,11 +301,14 @@ impl TxSigner<Signature> for Sender {
 
 impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
-        let signature = self
+        let (s, r) = self
             .signer
-            .raw_sign_digest(self.sender, hash.0.into())
-            .map_err(|err| SignerError::Other(err.into()))?;
-        Ok(Signature::try_from(signature.as_ref())?)
+            .sign(self.sender, Digest(hash.0))
+            .map_err(|err| SignerError::Other(err.into()))
+            .map(|s| s.into_parts())?;
+        let v = r.to_byte() as u64;
+        let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
+        Ok(Signature::from_signature_and_parity(s, v))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
@@ -352,7 +356,7 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
 }
 
 pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
-    E::decode_raw_log(log.topics(), &log.data().data, false).map_err(Into::into)
+    E::decode_raw_log(log.topics(), &log.data().data).map_err(Into::into)
 }
 
 macro_rules! signatures_consts {

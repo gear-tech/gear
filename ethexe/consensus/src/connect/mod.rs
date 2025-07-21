@@ -21,14 +21,13 @@
 //! Simple "connect-node" consensus service implementation.
 
 use crate::{
-    utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ConsensusEvent, ConsensusService,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest,
 };
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::SimpleBlockData;
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::SignedData;
-use futures::{stream::FusedStream, Stream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -87,21 +86,15 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_block_from_producer(
-        &mut self,
-        _block_hash: SignedData<ProducerBlock>,
-    ) -> Result<()> {
-        Ok(())
-    }
-
     fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
         Ok(())
     }
 
-    fn receive_validation_request(
-        &mut self,
-        _signed_batch: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<()> {
+    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
+        Ok(())
+    }
+
+    fn receive_validation_request(&mut self, _signed_batch: SignedValidationRequest) -> Result<()> {
         Ok(())
     }
 

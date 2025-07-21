@@ -17,22 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    manager::ExtManager, weights::WeightInfo, Config, DispatchStashOf, Event, Pallet, QueueOf,
+    Config, DispatchStashOf, Event, Pallet, QueueOf, manager::ExtManager, weights::WeightInfo,
 };
 use alloc::{format, string::ToString};
 use common::{
+    Gas, Origin,
     event::{
         MessageWokenRuntimeReason, MessageWokenSystemReason, RuntimeReason, SystemReason,
         UserMessageReadSystemReason,
     },
     scheduler::*,
     storage::*,
-    Gas, Origin,
 };
 use core::cmp;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
-    message::{DispatchKind, Payload, ReplyMessage},
+    buffer::Payload,
+    ids::{ActorId, CodeId, MessageId, ReservationId},
+    message::{DispatchKind, ReplyMessage},
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode};
@@ -71,7 +72,7 @@ impl<T: Config> TaskHandler<T::AccountId, MessageId, bool> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn pause_program(&mut self, _program_id: ProgramId) -> Gas {
+    fn pause_program(&mut self, _program_id: ActorId) -> Gas {
         log::debug!("Program rent logic is disabled.");
 
         0
@@ -125,7 +126,7 @@ where
         gas
     }
 
-    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {
+    fn remove_from_waitlist(&mut self, program_id: ActorId, message_id: MessageId) -> Gas {
         // Wake reason.
         let reason = MessageWokenSystemReason::OutOfRent.into_reason();
 
@@ -238,11 +239,11 @@ where
         gas
     }
 
-    fn remove_paused_program(&mut self, _program_id: ProgramId) -> Gas {
+    fn remove_paused_program(&mut self, _program_id: ActorId) -> Gas {
         todo!("#646")
     }
 
-    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas {
+    fn wake_message(&mut self, program_id: ActorId, message_id: MessageId) -> Gas {
         match Pallet::<T>::wake_dispatch(
             program_id,
             message_id,
@@ -356,7 +357,7 @@ where
 
     fn remove_gas_reservation(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         reservation_id: ReservationId,
     ) -> Gas {
         let _slot = Self::remove_gas_reservation_impl(program_id, reservation_id);

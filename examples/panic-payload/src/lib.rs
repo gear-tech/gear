@@ -35,7 +35,7 @@ mod wasm;
 mod tests {
     use gear_core::ids::prelude::MessageIdExt;
     use gstd::{ActorId, MessageId};
-    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn payload_received() {

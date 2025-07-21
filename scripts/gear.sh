@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -e
 
@@ -8,18 +8,17 @@ SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
 CARGO_HACK="hack"
 CARGO_NEXTEST="nextest"
-CARGO="cargo"
-EXE_RUNNER=""
-EXE_EXTENSION=""
 
 . "$SCRIPTS"/common.sh
 
-if [ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" ]; then
-  TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
-  CARGO="cargo xwin"
-  EXE_RUNNER="wine"
-  EXE_EXTENSION=".exe"
+if [[ "$CARGO_BUILD_TARGET" = "x86_64-pc-windows-msvc" && "$(uname -o)" != "Msys" ]]; then
   header "Using cargo-xwin"
+
+  export RUSTC_WRAPPER="" # cross compilation fails with sccache
+  export XWIN_CROSS_COMPILER="clang-cl"
+  export XWIN_ARCH="x86_64"
+  TARGET_DIR="$TARGET_DIR/x86_64-pc-windows-msvc"
+  eval $(cargo xwin env)
 fi
 
 . "$SCRIPTS"/build.sh
@@ -169,6 +168,10 @@ case "$COMMAND" in
       examples)
         header "Invoking clippy on gear examples only"
         examples_clippy "$@"; ;;
+
+      no_std)
+        header "Invoking clippy on '#![no_std]' crates"
+        no_std_clippy "$@"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

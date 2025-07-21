@@ -52,7 +52,7 @@ pub use crate::{
     pallet::*,
     schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
 };
-pub use gear_core::{gas::GasInfo, message::ReplyInfo};
+pub use gear_core::rpc::{GasInfo, ReplyInfo};
 pub use weights::WeightInfo;
 
 use crate::internal::InheritorForError;
@@ -61,8 +61,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeMetadata,
-    CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
+    self, BlockLimiter, CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage,
+    QueueRunner, event::*, gas_provider::GasNodeId, scheduler::*, storage::*,
 };
 use core::{marker::PhantomData, num::NonZero};
 use core_processor::{
@@ -74,32 +74,33 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        fungible,
-        tokens::{Fortitude, Preservation},
         ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        StorageVersion, WithdrawReasons,
+        StorageVersion, WithdrawReasons, fungible,
+        tokens::{Fortitude, Preservation},
     },
     weights::Weight,
 };
 use frame_system::{
-    pallet_prelude::{BlockNumberFor, *},
     Pallet as System, RawOrigin,
+    pallet_prelude::{BlockNumberFor, *},
 };
 use gear_core::{
-    code::{Code, CodeAndId, CodeError, InstrumentedCode, InstrumentedCodeAndId},
-    ids::{prelude::*, CodeId, MessageId, ProgramId, ReservationId},
+    buffer::*,
+    code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    env::MessageWaitedType,
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     message::*,
     percent::Percent,
     tasks::VaraScheduledTask,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
-use manager::{CodeInfo, QueuePostProcessingData};
+use manager::QueuePostProcessingData;
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
-    traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
     DispatchError, SaturatedConversion,
+    traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -142,27 +143,10 @@ pub const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-pub trait DebugInfo {
-    fn is_remap_id_enabled() -> bool;
-    fn remap_id();
-    fn do_snapshot();
-    fn is_enabled() -> bool;
-}
-
-impl DebugInfo for () {
-    fn is_remap_id_enabled() -> bool {
-        false
-    }
-    fn remap_id() {}
-    fn do_snapshot() {}
-    fn is_enabled() -> bool {
-        false
-    }
-}
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use gear_core::code::InstrumentedCodeAndMetadata;
 
     #[pallet::config]
     pub trait Config:
@@ -198,17 +182,15 @@ pub mod pallet {
         #[pallet::constant]
         type PerformanceMultiplier: Get<Percent>;
 
-        type DebugInfo: DebugInfo;
-
         /// Implementation of a storage for program binary codes.
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
         type ProgramStorage: ProgramStorage<
-            BlockNumber = BlockNumberFor<Self>,
-            Error = DispatchError,
-            AccountId = Self::AccountId,
-        >;
+                BlockNumber = BlockNumberFor<Self>,
+                Error = DispatchError,
+                AccountId = Self::AccountId,
+            >;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -226,38 +208,38 @@ pub mod pallet {
 
         /// Messenger.
         type Messenger: Messenger<
-            BlockNumber = BlockNumberFor<Self>,
-            Capacity = u32,
-            OutputError = DispatchError,
-            MailboxFirstKey = Self::AccountId,
-            MailboxSecondKey = MessageId,
-            MailboxedMessage = UserStoredMessage,
-            QueuedDispatch = StoredDispatch,
-            DelayedDispatch = StoredDelayedDispatch,
-            WaitlistFirstKey = ProgramId,
-            WaitlistSecondKey = MessageId,
-            WaitlistedMessage = StoredDispatch,
-            DispatchStashKey = MessageId,
-        >;
+                BlockNumber = BlockNumberFor<Self>,
+                Capacity = u32,
+                OutputError = DispatchError,
+                MailboxFirstKey = Self::AccountId,
+                MailboxSecondKey = MessageId,
+                MailboxedMessage = UserStoredMessage,
+                QueuedDispatch = StoredDispatch,
+                DelayedDispatch = StoredDelayedDispatch,
+                WaitlistFirstKey = ActorId,
+                WaitlistSecondKey = MessageId,
+                WaitlistedMessage = StoredDispatch,
+                DispatchStashKey = MessageId,
+            >;
 
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
-            ExternalOrigin = Self::AccountId,
-            NodeId = GasNodeId<MessageId, ReservationId>,
-            Balance = u64,
-            Funds = BalanceOf<Self>,
-            Error = DispatchError,
-        >;
+                ExternalOrigin = Self::AccountId,
+                NodeId = GasNodeId<MessageId, ReservationId>,
+                Balance = u64,
+                Funds = BalanceOf<Self>,
+                Error = DispatchError,
+            >;
 
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
-            BlockNumber = BlockNumberFor<Self>,
-            Cost = u64,
-            Task = VaraScheduledTask<Self::AccountId>,
-        >;
+                BlockNumber = BlockNumberFor<Self>,
+                Cost = u64,
+                Task = VaraScheduledTask<Self::AccountId>,
+            >;
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
@@ -311,7 +293,7 @@ pub mod pallet {
             /// Account id of the source of the message.
             source: T::AccountId,
             /// Program id, who is the message's destination.
-            destination: ProgramId,
+            destination: ActorId,
             /// Entry point for processing of the message.
             /// On the sending stage, the processing function
             /// of the program is always known.
@@ -353,7 +335,7 @@ pub mod pallet {
             /// by `Event::MessageQueued` (sent from user to program).
             statuses: BTreeMap<MessageId, DispatchStatus>,
             /// Ids of programs, which state changed during queue processing.
-            state_changes: BTreeSet<ProgramId>,
+            state_changes: BTreeSet<ActorId>,
         },
 
         /// Messages execution delayed (waited) and successfully
@@ -402,7 +384,7 @@ pub mod pallet {
         /// Any data related to programs changed.
         ProgramChanged {
             /// Id of the program affected.
-            id: ProgramId,
+            id: ActorId,
             /// Change applied on program with current id.
             ///
             /// NOTE: See more docs about change kinds at `gear_common::event`.
@@ -577,15 +559,15 @@ pub mod pallet {
                 },
             )
             .map_err(|e| {
-                log::debug!("Code failed to load: {:?}", e);
+                log::debug!("Code failed to load: {e:?}");
                 Error::<T>::ProgramConstructionFailed
             })?;
 
             let code_and_id = CodeAndId::new(code);
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
+            let code_id = code_and_id.code_id();
 
             let packet = InitPacket::new_from_user(
-                code_and_id.code_id(),
+                code_id,
                 salt.try_into()
                     .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
                 init_payload
@@ -618,11 +600,9 @@ pub mod pallet {
             GearBank::<T>::deposit_gas(&who, gas_limit, false)?;
             GearBank::<T>::deposit_value(&who, value, false)?;
 
-            let origin = who.clone().into_origin();
-
             // By that call we follow the guarantee that we have in `Self::upload_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_id) = Self::set_code_with_metadata(code_and_id, origin) {
+            if let Ok(code_id) = Self::set_code(code_and_id) {
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
                 // calculated one (issues #646 and #969).
@@ -632,12 +612,14 @@ pub mod pallet {
                 });
             }
 
+            let origin = who.clone().into_origin();
+
             let message_id = Self::next_message_id(origin);
             let block_number = Self::block_number();
 
             ExtManager::<T>::new(builtins).set_program(
                 program_id,
-                &code_info,
+                code_id,
                 message_id,
                 block_number,
             );
@@ -667,16 +649,14 @@ pub mod pallet {
 
         /// Upload code to the chain without gas and stack limit injection.
         #[cfg(feature = "runtime-benchmarks")]
-        pub fn upload_code_raw(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
+        pub fn upload_code_raw(code: Vec<u8>) -> DispatchResultWithPostInfo {
             let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default())
                 .map_err(|e| {
                     log::debug!("Code failed to load: {e:?}");
                     Error::<T>::ProgramConstructionFailed
                 })?;
 
-            let code_id = Self::set_code_with_metadata(CodeAndId::new(code), who.into_origin())?;
+            let code_id = Self::set_code(CodeAndId::new(code))?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -838,7 +818,7 @@ pub mod pallet {
         #[cfg(test)]
         pub fn calculate_reply_for_handle(
             origin: AccountIdOf<T>,
-            destination: ProgramId,
+            destination: ActorId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: u128,
@@ -873,14 +853,14 @@ pub mod pallet {
         }
 
         /// Returns true if a program has been successfully initialized
-        pub fn is_initialized(program_id: ProgramId) -> bool {
+        pub fn is_initialized(program_id: ActorId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.is_initialized())
                 .unwrap_or(false)
         }
 
         /// Returns true if `program_id` is that of a in active status or the builtin actor.
-        pub fn is_active(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+        pub fn is_active(builtins: &impl BuiltinDispatcher, program_id: ActorId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::get_program(program_id)
                     .map(|program| program.is_active())
@@ -888,14 +868,14 @@ pub mod pallet {
         }
 
         /// Returns true if id is a program and the program has terminated status.
-        pub fn is_terminated(program_id: ProgramId) -> bool {
+        pub fn is_terminated(program_id: ActorId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.is_terminated())
                 .unwrap_or_default()
         }
 
         /// Returns true if id is a program and the program has exited status.
-        pub fn is_exited(program_id: ProgramId) -> bool {
+        pub fn is_exited(program_id: ActorId) -> bool {
             ProgramStorageOf::<T>::get_program(program_id)
                 .map(|program| program.is_exited())
                 .unwrap_or_default()
@@ -903,13 +883,13 @@ pub mod pallet {
 
         /// Returns true if there is a program with the specified `program_id`` (it may be paused)
         /// or this `program_id` belongs to the built-in actor.
-        pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ProgramId) -> bool {
+        pub fn program_exists(builtins: &impl BuiltinDispatcher, program_id: ActorId) -> bool {
             builtins.lookup(&program_id).is_some()
                 || ProgramStorageOf::<T>::program_exists(program_id)
         }
 
         /// Returns inheritor of an exited/terminated program.
-        pub fn first_inheritor_of(program_id: ProgramId) -> Option<ProgramId> {
+        pub fn first_inheritor_of(program_id: ActorId) -> Option<ActorId> {
             ProgramStorageOf::<T>::get_program(program_id).and_then(|program| match program {
                 Program::Active(_) => None,
                 Program::Exited(id) => Some(id),
@@ -1086,26 +1066,14 @@ pub mod pallet {
             }
         }
 
-        /// Sets `code` and metadata, if code doesn't exist in storage.
+        /// Sets `code`, if code doesn't exist in storage.
         ///
         /// On success returns Blake256 hash of the `code`. If code already
         /// exists (*so, metadata exists as well*), returns unit `CodeAlreadyExists` error.
-        ///
-        /// # Note
-        /// Code existence in storage means that metadata is there too.
-        pub(crate) fn set_code_with_metadata(
-            code_and_id: CodeAndId,
-            who: H256,
-        ) -> Result<CodeId, Error<T>> {
+        pub(crate) fn set_code(code_and_id: CodeAndId) -> Result<CodeId, Error<T>> {
             let code_id = code_and_id.code_id();
 
-            let metadata = {
-                let block_number = Self::block_number().unique_saturated_into();
-                CodeMetadata::new(who, block_number)
-            };
-
-            T::CodeStorage::add_code(code_and_id, metadata)
-                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
+            T::CodeStorage::add_code(code_and_id).map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Ok(code_id)
         }
@@ -1121,36 +1089,50 @@ pub mod pallet {
         /// test (`schedule::tests::instructions_backward_compatibility`)
         pub(crate) fn reinstrument_code(
             code_id: CodeId,
+            code_metadata: CodeMetadata,
             schedule: &Schedule<T>,
-        ) -> Result<InstrumentedCode, CodeError> {
-            debug_assert!(T::CodeStorage::get_code(code_id).is_some());
-
+        ) -> Result<InstrumentedCodeAndMetadata, CodeError> {
             // By the invariant set in CodeStorage trait, original code can't exist in storage
             // without the instrumented code
             let original_code = T::CodeStorage::get_original_code(code_id).unwrap_or_else(|| {
                 let err_msg = format!(
-                    "reinstrument_code: failed to get original code, while instrumented exists. \
-                    Code id - {code_id}"
+                    "reinstrument_code: failed to get original code for the existing program. \
+                    Code id - '{code_id:?}'."
                 );
 
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}")
             });
 
-            let code = Code::try_new(
+            let instrumented_code_and_metadata = match Code::try_new(
                 original_code,
                 schedule.instruction_weights.version,
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
-            )?;
+            ) {
+                Ok(code) => {
+                    let instrumented_code_and_metadata = code.into_instrumented_code_and_metadata();
 
-            let code_and_id = CodeAndId::from_parts_unchecked(code, code_id);
-            let code_and_id = InstrumentedCodeAndId::from(code_and_id);
-            T::CodeStorage::update_code(code_and_id.clone());
-            let (code, _) = code_and_id.into_parts();
+                    T::CodeStorage::update_instrumented_code_and_metadata(
+                        code_id,
+                        instrumented_code_and_metadata.clone(),
+                    );
 
-            Ok(code)
+                    instrumented_code_and_metadata
+                }
+                Err(e) => {
+                    T::CodeStorage::update_code_metadata(
+                        code_id,
+                        code_metadata
+                            .into_failed_instrumentation(schedule.instruction_weights.version),
+                    );
+
+                    return Err(e);
+                }
+            };
+
+            Ok(instrumented_code_and_metadata)
         }
 
         pub(crate) fn try_new_code(code: Vec<u8>) -> Result<CodeAndId, DispatchError> {
@@ -1174,7 +1156,7 @@ pub mod pallet {
             })?;
 
             ensure!(
-                (code.code().len() as u32) <= schedule.limits.code_len,
+                (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
                 Error::<T>::CodeTooLarge
             );
 
@@ -1230,7 +1212,7 @@ pub mod pallet {
         pub(crate) fn do_create_program(
             who: T::AccountId,
             packet: InitPacket,
-            code_info: CodeInfo,
+            code_id: CodeId,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
@@ -1263,7 +1245,7 @@ pub mod pallet {
                 WithdrawReasons::all(),
             );
 
-            ext_manager.set_program(program_id, &code_info, message_id, block_number);
+            ext_manager.set_program(program_id, code_id, message_id, block_number);
 
             let program_event = Event::ProgramChanged {
                 id: program_id,
@@ -1332,9 +1314,9 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::upload_code((code.len() as u32) / 1024))]
         pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
+            let _ = ensure_signed(origin)?;
 
-            Self::upload_code_impl(who, code)
+            Self::upload_code_impl(code)
         }
 
         /// Creates program initialization request (message), that is scheduled to be run in the same block.
@@ -1344,8 +1326,8 @@ pub mod pallet {
         /// could be more than remaining block gas limit. Therefore, the message processing will be postponed
         /// until the next block.
         ///
-        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
-        /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
+        /// `ActorId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
+        /// Such `ActorId` must not exist in the Program Storage at the time of this call.
         ///
         /// There is the same guarantee here as in `upload_code`. That is, future program's
         /// `code` and metadata are stored before message was added to the queue and processed.
@@ -1402,10 +1384,11 @@ pub mod pallet {
             Self::check_gas_limit(gas_limit)?;
 
             let code_and_id = Self::try_new_code(code)?;
-            let code_info = CodeInfo::from_code_and_id(&code_and_id);
+            let code_id = code_and_id.code_id();
+
             let packet = Self::init_packet(
                 who.clone(),
-                code_and_id.code_id(),
+                code_id,
                 salt,
                 init_payload,
                 gas_limit,
@@ -1413,11 +1396,10 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            if !T::CodeStorage::exists(code_and_id.code_id()) {
+            if !T::CodeStorage::original_code_exists(code_id) {
                 // By that call we follow the guarantee that we have in `Self::upload_code` -
                 // if there's code in storage, there's also metadata for it.
-                let code_hash =
-                    Self::set_code_with_metadata(code_and_id, who.clone().into_origin())?;
+                let code_hash = Self::set_code(code_and_id)?;
 
                 // TODO: replace this temporary (`None`) value
                 // for expiration block number with properly
@@ -1428,7 +1410,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_info)?;
+            Self::do_create_program(who, packet, code_id)?;
 
             Ok(().into())
         }
@@ -1463,7 +1445,10 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check if code exists.
-            let code = T::CodeStorage::get_code(code_id).ok_or(Error::<T>::CodeDoesntExist)?;
+            ensure!(
+                T::CodeStorage::original_code_exists(code_id),
+                Error::<T>::CodeDoesntExist
+            );
 
             // Check `gas_limit`
             Self::check_gas_limit(gas_limit)?;
@@ -1479,7 +1464,7 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            Self::do_create_program(who, packet, CodeInfo::from_code(&code_id, &code))?;
+            Self::do_create_program(who, packet, code_id)?;
             Ok(().into())
         }
 
@@ -1504,7 +1489,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
-            destination: ProgramId,
+            destination: ActorId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1681,7 +1666,7 @@ pub mod pallet {
         pub fn set_execute_inherent(origin: OriginFor<T>, value: bool) -> DispatchResult {
             ensure_root(origin)?;
 
-            log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {}", value);
+            log::debug!(target: "gear::runtime", "⚙️  Set ExecuteInherent flag to {value}");
             ExecuteInherent::<T>::put(value);
 
             Ok(())
@@ -1710,7 +1695,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::claim_value_to_inheritor(depth.get()))]
         pub fn claim_value_to_inheritor(
             origin: OriginFor<T>,
-            program_id: ProgramId,
+            program_id: ActorId,
             depth: NonZero<u32>,
         ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
@@ -1761,6 +1746,30 @@ pub mod pallet {
             ))
             .into())
         }
+
+        /// A dummy extrinsic with programmatically set weight.
+        ///
+        /// Used in tests to exhaust block resources.
+        ///
+        /// Parameters:
+        /// - `fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        #[cfg(feature = "dev")]
+        #[pallet::call_index(255)]
+        #[pallet::weight({
+            if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
+                *fraction * max
+            } else {
+                Weight::zero()
+            }
+        })]
+        pub fn exhaust_block_resources(
+            origin: OriginFor<T>,
+            fraction: sp_runtime::Percent,
+        ) -> DispatchResultWithPostInfo {
+            let _ = fraction; // We dont need to check the weight witness.
+            ensure_root(origin)?;
+            Ok(Pays::No.into())
+        }
     }
 
     impl<T: Config> Pallet<T>
@@ -1770,7 +1779,7 @@ pub mod pallet {
         /// Underlying implementation of `GearPallet::send_message`.
         pub fn send_message_impl(
             origin: AccountIdOf<T>,
-            destination: ProgramId,
+            destination: ActorId,
             payload: Vec<u8>,
             gas_limit: u64,
             value: BalanceOf<T>,
@@ -1835,7 +1844,7 @@ pub mod pallet {
             } else {
                 // Take data for the error log
                 let message_id = message.id();
-                let source = origin.cast::<ProgramId>();
+                let source = origin.cast::<ActorId>();
                 let destination = message.destination();
 
                 let message = message.into_stored(source);
@@ -1956,12 +1965,8 @@ pub mod pallet {
         }
 
         /// Underlying implementation of `GearPallet::upload_code`.
-        pub fn upload_code_impl(
-            origin: AccountIdOf<T>,
-            code: Vec<u8>,
-        ) -> DispatchResultWithPostInfo {
-            let code_id =
-                Self::set_code_with_metadata(Self::try_new_code(code)?, origin.into_origin())?;
+        pub fn upload_code_impl(code: Vec<u8>) -> DispatchResultWithPostInfo {
+            let code_id = Self::set_code(Self::try_new_code(code)?)?;
 
             // TODO: replace this temporary (`None`) value
             // for expiration block number with properly
@@ -2039,7 +2044,7 @@ pub mod pallet {
                     keep_alive,
                     Some(sponsor_id),
                 ),
-                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(account_id, code),
+                PrepaidCall::UploadCode { code } => Pallet::<T>::upload_code_impl(code),
                 PrepaidCall::DeclineVoucher => pallet_gear_voucher::Pallet::<T>::decline(
                     RawOrigin::Signed(account_id).into(),
                     voucher_id,

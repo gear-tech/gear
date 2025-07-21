@@ -17,25 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{
-        Dispatch, DispatchKind, GasLimit, Message, Packet, Payload, Salt, StoredDispatch,
-        StoredMessage, Value,
+        Dispatch, DispatchKind, GasLimit, Message, Packet, Salt, StoredDispatch, StoredMessage,
+        Value,
     },
-};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
 };
 
 /// Message for Init entry point.
 /// Used to initiate a newly created program.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InitMessage {
     /// Message id.
     id: MessageId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message optional gas limit.
@@ -57,7 +54,7 @@ impl InitMessage {
     }
 
     /// Convert InitMessage into Message.
-    pub fn into_message(self, source: ProgramId) -> Message {
+    pub fn into_message(self, source: ActorId) -> Message {
         Message::new(
             self.id,
             source,
@@ -70,17 +67,17 @@ impl InitMessage {
     }
 
     /// Convert InitMessage into StoredMessage.
-    pub fn into_stored(self, source: ProgramId) -> StoredMessage {
+    pub fn into_stored(self, source: ActorId) -> StoredMessage {
         self.into_message(source).into_stored()
     }
 
     /// Convert InitMessage into Dispatch.
-    pub fn into_dispatch(self, source: ProgramId) -> Dispatch {
+    pub fn into_dispatch(self, source: ActorId) -> Dispatch {
         Dispatch::new(DispatchKind::Init, self.into_message(source))
     }
 
     /// Convert InitMessage into StoredDispatch.
-    pub fn into_stored_dispatch(self, source: ProgramId) -> StoredDispatch {
+    pub fn into_stored_dispatch(self, source: ActorId) -> StoredDispatch {
         self.into_dispatch(source).into_stored()
     }
 
@@ -90,7 +87,7 @@ impl InitMessage {
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -114,10 +111,11 @@ impl InitMessage {
 /// Init message packet.
 ///
 /// This structure is preparation for future init message sending. Has no message id.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct InitPacket {
     /// Newly created program id.
-    program_id: ProgramId,
+    program_id: ActorId,
     /// Code id.
     code_id: CodeId,
     /// Salt.
@@ -140,7 +138,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate_from_user(code_id, salt.inner()),
+            program_id: ActorId::generate_from_user(code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -159,7 +157,7 @@ impl InitPacket {
         value: Value,
     ) -> Self {
         Self {
-            program_id: ProgramId::generate_from_program(message_id, code_id, salt.inner()),
+            program_id: ActorId::generate_from_program(message_id, code_id, salt.inner()),
             code_id,
             salt,
             payload,
@@ -169,7 +167,7 @@ impl InitPacket {
     }
 
     /// Packet destination (newly created program id).
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.program_id
     }
 

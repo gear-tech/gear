@@ -70,7 +70,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     // TODO #4558: make reinitialization test.
+    /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize() public onlyOwner reinitializer(2) {
+        __Ownable_init(owner());
+
         Storage storage oldRouter = _router();
 
         _setStorageSlot("router.storage.RouterV2");
@@ -118,8 +121,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().genesisBlock.timestamp;
     }
 
-    function latestCommittedBlockHash() public view returns (bytes32) {
-        return _router().latestCommittedBlock.hash;
+    function latestCommittedBatchHash() public view returns (bytes32) {
+        return _router().latestCommittedBatch.hash;
+    }
+
+    function latestCommittedBatchTimestamp() public view returns (uint48) {
+        return _router().latestCommittedBatch.timestamp;
     }
 
     function mirrorImpl() public view returns (address) {
@@ -277,136 +284,55 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     function commitBatch(
-        Gear.BatchCommitment calldata _batchCommitment,
+        Gear.BatchCommitment calldata _batch,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
     ) external nonReentrant {
         Storage storage router = _router();
+
         require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
 
+        // `router.reserved` is always `0` but can be overridden in an RPC request
+        // to estimate gas excluding `Gear.blockIsPredecessor()`.
+        if (router.reserved == 0) {
+            require(Gear.blockIsPredecessor(_batch.blockHash), "allowed predecessor block wasn't found");
+            require(block.timestamp > _batch.blockTimestamp, "batch timestamp must be in the past");
+        }
+
+        // Check that batch correctly references to the previous committed batch.
         require(
-            !(_batchCommitment.codeCommitments.length == 0 && _batchCommitment.blockCommitments.length == 0),
-            "no commitments to commit"
+            router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash,
+            "invalid previous committed batch hash"
+        );
+        require(
+            router.latestCommittedBatch.timestamp <= _batch.blockTimestamp,
+            "batch timestamp must be greater or equal to latest committed batch timestamp"
         );
 
-        require(
-            _batchCommitment.rewardCommitments.length <= 1,
-            "rewards commitment must be empty or contains only one commitment"
+        bytes32 _chainCommitmentHash = _commitChain(router, _batch);
+        bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
+        bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
+        bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
+
+        bytes32 _batchHash = Gear.batchCommitmentHash(
+            _batch.blockHash,
+            _batch.blockTimestamp,
+            _batch.previousCommittedBatchHash,
+            _chainCommitmentHash,
+            _codeCommitmentsHash,
+            _rewardsCommitmentHash,
+            _validatorsCommitmentHash
         );
 
-        uint256 maxTimestamp = 0;
-
-        /* Commit Blocks */
-
-        bytes memory blockCommitmentsHashes;
-
-        for (uint256 i = 0; i < _batchCommitment.blockCommitments.length; i++) {
-            Gear.BlockCommitment calldata blockCommitment = _batchCommitment.blockCommitments[i];
-            blockCommitmentsHashes = bytes.concat(blockCommitmentsHashes, _commitBlock(router, blockCommitment));
-            if (blockCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = blockCommitment.timestamp;
-            }
-        }
-
-        /* Commit Codes */
-
-        bytes memory codeCommitmentsHashes;
-
-        for (uint256 i = 0; i < _batchCommitment.codeCommitments.length; i++) {
-            Gear.CodeCommitment calldata codeCommitment = _batchCommitment.codeCommitments[i];
-
-            require(
-                router.protocolData.codes[codeCommitment.id] == Gear.CodeState.ValidationRequested,
-                "code must be requested for validation to be committed"
-            );
-
-            if (codeCommitment.valid) {
-                router.protocolData.codes[codeCommitment.id] = Gear.CodeState.Validated;
-                router.protocolData.validatedCodesCount++;
-            } else {
-                delete router.protocolData.codes[codeCommitment.id];
-            }
-
-            emit CodeGotValidated(codeCommitment.id, codeCommitment.valid);
-
-            codeCommitmentsHashes = bytes.concat(codeCommitmentsHashes, Gear.codeCommitmentHash(codeCommitment));
-            if (codeCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = codeCommitment.timestamp;
-            }
-        }
-
-        /* Commit Rewards */
-
-        bytes memory rewardsCommitmentHash;
-        if (_batchCommitment.rewardCommitments.length > 0) {
-            Gear.RewardsCommitment calldata rewardsCommitment = _batchCommitment.rewardCommitments[0];
-            rewardsCommitmentHash = _commitRewards(router, rewardsCommitment);
-
-            if (rewardsCommitment.timestamp > maxTimestamp) {
-                maxTimestamp = rewardsCommitment.timestamp;
-            }
-        }
-
-        // NOTE: Use maxTimestamp to validate signatures for all commitments.
-        // This means that if at least one commitment is for block from current era,
-        // then all commitments should be checked with current era validators.
+        router.latestCommittedBatch = Gear.CommittedBatchInfo(_batchHash, _batch.blockTimestamp);
+        emit BatchCommitted(_batchHash);
 
         require(
             Gear.validateSignaturesAt(
-                router,
-                TRANSIENT_STORAGE,
-                keccak256(
-                    abi.encodePacked(
-                        keccak256(blockCommitmentsHashes),
-                        keccak256(codeCommitmentsHashes),
-                        keccak256(rewardsCommitmentHash)
-                    )
-                ),
-                _signatureType,
-                _signatures,
-                maxTimestamp
+                router, TRANSIENT_STORAGE, _batchHash, _signatureType, _signatures, _batch.blockTimestamp
             ),
             "signatures verification failed"
         );
-    }
-
-    /// @dev Set validators for the next era.
-    function commitValidators(
-        Gear.ValidatorsCommitment memory _validatorsCommitment,
-        Gear.SignatureType _signatureType,
-        bytes[] calldata _signatures
-    ) external {
-        Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
-
-        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
-
-        require(_validatorsCommitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
-
-        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _validatorsCommitment.eraIndex;
-        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
-
-        // Maybe free slot for new validators:
-        Gear.Validators storage _validators = Gear.previousEraValidators(router);
-        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
-
-        bytes32 commitmentHash = Gear.validatorsCommitmentHash(_validatorsCommitment);
-        require(
-            Gear.validateSignatures(
-                router, TRANSIENT_STORAGE, keccak256(abi.encodePacked(commitmentHash)), _signatureType, _signatures
-            ),
-            "next era validators signatures verification failed"
-        );
-
-        _resetValidators(
-            _validators,
-            _validatorsCommitment.aggregatedPublicKey,
-            _validatorsCommitment.verifiableSecretSharingCommitment,
-            _validatorsCommitment.validators,
-            nextEraStart
-        );
-
-        emit NextEraValidatorsCommitted(nextEraStart);
     }
 
     /* Helper private functions */
@@ -435,41 +361,123 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return actorId;
     }
 
-    function _commitBlock(Storage storage router, Gear.BlockCommitment calldata _blockCommitment)
+    function _commitChain(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
+        require(_batch.chainCommitment.length <= 1, "chainCommitment could contain at most one commitment");
+
+        if (_batch.chainCommitment.length == 0) {
+            return keccak256("");
+        }
+
+        Gear.ChainCommitment calldata _commitment = _batch.chainCommitment[0];
+
+        bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
+
+        bytes32[] memory _gearBlockHashes = new bytes32[](_commitment.blocks.length);
+        for (uint256 i = 0; i < _commitment.blocks.length; i++) {
+            Gear.GearBlock calldata _gearBlock = _commitment.blocks[i];
+            emit GearBlockCommitted(_gearBlock);
+            _gearBlockHashes[i] = Gear.gearBlockHash(_gearBlock);
+        }
+
+        return Gear.chainCommitmentHash(_transitionsHash, Gear.gearBlocksHash(_gearBlockHashes));
+    }
+
+    function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
+        bytes memory _codeCommitmentHashes;
+
+        for (uint256 i = 0; i < _batch.codeCommitments.length; i++) {
+            Gear.CodeCommitment calldata _commitment = _batch.codeCommitments[i];
+
+            require(
+                router.protocolData.codes[_commitment.id] == Gear.CodeState.ValidationRequested,
+                "code must be requested for validation to be committed"
+            );
+
+            if (_commitment.valid) {
+                router.protocolData.codes[_commitment.id] = Gear.CodeState.Validated;
+                router.protocolData.validatedCodesCount++;
+            } else {
+                delete router.protocolData.codes[_commitment.id];
+            }
+
+            emit CodeGotValidated(_commitment.id, _commitment.valid);
+
+            _codeCommitmentHashes = bytes.concat(_codeCommitmentHashes, Gear.codeCommitmentHash(_commitment));
+        }
+
+        return keccak256(_codeCommitmentHashes);
+    }
+
+    // TODO #4609
+    // TODO #4611
+    function _commitRewards(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
+        require(
+            _batch.rewardsCommitment.length <= 1, "rewards commitment must be empty or contains only one commitment"
+        );
+
+        if (_batch.rewardsCommitment.length == 0) {
+            return keccak256("");
+        }
+
+        Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
+
+        // TODO #4740: check that it is for previous eras (have some problems with rewards for 0 era)
+        require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
+        require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
+
+        address _middleware = router.implAddresses.middleware;
+        IERC20(router.implAddresses.wrappedVara).approve(
+            _middleware, _commitment.operators.amount + _commitment.stakers.totalAmount
+        );
+
+        bytes32 _operatorRewardsHash = IMiddleware(_middleware).distributeOperatorRewards(
+            router.implAddresses.wrappedVara, _commitment.operators.amount, _commitment.operators.root
+        );
+
+        bytes32 _stakerRewardsHash =
+            IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
+
+        return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp));
+    }
+
+    /// @dev Set validators for the next era.
+    function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch)
         private
         returns (bytes32)
     {
         require(
-            router.latestCommittedBlock.hash == _blockCommitment.previousCommittedBlock,
-            "invalid previous committed block hash"
+            _batch.validatorsCommitment.length <= 1,
+            "validators commitment must be empty or contains only one commitment"
         );
 
-        /*
-         * @dev `router.reserved` is always `0` but can be overridden in an RPC request
-         *       to estimate gas excluding `Gear.blockIsPredecessor()`.
-         */
-        if (router.reserved == 0) {
-            require(
-                Gear.blockIsPredecessor(_blockCommitment.predecessorBlock), "allowed predecessor block wasn't found"
-            );
+        if (_batch.validatorsCommitment.length == 0) {
+            return keccak256("");
         }
 
-        /*
-         * @dev SECURITY: this settlement should be performed before any other calls to avoid reentrancy.
-         */
-        router.latestCommittedBlock = Gear.CommittedBlockInfo(_blockCommitment.hash, _blockCommitment.timestamp);
+        Gear.ValidatorsCommitment calldata _commitment = _batch.validatorsCommitment[0];
 
-        bytes32 transitionsHashesHash = _commitTransitions(router, _blockCommitment.transitions);
+        uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 
-        emit BlockCommitted(_blockCommitment.hash);
+        require(_commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
 
-        return Gear.blockCommitmentHash(
-            _blockCommitment.hash,
-            _blockCommitment.timestamp,
-            _blockCommitment.previousCommittedBlock,
-            _blockCommitment.predecessorBlock,
-            transitionsHashesHash
+        uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _commitment.eraIndex;
+        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+
+        // Maybe free slot for new validators:
+        Gear.Validators storage _validators = Gear.previousEraValidators(router);
+        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+
+        _resetValidators(
+            _validators,
+            _commitment.aggregatedPublicKey,
+            _commitment.verifiableSecretSharingCommitment,
+            _commitment.validators,
+            nextEraStart
         );
+
+        emit NextEraValidatorsCommitted(nextEraStart);
+
+        return Gear.validatorsCommitmentHash(_commitment);
     }
 
     function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
@@ -495,31 +503,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         }
 
         return keccak256(transitionsHashes);
-    }
-
-    // TODO #4609
-    // TODO #4611
-    function _commitRewards(Storage storage router, Gear.RewardsCommitment calldata _rewardsCommitment)
-        private
-        returns (bytes memory)
-    {
-        address middleware = router.implAddresses.middleware;
-        IERC20(router.implAddresses.wrappedVara).approve(
-            middleware, _rewardsCommitment.operators.amount + _rewardsCommitment.stakers.totalAmount
-        );
-
-        bytes memory rewardsCommitmentHash;
-
-        bytes32 operatorRewardsHash = IMiddleware(middleware).distributeOperatorRewards(
-            router.implAddresses.wrappedVara, _rewardsCommitment.operators.amount, _rewardsCommitment.operators.root
-        );
-        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, operatorRewardsHash);
-
-        bytes32 stakerRewardsHash =
-            IMiddleware(middleware).distributeStakerRewards(_rewardsCommitment.stakers, _rewardsCommitment.timestamp);
-        rewardsCommitmentHash = bytes.concat(rewardsCommitmentHash, stakerRewardsHash);
-
-        return rewardsCommitmentHash;
     }
 
     function _resetValidators(

@@ -17,22 +17,30 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    GAS_ALLOWANCE, Gas, Value,
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
-    state::{accounts::Accounts, actors::Actors, mailbox::ActorMailbox},
-    Gas, Value, GAS_ALLOWANCE,
+    state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
 };
+use core_processor::common::JournalNote;
+use gear_common::MessageId;
 use gear_core::{
-    ids::{prelude::CodeIdExt, CodeId, ProgramId},
+    ids::{
+        ActorId, CodeId,
+        prelude::{CodeIdExt, MessageIdExt},
+    },
+    message::{Dispatch, DispatchKind, Message, ReplyDetails},
     pages::GearPage,
+    program::Program as InnerProgram,
+    rpc::ReplyInfo,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use parity_scale_codec::{Decode, DecodeAll};
 use path_clean::PathClean;
-use std::{borrow::Cow, cell::RefCell, env, fs, mem, path::Path};
+use std::{borrow::Cow, cell::RefCell, env, fs, mem, panic, path::Path};
 use tracing_subscriber::EnvFilter;
 
 thread_local! {
@@ -46,7 +54,7 @@ thread_local! {
 #[derive(Decode)]
 struct PageKey {
     _page_storage_prefix: [u8; 32],
-    program_id: ProgramId,
+    program_id: ActorId,
     _memory_infix: u32,
     page: GearPage,
 }
@@ -60,12 +68,7 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        Actors::access(program_id, |actor| {
-            actor
-                .and_then(|actor| actor.get_pages_data())
-                .map(|pages_data| pages_data.contains_key(&page))
-                .unwrap_or(false)
-        })
+        ProgramsStorageManager::program_page(program_id, page).is_some()
     }
 
     fn load_page(&mut self, mut key: &[u8], buffer: &mut [u8]) -> Option<u32> {
@@ -73,14 +76,9 @@ impl LazyPagesStorage for PagesStorage {
             program_id, page, ..
         } = PageKey::decode_all(&mut key).expect("Invalid key");
 
-        Actors::access(program_id, |actor| {
-            actor
-                .and_then(|actor| actor.get_pages_data())
-                .and_then(|pages_data| pages_data.get(&page))
-                .map(|page_buf| {
-                    buffer.copy_from_slice(page_buf);
-                    page_buf.len() as u32
-                })
+        ProgramsStorageManager::program_page(program_id, page).map(|page_buf| {
+            buffer.copy_from_slice(page_buf.as_ref());
+            page_buf.len() as u32
         })
     }
 }
@@ -180,13 +178,13 @@ impl System {
     /// Messages processing executes messages until either queue becomes empty
     /// or block gas allowance is fully consumed.
     pub fn run_next_block(&self) -> BlockRunResult {
-        self.run_next_block_with_allowance(Gas(GAS_ALLOWANCE))
+        self.run_next_block_with_allowance(GAS_ALLOWANCE)
     }
 
     /// Runs blocks same as [`Self::run_next_block`], but with limited
     /// allowance.
     pub fn run_next_block_with_allowance(&self, allowance: Gas) -> BlockRunResult {
-        if allowance > Gas(GAS_ALLOWANCE) {
+        if allowance > GAS_ALLOWANCE {
             usage_panic!(
                 "Provided allowance more than allowed limit of {GAS_ALLOWANCE}. \
                 Please, provide an allowance less than or equal to the limit."
@@ -208,7 +206,7 @@ impl System {
 
         let mut ret = Vec::with_capacity((bn - current_block) as usize);
         while current_block != bn {
-            let res = manager.run_new_block(Gas(GAS_ALLOWANCE));
+            let res = manager.run_new_block(GAS_ALLOWANCE);
             ret.push(res);
 
             current_block = manager.block_height();
@@ -225,8 +223,6 @@ impl System {
 
         (block_height..block_height + amount)
             .map(|_| {
-                manager.check_epoch();
-
                 let block_info = manager.blocks_manager.next_block();
                 let next_block_number = block_info.height;
                 manager.process_tasks(next_block_number);
@@ -237,7 +233,7 @@ impl System {
                     .collect();
                 BlockRunResult {
                     block_info,
-                    gas_allowance_spent: Gas(GAS_ALLOWANCE) - manager.gas_allowance,
+                    gas_allowance_spent: GAS_ALLOWANCE - manager.gas_allowance,
                     log,
                     ..Default::default()
                 }
@@ -256,9 +252,9 @@ impl System {
     }
 
     /// Returns a [`Program`] by `id`.
-    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program<'_>> {
         let id = id.into().0;
-        if Actors::is_program(id) {
+        if ProgramsStorageManager::is_program(id) {
             Some(Program {
                 id,
                 manager: &self.0,
@@ -269,13 +265,13 @@ impl System {
     }
 
     /// Returns last added program.
-    pub fn last_program(&self) -> Option<Program> {
+    pub fn last_program(&self) -> Option<Program<'_>> {
         self.programs().into_iter().next_back()
     }
 
     /// Returns a list of programs.
-    pub fn programs(&self) -> Vec<Program> {
-        Actors::program_ids()
+    pub fn programs(&self) -> Vec<Program<'_>> {
+        ProgramsStorageManager::program_ids()
             .into_iter()
             .map(|id| Program {
                 id,
@@ -291,20 +287,22 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
-        Actors::is_active_program(program_id)
+        ProgramsStorageManager::is_active_program(program_id)
     }
 
-    /// Returns `Some(ProgramId)` if a program is exited with inheritor.
+    /// Returns `Some(ActorId)` if a program is exited with inheritor.
     ///
     /// Returns [`None`] otherwise.
-    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ProgramId> {
+    pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
-        Actors::access(program_id, |actor| {
-            if let Some(crate::state::actors::TestActor::Exited(inheritor_id)) = actor {
-                Some(*inheritor_id)
-            } else {
-                None
-            }
+        ProgramsStorageManager::access_program(program_id, |program| {
+            program.and_then(|program| {
+                if let InnerProgram::Exited(inheritor_id) = program {
+                    Some(*inheritor_id)
+                } else {
+                    None
+                }
+            })
         })
     }
 
@@ -343,26 +341,33 @@ impl System {
     /// provide to the function "child's" code hash. Code for that code hash
     /// must be in storage at the time of the function call. So this method
     /// stores the code in storage.
+    ///
+    /// Also method saves instrumented version of the code.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
         let code = binary.into();
         let code_id = CodeId::generate(code.as_ref());
+
+        // Save original code
         self.0.borrow_mut().store_new_code(code_id, code);
 
         code_id
     }
 
-    /// Returns previously submitted code by its code hash.
+    /// Returns previously submitted original code by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        self.0.borrow().read_code(code_id).map(|code| code.to_vec())
+        self.0
+            .borrow()
+            .original_code(code_id)
+            .map(|code| code.to_vec())
     }
 
     /// Extract mailbox of user with given `id`.
     ///
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
-    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox<'_> {
         let program_id = id.into().0;
-        if !Actors::is_user(program_id) {
+        if !ProgramsStorageManager::is_user(program_id) {
             usage_panic!("Mailbox available only for users. Please, provide a user id.");
         }
         ActorMailbox::new(program_id, &self.0)
@@ -372,13 +377,13 @@ impl System {
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
         let id = id.into().0;
 
-        if Actors::is_program(id) {
+        if ProgramsStorageManager::is_program(id) {
             usage_panic!(
                 "Attempt to mint value to a program {id:?}. Please, use `System::transfer` instead"
             );
         }
 
-        self.0.borrow_mut().mint_to(&id, value);
+        self.0.borrow_mut().mint_to(id, value);
     }
 
     /// Transfer balance from user with given `from` id to user with given `to`
@@ -393,7 +398,7 @@ impl System {
         let from = from.into().0;
         let to = to.into().0;
 
-        if Actors::is_program(from) {
+        if ProgramsStorageManager::is_program(from) {
             usage_panic!(
                 "Attempt to transfer from a program {from:?}. Please, provide `from` user id."
             );
@@ -405,7 +410,103 @@ impl System {
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
-        self.0.borrow().balance_of(&actor_id)
+        self.0.borrow().balance_of(actor_id)
+    }
+
+    /// Calculate reply that would be received when sending
+    /// message to initialized program with any of `Program::send*` methods.
+    pub fn calculate_reply_for_handle(
+        &self,
+        origin: impl Into<ProgramIdWrapper>,
+        destination: impl Into<ProgramIdWrapper>,
+        payload: impl Into<Vec<u8>>,
+        gas_limit: u64,
+        value: Value,
+    ) -> Result<ReplyInfo, String> {
+        let mut manager_mut = self.0.borrow_mut();
+
+        // Enter the overlay mode
+        manager_mut.enable_overlay();
+
+        // Clear the queue
+        manager_mut.dispatches.clear();
+
+        let origin = origin.into().0;
+        let destination = destination.into().0;
+        let payload = payload
+            .into()
+            .try_into()
+            .expect("failed to convert payload to limited payload");
+
+        // Prepare the message
+        let block_number = manager_mut.block_height() + 1;
+        let message = Message::new(
+            MessageId::generate_from_user(
+                block_number,
+                origin,
+                manager_mut.fetch_inc_message_nonce() as u128,
+            ),
+            origin,
+            destination,
+            payload,
+            Some(gas_limit),
+            value,
+            None,
+        );
+
+        if !ProgramsStorageManager::is_active_program(destination) {
+            usage_panic!("Actor with {destination} id is not active");
+        }
+
+        let dispatch = Dispatch::new(DispatchKind::Handle, message);
+
+        // Validate and route the dispatch
+        let message_id = manager_mut.validate_and_route_dispatch(dispatch);
+
+        // Run queue for reply to the `message_id`.
+        let block_config = manager_mut.block_config();
+
+        while let Some(dispatch) = manager_mut.dispatches.pop_front() {
+            // For testing purposes, we set the gas allowance to the maximum for each
+            // message
+            manager_mut.gas_allowance = GAS_ALLOWANCE;
+            // No need to check the flag after the execution, as we give infinite
+            // allowance for the reply calculation.
+            manager_mut.messages_processing_enabled = true;
+
+            // Process the dispatch and obtain the journal.
+            let journal = manager_mut.process_dispatch(&block_config, dispatch);
+
+            // Search for the reply in the journal.
+            for note in &journal {
+                let JournalNote::SendDispatch { dispatch, .. } = note else {
+                    continue;
+                };
+
+                if let Some(code) = dispatch
+                    .reply_details()
+                    .map(ReplyDetails::into_parts)
+                    .and_then(|(replied_to, code)| replied_to.eq(&message_id).then_some(code))
+                {
+                    // Before any return from the function, overlay must be disabled.
+                    manager_mut.disable_overlay();
+
+                    return Ok(ReplyInfo {
+                        payload: dispatch.payload_bytes().to_vec(),
+                        value: dispatch.value(),
+                        code,
+                    });
+                }
+            }
+
+            // As long as no reply was found, we need to handle the journal.
+            core_processor::handle_journal(journal, &mut *manager_mut);
+        }
+
+        // Before any return from the function, overlay must be disabled.
+        manager_mut.disable_overlay();
+
+        Err(String::from("Queue is empty, but reply wasn't found"))
     }
 }
 
@@ -413,13 +514,19 @@ impl Drop for System {
     fn drop(&mut self) {
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
-        self.0.borrow().gas_tree.reset();
-        self.0.borrow().mailbox.reset();
-        self.0.borrow().task_pool.clear();
-        self.0.borrow().waitlist.reset();
+        let manager = self.0.borrow();
+        manager.gas_tree.clear();
+        manager.mailbox.clear();
+        manager.task_pool.clear();
+        manager.waitlist.clear();
+        manager.blocks_manager.reset();
+        manager.bank.clear();
+        manager.nonce_manager.reset();
+        manager.dispatches.clear();
+        manager.dispatches_stash.clear();
 
-        // Clear actors and accounts storages
-        Actors::clear();
+        // Clear programs and accounts storages
+        ProgramsStorageManager::clear();
         Accounts::clear();
     }
 }
@@ -427,6 +534,8 @@ impl Drop for System {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, MAX_USER_GAS_LIMIT};
+    use gear_core_errors::{ReplyCode, SuccessReplyReason};
 
     #[test]
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]
@@ -451,6 +560,8 @@ mod tests {
         });
 
         h.join().expect("internal error failed joining thread");
+
+        assert_eq!(first_instance.block_height(), 5);
     }
 
     #[test]
@@ -495,5 +606,132 @@ mod tests {
         );
 
         assert_eq!(last_run.block_info.height, 15);
+    }
+
+    #[test]
+    #[should_panic(expected = "Got message sent to incomplete user program")]
+    fn panic_calculate_reply_no_actor() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let origin = DEFAULT_USER_ALICE;
+        let pid = 42;
+        let ping_program = Program::from_binary_with_id(&sys, pid, demo_ping::WASM_BINARY);
+        let destination = ping_program.id();
+
+        // Try send calculate reply for handle.
+        // Must fail because the program is not initialized.
+        let _ = sys.calculate_reply_for_handle(
+            origin,
+            destination,
+            b"PING".to_vec(),
+            MAX_USER_GAS_LIMIT,
+            0,
+        );
+    }
+
+    #[test]
+    fn test_calculate_reply_for_handle() {
+        use demo_piggy_bank::WASM_BINARY;
+
+        let sys = System::new();
+
+        let program = Program::from_binary_with_id(&sys, 42, WASM_BINARY);
+        let pid = program.id();
+
+        // Initialize the program
+        let init_mid = program.send_bytes(DEFAULT_USER_ALICE, b"");
+        let block_result = sys.run_next_block();
+        assert!(block_result.succeed.contains(&init_mid));
+
+        let program_balance_before_overlay = sys.balance_of(pid);
+        let alice_balance_before_overlay = sys.balance_of(DEFAULT_USER_ALICE);
+        let reply_info = sys
+            .calculate_reply_for_handle(
+                DEFAULT_USER_ALICE,
+                pid,
+                b"",
+                MAX_USER_GAS_LIMIT,
+                EXISTENTIAL_DEPOSIT * 10,
+            )
+            .expect("Failed to calculate reply for handle");
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+
+        // Check that overlay didn't change the state
+        assert_eq!(sys.balance_of(pid), program_balance_before_overlay);
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_balance_before_overlay
+        );
+
+        // Send message with value
+        let storing_value = EXISTENTIAL_DEPOSIT * 10;
+        let handle_mid1 = program.send_bytes_with_value(DEFAULT_USER_ALICE, b"", storing_value);
+        let block_result = sys.run_next_block();
+        assert!(block_result.succeed.contains(&handle_mid1));
+        assert!(
+            block_result.contains(
+                &Log::builder()
+                    .dest(DEFAULT_USER_ALICE)
+                    .reply_code(reply_info.code)
+            )
+        );
+
+        let alice_expected_balance_after_msg1 =
+            alice_balance_before_overlay - storing_value - block_result.spent_value();
+
+        assert_eq!(
+            sys.balance_of(pid),
+            program_balance_before_overlay + storing_value
+        );
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_expected_balance_after_msg1
+        );
+
+        let reply_info = sys
+            .calculate_reply_for_handle(DEFAULT_USER_ALICE, pid, b"smash", MAX_USER_GAS_LIMIT, 0)
+            .expect("Failed to calculate reply for handle");
+        assert_eq!(
+            reply_info.code,
+            ReplyCode::Success(SuccessReplyReason::Auto)
+        );
+
+        // Check that overlay didn't change the state
+        assert_eq!(
+            sys.balance_of(pid),
+            program_balance_before_overlay + storing_value
+        );
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_expected_balance_after_msg1
+        );
+        let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
+        let log = Log::builder()
+            .dest(DEFAULT_USER_ALICE)
+            .payload_bytes(b"send");
+        assert!(!mailbox.contains(&log));
+
+        let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"smash");
+        let block_result = sys.run_next_block();
+        assert!(block_result.succeed.contains(&handle_mid));
+        assert_eq!(sys.balance_of(pid), EXISTENTIAL_DEPOSIT);
+        let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
+        let log = Log::builder()
+            .dest(DEFAULT_USER_ALICE)
+            .payload_bytes(b"send");
+        assert!(mailbox.contains(&log));
+
+        mailbox.claim_value(log).expect("Failed to claim value");
+
+        let alice_expected_balance_after_msg2 =
+            alice_expected_balance_after_msg1 - block_result.spent_value() + storing_value;
+        assert_eq!(
+            sys.balance_of(DEFAULT_USER_ALICE),
+            alice_expected_balance_after_msg2
+        );
     }
 }

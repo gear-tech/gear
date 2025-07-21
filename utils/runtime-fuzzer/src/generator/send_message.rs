@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, VALUE_SIZE};
+use super::{AUXILIARY_SIZE, GAS_SIZE, ID_SIZE, MAX_PAYLOAD_SIZE, RuntimeStateView, VALUE_SIZE};
 use gear_call_gen::{GearCall, SendMessageArgs};
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use runtime_primitives::Balance;
 use std::result::Result as StdResult;
 
-pub(crate) type SendMessageRuntimeData<'a> = (&'a NonEmpty<ProgramId>, u64, Balance);
+pub(crate) type SendMessageRuntimeData<'a> = (&'a NonEmpty<ActorId>, u64, Balance);
 
 pub(super) const fn data_requirement() -> usize {
     ID_SIZE + MAX_PAYLOAD_SIZE + GAS_SIZE + VALUE_SIZE + AUXILIARY_SIZE

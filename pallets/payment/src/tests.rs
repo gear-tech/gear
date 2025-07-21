@@ -18,8 +18,8 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, AccountIdOf, Config, CustomChargeTransactionPayment, QueueOf};
-use common::{storage::*, Origin};
+use crate::{AccountIdOf, Config, CustomChargeTransactionPayment, QueueOf, mock::*};
+use common::{Origin, storage::*};
 use frame_support::{
     assert_ok,
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
@@ -29,7 +29,7 @@ use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch, UserSt
 use pallet_gear_voucher::{Call as VoucherCall, PrepaidCall};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
-use sp_runtime::{codec::Encode, testing::TestXt, traits::SignedExtension, FixedPointNumber};
+use sp_runtime::{FixedPointNumber, codec::Encode, testing::TestXt, traits::SignedExtension};
 use utils::*;
 
 type WeightToFeeFor<T> = <T as pallet_transaction_payment::Config>::WeightToFee;
@@ -1295,7 +1295,7 @@ fn voucher_call_decline_payer_expired_err() {
 mod utils {
     use super::*;
     use crate::BalanceOf;
-    use gear_core::ids::{MessageId, ProgramId};
+    use gear_core::ids::{ActorId, MessageId};
     use pallet_gear_voucher::{PrepaidCall, VoucherId};
 
     const DEFAULT_PAYLOAD: &[u8] = &[];
@@ -1303,7 +1303,7 @@ mod utils {
     const DEFAULT_VALUE: u128 = 0;
     const DEFAULT_KEEP_ALIVE: bool = false;
 
-    pub fn voucher_call_send(voucher_id: VoucherId, destination: ProgramId) -> RuntimeCall {
+    pub fn voucher_call_send(voucher_id: VoucherId, destination: ActorId) -> RuntimeCall {
         RuntimeCall::GearVoucher(VoucherCall::call {
             voucher_id,
             call: prepaid_send(destination),
@@ -1324,7 +1324,7 @@ mod utils {
         })
     }
 
-    pub fn prepaid_send(destination: ProgramId) -> PrepaidCall<BalanceOf<Test>> {
+    pub fn prepaid_send(destination: ActorId) -> PrepaidCall<BalanceOf<Test>> {
         PrepaidCall::SendMessage {
             destination,
             payload: DEFAULT_PAYLOAD.to_vec(),

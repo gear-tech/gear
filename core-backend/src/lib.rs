@@ -22,6 +22,7 @@
 
 extern crate alloc;
 
+mod accessors;
 pub mod env;
 pub mod error;
 mod funcs;

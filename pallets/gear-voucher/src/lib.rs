@@ -52,11 +52,11 @@ mod mock;
 mod tests;
 
 use frame_support::{
+    PalletId,
     pallet_prelude::*,
     traits::{Currency, ExistenceRequirement, ReservableCurrency, StorageVersion},
-    PalletId,
 };
-use gear_core::ids::{MessageId, ProgramId};
+use gear_core::ids::{ActorId, MessageId};
 pub use primitive_types::H256;
 use sp_std::{convert::TryInto, vec::Vec};
 pub use weights::WeightInfo;
@@ -75,14 +75,14 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 pub mod pallet {
     use super::*;
     use common::{
-        storage::{Mailbox, ValueStorage},
         Origin,
+        storage::{Mailbox, ValueStorage},
     };
     use frame_system::pallet_prelude::*;
     use gear_core::message::UserStoredMessage;
     use sp_runtime::{
-        traits::{CheckedSub, One, Zero},
         SaturatedConversion, Saturating,
+        traits::{CheckedSub, One, Zero},
     };
     use sp_std::collections::btree_set::BTreeSet;
 
@@ -102,10 +102,7 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
 
         /// Prepaid calls executor.
-        type CallsDispatcher: PrepaidCallsDispatcher<
-            AccountId = Self::AccountId,
-            Balance = BalanceOf<Self>,
-        >;
+        type CallsDispatcher: PrepaidCallsDispatcher<AccountId = Self::AccountId, Balance = BalanceOf<Self>>;
 
         /// Mailbox to extract destination for some prepaid cases (e.g. `Gear::send_reply`).
         type Mailbox: Mailbox<Key1 = Self::AccountId, Key2 = MessageId, Value = UserStoredMessage>;
@@ -250,7 +247,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             spender: AccountIdOf<T>,
             balance: BalanceOf<T>,
-            programs: Option<BTreeSet<ProgramId>>,
+            programs: Option<BTreeSet<ActorId>>,
             code_uploading: bool,
             duration: BlockNumberFor<T>,
         ) -> DispatchResultWithPostInfo {
@@ -436,7 +433,7 @@ pub mod pallet {
             voucher_id: VoucherId,
             move_ownership: Option<AccountIdOf<T>>,
             balance_top_up: Option<BalanceOf<T>>,
-            append_programs: Option<Option<BTreeSet<ProgramId>>>,
+            append_programs: Option<Option<BTreeSet<ActorId>>>,
             code_uploading: Option<bool>,
             prolong_duration: Option<BlockNumberFor<T>>,
         ) -> DispatchResultWithPostInfo {

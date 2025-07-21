@@ -27,7 +27,6 @@ mod overlay;
 mod rocks;
 
 pub use database::Database;
-pub use ethexe_common::db::*;
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 

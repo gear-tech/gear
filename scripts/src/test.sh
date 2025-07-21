@@ -33,49 +33,26 @@ EOF
 }
 
 workspace_test() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test --workspace \
-      --exclude gclient --exclude gcli --exclude gsdk \
-      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
-      --no-fail-fast "$@"
-  else
-    cargo nextest run --workspace \
-      --exclude gclient --exclude gcli --exclude gsdk \
-      --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
-      --profile ci --no-fail-fast "$@"
-  fi
+  cargo nextest run --workspace \
+    --exclude gclient --exclude gcli --exclude gsdk \
+    --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
+    --no-fail-fast "$@"
 }
 
 gsdk_test() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test -p gsdk --no-fail-fast "$@"
-  else
-    cargo nextest run -p gsdk --profile ci --no-fail-fast "$@"
-  fi
+  cargo nextest run -p gsdk --no-fail-fast "$@"
 }
 
 gcli_test() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test -p gcli --no-fail-fast "$@"
-  else
-    cargo nextest run -p gcli --profile ci --no-fail-fast "$@"
-  fi
+  cargo nextest run -p gcli --no-fail-fast "$@"
 }
 
 pallet_test() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test -p "pallet-*" --no-fail-fast "$@"
-  else
-    cargo nextest run -p "pallet-*" --profile ci --no-fail-fast "$@"
-  fi
+  cargo nextest run -p "pallet-*" --no-fail-fast "$@"
 }
 
 client_tests() {
-  if [ "$CARGO" = "cargo xwin" ]; then
-    $CARGO test -p gclient --no-fail-fast "$@"
-  else
-    cargo nextest run -p gclient --profile ci --no-fail-fast "$@"
-  fi
+  cargo nextest run -p gclient --no-fail-fast "$@"
 }
 
 validators() {
@@ -100,7 +77,7 @@ run_fuzzer() {
 
   # Run fuzzer
   RUSTFLAGS="--cfg fuzz" RUST_LOG="$LOG_TARGETS" \
-    cargo fuzz run --release --sanitizer=none main $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
+    cargo fuzz run --release --sanitizer=none runtime-fuzzer-fuzz $CORPUS_DIR -- -rss_limit_mb=$RSS_LIMIT_MB -max_len=$MAX_LEN -len_control=0
 }
 
 run_lazy_pages_fuzzer() {
@@ -129,20 +106,20 @@ run_fuzzer_tests() {
 
 # TODO this is likely to be merged with `pallet_test` or `workspace_test` in #1802
 syscalls_integrity_test() {
-  $CARGO test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks --no-fail-fast "$@"
+  cargo test -p pallet-gear check_syscalls_integrity --features runtime-benchmarks --no-fail-fast "$@"
 }
 
 doc_test() {
   MANIFEST="$1"
   shift
 
-  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 SKIP_VARA_RUNTIME_WASM_BUILD=1 $CARGO test --doc --workspace --manifest-path="$MANIFEST" --no-fail-fast "$@"
+  __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 cargo test --doc --workspace --manifest-path="$MANIFEST" --no-fail-fast "$@"
 }
 
 time_consuming_tests() {
-  # $CARGO test -p demo-fungible-token --no-fail-fast --release -- --nocapture --ignored
-  $CARGO test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
-  LOOM_MAX_PREEMPTIONS=3 RUSTFLAGS="--cfg loom" $CARGO test -p gear-wasmer-cache --no-fail-fast --release -- --nocapture
+  # cargo test -p demo-fungible-token --no-fail-fast --release -- --nocapture --ignored
+  cargo test -p gear-wasm-builder --no-fail-fast "$@" -- --nocapture --ignored
+  LOOM_MAX_PREEMPTIONS=3 RUSTFLAGS="--cfg loom" cargo test -p gear-wasmer-cache --no-fail-fast --release -- --nocapture
 }
 
 typo_tests() {

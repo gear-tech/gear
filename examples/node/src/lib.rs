@@ -61,7 +61,7 @@ mod wasm;
 #[cfg(test)]
 mod tests {
     use super::{Initialization, Operation, Reply, Request};
-    use gtest::{constants::DEFAULT_USER_ALICE, Log, Program, System};
+    use gtest::{Log, Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn test_message_send_to_failed_program() {

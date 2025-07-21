@@ -16,178 +16,340 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    host::{InstanceCreator, InstanceWrapper},
-    ProcessorConfig,
+//! # Chunked parallel program execution
+//!
+//! ## Overview
+//!
+//! The main idea is to split programs into chunks based on their queue sizes or, in the future, another computation weight metric.
+//!
+//! The *chunk* is defined as a subset of programs that are executed in parallel and grouped by their queue sizes.
+//!
+//! This approach should speed up the processing of multiple programs in parallel.
+//! Processing in chunks helps reduce wasted CPU time, as it minimizes the delay caused by the slowest message among all concurrently executed messages.
+//! This works because, in sorted chunks, the computation time for each chunk element (queue messages) should be approximately equal.
+//!
+//! The second part of the approach is executing an entire program queue (ideally) in one go within a single runtime instance.
+//! This reduces overhead by minimizing calls within the WASM runtime.
+//!
+//! Due to this approach, we must handle journals deterministically in two stages:
+//! - The first stage occurs in the runtime, where memory allocations, pages, and related resources are managed.
+//! - The second stage is the native part, where the remaining journal entries are processed.
+//!
+//! ---
+//!
+//! ## How It Works:
+//!
+//! For example, we have program states with the following queue sizes,
+//! where in parentheses we denote the queue size of each program and N is the total number of programs:
+//!
+//! |                          Programs                        |
+//! |------------:|-----------:|-----------:|----:|-----------:|
+//! |     P_1(10) |     P_5(2) |     P_9(5) | ... |   P_N-3(7) |
+//! |     P_2(3)  |     P_6(1) |    P_10(1) | ... |   P_N-2(1) |
+//! |     P_3(3)  |     P_7(2) |    P_11(1) | ... |   P_N-1(2) |
+//! |     P_4(1)  |     P_8(1) |    P_12(2) | ... |     P_N(3) |
+//!
+//! Before executing the programs, we need to split them into chunks.
+//! The maximum chunk size is equal to the number of *chunk processing threads*.
+//! The number of chunks is calculated as the total number of programs divided by the maximum chunk size.
+//!
+//! For example, given N programs and M chunks, a sorted chunk structure will look like this:
+//!
+//! |     chunk 0 |    chunk 1 |    chunk 2 | ... |    chunk M |
+//! |------------:|-----------:|-----------:|----:|-----------:|
+//! |     P_1(10) |     P_2(3) |     P_N(3) | ... |    P_4(1)  |
+//! |     P_6(5)  |     P_3(3) |    P_12(2) | ... |    P_8(1)  |
+//! |     P_N-3(7)|     P_5(2) |    P_11(1) | ... |    P_10(1) |
+//! |     P_9(5)  |     P_7(2) |   P_N-1(2) | ... |    P_N-2(1)|
+//!
+//! As you can see, the chunk contents are not strictly sorted, but this is not an issue.
+//! We only need chunks with approximately equal queue sizes to ensure efficient parallel execution.
+//!
+//! Chunks are sorted in reverse order (descending), so the first chunk contains the largest queue size.
+//! In hypothetic high-load scenarios, this measure may prevent (arguably) starvation of programs with large queue sizes.
+//! Also as the entire queue is processed in a single runtime instance in one go, so prioritizing larger queues improves efficiency.
+//!
+//! Once all program queues have been processed, we deterministically merge journals and handle them.
+//! After that, we repeat the process until no more messages remain
+//! or we run out of processing time/gas allowance (to be implemented).
+//!
+//! **High-level overview of the algorithm:**
+//!
+//!   1. Split programs into chunks based on their queue sizes.
+//!   2. Execute program queues in parallel using runtime instances per program.
+//!   3. Merge journals and handle them deterministically.
+//!   4. Repeat steps 1-3 until no messages are processed, or we run out of processing time/gas allowance.
+//!
+//! ---
+//!
+//! ## Simplest Chunk Splitting Algorithm
+//!
+//! A basic chunk-splitting algorithm is implemented as follows:
+//!
+//!   1. First, calculate a temporary chunk index based on the program queue size.
+//!   2. Next, store the required data in a temporary chunk list.
+//!   3. Repeat this process for all programs with non-empty queues.
+//!   4. Since the number of elements in each temporary chunk is random, they need to be redistributed
+//!      to ensure all final chunks contain an equal number of elements.
+//!      To achieve this, we first merge all temporary chunk lists sequentially
+//!      and then redistribute the data according to the expected chunk size.
+//!   5. Reverse the order of the chunks to ensure that the first chunk contains the largest queue size.
+//!   6. Finally, we return the final chunk list.
+//!
+//! ---
+//!
+//! ## Future Improvements
+//!
+//! Currently, the chunk partitioning algorithm is simple and does not consider a program’s execution time.
+//! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
+//! This weight multiplier could be calculated based on program execution time statistics.
+
+use ethexe_common::{
+    StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
 };
-use core_processor::common::JournalNote;
-use ethexe_common::gear::Origin;
-use ethexe_db::{CodesStorage, Database};
-use ethexe_runtime_common::{InBlockTransitions, JournalHandler, TransitionController};
-use gear_core::ids::ProgramId;
-use gprimitives::H256;
-use std::collections::BTreeMap;
-use tokio::sync::{mpsc, oneshot};
+use ethexe_db::Database;
+use ethexe_runtime_common::{
+    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+};
+use gear_core::gas::GasAllowanceCounter;
+use gprimitives::{ActorId, H256};
+use itertools::Itertools;
+use tokio::task::JoinSet;
 
-enum Task {
-    Run {
-        program_id: ProgramId,
-        state_hash: H256,
-        result_sender: oneshot::Sender<(Vec<JournalNote>, Option<Origin>)>,
-    },
+use crate::host::{InstanceCreator, InstanceWrapper};
+
+pub struct RunnerConfig {
+    pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
 }
 
-pub fn run(
-    config: &ProcessorConfig,
+pub async fn run(
     db: Database,
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
+    config: RunnerConfig,
 ) {
-    tokio::task::block_in_place(|| {
-        let mut rt_builder = tokio::runtime::Builder::new_multi_thread();
-
-        if let Some(worker_threads) = config.worker_threads_override {
-            rt_builder.worker_threads(worker_threads);
-        };
-
-        rt_builder.enable_all();
-
-        let rt = rt_builder.build().unwrap();
-
-        rt.block_on(run_in_async(
-            config.virtual_threads,
-            db,
-            instance_creator,
-            in_block_transitions,
-        ))
-    })
-}
-
-async fn run_in_async(
-    virtual_threads: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-) {
-    let mut task_senders = vec![];
-    let mut handles = vec![];
-
-    // create workers
-    for id in 0..virtual_threads {
-        let (task_sender, task_receiver) = mpsc::channel(100);
-        task_senders.push(task_sender);
-        let handle = tokio::spawn(worker(
-            id,
-            db.clone(),
-            instance_creator.clone(),
-            task_receiver,
-        ));
-        handles.push(handle);
-    }
+    let mut join_set = JoinSet::new();
+    let chunk_size = config.chunk_processing_threads;
+    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let mut is_out_of_gas_for_block = false;
 
     loop {
-        // Send tasks to process programs in workers, until all queues are empty.
+        let states: Vec<_> = in_block_transitions
+            .states_iter()
+            .filter_map(|(&actor_id, &state)| {
+                if state.cached_queue_size == 0 {
+                    return None;
+                }
 
-        let mut no_more_to_do = true;
-        for index in (0..in_block_transitions.states_amount()).step_by(virtual_threads) {
-            let result_receivers = one_batch(index, &task_senders, in_block_transitions).await;
+                Some((actor_id, state))
+            })
+            .collect();
 
-            let mut super_journal = vec![];
-            for (program_id, receiver) in result_receivers.into_iter() {
-                let (journal, dispatch_origin) = receiver.await.unwrap();
-                if !journal.is_empty() {
-                    super_journal.push((
+        let chunks = split_to_chunks(chunk_size, states);
+
+        if chunks.is_empty() {
+            // No more chunks to process. Stopping.
+            break;
+        }
+
+        for chunk in chunks {
+            let chunk_len = chunk.len();
+            for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
+                let db = db.clone();
+                let mut executor = instance_creator
+                    .instantiate()
+                    .expect("Failed to instantiate executor");
+
+                let gas_allowance_for_chunk =
+                    allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+
+                let _ = join_set.spawn_blocking(move || {
+                    let (jn, new_state_hash, gas_spent) = run_runtime(
+                        db,
+                        &mut executor,
                         program_id,
-                        dispatch_origin.expect("origin should be set for non-empty journal"),
-                        journal,
-                    ));
-                    no_more_to_do = false;
+                        state_hash,
+                        gas_allowance_for_chunk,
+                    );
+                    (chunk_pos, program_id, new_state_hash, jn, gas_spent)
+                });
+            }
+
+            let mut max_gas_spent_in_chunk = 0u64;
+            let mut chunk_journals = vec![None; chunk_len];
+            while let Some(result) = join_set
+                .join_next()
+                .await
+                .transpose()
+                .expect("Failed to join task")
+            {
+                let (chunk_pos, program_id, new_state_hash, program_journals, gas_spent) = result;
+
+                // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
+                // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
+                in_block_transitions.modify(program_id, |state, _| {
+                    state.hash = new_state_hash;
+                });
+
+                chunk_journals[chunk_pos] = Some((program_id, program_journals));
+                max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
+            }
+
+            for program_journals in chunk_journals {
+                let Some((program_id, program_journals)) = program_journals else {
+                    unreachable!("Program journal is `None`, this should never happen");
+                };
+
+                for (journal, dispatch_origin, call_reply) in program_journals {
+                    let mut journal_handler = JournalHandler {
+                        program_id,
+                        dispatch_origin,
+                        call_reply,
+                        controller: TransitionController {
+                            transitions: in_block_transitions,
+                            storage: &db,
+                        },
+                        gas_allowance_counter: &allowance_counter,
+                        chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
+                        out_of_gas_for_block: &mut is_out_of_gas_for_block,
+                    };
+                    core_processor::handle_journal(journal, &mut journal_handler);
                 }
             }
 
-            for (program_id, dispatch_origin, journal) in super_journal {
-                let mut handler = JournalHandler {
-                    program_id,
-                    controller: TransitionController {
-                        transitions: in_block_transitions,
-                        storage: &db,
-                    },
-                    dispatch_origin,
-                };
-                core_processor::handle_journal(journal, &mut handler);
+            allowance_counter.charge(max_gas_spent_in_chunk);
+
+            if is_out_of_gas_for_block {
+                // Ran out of gas for the block, stopping processing.
+                break;
             }
         }
-
-        if no_more_to_do {
-            break;
-        }
-    }
-
-    for handle in handles {
-        handle.abort();
     }
 }
 
-async fn run_task(db: Database, executor: &mut InstanceWrapper, task: Task) {
-    match task {
-        Task::Run {
+// `split_to_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
+// but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
+fn split_to_chunks(
+    chunk_size: usize,
+    states: Vec<(ActorId, StateHashWithQueueSize)>,
+) -> Vec<Vec<(ActorId, H256)>> {
+    fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
+        // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
+        debug_assert_ne!(queue_size, 0);
+        queue_size.min(number_of_chunks) - 1
+    }
+
+    let number_of_chunks = states.len().div_ceil(chunk_size);
+    let mut chunks = vec![vec![]; number_of_chunks];
+
+    for (
+        actor_id,
+        StateHashWithQueueSize {
+            hash,
+            cached_queue_size,
+        },
+    ) in states
+    {
+        let queue_size = cached_queue_size as usize;
+        let chunk_idx = chunk_idx(queue_size, number_of_chunks);
+        chunks[chunk_idx].push((actor_id, hash));
+    }
+
+    chunks
+        .into_iter()
+        // Merge uneven chunks
+        .flatten()
+        // Repartition chunks in reverse order to ensure all chunks have an equal number of elements
+        .rev()
+        .chunks(chunk_size)
+        // Convert into vector of vectors
+        .into_iter()
+        .map(|c| c.into_iter().collect())
+        .collect()
+}
+
+fn run_runtime(
+    db: Database,
+    executor: &mut InstanceWrapper,
+    program_id: ActorId,
+    state_hash: H256,
+    gas_allowance: u64,
+) -> (ProgramJournals, H256, u64) {
+    let code_id = db.program_code_id(program_id).expect("Code ID must be set");
+
+    let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+    let code_metadata = db.code_metadata(code_id);
+
+    executor
+        .run(
+            db,
             program_id,
             state_hash,
-            result_sender,
-        } => {
-            let code_id = db.program_code_id(program_id).expect("Code ID must be set");
+            instrumented_code,
+            code_metadata,
+            gas_allowance,
+        )
+        .expect("Some error occurs while running program in instance")
+}
 
-            let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
 
-            let journal = executor
-                .run(db, program_id, code_id, state_hash, instrumented_code)
-                .expect("Some error occurs while running program in instance");
+    use gprimitives::ActorId;
 
-            result_sender.send(journal).unwrap();
+    use super::*;
+
+    #[test]
+    fn chunk_partitioning() {
+        const STATE_SIZE: usize = 1_000;
+        const CHUNK_PROCESSING_THREADS: usize = 16;
+        const MAX_QUEUE_SIZE: u8 = 20;
+
+        let mut i = 0;
+        let mut states_to_queue_size = HashMap::new();
+
+        let states = Vec::from_iter(
+            std::iter::repeat_with(|| {
+                i += 1;
+                let hash = H256::from_low_u64_le(i);
+                let cached_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+                states_to_queue_size.insert(hash, cached_queue_size as usize);
+
+                (
+                    ActorId::from(i),
+                    StateHashWithQueueSize {
+                        hash,
+                        cached_queue_size,
+                    },
+                )
+            })
+            .take(STATE_SIZE),
+        );
+
+        let chunks = split_to_chunks(CHUNK_PROCESSING_THREADS, states);
+
+        // Checking chunks partitioning
+        let accum_chunks = chunks
+            .into_iter()
+            .map(|chunk| {
+                chunk
+                    .into_iter()
+                    .map(|(_, hash)| {
+                        states_to_queue_size
+                            .get(&hash)
+                            .expect("State hash must be in the map")
+                    })
+                    .sum::<usize>()
+            })
+            .collect::<Vec<_>>();
+
+        for i in 0..accum_chunks.len() - 1 {
+            assert!(
+                accum_chunks[i] >= accum_chunks[i + 1],
+                "Chunks are not sorted"
+            );
         }
     }
-}
-
-async fn worker(
-    id: usize,
-    db: Database,
-    instance_creator: InstanceCreator,
-    mut task_receiver: mpsc::Receiver<Task>,
-) {
-    log::trace!("Worker {} started", id);
-
-    let mut executor = instance_creator
-        .instantiate()
-        .expect("Failed to instantiate executor");
-
-    while let Some(task) = task_receiver.recv().await {
-        run_task(db.clone(), &mut executor, task).await;
-    }
-}
-
-async fn one_batch(
-    from_index: usize,
-    task_senders: &[mpsc::Sender<Task>],
-    in_block_transitions: &mut InBlockTransitions,
-) -> BTreeMap<ProgramId, oneshot::Receiver<(Vec<JournalNote>, Option<Origin>)>> {
-    let mut result_receivers = BTreeMap::new();
-
-    for (sender, (program_id, state_hash)) in task_senders
-        .iter()
-        .zip(in_block_transitions.states_iter().skip(from_index))
-    {
-        let (result_sender, result_receiver) = oneshot::channel();
-
-        let task = Task::Run {
-            program_id: *program_id,
-            state_hash: *state_hash,
-            result_sender,
-        };
-
-        sender.send(task).await.unwrap();
-
-        result_receivers.insert(*program_id, result_receiver);
-    }
-
-    result_receivers
 }

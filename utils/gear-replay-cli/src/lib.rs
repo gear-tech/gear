@@ -20,26 +20,26 @@ use runtime_primitives::Block;
 use sc_cli::execution_method_from_cli;
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::HostFunctions;
-use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
+use sc_executor::{DEFAULT_HEAP_ALLOC_STRATEGY, HeapAllocStrategy, WasmExecutor};
 #[cfg(not(feature = "always-wasm"))]
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
 use sp_core::{
     offchain::{
-        testing::{TestOffchainExt, TestTransactionPoolExt},
         OffchainDbExt, OffchainWorkerExt, TransactionPoolExt,
+        testing::{TestOffchainExt, TestTransactionPoolExt},
     },
     traits::{CallContext, CodeExecutor},
 };
 use sp_externalities::Extensions;
-use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
+use sp_keystore::{KeystoreExt, KeystorePtr, testing::MemoryKeystore};
 use sp_rpc::{list::ListOrValue, number::NumberOrHex};
 use sp_runtime::{
+    DeserializeOwned,
     generic::SignedBlock,
     traits::{Block as BlockT, HashingFor, Header as HeaderT},
-    DeserializeOwned,
 };
 use sp_state_machine::{
-    backend::BackendRuntimeCode, OverlayedChanges, StateMachine, TestExternalities,
+    OverlayedChanges, StateMachine, TestExternalities, backend::BackendRuntimeCode,
 };
 use std::{
     fmt::{self, Debug},
@@ -183,7 +183,7 @@ where
 }
 
 pub(crate) fn rpc_err_handler(error: impl Debug) -> &'static str {
-    log::error!(target: LOG_TARGET, "rpc error: {:?}", error);
+    log::error!(target: LOG_TARGET, "rpc error: {error:?}");
     "rpc error."
 }
 

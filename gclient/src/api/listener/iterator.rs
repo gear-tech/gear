@@ -20,10 +20,10 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use gsdk::{
-    ext::sp_core::H256,
-    metadata::{gear::Event as GearEvent, Event},
-    subscription::BlockEvents,
     Blocks,
+    ext::sp_core::H256,
+    metadata::{Event, gear::Event as GearEvent},
+    subscription::BlockEvents,
 };
 
 /// Event listener that allows catching and processing events propagated through

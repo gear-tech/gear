@@ -17,9 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
+use ethexe_common::gear::MAX_BLOCK_GAS_LIMIT;
+use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_CHUNK_PROCESSING_THREADS};
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -60,15 +62,25 @@ pub struct NodeParams {
     #[serde(rename = "max-depth")]
     pub max_depth: Option<NonZero<u32>>,
 
-    /// Number of physical threads to use.
+    /// Number of worker threads to use in tokio runtime.
     #[arg(long)]
-    #[serde(rename = "physical-threads")]
-    pub physical_threads: Option<NonZero<u8>>,
+    #[serde(rename = "worker-threads")]
+    pub worker_threads: Option<NonZero<u8>>,
 
-    /// Number of virtual thread to use for programs processing.
+    /// Number of blocking threads to use in tokio runtime.
     #[arg(long)]
-    #[serde(rename = "virtual-threads")]
-    pub virtual_threads: Option<NonZero<u8>>,
+    #[serde(rename = "blocking-threads")]
+    pub blocking_threads: Option<NonZero<u8>>,
+
+    /// Number of threads to use for chunk processing.
+    #[arg(long)]
+    #[serde(rename = "chunk-processing-threads")]
+    pub chunk_processing_threads: Option<NonZero<u8>>,
+
+    /// Block gas limit for the node.
+    #[arg(long)]
+    #[serde(rename = "block-gas-limit")]
+    pub block_gas_limit: Option<u64>,
 
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
@@ -79,9 +91,6 @@ pub struct NodeParams {
 impl NodeParams {
     /// Default max allowed height diff from head for sync directly from Ethereum.
     pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
-
-    /// Default amount of virtual threads to use for programs processing.
-    pub const DEFAULT_VIRTUAL_THREADS: NonZero<u8> = NonZero::new(16).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
@@ -98,11 +107,16 @@ impl NodeParams {
             validator_session: ConfigPublicKey::new(&self.validator_session)
                 .with_context(|| "invalid `validator-session` key")?,
             eth_max_sync_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
-            worker_threads_override: self.physical_threads.map(|v| v.get() as usize),
-            virtual_threads: self
-                .virtual_threads
-                .unwrap_or(Self::DEFAULT_VIRTUAL_THREADS)
+            worker_threads: self.worker_threads.map(|v| v.get() as usize),
+            blocking_threads: self.blocking_threads.map(|v| v.get() as usize),
+            chunk_processing_threads: self
+                .chunk_processing_threads
+                .unwrap_or(NonZero::new(DEFAULT_CHUNK_PROCESSING_THREADS).unwrap())
                 .get() as usize,
+            block_gas_limit: self
+                .block_gas_limit
+                .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
+                .min(MAX_BLOCK_GAS_LIMIT),
             dev: self.dev,
             fast_sync: self.fast_sync,
         })
@@ -169,8 +183,13 @@ impl MergeParams for NodeParams {
 
             max_depth: self.max_depth.or(with.max_depth),
 
-            physical_threads: self.physical_threads.or(with.physical_threads),
-            virtual_threads: self.virtual_threads.or(with.virtual_threads),
+            worker_threads: self.worker_threads.or(with.worker_threads),
+            blocking_threads: self.blocking_threads.or(with.blocking_threads),
+            chunk_processing_threads: self
+                .chunk_processing_threads
+                .or(with.chunk_processing_threads),
+
+            block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
 
             fast_sync: self.fast_sync || with.fast_sync,
         }

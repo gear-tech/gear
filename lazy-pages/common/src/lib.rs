@@ -26,7 +26,7 @@ use alloc::{vec, vec::Vec};
 use core::{any::Any, fmt::Debug};
 use gear_core::{
     costs::LazyPagesCosts,
-    ids::ProgramId,
+    ids::ActorId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
@@ -40,7 +40,7 @@ const GLOBAL_NAME_GAS: &str = "gear_gas";
 
 /// Memory access error during syscall that lazy-pages have caught.
 /// 0 index is reserved for an ok result.
-#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive)]
+#[derive(Debug, Copy, Clone, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum ProcessAccessError {
     OutOfBounds = 1,
@@ -143,7 +143,7 @@ pub trait LazyPagesInterface {
     fn init_for_program<Context>(
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,
@@ -185,7 +185,7 @@ impl LazyPagesInterface for () {
     fn init_for_program<Context>(
         _ctx: &mut Context,
         _mem: &mut impl Memory<Context>,
-        _program_id: ProgramId,
+        _program_id: ActorId,
         _memory_infix: MemoryInfix,
         _stack_end: Option<WasmPage>,
         _globals_config: GlobalsAccessConfig,

@@ -52,8 +52,8 @@ use crate::{
     globals::{GlobalNo, GlobalsContext},
     init_flag::InitializationFlag,
     pages::{
-        GearPagesAmount, GearSizeNo, PagesAmountTrait, SizeNumber, WasmPage, WasmPagesAmount,
-        WasmSizeNo, SIZES_AMOUNT,
+        GearPagesAmount, GearSizeNo, PagesAmountTrait, SIZES_AMOUNT, SizeNumber, WasmPage,
+        WasmPagesAmount, WasmSizeNo,
     },
     signal::DefaultUserSignalHandler,
 };
@@ -122,10 +122,10 @@ pub fn initialize_for_program(
         let runtime_ctx = ctx.runtime_context_mut()?;
 
         // Check wasm program memory host address
-        if let Some(addr) = wasm_mem_addr {
-            if addr % region::page::size() != 0 {
-                return Err(Error::WasmMemAddrIsNotAligned(addr));
-            }
+        if let Some(addr) = wasm_mem_addr
+            && !addr.is_multiple_of(region::page::size())
+        {
+            return Err(Error::WasmMemAddrIsNotAligned(addr));
         }
 
         // Check stack_end is less or equal than wasm memory size
@@ -183,7 +183,7 @@ pub fn initialize_for_program(
 
         ctx.set_execution_context(execution_ctx);
 
-        log::trace!("Initialize lazy-pages for current program: {:?}", ctx);
+        log::trace!("Initialize lazy-pages for current program: {ctx:?}");
 
         Ok(())
     })
@@ -347,7 +347,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         }
 
         #[cfg(target_arch = "x86_64")]
-        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64 as i32;
+        static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64;
 
         // Took const value from https://opensource.apple.com/source/cctools/cctools-870/include/mach/arm/thread_status.h
         // ```

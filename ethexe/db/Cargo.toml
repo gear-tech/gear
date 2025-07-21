@@ -32,4 +32,3 @@ version = "0.21"
 [dev-dependencies]
 scopeguard.workspace = true
 tempfile.workspace = true
-serde.workspace = true

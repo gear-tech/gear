@@ -18,17 +18,24 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
+use crate::{Address, Digest, ToDigest};
 use alloc::vec::Vec;
-use gear_core::message::{ReplyDetails, StoredMessage};
-use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
+use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
+use sha3::Digest as _;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
 pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
-pub type Address = [u8; 20];
+
+/// Gas limit for chunk processing.
+pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+
+/// Max block gas limit for the node.
+pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
@@ -50,28 +57,79 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
-pub struct BlockCommitment {
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GearBlock {
     pub hash: H256,
-    /// represented as u48 in router contract.
-    pub timestamp: u64,
-    pub previous_committed_block: H256,
-    pub predecessor_block: H256,
-    pub transitions: Vec<StateTransition>,
+    pub off_chain_transactions_hash: H256,
+    pub gas_allowance: u64,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+impl ToDigest for GearBlock {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            hash,
+            off_chain_transactions_hash,
+            gas_allowance,
+        } = &self;
+
+        hasher.update(hash);
+        hasher.update(off_chain_transactions_hash);
+        hasher.update(gas_allowance.to_be_bytes());
+    }
+}
+
+/// Squashed chain commitment that contains all state transitions and gear blocks.
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct ChainCommitment {
+    pub transitions: Vec<StateTransition>,
+    pub gear_blocks: Vec<GearBlock>,
+}
+
+impl ToDigest for Option<ChainCommitment> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Some(ChainCommitment {
+            transitions,
+            gear_blocks,
+        }) = self
+        else {
+            return;
+        };
+
+        hasher.update(transitions.to_digest().as_ref());
+        hasher.update(gear_blocks.to_digest().as_ref());
+    }
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct CodeCommitment {
     pub id: CodeId,
-    /// represented as u48 in router contract.
-    pub timestamp: u64,
     pub valid: bool,
+}
+
+impl ToDigest for CodeCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self { id, valid } = self;
+
+        hasher.update(id.into_bytes());
+        hasher.update([*valid as u8]);
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct OperatorRewardsCommitment {
     pub amount: U256,
     pub root: H256,
+}
+
+impl ToDigest for OperatorRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let OperatorRewardsCommitment { amount, root } = self;
+
+        hasher.update(<[u8; 32]>::from(*amount));
+        hasher.update(root);
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -87,19 +145,95 @@ pub struct StakerRewardsCommitment {
     pub token: Address,
 }
 
+impl ToDigest for StakerRewardsCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let StakerRewardsCommitment {
+            distribution,
+            total_amount,
+            token,
+        } = &self;
+
+        distribution
+            .iter()
+            .for_each(|StakerRewards { vault, amount }| {
+                hasher.update(vault);
+                hasher.update(<[u8; 32]>::from(*amount));
+            });
+
+        hasher.update(<[u8; 32]>::from(*total_amount));
+        hasher.update(token);
+    }
+}
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct RewardsCommitment {
     pub operators: OperatorRewardsCommitment,
     pub stakers: StakerRewardsCommitment,
-    /// represented as u48 in router contract
+    /// Rewards for timestamp. Represented as u48 in router contract.
     pub timestamp: u64,
 }
 
+impl ToDigest for Option<RewardsCommitment> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Some(RewardsCommitment {
+            operators,
+            stakers,
+            timestamp,
+        }) = self
+        else {
+            return;
+        };
+
+        hasher.update(operators.to_digest());
+        hasher.update(stakers.to_digest());
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+    }
+}
+
+/// Batch of different commitments that are created for a specific ethereum block.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct BatchCommitment {
-    pub block_commitments: Vec<BlockCommitment>,
+    // Hash of ethereum block for which this batch has been created
+    // This is used to identify whether router have to apply this batch,
+    // it can be a batch from another branch and after reorg it's not actual anymore (currently we have predecessorBlock for this)
+    pub block_hash: H256,
+
+    /// Timestamp of ethereum block for which this batch has been created
+    /// This timestamp is used to identify validator set to verify commitment (current or previous era)
+    pub timestamp: u64,
+
+    /// Digest of the previous committed batch.
+    /// This is used to verify that the batch is committed in the correct order.
+    pub previous_batch: Digest,
+
+    pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
-    pub rewards_commitments: Vec<RewardsCommitment>,
+    pub validators_commitment: Option<ValidatorsCommitment>,
+    pub rewards_commitment: Option<RewardsCommitment>,
+}
+
+impl ToDigest for BatchCommitment {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            block_hash,
+            timestamp,
+            previous_batch: previous_committed_block_hash,
+            chain_commitment,
+            code_commitments,
+            validators_commitment,
+            rewards_commitment,
+        } = self;
+
+        hasher.update(block_hash);
+        hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
+        hasher.update(previous_committed_block_hash);
+        hasher.update(chain_commitment.to_digest());
+        hasher.update(code_commitments.to_digest());
+        hasher.update(rewards_commitment.to_digest());
+        hasher.update(validators_commitment.to_digest());
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
@@ -110,12 +244,49 @@ pub struct ValidatorsCommitment {
     pub era_index: u64,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+impl ToDigest for Option<ValidatorsCommitment> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Some(ValidatorsCommitment {
+            aggregated_public_key,
+            verifiable_secret_sharing_commitment: _, // TODO: add to digest
+            validators,
+            era_index,
+        }) = self
+        else {
+            return;
+        };
+
+        hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
+        hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
+        hasher.update(
+            validators
+                .iter()
+                .flat_map(|v| v.to_address_lossy().0.into_iter())
+                .collect::<Vec<u8>>(),
+        );
+        hasher.update(era_index.to_be_bytes().as_slice());
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub enum CodeState {
     #[default]
     Unknown,
     ValidationRequested,
     Validated,
+}
+
+impl From<u8> for CodeState {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Unknown,
+            1 => Self::ValidationRequested,
+            2 => Self::Validated,
+            // NOTE: newly added variants should be updated accordingly
+            _ => Self::Unknown,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -139,10 +310,39 @@ pub struct Message {
     pub payload: Vec<u8>,
     pub value: u128,
     pub reply_details: Option<ReplyDetails>,
+    pub call: bool,
 }
 
-impl From<StoredMessage> for Message {
-    fn from(value: StoredMessage) -> Self {
+impl ToDigest for Message {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            id,
+            destination,
+            payload,
+            value,
+            reply_details,
+            call,
+        } = self;
+
+        let (reply_details_to, reply_details_code) =
+            reply_details.map(|d| d.into_parts()).unwrap_or((
+                MessageId::default(),
+                ReplyCode::Success(SuccessReplyReason::Auto),
+            ));
+
+        hasher.update(id);
+        hasher.update(destination.to_address_lossy());
+        hasher.update(payload);
+        hasher.update(value.to_be_bytes());
+        hasher.update(reply_details_to);
+        hasher.update(reply_details_code.to_bytes());
+        hasher.update([*call as u8]);
+    }
+}
+
+impl Message {
+    pub fn from_stored(value: StoredMessage, call: bool) -> Self {
         let (id, _source, destination, payload, value, details) = value.into_parts();
         Self {
             id,
@@ -150,6 +350,7 @@ impl From<StoredMessage> for Message {
             payload: payload.into_vec(),
             value,
             reply_details: details.and_then(|v| v.to_reply_details()),
+            call,
         }
     }
 }
@@ -167,10 +368,34 @@ pub struct ProtocolData {
 pub struct StateTransition {
     pub actor_id: ActorId,
     pub new_state_hash: H256,
+    pub exited: bool,
     pub inheritor: ActorId,
     pub value_to_receive: u128,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
+}
+
+impl ToDigest for StateTransition {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // To avoid missing incorrect hashing while developing.
+        let Self {
+            actor_id,
+            new_state_hash,
+            exited,
+            inheritor,
+            value_to_receive,
+            value_claims,
+            messages,
+        } = self;
+
+        hasher.update(actor_id.to_address_lossy());
+        hasher.update(new_state_hash);
+        hasher.update([*exited as u8]);
+        hasher.update(inheritor.to_address_lossy());
+        hasher.update(value_to_receive.to_be_bytes());
+        hasher.update(value_claims.to_digest());
+        hasher.update(messages.to_digest());
+    }
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
@@ -186,6 +411,23 @@ pub struct ValueClaim {
     pub message_id: MessageId,
     pub destination: ActorId,
     pub value: u128,
+}
+
+/// Note: `ValueClaim` is not `ToDigest`
+impl ToDigest for [ValueClaim] {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.iter().for_each(
+            |ValueClaim {
+                 message_id,
+                 destination,
+                 value,
+             }| {
+                hasher.update(message_id);
+                hasher.update(destination.to_address_lossy());
+                hasher.update(value.to_be_bytes());
+            },
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]

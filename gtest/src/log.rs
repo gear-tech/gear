@@ -16,15 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    error::usage_panic,
-    program::{Gas, ProgramIdWrapper},
-    Value, GAS_MULTIPLIER,
-};
+use crate::{GAS_MULTIPLIER, Gas, Value, error::usage_panic, program::ProgramIdWrapper};
 use core_processor::configs::BlockInfo;
 use gear_core::{
-    ids::{MessageId, ProgramId},
-    message::{Payload, StoredMessage, UserStoredMessage},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
+    message::{StoredMessage, UserStoredMessage},
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use parity_scale_codec::{Codec, Encode};
@@ -36,11 +33,11 @@ use std::{
 
 /// A log that emitted by a program, for user defined logs,
 /// see [`Log`].
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreLog {
     id: MessageId,
-    source: ProgramId,
-    destination: ProgramId,
+    source: ActorId,
+    destination: ActorId,
     payload: Payload,
     reply_code: Option<ReplyCode>,
     reply_to: Option<MessageId>,
@@ -53,12 +50,12 @@ impl CoreLog {
     }
 
     /// Get the source of the message that emitted this log.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Get the destination of the message that emitted this log.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -102,8 +99,8 @@ impl From<StoredMessage> for CoreLog {
 #[derive(Debug)]
 pub struct DecodedCoreLog<T: Codec + Debug> {
     id: MessageId,
-    source: ProgramId,
-    destination: ProgramId,
+    source: ActorId,
+    destination: ActorId,
     payload: T,
     reply_code: Option<ReplyCode>,
     reply_to: Option<MessageId>,
@@ -127,11 +124,11 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
         self.id
     }
 
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -182,10 +179,10 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 ///     Log::from((1, v, "payload"))
 /// );
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Log {
-    pub(crate) source: Option<ProgramId>,
-    pub(crate) destination: Option<ProgramId>,
+    pub(crate) source: Option<ActorId>,
+    pub(crate) destination: Option<ActorId>,
     pub(crate) payload: Option<Payload>,
     pub(crate) reply_code: Option<ReplyCode>,
     pub(crate) reply_to: Option<MessageId>,
@@ -365,22 +362,22 @@ impl PartialEq<CoreLog> for Log {
             return false;
         }
 
-        if let Some(source) = self.source {
-            if source != other.source {
-                return false;
-            }
+        if let Some(source) = self.source
+            && source != other.source
+        {
+            return false;
         }
 
-        if let Some(destination) = self.destination {
-            if destination != other.destination {
-                return false;
-            }
+        if let Some(destination) = self.destination
+            && destination != other.destination
+        {
+            return false;
         }
 
-        if let Some(payload) = &self.payload {
-            if payload.inner() != other.payload.inner() {
-                return false;
-            }
+        if let Some(payload) = &self.payload
+            && payload.inner() != other.payload.inner()
+        {
+            return false;
         }
 
         true
@@ -461,14 +458,14 @@ impl BlockRunResult {
         );
     }
 
-    /// Calculate the total spent value.
+    /// Calculate the total spent value for the gas consumption.
     pub fn spent_value(&self) -> Value {
         let spent_gas = self
             .gas_burned
             .values()
-            .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+            .fold(0u64, |acc, &x| acc.saturating_add(x));
 
-        GAS_MULTIPLIER.gas_to_value(spent_gas.0)
+        GAS_MULTIPLIER.gas_to_value(spent_gas)
     }
 
     /// Trying to get the panic log.

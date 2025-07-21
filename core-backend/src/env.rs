@@ -19,6 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
@@ -35,24 +36,26 @@ use core::{
     marker::{PhantomData, Send},
 };
 use gear_core::{
-    env::Externalities,
+    env::{Externalities, WasmEntryPoint},
     gas::GasAmount,
     memory::{HostPointer, MemoryError},
     message::{DispatchKind, WasmEntryPoint},
     pages::WasmPagesAmount,
-    str::LimitedStr,
 };
-use gear_lazy_pages_common::{
-    GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor,
-};
+use gear_lazy_pages_common::{GlobalsAccessConfig, GlobalsAccessMod};
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
-    AsContextExt, Error, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+    AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
 };
 use gear_wasm_instrument::{
-    syscalls::SyscallName::{self, *},
     GLOBAL_NAME_GAS,
+    syscalls::SyscallName::{self, *},
+};
+#[cfg(feature = "std")]
+use {
+    gear_core::memory::HostPointer, gear_core::str::LimitedStr,
+    gear_lazy_pages_common::GlobalsAccessError, gear_lazy_pages_common::GlobalsAccessor,
 };
 
 #[cfg(feature = "std")]

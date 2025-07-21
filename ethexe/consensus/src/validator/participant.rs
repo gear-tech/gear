@@ -16,20 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext};
-use crate::{
-    utils::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest,
-        BlockCommitmentValidationRequest,
-    },
-    ConsensusEvent,
+use super::{
+    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
+    initial::Initial,
 };
-use anyhow::{anyhow, ensure, Result};
+use crate::{
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
+    SignedValidationRequest, utils,
+};
+use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
-use ethexe_common::{gear::CodeCommitment, SimpleBlockData};
-use ethexe_db::{BlockMetaStorage, CodesStorage, OnChainStorage};
-use ethexe_signer::{Address, Digest, SignedData, ToDigest};
-use gprimitives::H256;
+use ethexe_common::{Address, SimpleBlockData, ToDigest, db::BlockMetaStorageRead};
+use std::collections::HashSet;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
 /// which are sent by the current block producer (from the coordinator state).
@@ -39,16 +37,11 @@ use gprimitives::H256;
 #[display("PARTICIPANT")]
 pub struct Participant {
     ctx: ValidatorContext,
-    #[allow(unused)]
     block: SimpleBlockData,
     producer: Address,
 }
 
 impl StateHandler for Participant {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -57,15 +50,15 @@ impl StateHandler for Participant {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
     fn process_validation_request(
-        self: Box<Self>,
-        request: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<Box<dyn StateHandler>> {
-        if request.verify_address(self.producer).is_ok() {
+        self,
+        request: SignedValidationRequest,
+    ) -> Result<ValidatorState> {
+        if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
             DefaultProcessing::validation_request(self, request)
@@ -78,12 +71,11 @@ impl Participant {
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
         producer: Address,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         let mut earlier_validation_request = None;
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
-                if earlier_validation_request.is_none()
-                    && signed_data.verify_address(producer).is_ok() =>
+                if earlier_validation_request.is_none() && signed_data.address() == producer =>
             {
                 earlier_validation_request = Some(signed_data.data().clone());
 
@@ -95,23 +87,23 @@ impl Participant {
             }
         });
 
-        let participant = Box::new(Self {
+        let participant = Self {
             ctx,
             block,
             producer,
-        });
+        };
 
         let Some(validation_request) = earlier_validation_request else {
-            return Ok(participant);
+            return Ok(participant.into());
         };
 
         participant.process_validation_request(validation_request)
     }
 
     fn process_validation_request(
-        mut self: Box<Self>,
+        mut self,
         request: BatchCommitmentValidationRequest,
-    ) -> Result<Box<dyn StateHandler>> {
+    ) -> Result<ValidatorState> {
         match self.process_validation_request_inner(request) {
             Ok(reply) => self.output(ConsensusEvent::PublishValidationReply(reply)),
             Err(err) => self.warning(format!("reject validation request: {err}")),
@@ -127,169 +119,108 @@ impl Participant {
         &self,
         request: BatchCommitmentValidationRequest,
     ) -> Result<BatchCommitmentValidationReply> {
-        let digest = request.to_digest();
-        let BatchCommitmentValidationRequest { blocks, codes } = request;
+        let BatchCommitmentValidationRequest {
+            digest,
+            blocks,
+            codes,
+        } = request;
 
-        for code_request in codes {
-            log::debug!("Receive code commitment for validation: {code_request:?}");
-            Self::validate_code_commitment(&self.ctx.db, code_request)?;
+        ensure!(
+            !(blocks.is_empty() && codes.is_empty()),
+            "Empty batch (change when other commitments are supported)"
+        );
+
+        ensure!(
+            !utils::has_duplicates(blocks.as_slice()),
+            "Duplicate blocks in validation request"
+        );
+        ensure!(
+            !utils::has_duplicates(codes.as_slice()),
+            "Duplicate codes in validation request"
+        );
+
+        // Check requested codes wait for commitment
+        let waiting_codes = self
+            .ctx
+            .db
+            .block_codes_queue(self.block.hash)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Cannot get from db block codes queue for block {}",
+                    self.block.hash
+                )
+            })?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        ensure!(
+            codes.iter().all(|code| waiting_codes.contains(code)),
+            "Not all requested codes are waiting for commitment"
+        );
+
+        // Check requested blocks wait for commitment and provided in correct order
+        let waiting_blocks = self
+            .ctx
+            .db
+            .block_commitment_queue(self.block.hash)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Cannot get from db block commitment queue for block {}",
+                    self.block.hash
+                )
+            })?;
+        for (requested_block, waiting_block) in blocks.iter().zip(waiting_blocks.iter()) {
+            ensure!(
+                requested_block == waiting_block,
+                "Requested blocks order or hashes mismatch",
+            );
         }
 
-        for block_request in blocks {
-            log::debug!("Receive block commitment for validation: {block_request:?}");
-            Self::validate_block_commitment(&self.ctx.db, block_request)?;
+        let chain_commitment = utils::aggregate_chain_commitment(&self.ctx.db, blocks, true)?;
+        let code_commitments = utils::aggregate_code_commitments(&self.ctx.db, codes, true)?;
+        let batch = utils::create_batch_commitment(
+            &self.ctx.db,
+            &self.block,
+            chain_commitment,
+            code_commitments,
+        )?
+        .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
+
+        if batch.to_digest() != digest {
+            return Err(anyhow!(
+                "Requested and local batch commitment digests mismatch"
+            ));
         }
 
         self.ctx
             .signer
-            .contract_signer(self.ctx.router_address)
-            .sign_digest(self.ctx.pub_key, digest)
+            .sign_for_contract(self.ctx.router_address, self.ctx.pub_key, digest)
             .map(|signature| BatchCommitmentValidationReply { digest, signature })
-    }
-
-    fn validate_code_commitment<DB: OnChainStorage + CodesStorage>(
-        db: &DB,
-        request: CodeCommitment,
-    ) -> Result<()> {
-        let CodeCommitment {
-            id,
-            timestamp,
-            valid,
-        } = request;
-
-        let local_timestamp = db
-            .code_blob_info(id)
-            .ok_or_else(|| anyhow!("Code {id} blob info is not in storage"))?
-            .timestamp;
-
-        ensure!(
-            local_timestamp == timestamp,
-            "Requested and local code timestamps mismatch"
-        );
-
-        let local_valid = db
-            .code_valid(id)
-            .ok_or_else(|| anyhow!("Code {id} is not validated by this node"))?;
-
-        ensure!(
-            local_valid == valid,
-            "Requested and local code validation results mismatch"
-        );
-
-        Ok(())
-    }
-
-    fn validate_block_commitment<DB: BlockMetaStorage + OnChainStorage>(
-        db: &DB,
-        request: BlockCommitmentValidationRequest,
-    ) -> Result<()> {
-        let BlockCommitmentValidationRequest {
-            block_hash,
-            block_timestamp,
-            previous_non_empty_block,
-            predecessor_block,
-            transitions_digest,
-        } = request;
-
-        ensure!(
-            db.block_computed(block_hash),
-            "Requested block {block_hash} is not processed by this node"
-        );
-
-        let header = db.block_header(block_hash).ok_or_else(|| {
-            anyhow!("Requested block {block_hash} header wasn't found in storage")
-        })?;
-
-        ensure!(header.timestamp == block_timestamp, "Timestamps mismatch");
-
-        let local_outcome_digest = db
-            .block_outcome(block_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db outcome for block {block_hash}"))?
-            .iter()
-            .collect::<Digest>();
-        ensure!(
-            local_outcome_digest == transitions_digest,
-            "Requested and local transitions digests length mismatch"
-        );
-
-        let local_previous_not_empty_block =
-            db.previous_not_empty_block(block_hash).ok_or_else(|| {
-                anyhow!("Cannot get from db previous not empty for block {block_hash}")
-            })?;
-        ensure!(
-            local_previous_not_empty_block == previous_non_empty_block,
-            "Requested and local previous commitment block hash mismatch"
-        );
-
-        // TODO: #4579 rename max_distance and make it configurable
-        ensure!(
-            Self::verify_is_predecessor(db, predecessor_block, block_hash, None)?,
-            "{block_hash} is not a predecessor of {predecessor_block}"
-        );
-
-        Ok(())
-    }
-
-    /// Verify whether `pred_hash` is a predecessor of `block_hash` in the chain.
-    fn verify_is_predecessor(
-        db: &impl OnChainStorage,
-        block_hash: H256,
-        pred_hash: H256,
-        max_distance: Option<u32>,
-    ) -> Result<bool> {
-        if block_hash == pred_hash {
-            return Ok(true);
-        }
-
-        let block_header = db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?;
-
-        if block_header.parent_hash == pred_hash {
-            return Ok(true);
-        }
-
-        let pred_height = db
-            .block_header(pred_hash)
-            .ok_or_else(|| anyhow!("header not found for pred block: {pred_hash}"))?
-            .height;
-
-        let distance = block_header.height.saturating_sub(pred_height);
-        if max_distance.map(|d| d < distance).unwrap_or(false) {
-            return Err(anyhow!("distance is too large: {distance}"));
-        }
-
-        let mut block_hash = block_hash;
-        for _ in 0..=distance {
-            if block_hash == pred_hash {
-                return Ok(true);
-            }
-            block_hash = db
-                .block_header(block_hash)
-                .ok_or_else(|| anyhow!("header not found for block: {block_hash}"))?
-                .parent_hash;
-        }
-
-        Ok(false)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*};
-    use ethexe_db::{BlockHeader, Database, OnChainStorage};
-    use std::any::TypeId;
+    use crate::{
+        mock::*,
+        utils::{SignedProducerBlock, SignedValidationRequest},
+        validator::mock::*,
+    };
+    use ethexe_common::{
+        Digest,
+        gear::{CodeCommitment, GearBlock},
+    };
+    use gprimitives::H256;
 
     #[test]
     fn create() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
-        assert_eq!(participant.type_id(), TypeId::of::<Participant>());
+        assert!(participant.is_participant());
         assert_eq!(participant.context().pending_events.len(), 0);
     }
 
@@ -298,22 +229,38 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
 
         // Validation request from alice - must be kept
-        ctx.pending(mock_validation_request(&ctx.signer, alice).1);
+        ctx.pending(SignedValidationRequest::mock((
+            ctx.signer.clone(),
+            alice,
+            (),
+        )));
 
         // Reply from producer - must be removed and processed
-        ctx.pending(mock_validation_request(&ctx.signer, producer).1);
+        ctx.pending(SignedValidationRequest::mock((
+            ctx.signer.clone(),
+            producer,
+            (),
+        )));
 
         // Block from producer - must be kept
-        ctx.pending(mock_producer_block(&ctx.signer, producer, H256::random()).1);
+        ctx.pending(SignedProducerBlock::mock((
+            ctx.signer.clone(),
+            producer,
+            H256::random(),
+        )));
 
         // Block from alice - must be kept
-        ctx.pending(mock_producer_block(&ctx.signer, alice, H256::random()).1);
+        ctx.pending(SignedProducerBlock::mock((
+            ctx.signer.clone(),
+            alice,
+            H256::random(),
+        )));
 
         let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
 
         let ctx = initial.into_context();
         assert_eq!(ctx.pending_events.len(), 3);
@@ -339,38 +286,47 @@ mod tests {
     fn process_validation_request_success() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = mock_simple_block_data();
-        let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
 
-        prepare_code_commitment(&ctx.db, signed_request.data().codes[0].clone());
-        prepare_code_commitment(&ctx.db, signed_request.data().codes[1].clone());
-
-        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
-        let participant = participant
-            .process_validation_request(signed_request)
+        let signed_request = ctx
+            .signer
+            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
             .unwrap();
-
-        assert_eq!(participant.type_id(), TypeId::of::<Initial>());
-        assert_eq!(participant.context().output.len(), 1);
-        assert!(matches!(
-            participant.context().output[0],
-            ConsensusEvent::PublishValidationReply(_)
-        ));
-    }
-
-    #[test]
-    fn process_validation_request_failure() {
-        let (ctx, pub_keys) = mock_validator_context();
-        let producer = pub_keys[0];
-        let block = mock_simple_block_data();
-        let (_, signed_request) = mock_validation_request(&ctx.signer, producer);
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
         let initial = participant
             .process_validation_request(signed_request)
             .unwrap();
 
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
+
+        let ctx = initial.into_context();
+        assert_eq!(ctx.output.len(), 1);
+
+        let ConsensusEvent::PublishValidationReply(reply) = &ctx.output[0] else {
+            panic!("Expected PublishValidationReply event");
+        };
+        assert_eq!(reply.digest, batch.to_digest());
+        reply
+            .signature
+            .validate(ctx.router_address, reply.digest)
+            .unwrap();
+    }
+
+    #[test]
+    fn process_validation_request_failure() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(());
+        let signed_request = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
+
+        assert!(initial.is_initial());
         assert_eq!(initial.context().output.len(), 1);
         assert!(matches!(
             initial.context().output[0],
@@ -379,121 +335,200 @@ mod tests {
     }
 
     #[test]
-    fn validate_code_commitment() {
-        let db = Database::memory();
-        let mut code_commitment = mock_code_commitment();
+    fn test_codes_not_waiting_for_commitment() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
 
-        // No enough data in db
-        Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
+        // Create a batch with codes not in the waiting queue
+        let mut batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        // Add a code that's not in the waiting queue
+        let extra_code = CodeCommitment::mock(());
+        batch.code_commitments.push(extra_code);
 
-        prepare_code_commitment(&db, code_commitment.clone());
+        let request = BatchCommitmentValidationRequest::new(&batch);
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
 
-        // Incorrect validation status
-        code_commitment.valid = false;
-        Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
 
-        // Incorrect timestamp
-        code_commitment.valid = true;
-        code_commitment.timestamp = 111;
-        Participant::validate_code_commitment(&db, code_commitment.clone()).unwrap_err();
-
-        code_commitment.timestamp = 123;
-        Participant::validate_code_commitment(&db, code_commitment).unwrap();
+        assert!(initial.is_initial());
+        assert_eq!(initial.context().output.len(), 1);
+        assert!(matches!(
+            initial.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
     }
 
     #[test]
-    fn validate_block_commitment() {
-        let db = Database::from_one(&ethexe_db::MemDb::default());
-        let (_, block_commitment) = prepare_block_commitment(
-            &db,
-            mock_block_commitment(H256::random(), H256::random(), H256::random()),
-        );
+    fn test_blocks_not_waiting_for_commitment() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
 
-        let request = BlockCommitmentValidationRequest::new(&block_commitment);
+        // Create a batch with blocks not in the waiting queue
+        let mut batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        // Add an extra block that's not in the waiting queue
+        let extra_block = H256::random();
+        if let Some(chain_commitment) = &mut batch.chain_commitment {
+            chain_commitment.gear_blocks.push(GearBlock {
+                hash: extra_block,
+                off_chain_transactions_hash: H256::zero(),
+                gas_allowance: 0,
+            });
+        }
 
-        Participant::validate_block_commitment(&db, request.clone()).unwrap();
+        let request = BatchCommitmentValidationRequest::new(&batch);
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
 
-        // Incorrect timestamp
-        let mut incorrect_request = request.clone();
-        incorrect_request.block_timestamp += 1;
-        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
 
-        // Incorrect block hash
-        let mut incorrect_request = request.clone();
-        incorrect_request.predecessor_block = H256::random();
-        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
-
-        // Incorrect previous committed block
-        let mut incorrect_request = request.clone();
-        incorrect_request.previous_non_empty_block = H256::random();
-        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
-
-        // Incorrect transitions digest
-        let mut incorrect_request = request.clone();
-        incorrect_request.transitions_digest = Digest::from([2; 32]);
-        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
-
-        // Block is not processed by this node
-        let mut incorrect_request = request.clone();
-        incorrect_request.block_hash = H256::random();
-        Participant::validate_block_commitment(&db, incorrect_request).unwrap_err();
+        assert!(initial.is_initial());
+        assert_eq!(initial.context().output.len(), 1);
+        assert!(matches!(
+            initial.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
     }
 
     #[test]
-    fn verify_is_predecessor() {
-        let db = Database::from_one(&ethexe_db::MemDb::default());
+    fn test_blocks_incorrect_order() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
 
-        let blocks = [H256::random(), H256::random(), H256::random()];
-        db.set_block_header(
-            blocks[0],
-            BlockHeader {
-                height: 100,
-                timestamp: 100,
-                parent_hash: H256::zero(),
-            },
-        );
-        db.set_block_header(
-            blocks[1],
-            BlockHeader {
-                height: 101,
-                timestamp: 101,
-                parent_hash: blocks[0],
-            },
-        );
-        db.set_block_header(
-            blocks[2],
-            BlockHeader {
-                height: 102,
-                timestamp: 102,
-                parent_hash: blocks[1],
-            },
-        );
+        // Create a batch but swap the order of blocks in the request
+        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        if request.blocks.len() >= 2 {
+            request.blocks.swap(0, 1);
+        }
 
-        Participant::verify_is_predecessor(&db, blocks[1], H256::random(), None)
-            .expect_err("Unknown pred block is provided");
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
 
-        Participant::verify_is_predecessor(&db, H256::random(), blocks[0], None)
-            .expect_err("Unknown block is provided");
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
 
-        Participant::verify_is_predecessor(&db, blocks[2], blocks[0], Some(1))
-            .expect_err("Distance is too large");
+        assert!(initial.is_initial());
+        assert_eq!(initial.context().output.len(), 1);
+        assert!(matches!(
+            initial.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
+    }
 
-        // Another chain block
-        let block3 = H256::random();
-        db.set_block_header(
-            block3,
-            BlockHeader {
-                height: 1,
-                timestamp: 1,
-                parent_hash: blocks[0],
-            },
-        );
-        Participant::verify_is_predecessor(&db, blocks[2], block3, None)
-            .expect_err("Block is from other chain with incorrect height");
+    #[test]
+    fn test_empty_codes_and_blocks() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
 
-        assert!(Participant::verify_is_predecessor(&db, blocks[2], blocks[0], None).unwrap());
-        assert!(Participant::verify_is_predecessor(&db, blocks[2], blocks[0], Some(2)).unwrap());
-        assert!(!Participant::verify_is_predecessor(&db, blocks[1], blocks[2], Some(1)).unwrap());
-        assert!(Participant::verify_is_predecessor(&db, blocks[1], blocks[1], None).unwrap());
+        // Create a request with empty blocks and codes
+        let request = BatchCommitmentValidationRequest {
+            digest: Digest::random(),
+            blocks: vec![],
+            codes: vec![],
+        };
+
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
+
+        assert!(initial.is_initial());
+        assert_eq!(initial.context().output.len(), 1);
+        assert!(matches!(
+            initial.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn test_duplicate_codes_and_blocks() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+
+        // Create a batch with duplicate codes
+        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+        // Add duplicate code
+        if !request.codes.is_empty() {
+            let duplicate_code = request.codes[0];
+            request.codes.push(duplicate_code);
+        }
+
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+
+        let participant = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
+
+        assert!(initial.is_initial());
+
+        let ctx = initial.into_context();
+        assert_eq!(ctx.output.len(), 1);
+        assert!(matches!(ctx.output[0], ConsensusEvent::Warning(_)));
+
+        // Test with duplicate blocks
+        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+        // Add duplicate block
+        if !request.blocks.is_empty() {
+            let duplicate_block = request.blocks[0];
+            request.blocks.push(duplicate_block);
+        }
+
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
+
+        assert!(initial.is_initial());
+        assert_eq!(initial.context().output.len(), 2);
+        assert!(matches!(
+            initial.context().output[1],
+            ConsensusEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn test_digest_mismatch() {
+        let (ctx, pub_keys) = mock_validator_context();
+        let producer = pub_keys[0];
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
+
+        // Create request with incorrect digest
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        request.digest = Digest::random(); // Set a different random digest
+
+        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+
+        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
+        let initial = participant
+            .process_validation_request(signed_request)
+            .unwrap();
+
+        assert!(initial.is_initial());
+        assert_eq!(initial.context().output.len(), 1);
+        assert!(matches!(
+            initial.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
     }
 }

@@ -47,7 +47,7 @@ where
 }
 
 #[track_caller]
-pub(super) fn remove_gas_reservation<T>() -> (ProgramId, ReservationId)
+pub(super) fn remove_gas_reservation<T>() -> (ActorId, ReservationId)
 where
     T: Config,
     T::AccountId: Origin,
@@ -61,7 +61,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller).into(),
         WASM_BINARY.to_vec(),
@@ -130,7 +130,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -174,12 +174,12 @@ where
 }
 
 #[track_caller]
-pub(super) fn wake_message<T>() -> (ProgramId, MessageId)
+pub(super) fn wake_message<T>() -> (ActorId, MessageId)
 where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     let caller = benchmarking::account("caller", 0, 0);
     let _ =
@@ -188,7 +188,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -226,12 +226,12 @@ where
 }
 
 #[track_caller]
-pub(super) fn remove_from_waitlist<T>() -> (ProgramId, MessageId)
+pub(super) fn remove_from_waitlist<T>() -> (ActorId, MessageId)
 where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     let caller = benchmarking::account("caller", 0, 0);
     let _ =
@@ -240,7 +240,7 @@ where
     init_block::<T>(None);
 
     let salt = vec![];
-    let program_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
+    let program_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
     Gear::<T>::upload_program(
         RawOrigin::Signed(caller.clone()).into(),
         WASM_BINARY.to_vec(),
@@ -283,7 +283,7 @@ where
 }
 
 #[track_caller]
-pub(super) fn remove_from_mailbox<T>() -> (ProgramId, MessageId)
+pub(super) fn remove_from_mailbox<T>() -> (ActorId, MessageId)
 where
     T: Config,
     T::AccountId: Origin,

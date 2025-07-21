@@ -19,11 +19,11 @@
 //! Application config in one place.
 
 use anyhow::Result;
+use ethexe_common::{Address, ecdsa::PublicKey};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
-use ethexe_signer::{Address, PublicKey};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]
@@ -57,8 +57,10 @@ pub struct NodeConfig {
     pub validator: ConfigPublicKey,
     pub validator_session: ConfigPublicKey,
     pub eth_max_sync_depth: u32,
-    pub worker_threads_override: Option<usize>,
-    pub virtual_threads: usize,
+    pub worker_threads: Option<usize>,
+    pub blocking_threads: Option<usize>,
+    pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
     pub dev: bool,
     pub fast_sync: bool,
 }

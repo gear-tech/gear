@@ -17,23 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    RuntimeStateView, AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE,
+    AUXILIARY_SIZE, GAS_SIZE, MAX_CODE_SIZE, MAX_PAYLOAD_SIZE, MAX_SALT_SIZE, RuntimeStateView,
     VALUE_SIZE,
 };
 use gear_call_gen::{GearCall, UploadProgramArgs};
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, prelude::*};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    wasm_gen_arbitrary::{Result, Unstructured},
     ActorKind, PtrParamAllowedValues, RandomizedGearWasmConfigBundle, RegularParamType,
     SyscallsParamsConfig,
+    wasm_gen_arbitrary::{Result, Unstructured},
 };
 use runtime_primitives::Balance;
 use vara_runtime::EXISTENTIAL_DEPOSIT;
 
 pub(crate) type UploadProgramRuntimeData<'a> = (
     &'a str,
-    Option<&'a NonEmpty<ProgramId>>,
+    Option<&'a NonEmpty<ActorId>>,
     Option<&'a NonEmpty<CodeId>>,
     u64,
     Balance,
@@ -88,7 +88,7 @@ pub(crate) fn generate(
     log::trace!("Sending value (upload_program) - {value}");
     log::trace!("Current balance (upload_program - {current_balance}");
 
-    let program_id = ProgramId::generate_from_user(CodeId::generate(&code), &salt);
+    let program_id = ActorId::generate_from_user(CodeId::generate(&code), &salt);
     log::trace!("Generated code for program id - {program_id}");
 
     Ok(UploadProgramArgs((code, salt, payload, gas, value)).into())
@@ -100,7 +100,7 @@ fn arbitrary_salt(u: &mut Unstructured) -> Result<Vec<u8>> {
 
 fn config(
     unstructured: &mut Unstructured,
-    programs: Option<&NonEmpty<ProgramId>>,
+    programs: Option<&NonEmpty<ActorId>>,
     codes: Option<&NonEmpty<CodeId>>,
     log_info: Option<String>,
     current_balance: Balance,
@@ -135,7 +135,7 @@ fn config(
 
     let code_ids = codes.and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().cloned()));
 
-    log::trace!("Messages destination config: {:?}", actor_kind);
+    log::trace!("Messages destination config: {actor_kind:?}");
 
     params_config = params_config
         .with_ptr_rule(PtrParamAllowedValues::ActorId(actor_kind.clone()))

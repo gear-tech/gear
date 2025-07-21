@@ -18,7 +18,7 @@
 
 use super::*;
 use frame_support::traits::tokens::Balance as BalanceTrait;
-use sp_runtime::{traits::Zero, RuntimeDebug};
+use sp_runtime::{RuntimeDebug, traits::Zero};
 use sp_std::marker::PhantomData;
 
 mod error;
@@ -28,6 +28,9 @@ mod negative_imbalance;
 mod node;
 mod positive_imbalance;
 mod reservable;
+
+#[cfg(feature = "std")]
+pub mod auxiliary;
 
 #[cfg(test)]
 mod property_tests;
@@ -113,7 +116,7 @@ pub trait Tree {
     /// node identified by the `key` belongs to a subtree originating at
     /// such "orphan" node, or in case of inexistent key.
     fn get_origin_node(key: impl Into<Self::NodeId>)
-        -> Result<OriginNodeDataOf<Self>, Self::Error>;
+    -> Result<OriginNodeDataOf<Self>, Self::Error>;
 
     /// The external origin for a key.
     ///

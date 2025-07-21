@@ -19,14 +19,14 @@
 //! Send message args generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
-    Seed,
+    CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs, Seed,
+    impl_convert_traits,
 };
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use gear_utils::{NonEmpty, RingGet};
 
 // destination, payload, gas, value
-type SendMessageArgsInner = (ProgramId, Vec<u8>, u64, u128);
+type SendMessageArgsInner = (ActorId, Vec<u8>, u64, u128);
 
 /// Send message args
 ///
@@ -42,7 +42,7 @@ impl_convert_traits!(
 );
 
 impl GeneratableCallArgs for SendMessageArgs {
-    type FuzzerArgs = (NonEmpty<ProgramId>, Seed);
+    type FuzzerArgs = (NonEmpty<ActorId>, Seed);
     type ConstArgs<C: GearWasmGenConfigsBundle> = (u64,);
 
     /// Generates `pallet_gear::Pallet::<T>::send_message` call arguments.

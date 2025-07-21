@@ -20,12 +20,14 @@ galloc.workspace = true
 gcore = { workspace = true, features = ["codec"] }
 gstd-codegen.workspace = true
 gear-core-errors.workspace = true
+gprimitives = { workspace = true, features = ["codec"] }
 hashbrown.workspace = true
 hex = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 futures = { workspace = true, features = ["alloc"] }
 waker-fn = "1.2.0"
+thiserror.workspace = true
 
 [features]
 #! ## Default features:

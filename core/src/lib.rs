@@ -41,12 +41,13 @@ pub mod pages;
 pub mod percent;
 pub mod program;
 pub mod reservation;
+pub mod rpc;
 pub mod str;
 pub mod tasks;
 pub mod utils {
     //! Utility functions.
 
-    use blake2::{digest::typenum::U32, Blake2b, Digest};
+    use blake2::{Blake2b, Digest, digest::typenum::U32};
 
     /// BLAKE2b-256 hasher state.
     type Blake2b256 = Blake2b<U32>;

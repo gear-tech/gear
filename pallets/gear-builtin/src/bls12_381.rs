@@ -123,7 +123,7 @@ fn multi_miller_loop<T: Config>(
         Ok(count_b) if count_b != count => {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Multi Miller loop: uneven item count",
-            )))
+            )));
         }
         Err(_) => return Err(BuiltinActorError::DecodingError),
         Ok(_) => (),
@@ -184,7 +184,7 @@ fn msm<T: Config>(
         Ok(count_b) if count_b != count => {
             return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Multi scalar multiplication: uneven item count",
-            )))
+            )));
         }
         Err(_) => {
             log::debug!(

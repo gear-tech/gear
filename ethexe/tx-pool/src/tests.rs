@@ -24,15 +24,14 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_db::{BlockHeader, BlockMetaStorage, Database, MemDb, OnChainStorage};
-use ethexe_signer::{Signer, ToDigest};
+use ethexe_common::{
+    BlockHeader,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+};
+use ethexe_db::Database;
 use gprimitives::{H160, H256};
-use parity_scale_codec::Encode;
 
 pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOffchainTransaction {
-    let signer = Signer::tmp();
-    let public_key = signer.generate_key().expect("failed to generate key");
-
     let transaction = OffchainTransaction {
         raw: RawOffchainTransaction::SendMessage {
             program_id: H160::random(),
@@ -40,14 +39,8 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOff
         },
         reference_block: reference_block_hash,
     };
-    let signature = signer
-        .sign_digest(public_key, transaction.encode().to_digest())
-        .expect("signing failed");
 
-    SignedOffchainTransaction {
-        transaction,
-        signature: signature.encode(),
-    }
+    SignedOffchainTransaction::create(H256::random().0.into(), transaction).unwrap()
 }
 
 pub(crate) struct BlocksManager {
@@ -106,7 +99,7 @@ fn now() -> u64 {
 async fn test_add_transaction() {
     gear_utils::init_default_logger();
 
-    let db = Database::from_one(&MemDb::default());
+    let db = Database::memory();
     let bm = BlocksManager::new(db.clone());
 
     let tx_pool = TxPoolService::new(db);

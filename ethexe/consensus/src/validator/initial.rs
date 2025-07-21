@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler, ValidatorContext,
+    DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
+    subordinate::Subordinate,
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::SimpleBlockData;
+use ethexe_common::{Address, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use ethexe_signer::Address;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -42,10 +42,6 @@ enum State {
 }
 
 impl StateHandler for Initial {
-    fn into_dyn(self: Box<Self>) -> Box<dyn StateHandler> {
-        self
-    }
-
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -54,14 +50,11 @@ impl StateHandler for Initial {
         &mut self.ctx
     }
 
-    fn into_context(self: Box<Self>) -> ValidatorContext {
+    fn into_context(self) -> ValidatorContext {
         self.ctx
     }
 
-    fn process_synced_block(
-        self: Box<Self>,
-        data: BlockSyncedData,
-    ) -> Result<Box<dyn StateHandler>> {
+    fn process_synced_block(self, data: BlockSyncedData) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingForSyncedBlock(block) if block.hash == data.block_hash => {
                 let producer = self.producer_for(block.header.timestamp, &data.validators);
@@ -95,22 +88,24 @@ impl StateHandler for Initial {
 }
 
 impl Initial {
-    pub fn create(ctx: ValidatorContext) -> Result<Box<dyn StateHandler>> {
-        Ok(Box::new(Self {
+    pub fn create(ctx: ValidatorContext) -> Result<ValidatorState> {
+        Ok(Self {
             ctx,
             state: State::WaitingForChainHead,
-        }))
+        }
+        .into())
     }
 
     // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-    ) -> Result<Box<dyn StateHandler>> {
-        Ok(Box::new(Self {
+    ) -> Result<ValidatorState> {
+        Ok(Self {
             ctx,
             state: State::WaitingForSyncedBlock(block),
-        }))
+        }
+        .into())
     }
 
     fn producer_for(&self, timestamp: u64, validators: &[Address]) -> Address {
@@ -126,23 +121,22 @@ impl Initial {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, ConsensusEvent};
+    use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use gprimitives::H256;
-    use std::any::TypeId;
 
     #[test]
     fn create_initial_success() {
         let (ctx, _) = mock_validator_context();
         let initial = Initial::create(ctx).unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
     }
 
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _) = mock_validator_context();
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
     }
 
     #[tokio::test]
@@ -154,7 +148,7 @@ mod tests {
             keys[1].to_address(),
         ];
 
-        let mut block = mock_simple_block_data();
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 0;
 
         let data = BlockSyncedData {
@@ -164,7 +158,7 @@ mod tests {
 
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         let producer = initial.process_synced_block(data).unwrap();
-        assert_eq!(producer.type_id(), TypeId::of::<Producer>());
+        assert!(producer.is_producer());
     }
 
     #[test]
@@ -176,7 +170,7 @@ mod tests {
             keys[2].to_address(),
         ];
 
-        let mut block = mock_simple_block_data();
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 1;
 
         let data = BlockSyncedData {
@@ -186,13 +180,13 @@ mod tests {
 
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         let producer = initial.process_synced_block(data).unwrap();
-        assert_eq!(producer.type_id(), TypeId::of::<Subordinate>());
+        assert!(producer.is_subordinate());
     }
 
     #[test]
     fn process_synced_block_rejected() {
         let (ctx, _) = mock_validator_context();
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
         let data = BlockSyncedData {
             block_hash: block.hash,
             validators: vec![],
@@ -202,7 +196,7 @@ mod tests {
             .unwrap()
             .process_synced_block(data)
             .unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
         assert!(matches!(
             initial.context().output[0],
             ConsensusEvent::Warning(_)
@@ -218,7 +212,7 @@ mod tests {
             .unwrap()
             .process_synced_block(data)
             .unwrap();
-        assert_eq!(initial.type_id(), TypeId::of::<Initial>());
+        assert!(initial.is_initial());
         assert!(matches!(
             initial.context().output[1],
             ConsensusEvent::Warning(_)

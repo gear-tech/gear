@@ -21,7 +21,7 @@
 use crate::{
     globals::GlobalsContext,
     mprotect::MprotectError,
-    pages::{GearPage, SizeManager, SizeNumber, WasmPage, WasmPagesAmount, SIZES_AMOUNT},
+    pages::{GearPage, SIZES_AMOUNT, SizeManager, SizeNumber, WasmPage, WasmPagesAmount},
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};

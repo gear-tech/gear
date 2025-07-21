@@ -17,30 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, IncomingDispatch,
-        IncomingMessage, Payload, ReplyDetails, Value,
+        ContextStore, DispatchKind, GasLimit, IncomingDispatch, IncomingMessage, ReplyDetails,
+        Value, common::MessageDetails,
     },
 };
 use core::ops::Deref;
 use gear_core_errors::ReplyCode;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Stored message.
 ///
 /// Gasless Message for storing.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct StoredMessage {
     /// Message id.
     pub(super) id: MessageId,
     /// Message source.
-    pub(super) source: ProgramId,
+    pub(super) source: ActorId,
     /// Message destination.
-    pub(super) destination: ProgramId,
+    pub(super) destination: ActorId,
     /// Message payload.
     pub(super) payload: Payload,
     /// Message value.
@@ -54,8 +53,8 @@ impl StoredMessage {
     /// Create new StoredMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         value: Value,
         details: Option<MessageDetails>,
@@ -75,8 +74,8 @@ impl StoredMessage {
         self,
     ) -> (
         MessageId,
-        ProgramId,
-        ProgramId,
+        ActorId,
+        ActorId,
         Payload,
         Value,
         Option<MessageDetails>,
@@ -109,12 +108,12 @@ impl StoredMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -156,7 +155,7 @@ impl StoredMessage {
 }
 
 /// Stored message with entry point and previous execution context, if exists.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct StoredDispatch {
     /// Entry point.
     kind: DispatchKind,
@@ -231,7 +230,7 @@ impl From<StoredDelayedDispatch> for StoredDispatch {
 /// We could use just [`StoredDispatch`]
 /// but delayed messages always don't have [`ContextStore`]
 /// so we designate this fact via new type.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct StoredDelayedDispatch {
     /// Entry point.
     kind: DispatchKind,

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::InputArgs;
-use gstd::{msg, prelude::*, ActorId, ReservationId};
+use gstd::{ActorId, ReservationId, msg, prelude::*};
 
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 static mut DELAY: u32 = 0;

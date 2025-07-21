@@ -143,39 +143,36 @@ mod mock;
 
 pub mod pallet_tests;
 
-pub mod migrations {}
+pub mod migrations;
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{scheduler::*, storage::*, CodeMetadata};
+    use common::{scheduler::*, storage::*};
     use frame_support::{
+        StoragePrefixedMap,
         pallet_prelude::*,
         storage::{Key, PrefixIterator},
         traits::StorageVersion,
-        StoragePrefixedMap,
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        code::InstrumentedCode,
-        ids::{CodeId, ProgramId},
+        code::{CodeMetadata, InstrumentedCode},
+        ids::{ActorId, CodeId},
         memory::PageBuf,
-        pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+        pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
         program::{MemoryInfix, Program},
         tasks::VaraScheduledTask,
     };
     use sp_runtime::DispatchError;
 
     /// The current storage version.
-    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(10);
+    pub(crate) const PROGRAM_STORAGE_VERSION: StorageVersion = StorageVersion::new(13);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// Scheduler.
-        type Scheduler: Scheduler<
-            BlockNumber = BlockNumberFor<Self>,
-            Task = VaraScheduledTask<Self::AccountId>,
-        >;
+        type Scheduler: Scheduler<BlockNumber = BlockNumberFor<Self>, Task = VaraScheduledTask<Self::AccountId>>;
 
         /// Custom block number tracker.
         type CurrentBlockNumber: Get<BlockNumberFor<Self>>;
@@ -218,23 +215,14 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type CodeStorage<T: Config> = StorageMap<_, Identity, CodeId, InstrumentedCode>;
+    pub(crate) type InstrumentedCodeStorage<T: Config> =
+        StorageMap<_, Identity, CodeId, InstrumentedCode>;
 
     common::wrap_storage_map!(
-        storage: CodeStorage,
-        name: CodeStorageWrap,
+        storage: InstrumentedCodeStorage,
+        name: InstrumentedCodeStorageWrap,
         key: CodeId,
         value: InstrumentedCode
-    );
-
-    #[pallet::storage]
-    pub(crate) type CodeLenStorage<T: Config> = StorageMap<_, Identity, CodeId, u32>;
-
-    common::wrap_storage_map!(
-        storage: CodeLenStorage,
-        name: CodeLenStorageWrap,
-        key: CodeId,
-        value: u32
     );
 
     #[pallet::storage]
@@ -250,11 +238,11 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type MetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
+    pub(crate) type CodeMetadataStorage<T: Config> = StorageMap<_, Identity, CodeId, CodeMetadata>;
 
     common::wrap_storage_map!(
-        storage: MetadataStorage,
-        name: MetadataStorageWrap,
+        storage: CodeMetadataStorage,
+        name: CodeMetadataStorageWrap,
         key: CodeId,
         value: CodeMetadata
     );
@@ -262,24 +250,24 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type AllocationsStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, IntervalsTree<WasmPage>>;
+        StorageMap<_, Identity, ActorId, IntervalsTree<WasmPage>>;
 
     common::wrap_storage_map!(
         storage: AllocationsStorage,
         name: AllocationsStorageWrap,
-        key: ProgramId,
+        key: ActorId,
         value: IntervalsTree<WasmPage>
     );
 
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type ProgramStorage<T: Config> =
-        StorageMap<_, Identity, ProgramId, Program<BlockNumberFor<T>>>;
+        StorageMap<_, Identity, ActorId, Program<BlockNumberFor<T>>>;
 
     common::wrap_storage_map!(
         storage: ProgramStorage,
         name: ProgramStorageWrap,
-        key: ProgramId,
+        key: ActorId,
         value: Program<BlockNumberFor<T>>
     );
 
@@ -288,7 +276,7 @@ pub mod pallet {
     pub(crate) type MemoryPages<T: Config> = StorageNMap<
         _,
         (
-            Key<Identity, ProgramId>,
+            Key<Identity, ActorId>,
             Key<Identity, MemoryInfix>,
             Key<Identity, GearPage>,
         ),
@@ -298,17 +286,16 @@ pub mod pallet {
     common::wrap_storage_triple_map!(
         storage: MemoryPages,
         name: MemoryPageStorageWrap,
-        key1: ProgramId,
+        key1: ActorId,
         key2: MemoryInfix,
         key3: GearPage,
         value: PageBuf
     );
 
     impl<T: Config> common::CodeStorage for pallet::Pallet<T> {
-        type InstrumentedCodeStorage = CodeStorageWrap<T>;
-        type InstrumentedLenStorage = CodeLenStorageWrap<T>;
-        type MetadataStorage = MetadataStorageWrap<T>;
-        type OriginalCodeStorage = OriginalCodeStorageWrap<T>;
+        type InstrumentedCodeMap = InstrumentedCodeStorageWrap<T>;
+        type OriginalCodeMap = OriginalCodeStorageWrap<T>;
+        type CodeMetadataMap = CodeMetadataStorageWrap<T>;
     }
 
     impl<T: Config> common::ProgramStorage for pallet::Pallet<T> {
@@ -326,9 +313,9 @@ pub mod pallet {
         }
     }
 
-    impl<T: Config> IterableMap<(ProgramId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
-        type DrainIter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
-        type Iter = PrefixIterator<(ProgramId, Program<BlockNumberFor<T>>)>;
+    impl<T: Config> IterableMap<(ActorId, Program<BlockNumberFor<T>>)> for pallet::Pallet<T> {
+        type DrainIter = PrefixIterator<(ActorId, Program<BlockNumberFor<T>>)>;
+        type Iter = PrefixIterator<(ActorId, Program<BlockNumberFor<T>>)>;
 
         fn drain() -> Self::DrainIter {
             ProgramStorage::<T>::drain()

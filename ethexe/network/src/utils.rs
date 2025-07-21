@@ -19,15 +19,15 @@
 use crate::db_sync::PeerId;
 use async_trait::async_trait;
 use libp2p::{
+    StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     request_response,
     swarm::ConnectionId,
-    StreamProtocol,
 };
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    io,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
+    fmt, io,
     marker::PhantomData,
 };
 
@@ -121,7 +121,7 @@ impl<Req, Resp> Clone for ParityScaleCodec<Req, Resp> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct ConnectionMap {
     inner: HashMap<PeerId, HashSet<ConnectionId>>,
     limit: Option<u32>,
@@ -142,11 +142,7 @@ impl ConnectionMap {
             .map(|connections| connections.len())
             .unwrap_or(0) as u32;
         let limit = self.limit.unwrap_or(u32::MAX);
-        if current < limit {
-            Ok(())
-        } else {
-            Err(limit)
-        }
+        if current < limit { Ok(()) } else { Err(limit) }
     }
 
     pub fn peers(&self) -> impl Iterator<Item = PeerId> {
@@ -171,6 +167,52 @@ impl ConnectionMap {
             if connections.is_empty() {
                 entry.remove();
             }
+        }
+    }
+}
+
+/// A helper struct for formatting collections (BTreeSet, BTreeMap) with two display modes:
+/// - alternate mode (`{:#?}`) - shows full collection contents
+/// - normal mode (`{:?}`) - shows only collection length and item type description
+#[allow(dead_code)] // clippy fails to detect it's actually used
+pub(crate) struct AlternateCollectionFmt<T> {
+    collection: T,
+    len: usize,
+    items: &'static str,
+}
+
+impl<'a, T> AlternateCollectionFmt<&'a BTreeSet<T>> {
+    #[allow(dead_code)]
+    pub fn set(collection: &'a BTreeSet<T>, items: &'static str) -> Self {
+        Self {
+            len: collection.len(),
+            collection,
+            items,
+        }
+    }
+}
+
+impl<'a, K, V> AlternateCollectionFmt<&'a BTreeMap<K, V>> {
+    #[allow(dead_code)]
+    pub fn map(collection: &'a BTreeMap<K, V>, items: &'static str) -> Self {
+        Self {
+            len: collection.len(),
+            collection,
+            items,
+        }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for AlternateCollectionFmt<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            self.collection.fmt(f)
+        } else {
+            f.write_fmt(format_args!(
+                "{len} {items}",
+                len = self.len,
+                items = self.items
+            ))
         }
     }
 }

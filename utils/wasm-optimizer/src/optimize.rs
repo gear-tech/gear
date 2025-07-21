@@ -19,7 +19,7 @@
 use colored::Colorize;
 
 use crate::stack_end;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use gear_wasm_instrument::{Module, STACK_END_EXPORT_NAME};
 use std::{
     fs::{self, metadata},
@@ -169,10 +169,7 @@ pub fn do_optimization<P: AsRef<Path>>(
         .as_path();
     log::info!("Path to wasm-opt executable: {}", wasm_opt_path.display());
 
-    log::info!(
-        "Optimization level passed to wasm-opt: {}",
-        optimization_level
-    );
+    log::info!("Optimization level passed to wasm-opt: {optimization_level}");
     let mut command = Command::new(wasm_opt_path);
     command
         .arg(dest_wasm.as_ref())
@@ -193,7 +190,7 @@ pub fn do_optimization<P: AsRef<Path>>(
     if keep_debug_symbols {
         command.arg("-g");
     }
-    log::info!("Invoking wasm-opt with {:?}", command);
+    log::info!("Invoking wasm-opt with {command:?}");
     let output = command.output().unwrap();
 
     if !output.status.success() {

@@ -7,7 +7,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 import {IMiddleware} from "./IMiddleware.sol";
-import {IRouter} from "./IRouter.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
@@ -28,6 +27,10 @@ import {IDefaultStakerRewardsFactory} from
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ReentrancyGuardTransientUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // TODO (asap): document all functions and variables
 // TODO (asap): add validators commission
@@ -35,8 +38,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-// TODO: implement migreatable or upgreadable logic
-contract Middleware is IMiddleware {
+contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -45,187 +47,288 @@ contract Middleware is IMiddleware {
 
     using Subnetwork for address;
 
-    uint96 public constant NETWORK_IDENTIFIER = 0;
-    uint48 public immutable ERA_DURATION;
-    uint48 public immutable MIN_VAULT_EPOCH_DURATION;
-    uint48 public immutable OPERATOR_GRACE_PERIOD;
-    uint48 public immutable VAULT_GRACE_PERIOD;
-    uint48 public immutable MIN_VETO_DURATION;
-    uint48 public immutable MIN_SLASH_EXECUTION_DELAY;
-    uint64 public immutable ALLOWED_VAULT_IMPL_VERSION;
-    uint64 public immutable VETO_SLASHER_IMPL_TYPE;
-    uint256 public immutable MAX_RESOLVER_SET_EPOCHS_DELAY;
+    // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant SLOT_STORAGE = 0x0b8c56af6cc9ad401ad225bfe96df77f3049ba17eadac1cb95ee89df1e69d100;
 
-    address public immutable VAULT_REGISTRY;
-    address public immutable OPERATOR_REGISTRY;
-    address public immutable NETWORK_REGISTRY;
-    address public immutable NETWORK_OPT_IN;
-    address public immutable MIDDLEWARE_SERVICE;
+    bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
+    uint8 private constant NETWORK_IDENTIFIER = 0;
 
-    // TODO #4609
-    address public immutable COLLATERAL;
-    address public immutable VETO_RESOLVER;
-    bytes32 public immutable SUBNETWORK;
-
-    address public immutable OPERATOR_REWARDS;
-    address public immutable OPERATOR_REWARDS_FACTORY;
-    address public immutable STAKER_REWARDS_FACTORY;
-
-    // TODO: calculate better commission for admin fee
-    uint256 public MAX_ADMIN_FEE = 1000;
-
-    address public immutable ROUTER;
-
-    address public roleSlashRequester;
-    address public roleSlashExecutor;
-
-    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
-
-    EnumerableMap.AddressToUintMap private operators;
-
-    // vault -> (enableTime, disableTime, rewards)
-    EnumerableMap.AddressToUintMap private vaults;
-
-    constructor(InitParams memory params) {
-        _validateInitParams(params);
-
-        ROUTER = params.router;
-
-        ERA_DURATION = params.eraDuration;
-        MIN_VAULT_EPOCH_DURATION = params.minVaultEpochDuration;
-        OPERATOR_GRACE_PERIOD = params.operatorGracePeriod;
-        VAULT_GRACE_PERIOD = params.vaultGracePeriod;
-        MIN_VETO_DURATION = params.minVetoDuration;
-        MIN_SLASH_EXECUTION_DELAY = params.minSlashExecutionDelay;
-        MAX_RESOLVER_SET_EPOCHS_DELAY = params.maxResolverSetEpochsDelay;
-        VAULT_REGISTRY = params.vaultRegistry;
-        ALLOWED_VAULT_IMPL_VERSION = params.allowedVaultImplVersion;
-        VETO_SLASHER_IMPL_TYPE = params.vetoSlasherImplType;
-        OPERATOR_REGISTRY = params.operatorRegistry;
-        NETWORK_REGISTRY = params.networkRegistry;
-        NETWORK_OPT_IN = params.networkOptIn;
-        MIDDLEWARE_SERVICE = params.middlewareService;
-        COLLATERAL = params.collateral;
-        VETO_RESOLVER = params.vetoResolver;
-
-        roleSlashRequester = params.roleSlashRequester;
-        roleSlashExecutor = params.roleSlashExecutor;
-
-        SUBNETWORK = address(this).subnetwork(NETWORK_IDENTIFIER);
-
-        OPERATOR_REWARDS = params.operatorRewards;
-        OPERATOR_REWARDS_FACTORY = params.operatorRewardsFactory;
-        STAKER_REWARDS_FACTORY = params.stakerRewardsFactory;
-
-        // Presently network and middleware are the same address
-        INetworkRegistry(NETWORK_REGISTRY).registerNetwork();
-        INetworkMiddlewareService(MIDDLEWARE_SERVICE).setMiddleware(address(this));
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    function changeSlashRequester(address newRole) external _onlyRole(roleSlashRequester) {
-        roleSlashRequester = newRole;
+    function initialize(InitParams calldata _params) public initializer {
+        __Ownable_init(_params.owner);
+        __ReentrancyGuardTransient_init();
+
+        _setStorageSlot("middleware.storage.MiddlewareV1");
+        Storage storage $ = _storage();
+
+        $.eraDuration = _params.eraDuration;
+        $.minVaultEpochDuration = _params.minVaultEpochDuration;
+        $.operatorGracePeriod = _params.operatorGracePeriod;
+        $.vaultGracePeriod = _params.vaultGracePeriod;
+        $.minVetoDuration = _params.minVetoDuration;
+        $.minSlashExecutionDelay = _params.minSlashExecutionDelay;
+        $.maxResolverSetEpochsDelay = _params.maxResolverSetEpochsDelay;
+        $.allowedVaultImplVersion = _params.allowedVaultImplVersion;
+        $.vetoSlasherImplType = _params.vetoSlasherImplType;
+
+        // TODO #4609
+        $.collateral = _params.collateral;
+        $.subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
+        $.maxAdminFee = _params.maxAdminFee;
+
+        $.operatorRewards = _params.operatorRewards;
+
+        $.router = _params.router;
+
+        $.roleSlashRequester = _params.roleSlashRequester;
+        $.roleSlashExecutor = _params.roleSlashExecutor;
+        $.vetoResolver = _params.vetoResolver;
+
+        $.registries = _params.registries;
+
+        INetworkRegistry(_params.registries.networkRegistry).registerNetwork();
+        INetworkMiddlewareService(_params.registries.middlewareService).setMiddleware(address(this));
+
+        _validateStorage($);
     }
 
-    function changeSlashExecutor(address newRole) external _onlyRole(roleSlashExecutor) {
-        roleSlashExecutor = newRole;
+    /// @custom:oz-upgrades-validate-as-initializer
+    function reinitialize() public onlyOwner reinitializer(2) {
+        __Ownable_init(owner());
+
+        Storage storage oldStorage = _storage();
+
+        _setStorageSlot("middleware.storage.MiddlewareV2");
+        Storage storage newStorage = _storage();
+
+        newStorage.eraDuration = oldStorage.eraDuration;
+        newStorage.minVaultEpochDuration = oldStorage.minVaultEpochDuration;
+        newStorage.operatorGracePeriod = oldStorage.operatorGracePeriod;
+        newStorage.vaultGracePeriod = oldStorage.vaultGracePeriod;
+        newStorage.minVetoDuration = oldStorage.minVetoDuration;
+        newStorage.minSlashExecutionDelay = oldStorage.minSlashExecutionDelay;
+        newStorage.maxResolverSetEpochsDelay = oldStorage.maxResolverSetEpochsDelay;
+        newStorage.allowedVaultImplVersion = oldStorage.allowedVaultImplVersion;
+        newStorage.vetoSlasherImplType = oldStorage.vetoSlasherImplType;
+        newStorage.collateral = oldStorage.collateral;
+        newStorage.subnetwork = oldStorage.subnetwork;
+        newStorage.maxAdminFee = oldStorage.maxAdminFee;
+        newStorage.operatorRewards = oldStorage.operatorRewards;
+        newStorage.router = oldStorage.router;
+        newStorage.roleSlashRequester = oldStorage.roleSlashRequester;
+        newStorage.roleSlashExecutor = oldStorage.roleSlashExecutor;
+        newStorage.vetoResolver = oldStorage.vetoResolver;
+        newStorage.registries = oldStorage.registries;
+
+        for (uint256 i = 0; i < oldStorage.operators.length(); i++) {
+            (address key, uint256 value) = oldStorage.operators.at(i);
+            newStorage.operators.set(key, value);
+        }
+
+        for (uint256 i = 0; i < oldStorage.vaults.length(); i++) {
+            (address key, uint256 value) = oldStorage.vaults.at(i);
+            newStorage.vaults.set(key, value);
+        }
+    }
+
+    // # Views
+    function eraDuration() public view returns (uint48) {
+        return _storage().eraDuration;
+    }
+
+    function minVaultEpochDuration() public view returns (uint48) {
+        return _storage().minVaultEpochDuration;
+    }
+
+    function operatorGracePeriod() external view returns (uint48) {
+        return _storage().operatorGracePeriod;
+    }
+
+    function vaultGracePeriod() external view returns (uint48) {
+        return _storage().vaultGracePeriod;
+    }
+
+    function minVetoDuration() external view returns (uint48) {
+        return _storage().minVetoDuration;
+    }
+
+    function minSlashExecutionDelay() external view returns (uint48) {
+        return _storage().minSlashExecutionDelay;
+    }
+
+    function maxResolverSetEpochsDelay() external view returns (uint256) {
+        return _storage().maxResolverSetEpochsDelay;
+    }
+
+    function allowedVaultImplVersion() external view returns (uint64) {
+        return _storage().allowedVaultImplVersion;
+    }
+
+    function vetoSlasherImplType() external view returns (uint64) {
+        return _storage().vetoSlasherImplType;
+    }
+
+    function collateral() external view returns (address) {
+        return _storage().collateral;
+    }
+
+    function subnetwork() external view returns (bytes32) {
+        return _storage().subnetwork;
+    }
+
+    function maxAdminFee() external view returns (uint256) {
+        return _storage().maxAdminFee;
+    }
+
+    function operatorRewards() external view returns (address) {
+        return _storage().operatorRewards;
+    }
+
+    function router() external view returns (address) {
+        return _storage().router;
+    }
+
+    function roleSlashRequester() external view returns (address) {
+        return _storage().roleSlashRequester;
+    }
+
+    function roleSlashExecutor() external view returns (address) {
+        return _storage().roleSlashExecutor;
+    }
+
+    function operatorRegistry() external view returns (address) {
+        return _storage().registries.operatorRegistry;
+    }
+
+    // # Calls.
+
+    function changeSlashRequester(address newRole) external {
+        Storage storage $ = _storage();
+        if (msg.sender != $.roleSlashRequester) {
+            revert NotSlashRequester();
+        }
+        $.roleSlashRequester = newRole;
+    }
+
+    function changeSlashExecutor(address newRole) external {
+        Storage storage $ = _storage();
+        if (msg.sender != $.roleSlashExecutor) {
+            revert NotSlashExecutor();
+        }
+        $.roleSlashExecutor = newRole;
     }
 
     // TODO: Check that total stake is big enough
     function registerOperator() external {
-        if (!IRegistry(OPERATOR_REGISTRY).isEntity(msg.sender)) {
+        Storage storage $ = _storage();
+
+        if (!IRegistry($.registries.operatorRegistry).isEntity(msg.sender)) {
             revert OperatorDoesNotExist();
         }
-        if (!IOptInService(NETWORK_OPT_IN).isOptedIn(msg.sender, address(this))) {
+        if (!IOptInService($.registries.networkOptIn).isOptedIn(msg.sender, address(this))) {
             revert OperatorDoesNotOptIn();
         }
-        operators.append(msg.sender, 0);
+
+        $.operators.append(msg.sender, 0);
     }
 
     function disableOperator() external {
-        operators.disable(msg.sender);
+        _storage().operators.disable(msg.sender);
     }
 
     function enableOperator() external {
-        operators.enable(msg.sender);
+        _storage().operators.enable(msg.sender);
     }
 
     function unregisterOperator(address operator) external {
-        (, uint48 disabledTime) = operators.getTimes(operator);
+        Storage storage $ = _storage();
 
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + OPERATOR_GRACE_PERIOD) {
+        (, uint48 disabledTime) = $.operators.getTimes(operator);
+
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + $.operatorGracePeriod) {
             revert OperatorGracePeriodNotPassed();
         }
 
-        operators.remove(operator);
+        $.operators.remove(operator);
     }
 
-    function distributeOperatorRewards(address token, uint256 amount, bytes32 root)
-        external
-        _onlyRouter
-        returns (bytes32)
-    {
-        if (token != COLLATERAL) {
+    function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32) {
+        Storage storage $ = _storage();
+
+        if (msg.sender != $.router) {
+            revert NotRouter();
+        }
+
+        if (token != $.collateral) {
             revert UnknownCollateral();
         }
 
-        IDefaultOperatorRewards(OPERATOR_REWARDS).distributeRewards(ROUTER, token, amount, root);
+        IDefaultOperatorRewards($.operatorRewards).distributeRewards($.router, token, amount, root);
 
-        return keccak256(abi.encodePacked(token, amount, root));
+        return keccak256(abi.encodePacked(amount, root));
     }
 
     function distributeStakerRewards(Gear.StakerRewardsCommitment memory _commitment, uint48 timestamp)
         external
-        _onlyRouter
         returns (bytes32)
     {
-        if (_commitment.token != COLLATERAL) {
+        Storage storage $ = _storage();
+
+        if (msg.sender != $.router) {
+            revert NotRouter();
+        }
+
+        if (_commitment.token != $.collateral) {
             revert UnknownCollateral();
         }
 
-        bytes memory rewardsHashes;
+        bytes memory distributionBytes;
         for (uint256 i = 0; i < _commitment.distribution.length; ++i) {
             Gear.StakerRewards memory rewards = _commitment.distribution[i];
 
-            if (!vaults.contains(rewards.vault)) {
-                revert UnknownVault();
+            if (!$.vaults.contains(rewards.vault)) {
+                revert NotRegisteredVault();
             }
 
-            address rewardsAddress = address(vaults.getPinnedData(rewards.vault));
+            address rewardsAddress = address($.vaults.getPinnedData(rewards.vault));
 
-            bytes memory data = abi.encode(timestamp, MAX_ADMIN_FEE, bytes(""), bytes(""));
-            IDefaultStakerRewards(rewardsAddress).distributeRewards(ROUTER, _commitment.token, rewards.amount, data);
+            bytes memory data = abi.encode(timestamp, $.maxAdminFee, bytes(""), bytes(""));
+            IDefaultStakerRewards(rewardsAddress).distributeRewards($.router, _commitment.token, rewards.amount, data);
 
-            bytes32 rewardsHash =
-                keccak256(abi.encodePacked(_commitment.token, rewards.amount, rewards.vault, timestamp));
-            rewardsHashes = bytes.concat(rewardsHashes, rewardsHash);
+            distributionBytes = bytes.concat(distributionBytes, abi.encodePacked(rewards.vault, rewards.amount));
         }
 
-        return keccak256(rewardsHashes);
+        return keccak256(bytes.concat(distributionBytes, abi.encodePacked(_commitment.totalAmount, _commitment.token)));
     }
 
     function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {
         _validateVault(_vault);
         _validateStakerRewards(_vault, _rewards);
 
-        vaults.append(_vault, uint160(_rewards));
+        _storage().vaults.append(_vault, uint160(_rewards));
     }
 
     function disableVault(address vault) external _vaultOwner(vault) {
-        vaults.disable(vault);
+        _storage().vaults.disable(vault);
     }
 
     function enableVault(address vault) external _vaultOwner(vault) {
-        vaults.enable(vault);
+        _storage().vaults.enable(vault);
     }
 
     function unregisterVault(address vault) external _vaultOwner(vault) {
-        (, uint48 disabledTime) = vaults.getTimes(vault);
+        Storage storage $ = _storage();
+        (, uint48 disabledTime) = $.vaults.getTimes(vault);
 
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + VAULT_GRACE_PERIOD) {
+        if (disabledTime == 0 || Time.timestamp() < disabledTime + $.vaultGracePeriod) {
             revert VaultGracePeriodNotPassed();
         }
 
-        vaults.remove(vault);
+        $.vaults.remove(vault);
     }
 
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
@@ -277,7 +380,7 @@ contract Middleware is IMiddleware {
         _validTimestamp(ts)
         returns (uint256 stake)
     {
-        (uint48 enabledTime, uint48 disabledTime) = operators.getTimes(operator);
+        (uint48 enabledTime, uint48 disabledTime) = _storage().operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
             return 0;
         }
@@ -292,13 +395,14 @@ contract Middleware is IMiddleware {
         _validTimestamp(ts)
         returns (address[] memory activeOperators, uint256[] memory stakes)
     {
-        activeOperators = new address[](operators.length());
-        stakes = new uint256[](operators.length());
+        Storage storage $ = _storage();
+        activeOperators = new address[]($.operators.length());
+        stakes = new uint256[]($.operators.length());
 
         uint256 operatorIdx = 0;
 
-        for (uint256 i; i < operators.length(); ++i) {
-            (address operator, uint48 enabled, uint48 disabled) = operators.atWithTimes(i);
+        for (uint256 i; i < $.operators.length(); ++i) {
+            (address operator, uint48 enabled, uint48 disabled) = $.operators.atWithTimes(i);
 
             if (!_wasActiveAt(enabled, disabled, ts)) {
                 continue;
@@ -315,33 +419,43 @@ contract Middleware is IMiddleware {
         }
     }
 
-    function requestSlash(SlashData[] calldata data) external _onlyRole(roleSlashRequester) {
+    function requestSlash(SlashData[] calldata data) external {
+        Storage storage $ = _storage();
+
+        if (msg.sender != $.roleSlashRequester) {
+            revert NotSlashRequester();
+        }
+
         for (uint256 i; i < data.length; ++i) {
             SlashData calldata slashData = data[i];
-            if (!operators.contains(slashData.operator)) {
+            if (!$.operators.contains(slashData.operator)) {
                 revert NotRegisteredOperator();
             }
 
             for (uint256 j; j < slashData.vaults.length; ++j) {
                 VaultSlashData calldata vaultData = slashData.vaults[j];
 
-                if (!vaults.contains(vaultData.vault)) {
+                if (!$.vaults.contains(vaultData.vault)) {
                     revert NotRegisteredVault();
                 }
 
                 address slasher = IVault(vaultData.vault).slasher();
                 IVetoSlasher(slasher).requestSlash(
-                    SUBNETWORK, slashData.operator, vaultData.amount, slashData.ts, new bytes(0)
+                    $.subnetwork, slashData.operator, vaultData.amount, slashData.ts, new bytes(0)
                 );
             }
         }
     }
 
-    function executeSlash(SlashIdentifier[] calldata slashes) external _onlyRole(roleSlashExecutor) {
+    function executeSlash(SlashIdentifier[] calldata slashes) external {
+        if (msg.sender != _storage().roleSlashRequester) {
+            revert NotSlashRequester();
+        }
+
         for (uint256 i; i < slashes.length; ++i) {
             SlashIdentifier calldata slash = slashes[i];
 
-            if (!vaults.contains(slash.vault)) {
+            if (!_storage().vaults.contains(slash.vault)) {
                 revert NotRegisteredVault();
             }
 
@@ -350,14 +464,15 @@ contract Middleware is IMiddleware {
     }
 
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
-        for (uint256 i; i < vaults.length(); ++i) {
-            (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = vaults.atWithTimes(i);
+        Storage storage $ = _storage();
+        for (uint256 i; i < $.vaults.length(); ++i) {
+            (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = $.vaults.atWithTimes(i);
 
             if (!_wasActiveAt(vaultEnabledTime, vaultDisabledTime, ts)) {
                 continue;
             }
 
-            stake += IBaseDelegator(IVault(vault).delegator()).stakeAt(SUBNETWORK, operator, ts, new bytes(0));
+            stake += IBaseDelegator(IVault(vault).delegator()).stakeAt($.subnetwork, operator, ts, new bytes(0));
         }
     }
 
@@ -368,68 +483,67 @@ contract Middleware is IMiddleware {
     // Supports only null hook for now
     function _delegatorHookCheck(address hook) private pure {
         if (hook != address(0)) {
-            revert UnsupportedHook();
+            revert UnsupportedDelegatorHook();
         }
     }
 
-    function _validateInitParams(InitParams memory params) private pure {
-        require(params.eraDuration > 0, "Era duration cannot be zero");
+    function _validateStorage(Storage storage $) private view {
+        require($.eraDuration > 0, "Era duration cannot be zero");
 
         // Middleware must support cases when election for next era is made before the start of the next era,
         // so the min vaults epoch duration must be bigger than `eraDuration + electionDelay`.
         // The election delay is less than or equal to the era duration, so limit `2 * eraDuration` is enough.
-        require(
-            params.minVaultEpochDuration >= 2 * params.eraDuration,
-            "Min vaults epoch duration must be bigger than 2 eras"
-        );
+        require($.minVaultEpochDuration >= 2 * $.eraDuration, "Min vaults epoch duration must be bigger than 2 eras");
 
         // Operator grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            params.operatorGracePeriod >= params.minVaultEpochDuration,
+            $.operatorGracePeriod >= $.minVaultEpochDuration,
             "Operator grace period must be bigger than min vaults epoch duration"
         );
 
         // Vault grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
         require(
-            params.vaultGracePeriod >= params.minVaultEpochDuration,
+            $.vaultGracePeriod >= $.minVaultEpochDuration,
             "Vault grace period must be bigger than min vaults epoch duration"
         );
 
         // Give some time for the resolvers to veto slashes.
-        require(params.minVetoDuration > 0, "Veto duration cannot be zero");
+        require($.minVetoDuration > 0, "Veto duration cannot be zero");
 
         // Symbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
         // But we also want to guarantee that there is some time to execute the slash.
-        require(params.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
+        require($.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
         require(
-            params.minVetoDuration + params.minSlashExecutionDelay <= params.minVaultEpochDuration,
+            $.minVetoDuration + $.minSlashExecutionDelay <= $.minVaultEpochDuration,
             "Veto duration and slash execution delay must be less than or equal to min vaults epoch duration"
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
         // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
-        require(params.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
+        require($.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
     }
 
     // TODO: check vault has enough stake
     function _validateVault(address _vault) private {
-        if (!IRegistry(VAULT_REGISTRY).isEntity(_vault)) {
+        Storage storage $ = _storage();
+
+        if (!IRegistry($.registries.vaultRegistry).isEntity(_vault)) {
             revert NonFactoryVault();
         }
 
-        if (IMigratableEntity(_vault).version() != ALLOWED_VAULT_IMPL_VERSION) {
+        if (IMigratableEntity(_vault).version() != $.allowedVaultImplVersion) {
             revert IncompatibleVaultVersion();
         }
 
-        if (IVault(_vault).collateral() != COLLATERAL) {
+        if (IVault(_vault).collateral() != $.collateral) {
             revert UnknownCollateral();
         }
 
         /* Checking time */
         uint48 vaultEpochDuration = IVault(_vault).epochDuration();
-        if (vaultEpochDuration < MIN_VAULT_EPOCH_DURATION) {
+        if (vaultEpochDuration < $.minVaultEpochDuration) {
             revert VaultWrongEpochDuration();
         }
 
@@ -439,7 +553,7 @@ contract Middleware is IMiddleware {
         }
 
         IBaseDelegator delegator = IBaseDelegator(IVault(_vault).delegator());
-        if (delegator.maxNetworkLimit(SUBNETWORK) != type(uint256).max) {
+        if (delegator.maxNetworkLimit($.subnetwork) != type(uint256).max) {
             delegator.setMaxNetworkLimit(NETWORK_IDENTIFIER, type(uint256).max);
         }
         _delegatorHookCheck(IBaseDelegator(delegator).hook());
@@ -450,7 +564,7 @@ contract Middleware is IMiddleware {
         }
 
         address slasher = IVault(_vault).slasher();
-        if (IEntity(slasher).TYPE() != VETO_SLASHER_IMPL_TYPE) {
+        if (IEntity(slasher).TYPE() != $.vetoSlasherImplType) {
             revert IncompatibleSlasherType();
         }
 
@@ -459,22 +573,22 @@ contract Middleware is IMiddleware {
         }
 
         uint48 vetoDuration = IVetoSlasher(slasher).vetoDuration();
-        if (vetoDuration < MIN_VETO_DURATION) {
+        if (vetoDuration < $.minVetoDuration) {
             revert VetoDurationTooShort();
         }
 
-        if (vetoDuration + MIN_SLASH_EXECUTION_DELAY > vaultEpochDuration) {
+        if (vetoDuration + $.minSlashExecutionDelay > vaultEpochDuration) {
             revert VetoDurationTooLong();
         }
 
-        if (IVetoSlasher(slasher).resolverSetEpochsDelay() > MAX_RESOLVER_SET_EPOCHS_DELAY) {
+        if (IVetoSlasher(slasher).resolverSetEpochsDelay() > $.maxResolverSetEpochsDelay) {
             revert ResolverSetDelayTooLong();
         }
 
-        address resolver = IVetoSlasher(slasher).resolver(SUBNETWORK, new bytes(0));
+        address resolver = IVetoSlasher(slasher).resolver($.subnetwork, new bytes(0));
         if (resolver == address(0)) {
-            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, VETO_RESOLVER, new bytes(0));
-        } else if (resolver != VETO_RESOLVER) {
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, $.vetoResolver, new bytes(0));
+        } else if (resolver != $.vetoResolver) {
             // TODO: consider how to support this case
             revert ResolverMismatch();
         }
@@ -486,8 +600,8 @@ contract Middleware is IMiddleware {
     }
 
     function _validateStakerRewards(address _vault, address _rewards) private view {
-        if (!IRegistry(STAKER_REWARDS_FACTORY).isEntity(_rewards)) {
-            revert UnknownStakerRewards();
+        if (!IRegistry(_storage().registries.stakerRewardsFactory).isEntity(_rewards)) {
+            revert NonFactoryStakerRewards();
         }
 
         if (IDefaultStakerRewards(_rewards).VAULT() != _vault) {
@@ -502,11 +616,12 @@ contract Middleware is IMiddleware {
     // Timestamp must be always in the past, but not too far,
     // so that some operators or vaults can be already unregistered.
     modifier _validTimestamp(uint48 ts) {
+        Storage storage $ = _storage();
         if (ts >= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
 
-        uint48 gracePeriod = OPERATOR_GRACE_PERIOD < VAULT_GRACE_PERIOD ? OPERATOR_GRACE_PERIOD : VAULT_GRACE_PERIOD;
+        uint48 gracePeriod = $.operatorGracePeriod < $.vaultGracePeriod ? $.operatorGracePeriod : $.vaultGracePeriod;
         if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
@@ -514,24 +629,26 @@ contract Middleware is IMiddleware {
         _;
     }
 
-    // TODO: consider to remove this
-    modifier _onlyRole(address role) {
-        if (msg.sender != role) {
-            revert RoleMismatch();
+    function _storage() private view returns (Storage storage middleware) {
+        bytes32 slot = _getStorageSlot();
+
+        assembly ("memory-safe") {
+            middleware.slot := slot
         }
-        _;
+    }
+
+    function _getStorageSlot() private view returns (bytes32) {
+        return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
+    }
+
+    function _setStorageSlot(string memory namespace) private onlyOwner {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 
     modifier _vaultOwner(address vault) {
         if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert NotVaultOwner();
-        }
-        _;
-    }
-
-    modifier _onlyRouter() {
-        if (msg.sender != ROUTER) {
-            revert NotRouter();
         }
         _;
     }

@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{prelude::*, MessageId, ProgramId, ReservationId},
+    buffer::Payload,
+    ids::{ActorId, MessageId, ReservationId, prelude::*},
     message::{
-        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket, Payload,
+        Dispatch, HandleMessage, HandlePacket, IncomingMessage, InitMessage, InitPacket,
         ReplyMessage, ReplyPacket,
     },
     reservation::{GasReserver, ReservationNonce},
@@ -29,15 +30,13 @@ use alloc::{
     vec::Vec,
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use super::{DispatchKind, IncomingDispatch, Packet};
 
 /// Context settings.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ContextSettings {
     /// Fee for sending message.
     pub sending_fee: u64,
@@ -85,7 +84,7 @@ pub struct ContextOutcomeDrain {
 /// Context outcome.
 ///
 /// Contains all outgoing messages and wakes that should be done after execution.
-#[derive(Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct ContextOutcome {
     init: Vec<OutgoingMessageInfo<InitMessage>>,
     handle: Vec<OutgoingMessageInfo<HandleMessage>>,
@@ -96,19 +95,23 @@ pub struct ContextOutcome {
     // TODO: add Option<ReservationId> after #1828
     reply_deposits: Vec<(MessageId, u64)>,
     // Additional information section.
-    program_id: ProgramId,
-    source: ProgramId,
+    program_id: ActorId,
+    source: ActorId,
     origin_msg_id: MessageId,
 }
 
 impl ContextOutcome {
     /// Create new ContextOutcome.
-    fn new(program_id: ProgramId, source: ProgramId, origin_msg_id: MessageId) -> Self {
+    fn new(program_id: ActorId, source: ActorId, origin_msg_id: MessageId) -> Self {
         Self {
+            init: Vec::new(),
+            handle: Vec::new(),
+            reply: None,
+            awakening: Vec::new(),
+            reply_deposits: Vec::new(),
             program_id,
             source,
             origin_msg_id,
-            ..Default::default()
         }
     }
 
@@ -142,7 +145,7 @@ impl ContextOutcome {
     }
 }
 /// Store of current temporary message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct OutgoingPayloads {
     handles: BTreeMap<u32, Option<Payload>>,
     reply: Option<Payload>,
@@ -150,10 +153,10 @@ pub struct OutgoingPayloads {
 }
 
 /// Store of previous message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
-    initialized: BTreeSet<ProgramId>,
+    initialized: BTreeSet<ActorId>,
     reservation_nonce: ReservationNonce,
     system_reservation: Option<u64>,
     /// Used to prevent creating messages with the same ID in DB. Before this was achieved by using `outgoing.len()`
@@ -166,7 +169,7 @@ impl ContextStore {
     // TODO: Remove, only used in migrations (#issue 3721)
     /// Create a new context store with the provided parameters.
     pub fn new(
-        initialized: BTreeSet<ProgramId>,
+        initialized: BTreeSet<ActorId>,
         reservation_nonce: ReservationNonce,
         system_reservation: Option<u64>,
         local_nonce: u32,
@@ -209,7 +212,7 @@ impl ContextStore {
 }
 
 /// Context of currently processing incoming message.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MessageContext {
     kind: DispatchKind,
     current: IncomingMessage,
@@ -222,11 +225,7 @@ pub struct MessageContext {
 impl MessageContext {
     /// Create new message context.
     /// Returns `None` if outgoing messages bytes limit exceeded.
-    pub fn new(
-        dispatch: IncomingDispatch,
-        program_id: ProgramId,
-        settings: ContextSettings,
-    ) -> Self {
+    pub fn new(dispatch: IncomingDispatch, program_id: ActorId, settings: ContextSettings) -> Self {
         let (kind, message, store) = dispatch.into_parts();
 
         Self {
@@ -277,7 +276,7 @@ impl MessageContext {
         &mut self,
         packet: InitPacket,
         delay: u32,
-    ) -> Result<(MessageId, ProgramId), Error> {
+    ) -> Result<(MessageId, ActorId), Error> {
         let program_id = packet.destination();
 
         if self.store.initialized.contains(&program_id) {
@@ -415,7 +414,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -428,17 +427,17 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input = self.current.payload_bytes();
+        let input_len = self.current.payload().inner().len();
         let offset = offset as usize;
         let len = len as usize;
 
         // Check `offset` is not out of bounds.
-        if offset >= input.len() {
+        if offset >= input_len {
             return Err(Error::OutOfBoundsInputSliceOffset);
         }
 
         // Check `len` for the current `offset` doesn't refer to the slice out of input bounds.
-        let available_len = input.len() - offset;
+        let available_len = input_len - offset;
         if len > available_len {
             return Err(Error::OutOfBoundsInputSliceLength);
         }
@@ -497,7 +496,7 @@ impl MessageContext {
     }
 
     /// Return reply destination.
-    pub fn reply_destination(&self) -> ProgramId {
+    pub fn reply_destination(&self) -> ActorId {
         self.outcome.source
     }
 
@@ -518,7 +517,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload_bytes()[offset..excluded_end])
+            .try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -571,13 +570,8 @@ impl MessageContext {
         &self.current
     }
 
-    /// Mutable reference to currently processed incoming message.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        self.current.payload_mut()
-    }
-
     /// Current program's id.
-    pub fn program_id(&self) -> ProgramId {
+    pub fn program_id(&self) -> ActorId {
         self.outcome.program_id
     }
 
@@ -637,10 +631,10 @@ mod tests {
             ContextSettings::with_outgoing_limits(1024, u32::MAX),
         );
 
-        // first init to default ProgramId.
+        // first init to default ActorId.
         assert_ok!(message_context.init_program(Default::default(), 0));
 
-        // second init to same default ProgramId should get error.
+        // second init to same default ActorId should get error.
         assert_err!(
             message_context.init_program(Default::default(), 0),
             Error::DuplicateInit,
@@ -760,7 +754,7 @@ mod tests {
     fn send_push_input_bytes_exceeded() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2, 3, 4, 5].try_into().unwrap(),
             0,
             0,
@@ -919,7 +913,7 @@ mod tests {
         // Creating an incoming message around which the runner builds the `MessageContext`
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,
@@ -993,12 +987,14 @@ mod tests {
         );
 
         // And checking that it is not formed
-        assert!(context
-            .outgoing_payloads
-            .handles
-            .get(&expected_handle)
-            .expect("This key should be")
-            .is_some());
+        assert!(
+            context
+                .outgoing_payloads
+                .handles
+                .get(&expected_handle)
+                .expect("This key should be")
+                .is_some()
+        );
 
         // Checking that we are able to push payload for the
         // message that we have not committed yet
@@ -1060,7 +1056,7 @@ mod tests {
     fn duplicate_waking() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,
@@ -1087,7 +1083,7 @@ mod tests {
     fn duplicate_reply_deposit() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,
@@ -1121,7 +1117,7 @@ mod tests {
     fn inexistent_reply_deposit() {
         let incoming_message = IncomingMessage::new(
             MessageId::from(INCOMING_MESSAGE_ID),
-            ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            ActorId::from(INCOMING_MESSAGE_SOURCE),
             vec![1, 2].try_into().unwrap(),
             0,
             0,

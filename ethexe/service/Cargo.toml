@@ -13,12 +13,12 @@ ethexe-service-utils.workspace = true
 ethexe-db.workspace = true
 ethexe-network.workspace = true
 ethexe-observer.workspace = true
+ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
 ethexe-signer.workspace = true
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-common.workspace = true
-ethexe-runtime.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
@@ -39,6 +39,7 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 rand.workspace = true
 tempfile.workspace = true
 derive_more.workspace = true
+async-trait.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = [
@@ -57,7 +58,6 @@ alloy = { workspace = true, features = [
 ntest = "0.9.3"
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gear-utils.workspace = true
 serde_json.workspace = true
 ethexe-network.workspace = true
 roast-secp256k1-evm.workspace = true

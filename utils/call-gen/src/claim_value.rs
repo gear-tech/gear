@@ -19,8 +19,8 @@
 //! Claim value args generator.
 
 use crate::{
-    impl_convert_traits, CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs,
-    Seed,
+    CallGenRng, GearWasmGenConfigsBundle, GeneratableCallArgs, NamedCallArgs, Seed,
+    impl_convert_traits,
 };
 use gear_core::ids::MessageId;
 use gear_utils::{NonEmpty, RingGet};

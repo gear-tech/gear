@@ -9,7 +9,6 @@ repository.workspace = true
 
 [dependencies]
 ## Gear deps.
-ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
 core-processor.workspace = true
 gear-core.workspace = true
@@ -21,16 +20,18 @@ log.workspace = true
 parity-scale-codec.workspace = true
 
 [build-dependencies]
-substrate-wasm-builder.workspace = true
+substrate-wasm-builder = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
 std = [
-    "log/std",
-    "parity-scale-codec/std",
-    #
+    "ethexe-runtime-common/std",
     "core-processor/std",
     "gear-core/std",
     "gear-lazy-pages-interface/std",
-    "ethexe-common/std"
+    #
+    "log/std",
+    "parity-scale-codec/std",
+    #
+    "dep:substrate-wasm-builder",
 ]

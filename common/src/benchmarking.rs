@@ -20,7 +20,7 @@ use super::*;
 
 use gear_core::{
     ids::prelude::*,
-    pages::{WasmPage, WasmPagesAmount},
+    pages::WasmPage,
     program::{MemoryInfix, ProgramState},
     reservation::GasReservationMap,
 };
@@ -97,11 +97,8 @@ pub fn generate_wasm(num_pages: WasmPage) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-pub fn set_program<ProgramStorage, BlockNumber>(
-    program_id: ProgramId,
-    code: Vec<u8>,
-    static_pages: WasmPagesAmount,
-) where
+pub fn set_program<ProgramStorage, BlockNumber>(program_id: ActorId, code: Vec<u8>)
+where
     ProgramStorage: super::ProgramStorage<BlockNumber = BlockNumber>,
     BlockNumber: Zero + Copy + Saturating,
 {
@@ -109,9 +106,7 @@ pub fn set_program<ProgramStorage, BlockNumber>(
         program_id,
         ActiveProgram {
             allocations_tree_len: 0,
-            code_hash: CodeId::generate(&code).into_origin(),
-            code_exports: Default::default(),
-            static_pages,
+            code_id: CodeId::generate(&code),
             state: ProgramState::Initialized,
             gas_reservation_map: GasReservationMap::default(),
             expiration_block: Zero::zero(),

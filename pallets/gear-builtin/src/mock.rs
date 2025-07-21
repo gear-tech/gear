@@ -17,32 +17,28 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, bls12_381, proxy, ActorWithId, BuiltinActor, BuiltinActorError,
-    BuiltinContext, GasAllowanceOf,
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+    GasAllowanceOf, bls12_381, proxy,
 };
-use common::{storage::Limiter, GasProvider, GasTree};
+use common::{GasProvider, GasTree, storage::Limiter};
 use core::cell::RefCell;
 use frame_support::{
-    construct_runtime,
+    PalletId, construct_runtime,
     pallet_prelude::{DispatchClass, Weight},
     parameter_types,
     traits::{
         ConstBool, ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize,
     },
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::{
-    ids::ProgramId,
-    message::{Payload, StoredDispatch},
-};
+use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill, Permill, RuntimeDebug,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -71,7 +67,7 @@ pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
     pub destination: u64,
-    pub source: ProgramId,
+    pub source: ActorId,
     pub input: Vec<u8>,
     pub is_success: bool,
 }
@@ -335,7 +331,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
         ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
         ActorWithId<1, bls12_381::Actor<Self>>,
-        ActorWithId<3, proxy::Actor<Self>>,
+        ActorWithId<4, proxy::Actor<Self>>,
     );
     type BlockLimiter = GearGas;
     type WeightInfo = ();

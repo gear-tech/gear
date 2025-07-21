@@ -27,9 +27,6 @@ ark-ff = { workspace = true, optional = true }
 ark-scale = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 
-[target.'cfg(windows)'.dependencies]
-winapi = { workspace = true, features = ["memoryapi"] }
-
 [features]
 default = ["std"]
 std = [

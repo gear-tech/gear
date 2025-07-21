@@ -29,7 +29,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use core::fmt;
 use gear_core::{
     costs::LazyPagesCosts,
-    ids::ProgramId,
+    ids::ActorId,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
@@ -37,7 +37,7 @@ use gear_core::{
 use gear_lazy_pages_common::{
     GlobalsAccessConfig, LazyPagesInitContext, ProcessAccessError, Status,
 };
-use gear_runtime_interface::{gear_ri, LazyPagesProgramContext};
+use gear_runtime_interface::{LazyPagesProgramContext, gear_ri};
 use sp_std::vec::Vec;
 
 pub struct LazyPagesRuntimeInterface;
@@ -50,7 +50,7 @@ impl LazyPagesInterface for LazyPagesRuntimeInterface {
     fn init_for_program<Context>(
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: MemoryInfix,
         stack_end: Option<WasmPage>,
         globals_config: GlobalsAccessConfig,

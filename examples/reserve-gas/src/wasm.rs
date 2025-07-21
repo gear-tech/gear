@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    HandleAction, InitAction, ReplyAction, REPLY_FROM_RESERVATION_PAYLOAD, RESERVATION_AMOUNT,
+    HandleAction, InitAction, REPLY_FROM_RESERVATION_PAYLOAD, RESERVATION_AMOUNT, ReplyAction,
 };
 use gstd::{
+    MessageId, ReservationId,
     errors::{CoreError, ExecutionError, ExtError, ReservationError},
     exec, msg,
     prelude::*,
-    MessageId, ReservationId,
 };
 
 static mut RESERVATION_ID: Option<ReservationId> = None;

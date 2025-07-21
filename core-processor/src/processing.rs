@@ -17,30 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, SystemExecutionError, WasmExecutionContext,
+        ExecutionError, JournalNote, SuccessfulDispatchResultKind, SystemExecutionError,
+        WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
     executor,
     ext::ProcessorExternalities,
-    precharge::SuccessfulDispatchResultKind,
 };
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
+    buffer::{Payload, PayloadSizeError},
     env::Externalities,
-    ids::{prelude::*, MessageId, ProgramId},
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, Payload, PayloadSizeError, ReplyMessage,
-        StoredDispatch,
-    },
+    ids::{ActorId, MessageId, prelude::*},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{
-    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
     BackendExternalities,
+    error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
 };
 use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleUnavailableActorError};
 
@@ -57,7 +56,7 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    use crate::precharge::SuccessfulDispatchResultKind::*;
+    use crate::common::SuccessfulDispatchResultKind::*;
 
     let BlockConfig {
         block_info,
@@ -136,7 +135,7 @@ where
         msg_ctx_settings,
     )
     .map_err(|err| {
-        log::debug!("Wasm execution error: {}", err);
+        log::debug!("Wasm execution error: {err}");
         err
     });
 
@@ -157,30 +156,31 @@ where
                         system_reservation_ctx.previous_reservation
                             == res.system_reservation_context.previous_reservation
                     );
-                    debug_assert!(res
-                        .gas_reserver
-                        .as_ref()
-                        .map(|reserver| initial_reservations_amount <= reserver.states().len())
-                        .unwrap_or(true));
+                    debug_assert!(
+                        res.gas_reserver
+                            .as_ref()
+                            .map(|reserver| initial_reservations_amount <= reserver.states().len())
+                            .unwrap_or(true)
+                    );
                 }
                 // reservation does not change in case of failure
                 _ => (),
             }
             Ok(match res.kind {
                 DispatchResultKind::Trap(reason) => process_execution_error(
-                    res.dispatch,
+                    dispatch,
                     program_id,
                     res.gas_amount.burned(),
                     res.system_reservation_context,
                     ActorExecutionErrorReplyReason::Trap(reason),
                 ),
 
-                DispatchResultKind::Success => process_success(Success, res),
+                DispatchResultKind::Success => process_success(Success, res, dispatch),
                 DispatchResultKind::Wait(duration, ref waited_type) => {
-                    process_success(Wait(duration, waited_type.clone()), res)
+                    process_success(Wait(duration, waited_type.clone()), res, dispatch)
                 }
                 DispatchResultKind::Exit(value_destination) => {
-                    process_success(Exit(value_destination), res)
+                    process_success(Exit(value_destination), res, dispatch)
                 }
                 DispatchResultKind::GasAllowanceExceed => {
                     process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
@@ -202,7 +202,7 @@ enum ProcessErrorCase {
     /// Program exited.
     ProgramExited {
         /// Inheritor of an exited program.
-        inheritor: ProgramId,
+        inheritor: ActorId,
     },
     /// Program failed during init.
     FailedInit,
@@ -251,13 +251,13 @@ impl ProcessErrorCase {
     fn to_payload(&self) -> Payload {
         match self {
             ProcessErrorCase::ProgramExited { inheritor } => {
-                const _: () = assert!(size_of::<ProgramId>() <= Payload::MAX_LEN);
+                const _: () = assert!(size_of::<ActorId>() <= Payload::MAX_LEN);
                 inheritor
                     .into_bytes()
                     .to_vec()
                     .try_into()
                     .unwrap_or_else(|PayloadSizeError| {
-                        unreachable!("`ProgramId` is always smaller than maximum payload size")
+                        unreachable!("`ActorId` is always smaller than maximum payload size")
                     })
             }
             ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
@@ -270,7 +270,7 @@ impl ProcessErrorCase {
 
 fn process_error(
     dispatch: IncomingDispatch,
-    program_id: ProgramId,
+    program_id: ActorId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     case: ProcessErrorCase,
@@ -393,7 +393,7 @@ fn process_error(
 /// Helper function for journal creation in trap/error case.
 pub fn process_execution_error(
     dispatch: IncomingDispatch,
-    program_id: ProgramId,
+    program_id: ActorId,
     gas_burned: u64,
     system_reservation_ctx: SystemReservationContext,
     err: impl Into<ActorExecutionErrorReplyReason>,
@@ -409,15 +409,10 @@ pub fn process_execution_error(
 
 /// Helper function for journal creation in program exited case.
 pub fn process_program_exited(
-    context: ContextChargedForProgram,
-    inheritor: ProgramId,
+    context: ContextCharged<ForProgram>,
+    inheritor: ActorId,
 ) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -431,13 +426,8 @@ pub fn process_program_exited(
 }
 
 /// Helper function for journal creation in program failed init case.
-pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+pub fn process_failed_init(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -451,13 +441,8 @@ pub fn process_failed_init(context: ContextChargedForProgram) -> Vec<JournalNote
 }
 
 /// Helper function for journal creation in program uninitialized case.
-pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+pub fn process_uninitialized(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -471,13 +456,8 @@ pub fn process_uninitialized(context: ContextChargedForProgram) -> Vec<JournalNo
 }
 
 /// Helper function for journal creation in code not exists case.
-pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<JournalNote> {
-    let ContextChargedForProgram {
-        dispatch,
-        gas_counter,
-        destination_id,
-        ..
-    } = context;
+pub fn process_code_not_exists(context: ContextCharged<ForProgram>) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
 
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
@@ -492,16 +472,34 @@ pub fn process_code_not_exists(context: ContextChargedForProgram) -> Vec<Journal
 
 /// Helper function for journal creation in case of re-instrumentation error.
 pub fn process_reinstrumentation_error(
-    context: ContextChargedForInstrumentation,
+    context: ContextCharged<ForInstrumentedCode>,
 ) -> Vec<JournalNote> {
-    let dispatch = context.data.dispatch;
-    let program_id = context.data.destination_id;
-    let gas_burned = context.data.gas_counter.burned();
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+    let gas_burned = gas_counter.burned();
     let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
 
     process_error(
         dispatch,
-        program_id,
+        destination_id,
+        gas_burned,
+        system_reservation_ctx,
+        ProcessErrorCase::ReinstrumentationFailed,
+    )
+}
+
+/// Helper function for journal creation in case of instrumentation failure.
+pub fn process_instrumentation_failed(
+    context: ContextCharged<ForCodeMetadata>,
+) -> Vec<JournalNote> {
+    let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+    let gas_burned = gas_counter.burned();
+    let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
+
+    process_error(
+        dispatch,
+        destination_id,
         gas_burned,
         system_reservation_ctx,
         ProcessErrorCase::ReinstrumentationFailed,
@@ -512,11 +510,11 @@ pub fn process_reinstrumentation_error(
 pub fn process_success(
     kind: SuccessfulDispatchResultKind,
     dispatch_result: DispatchResult,
+    dispatch: IncomingDispatch,
 ) -> Vec<JournalNote> {
-    use crate::precharge::SuccessfulDispatchResultKind::*;
+    use crate::common::SuccessfulDispatchResultKind::*;
 
     let DispatchResult {
-        dispatch,
         generated_dispatches,
         awakening,
         program_candidates,
@@ -700,7 +698,7 @@ pub fn process_success(
 /// Helper function for journal creation if the block gas allowance has been exceeded.
 pub fn process_allowance_exceed(
     dispatch: IncomingDispatch,
-    program_id: ProgramId,
+    program_id: ActorId,
     gas_burned: u64,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::with_capacity(1);

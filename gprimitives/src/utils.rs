@@ -83,11 +83,11 @@ impl fmt::Display for ByteSliceFormatter<'_> {
         let mut e1 = median;
         let mut s2 = median;
 
-        if let Some(precision) = f.precision() {
-            if precision < median {
-                e1 = precision;
-                s2 = len - precision;
-            }
+        if let Some(precision) = f.precision()
+            && precision < median
+        {
+            e1 = precision;
+            s2 = len - precision;
         }
 
         let out1_len = e1 * 2;

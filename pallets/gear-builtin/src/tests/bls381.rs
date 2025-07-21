@@ -19,19 +19,19 @@
 use crate::mock::*;
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::{
+    Group, ScalarMul, VariableBaseMSM,
     bls12::Bls12Config,
-    hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+    hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
     pairing::Pairing,
     short_weierstrass::{Projective as SWProjective, SWCurveConfig},
-    Group, ScalarMul, VariableBaseMSM,
 };
 use ark_ff::{biginteger::BigInt, fields::field_hashers::DefaultFieldHasher};
 use ark_scale::hazmat::ArkScaleProjective;
-use ark_std::{ops::Mul, UniformRand};
+use ark_std::{UniformRand, ops::Mul};
 use common::Origin;
 use frame_support::assert_ok;
 use gbuiltin_bls381::*;
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use gear_runtime_interface::DST_G2;
 use pallet_gear::GasInfo;
@@ -49,7 +49,7 @@ pub(crate) fn init_logger() {
     let _ = tracing_subscriber::fmt::try_init();
 }
 
-fn get_gas_info(builtin_id: ProgramId, payload: Vec<u8>) -> GasInfo {
+fn get_gas_info(builtin_id: ActorId, payload: Vec<u8>) -> GasInfo {
     start_transaction();
     let res = Gear::calculate_gas_info(
         SIGNER.into_origin(),
@@ -76,7 +76,7 @@ fn decoding_error() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
@@ -120,7 +120,7 @@ fn multi_miller_loop() {
         let payload = Request::MultiMillerLoop { a: a.encode(), b: b.encode(), }.encode();
 
         // Case of the incorrect arguments
-        let builtin_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_id: ActorId = H256::from(ACTOR_ID).cast();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
@@ -149,7 +149,7 @@ fn multi_miller_loop() {
         let b: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
         let payload = Request::MultiMillerLoop { a: a.encode(), b: b.encode(), }.encode();
 
-        let builtin_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_id, payload.clone());
 
         // Check the case of insufficient gas
@@ -244,7 +244,7 @@ fn final_exponentiation() {
         let f: ArkScale<<Bls12_381 as Pairing>::TargetField> = loop_result.0.into();
         let payload = Request::FinalExponentiation { f: f.encode() }.encode();
 
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // check case of insufficient gas
@@ -331,7 +331,7 @@ fn msm_g1() {
         let payload = Request::MultiScalarMultiplicationG1 { bases: ark_bases.encode(), scalars: ark_scalars.encode() }.encode();
 
         // Case of the incorrect arguments
-        let builtin_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_id: ActorId = H256::from(ACTOR_ID).cast();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
@@ -361,7 +361,7 @@ fn msm_g1() {
 
         let payload = Request::MultiScalarMultiplicationG1 { bases: ark_bases.encode(), scalars: ark_scalars.encode() }.encode();
 
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // Check the case of insufficient gas
@@ -449,7 +449,7 @@ fn msm_g2() {
         let payload = Request::MultiScalarMultiplicationG1 { bases: ark_bases.encode(), scalars: ark_scalars.encode() }.encode();
 
         // Case of the incorrect arguments
-        let builtin_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_id: ActorId = H256::from(ACTOR_ID).cast();
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
@@ -479,7 +479,7 @@ fn msm_g2() {
 
         let payload = Request::MultiScalarMultiplicationG2 { bases: ark_bases.encode(), scalars: ark_scalars.encode() }.encode();
 
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // Check the case of insufficient gas
@@ -561,7 +561,7 @@ fn mul_projective_g1() {
         let ark_bigint: ArkScale<Vec<u64>> = bigint.into();
         let ark_base: ArkScaleProjective<G1> = base.into();
         let payload = Request::ProjectiveMultiplicationG1 { base: ark_base.encode(), scalar: ark_bigint.encode() }.encode();
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // Check the case of insufficient gas
@@ -643,7 +643,7 @@ fn mul_projective_g2() {
         let ark_bigint: ArkScale<Vec<u64>> = bigint.into();
         let ark_base: ArkScaleProjective<G2> = base.into();
         let payload = Request::ProjectiveMultiplicationG2 { base: ark_base.encode(), scalar: ark_bigint.encode() }.encode();
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // Check the case of insufficient gas
@@ -803,7 +803,7 @@ fn map_to_g2affine() {
         let message = b"Hello, decentralized world!".to_vec();
 
         let payload = Request::MapToG2Affine { message: message.clone() }.encode();
-        let builtin_actor_id: ProgramId = H256::from(ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, payload.clone());
 
         // Check the case of insufficient gas

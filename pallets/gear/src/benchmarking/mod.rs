@@ -46,38 +46,37 @@ use tests::syscalls_integrity;
 
 use self::{
     code::{
+        ImportedMemory, Location, ModuleDefinition, OFFSET_AUX, TableSegment, WasmModule,
         body::{self, DynInstr::*},
-        max_pages, ImportedMemory, Location, ModuleDefinition, TableSegment, WasmModule,
-        OFFSET_AUX,
+        max_pages,
     },
     sandbox::Sandbox,
 };
 use crate::{
+    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
+    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
+    TaskPoolOf,
     builtin::BuiltinDispatcherFactory,
     manager::ExtManager,
     pallet,
     schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    BalanceOf, BenchmarkStorage, BlockNumberFor, Call, Config, CurrencyOf, Event, Ext,
-    GasHandlerOf, GearBank, MailboxOf, Pallet as Gear, Pallet, ProgramStorageOf, QueueOf, Schedule,
-    TaskPoolOf,
 };
 use ::alloc::{collections::BTreeMap, vec};
 use common::{
-    self, benchmarking,
+    self, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree, benchmarking,
     storage::{Counter, *},
-    CodeMetadata, CodeStorage, GasTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::{
+    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
     common::{DispatchOutcome, JournalNote},
     configs::BlockConfig,
-    ProcessExecutionContext, ProcessorContext, ProcessorExternalities,
 };
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     code::{Code, CodeAndId},
-    ids::{prelude::*, CodeId, MessageId, ProgramId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::Memory,
     pages::{WasmPage, WasmPagesAmount},
     program::ActiveProgram,
@@ -90,20 +89,20 @@ use gear_core_backend::{
     state::HostState,
 };
 use gear_core_errors::*;
-use gear_sandbox::{default_executor::Store, SandboxMemory, SandboxStore};
+use gear_sandbox::{SandboxMemory, SandboxStore, default_executor::Store};
 use gear_wasm_instrument::{
-    syscalls::SyscallName, BlockType, BrTable, Instruction, MemArg, ValType,
+    BlockType, BrTable, Instruction, MemArg, ValType, syscalls::SyscallName,
 };
 use pallet_authorship::Pallet as AuthorshipPallet;
 use parity_scale_codec::Encode;
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
 use sp_core::H256;
 use sp_runtime::{
-    traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
     Digest, DigestItem, Perbill, Saturating,
+    traits::{Bounded, CheckedAdd, One, UniqueSaturatedInto, Zero},
 };
 use sp_std::{num::NonZero, prelude::*};
 
@@ -259,7 +258,7 @@ where
             .saturating_mul((API_BENCHMARK_BATCHES * API_BENCHMARK_BATCH_SIZE).into());
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let salt = vec![0xff];
-        let addr = ProgramId::generate_from_user(module.hash, &salt).into_origin();
+        let addr = ActorId::generate_from_user(module.hash, &salt).into_origin();
 
         Gear::<T>::upload_program_raw(
             RawOrigin::Signed(caller.clone()).into(),
@@ -446,7 +445,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code);
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = 10000u32.into();
@@ -487,7 +486,8 @@ benchmarks! {
         init_block::<T>(None);
     }: _(origin, code)
     verify {
-        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
     }
 
     // The size of the salt influences the runtime because it is hashed in order to
@@ -512,7 +512,8 @@ benchmarks! {
         init_block::<T>(None);
     }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
     verify {
-        assert!(<T as pallet::Config>::CodeStorage::exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
+        assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
     }
 
     // This constructs a program that is maximal expensive to instrument.
@@ -550,7 +551,7 @@ benchmarks! {
         let minimum_balance = CurrencyOf::<T>::minimum_balance();
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code);
         let payload = vec![0_u8; p as usize];
 
         init_block::<T>(None);
@@ -567,7 +568,7 @@ benchmarks! {
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100);
         let _ = CurrencyOf::<T>::deposit_creating(&program_id, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id.clone().cast(), code);
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).cast();
         let gas_limit = 50000;
         let value = (p % 2).into();
@@ -606,10 +607,10 @@ benchmarks! {
             programs.push(program_id.clone());
             let _ = CurrencyOf::<T>::deposit_creating(&program_id, minimum_balance);
             let program_id = program_id.cast();
-            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![], 1.into());
+            benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, vec![]);
 
             ProgramStorageOf::<T>::update_program_if_active(program_id, |program, _bn| {
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = common::Program::Terminated(inheritor);
                 } else {
                     *program = common::Program::Exited(inheritor);
@@ -646,19 +647,15 @@ benchmarks! {
         let WasmModule { code, hash, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let code = Code::try_new_mock_const_or_no_rules(code, false, Default::default()).unwrap();
         let code_and_id = CodeAndId::new(code);
-        let code_id = code_and_id.code_id();
 
-        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
-        let metadata = {
-            let block_number = Pallet::<T>::block_number().unique_saturated_into();
-            CodeMetadata::new(caller.into_origin(), block_number)
-        };
+        T::CodeStorage::add_code(code_and_id.clone()).unwrap();
 
-        T::CodeStorage::add_code(code_and_id, metadata).unwrap();
+        let (code, code_id) = code_and_id.into_parts();
+        let (_, _, code_metadata) = code.into_parts();
 
         let schedule = T::Schedule::get();
     }: {
-        Gear::<T>::reinstrument_code(code_id, &schedule).expect("Re-instrumentation  failed");
+        Gear::<T>::reinstrument_code(code_id, code_metadata, &schedule).expect("Re-instrumentation  failed");
     }
 
     load_allocations_per_interval {
@@ -666,7 +663,7 @@ benchmarks! {
         let allocations = (0..a).map(|p| WasmPage::from(p as u16 * 2 + 1));
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).cast();
         let code = benchmarking::generate_wasm(16.into()).unwrap();
-        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code, 1.into());
+        benchmarking::set_program::<ProgramStorageOf::<T>, _>(program_id, code);
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.collect());
     }: {
         let _ = ProgramStorageOf::<T>::allocations(program_id).unwrap();
@@ -1166,7 +1163,7 @@ benchmarks! {
     }
 
     gr_reply_push_per_kb {
-        let n in 0 .. gear_core::message::MAX_PAYLOAD_SIZE as u32 / 1024;
+        let n in 0 .. gear_core::buffer::MAX_PAYLOAD_SIZE as u32 / 1024;
         let mut res = None;
         let exec = Benches::<T>::gr_reply_push_per_kb(n)?;
     }: {

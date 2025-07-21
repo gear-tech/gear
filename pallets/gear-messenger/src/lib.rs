@@ -157,11 +157,11 @@ pub use pallet::*;
 pub mod pallet {
     pub use frame_support::weights::Weight;
 
-    use common::{storage::*, BlockLimiter, Origin};
+    use common::{BlockLimiter, Origin, storage::*};
     use frame_support::{pallet_prelude::*, storage::PrefixIterator, traits::StorageVersion};
     use frame_system::pallet_prelude::BlockNumberFor;
     use gear_core::{
-        ids::{MessageId, ProgramId},
+        ids::{ActorId, MessageId},
         message::{StoredDelayedDispatch, StoredDispatch, UserStoredMessage},
     };
     use sp_runtime::DispatchError;
@@ -394,7 +394,7 @@ pub mod pallet {
     pub type Waitlist<T: Config> = StorageDoubleMap<
         _,
         Identity,
-        ProgramId,
+        ActorId,
         Identity,
         MessageId,
         (StoredDispatch, Interval<BlockNumberFor<T>>),
@@ -404,7 +404,7 @@ pub mod pallet {
     common::wrap_extended_storage_double_map!(
         storage: Waitlist,
         name: WaitlistWrap,
-        key1: ProgramId,
+        key1: ActorId,
         key2: MessageId,
         value: (StoredDispatch, Interval<BlockNumberFor<T>>),
         length: usize
@@ -594,7 +594,7 @@ pub mod pallet {
         type MailboxedMessage = UserStoredMessage;
         type QueuedDispatch = StoredDispatch;
         type DelayedDispatch = StoredDelayedDispatch;
-        type WaitlistFirstKey = ProgramId;
+        type WaitlistFirstKey = ActorId;
         type WaitlistSecondKey = MessageId;
         type WaitlistedMessage = StoredDispatch;
         type DispatchStashKey = MessageId;

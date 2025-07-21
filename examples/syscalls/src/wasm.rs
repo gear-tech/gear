@@ -18,11 +18,12 @@
 
 use crate::Kind;
 use gstd::{
+    ActorId, CodeId, MessageId, ReservationId, Vec,
     errors::{ReplyCode, SignalCode, SimpleExecutionError},
     exec, format,
     msg::{self, MessageHandle},
     prelude::*,
-    prog, ActorId, CodeId, MessageId, ReservationId, Vec,
+    prog,
 };
 use parity_scale_codec::Encode;
 
@@ -163,9 +164,9 @@ fn process(syscall_kind: Kind) {
             let actual_mid: [u8; 32] = msg::id().into();
             assert_eq!(expected_mid, actual_mid, "Kind::MessageId: mid test failed");
         }
-        Kind::ProgramId(expected_pid) => {
+        Kind::ActorId(expected_pid) => {
             let actual_pid: [u8; 32] = exec::program_id().into();
-            assert_eq!(expected_pid, actual_pid, "Kind::ProgramId: pid test failed");
+            assert_eq!(expected_pid, actual_pid, "Kind::ActorId: pid test failed");
         }
         Kind::Source(expected_actor) => {
             let actual_actor: [u8; 32] = msg::source().into();

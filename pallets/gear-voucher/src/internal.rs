@@ -18,8 +18,8 @@
 
 use crate::*;
 use common::{
-    storage::{Counter, CounterImpl, Mailbox},
     Origin,
+    storage::{Counter, CounterImpl, Mailbox},
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::ids;
@@ -107,7 +107,7 @@ impl<T: Config> Pallet<T> {
     pub fn prepaid_call_destination(
         who: &T::AccountId,
         call: &PrepaidCall<BalanceOf<T>>,
-    ) -> Option<ProgramId> {
+    ) -> Option<ActorId> {
         match call {
             PrepaidCall::SendMessage { destination, .. } => Some(*destination),
             PrepaidCall::SendReply { reply_to_id, .. } => {
@@ -185,7 +185,7 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
     pub owner: AccountId,
     /// Set of programs this voucher could be used to interact with.
     /// In case of [`None`] means any gear program.
-    pub programs: Option<BTreeSet<ProgramId>>,
+    pub programs: Option<BTreeSet<ActorId>>,
     /// Flag if this voucher's covers uploading codes as prepaid call.
     pub code_uploading: bool,
     /// The block number at and after which voucher couldn't be used and
@@ -194,7 +194,7 @@ pub struct VoucherInfo<AccountId, BlockNumber> {
 }
 
 impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
-    pub fn contains(&self, program_id: ProgramId) -> bool {
+    pub fn contains(&self, program_id: ActorId) -> bool {
         self.programs
             .as_ref()
             .is_none_or(|v| v.contains(&program_id))
@@ -205,7 +205,7 @@ impl<AccountId, BlockNumber> VoucherInfo<AccountId, BlockNumber> {
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrepaidCall<Balance> {
     SendMessage {
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: Balance,
