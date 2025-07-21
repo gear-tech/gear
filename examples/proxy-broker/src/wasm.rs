@@ -22,8 +22,7 @@ use gbuiltin_proxy::Request;
 use gstd::{ActorId, debug, errors::Error, msg};
 
 // Proxy builtin actor program id (hardcoded for all runtimes);
-const BUILTIN_ADDRESS: ActorId =
-    ActorId::new(*b"modl/bia/proxy\0\0\0\0\0\0\0\0\0\0\0/v-\x01\0\0\0");
+const BUILTIN_ADDRESS: ActorId = ActorId::new(*b"modl/bia/proxy/v-\x01\0/\0\0\0\0\0\0\0\0\0\0\0\0");
 
 #[gstd::async_main]
 async fn main() {

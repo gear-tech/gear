@@ -34,7 +34,7 @@ use std::sync::Arc;
 #[rpc(server)]
 pub trait GearBuiltinApi<BlockHash> {
     #[method(name = "gearBuiltin_queryId")]
-    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<H256>;
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<Option<H256>>;
 
     #[method(name = "gearBuiltin_list")]
     fn list_actors(&self) -> RpcResult<Vec<(BuiltinActorType, u16, H256)>>;
@@ -83,7 +83,7 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearBuiltinRuntimeApi<Block>,
 {
-    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<H256> {
+    fn query_actor_id(&self, builtin_id: u64) -> RpcResult<Option<H256>> {
         let api = self.client.runtime_api();
         let best_hash = self.client.info().best_hash;
 

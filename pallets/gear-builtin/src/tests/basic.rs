@@ -78,36 +78,38 @@ fn builtin_actor_ids_are_correct() {
         let bls_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
             <crate::bls12_381::Actor<Test> as crate::BuiltinActor>::TYPE.id(),
         );
+        #[cfg(feature = "dev")]
         let eth_bridge_actor_id: ActorId =
             GearBuiltin::builtin_id_into_actor_id(BuiltinActorType::EthBridge.id());
 
         assert_eq!(
             success_actor_id,
-            ActorId::from(*b"modl/bia/success-actor\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/success-actor/v-\x01\0/\0\0\0\0")
         );
         assert_eq!(
             error_actor_id,
-            ActorId::from(*b"modl/bia/error-actor\0\0\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/error-actor/v-\x01\0/\0\0\0\0\0\0")
         );
         assert_eq!(
             honest_actor_id,
-            ActorId::from(*b"modl/bia/honest-actor\0\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/honest-actor/v-\x01\0/\0\0\0\0\0")
         );
         assert_eq!(
             proxy_actor_id,
-            ActorId::from(*b"modl/bia/proxy\0\0\0\0\0\0\0\0\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/proxy/v-\x01\0/\0\0\0\0\0\0\0\0\0\0\0\0")
         );
         assert_eq!(
             staking_actor_id,
-            ActorId::from(*b"modl/bia/staking\0\0\0\0\0\0\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/staking/v-\x01\0/\0\0\0\0\0\0\0\0\0\0")
         );
         assert_eq!(
             bls_actor_id,
-            ActorId::from(*b"modl/bia/bls12-381\0\0\0\0\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0")
         );
+        #[cfg(feature = "dev")]
         assert_eq!(
             eth_bridge_actor_id,
-            ActorId::from(*b"modl/bia/eth-bridge\0\0\0\0\0\0/v-\x01\0\0\0")
+            ActorId::from(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0")
         );
     });
 }

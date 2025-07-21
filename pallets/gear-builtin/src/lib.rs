@@ -117,41 +117,67 @@ impl BuiltinActorId {
 
 impl Encode for BuiltinActorId {
     fn size_hint(&self) -> usize {
-        // "modl/bia/" + name (16) + "/v-" + version
-        9 + self.name.len() + 3 + 2
+        // "modl/bia/" + name (max 16) + "/v-" + version + "/"
+        9 + 16 + 3 + 2 + 1
     }
+
     fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
+        let null_position = || self.name.iter().position(|&x| x == 0).unwrap_or(16);
+
         dest.write(b"modl/bia/");
-        dest.write(&self.name);
+        dest.write(&self.name[0..null_position()]);
         dest.write(b"/v-");
         dest.write(&self.version.to_le_bytes());
+        dest.write(b"/");
     }
 }
 
 impl Decode for BuiltinActorId {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        // Check "/bia/" prefix
-        let mut prefix = [0u8; 9];
-        input.read(&mut prefix)?;
-        if &prefix != b"modl/bia/" {
-            return Err("Expected prefix 'modl/bia/'".into());
+        let mut bytes = [0u8; 31];
+        input.read(&mut bytes)?;
+
+        let mut parts = bytes.split(|&x| x == b'/');
+
+        if parts.next().is_some_and(|v| v == *b"modl") {
+            return Err("Expected prefix 'modl'".into());
+        }
+        if parts.next().is_some_and(|v| v == *b"bia") {
+            return Err("Expected prefix 'modl/bia'".into());
         }
 
-        // Read the name of the builtin actor
+        let name_bytes = parts.next().ok_or("Missing name")?;
+
+        if name_bytes.len() > 16 {
+            return Err("Actor name too long".into());
+        }
+
+        if name_bytes.is_empty() {
+            return Err("Actor name is empty".into());
+        }
+
         let mut name = [0u8; 16];
-        input.read(&mut name)?;
+        name[..name_bytes.len()].copy_from_slice(name_bytes);
 
-        // Check "/v-" separator
-        let mut sep = [0u8; 3];
-        input.read(&mut sep)?;
-        if &sep != b"/v-" {
-            return Err("Expected separator '/v-'".into());
+        let version_bytes = parts.next().ok_or("Missing version")?;
+
+        if !version_bytes.starts_with(b"v-") {
+            return Err("Actor version must start with 'v-'".into());
         }
 
-        // Read the version of the builtin actor
-        let mut version_bytes = [0u8; 2];
-        input.read(&mut version_bytes)?;
-        let version = u16::from_le_bytes(version_bytes);
+        let version_number = version_bytes
+            .split(|&x| x == b'-')
+            .next()
+            .ok_or("Missing version number")?;
+
+        if version_number.len() != 2 {
+            return Err("Actor version is not 2 bytes".into());
+        }
+
+        let mut version = [0u8; 2];
+        version.copy_from_slice(version_number);
+
+        let version = u16::from_le_bytes(version);
 
         Ok(BuiltinActorId { name, version })
     }
@@ -174,6 +200,7 @@ pub enum BuiltinActorType {
     /// BLS12-381 actor
     BLS12_381,
     /// Eth bridge actor
+    #[cfg(feature = "dev")]
     EthBridge,
 }
 
@@ -183,11 +210,24 @@ impl BuiltinActorType {
         match self {
             #[cfg(test)]
             Self::Custom(id) => *id,
-            Self::Unknown => BuiltinActorId::new(b"unknown", 1),
+            Self::Unknown => BuiltinActorId::new(b"unknown", 0),
             Self::Staking => BuiltinActorId::new(b"staking", 1),
             Self::Proxy => BuiltinActorId::new(b"proxy", 1),
             Self::BLS12_381 => BuiltinActorId::new(b"bls12-381", 1),
+            #[cfg(feature = "dev")]
             Self::EthBridge => BuiltinActorId::new(b"eth-bridge", 1),
+        }
+    }
+
+    /// Back compatibility func returning 'BuiltinActorType' for numeric id
+    pub const fn from_index(index: u64) -> Option<Self> {
+        match index {
+            1 => Some(BuiltinActorType::BLS12_381),
+            2 => Some(BuiltinActorType::Staking),
+            #[cfg(feature = "dev")]
+            3 => Some(BuiltinActorType::EthBridge),
+            4 => Some(BuiltinActorType::Proxy),
+            _ => None,
         }
     }
 }

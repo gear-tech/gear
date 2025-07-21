@@ -1880,8 +1880,8 @@ impl_runtime_apis_plus_common! {
     }
 
     impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block> for Runtime {
-        fn query_actor_id(builtin_id: u64) -> H256 {
-            GearBuiltin::generate_actor_id(builtin_id).into_bytes().into()
+        fn query_actor_id(builtin_id: u64) -> Option<H256> {
+            Some(GearBuiltin::builtin_id_into_actor_id(BuiltinActorType::from_index(builtin_id)?.id()).into_bytes().into())
         }
 
         fn list_actors() -> Vec<(BuiltinActorType, u16, H256)> {
@@ -1891,10 +1891,14 @@ impl_runtime_apis_plus_common! {
         }
 
         fn get_actor_id(actor_type: BuiltinActorType, version: u16) -> Option<H256> {
+            if version == 0 || actor_type == BuiltinActorType::Unknown {
+                return None;
+            }
+
             let list = GearBuiltin::list_builtin_info();
 
             list.into_iter()
-                .find(|(t, v, _)| *t == actor_type && *v <= version)
+                .find(|(t, v, _)| *t == actor_type && *v >= version)
                 .map(|(_, v, id)| {
                     if v == version {
                         id.into_bytes().into()

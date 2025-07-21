@@ -27,7 +27,7 @@ use hashbrown::HashMap;
 use parity_scale_codec::Encode;
 
 // Staking proxy builtin actor program id (hardcoded for all runtimes)
-const BUILTIN_ADDRESS: ActorId = ActorId::new(*b"modl/bia/staking\0\0\0\0\0\0\0\0\0/v-\x01\0\0\0");
+const BUILTIN_ADDRESS: ActorId = ActorId::new(*b"modl/bia/staking/v-\x01\0/\0\0\0\0\0\0\0\0\0\0");
 
 #[derive(Debug, Default)]
 struct StakingBroker {
