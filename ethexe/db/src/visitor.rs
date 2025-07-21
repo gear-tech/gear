@@ -43,11 +43,9 @@ impl<T: OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage>
 }
 
 pub trait DatabaseVisitor: Sized {
-    type DbError: DatabaseVisitorError;
-
     fn db(&self) -> &dyn DatabaseVisitorStorage;
 
-    fn on_db_error(&mut self, error: Self::DbError);
+    fn on_db_error(&mut self, error: DatabaseVisitorError);
 
     fn visit_chain(&mut self, head: H256, bottom: H256) {
         walk_chain(self, head, bottom)
@@ -126,34 +124,35 @@ pub trait DatabaseVisitor: Sized {
     }
 }
 
-pub trait DatabaseVisitorError {
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum DatabaseVisitorError {
     /* block header */
-    fn no_block_header(block: H256) -> Self;
+    NoBlockHeader(H256),
 
     /* block */
-    fn no_block_events(block: H256) -> Self;
-    fn no_block_program_states(block: H256) -> Self;
-    fn no_block_schedule(block: H256) -> Self;
-    fn no_block_outcome(block: H256) -> Self;
-    fn no_block_commitment_queue(block: H256) -> Self;
-    fn no_block_codes_queue(block: H256) -> Self;
-    fn no_previous_non_empty_block(block: H256) -> Self;
-    fn no_last_committed_batch(block: H256) -> Self;
+    NoBlockEvents(H256),
+    NoBlockProgramStates(H256),
+    NoBlockSchedule(H256),
+    NoBlockOutcome(H256),
+    NoBlockCommitmentQueue(H256),
+    NoBlockCodesQueue(H256),
+    NoPreviousNonEmptyBlock(H256),
+    NoLastCommittedBatch(H256),
 
     /* memory */
-    fn no_memory_pages(hash: HashOf<MemoryPages>) -> Self;
-    fn no_memory_pages_region(hash: HashOf<MemoryPagesRegion>) -> Self;
-    fn no_page_data(hash: HashOf<PageBuf>) -> Self;
+    NoMemoryPages(HashOf<MemoryPages>),
+    NoMemoryPagesRegion(HashOf<MemoryPagesRegion>),
+    NoPageData(HashOf<PageBuf>),
 
     /* rest */
-    fn no_message_queue(hash: HashOf<MessageQueue>) -> Self;
-    fn no_waitlist(hash: HashOf<Waitlist>) -> Self;
-    fn no_dispatch_stash(hash: HashOf<DispatchStash>) -> Self;
-    fn no_mailbox(hash: HashOf<Mailbox>) -> Self;
-    fn no_user_mailbox(hash: HashOf<UserMailbox>) -> Self;
-    fn no_allocations(hash: HashOf<Allocations>) -> Self;
-    fn no_program_state(hash: H256) -> Self;
-    fn no_payload(hash: HashOf<Payload>) -> Self;
+    NoMessageQueue(HashOf<MessageQueue>),
+    NoWaitlist(HashOf<Waitlist>),
+    NoDispatchStash(HashOf<DispatchStash>),
+    NoMailbox(HashOf<Mailbox>),
+    NoUserMailbox(HashOf<UserMailbox>),
+    NoAllocations(HashOf<Allocations>),
+    NoProgramState(H256),
+    NoPayload(HashOf<Payload>),
 }
 
 macro_rules! visit_or_error {
@@ -165,7 +164,7 @@ macro_rules! visit_or_error {
             }
         } else {
             paste::item! {
-                $visitor.on_db_error(<_>:: [< no_ $element >] ($hash));
+                $visitor.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($hash));
             }
         }
         x
@@ -178,7 +177,7 @@ macro_rules! visit_or_error {
             }
         } else {
             paste::item! {
-                $visitor.on_db_error(<_>:: [< no_ $element >] ($hash));
+                $visitor.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($hash));
             }
         }
         x
@@ -191,17 +190,14 @@ macro_rules! visit_or_error {
             }
         } else {
             paste::item! {
-                $visitor.on_db_error(<_>:: [< no_ $element >] ($element));
+                $visitor.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($element));
             }
         }
         x
     }};
 }
 
-pub fn walk_chain<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, head: H256, bottom: H256)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_chain(visitor: &mut impl DatabaseVisitor, head: H256, bottom: H256) {
     let mut block = head;
     while block != bottom {
         visitor.visit_block(block);
@@ -210,16 +206,13 @@ where
         if let Some(header) = header {
             block = header.parent_hash;
         } else {
-            visitor.on_db_error(E::no_block_header(block));
+            visitor.on_db_error(DatabaseVisitorError::NoBlockHeader(block));
             break;
         }
     }
 }
 
-pub fn walk_block<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, block: H256)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_block(visitor: &mut impl DatabaseVisitor, block: H256) {
     let meta = visitor.db().block_meta(block);
     visitor.visit_block_meta(&meta);
 
@@ -245,16 +238,14 @@ where
     if let Some(outcome_is_empty) = outcome_is_empty {
         visitor.visit_block_outcome_is_empty(block, outcome_is_empty);
     } else {
-        visitor.on_db_error(E::no_block_outcome(block));
+        visitor.on_db_error(DatabaseVisitorError::NoBlockOutcome(block));
     }
 }
 
-pub fn walk_block_program_states<E>(
-    visitor: &mut impl DatabaseVisitor<DbError = E>,
+pub fn walk_block_program_states(
+    visitor: &mut impl DatabaseVisitor,
     program_states: &ProgramStates,
-) where
-    E: DatabaseVisitorError,
-{
+) {
     for StateHashWithQueueSize {
         hash,
         cached_queue_size: _,
@@ -264,10 +255,7 @@ pub fn walk_block_program_states<E>(
     }
 }
 
-pub fn walk_program_state<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, state: &ProgramState)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_program_state(visitor: &mut impl DatabaseVisitor, state: &ProgramState) {
     let ProgramState {
         program,
         queue,
@@ -311,51 +299,35 @@ where
     }
 }
 
-pub fn walk_block_outcome_is_empty<E>(
-    visitor: &mut impl DatabaseVisitor<DbError = E>,
+pub fn walk_block_outcome_is_empty(
+    visitor: &mut impl DatabaseVisitor,
     block: H256,
     outcome_is_empty: bool,
-) where
-    E: DatabaseVisitorError,
-{
+) {
     if !outcome_is_empty {
         visit_or_error!(visitor, &block.block_outcome);
     }
 }
 
-pub fn walk_memory_pages<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, pages: &MemoryPages)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_memory_pages(visitor: &mut impl DatabaseVisitor, pages: &MemoryPages) {
     for memory_pages_region in pages.to_inner().into_iter().flat_map(MaybeHashOf::to_inner) {
         visit_or_error!(visitor, memory_pages_region.as_ref());
     }
 }
 
-pub fn walk_memory_pages_region<E>(
-    visitor: &mut impl DatabaseVisitor<DbError = E>,
-    region: &MemoryPagesRegion,
-) where
-    E: DatabaseVisitorError,
-{
+pub fn walk_memory_pages_region(visitor: &mut impl DatabaseVisitor, region: &MemoryPagesRegion) {
     for &page_data in region.as_inner().values() {
         visit_or_error!(visitor, page_data.as_ref());
     }
 }
 
-pub fn walk_message_queue<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, queue: &MessageQueue)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_message_queue(visitor: &mut impl DatabaseVisitor, queue: &MessageQueue) {
     for dispatch in queue.as_ref() {
         visitor.visit_payload_lookup(&dispatch.payload);
     }
 }
 
-pub fn walk_waitlist<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, waitlist: &Waitlist)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_waitlist(visitor: &mut impl DatabaseVisitor, waitlist: &Waitlist) {
     for Expiring {
         value: dispatch,
         expiry: _,
@@ -365,21 +337,13 @@ where
     }
 }
 
-pub fn walk_mailbox<E>(visitor: &mut impl DatabaseVisitor<DbError = E>, mailbox: &Mailbox)
-where
-    E: DatabaseVisitorError,
-{
+pub fn walk_mailbox(visitor: &mut impl DatabaseVisitor, mailbox: &Mailbox) {
     for &user_mailbox in mailbox.as_ref().values() {
         visit_or_error!(visitor, user_mailbox.as_ref());
     }
 }
 
-pub fn walk_user_mailbox<E>(
-    visitor: &mut impl DatabaseVisitor<DbError = E>,
-    user_mailbox: &UserMailbox,
-) where
-    E: DatabaseVisitorError,
-{
+pub fn walk_user_mailbox(visitor: &mut impl DatabaseVisitor, user_mailbox: &UserMailbox) {
     for Expiring {
         value: msg,
         expiry: _,
@@ -389,12 +353,7 @@ pub fn walk_user_mailbox<E>(
     }
 }
 
-pub fn walk_dispatch_stash<E>(
-    visitor: &mut impl DatabaseVisitor<DbError = E>,
-    stash: &DispatchStash,
-) where
-    E: DatabaseVisitorError,
-{
+pub fn walk_dispatch_stash(visitor: &mut impl DatabaseVisitor, stash: &DispatchStash) {
     for Expiring {
         value: (dispatch, _user_id),
         expiry: _,
@@ -404,12 +363,7 @@ pub fn walk_dispatch_stash<E>(
     }
 }
 
-pub fn walk_payload_lookup<E>(
-    visitor: &mut impl DatabaseVisitor<DbError = E>,
-    payload_lookup: &PayloadLookup,
-) where
-    E: DatabaseVisitorError,
-{
+pub fn walk_payload_lookup(visitor: &mut impl DatabaseVisitor, payload_lookup: &PayloadLookup) {
     match payload_lookup {
         PayloadLookup::Direct(payload) => {
             visitor.visit_payload(payload);
@@ -423,13 +377,15 @@ pub fn walk_payload_lookup<E>(
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
+    DatabaseVisitor(DatabaseVisitorError),
+
     /* block meta */
     BlockIsNotSynced,
     BlockIsNotPrepared,
     BlockIsNotComputed,
 
     /* block header */
-    NoBlockHeader(H256),
+    NoParentBlockHeader(H256),
     InvalidBlockParentHeight {
         parent_height: u32,
         height: u32,
@@ -438,21 +394,6 @@ pub enum IntegrityVerifierError {
         parent_timestamp: u64,
         timestamp: u64,
     },
-
-    /* block */
-    NoBlockEvents(H256),
-    NoBlockProgramStates(H256),
-    NoBlockSchedule(H256),
-    NoBlockOutcome(H256),
-    NoBlockCommitmentQueue(H256),
-    NoBlockCodesQueue(H256),
-    NoPreviousNonEmptyBlock(H256),
-    NoLastCommittedBatch(H256),
-
-    /* memory */
-    NoMemoryPages(HashOf<MemoryPages>),
-    NoMemoryPagesRegion(HashOf<MemoryPagesRegion>),
-    NoMemoryPageData(HashOf<PageBuf>),
 
     /* code */
     NoCodeValid,
@@ -464,98 +405,6 @@ pub enum IntegrityVerifierError {
         metadata_len: u32,
         original_len: u32,
     },
-
-    /* rest */
-    NoMessageQueue(HashOf<MessageQueue>),
-    NoWaitlist(HashOf<Waitlist>),
-    NoDispatchStash(HashOf<DispatchStash>),
-    NoMailbox(HashOf<Mailbox>),
-    NoUserMailbox(HashOf<UserMailbox>),
-    NoAllocations(HashOf<Allocations>),
-    NoPayload(HashOf<Payload>),
-    NoProgramState(H256),
-}
-
-impl DatabaseVisitorError for IntegrityVerifierError {
-    fn no_block_header(block: H256) -> Self {
-        Self::NoBlockHeader(block)
-    }
-
-    fn no_block_events(block: H256) -> Self {
-        Self::NoBlockEvents(block)
-    }
-
-    fn no_block_program_states(block: H256) -> Self {
-        Self::NoBlockProgramStates(block)
-    }
-
-    fn no_block_schedule(block: H256) -> Self {
-        Self::NoBlockSchedule(block)
-    }
-
-    fn no_block_outcome(block: H256) -> Self {
-        Self::NoBlockOutcome(block)
-    }
-
-    fn no_block_commitment_queue(block: H256) -> Self {
-        Self::NoBlockCommitmentQueue(block)
-    }
-
-    fn no_block_codes_queue(block: H256) -> Self {
-        Self::NoBlockCodesQueue(block)
-    }
-
-    fn no_previous_non_empty_block(block: H256) -> Self {
-        Self::NoPreviousNonEmptyBlock(block)
-    }
-
-    fn no_last_committed_batch(block: H256) -> Self {
-        Self::NoLastCommittedBatch(block)
-    }
-
-    fn no_memory_pages(hash: HashOf<MemoryPages>) -> Self {
-        Self::NoMemoryPages(hash)
-    }
-
-    fn no_memory_pages_region(hash: HashOf<MemoryPagesRegion>) -> Self {
-        Self::NoMemoryPagesRegion(hash)
-    }
-
-    fn no_page_data(hash: HashOf<PageBuf>) -> Self {
-        Self::NoMemoryPageData(hash)
-    }
-
-    fn no_message_queue(hash: HashOf<MessageQueue>) -> Self {
-        Self::NoMessageQueue(hash)
-    }
-
-    fn no_waitlist(hash: HashOf<Waitlist>) -> Self {
-        Self::NoWaitlist(hash)
-    }
-
-    fn no_dispatch_stash(hash: HashOf<DispatchStash>) -> Self {
-        Self::NoDispatchStash(hash)
-    }
-
-    fn no_mailbox(hash: HashOf<Mailbox>) -> Self {
-        Self::NoMailbox(hash)
-    }
-
-    fn no_user_mailbox(hash: HashOf<UserMailbox>) -> Self {
-        Self::NoUserMailbox(hash)
-    }
-
-    fn no_allocations(hash: HashOf<Allocations>) -> Self {
-        Self::NoAllocations(hash)
-    }
-
-    fn no_program_state(hash: H256) -> Self {
-        Self::NoProgramState(hash)
-    }
-
-    fn no_payload(hash: HashOf<Payload>) -> Self {
-        Self::NoPayload(hash)
-    }
 }
 
 pub struct IntegrityVerifier {
@@ -598,14 +447,13 @@ impl IntegrityVerifier {
 }
 
 impl DatabaseVisitor for IntegrityVerifier {
-    type DbError = IntegrityVerifierError;
-
     fn db(&self) -> &dyn DatabaseVisitorStorage {
         &self.db
     }
 
-    fn on_db_error(&mut self, error: Self::DbError) {
-        self.errors.push(error);
+    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+        self.errors
+            .push(IntegrityVerifierError::DatabaseVisitor(error));
     }
 
     fn visit_block_meta(&mut self, meta: &BlockMeta) {
@@ -621,10 +469,11 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_block_header(&mut self, header: BlockHeader) {
-        // TODO: we might want to mention its a parent
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             self.errors
-                .push(IntegrityVerifierError::NoBlockHeader(header.parent_hash));
+                .push(IntegrityVerifierError::NoParentBlockHeader(
+                    header.parent_hash,
+                ));
             return;
         };
 

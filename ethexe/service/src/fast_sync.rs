@@ -39,12 +39,11 @@ use ethexe_observer::ObserverService;
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
-        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
-        ProgramState, UserMailbox, Waitlist,
+        DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, ProgramState,
+        UserMailbox, Waitlist,
     },
 };
 use futures::StreamExt;
-use gear_core::{buffer::Payload, memory::PageBuf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -284,123 +283,6 @@ impl RequestMetadata {
     }
 }
 
-struct RequestError {
-    hash: H256,
-    metadata: RequestMetadata,
-}
-
-impl DatabaseVisitorError for RequestError {
-    fn no_block_header(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_block_events(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_block_program_states(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_block_schedule(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_block_outcome(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_block_commitment_queue(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_block_codes_queue(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_previous_non_empty_block(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_last_committed_batch(_block: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_memory_pages(hash: HashOf<MemoryPages>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::MemoryPages,
-        }
-    }
-
-    fn no_memory_pages_region(hash: HashOf<MemoryPagesRegion>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::MemoryPagesRegion,
-        }
-    }
-
-    fn no_page_data(hash: HashOf<PageBuf>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::Data,
-        }
-    }
-
-    fn no_message_queue(hash: HashOf<MessageQueue>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::MessageQueue,
-        }
-    }
-
-    fn no_waitlist(hash: HashOf<Waitlist>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::Waitlist,
-        }
-    }
-
-    fn no_dispatch_stash(hash: HashOf<DispatchStash>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::DispatchStash,
-        }
-    }
-
-    fn no_mailbox(hash: HashOf<Mailbox>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::Mailbox,
-        }
-    }
-
-    fn no_user_mailbox(hash: HashOf<UserMailbox>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::UserMailbox,
-        }
-    }
-
-    fn no_allocations(hash: HashOf<Allocations>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::Data,
-        }
-    }
-
-    fn no_program_state(_hash: H256) -> Self {
-        unreachable!()
-    }
-
-    fn no_payload(hash: HashOf<Payload>) -> Self {
-        Self {
-            hash: hash.hash(),
-            metadata: RequestMetadata::Data,
-        }
-    }
-}
-
 #[derive(Debug)]
 struct RequestManager {
     db: Database,
@@ -524,13 +406,46 @@ impl RequestManager {
 }
 
 impl DatabaseVisitor for RequestManager {
-    type DbError = RequestError;
-
     fn db(&self) -> &dyn DatabaseVisitorStorage {
         &self.db
     }
 
-    fn on_db_error(&mut self, RequestError { hash, metadata }: Self::DbError) {
+    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+        let (hash, metadata) = match error {
+            DatabaseVisitorError::NoMemoryPages(hash) => {
+                (hash.hash(), RequestMetadata::MemoryPages)
+            }
+            DatabaseVisitorError::NoMemoryPagesRegion(hash) => {
+                (hash.hash(), RequestMetadata::MemoryPagesRegion)
+            }
+            DatabaseVisitorError::NoPageData(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseVisitorError::NoMessageQueue(hash) => {
+                (hash.hash(), RequestMetadata::MessageQueue)
+            }
+            DatabaseVisitorError::NoWaitlist(hash) => (hash.hash(), RequestMetadata::Waitlist),
+            DatabaseVisitorError::NoDispatchStash(hash) => {
+                (hash.hash(), RequestMetadata::DispatchStash)
+            }
+            DatabaseVisitorError::NoMailbox(hash) => (hash.hash(), RequestMetadata::Mailbox),
+            DatabaseVisitorError::NoUserMailbox(hash) => {
+                (hash.hash(), RequestMetadata::UserMailbox)
+            }
+            DatabaseVisitorError::NoAllocations(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseVisitorError::NoProgramState(hash) => (hash, RequestMetadata::ProgramState),
+            DatabaseVisitorError::NoPayload(hash) => (hash.hash(), RequestMetadata::Data),
+
+            DatabaseVisitorError::NoBlockHeader(_)
+            | DatabaseVisitorError::NoBlockEvents(_)
+            | DatabaseVisitorError::NoBlockProgramStates(_)
+            | DatabaseVisitorError::NoBlockSchedule(_)
+            | DatabaseVisitorError::NoBlockOutcome(_)
+            | DatabaseVisitorError::NoBlockCommitmentQueue(_)
+            | DatabaseVisitorError::NoBlockCodesQueue(_)
+            | DatabaseVisitorError::NoPreviousNonEmptyBlock(_)
+            | DatabaseVisitorError::NoLastCommittedBatch(_) => {
+                unreachable!("{error:?}")
+            }
+        };
         self.add(hash, metadata);
     }
 }
