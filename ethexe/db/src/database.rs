@@ -46,6 +46,7 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use nonempty::NonEmpty;
 
 #[repr(u64)]
 enum Key {
@@ -672,13 +673,15 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn validators(&self, block_hash: H256) -> Option<Vec<Address>> {
+    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
             .map(|data| {
-                Vec::<Address>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<Address>`")
-            })
+                NonEmpty::from_vec(
+                    Vec::<Address>::decode(&mut data.as_slice())
+                        .expect("Failed to decode data into `Vec<Address>`"),
+                )
+            })?
     }
 }
 
@@ -702,11 +705,10 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: Vec<Address>) {
-        assert!(!validator_set.is_empty(), "validator set can not be empty");
+    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
-            validator_set.encode(),
+            Into::<Vec<Address>>::into(validator_set).encode(),
         );
     }
 }

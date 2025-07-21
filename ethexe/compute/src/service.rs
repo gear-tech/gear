@@ -268,7 +268,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
-        db.set_validators(block_hash, vec![Address::from([0u8; 20])]);
+        db.set_validators(block_hash, nonempty::nonempty![Address::from([0u8; 20])]);
 
         // Request block preparation
         service.prepare_block(block_hash);

@@ -267,7 +267,9 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
-        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
+        let genesis_validators =
+            nonempty::NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
+                .ok_or(anyhow!("genesis validator set is empty"))?;
 
         db.set_block_header(genesis_block_hash, genesis_header.clone());
         db.set_block_events(genesis_block_hash, &[]);

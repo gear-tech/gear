@@ -71,19 +71,23 @@ impl<DB: SyncDB> ChainSync<DB> {
         {
             validators
         } else {
-            let validators = RouterQuery::from_provider(
+            let fetched_validators = RouterQuery::from_provider(
                 self.config.router_address.0.into(),
                 self.provider.clone(),
             )
             .validators_at(block)
             .await?;
+
+            let validators = nonempty::NonEmpty::from_vec(fetched_validators)
+                .ok_or(anyhow!("validator set is empty for block({block})"))?;
+
             self.db.set_validators(block, validators.clone());
             validators
         };
 
         let synced_data = BlockSyncedData {
             block_hash: block,
-            validators,
+            validators: validators.into(),
         };
         Ok(synced_data)
     }
