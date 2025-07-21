@@ -209,7 +209,6 @@ jobs:
             **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests.rs`
           labels: |
             A0-pleasereview
-            A4-insubstantial
 
   destroy-runner:
     if: always()
