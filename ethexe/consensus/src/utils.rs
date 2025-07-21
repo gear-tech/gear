@@ -23,7 +23,7 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
+    Address, AnnounceHash, AnnounceStorageRead, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageRead, CodesStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock},
@@ -46,25 +46,13 @@ pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
     /// List of blocks to validate
-    pub blocks: Vec<H256>,
+    pub head_announce: Option<AnnounceHash>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
 }
 
 impl BatchCommitmentValidationRequest {
     pub fn new(batch: &BatchCommitment) -> Self {
-        let blocks = batch
-            .chain_commitment
-            .iter()
-            .flat_map(|commitment| {
-                commitment.gear_blocks.iter().map(
-                    |GearBlock {
-                         hash: block_hash, ..
-                     }| *block_hash,
-                )
-            })
-            .collect();
-
         let codes = batch
             .code_commitments
             .iter()
@@ -73,7 +61,7 @@ impl BatchCommitmentValidationRequest {
 
         BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
-            blocks,
+            head_announce: batch.chain_commitment.map(|cc| cc.head_announce),
             codes,
         }
     }
@@ -83,24 +71,17 @@ impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             digest,
-            blocks,
+            head_announce,
             codes,
         } = self;
 
-        hasher.update(digest.as_ref());
-        hasher.update(
-            blocks
-                .iter()
-                .flat_map(|h| h.to_fixed_bytes())
-                .collect::<Vec<u8>>()
-                .as_ref(),
-        );
+        hasher.update(digest);
+        head_announce.map(|ha| hasher.update(ha.0));
         hasher.update(
             codes
                 .iter()
                 .flat_map(|h| h.into_bytes())
-                .collect::<Vec<u8>>()
-                .as_ref(),
+                .collect::<Vec<u8>>(),
         );
     }
 }
@@ -221,15 +202,25 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead>(
+pub fn aggregate_chain_commitment<DB: AnnounceStorageRead + BlockMetaStorageRead>(
     db: &DB,
-    blocks: impl IntoIterator<Item = H256>,
+    head_announce_hash: AnnounceHash,
     fail_if_not_computed: bool,
 ) -> Result<Option<ChainCommitment>> {
-    let mut chain_commitments = Vec::new();
+    let head_announce = db
+        .announce(head_announce_hash)
+        .ok_or_else(|| anyhow!("Cannot get from db announce by hash {head_announce_hash:?}"))?;
+    let last_committed_announce_hash = db
+        .block_meta(head_announce.block_hash)
+        .last_committed_announce
+        .ok_or_else(|| {
+            anyhow!("Cannot get from db last committed announce for block {head_announce_hash:?}")
+        })?;
 
-    for block in blocks {
-        if !db.block_meta(block).computed {
+    let mut chain_commitments = Vec::new();
+    let mut announce_hash = head_announce_hash;
+    while announce_hash != last_committed_announce_hash {
+        if !db.announce_meta(announce_hash).computed {
             // This can happen when validator syncs from p2p network and skips some old blocks.
             if fail_if_not_computed {
                 return Err(anyhow!("Block {block} is not computed"));
@@ -250,7 +241,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead>(
 
         chain_commitments.push(ChainCommitment {
             transitions,
-            gear_blocks,
+            head_announce: gear_blocks,
         });
     }
 
@@ -298,12 +289,12 @@ pub fn squash_chain_commitments(
 
     for commitment in chain_commitments {
         transitions.extend(commitment.transitions);
-        gear_blocks.extend(commitment.gear_blocks);
+        gear_blocks.extend(commitment.head_announce);
     }
 
     Some(ChainCommitment {
         transitions,
-        gear_blocks,
+        head_announce: gear_blocks,
     })
 }
 
@@ -647,19 +638,19 @@ mod tests {
         };
         let chain_commitment1 = ChainCommitment {
             transitions: vec![transition1.clone(), transition2.clone()],
-            gear_blocks: vec![gb1.clone()],
+            head_announce: vec![gb1.clone()],
         };
 
         let chain_commitment2 = ChainCommitment {
             transitions: vec![transition3.clone()],
-            gear_blocks: vec![gb2.clone()],
+            head_announce: vec![gb2.clone()],
         };
 
         let squashed =
             squash_chain_commitments(vec![chain_commitment1.clone(), chain_commitment2.clone()])
                 .unwrap();
 
-        assert_eq!(squashed.gear_blocks, vec![gb1, gb2]);
+        assert_eq!(squashed.head_announce, vec![gb1, gb2]);
         assert_eq!(
             squashed.transitions,
             vec![transition1, transition2, transition3]

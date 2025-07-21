@@ -121,19 +121,10 @@ impl Participant {
     ) -> Result<BatchCommitmentValidationReply> {
         let BatchCommitmentValidationRequest {
             digest,
-            blocks,
+            head_announce,
             codes,
         } = request;
 
-        ensure!(
-            !(blocks.is_empty() && codes.is_empty()),
-            "Empty batch (change when other commitments are supported)"
-        );
-
-        ensure!(
-            !utils::has_duplicates(blocks.as_slice()),
-            "Duplicate blocks in validation request"
-        );
         ensure!(
             !utils::has_duplicates(codes.as_slice()),
             "Duplicate codes in validation request"
@@ -143,7 +134,8 @@ impl Participant {
         let waiting_codes = self
             .ctx
             .db
-            .block_codes_queue(self.block.hash)
+            .block_meta(self.block.hash)
+            .codes_queue
             .ok_or_else(|| {
                 anyhow!(
                     "Cannot get from db block codes queue for block {}",
@@ -156,24 +148,6 @@ impl Participant {
             codes.iter().all(|code| waiting_codes.contains(code)),
             "Not all requested codes are waiting for commitment"
         );
-
-        // Check requested blocks wait for commitment and provided in correct order
-        let waiting_blocks = self
-            .ctx
-            .db
-            .block_commitment_queue(self.block.hash)
-            .ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block commitment queue for block {}",
-                    self.block.hash
-                )
-            })?;
-        for (requested_block, waiting_block) in blocks.iter().zip(waiting_blocks.iter()) {
-            ensure!(
-                requested_block == waiting_block,
-                "Requested blocks order or hashes mismatch",
-            );
-        }
 
         let chain_commitment = utils::aggregate_chain_commitment(&self.ctx.db, blocks, true)?;
         let code_commitments = utils::aggregate_code_commitments(&self.ctx.db, codes, true)?;
@@ -373,7 +347,7 @@ mod tests {
         // Add an extra block that's not in the waiting queue
         let extra_block = H256::random();
         if let Some(chain_commitment) = &mut batch.chain_commitment {
-            chain_commitment.gear_blocks.push(GearBlock {
+            chain_commitment.head_announce.push(GearBlock {
                 hash: extra_block,
                 off_chain_transactions_hash: H256::zero(),
                 gas_allowance: 0,
@@ -433,7 +407,7 @@ mod tests {
         // Create a request with empty blocks and codes
         let request = BatchCommitmentValidationRequest {
             digest: Digest::random(),
-            blocks: vec![],
+            head_announce: None,
             codes: vec![],
         };
 

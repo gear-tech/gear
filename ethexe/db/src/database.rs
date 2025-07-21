@@ -23,12 +23,11 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProducerBlock, ProgramStates,
-    Schedule,
+    AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, ProducerBlock, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData,
-        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -636,7 +635,7 @@ impl AnnounceStorageWrite for Database {
     }
 }
 
-impl LatestDataStorageRead for Database {
+impl LatestDataStorage for Database {
     fn latest_data(&self) -> LatestData {
         self.kv
             .get(&Key::LatestData.to_bytes())
@@ -646,9 +645,7 @@ impl LatestDataStorageRead for Database {
             })
             .unwrap_or_default()
     }
-}
 
-impl LatestDataStorageWrite for Database {
     fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) {
         let mut data = self.latest_data();
         f(&mut data);

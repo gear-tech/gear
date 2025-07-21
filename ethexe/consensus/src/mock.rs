@@ -18,7 +18,7 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest, utils};
 use ethexe_common::{
-    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
+    Address, AnnounceHash, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock, Message, StateTransition},
@@ -87,7 +87,7 @@ impl Mock for BatchCommitmentValidationRequest {
     fn mock(_args: Self::Args) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
-            blocks: vec![H256::random(), H256::random()],
+            head_announce: Some(AnnounceHash(H256::random())),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
         }
     }
@@ -123,7 +123,7 @@ impl Mock for ChainCommitment {
     fn mock(block_hash: Self::Args) -> Self {
         ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
-            gear_blocks: vec![GearBlock {
+            head_announce: vec![GearBlock {
                 hash: block_hash,
                 gas_allowance: 0,
                 off_chain_transactions_hash: H256::zero(),
@@ -205,7 +205,7 @@ impl Prepare for ChainCommitment {
     fn prepare(self, db: &Database, previous_not_empty_block: H256) -> Self {
         let Self {
             transitions,
-            gear_blocks,
+            head_announce: gear_blocks,
         } = self;
 
         assert!(gear_blocks.len() == 1, "Only one gear block is supported");
@@ -217,7 +217,7 @@ impl Prepare for ChainCommitment {
 
         Self {
             transitions,
-            gear_blocks: vec![block],
+            head_announce: vec![block],
         }
     }
 }

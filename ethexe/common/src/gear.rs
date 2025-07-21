@@ -92,7 +92,7 @@ impl ToDigest for GearBlock {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub gear_blocks: Vec<GearBlock>,
+    pub head_announce: AnnounceHash,
 }
 
 impl ToDigest for Option<ChainCommitment> {
@@ -100,14 +100,14 @@ impl ToDigest for Option<ChainCommitment> {
         // To avoid missing incorrect hashing while developing.
         let Some(ChainCommitment {
             transitions,
-            gear_blocks,
+            head_announce,
         }) = self
         else {
             return;
         };
 
-        hasher.update(transitions.to_digest().as_ref());
-        hasher.update(gear_blocks.to_digest().as_ref());
+        hasher.update(transitions.to_digest());
+        hasher.update(head_announce.0);
     }
 }
 

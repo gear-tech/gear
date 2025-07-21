@@ -41,6 +41,7 @@ pub struct BlockMeta {
     pub announces: Option<Vec<AnnounceHash>>,
     pub codes_queue: Option<VecDeque<CodeId>>,
     pub last_committed_batch: Option<Digest>,
+    pub last_committed_announce: Option<AnnounceHash>,
 }
 
 impl BlockMeta {
@@ -50,6 +51,7 @@ impl BlockMeta {
             announces: Some(Default::default()),
             codes_queue: Some(Default::default()),
             last_committed_batch: Some(Default::default()),
+            last_committed_announce: Some(Default::default()),
         }
     }
 }
@@ -125,14 +127,12 @@ pub trait AnnounceStorageWrite {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
-    pub latest_synced_block_height: Option<u32>,
-    pub latest_prepared_block_hash: Option<H256>,
-    pub latest_computed_announce_hash: Option<AnnounceHash>,
+    pub synced_block_height: Option<u32>,
+    pub prepared_block_hash: Option<H256>,
+    pub computed_announce_hash: Option<AnnounceHash>,
 }
 
-pub trait LatestDataStorageRead {
+pub trait LatestDataStorage {
     fn latest_data(&self) -> LatestData;
-}
-pub trait LatestDataStorageWrite {
     fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData));
 }

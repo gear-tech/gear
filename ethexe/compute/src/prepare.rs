@@ -144,7 +144,7 @@ async fn propagate_from_parent_block(
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
     // last committed announce hash
-    let mut head_announce_hash = None;
+    let mut last_committed_announce_hash = None;
 
     let events = db
         .block_events(block.hash)
@@ -161,90 +161,92 @@ async fn propagate_from_parent_block(
                 validated_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::GearBlockCommitted(announce)) => {
-                head_announce_hash = Some(announce.hash());
+                last_committed_announce_hash = Some(announce.hash());
             }
             _ => {}
         }
     }
 
-    let last_committed_announce_hash = if let Some(head_announce_hash) = head_announce_hash {
-        let head_announce = db
-            .announce(head_announce_hash)
-            .expect("Announce must be loaded before block prepare");
+    let border_announce_hash =
+        if let Some(last_committed_announce_hash) = last_committed_announce_hash {
+            let head_announce = db
+                .announce(last_committed_announce_hash)
+                .expect("Announce must be loaded before block prepare");
 
-        let head_announce_height = db
-            .block_header(head_announce.block_hash)
-            .expect("Block header must be loaded before block prepare")
-            .height;
-        assert!(
-            head_announce_height < block.header.height,
-            "Any committed announce must be from previous blocks"
-        );
+            let head_announce_height = db
+                .block_header(head_announce.block_hash)
+                .expect("Block header must be loaded before block prepare")
+                .height;
+            assert!(
+                head_announce_height < block.header.height,
+                "Any committed announce must be from previous blocks"
+            );
 
-        if block.header.height - head_announce_height > commitment_delay_limit {
-            assert!(
-                head_announce.is_base(),
-                "Head announce must be base announce"
-            );
-            assert!(
-                db.announce_meta(head_announce_hash).computed,
-                "Head announce must be already computed"
-            );
-            assert!({
-                let mut is_predecessor: bool = true;
-                for announce in db
-                    .block_meta(parent)
-                    .announces
-                    .expect("Announces must be set for parent block")
-                {
-                    let mut predecessor = announce;
-                    for _ in head_announce_height..block.header.height {
-                        predecessor = db
-                            .announce(predecessor)
-                            .expect("Announce must be loaded before block prepare")
-                            .parent;
+            if block.header.height - head_announce_height > commitment_delay_limit {
+                // in that case announce is always computed by this node,
+                // and it's a predecessor of any announce from parent block
+
+                assert!(
+                    head_announce.is_base(),
+                    "Head announce must be base announce"
+                );
+                assert!(
+                    db.announce_meta(last_committed_announce_hash).computed,
+                    "Head announce must be already computed"
+                );
+                assert!({
+                    let mut is_predecessor: bool = true;
+                    for announce in db
+                        .block_meta(parent)
+                        .announces
+                        .expect("Announces must be set for parent block")
+                    {
+                        let mut predecessor = announce;
+                        for _ in head_announce_height..block.header.height {
+                            predecessor = db
+                                .announce(predecessor)
+                                .expect("Announce must be loaded before block prepare")
+                                .parent;
+                        }
+                        if predecessor != last_committed_announce_hash {
+                            is_predecessor = false;
+                            break;
+                        }
                     }
-                    if predecessor != head_announce_hash {
-                        is_predecessor = false;
-                        break;
-                    }
+
+                    is_predecessor
+                });
+            } else {
+                // in that case head announce can be not computed by this node
+
+                let mut not_computed_chain = VecDeque::new();
+                let mut announce_hash = last_committed_announce_hash;
+                let mut counter = 0;
+                while !db.announce_meta(announce_hash).computed {
+                    counter += 1;
+                    assert!(
+                        counter <= commitment_delay_limit,
+                        "Chain of announces must not be longer than commitment delay limit"
+                    );
+
+                    let announce = db
+                        .announce(announce_hash)
+                        .expect("Announce must be loaded before block prepare");
+                    announce_hash = announce.parent;
+                    not_computed_chain.push_front(announce);
                 }
 
-                is_predecessor
-            });
+                for announce in not_computed_chain {
+                    compute::compute(db.clone(), processor.clone(), announce).await?;
+                }
+            }
 
-            None
+            last_committed_announce_hash
         } else {
-            // in that case head announce can be not computed by this node
+            // No announces was committed in block, so set genesis (always default) announce as border
 
-            let mut not_computed_chain = VecDeque::new();
-            let mut announce_hash = head_announce_hash;
-            let mut counter = 0;
-            while !db.announce_meta(announce_hash).computed {
-                counter += 1;
-                assert!(
-                    counter <= commitment_delay_limit,
-                    "Chain of announces must not be longer than commitment delay limit"
-                );
-
-                let announce = db
-                    .announce(announce_hash)
-                    .expect("Announce must be loaded before block prepare");
-                announce_hash = announce.parent;
-                not_computed_chain.push_front(announce);
-            }
-
-            for announce in not_computed_chain {
-                compute::compute(db.clone(), processor.clone(), announce).await?;
-            }
-
-            Some(head_announce_hash)
-        }
-    } else {
-        None
-    };
-
-    let latest_announce_hash = last_committed_announce_hash.unwrap_or_default();
+            Default::default()
+        };
 
     // Propagate new base announces from all parent announces
     let parent_announces = parent_meta.announces.expect("Parent announces must be set");
@@ -259,7 +261,7 @@ async fn propagate_from_parent_block(
             processor,
             block.hash,
             parent_announce_hash,
-            latest_announce_hash,
+            border_announce_hash,
             commitment_delay_limit,
         )? {
             new_base_announce_hashes.push(new_announce_hash);
@@ -277,6 +279,13 @@ async fn propagate_from_parent_block(
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
         meta.announces = Some(new_base_announce_hashes);
+        meta.last_committed_announce = Some(
+            last_committed_announce_hash.unwrap_or(
+                parent_meta
+                    .last_committed_announce
+                    .expect("Parent last committed announce must be set"),
+            ),
+        );
         meta.prepared = true;
     });
 
@@ -291,12 +300,12 @@ fn propagate_from_parent_announce<
     processor: &mut impl ProcessorExt,
     block_hash: H256,
     parent: AnnounceHash,
-    latest_announce_hash: AnnounceHash,
+    border_announce_hash: AnnounceHash,
     commitment_delay_limit: u32,
 ) -> Result<Option<AnnounceHash>> {
     let mut predecessor = parent;
     for i in 0..commitment_delay_limit {
-        if predecessor == latest_announce_hash {
+        if predecessor == border_announce_hash {
             break;
         }
 
