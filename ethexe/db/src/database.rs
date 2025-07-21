@@ -44,9 +44,9 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use nonempty::NonEmpty;
 
 #[repr(u64)]
 enum Key {

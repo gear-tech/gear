@@ -18,6 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
+use crate::utils::load_block_data;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -26,7 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, SimpleBlockData,
+    Address, BlockData, BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
 };
 use ethexe_db::Database;
@@ -305,14 +306,17 @@ impl ObserverService {
         self.config.block_time.as_secs()
     }
 
-    pub async fn force_sync_block(&mut self, block: H256) -> Result<()> {
-        let block = self
-            .provider
-            .get_block_by_hash(block.0.into())
-            .await?
-            .context("forced block not found")?;
+    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
+        load_block_data(
+            self.provider.clone(),
+            block,
+            self.config.router_address,
+            self.config.wvara_address,
+            None,
+        )
+    }
 
-        self.block_sync_queue.push_back(block.header);
-        Ok(())
+    pub fn router_query(&self) -> RouterQuery {
+        RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
     }
 }
