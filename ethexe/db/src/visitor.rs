@@ -586,6 +586,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_block(&mut self, block: H256) {
+        // avoid recursion
         if self.visited_blocks.insert(block) {
             walk_block(self, block);
         }
