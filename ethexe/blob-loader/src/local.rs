@@ -19,9 +19,9 @@
 use crate::{BlobLoaderError, BlobLoaderEvent, BlobLoaderService, Result};
 use ethexe_common::{CodeAndId, CodeAndIdUnchecked};
 use futures::{
+    FutureExt, Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
 };
 use gprimitives::CodeId;
 use std::{

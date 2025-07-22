@@ -17,20 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
-use futures::{ready, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, ready, stream::FusedStream};
 use hyper::{
+    Body, Request, Response, Server,
     http::StatusCode,
     server::conn::AddrIncoming,
     service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
 };
 use prometheus::{
-    self,
+    self, Encoder, Opts, Registry, TextEncoder,
     core::{
         AtomicU64 as U64, AtomicU64, Collector, GenericCounterVec, GenericGauge as Gauge,
         GenericGaugeVec,
     },
-    Encoder, Opts, Registry, TextEncoder,
 };
 use std::{
     net::SocketAddr,

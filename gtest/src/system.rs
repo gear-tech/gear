@@ -17,19 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    GAS_ALLOWANCE, Gas, Value,
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
-    Gas, Value, GAS_ALLOWANCE,
 };
 use core_processor::common::JournalNote;
 use gear_common::MessageId;
 use gear_core::{
     ids::{
-        prelude::{CodeIdExt, MessageIdExt},
         ActorId, CodeId,
+        prelude::{CodeIdExt, MessageIdExt},
     },
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
     pages::GearPage,
@@ -252,7 +252,7 @@ impl System {
     }
 
     /// Returns a [`Program`] by `id`.
-    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program> {
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program<'_>> {
         let id = id.into().0;
         if ProgramsStorageManager::is_program(id) {
             Some(Program {
@@ -265,12 +265,12 @@ impl System {
     }
 
     /// Returns last added program.
-    pub fn last_program(&self) -> Option<Program> {
+    pub fn last_program(&self) -> Option<Program<'_>> {
         self.programs().into_iter().next_back()
     }
 
     /// Returns a list of programs.
-    pub fn programs(&self) -> Vec<Program> {
+    pub fn programs(&self) -> Vec<Program<'_>> {
         ProgramsStorageManager::program_ids()
             .into_iter()
             .map(|id| Program {
@@ -365,7 +365,7 @@ impl System {
     ///
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
-    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox {
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox<'_> {
         let program_id = id.into().0;
         if !ProgramsStorageManager::is_user(program_id) {
             usage_panic!("Mailbox available only for users. Please, provide a user id.");
@@ -534,7 +534,7 @@ impl Drop for System {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Log, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, MAX_USER_GAS_LIMIT};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, MAX_USER_GAS_LIMIT};
     use gear_core_errors::{ReplyCode, SuccessReplyReason};
 
     #[test]
@@ -672,11 +672,13 @@ mod tests {
         let handle_mid1 = program.send_bytes_with_value(DEFAULT_USER_ALICE, b"", storing_value);
         let block_result = sys.run_next_block();
         assert!(block_result.succeed.contains(&handle_mid1));
-        assert!(block_result.contains(
-            &Log::builder()
-                .dest(DEFAULT_USER_ALICE)
-                .reply_code(reply_info.code)
-        ));
+        assert!(
+            block_result.contains(
+                &Log::builder()
+                    .dest(DEFAULT_USER_ALICE)
+                    .reply_code(reply_info.code)
+            )
+        );
 
         let alice_expected_balance_after_msg1 =
             alice_balance_before_overlay - storing_value - block_result.spent_value();

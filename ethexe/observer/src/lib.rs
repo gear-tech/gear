@@ -18,20 +18,21 @@
 
 //! Ethereum state observer for ethexe.
 
+use crate::utils::load_block_data;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
     transports::{RpcError, TransportErrorKind},
 };
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
+    Address, BlockData, BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
-    Address, BlockHeader, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -50,9 +51,6 @@ mod tests;
 
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
-type LastFinalizedBlockFuture =
-    BoxFuture<'static, std::result::Result<BlockHeader, RpcError<TransportErrorKind>>>;
-
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,
@@ -117,7 +115,7 @@ impl Stream for ObserverService {
                 Poll::Ready(Err(e)) => {
                     return Poll::Ready(Some(Err(anyhow!(
                         "failed to create new headers stream: {e}"
-                    ))))
+                    ))));
                 }
                 Poll::Pending => return Poll::Pending,
             }
@@ -187,7 +185,7 @@ impl ObserverService {
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
 
-        let wvara_address = Address(router_query.wvara_address().await?.0 .0);
+        let wvara_address = Address(router_query.wvara_address().await?.0.0);
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -293,14 +291,17 @@ impl ObserverService {
         self.config.block_time.as_secs()
     }
 
-    pub async fn force_sync_block(&mut self, block: H256) -> Result<()> {
-        let block = self
-            .provider
-            .get_block_by_hash(block.0.into())
-            .await?
-            .context("forced block not found")?;
+    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
+        load_block_data(
+            self.provider.clone(),
+            block,
+            self.config.router_address,
+            self.config.wvara_address,
+            None,
+        )
+    }
 
-        self.block_sync_queue.push_back(block.header);
-        Ok(())
+    pub fn router_query(&self) -> RouterQuery {
+        RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
     }
 }

@@ -18,8 +18,8 @@
 
 #![allow(clippy::identity_op)]
 
-use crate::{mock::*, AccountIdOf, Config, CustomChargeTransactionPayment, QueueOf};
-use common::{storage::*, Origin};
+use crate::{AccountIdOf, Config, CustomChargeTransactionPayment, QueueOf, mock::*};
+use common::{Origin, storage::*};
 use frame_support::{
     assert_ok,
     dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
@@ -29,7 +29,7 @@ use gear_core::message::{Dispatch, DispatchKind, Message, StoredDispatch, UserSt
 use pallet_gear_voucher::{Call as VoucherCall, PrepaidCall};
 use pallet_transaction_payment::{FeeDetails, InclusionFee, Multiplier, RuntimeDispatchInfo};
 use primitive_types::H256;
-use sp_runtime::{codec::Encode, testing::TestXt, traits::SignedExtension, FixedPointNumber};
+use sp_runtime::{FixedPointNumber, codec::Encode, testing::TestXt, traits::SignedExtension};
 use utils::*;
 
 type WeightToFeeFor<T> = <T as pallet_transaction_payment::Config>::WeightToFee;

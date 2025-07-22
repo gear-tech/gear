@@ -22,9 +22,9 @@
 //! This module also provides API for low-level async implementation.
 
 use crate::{
+    ActorId, EnvVars, MessageId,
     errors::{Result, SyscallError},
     utils::AsRawPtr,
-    ActorId, EnvVars, MessageId,
 };
 use core::mem::MaybeUninit;
 use gsys::BlockNumberWithHash;
@@ -165,7 +165,7 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 /// Reserve 50 million of gas for seven blocks:
 ///
 /// ```
-/// use gcore::{exec, ReservationId};
+/// use gcore::{ReservationId, exec};
 ///
 /// static mut RESERVED: ReservationId = ReservationId::zero();
 ///
@@ -368,7 +368,7 @@ pub fn wait_up_to(duration: u32) -> ! {
 /// # Examples
 ///
 /// ```
-/// use gcore::{exec, msg, MessageId};
+/// use gcore::{MessageId, exec, msg};
 ///
 /// static mut MSG_ID: MessageId = MessageId::zero();
 ///

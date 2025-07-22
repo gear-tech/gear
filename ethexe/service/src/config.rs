@@ -19,7 +19,7 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_common::{ecdsa::PublicKey, Address};
+use ethexe_common::{Address, ecdsa::PublicKey};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;

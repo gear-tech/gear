@@ -21,7 +21,7 @@
 use crate::{Address, Digest, ToDigest};
 use alloc::vec::Vec;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
-use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
 use sha3::Digest as _;

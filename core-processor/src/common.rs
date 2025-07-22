@@ -28,7 +28,7 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{MemoryError, MemorySetupError, PageBuf},
     message::{ContextStore, Dispatch, IncomingDispatch, StoredDispatch},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPage, WasmPagesAmount, numerated::tree::IntervalsTree},
     program::MemoryInfix,
     reservation::{GasReservationMap, GasReserver},
 };

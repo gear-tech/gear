@@ -17,17 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    compute,
+    BlockProcessed, ComputeError, ComputeEvent, ProcessorExt, Result, compute,
     prepare::{self, PrepareInfo},
-    BlockProcessed, ComputeError, ComputeEvent, ProcessorExt, Result,
 };
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
     CodeAndIdUnchecked, SimpleBlockData,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{HashSet, VecDeque},
@@ -196,24 +195,23 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             chain,
             waiting_codes,
         } = &self.blocks_state
+            && waiting_codes.is_empty()
         {
-            if waiting_codes.is_empty() {
-                // All codes are loaded, we can mark the block as prepared
-                for block_data in chain {
-                    self.db
-                        .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
-                }
-                let event = ComputeEvent::BlockPrepared(*block);
-                self.blocks_state = State::WaitForBlock;
-                return Poll::Ready(Some(Ok(event)));
+            // All codes are loaded, we can mark the block as prepared
+            for block_data in chain {
+                self.db
+                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
             }
+            let event = ComputeEvent::BlockPrepared(*block);
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(Ok(event)));
         }
 
-        if let State::ComputeBlock(future) = &mut self.blocks_state {
-            if let Poll::Ready(res) = future.poll_unpin(cx) {
-                self.blocks_state = State::WaitForBlock;
-                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
-            }
+        if let State::ComputeBlock(future) = &mut self.blocks_state
+            && let Poll::Ready(res) = future.poll_unpin(cx)
+        {
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         Poll::Pending
@@ -231,8 +229,8 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
         BlockHeader, CodeAndIdUnchecked,
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use ethexe_db::Database as DB;
     use futures::StreamExt;

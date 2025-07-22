@@ -18,7 +18,7 @@
 
 use alloc::vec::Vec;
 use gear_core::message::ReplyCode;
-use gprimitives::{ActorId, MessageId, H256};
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]

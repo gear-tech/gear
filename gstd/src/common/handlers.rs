@@ -52,7 +52,7 @@ mod panic_handler {
         /// of the error.
         #[cfg(feature = "panic-message")]
         pub const TRIMMED_MAX_LEN: usize = 1024; //TODO: do not duplicate
-                                                 // `gear_core::str::TRIMMED_MAX_LEN`
+        // `gear_core::str::TRIMMED_MAX_LEN`
     }
 
     use constants::*;

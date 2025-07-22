@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, BlockHeader, BlockMeta, CodeBlobInfo, Digest,
-    ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule, events::BlockEvent,
+    gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -33,7 +33,6 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
-use k256::PublicKey;
 
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -93,7 +92,6 @@ pub trait OnChainStorageRead {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
-    fn latest_finalized_block(&self) -> Option<H256>;
 }
 
 pub trait OnChainStorageWrite {
@@ -101,15 +99,4 @@ pub trait OnChainStorageWrite {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
-    fn set_latest_finalized_block(&self, block_hash: H256, header: BlockHeader);
 }
-
-// pub trait EraRelatedStorageRead {
-//     fn rewards_distributed(&self, era_index: u64) -> bool;
-//     fn era_operators(&self, era_genesis_block: H256) -> Option<Vec<PublicKey>>;
-//     fn active_era_stakers(&self);
-// }
-
-// pub trait EraRelatedStorageWrite {
-//     fn set_rewards_distributed(&self, era_index: u64, distributed: bool);
-// }

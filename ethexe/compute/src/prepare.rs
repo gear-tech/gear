@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{utils, ComputeError, Result};
+use crate::{ComputeError, Result, utils};
 use ethexe_common::{
+    SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
-    SimpleBlockData,
 };
 use gprimitives::{CodeId, H256};
 use std::collections::{HashSet, VecDeque};
@@ -78,7 +78,6 @@ fn propagate_data_from_parent<
     let mut last_committed_batch = db
         .last_committed_batch(parent)
         .ok_or_else(|| ComputeError::LastCommittedBatchNotFound(parent))?;
-    let mut latest_rewarded_era = db.latest_rewarded_era(parent);
 
     for event in events {
         match event {
@@ -109,6 +108,8 @@ fn propagate_data_from_parent<
                 }
             }
             BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
+                let latest_rewarded_era = db.latest_rewarded_era(parent);
+
                 // check that era is greater than previous rewarded era
                 if let Some(latest_era) = latest_rewarded_era {
                     debug_assert!(
@@ -118,8 +119,8 @@ fn propagate_data_from_parent<
                         latest_era
                     );
                 }
-
-                latest_rewarded_era = Some(*era);
+                // Propagate latest rewarded era
+                db.set_latest_rewarded_era(block, *era);
             }
             _ => {}
         }
@@ -127,9 +128,6 @@ fn propagate_data_from_parent<
 
     // Propagate last committed batch
     db.set_last_committed_batch(block, last_committed_batch);
-
-    // Propagate latest rewarded era
-    db.set_latest_rewarded_era(block, latest_rewarded_era);
 
     // Propagate `wait for code validation` blocks queue
     let mut codes_queue = db
@@ -146,9 +144,9 @@ fn propagate_data_from_parent<
 mod tests {
     use super::*;
     use ethexe_common::{
+        BlockHeader, Digest,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
-        BlockHeader, Digest,
     };
     use ethexe_db::Database as DB;
     use gprimitives::{CodeId, H256};

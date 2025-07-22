@@ -21,7 +21,7 @@ use gear_runtime_common::{
     self,
     constants::{VARA_DECIMAL, VARA_SS58PREFIX, VARA_TESTNET_TOKEN_SYMBOL},
 };
-use sc_chain_spec::{Properties, DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET};
+use sc_chain_spec::{DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET, Properties};
 use sc_service::ChainType;
 use vara_runtime::WASM_BINARY;
 

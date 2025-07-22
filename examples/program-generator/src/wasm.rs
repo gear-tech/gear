@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{collections::BTreeSet, prelude::*, prog::ProgramGenerator, CodeId};
+use gstd::{CodeId, collections::BTreeSet, prelude::*, prog::ProgramGenerator};
 
 fn check_salt_uniqueness() {
     let salts: Vec<_> = (0..10).map(|_| ProgramGenerator::get_salt()).collect();

@@ -19,30 +19,30 @@
 //! Benchmarks for gear syscalls.
 
 use super::{
+    API_BENCHMARK_BATCHES, Exec, Program,
     code::{
-        body::{self, unreachable_condition_i32, DynInstr::*},
         DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+        body::{self, DynInstr::*, unreachable_condition_i32},
     },
     utils::{self, PrepareConfig},
-    Exec, Program, API_BENCHMARK_BATCHES,
 };
 use crate::{
-    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
-    MailboxOf, Pallet as Gear, ProgramStorageOf,
+    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, benchmarking::MAX_PAYLOAD_LEN,
+    manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE,
 };
 use alloc::{vec, vec::Vec};
-use common::{storage::*, Origin, ProgramStorage};
+use common::{Origin, ProgramStorage, storage::*};
 use core::marker::PhantomData;
 use gear_core::{
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPage, WasmPagesAmount, numerated::iterators::IntervalIterator},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{Instruction, SyscallName};
-use rand::{seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, seq::SliceRandom};
 use rand_pcg::Pcg64;
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};

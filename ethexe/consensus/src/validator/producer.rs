@@ -17,21 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
+    StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{
-    rewards::{RewardsManager, RewardsManagerConfig},
-    utils, ConsensusEvent,
-};
-use anyhow::{anyhow, Result};
+use crate::{ConsensusEvent, utils};
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
+    Address, ProducerBlock, SimpleBlockData,
     db::BlockMetaStorageRead,
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, OperatorRewardsCommitment,
-        RewardsCommitment, StakerRewardsCommitment, ValidatorsCommitment,
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
-    Address, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
@@ -198,13 +194,14 @@ impl Producer {
         block_hash: H256,
     ) -> Result<Option<RewardsCommitment>> {
         // Replace with actual implementation
-        let config = RewardsManagerConfig {
+        let config = crate::rewards::RewardsConfig {
             genesis_timestamp: 0,
             era_duration: 10,
             wvara_digets: U256::from(10),
+            wvara_address: Address::default(),
         };
-        let manager = RewardsManager::new(ctx.db.clone(), config);
-        Ok(manager.create_commitment(block_hash)?)
+        // let _commitment = crate::rewards::rewards_commitment(&ctx.db, &config, block_hash)?;
+        Ok(None)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
@@ -229,8 +226,8 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, SignedValidationRequest};
-    use ethexe_common::{db::BlockMetaStorageWrite, Digest, ToDigest};
+    use crate::{SignedValidationRequest, mock::*, validator::mock::*};
+    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
     use std::vec;
 
     #[tokio::test]

@@ -35,7 +35,7 @@ mod wasm;
 mod tests {
     use alloc::vec::Vec;
     use gstd::ActorId;
-    use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn auto_reply_received() {

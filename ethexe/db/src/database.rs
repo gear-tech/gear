@@ -19,11 +19,12 @@
 //! Database for ethexe.
 
 use crate::{
-    overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase, MemDb,
+    overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ethexe_common::{
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
@@ -31,7 +32,6 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -195,7 +195,9 @@ impl Database {
             .height
             .checked_sub(reference_block_header.height)
         else {
-            bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
+            bail!(
+                "Can't calculate actual window: reference block hash doesn't suit actual blocks state"
+            );
         };
 
         if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
@@ -347,10 +349,9 @@ impl BlockMetaStorageRead for Database {
     }
 
     fn latest_rewarded_era(&self, block_hash: H256) -> Option<u64> {
-        todo!()
-        // self.kv
-        //     .get(&Key::LatestRewardedEra(block_hash).to_bytes())
-        //     .map(|mut data| u64::decode(&mut data).expect("Failed to decode data ino `u64`"))
+        self.kv
+            .get(&Key::LatestRewardedEra(block_hash).to_bytes())
+            .map(|data| u64::decode(&mut data.as_slice()).expect("Failed to decode data ino `u64`"))
     }
 }
 
@@ -417,8 +418,10 @@ impl BlockMetaStorageWrite for Database {
         );
     }
 
-    fn set_latest_rewarded_era(&self, era: u64) {
-        todo!()
+    fn set_latest_rewarded_era(&self, block_hash: H256, era: u64) {
+        log::trace!("Set latest rewarded era for block {block_hash}: {era}");
+        self.kv
+            .put(&Key::LatestRewardedEra(block_hash).to_bytes(), era.encode());
     }
 }
 
@@ -679,10 +682,6 @@ impl OnChainStorageRead for Database {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
-
-    fn latest_finalized_block(&self) -> Option<H256> {
-        todo!()
-    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -703,10 +702,6 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
-    }
-
-    fn set_latest_finalized_block(&self, block_hash: H256, header: BlockHeader) {
-        todo!()
     }
 }
 
@@ -790,16 +785,18 @@ mod tests {
 
             // Check block near the end of the window
             let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_mid)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_mid)
+                    .unwrap()
+            );
 
             // Check block at the edge of the window
             // Block at BASE_HEIGHT
             let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_edge)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_edge)
+                    .unwrap()
+            );
         }
 
         // --- Fail: Outside Window ---
@@ -890,10 +887,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No latest valid block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No latest valid block found")
+            );
         }
 
         // --- Error: No Reference Block ---
@@ -913,10 +912,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No reference block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No reference block found")
+            );
         }
 
         // --- Error: Missing History ---
@@ -947,10 +948,12 @@ mod tests {
 
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("not found in the window"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("not found in the window")
+            );
         }
     }
 

@@ -43,7 +43,7 @@ use anyhow::Result;
 pub use connect::SimpleConnectService;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
 use ethexe_observer::BlockSyncedData;
-use futures::{stream::FusedStream, Stream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 pub use utils::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,

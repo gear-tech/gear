@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{ext, msg, prelude::*, ActorId};
+use gstd::{ActorId, ext, msg, prelude::*};
 
 static mut PANICKING_ID: ActorId = ActorId::zero();
 

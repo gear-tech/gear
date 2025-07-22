@@ -18,9 +18,9 @@
 
 use super::utils;
 use crate::params::Params;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
-use ethexe_common::{ecdsa::Signature, ToDigest as _};
+use ethexe_common::{ToDigest as _, ecdsa::Signature};
 use ethexe_signer::Signer;
 use std::path::PathBuf;
 
@@ -136,7 +136,9 @@ impl KeyCommand {
                         .ok_or_else(|| anyhow!("Unrecognized eth address"))
                         .with_context(|| "invalid `key`")?
                 } else {
-                    bail!("Invalid key length: should be 33 bytes public key or 20 bytes eth address ");
+                    bail!(
+                        "Invalid key length: should be 33 bytes public key or 20 bytes eth address "
+                    );
                 };
 
                 let private = signer

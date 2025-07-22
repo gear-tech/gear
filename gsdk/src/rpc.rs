@@ -18,7 +18,7 @@
 
 //! Gear API RPC methods
 
-use crate::{result::Result, Api, GasInfo};
+use crate::{Api, GasInfo, result::Result};
 use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,

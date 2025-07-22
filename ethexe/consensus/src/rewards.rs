@@ -1,34 +1,14 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Range};
 
-use alloy::{
-    eips::{BlockId, HashOrNumber},
-    primitives::Address,
-    providers::{Provider, RootProvider},
-};
 use ethexe_common::{
+    Address,
     db::{BlockMetaStorageRead, OnChainStorageRead},
-    gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewards, StakerRewardsCommitment},
-    BlockHeader,
+    gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewardsCommitment},
 };
 use gprimitives::{H256, U256};
 
-use ethexe_db::Database;
-use futures::StreamExt;
-
-/// Weights for rewards calculation.
-/// Weights calculates in `wVARA` tokens as `amount` * 10 ** `vVARA decimals`.
-mod weights {
-    // Reward for operator participation in the commitment.
-    pub const PARTICIPATION: u64 = 1000;
-
-    // Reward for operator commit new execution state to Ethereum.
-    // Total rewards for commitment will be calculated as:
-    // `VALIDATOR_COMMITMENT_PER_GAS * gas_used
-    pub const COMMITMENT_GAS_UNIT: u64 = 1;
-}
-
-// TODO: wait for 3 eth eras to calculate rewards
 /*
+TODO: wait for 3 eth eras to calculate rewards
 * Rewards proporsal*
 1. watch finalized blocks (starting from 2 eras ago)
 2. iterate through all finalized blocks and
@@ -52,152 +32,147 @@ Validators count in db:
 */
 
 #[derive(Debug, Clone)]
-pub struct RewardsManagerConfig {
+pub(crate) struct RewardsConfig {
     pub genesis_timestamp: u64,
     pub era_duration: u64,
     pub wvara_digets: U256,
+    pub wvara_address: Address,
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum DistributionError {
-    #[error("previous not empty block not found for {0:?}")]
-    PreviousBlockNotFound(H256),
     #[error("block header not found for: {0:?}")]
     BlockHeaderNotFound(H256),
 }
 
 type Result<T> = std::result::Result<T, DistributionError>;
 
-/// [`RewardsManager`] is responsible for managing rewards commitments.
-/// It calculates the commiment only once per era and save it to the database.
-#[derive(Clone)]
-pub(crate) struct RewardsManager<DB: BlockMetaStorageRead + OnChainStorageRead> {
-    db: DB,
-    config: RewardsManagerConfig,
+pub(crate) fn rewards_commitment<DB>(
+    db: &DB,
+    config: &RewardsConfig,
+    chain_head: H256,
+) -> Result<Option<RewardsCommitment>>
+where
+    DB: BlockMetaStorageRead + OnChainStorageRead,
+{
+    let Some(eras_to_reward) = eras_to_reward(db, config, chain_head)? else {
+        return Ok(None);
+    };
+
+    let rewards_commitment = RewardsCommitment {
+        operators: operator_rewards_commitment(db, config, eras_to_reward, chain_head)?,
+        stakers: stakers_rewards_commitment(config)?,
+        // TODO: add era timestamp
+        timestamp: 0u64,
+    };
+
+    Ok(Some(rewards_commitment))
 }
 
-impl<DB: BlockMetaStorageRead + OnChainStorageRead> RewardsManager<DB> {
-    pub fn new(db: DB, config: RewardsManagerConfig) -> Self {
-        Self { db, config }
+fn eras_to_reward<DB>(
+    db: &DB,
+    config: &RewardsConfig,
+    chain_head: H256,
+) -> Result<Option<Range<u64>>>
+where
+    DB: BlockMetaStorageRead + OnChainStorageRead,
+{
+    let header = db
+        .block_header(chain_head)
+        .ok_or(DistributionError::BlockHeaderNotFound(chain_head))?;
+
+    // Check rewards are already distributed
+    let latest_rewarded_era = db.latest_rewarded_era(chain_head).unwrap_or_default();
+    let current_era = utils::era_index(config, header.timestamp);
+
+    if current_era == latest_rewarded_era {
+        // rewards can not be distribute, because of in this era they were already
+        return Ok(None);
     }
 
-    /// Retuned vector can contains zero or one commitment.
-    /// No commitment means that rewards are already distributed.
-    pub fn create_commitment(&self, chain_head: H256) -> Result<Option<RewardsCommitment>> {
-        if !self.distribution_criteria(chain_head)? {
-            return Ok(None);
+    if current_era == latest_rewarded_era + 1 {
+        // rewards can't be distributed, because era is not finished yet
+        return Ok(None);
+    }
+
+    // maybe need check something else
+    Ok(Some(latest_rewarded_era..current_era))
+}
+
+// Criteria for distribution of rewards:
+// 1. In the current era rewards are not distributed yet
+// 2. Era is finished (current era is not equal to latest rewarded era + 1)
+
+fn operator_rewards_commitment<DB>(
+    db: &DB,
+    config: &RewardsConfig,
+    eras: Range<u64>,
+    chain_head: H256,
+) -> Result<OperatorRewardsCommitment>
+where
+    DB: BlockMetaStorageRead + OnChainStorageRead,
+{
+    let mut current_block = chain_head;
+    let mut rewards_statistics = BTreeMap::new();
+    let mut total_rewards = U256::zero();
+
+    loop {
+        let block_header = db
+            .block_header(current_block)
+            .ok_or(DistributionError::BlockHeaderNotFound(current_block))?;
+        let block_era = utils::era_index(config, block_header.timestamp);
+
+        if eras.end <= block_era {
+            // We are in the future, no need to continue
+            continue;
         }
 
-        let rewards_commitment = RewardsCommitment {
-            operators: self.operator_rewards_commitment()?,
-            stakers: self.stakers_rewards_commitment()?,
-            // TODO: add era timestamp
-            timestamp: 0u64,
-        };
-
-        Ok(Some(rewards_commitment))
-    }
-
-    // Criteria for distribution of rewards:
-    // 1. In the current era rewards are not distributed yet
-    // 2. Era is finished (current era is not equal to latest rewarded era + 1)
-    fn distribution_criteria(&self, chain_head: H256) -> Result<bool> {
-        let header = self
-            .db
-            .block_header(chain_head)
-            .ok_or(DistributionError::BlockHeaderNotFound(chain_head))?;
-        let parent = self
-            .db
-            .previous_not_empty_block(chain_head)
-            .ok_or(DistributionError::PreviousBlockNotFound(chain_head))?;
-
-        // Check rewards are already distributed
-        let latest_rewarded_era = self
-            .db
-            .latest_rewarded_era(chain_head)
-            .unwrap_or(self.era_index(header.timestamp));
-        let current_era =
-            (header.timestamp - self.config.genesis_timestamp) / self.config.era_duration;
-
-        if current_era == latest_rewarded_era {
-            // rewards can not be distribute, because of in this era they were already
-            return Ok(false);
+        if eras.start > block_era {
+            // We are in the past, no need to continue
+            break;
         }
 
-        if current_era == latest_rewarded_era + 1 {
-            // rewards can't be distributed, because era is not finished yet
-            return Ok(false);
+        let block_validators = validators(current_block);
+        for validator in block_validators.iter() {
+            let operator_rewards = rewards_statistics.entry(*validator).or_insert(U256::zero());
+
+            let value = U256::from(100) * U256::from(10).pow(config.wvara_digets);
+
+            *operator_rewards += value;
+            total_rewards += value;
         }
-
-        // maybe need check something else
-        Ok(true)
+        current_block = block_header.parent_hash;
     }
 
-    fn era_index(&self, block_ts: u64) -> u64 {
-        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
-    }
+    Ok(OperatorRewardsCommitment {
+        amount: total_rewards,
+        root: build_rewards_merkle_tree(rewards_statistics),
+    })
+}
 
-    fn operator_rewards_commitment(&self, block_hash: H256) -> Result<OperatorRewardsCommitment> {
-        let (operators_rewards_data, total_rewards) = self.collect_operators_rewards(block_hash)?;
-        let root = utils::build_merkle_tree(operators_rewards_data);
+fn stakers_rewards_commitment(config: &RewardsConfig) -> Result<StakerRewardsCommitment> {
+    let stakers_rewards = StakerRewardsCommitment {
+        distribution: Vec::new(),
+        total_amount: U256::zero(),
+        token: config.wvara_address,
+    };
+    Ok(stakers_rewards)
+}
 
-        let operator_rewards = OperatorRewardsCommitment {
-            amount: total_rewards,
-            root,
-        };
-        Ok(operator_rewards)
-    }
+fn validators(_block_hash: H256) -> Vec<Address> {
+    vec![]
+}
 
-    fn collect_operator_rewards(
-        &self,
-        chain_head: BlockHeader,
-    ) -> Result<(BTreeMap<Address, U256>, U256)> {
-        let distribution_era = self.era_index(chain_head.timestamp);
-        let mut current_block = block;
-
-        let mut operators_rewards = BTreeMap::new();
-        let mut total_rewards = U256::zero();
-        loop {
-            let block_header = self
-                .db
-                .block_header(current_block)
-                .ok_or(DistributionError::BlockHeaderNotFound(current_block))?;
-            let block_era = self.era_index(block_header.timestamp);
-
-            if block_era < distribution_era {
-                // We are in the past, no need to continue
-                break;
-            }
-
-            if block_era > distribution_era {
-                // We are in the future, skip blocks not from the distribution era
-                current_block = block_header.parent_hash;
-                continue;
-            }
-
-            let block_validators = self.db
-        }
-
-        Ok((operators_rewards, total_rewards))
-    }
-
-    fn stakers_rewards_commitment(&self) -> Result<StakerRewardsCommitment> {
-        let stakers_rewards = StakerRewardsCommitment {
-            distribution: Vec::new(),
-            total_amount: U256::zero(),
-            token: Address::ZERO.into_array().into(),
-        };
-        Ok(stakers_rewards)
-    }
+fn build_rewards_merkle_tree(_rewards_data: BTreeMap<Address, U256>) -> H256 {
+    todo!()
 }
 
 mod utils {
-    use super::*;
+    use super::RewardsConfig;
 
-    fn build_merkle_tree(rewards_data: BTreeMap<Address, U256>) -> H256 {
-        todo!()
+    pub fn era_index(config: &RewardsConfig, block_ts: u64) -> u64 {
+        (block_ts - config.genesis_timestamp) / config.era_duration
     }
 }
-
 #[cfg(test)]
 mod tests {}

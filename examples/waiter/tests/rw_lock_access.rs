@@ -2,7 +2,7 @@ use demo_waiter::{
     Command, LockContinuation, LockStaticAccessSubcommand, RwLockContinuation, RwLockType,
 };
 use gear_core::ids::MessageId;
-use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
+use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
 pub const USER_ID: u64 = DEFAULT_USER_ALICE;
 
