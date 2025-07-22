@@ -221,7 +221,7 @@ mod tests {
     async fn create() {
         let (mut ctx, keys) = mock_validator_context();
         let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
 
         ctx.pending(SignedValidationRequest::mock((
             ctx.signer.clone(),
@@ -243,7 +243,7 @@ mod tests {
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
         let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -261,8 +261,8 @@ mod tests {
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
         let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
-        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let block = simple_block_data(&ctx.db, batch.block_hash);
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
@@ -320,7 +320,7 @@ mod tests {
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
         let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());

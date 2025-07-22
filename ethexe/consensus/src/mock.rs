@@ -19,7 +19,7 @@
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
     Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
-    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
+    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
 };
@@ -54,15 +54,15 @@ impl<T: Mock + ToDigest> Mock for SignedData<T> {
 }
 
 impl Mock for SimpleBlockData {
-    type Args = ();
+    type Args = H256;
 
-    fn mock(_args: Self::Args) -> Self {
+    fn mock(parent: H256) -> Self {
         SimpleBlockData {
             hash: H256::random(),
             header: BlockHeader {
                 height: 43,
                 timestamp: 120,
-                parent_hash: H256::random(),
+                parent_hash: parent,
             },
         }
     }
@@ -173,11 +173,15 @@ pub trait Prepare {
 }
 
 impl Prepare for SimpleBlockData {
-    type Args = ();
+    type Args = H256;
 
-    fn prepare(self, db: &Database, _args: ()) -> Self {
+    fn prepare(self, db: &Database, last_committed_head: H256) -> Self {
         db.set_block_header(self.hash, self.header.clone());
-        db.mutate_block_meta(self.hash, |meta| meta.computed = true);
+        db.mutate_block_meta(self.hash, |meta| {
+            meta.computed = true;
+            meta.last_committed_batch = Some(Digest::random());
+            meta.last_committed_head = Some(last_committed_head);
+        });
         db.set_block_outcome(self.hash, Default::default());
         db.set_block_codes_queue(self.hash, Default::default());
         self
@@ -203,39 +207,49 @@ impl Prepare for ChainCommitment {
     }
 }
 
-pub fn prepared_mock_batch_commitment(
-    db: &Database,
-    chain_head: &SimpleBlockData,
-) -> BatchCommitment {
-    // ... <- [block2] <- ... <- [block1] <- ... <- [chain_head]
-    let block1 = SimpleBlockData::mock(()).prepare(db, ());
-    let block2 = SimpleBlockData::mock(()).prepare(db, ());
+pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
+    // [block3] <- [block2] <- [block1] <- [block0]
+
+    let block3 = H256::random();
+    db.mutate_block_meta(block3, |meta| meta.computed = true);
+
+    let block2 = SimpleBlockData::mock(block3).prepare(db, block3);
+    let block1 = SimpleBlockData::mock(block2.hash).prepare(db, block3);
+    let block0 = SimpleBlockData::mock(block1.hash).prepare(db, block3);
+
     let last_committed_batch = Digest::random();
+    db.mutate_block_meta(block0.hash, |meta| {
+        meta.last_committed_batch = Some(last_committed_batch);
+    });
 
     let cc1 = ChainCommitment::mock(block1.hash).prepare(db, ());
     let cc2 = ChainCommitment::mock(block2.hash).prepare(db, ());
-    db.mutate_block_meta(chain_head.hash, |meta| {
-        meta.last_committed_batch = Some(last_committed_batch);
-        meta.last_committed_head = Some(H256::random());
-    });
 
     let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
     let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
     db.set_block_codes_queue(
-        chain_head.hash,
+        block0.hash,
         From::from([code_commitment1.id, code_commitment2.id]),
     );
 
     BatchCommitment {
-        block_hash: chain_head.hash,
-        timestamp: chain_head.header.timestamp,
+        block_hash: block0.hash,
+        timestamp: block0.header.timestamp,
         previous_batch: last_committed_batch,
         chain_commitment: Some(ChainCommitment {
             transitions: [cc1.transitions, cc2.transitions].concat(),
-            head: cc2.head,
+            head: block0.hash,
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,
         rewards_commitment: None,
+    }
+}
+
+pub fn simple_block_data(db: &Database, block: H256) -> SimpleBlockData {
+    let header = db.block_header(block).expect("block header not found");
+    SimpleBlockData {
+        hash: block,
+        header,
     }
 }
