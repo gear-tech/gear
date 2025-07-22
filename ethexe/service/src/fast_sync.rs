@@ -442,7 +442,8 @@ impl DatabaseVisitor for RequestManager {
             | DatabaseVisitorError::NoBlockCommitmentQueue(_)
             | DatabaseVisitorError::NoBlockCodesQueue(_)
             | DatabaseVisitorError::NoPreviousNonEmptyBlock(_)
-            | DatabaseVisitorError::NoLastCommittedBatch(_) => {
+            | DatabaseVisitorError::NoLastCommittedBatch(_)
+            | DatabaseVisitorError::NoProgramCodeId(_) => {
                 unreachable!("{error:?}")
             }
         };

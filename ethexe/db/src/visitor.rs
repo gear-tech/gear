@@ -29,8 +29,8 @@ use ethexe_runtime_common::state::{
     Waitlist,
 };
 use gear_core::{buffer::Payload, memory::PageBuf};
-use gprimitives::{CodeId, H256};
-use std::collections::{HashSet, VecDeque};
+use gprimitives::{ActorId, CodeId, H256};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 
 pub trait DatabaseVisitorStorage:
     OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage
@@ -63,7 +63,13 @@ pub trait DatabaseVisitor: Sized {
 
     fn visit_block_commitment_queue(&mut self, _block: H256, _queue: &VecDeque<H256>) {}
 
-    fn visit_block_codes_queue(&mut self, _block: H256, _queue: &VecDeque<CodeId>) {}
+    fn visit_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
+        walk_block_codes_queue(self, queue)
+    }
+
+    fn visit_code_id(&mut self, _code_id: CodeId) {}
+
+    fn visit_program_id(&mut self, _program_id: ActorId) {}
 
     fn visit_previous_non_empty_block(&mut self, _block: H256, _previous_non_empty_block: H256) {}
 
@@ -77,7 +83,22 @@ pub trait DatabaseVisitor: Sized {
         walk_program_state(self, state)
     }
 
-    fn visit_block_schedule(&mut self, _block: H256, _schedule: &Schedule) {}
+    fn visit_block_schedule(&mut self, block: H256, schedule: &Schedule) {
+        walk_block_schedule(self, block, schedule)
+    }
+
+    fn visit_block_schedule_tasks(
+        &mut self,
+        _block: H256,
+        _height: u32,
+        tasks: &BTreeSet<ScheduledTask>,
+    ) {
+        walk_block_schedule_tasks(self, tasks)
+    }
+
+    fn visit_scheduled_task(&mut self, task: &ScheduledTask) {
+        walk_scheduled_task(self, task)
+    }
 
     fn visit_block_outcome_is_empty(&mut self, block: H256, outcome_is_empty: bool) {
         walk_block_outcome_is_empty(self, block, outcome_is_empty)
@@ -87,7 +108,9 @@ pub trait DatabaseVisitor: Sized {
         walk_block_outcome(self, outcome)
     }
 
-    fn visit_state_transition(&mut self, _state_transition: &StateTransition) {}
+    fn visit_state_transition(&mut self, state_transition: &StateTransition) {
+        walk_state_transition(self, state_transition)
+    }
 
     fn visit_allocations(&mut self, _allocations: &Allocations) {}
 
@@ -157,6 +180,7 @@ pub enum DatabaseVisitorError {
     NoAllocations(HashOf<Allocations>),
     NoProgramState(H256),
     NoPayload(HashOf<Payload>),
+    NoProgramCodeId(ActorId),
 }
 
 macro_rules! visit_or_error {
@@ -244,6 +268,21 @@ pub fn walk_block(visitor: &mut impl DatabaseVisitor, block: H256) {
     }
 }
 
+pub fn walk_block_codes_queue(visitor: &mut impl DatabaseVisitor, queue: &VecDeque<CodeId>) {
+    for &code in queue {
+        visitor.visit_code_id(code);
+    }
+}
+
+pub fn walk_program_id(visitor: &mut impl DatabaseVisitor, program_id: ActorId) {
+    let Some(code_id) = visitor.db().program_code_id(program_id) else {
+        visitor.on_db_error(DatabaseVisitorError::NoProgramCodeId(program_id));
+        return;
+    };
+
+    visitor.visit_code_id(code_id);
+}
+
 pub fn walk_block_program_states(
     visitor: &mut impl DatabaseVisitor,
     program_states: &ProgramStates,
@@ -301,6 +340,58 @@ pub fn walk_program_state(visitor: &mut impl DatabaseVisitor, state: &ProgramSta
     }
 }
 
+pub fn walk_block_schedule(visitor: &mut impl DatabaseVisitor, block: H256, schedule: &Schedule) {
+    for (&height, tasks) in schedule {
+        visitor.visit_block_schedule_tasks(block, height, tasks);
+    }
+}
+
+pub fn walk_block_schedule_tasks(
+    visitor: &mut impl DatabaseVisitor,
+    tasks: &BTreeSet<ScheduledTask>,
+) {
+    for task in tasks {
+        visitor.visit_scheduled_task(task);
+    }
+}
+
+pub fn walk_scheduled_task(visitor: &mut impl DatabaseVisitor, task: &ScheduledTask) {
+    match *task {
+        ScheduledTask::PauseProgram(program_id) => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::RemoveCode(code_id) => {
+            visitor.visit_code_id(code_id);
+        }
+        ScheduledTask::RemoveFromMailbox((program_id, _destination), _msg_id) => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::RemoveFromWaitlist(program_id, _) => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::RemovePausedProgram(program_id) => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::WakeMessage(program_id, _) => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::SendDispatch((program_id, _msg_id)) => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::SendUserMessage {
+            message_id: _,
+            to_mailbox: program_id,
+        } => {
+            visitor.visit_program_id(program_id);
+        }
+        ScheduledTask::RemoveGasReservation(program_id, _) => {
+            visitor.visit_program_id(program_id);
+        }
+        #[allow(deprecated)]
+        ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
+    }
+}
+
 pub fn walk_block_outcome_is_empty(
     visitor: &mut impl DatabaseVisitor,
     block: H256,
@@ -314,6 +405,27 @@ pub fn walk_block_outcome_is_empty(
 pub fn walk_block_outcome(visitor: &mut impl DatabaseVisitor, outcome: &[StateTransition]) {
     for transition in outcome {
         visitor.visit_state_transition(transition);
+    }
+}
+
+pub fn walk_state_transition(
+    visitor: &mut impl DatabaseVisitor,
+    state_transition: &StateTransition,
+) {
+    let &StateTransition {
+        actor_id,
+        new_state_hash: program_state,
+        exited: _,
+        inheritor: _,
+        value_to_receive: _,
+        value_claims: _,
+        messages: _,
+    } = state_transition;
+
+    visitor.visit_program_id(actor_id);
+
+    if program_state != H256::zero() {
+        visit_or_error!(visitor, program_state.as_ref());
     }
 }
 
@@ -523,97 +635,66 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
-        for &code in queue {
-            if let Some(valid) = self.db().code_valid(code) {
-                if !valid {
-                    self.errors.push(IntegrityVerifierError::CodeIsNotValid);
-                }
-            } else {
-                self.errors.push(IntegrityVerifierError::NoCodeValid);
-            };
-
-            let original_code = self.db().original_code(code);
-            if original_code.is_none() {
-                self.errors.push(IntegrityVerifierError::NoOriginalCode)
+    fn visit_code_id(&mut self, code: CodeId) {
+        if let Some(valid) = self.db().code_valid(code) {
+            if !valid {
+                self.errors.push(IntegrityVerifierError::CodeIsNotValid);
             }
+        } else {
+            self.errors.push(IntegrityVerifierError::NoCodeValid);
+        };
 
-            if self
-                .db()
-                .instrumented_code(ethexe_runtime_common::VERSION, code)
-                .is_none()
-            {
-                self.errors
-                    .push(IntegrityVerifierError::NoInstrumentedCode(code));
-            }
+        let original_code = self.db().original_code(code);
+        if original_code.is_none() {
+            self.errors.push(IntegrityVerifierError::NoOriginalCode)
+        }
 
-            let code_metadata = self.db().code_metadata(code);
-            if code_metadata.is_none() {
-                self.errors.push(IntegrityVerifierError::NoCodeMetadata);
-            }
+        if self
+            .db()
+            .instrumented_code(ethexe_runtime_common::VERSION, code)
+            .is_none()
+        {
+            self.errors
+                .push(IntegrityVerifierError::NoInstrumentedCode(code));
+        }
 
-            if let (Some(original_code), Some(code_metadata)) = (original_code, code_metadata)
-                && code_metadata.original_code_len() != original_code.len() as u32
-            {
-                self.errors
-                    .push(IntegrityVerifierError::InvalidCodeLenInMetadata {
-                        metadata_len: code_metadata.original_code_len(),
-                        original_len: original_code.len() as u32,
-                    });
-            }
+        let code_metadata = self.db().code_metadata(code);
+        if code_metadata.is_none() {
+            self.errors.push(IntegrityVerifierError::NoCodeMetadata);
+        }
+
+        if let (Some(original_code), Some(code_metadata)) = (original_code, code_metadata)
+            && code_metadata.original_code_len() != original_code.len() as u32
+        {
+            self.errors
+                .push(IntegrityVerifierError::InvalidCodeLenInMetadata {
+                    metadata_len: code_metadata.original_code_len(),
+                    original_len: original_code.len() as u32,
+                });
         }
     }
 
-    fn visit_block_schedule(&mut self, block: H256, schedule: &Schedule) {
+    fn visit_block_schedule_tasks(
+        &mut self,
+        block: H256,
+        height: u32,
+        tasks: &BTreeSet<ScheduledTask>,
+    ) {
         let Some(header) = self.db().block_header(block) else {
             self.errors
                 .push(IntegrityVerifierError::NoBlockHeader(block));
             return;
         };
 
-        // TODO: verification might be required for schedule
-        for (&expiry, tasks) in schedule {
-            if expiry <= header.height {
-                self.errors
-                    .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                        block,
-                        expiry,
-                        tasks: tasks.len(),
-                    });
-            }
-
-            for task in tasks {
-                match *task {
-                    ScheduledTask::PauseProgram(_) => {}
-                    ScheduledTask::RemoveCode(_) => {}
-                    ScheduledTask::RemoveFromMailbox(_, _) => {}
-                    ScheduledTask::RemoveFromWaitlist(_, _) => {}
-                    ScheduledTask::RemovePausedProgram(_) => {}
-                    ScheduledTask::WakeMessage(_, _) => {}
-                    ScheduledTask::SendDispatch(_) => {}
-                    ScheduledTask::SendUserMessage { .. } => {}
-                    ScheduledTask::RemoveGasReservation(_, _) => {}
-                    #[allow(deprecated)]
-                    ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
-                }
-            }
+        if height <= header.height {
+            self.errors
+                .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                    block,
+                    expiry: height,
+                    tasks: tasks.len(),
+                });
         }
-    }
 
-    fn visit_state_transition(&mut self, state_transition: &StateTransition) {
-        let StateTransition {
-            actor_id: _,
-            new_state_hash,
-            exited: _,
-            inheritor: _,
-            value_to_receive: _,
-            value_claims: _,
-            messages: _,
-        } = state_transition;
-
-        let program_state = *new_state_hash;
-        if program_state != H256::zero() && !self.db.contains_hash(program_state) {
-            visit_or_error!(self, program_state.as_ref());
-        }
+        walk_block_schedule_tasks(self, tasks);
     }
 }
