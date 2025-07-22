@@ -316,15 +316,17 @@ pub struct Memory {
 impl<T> super::SandboxMemory<T> for Memory {
     fn new(store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
         let ty = MemoryType::new(initial, maximum, false);
-        let memory_style = store.engine().tunables().memory_style(&ty);
-        let memref = VMMemory::new(&ty, &memory_style).map_err(|e| {
+        let tunables = store.engine().tunables();
+        let style = tunables.memory_style(&ty);
+        let memory = tunables.create_host_memory(&ty, &style).map_err(|e| {
             log::trace!("Failed to create memory: {e}");
             Error::Module
         })?;
+        let vm_memory_definition = memory.vmmemory();
         // SAFETY: `vmmemory()` returns `NonNull` so pointer is valid
-        let memory_definition = unsafe { memref.vmmemory().as_ref() };
-        let base = memory_definition.base as usize;
-        let memref = wasmer::Memory::new_from_existing(store, memref.into());
+        let vm_memory_definition_ref = unsafe { vm_memory_definition.as_ref() };
+        let base = vm_memory_definition_ref.base as usize;
+        let memref = wasmer::Memory::new_from_existing(store, memory);
         Ok(Memory { memref, base })
     }
 

@@ -2233,7 +2233,7 @@ dependencies = [
  "log",
  "tracing-subscriber",
  "wasmer",
- "wasmer-types 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types",
  "wat",
 ]
 
@@ -6278,7 +6278,7 @@ dependencies = [
  "region",
  "sp-wasm-interface-common",
  "tracing-subscriber",
- "wasmer-vm 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-vm",
  "winapi",
 ]
 
@@ -6458,9 +6458,9 @@ dependencies = [
  "sp-std",
  "sp-wasm-interface-common",
  "wasmer",
- "wasmer-compiler 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmer-types 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmer-vm 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-compiler",
+ "wasmer-types",
+ "wasmer-vm",
  "wat",
 ]
 
@@ -6491,7 +6491,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.12",
  "wasmer",
- "wasmer-types 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmer-types",
  "wasmi 0.38.0",
 ]
 
@@ -19009,54 +19009,23 @@ dependencies = [
  "thiserror 1.0.62",
  "tracing",
  "wasm-bindgen",
- "wasmer-compiler 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
+ "wasmer-compiler",
  "wasmer-compiler-singlepass",
  "wasmer-derive",
- "wasmer-types 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
- "wasmer-vm 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
+ "wasmer-types",
+ "wasmer-vm",
  "windows-sys 0.59.0",
 ]
 
 [[package]]
 name = "wasmer-cache"
 version = "6.1.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69c453f91ba2a6983db25b54f562da91019050dd10a7127d67be1b2f2ecf778f"
+source = "git+https://github.com/wasmerio/wasmer?rev=4d6165a#4d6165aff9c4dcf26e392a9928a4be257a2f8bce"
 dependencies = [
  "blake3",
  "hex",
  "thiserror 1.0.62",
  "wasmer",
-]
-
-[[package]]
-name = "wasmer-compiler"
-version = "6.1.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c676b2eeebcf3525cd7a4a394a3e800397931b14c36c59bbdaa673d1e3538736"
-dependencies = [
- "backtrace",
- "bytes",
- "cfg-if",
- "enum-iterator 0.7.0",
- "enumset",
- "leb128",
- "libc",
- "macho-unwind-info",
- "memmap2 0.6.2",
- "more-asserts",
- "object 0.32.2",
- "region",
- "rkyv",
- "self_cell",
- "shared-buffer",
- "smallvec",
- "target-lexicon",
- "thiserror 1.0.62",
- "wasmer-types 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "wasmer-vm 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "windows-sys 0.59.0",
- "xxhash-rust",
 ]
 
 [[package]]
@@ -19082,8 +19051,8 @@ dependencies = [
  "smallvec",
  "target-lexicon",
  "thiserror 1.0.62",
- "wasmer-types 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
- "wasmer-vm 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
+ "wasmer-types",
+ "wasmer-vm",
  "wasmparser 0.224.1",
  "windows-sys 0.59.0",
  "xxhash-rust",
@@ -19102,8 +19071,8 @@ dependencies = [
  "more-asserts",
  "rayon",
  "smallvec",
- "wasmer-compiler 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
- "wasmer-types 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
+ "wasmer-compiler",
+ "wasmer-types",
 ]
 
 [[package]]
@@ -19120,26 +19089,6 @@ dependencies = [
 [[package]]
 name = "wasmer-types"
 version = "6.1.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d329d3e5c425c0ff98035a685d93c6f7129789dde2a67ed60f4f07bf16d689ca"
-dependencies = [
- "bytecheck 0.6.11",
- "enum-iterator 0.7.0",
- "enumset",
- "getrandom 0.2.15",
- "hex",
- "indexmap 2.7.1",
- "more-asserts",
- "rkyv",
- "sha2 0.10.8",
- "target-lexicon",
- "thiserror 1.0.62",
- "xxhash-rust",
-]
-
-[[package]]
-name = "wasmer-types"
-version = "6.1.0-rc.2"
 source = "git+https://github.com/wasmerio/wasmer?rev=4d6165a#4d6165aff9c4dcf26e392a9928a4be257a2f8bce"
 dependencies = [
  "bytecheck 0.6.11",
@@ -19154,33 +19103,6 @@ dependencies = [
  "target-lexicon",
  "thiserror 1.0.62",
  "xxhash-rust",
-]
-
-[[package]]
-name = "wasmer-vm"
-version = "6.1.0-rc.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a58deb62862e662c27acd359764740c944028627ee74777790d01c87dc98edf"
-dependencies = [
- "backtrace",
- "cc",
- "cfg-if",
- "corosensei",
- "crossbeam-queue",
- "dashmap 6.0.1",
- "enum-iterator 0.7.0",
- "fnv",
- "indexmap 2.7.1",
- "libc",
- "libunwind",
- "mach2",
- "memoffset 0.9.0",
- "more-asserts",
- "region",
- "scopeguard",
- "thiserror 1.0.62",
- "wasmer-types 6.1.0-rc.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -19205,7 +19127,7 @@ dependencies = [
  "region",
  "scopeguard",
  "thiserror 1.0.62",
- "wasmer-types 6.1.0-rc.2 (git+https://github.com/wasmerio/wasmer?rev=4d6165a)",
+ "wasmer-types",
  "windows-sys 0.59.0",
 ]
 
