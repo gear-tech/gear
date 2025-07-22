@@ -27,7 +27,8 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite}, Address, BlockData, BlockHeader, Digest, SimpleBlockData
+    Address, BlockData, BlockHeader, Digest, SimpleBlockData,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
