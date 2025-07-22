@@ -181,13 +181,13 @@ tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
 wat = "1.0.71"
-wasmer = { version = "4.3.4", default-features = false, features = [
+wasmer = { version = "6.1.0-rc.2", default-features = false, features = [
     "singlepass",
 ] }
-wasmer-cache = "4.3.4"
-wasmer-types = "4.3.4"
-wasmer-vm = "4.3.4"
-wasmer-compiler = "4.3.4"
+wasmer-cache = "6.1.0-rc.2"
+wasmer-types = "6.1.0-rc.2"
+wasmer-vm = "6.1.0-rc.2"
+wasmer-compiler = "6.1.0-rc.2"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
@@ -597,3 +597,4 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
+wasmer = { version = "6.1.0-rc.2", git = "https://github.com/wasmerio/wasmer", rev = "4d6165a" }

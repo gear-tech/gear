@@ -26,7 +26,7 @@ use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{GLOBAL_NAME_GAS, Module};
 use wasmer::{
     Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
-    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
+    Module as WasmerModule, RuntimeError, Store, Type, Value, sys::Singlepass,
 };
 
 #[derive(Clone)]

@@ -29,13 +29,14 @@ use std::{
     sync::OnceLock,
 };
 use wasmer::{
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
-    Value as RuntimeValue,
-    sys::{BaseTunables, VMConfig},
-    vm::{
-        LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
-        VMTableDefinition,
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryStyle, MemoryType,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableStyle, TableType, Value as RuntimeValue,
+    sys::{
+        BaseTunables, NativeEngineExt, Target, Tunables,
+        vm::{
+            LinearMemory, VMConfig, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
+            VMTableDefinition,
+        },
     },
 };
 use wasmer_types::ExternType;
@@ -146,7 +147,7 @@ impl Tunables for CustomTunables {
 
     unsafe fn create_memories(
         &self,
-        context: &mut StoreObjects,
+        context: &mut wasmer::sys::vm::StoreObjects,
         module: &wasmer_types::ModuleInfo,
         memory_styles: &wasmer_types::entity::PrimaryMap<wasmer_types::MemoryIndex, MemoryStyle>,
         memory_definition_locations: &[NonNull<VMMemoryDefinition>],
@@ -165,7 +166,7 @@ impl Tunables for CustomTunables {
 
     unsafe fn create_tables(
         &self,
-        context: &mut StoreObjects,
+        context: &mut wasmer::sys::vm::StoreObjects,
         module: &wasmer_types::ModuleInfo,
         table_styles: &wasmer_types::entity::PrimaryMap<wasmer_types::TableIndex, TableStyle>,
         table_definition_locations: &[NonNull<VMTableDefinition>],
@@ -184,7 +185,7 @@ impl Tunables for CustomTunables {
 
     fn create_globals(
         &self,
-        context: &mut StoreObjects,
+        context: &mut wasmer::sys::vm::StoreObjects,
         module: &wasmer_types::ModuleInfo,
     ) -> Result<
         wasmer_types::entity::PrimaryMap<
@@ -234,7 +235,7 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let mut engine = Engine::from(wasmer::Singlepass::new());
+        let mut engine = Engine::from(wasmer::sys::Singlepass::new());
         let tunables = CustomTunables::for_target(engine.target())
             // make stack size bigger for fuzzer
             .with_wasm_stack_size(16 * 1024 * 1024);
@@ -323,7 +324,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         // SAFETY: `vmmemory()` returns `NonNull` so pointer is valid
         let memory_definition = unsafe { memref.vmmemory().as_ref() };
         let base = memory_definition.base as usize;
-        let memref = wasmer::Memory::new_from_existing(store, memref);
+        let memref = wasmer::Memory::new_from_existing(store, memref.into());
         Ok(Memory { memref, base })
     }
 
@@ -470,7 +471,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
             let key = (module.clone(), name.clone());
 
             match import.ty() {
-                ExternType::Global(_) | ExternType::Table(_) => {}
+                ExternType::Global(_) | ExternType::Table(_) | wasmer::ExternType::Tag(_) => {}
                 ExternType::Memory(_mem_ty) => {
                     let mem = env_def_builder
                         .map
@@ -672,7 +673,10 @@ fn to_interface(value: RuntimeValue) -> Option<Value> {
         RuntimeValue::I64(val) => Some(Value::I64(val)),
         RuntimeValue::F32(val) => Some(Value::F32(val.to_bits())),
         RuntimeValue::F64(val) => Some(Value::F64(val.to_bits())),
-        RuntimeValue::V128(_) | RuntimeValue::FuncRef(_) | RuntimeValue::ExternRef(_) => None,
+        RuntimeValue::V128(_)
+        | RuntimeValue::FuncRef(_)
+        | RuntimeValue::ExternRef(_)
+        | RuntimeValue::ExceptionRef(_) => None,
     }
 }
 
