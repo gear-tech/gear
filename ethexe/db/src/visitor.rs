@@ -83,7 +83,11 @@ pub trait DatabaseVisitor: Sized {
         walk_block_outcome_is_empty(self, block, outcome_is_empty)
     }
 
-    fn visit_block_outcome(&mut self, _block: H256, _outcome: &[StateTransition]) {}
+    fn visit_block_outcome(&mut self, _block: H256, outcome: &[StateTransition]) {
+        walk_block_outcome(self, outcome)
+    }
+
+    fn visit_state_transition(&mut self, _state_transition: &StateTransition) {}
 
     fn visit_allocations(&mut self, _allocations: &Allocations) {}
 
@@ -304,6 +308,12 @@ pub fn walk_block_outcome_is_empty(
 ) {
     if !outcome_is_empty {
         visit_or_error!(visitor, &block.block_outcome);
+    }
+}
+
+pub fn walk_block_outcome(visitor: &mut impl DatabaseVisitor, outcome: &[StateTransition]) {
+    for transition in outcome {
+        visitor.visit_state_transition(transition);
     }
 }
 
@@ -590,8 +600,8 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_block_outcome(&mut self, _block: H256, outcome: &[StateTransition]) {
-        for StateTransition {
+    fn visit_state_transition(&mut self, state_transition: &StateTransition) {
+        let StateTransition {
             actor_id: _,
             new_state_hash,
             exited: _,
@@ -599,12 +609,11 @@ impl DatabaseVisitor for IntegrityVerifier {
             value_to_receive: _,
             value_claims: _,
             messages: _,
-        } in outcome
-        {
-            let program_state = *new_state_hash;
-            if program_state != H256::zero() && !self.db.contains_hash(program_state) {
-                visit_or_error!(self, program_state.as_ref());
-            }
+        } = state_transition;
+
+        let program_state = *new_state_hash;
+        if program_state != H256::zero() && !self.db.contains_hash(program_state) {
+            visit_or_error!(self, program_state.as_ref());
         }
     }
 }
