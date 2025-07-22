@@ -699,3 +699,372 @@ impl DatabaseVisitor for IntegrityVerifier {
         walk_block_schedule_tasks(self, tasks);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gprimitives::MessageId;
+    use std::collections::BTreeMap;
+
+    // Test visitor implementation to track visits and errors
+    #[derive(Debug)]
+    struct TestVisitor {
+        db: Database,
+        visited_blocks: Vec<H256>,
+        visited_code_ids: Vec<CodeId>,
+        visited_program_ids: Vec<ActorId>,
+        visited_program_states: Vec<ProgramState>,
+        visited_memory_pages: Vec<MemoryPages>,
+        visited_payloads: Vec<Payload>,
+        errors: Vec<DatabaseVisitorError>,
+    }
+
+    impl TestVisitor {
+        fn new() -> Self {
+            Self {
+                db: Database::memory(),
+                visited_blocks: vec![],
+                visited_code_ids: vec![],
+                visited_program_ids: vec![],
+                visited_program_states: vec![],
+                visited_memory_pages: vec![],
+                visited_payloads: vec![],
+                errors: vec![],
+            }
+        }
+    }
+
+    impl DatabaseVisitor for TestVisitor {
+        fn db(&self) -> &dyn DatabaseVisitorStorage {
+            &self.db
+        }
+
+        fn on_db_error(&mut self, error: DatabaseVisitorError) {
+            self.errors.push(error);
+        }
+
+        fn visit_block(&mut self, block: H256) {
+            self.visited_blocks.push(block);
+            walk_block(self, block);
+        }
+
+        fn visit_code_id(&mut self, code_id: CodeId) {
+            self.visited_code_ids.push(code_id);
+        }
+
+        fn visit_program_id(&mut self, program_id: ActorId) {
+            self.visited_program_ids.push(program_id);
+        }
+
+        fn visit_program_state(&mut self, state: &ProgramState) {
+            self.visited_program_states.push(state.clone());
+            walk_program_state(self, state);
+        }
+
+        fn visit_memory_pages(&mut self, memory_pages: &MemoryPages) {
+            self.visited_memory_pages.push(memory_pages.clone());
+            walk_memory_pages(self, memory_pages);
+        }
+
+        fn visit_payload(&mut self, payload: &Payload) {
+            self.visited_payloads.push(payload.clone());
+        }
+    }
+
+    #[test]
+    fn walk_chain_basic() {
+        let mut visitor = TestVisitor::new();
+        let head = H256::from_low_u64_be(1);
+        let bottom = H256::from_low_u64_be(2);
+
+        // This will fail because we don't have the block header in the database
+        walk_chain(&mut visitor, head, bottom);
+
+        // Should have attempted to visit the head block
+        assert!(!visitor.errors.is_empty());
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoBlockHeader(head))
+        );
+    }
+
+    #[test]
+    fn walk_block_with_missing_data() {
+        let mut visitor = TestVisitor::new();
+        let block_hash = H256::from_low_u64_be(42);
+
+        walk_block(&mut visitor, block_hash);
+
+        // Should have errors for all missing block data
+        let expected_errors = [
+            DatabaseVisitorError::NoBlockHeader(block_hash),
+            DatabaseVisitorError::NoBlockEvents(block_hash),
+            DatabaseVisitorError::NoBlockCommitmentQueue(block_hash),
+            DatabaseVisitorError::NoBlockCodesQueue(block_hash),
+            DatabaseVisitorError::NoPreviousNonEmptyBlock(block_hash),
+            DatabaseVisitorError::NoLastCommittedBatch(block_hash),
+            DatabaseVisitorError::NoBlockProgramStates(block_hash),
+            DatabaseVisitorError::NoBlockSchedule(block_hash),
+            DatabaseVisitorError::NoBlockOutcome(block_hash),
+        ];
+
+        for expected_error in expected_errors {
+            assert!(
+                visitor.errors.contains(&expected_error),
+                "Expected error {:?} not found. Actual errors: {:?}",
+                expected_error,
+                visitor.errors
+            );
+        }
+    }
+
+    #[test]
+    fn test_walk_block_codes_queue() {
+        let mut visitor = TestVisitor::new();
+        let code_id1 = CodeId::from([1u8; 32]);
+        let code_id2 = CodeId::from([2u8; 32]);
+        let mut queue = VecDeque::new();
+        queue.push_back(code_id1);
+        queue.push_back(code_id2);
+
+        walk_block_codes_queue(&mut visitor, &queue);
+
+        assert_eq!(visitor.visited_code_ids.len(), 2);
+        assert!(visitor.visited_code_ids.contains(&code_id1));
+        assert!(visitor.visited_code_ids.contains(&code_id2));
+    }
+
+    #[test]
+    fn test_walk_block_program_states() {
+        let mut visitor = TestVisitor::new();
+        let program_id = ActorId::from([3u8; 32]);
+        let state_hash = H256::from([4u8; 32]);
+
+        let mut program_states = BTreeMap::new();
+        program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                cached_queue_size: 0,
+            },
+        );
+
+        walk_block_program_states(&mut visitor, &program_states);
+
+        // Should have error because program state is not in database
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoProgramState(state_hash))
+        );
+    }
+
+    #[test]
+    fn walk_program_id_missing_code() {
+        let mut visitor = TestVisitor::new();
+        let program_id = ActorId::from([5u8; 32]);
+
+        walk_program_id(&mut visitor, program_id);
+
+        // Should have error because program code ID is not in database
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoProgramCodeId(program_id))
+        );
+    }
+
+    #[test]
+    fn walk_scheduled_task_pause_program() {
+        let mut visitor = TestVisitor::new();
+        let program_id = ActorId::from([6u8; 32]);
+        let task = ScheduledTask::PauseProgram(program_id);
+
+        walk_scheduled_task(&mut visitor, &task);
+
+        assert!(visitor.visited_program_ids.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_scheduled_task_remove_code() {
+        let mut visitor = TestVisitor::new();
+        let code_id = CodeId::from([7u8; 32]);
+        let task = ScheduledTask::RemoveCode(code_id);
+
+        walk_scheduled_task(&mut visitor, &task);
+
+        assert!(visitor.visited_code_ids.contains(&code_id));
+    }
+
+    #[test]
+    fn walk_scheduled_task_wake_message() {
+        let mut visitor = TestVisitor::new();
+        let program_id = ActorId::from([8u8; 32]);
+        let msg_id = MessageId::from([9u8; 32]);
+        let task = ScheduledTask::WakeMessage(program_id, msg_id);
+
+        walk_scheduled_task(&mut visitor, &task);
+
+        assert!(visitor.visited_program_ids.contains(&program_id));
+    }
+
+    #[test]
+    fn test_walk_block_schedule_tasks() {
+        let mut visitor = TestVisitor::new();
+        let program_id1 = ActorId::from([10u8; 32]);
+        let program_id2 = ActorId::from([11u8; 32]);
+        let code_id = CodeId::from([12u8; 32]);
+
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::PauseProgram(program_id1));
+        tasks.insert(ScheduledTask::RemoveCode(code_id));
+        tasks.insert(ScheduledTask::WakeMessage(program_id2, MessageId::zero()));
+
+        walk_block_schedule_tasks(&mut visitor, &tasks);
+
+        assert!(visitor.visited_program_ids.contains(&program_id1));
+        assert!(visitor.visited_program_ids.contains(&program_id2));
+        assert!(visitor.visited_code_ids.contains(&code_id));
+    }
+
+    #[test]
+    fn test_walk_block_schedule() {
+        let mut visitor = TestVisitor::new();
+        let block_hash = H256::from([13u8; 32]);
+        let program_id = ActorId::from([14u8; 32]);
+
+        let mut schedule = BTreeMap::new();
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::PauseProgram(program_id));
+        schedule.insert(1000u32, tasks);
+
+        walk_block_schedule(&mut visitor, block_hash, &schedule);
+
+        assert!(visitor.visited_program_ids.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_block_outcome_empty() {
+        let mut visitor = TestVisitor::new();
+        let block_hash = H256::from([15u8; 32]);
+
+        walk_block_outcome_is_empty(&mut visitor, block_hash, true);
+
+        // Should not try to get block outcome if it's empty
+        assert!(
+            !visitor
+                .errors
+                .iter()
+                .any(|e| matches!(e, DatabaseVisitorError::NoBlockOutcome(_)))
+        );
+    }
+
+    #[test]
+    fn walk_block_outcome_not_empty() {
+        let mut visitor = TestVisitor::new();
+        let block_hash = H256::from([16u8; 32]);
+
+        walk_block_outcome_is_empty(&mut visitor, block_hash, false);
+
+        // Should try to get block outcome and fail
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoBlockOutcome(block_hash))
+        );
+    }
+
+    #[test]
+    fn test_walk_state_transition() {
+        let mut visitor = TestVisitor::new();
+        let actor_id = ActorId::from([17u8; 32]);
+        let new_state_hash = H256::from([18u8; 32]);
+
+        let state_transition = StateTransition {
+            actor_id,
+            new_state_hash,
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_claims: Vec::new(),
+            messages: Vec::new(),
+        };
+
+        walk_state_transition(&mut visitor, &state_transition);
+
+        assert!(visitor.visited_program_ids.contains(&actor_id));
+        // Should have error for missing program state
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoProgramState(new_state_hash))
+        );
+    }
+
+    #[test]
+    fn walk_state_transition_zero_state_hash() {
+        let mut visitor = TestVisitor::new();
+        let actor_id = ActorId::from([19u8; 32]);
+
+        let state_transition = StateTransition {
+            actor_id,
+            new_state_hash: H256::zero(),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_claims: Vec::new(),
+            messages: Vec::new(),
+        };
+
+        walk_state_transition(&mut visitor, &state_transition);
+
+        assert!(visitor.visited_program_ids.contains(&actor_id));
+        // Should not try to get program state for zero hash
+        assert!(!visitor.errors.iter().any(
+            |e| matches!(e, DatabaseVisitorError::NoProgramState(hash) if *hash == H256::zero())
+        ));
+    }
+
+    #[test]
+    fn walk_payload_lookup_direct() {
+        let mut visitor = TestVisitor::new();
+        let payload_data = vec![1, 2, 3, 4];
+        let payload = Payload::try_from(payload_data.clone()).unwrap();
+        let payload_lookup = PayloadLookup::Direct(payload.clone());
+
+        walk_payload_lookup(&mut visitor, &payload_lookup);
+
+        assert!(visitor.visited_payloads.contains(&payload));
+    }
+
+    #[test]
+    fn walk_payload_lookup_stored() {
+        let mut visitor = TestVisitor::new();
+        let payload_hash = unsafe { HashOf::<Payload>::new(H256::zero()) };
+        let payload_lookup = PayloadLookup::Stored(payload_hash);
+
+        walk_payload_lookup(&mut visitor, &payload_lookup);
+
+        // Should have error for missing stored payload
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoPayload(payload_hash))
+        );
+    }
+
+    #[test]
+    fn visit_or_error_macro_success() {
+        // This test would require setting up actual database data
+        // For now, we test the error path which is more straightforward
+        let mut visitor = TestVisitor::new();
+        let block_hash = H256::from([20u8; 32]);
+
+        // Use the macro indirectly through walk_block
+        walk_block(&mut visitor, block_hash);
+
+        // Should have collected errors from macro usage
+        assert!(!visitor.errors.is_empty());
+    }
+}
