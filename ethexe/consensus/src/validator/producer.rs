@@ -160,12 +160,7 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<ChainCommitment>> {
-        let waiting_blocks_queue = ctx
-            .db
-            .block_commitment_queue(block_hash)
-            .ok_or_else(|| anyhow!("Block {block_hash} commitment queue is not in storage"))?;
-
-        utils::aggregate_chain_commitment(&ctx.db, waiting_blocks_queue, false)
+        utils::aggregate_chain_commitment(&ctx.db, block_hash, false, None)
     }
 
     fn aggregate_code_commitments(
@@ -331,8 +326,10 @@ mod tests {
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
-        ctx.db
-            .set_last_committed_batch(block.hash, Digest::random());
+        ctx.db.mutate_block_meta(block.hash, |meta| {
+            meta.last_committed_batch = Some(Digest::random());
+            meta.last_committed_head = Some(H256::random());
+        });
 
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await

@@ -27,8 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite}, Address, BlockData, BlockHeader, Digest, SimpleBlockData
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -266,12 +265,11 @@ impl ObserverService {
             meta.computed = true;
             meta.prepared = true;
             meta.synced = true;
+            meta.last_committed_batch = Some(Digest([0; 32]));
+            meta.last_committed_head = Some(H256::zero());
         });
 
-        db.set_block_commitment_queue(genesis_block_hash, Default::default());
         db.set_block_codes_queue(genesis_block_hash, Default::default());
-        db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
-        db.set_last_committed_batch(genesis_block_hash, Default::default());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());

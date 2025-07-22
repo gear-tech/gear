@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest, utils};
+use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
     Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock, Message, StateTransition},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;
@@ -86,7 +86,7 @@ impl Mock for BatchCommitmentValidationRequest {
     fn mock(_args: Self::Args) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
-            blocks: vec![H256::random(), H256::random()],
+            head: Some(H256::random()),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
         }
     }
@@ -119,14 +119,10 @@ impl Mock for CodeCommitment {
 impl Mock for ChainCommitment {
     type Args = H256;
 
-    fn mock(block_hash: Self::Args) -> Self {
+    fn mock(head: Self::Args) -> Self {
         ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
-            gear_blocks: vec![GearBlock {
-                hash: block_hash,
-                gas_allowance: 0,
-                off_chain_transactions_hash: H256::zero(),
-            }],
+            head,
         }
     }
 }
@@ -184,7 +180,6 @@ impl Prepare for SimpleBlockData {
         db.mutate_block_meta(self.hash, |meta| meta.computed = true);
         db.set_block_outcome(self.hash, Default::default());
         db.set_block_codes_queue(self.hash, Default::default());
-        db.set_block_commitment_queue(self.hash, Default::default());
         self
     }
 }
@@ -199,25 +194,12 @@ impl Prepare for CodeCommitment {
 }
 
 impl Prepare for ChainCommitment {
-    type Args = H256;
+    type Args = ();
 
-    fn prepare(self, db: &Database, previous_not_empty_block: H256) -> Self {
-        let Self {
-            transitions,
-            gear_blocks,
-        } = self;
-
-        assert!(gear_blocks.len() == 1, "Only one gear block is supported");
-
-        let block = gear_blocks.into_iter().next().unwrap();
-
-        db.set_block_outcome(block.hash, transitions.clone());
-        db.set_previous_not_empty_block(block.hash, previous_not_empty_block);
-
-        Self {
-            transitions,
-            gear_blocks: vec![block],
-        }
+    fn prepare(self, db: &Database, _args: ()) -> Self {
+        let Self { transitions, head } = &self;
+        db.set_block_outcome(*head, transitions.clone());
+        self
     }
 }
 
@@ -230,10 +212,12 @@ pub fn prepared_mock_batch_commitment(
     let block2 = SimpleBlockData::mock(()).prepare(db, ());
     let last_committed_batch = Digest::random();
 
-    let chain_commitment1 = ChainCommitment::mock(block1.hash).prepare(db, block2.hash);
-    let chain_commitment2 = ChainCommitment::mock(block2.hash).prepare(db, H256::random());
-    db.set_block_commitment_queue(chain_head.hash, From::from([block2.hash, block1.hash]));
-    db.set_last_committed_batch(chain_head.hash, last_committed_batch);
+    let cc1 = ChainCommitment::mock(block1.hash).prepare(db, ());
+    let cc2 = ChainCommitment::mock(block2.hash).prepare(db, ());
+    db.mutate_block_meta(chain_head.hash, |meta| {
+        meta.last_committed_batch = Some(last_committed_batch);
+        meta.last_committed_head = Some(H256::random());
+    });
 
     let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
     let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
@@ -246,10 +230,10 @@ pub fn prepared_mock_batch_commitment(
         block_hash: chain_head.hash,
         timestamp: chain_head.header.timestamp,
         previous_batch: last_committed_batch,
-        chain_commitment: utils::squash_chain_commitments(vec![
-            chain_commitment2,
-            chain_commitment1,
-        ]),
+        chain_commitment: Some(ChainCommitment {
+            transitions: [cc1.transitions, cc2.transitions].concat(),
+            head: cc2.head,
+        }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,
         rewards_commitment: None,

@@ -329,9 +329,7 @@ contract Base is POCBaseTest {
             );
         }
 
-        return Gear.chainCommitmentHash(
-            keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head
-        );
+        return Gear.chainCommitmentHash(keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head);
     }
 
     function codeCommitmentsHash(Gear.CodeCommitment[] memory _commitments) internal pure returns (bytes32) {
