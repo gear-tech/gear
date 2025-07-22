@@ -1,0 +1,90 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{AlloyProvider, abi::IMiddleware};
+use alloy::{
+    primitives::{Address, U256 as AlloyU256},
+    providers::{Provider, ProviderBuilder, RootProvider},
+};
+use anyhow::Result;
+use ethexe_common::Address as LocalAddress;
+
+type Instance = IMiddleware::IMiddlewareInstance<AlloyProvider>;
+type QueryInstance = IMiddleware::IMiddlewareInstance<RootProvider>;
+
+#[derive(Clone)]
+pub struct Middleware {
+    instance: Instance,
+}
+
+impl Middleware {
+    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
+        Self {
+            instance: Instance::new(address, provider),
+        }
+    }
+
+    pub fn address(&self) -> LocalAddress {
+        LocalAddress(*self.instance.address().0)
+    }
+
+    pub fn query(&self) -> MiddlewareQuery {
+        MiddlewareQuery {
+            instance: QueryInstance::new(
+                *self.instance.address(),
+                self.instance.provider().root().clone(),
+            ),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MiddlewareQuery {
+    instance: QueryInstance,
+}
+
+impl MiddlewareQuery {
+    pub async fn new(rpc_url: &str, middleware_address: LocalAddress) -> Result<Self> {
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
+        Ok(Self {
+            instance: QueryInstance::new(Address::new(middleware_address.0), provider),
+        })
+    }
+
+    pub fn from_provider(middleware_address: Address, provider: RootProvider) -> Self {
+        Self {
+            instance: QueryInstance::new(middleware_address, provider),
+        }
+    }
+
+    pub async fn make_election_at(
+        &self,
+        ts: u64,
+        max_validators: u128,
+    ) -> Result<Vec<LocalAddress>> {
+        self.instance
+            .makeElectionAt(
+                alloy::primitives::Uint::from(ts),
+                AlloyU256::from(max_validators),
+            )
+            .call()
+            .await
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+}

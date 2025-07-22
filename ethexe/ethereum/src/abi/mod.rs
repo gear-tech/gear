@@ -21,6 +21,8 @@ use alloy::sol;
 mod events;
 mod gear;
 
+#[allow(unused_imports)]
+pub use middleware_abi::*;
 pub use mirror_abi::*;
 
 // TODO (breathx): remove this dummy hack to avoid reentrancy issues with
@@ -30,6 +32,14 @@ mod mirror_abi {
         #[sol(rpc)]
         IMirror,
         "Mirror.json"
+    );
+}
+
+mod middleware_abi {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMiddleware,
+        "Middleware.json"
     );
 }
 
