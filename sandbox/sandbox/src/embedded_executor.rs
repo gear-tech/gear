@@ -33,10 +33,7 @@ use wasmer::{
     RuntimeError, StoreMut, StoreObjects, StoreRef, TableStyle, TableType, Value as RuntimeValue,
     sys::{
         BaseTunables, NativeEngineExt, Target, Tunables,
-        vm::{
-            LinearMemory, VMConfig, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
-            VMTableDefinition,
-        },
+        vm::{VMConfig, VMGlobal, VMMemory, VMMemoryDefinition, VMTable, VMTableDefinition},
     },
 };
 use wasmer_types::ExternType;
@@ -316,17 +313,11 @@ pub struct Memory {
 impl<T> super::SandboxMemory<T> for Memory {
     fn new(store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
         let ty = MemoryType::new(initial, maximum, false);
-        let tunables = store.engine().tunables();
-        let style = tunables.memory_style(&ty);
-        let memory = tunables.create_host_memory(&ty, &style).map_err(|e| {
+        let memref = wasmer::Memory::new(store, ty).map_err(|e| {
             log::trace!("Failed to create memory: {e}");
             Error::Module
         })?;
-        let vm_memory_definition = memory.vmmemory();
-        // SAFETY: `vmmemory()` returns `NonNull` so pointer is valid
-        let vm_memory_definition_ref = unsafe { vm_memory_definition.as_ref() };
-        let base = vm_memory_definition_ref.base as usize;
-        let memref = wasmer::Memory::new_from_existing(store, memory);
+        let base = memref.view(store).data_ptr() as usize;
         Ok(Memory { memref, base })
     }
 
