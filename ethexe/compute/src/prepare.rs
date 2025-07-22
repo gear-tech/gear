@@ -107,6 +107,21 @@ fn propagate_data_from_parent<
                     _ => {}
                 }
             }
+            BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
+                let latest_rewarded_era = db.latest_rewarded_era(parent);
+
+                // check that era is greater than previous rewarded era
+                if let Some(latest_era) = latest_rewarded_era {
+                    debug_assert!(
+                        *era > latest_era,
+                        "Rewards distributed for the same or earlier era: {} <= {}",
+                        era,
+                        latest_era
+                    );
+                }
+                // Propagate latest rewarded era
+                db.set_latest_rewarded_era(block, *era);
+            }
             _ => {}
         }
     }

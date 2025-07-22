@@ -65,6 +65,7 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
+    LatestRewardedEra(H256) = 13,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -91,7 +92,8 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash)
+            | Self::LatestRewardedEra(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -345,6 +347,12 @@ impl BlockMetaStorageRead for Database {
                     .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
     }
+
+    fn latest_rewarded_era(&self, block_hash: H256) -> Option<u64> {
+        self.kv
+            .get(&Key::LatestRewardedEra(block_hash).to_bytes())
+            .map(|data| u64::decode(&mut data.as_slice()).expect("Failed to decode data ino `u64`"))
+    }
 }
 
 impl BlockMetaStorageWrite for Database {
@@ -408,6 +416,12 @@ impl BlockMetaStorageWrite for Database {
             &Key::LatestComputedBlock.to_bytes(),
             (block_hash, header).encode(),
         );
+    }
+
+    fn set_latest_rewarded_era(&self, block_hash: H256, era: u64) {
+        log::trace!("Set latest rewarded era for block {block_hash}: {era}");
+        self.kv
+            .put(&Key::LatestRewardedEra(block_hash).to_bytes(), era.encode());
     }
 }
 

@@ -51,7 +51,6 @@ mod tests;
 
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
-
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,

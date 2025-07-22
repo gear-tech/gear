@@ -31,7 +31,7 @@ use ethexe_common::{
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -190,9 +190,17 @@ impl Producer {
 
     // TODO #4742
     fn aggregate_rewards_commitment(
-        _ctx: &ValidatorContext,
-        _block_hash: H256,
+        ctx: &ValidatorContext,
+        block_hash: H256,
     ) -> Result<Option<RewardsCommitment>> {
+        // Replace with actual implementation
+        let config = crate::rewards::RewardsConfig {
+            genesis_timestamp: 0,
+            era_duration: 10,
+            wvara_digets: U256::from(10),
+            wvara_address: Address::default(),
+        };
+        // let _commitment = crate::rewards::rewards_commitment(&ctx.db, &config, block_hash)?;
         Ok(None)
     }
 

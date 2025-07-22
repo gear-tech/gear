@@ -22,6 +22,8 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true
+thiserror.workspace = true
+alloy.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

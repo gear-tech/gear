@@ -47,6 +47,7 @@ pub trait BlockMetaStorageRead {
     fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
+    fn latest_rewarded_era(&self, block_hash: H256) -> Option<u64>;
 }
 
 pub trait BlockMetaStorageWrite {
@@ -64,6 +65,7 @@ pub trait BlockMetaStorageWrite {
     fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
     fn set_block_schedule(&self, block_hash: H256, map: Schedule);
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
+    fn set_latest_rewarded_era(&self, block_hash: H256, era: u64);
 }
 
 pub trait CodesStorageRead {
