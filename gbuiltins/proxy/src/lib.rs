@@ -22,18 +22,20 @@
 
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Request that can be handled by the proxy builtin.
 ///
 /// Currently all proxies aren't required to send announcement,
 /// i.e. no delays for the delegate actions.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub enum Request {
     /// Add proxy request.
     ///
     /// Requests to add `delegate` as a delegate for the actions
     /// defined by `proxy_type` to be done on behalf of the request
     /// sender.
+    #[codec(index = 0)]
     AddProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
@@ -42,6 +44,7 @@ pub enum Request {
     ///
     /// Request sender asks to remove `delegate` with set of allowed actions
     /// defined in `proxy_type` from his list of proxies.
+    #[codec(index = 1)]
     RemoveProxy {
         delegate: ActorId,
         proxy_type: ProxyType,
