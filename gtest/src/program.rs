@@ -17,18 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    default_users_list,
+    BlockNumber, MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::ExtManager,
-    state::actors::{Actors, Program as InnerProgram, TestActor},
+    state::programs::{PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
     system::System,
-    Result, Value, MAX_USER_GAS_LIMIT,
 };
+use gear_common::Origin;
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     gas_metering::Schedule,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
+    program::{ActiveProgram, Program as InnerProgram, ProgramState},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
@@ -200,14 +201,12 @@ impl ProgramBuilder {
     }
 
     /// Build program with set parameters.
-    pub fn build(self, system: &System) -> Program {
+    pub fn build(self, system: &System) -> Program<'_> {
         let id = self
             .id
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let (code_id, instrumented_code_and_metadata) =
-            Self::build_instrumented_code_and_id(self.code.clone());
-
+        let code_id = CodeId::generate(&self.code);
         system.0.borrow_mut().store_new_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
@@ -217,16 +216,22 @@ impl ProgramBuilder {
                 .insert(code_id, metadata);
         }
 
+        // Expiration block logic isn't yet fully implemented in Gear protocol,
+        // so we set it to the current block height.
+        let expiration_block = system.block_height();
         Program::program_with_id(
             system,
             id,
-            InnerProgram {
-                code: instrumented_code_and_metadata.instrumented_code,
-                code_metadata: instrumented_code_and_metadata.metadata,
-                allocations: Default::default(),
-                pages_data: Default::default(),
+            InnerProgram::Active(ActiveProgram {
+                allocations_tree_len: 0,
+                code_id: code_id.cast(),
+                state: ProgramState::Uninitialized {
+                    message_id: PLACEHOLDER_MESSAGE_ID,
+                },
+                expiration_block,
+                memory_infix: Default::default(),
                 gas_reservation_map: Default::default(),
-            },
+            }),
         )
     }
 
@@ -268,11 +273,12 @@ pub struct Program<'a> {
     pub(crate) id: ActorId,
 }
 
+/// Program creation related impl.
 impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram,
+        program: InnerProgram<BlockNumber>,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -286,7 +292,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .store_new_actor(program_id, program, None)
+            .store_new_actor(program_id, program)
             .is_some()
         {
             usage_panic!(
@@ -446,19 +452,29 @@ impl<'a> Program<'a> {
             None,
         );
 
-        let kind = Actors::modify(self.id, |actor| {
-            let actor = actor.expect("Can't fail");
-            if let TestActor::Uninitialized(id @ None, _) = actor {
-                *id = Some(message.id());
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
+        let kind = ProgramsStorageManager::modify_program(self.id, |program| {
+            let program = program.expect("Can't fail");
+            let InnerProgram::Active(active_program) = program else {
+                usage_panic!("Program with id {} is not active - {program:?}", self.id);
+            };
+            match active_program.state {
+                ProgramState::Uninitialized { ref mut message_id }
+                    if *message_id == PLACEHOLDER_MESSAGE_ID =>
+                {
+                    *message_id = message.id();
+
+                    DispatchKind::Init
+                }
+                _ => DispatchKind::Handle,
             }
         });
 
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
+}
 
+/// Program misc ops impl.
+impl Program<'_> {
     /// Get program id.
     pub fn id(&self) -> ActorId {
         self.id
@@ -466,9 +482,7 @@ impl<'a> Program<'a> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
-        self.manager
-            .borrow_mut()
-            .read_state_bytes(payload, &self.id)
+        self.manager.borrow_mut().read_state_bytes(payload, self.id)
     }
 
     /// Reads and decodes the program's state .
@@ -479,14 +493,14 @@ impl<'a> Program<'a> {
 
     /// Returns the balance of the account.
     pub fn balance(&self) -> Value {
-        self.manager.borrow().balance_of(&self.id())
+        self.manager.borrow().balance_of(self.id())
     }
 
     /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
         let manager = self.manager.borrow();
-        let mem = manager.read_memory_pages(&self.id);
-        let balance = manager.balance_of(&self.id);
+        let mem = manager.read_memory_pages(self.id);
+        let balance = manager.balance_of(self.id);
 
         ProgramMemoryDump {
             balance,
@@ -515,12 +529,8 @@ impl<'a> Program<'a> {
             .balance
             .saturating_add(memory_dump.reserved_balance);
 
-        self.manager
-            .borrow_mut()
-            .update_storage_pages(&self.id, mem);
-        self.manager
-            .borrow_mut()
-            .override_balance(&self.id, balance);
+        self.manager.borrow_mut().update_storage_pages(self.id, mem);
+        self.manager.borrow_mut().override_balance(self.id, balance);
     }
 }
 
@@ -536,8 +546,8 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 /// `cargo-gbuild` utils
 pub mod gbuild {
     use crate::{
-        error::{usage_panic, TestError as Error},
         Result,
+        error::{TestError as Error, usage_panic},
     };
     use cargo_toml::Manifest;
     use std::{path::PathBuf, process::Command};
@@ -606,7 +616,7 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::Program;
-    use crate::{Log, ProgramIdWrapper, System, Value, DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
     use demo_constructor::{Arg, Scheme};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
@@ -802,10 +812,11 @@ mod tests {
             core_log.id()
         };
 
-        assert!(sys
-            .get_mailbox(receiver)
-            .claim_value(Log::builder().reply_to(reply_to_id))
-            .is_ok());
+        assert!(
+            sys.get_mailbox(receiver)
+                .claim_value(Log::builder().reply_to(reply_to_id))
+                .is_ok()
+        );
         assert_eq!(
             sys.balance_of(receiver),
             (2 + 4 + 6) * EXISTENTIAL_DEPOSIT + receiver_expected_balance
@@ -866,9 +877,11 @@ mod tests {
         receiver_expected_balance -= sys.run_next_block().spent_value();
 
         let receiver_mailbox = sys.get_mailbox(receiver);
-        assert!(receiver_mailbox
-            .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
-            .is_ok());
+        assert!(
+            receiver_mailbox
+                .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+                .is_ok()
+        );
         assert_eq!(sys.balance_of(receiver), receiver_expected_balance);
 
         // Get the value > ED to the receiver's mailbox
@@ -878,9 +891,11 @@ mod tests {
         receiver_expected_balance -= sys.run_next_block().spent_value();
 
         // Check receiver's balance
-        assert!(receiver_mailbox
-            .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
-            .is_ok());
+        assert!(
+            receiver_mailbox
+                .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+                .is_ok()
+        );
         assert_eq!(
             sys.balance_of(receiver),
             2 * EXISTENTIAL_DEPOSIT + receiver_expected_balance
@@ -1014,7 +1029,7 @@ mod tests {
 
     #[test]
     fn test_handle_exit_with_zero_balance() {
-        use demo_constructor::{demo_exit_handle, WASM_BINARY};
+        use demo_constructor::{WASM_BINARY, demo_exit_handle};
 
         let sys = System::new();
         sys.init_logger();
@@ -1097,9 +1112,9 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_program(prog.id(), |genuine_prog| {
-                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
-                genuine_prog
+            .update_program(prog.id(), |active_prog| {
+                assert_eq!(active_prog.gas_reservation_map.len(), 1);
+                active_prog
                     .gas_reservation_map
                     .iter()
                     .next()
@@ -1146,9 +1161,9 @@ mod tests {
         let reservation_id = sys
             .0
             .borrow_mut()
-            .update_program(prog.id(), |genuine_prog| {
-                assert_eq!(genuine_prog.gas_reservation_map.len(), 1);
-                genuine_prog
+            .update_program(prog.id(), |active_prog| {
+                assert_eq!(active_prog.gas_reservation_map.len(), 1);
+                active_prog
                     .gas_reservation_map
                     .iter()
                     .next()

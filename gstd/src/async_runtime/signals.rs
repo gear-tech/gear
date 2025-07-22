@@ -19,7 +19,7 @@
 //! Module for signal-management and waking concrete message based on reply
 //! received.
 
-use crate::{prelude::Vec, MessageId};
+use crate::{MessageId, prelude::Vec};
 use core::task::{Context, Waker};
 use gear_core_errors::ReplyCode;
 use hashbrown::HashMap;

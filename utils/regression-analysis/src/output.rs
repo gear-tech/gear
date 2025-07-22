@@ -69,7 +69,7 @@ impl Test {
 impl tabled::Tabled for Test {
     const LENGTH: usize = 7;
 
-    fn fields(&self) -> Vec<Cow<str>> {
+    fn fields(&self) -> Vec<Cow<'_, str>> {
         let current = self.current_time as f64;
         let median = self.median as f64;
 

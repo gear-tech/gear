@@ -18,10 +18,12 @@
 
 //! Accounts storage.
 
-use std::{cell::RefCell, collections::HashMap, fmt};
-
-use crate::{default_users_list, Value, DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT};
-use gear_common::ActorId;
+use crate::{
+    DEFAULT_USERS_INITIAL_BALANCE, EXISTENTIAL_DEPOSIT, Value, default_users_list,
+    state::WithOverlay,
+};
+use gear_core::ids::ActorId;
+use std::{collections::HashMap, fmt, thread::LocalKey};
 
 fn init_default_accounts(storage: &mut HashMap<ActorId, Balance>) {
     for &id in default_users_list() {
@@ -31,15 +33,19 @@ fn init_default_accounts(storage: &mut HashMap<ActorId, Balance>) {
 }
 
 thread_local! {
-    static ACCOUNT_STORAGE: RefCell<HashMap<ActorId, Balance>> = RefCell::new({
+    pub(super) static ACCOUNT_STORAGE: WithOverlay<HashMap<ActorId, Balance>> = WithOverlay::new({
         let mut storage = HashMap::new();
         init_default_accounts(&mut storage);
         storage
     });
 }
 
-#[derive(Debug)]
-struct Balance {
+fn storage() -> &'static LocalKey<WithOverlay<HashMap<ActorId, Balance>>> {
+    &ACCOUNT_STORAGE
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Balance {
     amount: Value,
 }
 
@@ -81,8 +87,9 @@ impl Accounts {
 
     // Returns account balance.
     pub(crate) fn balance(id: ActorId) -> Value {
-        ACCOUNT_STORAGE.with_borrow(|storage| {
+        storage().with(|storage| {
             storage
+                .data()
                 .get(&id)
                 .map(|balance| balance.balance())
                 .unwrap_or_default()
@@ -91,8 +98,9 @@ impl Accounts {
 
     // Returns account reducible balance.
     pub(crate) fn reducible_balance(id: ActorId) -> Value {
-        ACCOUNT_STORAGE.with_borrow(|storage| {
+        storage().with(|storage| {
             storage
+                .data()
                 .get(&id)
                 .map(|balance| balance.reducible_balance())
                 .unwrap_or_default()
@@ -101,8 +109,8 @@ impl Accounts {
 
     // Decreases account balance.
     pub(crate) fn decrease(id: ActorId, amount: Value, keep_alive: bool) {
-        ACCOUNT_STORAGE.with_borrow_mut(|storage| {
-            if let Some(balance) = storage.get_mut(&id) {
+        storage().with(|storage| {
+            let balance = if let Some(balance) = storage.data_mut().get_mut(&id) {
                 if keep_alive && balance.reducible_balance() < amount {
                     panic!(
                         "Not enough balance to decrease, reducible: {}, value: {amount}",
@@ -117,23 +125,25 @@ impl Accounts {
                 }
 
                 balance.decrease(amount);
-                if balance.balance() < EXISTENTIAL_DEPOSIT {
-                    log::debug!(
-                        "Removing account {id:?} with balance {} below the existential deposit",
-                        balance.balance()
-                    );
-                    storage.remove(&id);
-                }
+
+                balance.balance()
             } else {
                 panic!("Failed to decrease balance for account {id:?}, balance is zero");
+            };
+
+            if balance < EXISTENTIAL_DEPOSIT {
+                log::debug!(
+                    "Removing account {id:?} with balance {balance} below the existential deposit",
+                );
+                storage.data_mut().remove(&id);
             }
         });
     }
 
     // Increases account balance.
     pub(crate) fn increase(id: ActorId, amount: Value) {
-        ACCOUNT_STORAGE.with_borrow_mut(|storage| {
-            let balance = storage.get(&id).map(Balance::balance).unwrap_or_default();
+        storage().with(|storage| {
+            let balance = storage.data().get(&id).map(Balance::balance).unwrap_or_default();
 
             if balance + amount < EXISTENTIAL_DEPOSIT {
                 panic!(
@@ -146,6 +156,7 @@ impl Accounts {
             }
 
             storage
+                .data_mut()
                 .entry(id)
                 .and_modify(|balance| balance.increase(amount))
                 .or_insert_with(|| Balance::new(amount));
@@ -166,8 +177,8 @@ impl Accounts {
             );
         }
 
-        ACCOUNT_STORAGE.with_borrow_mut(|storage| {
-            storage.insert(id, Balance::new(amount));
+        storage().with(|storage| {
+            storage.data_mut().insert(id, Balance::new(amount));
         });
     }
 
@@ -178,15 +189,15 @@ impl Accounts {
 
     // Clears accounts storage.
     pub(crate) fn clear() {
-        ACCOUNT_STORAGE.with_borrow_mut(|storage| {
-            storage.clear();
-            init_default_accounts(storage);
+        storage().with(|storage| {
+            storage.data_mut().clear();
+            init_default_accounts(&mut storage.data_mut());
         });
     }
 }
 
 impl fmt::Debug for Accounts {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ACCOUNT_STORAGE.with_borrow(|storage| f.debug_map().entries(storage.iter()).finish())
+        storage().with(|storage| f.debug_map().entries(storage.data().iter()).finish())
     }
 }

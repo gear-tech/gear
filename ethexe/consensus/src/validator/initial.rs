@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    producer::Producer, subordinate::Subordinate, DefaultProcessing, StateHandler,
-    ValidatorContext, ValidatorState,
+    DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
+    subordinate::Subordinate,
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
@@ -121,7 +121,7 @@ impl Initial {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, ConsensusEvent};
+    use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use gprimitives::H256;
 
     #[test]
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _) = mock_validator_context();
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         assert!(initial.is_initial());
     }
@@ -148,7 +148,7 @@ mod tests {
             keys[1].to_address(),
         ];
 
-        let mut block = mock_simple_block_data();
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 0;
 
         let data = BlockSyncedData {
@@ -170,7 +170,7 @@ mod tests {
             keys[2].to_address(),
         ];
 
-        let mut block = mock_simple_block_data();
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 1;
 
         let data = BlockSyncedData {
@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn process_synced_block_rejected() {
         let (ctx, _) = mock_validator_context();
-        let block = mock_simple_block_data();
+        let block = SimpleBlockData::mock(());
         let data = BlockSyncedData {
             block_hash: block.hash,
             validators: vec![],

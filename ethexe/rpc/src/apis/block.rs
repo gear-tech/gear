@@ -18,15 +18,15 @@
 
 use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::{
+    BlockHeader,
     db::{BlockMetaStorageRead, OnChainStorageRead},
     events::BlockRequestEvent,
     gear::StateTransition,
-    BlockHeader,
 };
 use ethexe_db::Database;
 use gprimitives::H256;
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
 use std::collections::VecDeque;

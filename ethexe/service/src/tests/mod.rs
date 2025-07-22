@@ -21,18 +21,18 @@
 pub(crate) mod utils;
 
 use crate::{
+    Service,
     config::{self, Config},
     tests::utils::{
-        init_logger, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig,
+        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
     },
-    Service,
 };
-use alloy::providers::{ext::AnvilApi, Provider as _};
+use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
+    ScheduledTask,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
-    ScheduledTask,
 };
 use ethexe_db::Database;
 use ethexe_observer::EthereumConfig;
@@ -45,7 +45,7 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, MessageId, H160};
+use gprimitives::{ActorId, H160, MessageId};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -634,7 +634,7 @@ async fn incoming_transfers() {
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
         })
         .await
         .unwrap();

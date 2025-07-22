@@ -53,15 +53,16 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
-    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    BuiltinDispatcherFactory, Config, CurrencyOf, EXISTENTIAL_DEPOSIT_LOCK_ID, Event, Fortitude,
+    GasHandlerOf, Pallet, Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    fungible,
 };
 use alloc::format;
 use common::{
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
     event::*,
     scheduler::{StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::{fmt, mem};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
@@ -371,11 +372,10 @@ where
     }
 
     fn process_failed_init(program_id: ActorId, origin: ActorId) {
-        // Some messages addressed to the program could be processed
-        // in the queue before init message. For example, that could
-        // happen when init message had more gas limit then rest block
-        // gas allowance, but a dispatch message to the program was
-        // dequeued. The other case is async init.
+        // Waitlist can have messages only in one case of failed init:
+        // that's when program initialization message went to waitlist (say, because of async call),
+        // then the program receives reply (which queue allows to process for uninitialized program),
+        // which itself ends up being in waitlist (a wait syscall is invoked in `handle_reply`).
         Self::clean_waitlist(program_id);
 
         let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {

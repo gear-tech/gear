@@ -19,7 +19,7 @@
 mod iterator;
 mod subscription;
 
-pub use gsdk::metadata::{gear::Event as GearEvent, Event};
+pub use gsdk::metadata::{Event, gear::Event as GearEvent};
 pub use iterator::*;
 
 use crate::{Error, Result};

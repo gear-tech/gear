@@ -20,8 +20,8 @@
 //! Contains the code for the stack height limiter instrumentation.
 
 use crate::{
-    module::{ConstExpr, Export, Global, Instruction, ModuleBuilder},
     Module,
+    module::{ConstExpr, Export, Global, Instruction, ModuleBuilder},
 };
 use alloc::{string::ToString, vec::Vec};
 use core::mem;

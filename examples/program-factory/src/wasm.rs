@@ -22,8 +22,8 @@
 //! It works as a program factory: depending on input type it sends program creation
 //! request (message).
 
-use crate::{CreateProgram, CHILD_CODE_HASH};
-use gstd::{msg, prog, ActorId};
+use crate::{CHILD_CODE_HASH, CreateProgram};
+use gstd::{ActorId, msg, prog};
 
 static mut COUNTER: i32 = 0;
 static mut ORIGIN: Option<ActorId> = None;

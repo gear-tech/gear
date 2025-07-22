@@ -18,20 +18,16 @@
 
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, Salt, StoredDispatch, StoredMessage,
         Value,
     },
 };
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Message for Init entry point.
 /// Used to initiate a newly created program.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InitMessage {
     /// Message id.
     id: MessageId,
@@ -115,7 +111,8 @@ impl InitMessage {
 /// Init message packet.
 ///
 /// This structure is preparation for future init message sending. Has no message id.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct InitPacket {
     /// Newly created program id.
     program_id: ActorId,

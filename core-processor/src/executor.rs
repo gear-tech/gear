@@ -32,17 +32,17 @@ use gear_core::{
     ids::ActorId,
     memory::AllocationsContext,
     message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
+    BackendExternalities,
     env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
     },
-    BackendExternalities,
 };
 
 /// Execute wasm with dispatch and return dispatch result.
@@ -276,29 +276,29 @@ where
         .map(|p| p.inc())
         .unwrap_or(static_pages);
 
-    let message_context = MessageContext::new(
-        IncomingDispatch::new(
-            DispatchKind::Handle,
-            IncomingMessage::new(
-                Default::default(),
-                Default::default(),
-                payload
-                    .try_into()
-                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                gas_limit,
-                Default::default(),
-                Default::default(),
-            ),
-            None,
+    let incoming_dispatch = IncomingDispatch::new(
+        DispatchKind::Handle,
+        IncomingMessage::new(
+            Default::default(),
+            Default::default(),
+            payload
+                .try_into()
+                .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+            gas_limit,
+            Default::default(),
+            Default::default(),
         ),
-        program.id,
-        Default::default(),
+        None,
     );
+
+    let gas_reserver = GasReserver::new(&incoming_dispatch, Default::default(), Default::default());
+
+    let message_context = MessageContext::new(incoming_dispatch, program.id, Default::default());
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
-        gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
+        gas_reserver,
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::try_new(
             memory_size,

@@ -19,7 +19,7 @@
 use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub enum Event {
     Transfer {
         from: ActorId,
@@ -42,7 +42,7 @@ impl Event {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
     Transfer {

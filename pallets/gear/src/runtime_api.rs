@@ -22,7 +22,7 @@ use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
     rpc::ReplyInfo,
 };
@@ -307,10 +307,9 @@ where
                             ref dispatch,
                             ..
                         } = note
+                            && from_main_chain(dispatch.id())?
                         {
-                            if from_main_chain(dispatch.id())? {
-                                gas_info.min_limit = initial_gas;
-                            }
+                            gas_info.min_limit = initial_gas;
                         }
                     }
                 }

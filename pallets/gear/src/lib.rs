@@ -61,8 +61,8 @@ use alloc::{
     string::{String, ToString},
 };
 use common::{
-    self, event::*, gas_provider::GasNodeId, scheduler::*, storage::*, BlockLimiter, CodeStorage,
-    GasProvider, GasTree, Origin, Program, ProgramStorage, QueueRunner,
+    self, BlockLimiter, CodeStorage, GasProvider, GasTree, Origin, Program, ProgramStorage,
+    QueueRunner, event::*, gas_provider::GasNodeId, scheduler::*, storage::*,
 };
 use core::{marker::PhantomData, num::NonZero};
 use core_processor::{
@@ -74,22 +74,21 @@ use frame_support::{
     ensure,
     pallet_prelude::*,
     traits::{
-        fungible,
-        tokens::{Fortitude, Preservation},
         ConstBool, Currency, ExistenceRequirement, Get, LockableCurrency, Randomness,
-        StorageVersion, WithdrawReasons,
+        StorageVersion, WithdrawReasons, fungible,
+        tokens::{Fortitude, Preservation},
     },
     weights::Weight,
 };
 use frame_system::{
-    pallet_prelude::{BlockNumberFor, *},
     Pallet as System, RawOrigin,
+    pallet_prelude::{BlockNumberFor, *},
 };
 use gear_core::{
     buffer::*,
     code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
     env::MessageWaitedType,
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     message::*,
     percent::Percent,
     tasks::VaraScheduledTask,
@@ -100,8 +99,8 @@ use manager::QueuePostProcessingData;
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
 use sp_runtime::{
-    traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
     DispatchError, SaturatedConversion,
+    traits::{Bounded, One, Saturating, UniqueSaturatedInto, Zero},
 };
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -144,24 +143,6 @@ pub const EXISTENTIAL_DEPOSIT_LOCK_ID: [u8; 8] = *b"glock/ed";
 /// The current storage version.
 const GEAR_STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-pub trait DebugInfo {
-    fn is_remap_id_enabled() -> bool;
-    fn remap_id();
-    fn do_snapshot();
-    fn is_enabled() -> bool;
-}
-
-impl DebugInfo for () {
-    fn is_remap_id_enabled() -> bool {
-        false
-    }
-    fn remap_id() {}
-    fn do_snapshot() {}
-    fn is_enabled() -> bool {
-        false
-    }
-}
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -201,17 +182,15 @@ pub mod pallet {
         #[pallet::constant]
         type PerformanceMultiplier: Get<Percent>;
 
-        type DebugInfo: DebugInfo;
-
         /// Implementation of a storage for program binary codes.
         type CodeStorage: CodeStorage;
 
         /// Implementation of a storage for programs.
         type ProgramStorage: ProgramStorage<
-            BlockNumber = BlockNumberFor<Self>,
-            Error = DispatchError,
-            AccountId = Self::AccountId,
-        >;
+                BlockNumber = BlockNumberFor<Self>,
+                Error = DispatchError,
+                AccountId = Self::AccountId,
+            >;
 
         /// The minimal gas amount for message to be inserted in mailbox.
         ///
@@ -229,38 +208,38 @@ pub mod pallet {
 
         /// Messenger.
         type Messenger: Messenger<
-            BlockNumber = BlockNumberFor<Self>,
-            Capacity = u32,
-            OutputError = DispatchError,
-            MailboxFirstKey = Self::AccountId,
-            MailboxSecondKey = MessageId,
-            MailboxedMessage = UserStoredMessage,
-            QueuedDispatch = StoredDispatch,
-            DelayedDispatch = StoredDelayedDispatch,
-            WaitlistFirstKey = ActorId,
-            WaitlistSecondKey = MessageId,
-            WaitlistedMessage = StoredDispatch,
-            DispatchStashKey = MessageId,
-        >;
+                BlockNumber = BlockNumberFor<Self>,
+                Capacity = u32,
+                OutputError = DispatchError,
+                MailboxFirstKey = Self::AccountId,
+                MailboxSecondKey = MessageId,
+                MailboxedMessage = UserStoredMessage,
+                QueuedDispatch = StoredDispatch,
+                DelayedDispatch = StoredDelayedDispatch,
+                WaitlistFirstKey = ActorId,
+                WaitlistSecondKey = MessageId,
+                WaitlistedMessage = StoredDispatch,
+                DispatchStashKey = MessageId,
+            >;
 
         /// Implementation of a ledger to account for gas creation and consumption
         type GasProvider: GasProvider<
-            ExternalOrigin = Self::AccountId,
-            NodeId = GasNodeId<MessageId, ReservationId>,
-            Balance = u64,
-            Funds = BalanceOf<Self>,
-            Error = DispatchError,
-        >;
+                ExternalOrigin = Self::AccountId,
+                NodeId = GasNodeId<MessageId, ReservationId>,
+                Balance = u64,
+                Funds = BalanceOf<Self>,
+                Error = DispatchError,
+            >;
 
         /// Block limits.
         type BlockLimiter: BlockLimiter<Balance = GasBalanceOf<Self>>;
 
         /// Scheduler.
         type Scheduler: Scheduler<
-            BlockNumber = BlockNumberFor<Self>,
-            Cost = u64,
-            Task = VaraScheduledTask<Self::AccountId>,
-        >;
+                BlockNumber = BlockNumberFor<Self>,
+                Cost = u64,
+                Task = VaraScheduledTask<Self::AccountId>,
+            >;
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
@@ -1766,6 +1745,30 @@ pub mod pallet {
                 holders_amount as u32,
             ))
             .into())
+        }
+
+        /// A dummy extrinsic with programmatically set weight.
+        ///
+        /// Used in tests to exhaust block resources.
+        ///
+        /// Parameters:
+        /// - `fraction`: the fraction of the `max_extrinsic` the extrinsic will use.
+        #[cfg(feature = "dev")]
+        #[pallet::call_index(255)]
+        #[pallet::weight({
+            if let Some(max) = T::BlockWeights::get().get(DispatchClass::Normal).max_extrinsic {
+                *fraction * max
+            } else {
+                Weight::zero()
+            }
+        })]
+        pub fn exhaust_block_resources(
+            origin: OriginFor<T>,
+            fraction: sp_runtime::Percent,
+        ) -> DispatchResultWithPostInfo {
+            let _ = fraction; // We dont need to check the weight witness.
+            ensure_root(origin)?;
+            Ok(Pays::No.into())
         }
     }
 

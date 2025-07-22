@@ -24,8 +24,8 @@ use crate::{
 };
 use alloc::collections::BTreeSet;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Status of the instrumentation.

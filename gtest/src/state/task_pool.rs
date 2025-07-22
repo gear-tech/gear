@@ -18,22 +18,32 @@
 
 //! Auxiliary (for tests) task pool implementation for the crate.
 
+use crate::{constants::BlockNumber, state::WithOverlay};
 use gear_common::{
-    auxiliary::{
-        task_pool::{AuxiliaryTaskpool, TaskPoolErrorImpl, TaskPoolStorageWrap},
-        BlockNumber,
-    },
-    scheduler::{TaskPool, TaskPoolCallbacks},
-    storage::KeyIterableByKeyMap,
-    ActorId,
+    scheduler::{TaskPool, TaskPoolCallbacks, TaskPoolError, TaskPoolImpl},
+    storage::{AuxiliaryDoubleStorageWrap, DoubleBTreeMap, KeyIterableByKeyMap},
 };
-use gear_core::tasks::VaraScheduledTask;
+use gear_core::{ids::ActorId, tasks::VaraScheduledTask};
+use std::thread::LocalKey;
 
-/// Task pool manager which operates under the hood over
-/// [`gear_common::auxiliary::task_pool::AuxiliaryTaskpool`].
-///
-/// Manager is needed mainly to adapt arguments of the task pool methods to the
-/// crate.
+type AuxiliaryTaskpool = TaskPoolImpl<
+    TaskPoolStorageWrap,
+    VaraScheduledTask<ActorId>,
+    TaskPoolErrorImpl,
+    TaskPoolErrorImpl,
+    TaskPoolCallbacksImpl,
+>;
+
+pub(crate) type TaskPoolStorage =
+    WithOverlay<DoubleBTreeMap<BlockNumber, VaraScheduledTask<ActorId>, ()>>;
+std::thread_local! {
+    pub(crate) static TASKPOOL_STORAGE: TaskPoolStorage = Default::default();
+}
+
+fn storage() -> &'static LocalKey<TaskPoolStorage> {
+    &TASKPOOL_STORAGE
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct TaskPoolManager;
 
@@ -44,12 +54,12 @@ impl TaskPoolManager {
         block_number: BlockNumber,
         task: VaraScheduledTask<ActorId>,
     ) -> Result<(), TaskPoolErrorImpl> {
-        <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::add(block_number, task)
+        <AuxiliaryTaskpool as TaskPool>::add(block_number, task)
     }
 
     /// Adapted by argument types version of the task pool `clear` method.
     pub(crate) fn clear(&self) {
-        <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::clear();
+        <AuxiliaryTaskpool as TaskPool>::clear();
     }
 
     /// Adapted by argument types version of the task pool `contains` method.
@@ -59,7 +69,7 @@ impl TaskPoolManager {
         block_number: &BlockNumber,
         task: &VaraScheduledTask<ActorId>,
     ) -> bool {
-        <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::contains(block_number, task)
+        <AuxiliaryTaskpool as TaskPool>::contains(block_number, task)
     }
 
     /// Adapted by argument types version of the task pool `delete` method.
@@ -68,7 +78,7 @@ impl TaskPoolManager {
         block_number: BlockNumber,
         task: VaraScheduledTask<ActorId>,
     ) -> Result<(), TaskPoolErrorImpl> {
-        <AuxiliaryTaskpool<TaskPoolCallbacksImpl> as TaskPool>::delete(block_number, task)
+        <AuxiliaryTaskpool as TaskPool>::delete(block_number, task)
     }
 
     /// Adapted by argument types version of the task pool `drain_prefix_keys`
@@ -77,7 +87,7 @@ impl TaskPoolManager {
         &self,
         block_number: BlockNumber,
     ) -> <TaskPoolStorageWrap as KeyIterableByKeyMap>::DrainIter {
-        AuxiliaryTaskpool::<TaskPoolCallbacksImpl>::drain_prefix_keys(block_number)
+        AuxiliaryTaskpool::drain_prefix_keys(block_number)
     }
 }
 
@@ -87,6 +97,49 @@ pub(crate) struct TaskPoolCallbacksImpl;
 impl TaskPoolCallbacks for TaskPoolCallbacksImpl {
     type OnAdd = ();
     type OnDelete = ();
+}
+
+/// `TaskPool` double storage map manager
+pub struct TaskPoolStorageWrap;
+
+impl AuxiliaryDoubleStorageWrap for TaskPoolStorageWrap {
+    type Key1 = BlockNumber;
+    type Key2 = VaraScheduledTask<ActorId>;
+    type Value = ();
+
+    fn with_storage<F, R>(f: F) -> R
+    where
+        F: FnOnce(&DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
+    {
+        storage().with(|tps| f(&tps.data()))
+    }
+
+    fn with_storage_mut<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut DoubleBTreeMap<Self::Key1, Self::Key2, Self::Value>) -> R,
+    {
+        storage().with(|tps| f(&mut tps.data_mut()))
+    }
+}
+
+/// An implementor of the error returned from calling `TaskPool` trait
+/// functions.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TaskPoolErrorImpl {
+    /// Occurs when given task already exists in task pool.
+    DuplicateTask,
+    /// Occurs when task wasn't found in storage.
+    TaskNotFound,
+}
+
+impl TaskPoolError for TaskPoolErrorImpl {
+    fn duplicate_task() -> Self {
+        Self::DuplicateTask
+    }
+
+    fn task_not_found() -> Self {
+        Self::TaskNotFound
+    }
 }
 
 #[cfg(test)]

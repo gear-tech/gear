@@ -16,9 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Context};
-use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
+use anyhow::{Context, ensure};
+use gear_core::{
+    code::{Code, TryNewCodeConfig},
+    gas_metering::Schedule,
+};
+use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use tracing_subscriber::EnvFilter;
 use wasmer::{
@@ -36,7 +39,7 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let schedule = vara_runtime::Schedule::get();
+    let schedule = Schedule::default();
     let inf_recursion = fs::read_to_string("examples/wat/spec/inf_recursion.wat")
         .context("Failed to read `inf_recursion.wat`")?;
     let inf_recursion = wat::parse_str(inf_recursion).context("Failed to convert WAT to WASM")?;

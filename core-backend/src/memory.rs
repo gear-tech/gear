@@ -19,13 +19,13 @@
 //! sp-sandbox extensions for memory.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
         UnrecoverableMemoryError,
     },
     runtime::CallerWrap,
     state::HostState,
-    BackendExternalities,
 };
 use alloc::{format, vec::Vec};
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
@@ -438,7 +438,7 @@ mod tests {
         state::State,
     };
     use gear_core::pages::WasmPage;
-    use gear_sandbox::{default_executor::Store, SandboxStore};
+    use gear_sandbox::{SandboxStore, default_executor::Store};
     use parity_scale_codec::Encode;
 
     type MemoryAccessRegistry =

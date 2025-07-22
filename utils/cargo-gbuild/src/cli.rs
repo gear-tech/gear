@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{artifact::Artifacts, metadata::Metadata, utils, Artifact, Command};
-use anyhow::{anyhow, Result};
+use crate::{Artifact, Command, artifact::Artifacts, metadata::Metadata, utils};
+use anyhow::{Result, anyhow};
 use cargo_toml::Manifest;
 use clap::Parser;
 use colored::Colorize;

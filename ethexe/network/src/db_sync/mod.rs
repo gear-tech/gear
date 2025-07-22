@@ -16,33 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod ongoing;
+mod requests;
+mod responses;
 
+use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
-    db_sync::ongoing::{
-        OngoingRequest, OngoingRequests, OngoingResponses, PeerFailed, PeerResponse,
-        SendNextRequest, SendRequestError,
-    },
+    db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
 };
+use async_trait::async_trait;
+use ethexe_common::gear::CodeState;
 use ethexe_db::Database;
-use gprimitives::H256;
+use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
-    core::{transport::PortUse, Endpoint},
+    StreamProtocol,
+    core::{Endpoint, transport::PortUse},
     request_response,
     request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
     },
-    StreamProtocol,
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt,
+    collections::{BTreeMap, BTreeSet},
     task::{Context, Poll},
     time::Duration,
 };
@@ -50,108 +50,7 @@ use std::{
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
-pub struct RequestId(u64);
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
-pub struct ResponseId(u64);
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub struct Request(pub BTreeSet<H256>);
-
-impl fmt::Debug for Request {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            f.debug_tuple("Request").field(&self.0).finish()
-        } else {
-            f.debug_tuple("Request")
-                .field(&format_args!("{} keys", self.0.len()))
-                .finish()
-        }
-    }
-}
-
-impl Request {
-    /// Calculate missing request keys in response and create a new request with these keys
-    fn difference(&self, resp: &Response) -> Option<Self> {
-        let hashes_keys = resp.0.keys().copied().collect();
-        let new_requested_hashes: BTreeSet<H256> =
-            self.0.difference(&hashes_keys).copied().collect();
-        if !new_requested_hashes.is_empty() {
-            Some(Self(new_requested_hashes))
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-enum ResponseValidationError {
-    /// Hashed data unequal to its corresponding hash
-    DataHashMismatch,
-}
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub struct Response(pub BTreeMap<H256, Vec<u8>>);
-
-impl fmt::Debug for Response {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if f.alternate() {
-            f.debug_tuple("Response").field(&self.0).finish()
-        } else {
-            f.debug_tuple("Response")
-                .field(&format_args!("{} entries", self.0.len()))
-                .finish()
-        }
-    }
-}
-
-impl Response {
-    fn from_db(request: Request, db: &Database) -> Self {
-        Self(
-            request
-                .0
-                .into_iter()
-                .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                .collect(),
-        )
-    }
-
-    fn merge(&mut self, new_response: Response) {
-        self.0.extend(new_response.0);
-    }
-
-    /// Validates response against request.
-    ///
-    /// Returns `false` if external validation is required.
-    fn validate(&self) -> Result<(), ResponseValidationError> {
-        for (hash, data) in &self.0 {
-            if *hash != ethexe_db::hash(data) {
-                return Err(ResponseValidationError::DataHashMismatch);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn strip(&mut self, request: &Request) -> bool {
-        let hashes_keys: BTreeSet<H256> = self.0.keys().copied().collect();
-        let excessive_requested_hashes: BTreeSet<H256> =
-            hashes_keys.difference(&request.0).copied().collect();
-
-        if excessive_requested_hashes.is_empty() {
-            return false;
-        }
-
-        for excessive_key in excessive_requested_hashes {
-            self.0.remove(&excessive_key);
-        }
-
-        true
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
     /// Request was queued for the first time or re-queued because of there are no available peers
     FromQueue,
@@ -197,7 +96,7 @@ pub enum Event {
     /// Request failed
     RequestFailed {
         /// The failed request
-        ongoing_request: OngoingRequest,
+        request: RetriableRequest,
         /// Reason of request failure
         error: RequestFailure,
     },
@@ -222,85 +121,11 @@ pub enum Event {
     },
 }
 
-impl<T, E> From<Result<T, E>> for Event
-where
-    Self: From<T>,
-    Self: From<E>,
-{
-    fn from(res: Result<T, E>) -> Self {
-        res.map(Into::into).unwrap_or_else(Into::into)
-    }
-}
-
-impl From<PeerResponse> for Event {
-    fn from(resp: PeerResponse) -> Self {
-        match resp {
-            PeerResponse::Success {
-                request_id,
-                response,
-            } => Event::RequestSucceed {
-                request_id,
-                response,
-            },
-            PeerResponse::NewRound {
-                peer_id,
-                request_id,
-            } => Event::NewRequestRound {
-                request_id,
-                peer_id,
-                reason: NewRequestRoundReason::PartialData,
-            },
-        }
-    }
-}
-
-impl From<PeerFailed> for Event {
-    fn from(
-        PeerFailed {
-            peer_id,
-            request_id,
-        }: PeerFailed,
-    ) -> Self {
-        Event::NewRequestRound {
-            request_id,
-            peer_id,
-            reason: NewRequestRoundReason::PeerFailed,
-        }
-    }
-}
-
-impl From<SendNextRequest> for Event {
-    fn from(
-        SendNextRequest {
-            peer_id,
-            request_id,
-        }: SendNextRequest,
-    ) -> Self {
-        Event::NewRequestRound {
-            request_id,
-            peer_id,
-            reason: NewRequestRoundReason::FromQueue,
-        }
-    }
-}
-
-impl From<SendRequestError> for Event {
-    fn from(err: SendRequestError) -> Self {
-        match err {
-            SendRequestError::OutOfRounds(ongoing_request) => Event::RequestFailed {
-                ongoing_request,
-                error: RequestFailure::OutOfRounds,
-            },
-            SendRequestError::NoPeers(request_id) => Event::PendingStateRequest { request_id },
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    max_rounds_per_request: u32,
-    request_timeout: Duration,
-    max_simultaneous_responses: u32,
+    pub max_rounds_per_request: u32,
+    pub request_timeout: Duration,
+    pub max_simultaneous_responses: u32,
 }
 
 impl Default for Config {
@@ -334,11 +159,110 @@ impl Config {
     }
 }
 
-type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
+#[async_trait]
+pub trait ExternalDataProvider: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
+
+    async fn programs_code_ids_at(
+        self: Box<Self>,
+        program_ids: BTreeSet<ActorId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeId>>;
+
+    async fn codes_states_at(
+        self: Box<Self>,
+        code_ids: BTreeSet<CodeId>,
+        block: H256,
+    ) -> anyhow::Result<Vec<CodeState>>;
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
+pub struct RequestId(pub(crate) u64);
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
+pub struct ResponseId(pub(crate) u64);
+
+#[derive(derive_more::Debug, Default, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub struct HashesRequest(
+    #[debug("{:?}", AlternateCollectionFmt::set(_0, "hashes"))] pub BTreeSet<H256>,
+);
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ProgramIdsRequest {
+    pub at: H256,
+    pub expected_count: u64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ValidCodesRequest {
+    pub at: H256,
+    pub validated_count: u64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
+pub enum Request {
+    Hashes(HashesRequest),
+    ProgramIds(ProgramIdsRequest),
+    ValidCodes(ValidCodesRequest),
+}
+
+impl Request {
+    pub fn hashes(request: impl Into<BTreeSet<H256>>) -> Self {
+        Self::Hashes(HashesRequest(request.into()))
+    }
+
+    pub fn program_ids(at: H256, expected_count: u64) -> Self {
+        Self::ProgramIds(ProgramIdsRequest { at, expected_count })
+    }
+
+    pub fn valid_codes(at: H256, validated_count: u64) -> Self {
+        Self::ValidCodes(ValidCodesRequest {
+            at,
+            validated_count,
+        })
+    }
+}
+
+#[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
+pub enum Response {
+    Hashes(#[debug("{:?}", AlternateCollectionFmt::map(_0, "entries"))] BTreeMap<H256, Vec<u8>>),
+    ProgramIds(
+        #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
+    ),
+    ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct InnerProgramIdsRequest {
+    at: H256,
+}
+
+/// Network-only type to be encoded-decoded and sent over the network
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
+pub enum InnerRequest {
+    Hashes(HashesRequest),
+    ProgramIds(InnerProgramIdsRequest),
+    ValidCodes,
+}
+
+#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+pub struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
+
+#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+pub struct InnerProgramIdsResponse(BTreeSet<ActorId>);
+
+/// Network-only type to be encoded-decoded and sent over the network
+#[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
+pub enum InnerResponse {
+    Hashes(InnerHashesResponse),
+    ProgramIds(InnerProgramIdsResponse),
+    ValidCodes(BTreeSet<CodeId>),
+}
+
+type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
 pub struct Behaviour {
     inner: InnerBehaviour,
-    pending_events: VecDeque<Event>,
     peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
@@ -346,30 +270,38 @@ pub struct Behaviour {
 
 impl Behaviour {
     /// TODO: use database via traits
-    pub(crate) fn new(config: Config, peer_score_handle: peer_score::Handle, db: Database) -> Self {
+    pub(crate) fn new(
+        config: Config,
+        peer_score_handle: peer_score::Handle,
+        external_data_provider: Box<dyn ExternalDataProvider>,
+        db: Database,
+    ) -> Self {
         Self {
             inner: InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
             ),
-            pending_events: VecDeque::new(),
             peer_score_handle: peer_score_handle.clone(),
-            ongoing_requests: OngoingRequests::new(&config, peer_score_handle),
+            ongoing_requests: OngoingRequests::new(
+                &config,
+                peer_score_handle,
+                external_data_provider,
+            ),
             ongoing_responses: OngoingResponses::new(db, &config),
         }
     }
 
     pub fn request(&mut self, request: Request) -> RequestId {
-        self.ongoing_requests.push_pending_request(request)
+        self.ongoing_requests.request(request)
     }
 
-    pub fn retry(&mut self, ongoing_request: OngoingRequest) {
-        self.ongoing_requests.retry(ongoing_request);
+    pub fn retry(&mut self, request: RetriableRequest) {
+        self.ongoing_requests.retry(request);
     }
 
     fn handle_inner_event(
         &mut self,
-        event: request_response::Event<Request, Response>,
+        event: request_response::Event<InnerRequest, InnerResponse>,
     ) -> Poll<ToSwarm<Event, THandlerInEvent<Self>>> {
         match event {
             request_response::Event::Message {
@@ -384,7 +316,7 @@ impl Behaviour {
             } => {
                 let response_id = self
                     .ongoing_responses
-                    .prepare_response(peer, channel, request);
+                    .handle_response(peer, channel, request);
 
                 let event = if let Some(response_id) = response_id {
                     Event::IncomingRequest {
@@ -398,7 +330,7 @@ impl Behaviour {
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
             request_response::Event::Message {
-                peer,
+                peer: _,
                 connection_id: _,
                 message:
                     Message::Response {
@@ -406,13 +338,7 @@ impl Behaviour {
                         response,
                     },
             } => {
-                let res = self
-                    .ongoing_requests
-                    .on_peer_response(&mut self.inner, peer, request_id, response)
-                    .transpose();
-                if let Some(res) = res {
-                    return Poll::Ready(ToSwarm::GenerateEvent(res.into()));
-                }
+                self.ongoing_requests.on_peer_response(request_id, response);
             }
             request_response::Event::OutboundFailure {
                 peer,
@@ -429,13 +355,7 @@ impl Behaviour {
                     self.peer_score_handle.unsupported_protocol(peer);
                 }
 
-                let res = self
-                    .ongoing_requests
-                    .on_peer_failed(&mut self.inner, peer, request_id)
-                    .transpose();
-                if let Some(res) = res {
-                    return Poll::Ready(ToSwarm::GenerateEvent(res.into()));
-                }
+                self.ongoing_requests.on_peer_failure(request_id);
             }
             request_response::Event::InboundFailure {
                 peer,
@@ -536,25 +456,8 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some(ongoing_request) = self.ongoing_requests.remove_if_timeout(cx) {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::RequestFailed {
-                ongoing_request,
-                error: RequestFailure::Timeout,
-            }));
-        }
-
-        if let Some(event) = self.pending_events.pop_front() {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
-        }
-
-        let event = match self.ongoing_requests.send_next_request(&mut self.inner) {
-            Ok(Some(success)) => Some(success.into()),
-            Ok(None) => None,
-            Err(SendRequestError::NoPeers(_request_id)) => None,
-            Err(err) => Some(err.into()),
-        };
-        if let Some(event) = event {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+        if let Poll::Ready(request_event) = self.ongoing_requests.poll(cx, &mut self.inner) {
+            return Poll::Ready(ToSwarm::GenerateEvent(request_event));
         }
 
         if let Poll::Ready((peer_id, response_id)) =
@@ -580,65 +483,67 @@ impl NetworkBehaviour for Behaviour {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    use crate::utils::tests::init_logger;
+    use crate::{tests::DataProvider, utils::tests::init_logger};
+    use assert_matches::assert_matches;
+    use ethexe_common::{StateHashWithQueueSize, db::BlockMetaStorageWrite};
     use ethexe_db::MemDb;
-    use libp2p::{futures::StreamExt, Swarm};
+    use libp2p::{
+        Swarm, Transport,
+        core::{transport::MemoryTransport, upgrade::Version},
+        futures::StreamExt,
+        identity::Keypair,
+        swarm,
+        swarm::SwarmEvent,
+    };
     use libp2p_swarm_test::SwarmExt;
     use std::{iter, mem};
+    use tokio::time;
 
-    async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database) {
+    // exactly like `Swarm::new_ephemeral_tokio` but we can pass our own config
+    fn new_ephemeral_swarm<T: swarm::NetworkBehaviour>(
+        config: swarm::Config,
+        behaviour: T,
+    ) -> Swarm<T> {
+        let identity = Keypair::generate_ed25519();
+        let peer_id = PeerId::from(identity.public());
+
+        let transport = MemoryTransport::default()
+            .or_transport(libp2p::tcp::tokio::Transport::default())
+            .upgrade(Version::V1)
+            .authenticate(libp2p::plaintext::Config::new(&identity))
+            .multiplex(libp2p::yamux::Config::default())
+            .timeout(Duration::from_secs(20))
+            .boxed();
+
+        Swarm::new(transport, behaviour, peer_id, config)
+    }
+
+    async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database, DataProvider) {
+        let data_provider = DataProvider::default();
         let db = Database::from_one(&MemDb::default());
-        let behaviour = Behaviour::new(config, peer_score::Handle::new_test(), db.clone());
+        let behaviour = Behaviour::new(
+            config,
+            peer_score::Handle::new_test(),
+            data_provider.clone_boxed(),
+            db.clone(),
+        );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
-        (swarm, db)
+        (swarm, db, data_provider)
     }
 
-    async fn new_swarm() -> (Swarm<Behaviour>, Database) {
+    async fn new_swarm() -> (Swarm<Behaviour>, Database, DataProvider) {
         new_swarm_with_config(Config::default()).await
-    }
-
-    #[test]
-    fn validate_data_stripped() {
-        let hash1 = ethexe_db::hash(b"1");
-        let hash2 = ethexe_db::hash(b"2");
-        let hash3 = ethexe_db::hash(b"3");
-
-        let request = Request([hash1, hash2].into());
-        let mut response = Response(
-            [
-                (hash1, b"1".to_vec()),
-                (hash2, b"2".to_vec()),
-                (hash3, b"3".to_vec()),
-            ]
-            .into(),
-        );
-        assert!(response.strip(&request));
-        assert_eq!(
-            response,
-            Response([(hash1, b"1".to_vec()), (hash2, b"2".to_vec())].into())
-        );
-    }
-
-    #[test]
-    fn validate_data_hash_mismatch() {
-        let hash1 = ethexe_db::hash(b"1");
-
-        let response = Response([(hash1, b"2".to_vec())].into());
-        assert_eq!(
-            response.validate(),
-            Err(ResponseValidationError::DataHashMismatch)
-        );
     }
 
     #[tokio::test]
     async fn smoke() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, bob_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
         let hello_hash = bob_db.write_hash(b"hello");
@@ -676,7 +581,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([hello_hash, world_hash].into()));
+            .request(Request::hashes([hello_hash, world_hash]));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -693,7 +598,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response(
+                response: Response::Hashes(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec())
@@ -709,7 +614,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_rounds_per_request(1);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
 
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
@@ -719,7 +624,7 @@ mod tests {
         });
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -741,36 +646,45 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([].into()));
+                    assert_eq!(request, InnerRequest::Hashes(HashesRequest::default()));
                     drop(channel);
                 }
             }
         });
 
         let event = alice.next_behaviour_event().await;
-        assert!(matches!(
+        assert_matches!(
             event,
             Event::RequestFailed {
-                ongoing_request,
+                request,
                 error: RequestFailure::OutOfRounds,
-            } if ongoing_request.id() == request_id
-        ));
+            } if request.id() == request_id
+        );
     }
 
     #[tokio::test(start_paused = true)]
     async fn timeout() {
+        const IDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
+
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
+        let alice_config = Config::default().with_request_timeout(Duration::from_secs(3));
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
+
+        // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
+        // so we cannot advance time like in tokio
+        let mut bob = new_ephemeral_swarm(
+            swarm::Config::with_tokio_executor()
+                .with_idle_connection_timeout(IDLE_CONNECTION_TIMEOUT),
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
-            )
-        });
+            ),
+        );
+        let bob_peer_id = *bob.local_peer_id();
         bob.connect(&mut alice).await;
 
-        let request_id = alice.behaviour_mut().request(Request([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -792,23 +706,29 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([].into()));
+                    assert_eq!(request, InnerRequest::Hashes(HashesRequest::default()));
                     // just ignore request
                     mem::forget(channel);
                 }
             }
         });
 
-        tokio::time::advance(Config::default().request_timeout).await;
+        time::advance(Config::default().request_timeout).await;
 
         let event = alice.next_behaviour_event().await;
         assert!(matches!(
             event,
             Event::RequestFailed {
-                ongoing_request,
+                request,
                 error: RequestFailure::Timeout,
-            } if ongoing_request.id() == request_id
+            } if request.id() == request_id
         ));
+
+        time::resume();
+        time::sleep(IDLE_CONNECTION_TIMEOUT).await;
+
+        let event = alice.next_swarm_event().await;
+        assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
     }
 
     #[tokio::test]
@@ -817,7 +737,7 @@ mod tests {
 
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
 
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
@@ -833,7 +753,7 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([data_0, data_1].into()));
+            .request(Request::hashes([data_0, data_1]));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -855,18 +775,22 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([data_0, data_1].into()));
+                    assert_eq!(
+                        request,
+                        InnerRequest::Hashes(HashesRequest([data_0, data_1].into()))
+                    );
                     bob.behaviour_mut()
                         .send_response(
                             channel,
-                            Response(
+                            InnerHashesResponse(
                                 [
                                     (data_0, DATA[0].to_vec()),
                                     (data_1, DATA[1].to_vec()),
                                     (data_2, DATA[2].to_vec()),
                                 ]
                                 .into(),
-                            ),
+                            )
+                            .into(),
                         )
                         .unwrap();
                 }
@@ -878,8 +802,65 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response([(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()),
+                response: Response::Hashes(
+                    [(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into()
+                )
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn request_response_type_mismatch() {
+        init_logger();
+
+        let alice_config = Config::default().with_max_rounds_per_request(1);
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
+
+        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
+            InnerBehaviour::new(
+                [(STREAM_PROTOCOL, ProtocolSupport::Full)],
+                request_response::Config::default(),
+            )
+        });
+        bob.connect(&mut alice).await;
+
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: *bob.local_peer_id(),
+                reason: NewRequestRoundReason::FromQueue,
+            }
+        );
+
+        tokio::spawn(async move {
+            while let Some(event) = bob.next().await {
+                if let Ok(request_response::Event::Message {
+                    message:
+                        Message::Request {
+                            channel, request, ..
+                        },
+                    ..
+                }) = event.try_into_behaviour_event()
+                {
+                    assert_eq!(request, InnerRequest::Hashes(HashesRequest::default()));
+                    bob.behaviour_mut()
+                        .send_response(channel, InnerProgramIdsResponse::default().into())
+                        .unwrap();
+                }
+            }
+        });
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(
+            event,
+            Event::RequestFailed {
+                request,
+                error: RequestFailure::OutOfRounds,
+            } if request.id() == request_id
         );
     }
 
@@ -887,10 +868,10 @@ mod tests {
     async fn request_completed_by_3_rounds() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, bob_db) = new_swarm().await;
-        let (mut charlie, charlie_db) = new_swarm().await;
-        let (mut dave, dave_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
+        let (mut dave, dave_db, _data_provider) = new_swarm().await;
 
         alice.connect(&mut bob).await;
         alice.connect(&mut charlie).await;
@@ -905,22 +886,25 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([hello_hash, world_hash, mark_hash].into()));
+            .request(Request::hashes([hello_hash, world_hash, mark_hash]));
 
         // first round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
+        assert_matches!(
+            event,
+            Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id
         );
         // second round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id)
+        assert_matches!(
+            event,
+            Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id
         );
         // third round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id)
+        assert_matches!(
+            event,
+            Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::PartialData, .. } if rid == request_id
         );
 
         let event = alice.next_behaviour_event().await;
@@ -928,14 +912,14 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response(
+                response: Response::Hashes(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec()),
                         (mark_hash, b"!".to_vec()),
                     ]
                     .into()
-                )
+                ),
             }
         );
     }
@@ -944,9 +928,11 @@ mod tests {
     async fn request_completed_after_new_peer() {
         init_logger();
 
-        let (mut alice, _alice_db) = new_swarm().await;
-        let (mut bob, bob_db) = new_swarm().await;
-        let (charlie, charlie_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+        let (charlie, charlie_db, _data_provider) = new_swarm().await;
+        let charlie_peer_id = *charlie.local_peer_id();
         let charlie_addr = charlie.external_addresses().next().cloned().unwrap();
 
         alice.connect(&mut bob).await;
@@ -957,26 +943,34 @@ mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request([hello_hash, world_hash].into()));
+            .request(Request::hashes([hello_hash, world_hash]));
 
         // first round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: bob_peer_id,
+                reason: NewRequestRoundReason::FromQueue
+            }
         );
 
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::PendingStateRequest { request_id: rid } if rid == request_id)
-        );
+        assert_eq!(event, Event::PendingStateRequest { request_id });
 
         tokio::spawn(charlie.loop_on_next());
         alice.dial_and_wait(charlie_addr).await;
 
         // second round
         let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::NewRequestRound { request_id: rid, reason: NewRequestRoundReason::FromQueue, .. } if rid == request_id)
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: charlie_peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            }
         );
 
         let event = alice.next_behaviour_event().await;
@@ -984,7 +978,7 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response(
+                response: Response::Hashes(
                     [
                         (hello_hash, b"hello".to_vec()),
                         (world_hash, b"world".to_vec())
@@ -1000,16 +994,20 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_request_timeout(Duration::from_secs(2));
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
 
-        let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
-            InnerBehaviour::new([], request_response::Config::default())
-        });
+        // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
+        // so we cannot advance time like in tokio
+        let mut bob = new_ephemeral_swarm(
+            swarm::Config::with_tokio_executor()
+                .with_idle_connection_timeout(Duration::from_secs(5)),
+            InnerBehaviour::new([], request_response::Config::default()),
+        );
         let bob_peer_id = *bob.local_peer_id();
         bob.connect(&mut alice).await;
         tokio::spawn(bob.loop_on_next());
 
-        let request_id = alice.behaviour_mut().request(Request([].into()));
+        let request_id = alice.behaviour_mut().request(Request::hashes([]));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -1023,6 +1021,12 @@ mod tests {
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(event, Event::PendingStateRequest { request_id });
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::RequestFailed { request, error: RequestFailure::Timeout } if request.id() == request_id);
+
+        let event = alice.next_swarm_event().await;
+        assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
     }
 
     #[tokio::test]
@@ -1030,16 +1034,16 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_simultaneous_responses(2);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
-        let (mut bob, _bob_db) = new_swarm().await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
+        let (mut bob, _bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
         alice.connect(&mut bob).await;
 
         // make request way heavier so there definitely will be a few simultaneous requests
-        let request = Request(
+        let request = Request::hashes(
             iter::from_fn(|| Some(H256::random()))
-                .take(16 * 1024)
-                .collect(),
+                .take(24 * 1024)
+                .collect::<BTreeSet<H256>>(),
         );
         bob.behaviour_mut().request(request.clone());
         bob.behaviour_mut().request(request.clone());
@@ -1070,7 +1074,7 @@ mod tests {
         init_logger();
 
         let alice_config = Config::default().with_max_rounds_per_request(1);
-        let (mut alice, _alice_db) = new_swarm_with_config(alice_config).await;
+        let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
         let mut bob = Swarm::new_ephemeral_tokio(move |_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
@@ -1080,7 +1084,9 @@ mod tests {
         bob.connect(&mut alice).await;
 
         let request_key = ethexe_db::hash(b"test");
-        let request_id = alice.behaviour_mut().request(Request([request_key].into()));
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::hashes([request_key]));
 
         // first round
         let event = alice.next_behaviour_event().await;
@@ -1098,18 +1104,21 @@ mod tests {
                     ..
                 }) = event.try_into_behaviour_event()
                 {
-                    assert_eq!(request, Request([request_key].into()));
+                    assert_eq!(
+                        request,
+                        InnerRequest::Hashes(HashesRequest([request_key].into()))
+                    );
                     // just ignore request
                     mem::forget(channel);
                 }
             }
         });
 
-        tokio::time::advance(Config::default().request_timeout).await;
+        time::advance(Config::default().request_timeout).await;
 
         let event = alice.next_behaviour_event().await;
         let Event::RequestFailed {
-            ongoing_request,
+            request: ongoing_request,
             error: RequestFailure::Timeout,
         } = event
         else {
@@ -1117,11 +1126,11 @@ mod tests {
         };
         assert_eq!(request_id, ongoing_request.id());
 
-        tokio::time::resume();
+        time::resume();
 
         bob_handle.abort();
         assert!(bob_handle.await.unwrap_err().is_cancelled());
-        let (mut charlie, charlie_db) = new_swarm().await;
+        let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
@@ -1140,8 +1149,80 @@ mod tests {
             event,
             Event::RequestSucceed {
                 request_id,
-                response: Response([(request_key, b"test".to_vec())].into())
+                response: Response::Hashes([(request_key, b"test".to_vec())].into()),
             }
         );
+    }
+
+    #[tokio::test]
+    async fn external_data_provider() {
+        init_logger();
+
+        let (mut alice, _alice_db, alice_data_provider) = new_swarm().await;
+        let (mut bob, _bob_db, _data_provider) = new_swarm().await;
+        let (mut charlie, charlie_db, _data_provider) = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+
+        let expected_response = fill_data_provider(alice_data_provider, charlie_db).await;
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let request_id = alice
+            .behaviour_mut()
+            .request(Request::program_ids(H256::zero(), 2));
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::NewRequestRound {
+                request_id,
+                peer_id: bob_peer_id,
+                reason: NewRequestRoundReason::FromQueue,
+            }
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::PendingStateRequest { request_id });
+
+        alice.connect(&mut charlie).await;
+        tokio::spawn(charlie.loop_on_next());
+
+        // `Event::NewRequestRound` skipped by `connect()` above
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::RequestSucceed {
+                request_id,
+                response: expected_response,
+            }
+        );
+    }
+
+    pub(crate) async fn fill_data_provider(
+        // data provider of the first peer
+        left_data_provider: DataProvider,
+        // database of the second peer
+        right_db: Database,
+    ) -> Response {
+        let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
+        let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
+        left_data_provider
+            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
+            .await;
+        right_db.set_block_program_states(
+            H256::zero(),
+            iter::zip(
+                program_ids.clone(),
+                iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
+                    hash,
+                    cached_queue_size: 0,
+                }),
+            )
+            .collect(),
+        );
+
+        Response::ProgramIds(iter::zip(program_ids, code_ids).collect())
     }
 }

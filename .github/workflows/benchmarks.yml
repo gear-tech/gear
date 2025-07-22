@@ -119,14 +119,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
       - name: "Install: Build deps"
         run: |
