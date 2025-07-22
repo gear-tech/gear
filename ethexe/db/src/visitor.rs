@@ -18,7 +18,7 @@
 
 use crate::Database;
 use ethexe_common::{
-    BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, StateHashWithQueueSize,
+    BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     events::BlockEvent,
     gear::StateTransition,
@@ -55,21 +55,21 @@ pub trait DatabaseVisitor: Sized {
         walk_block(self, block)
     }
 
-    fn visit_block_meta(&mut self, _meta: &BlockMeta) {}
+    fn visit_block_meta(&mut self, _block: H256, _meta: &BlockMeta) {}
 
-    fn visit_block_header(&mut self, _header: BlockHeader) {}
+    fn visit_block_header(&mut self, _block: H256, _header: BlockHeader) {}
 
-    fn visit_block_events(&mut self, _events: &[BlockEvent]) {}
+    fn visit_block_events(&mut self, _block: H256, _events: &[BlockEvent]) {}
 
-    fn visit_block_commitment_queue(&mut self, _queue: &VecDeque<H256>) {}
+    fn visit_block_commitment_queue(&mut self, _block: H256, _queue: &VecDeque<H256>) {}
 
-    fn visit_block_codes_queue(&mut self, _queue: &VecDeque<CodeId>) {}
+    fn visit_block_codes_queue(&mut self, _block: H256, _queue: &VecDeque<CodeId>) {}
 
-    fn visit_previous_non_empty_block(&mut self, _block: H256) {}
+    fn visit_previous_non_empty_block(&mut self, _block: H256, _previous_non_empty_block: H256) {}
 
-    fn visit_last_committed_batch(&mut self, _batch: Digest) {}
+    fn visit_last_committed_batch(&mut self, _block: H256, _batch: Digest) {}
 
-    fn visit_block_program_states(&mut self, program_states: &ProgramStates) {
+    fn visit_block_program_states(&mut self, _block: H256, program_states: &ProgramStates) {
         walk_block_program_states(self, program_states)
     }
 
@@ -77,13 +77,13 @@ pub trait DatabaseVisitor: Sized {
         walk_program_state(self, state)
     }
 
-    fn visit_block_schedule(&mut self, _schedule: &Schedule) {}
+    fn visit_block_schedule(&mut self, _block: H256, _schedule: &Schedule) {}
 
     fn visit_block_outcome_is_empty(&mut self, block: H256, outcome_is_empty: bool) {
         walk_block_outcome_is_empty(self, block, outcome_is_empty)
     }
 
-    fn visit_block_outcome(&mut self, _outcome: &[StateTransition]) {}
+    fn visit_block_outcome(&mut self, _block: H256, _outcome: &[StateTransition]) {}
 
     fn visit_allocations(&mut self, _allocations: &Allocations) {}
 
@@ -160,7 +160,7 @@ macro_rules! visit_or_error {
         let x = $visitor.db().$element($hash);
         if let Some(x) = x {
             paste::paste! {
-                 $visitor. [< visit_ $element >] (x);
+                 $visitor. [< visit_ $element >] ($hash, x);
             }
         } else {
             paste::item! {
@@ -173,7 +173,7 @@ macro_rules! visit_or_error {
         let x = $visitor.db().$element($hash);
         if let Some(x) = &x {
             paste::paste! {
-                 $visitor. [< visit_ $element >] (x);
+                 $visitor. [< visit_ $element >] ($hash, x);
             }
         } else {
             paste::item! {
@@ -214,7 +214,7 @@ pub fn walk_chain(visitor: &mut impl DatabaseVisitor, head: H256, bottom: H256) 
 
 pub fn walk_block(visitor: &mut impl DatabaseVisitor, block: H256) {
     let meta = visitor.db().block_meta(block);
-    visitor.visit_block_meta(&meta);
+    visitor.visit_block_meta(block, &meta);
 
     visit_or_error!(visitor, block.block_header);
 
@@ -230,10 +230,8 @@ pub fn walk_block(visitor: &mut impl DatabaseVisitor, block: H256) {
 
     visit_or_error!(visitor, &block.block_program_states);
 
-    // TODO: verification might be required for schedule
     visit_or_error!(visitor, &block.block_schedule);
 
-    // TODO: verification required for codes queue
     let outcome_is_empty = visitor.db().block_outcome_is_empty(block);
     if let Some(outcome_is_empty) = outcome_is_empty {
         visitor.visit_block_outcome_is_empty(block, outcome_is_empty);
@@ -247,11 +245,11 @@ pub fn walk_block_program_states(
     program_states: &ProgramStates,
 ) {
     for StateHashWithQueueSize {
-        hash,
+        hash: program_state,
         cached_queue_size: _,
     } in program_states.values().copied()
     {
-        visit_or_error!(visitor, &hash.program_state);
+        visit_or_error!(visitor, program_state.as_ref());
     }
 }
 
@@ -405,10 +403,18 @@ pub enum IntegrityVerifierError {
         metadata_len: u32,
         original_len: u32,
     },
+
+    NoBlockHeader(H256),
+    BlockScheduleHasExpiredTasks {
+        block: H256,
+        expiry: u32,
+        tasks: usize,
+    },
 }
 
 pub struct IntegrityVerifier {
     db: Database,
+    visited_blocks: HashSet<H256>,
     errors: Vec<IntegrityVerifierError>,
 }
 
@@ -416,6 +422,7 @@ impl IntegrityVerifier {
     pub fn new(db: Database) -> Self {
         Self {
             db,
+            visited_blocks: HashSet::new(),
             errors: Vec::new(),
         }
     }
@@ -456,7 +463,13 @@ impl DatabaseVisitor for IntegrityVerifier {
             .push(IntegrityVerifierError::DatabaseVisitor(error));
     }
 
-    fn visit_block_meta(&mut self, meta: &BlockMeta) {
+    fn visit_block(&mut self, block: H256) {
+        if self.visited_blocks.insert(block) {
+            walk_block(self, block);
+        }
+    }
+
+    fn visit_block_meta(&mut self, _block: H256, meta: &BlockMeta) {
         if !meta.synced {
             self.errors.push(IntegrityVerifierError::BlockIsNotSynced);
         }
@@ -468,7 +481,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_block_header(&mut self, header: BlockHeader) {
+    fn visit_block_header(&mut self, _block: H256, header: BlockHeader) {
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             self.errors
                 .push(IntegrityVerifierError::NoParentBlockHeader(
@@ -494,15 +507,13 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_block_events(&mut self, _events: &[BlockEvent]) {
-        // TODO: verification might be required for events
+    fn visit_block_commitment_queue(&mut self, _block: H256, queue: &VecDeque<H256>) {
+        for &block in queue {
+            self.visit_block(block);
+        }
     }
 
-    fn visit_block_commitment_queue(&mut self, _queue: &VecDeque<H256>) {
-        // TODO: verify
-    }
-
-    fn visit_block_codes_queue(&mut self, queue: &VecDeque<CodeId>) {
+    fn visit_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
         for &code in queue {
             if let Some(valid) = self.db().code_valid(code) {
                 if !valid {
@@ -539,6 +550,60 @@ impl DatabaseVisitor for IntegrityVerifier {
                         metadata_len: code_metadata.original_code_len(),
                         original_len: original_code.len() as u32,
                     });
+            }
+        }
+    }
+
+    fn visit_block_schedule(&mut self, block: H256, schedule: &Schedule) {
+        let Some(header) = self.db().block_header(block) else {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockHeader(block));
+            return;
+        };
+
+        // TODO: verification might be required for schedule
+        for (&expiry, tasks) in schedule {
+            if expiry <= header.height {
+                self.errors
+                    .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                        block,
+                        expiry,
+                        tasks: tasks.len(),
+                    });
+            }
+
+            for task in tasks {
+                match *task {
+                    ScheduledTask::PauseProgram(_) => {}
+                    ScheduledTask::RemoveCode(_) => {}
+                    ScheduledTask::RemoveFromMailbox(_, _) => {}
+                    ScheduledTask::RemoveFromWaitlist(_, _) => {}
+                    ScheduledTask::RemovePausedProgram(_) => {}
+                    ScheduledTask::WakeMessage(_, _) => {}
+                    ScheduledTask::SendDispatch(_) => {}
+                    ScheduledTask::SendUserMessage { .. } => {}
+                    ScheduledTask::RemoveGasReservation(_, _) => {}
+                    #[allow(deprecated)]
+                    ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
+                }
+            }
+        }
+    }
+
+    fn visit_block_outcome(&mut self, _block: H256, outcome: &[StateTransition]) {
+        for StateTransition {
+            actor_id: _,
+            new_state_hash,
+            exited: _,
+            inheritor: _,
+            value_to_receive: _,
+            value_claims: _,
+            messages: _,
+        } in outcome
+        {
+            let program_state = *new_state_hash;
+            if program_state != H256::zero() && !self.db.contains_hash(program_state) {
+                visit_or_error!(self, program_state.as_ref());
             }
         }
     }
