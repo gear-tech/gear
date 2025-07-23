@@ -563,11 +563,7 @@ mod tests {
         let mut verifier = IntegrityVerifier::new(db);
         verifier.visit_code_id(code_id);
 
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::NoCodeMetadata)
-        );
+        assert_eq!(verifier.errors, [IntegrityVerifierError::NoCodeMetadata]);
     }
 
     #[test]
@@ -600,13 +596,12 @@ mod tests {
         let mut verifier = IntegrityVerifier::new(db);
         verifier.visit_code_id(code_id);
 
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::InvalidCodeLenInMetadata {
-                    metadata_len: 10,
-                    original_len: ORIGINAL_CODE.len() as u32,
-                })
+        assert_eq!(
+            verifier.errors,
+            [IntegrityVerifierError::InvalidCodeLenInMetadata {
+                metadata_len: 10,
+                original_len: ORIGINAL_CODE.len() as u32,
+            }]
         );
     }
 
@@ -619,10 +614,9 @@ mod tests {
         let mut verifier = IntegrityVerifier::new(db);
         verifier.visit_block_schedule_tasks(block_hash, 100, &tasks);
 
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::NoBlockHeader(block_hash))
+        assert_eq!(
+            verifier.errors,
+            [IntegrityVerifierError::NoBlockHeader(block_hash)]
         );
     }
 
