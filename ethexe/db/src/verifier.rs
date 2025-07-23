@@ -20,12 +20,17 @@ use crate::{
     Database,
     visitor::{
         DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, walk_block,
-        walk_block_schedule_tasks,
+        walk_block_schedule_tasks, walk_message_queue, walk_message_queue_hash_with_size,
     },
 };
 use ethexe_common::{BlockHeader, BlockMeta, ScheduledTask};
+use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
 use gprimitives::{CodeId, H256};
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use parity_scale_codec::Encode;
+use std::{
+    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    hash::Hash,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
@@ -65,11 +70,17 @@ pub enum IntegrityVerifierError {
         expiry: u32,
         tasks: usize,
     },
+    InvalidCachedMessageQueueSize {
+        hash: HashOf<MessageQueue>,
+        cached_size: u8,
+        actual_size: u8,
+    },
 }
 
 pub struct IntegrityVerifier {
     db: Database,
     visited_blocks: HashSet<H256>,
+    message_queue_sizes: HashMap<HashOf<MessageQueue>, u8>,
     errors: Vec<IntegrityVerifierError>,
 }
 
@@ -78,6 +89,7 @@ impl IntegrityVerifier {
         Self {
             db,
             visited_blocks: HashSet::new(),
+            message_queue_sizes: HashMap::new(),
             errors: Vec::new(),
         }
     }
@@ -231,6 +243,38 @@ impl DatabaseVisitor for IntegrityVerifier {
 
         walk_block_schedule_tasks(self, tasks);
     }
+
+    fn visit_message_queue_hash_with_size(
+        &mut self,
+        queue_hash_with_size: MessageQueueHashWithSize,
+    ) {
+        if let Some(hash) = queue_hash_with_size.hash.to_inner() {
+            self.message_queue_sizes
+                .insert(hash, queue_hash_with_size.cached_queue_size);
+        }
+
+        walk_message_queue_hash_with_size(self, queue_hash_with_size)
+    }
+
+    fn visit_message_queue(&mut self, queue: &MessageQueue) {
+        let encoded_queue = queue.encode();
+        let hash = crate::hash(&encoded_queue);
+        let hash = unsafe { HashOf::new(hash) };
+
+        let cached_queue_size = self.message_queue_sizes.remove(&hash).expect(
+            "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`",
+        );
+        if cached_queue_size != queue.len() as u8 {
+            self.errors
+                .push(IntegrityVerifierError::InvalidCachedMessageQueueSize {
+                    hash,
+                    cached_size: cached_queue_size,
+                    actual_size: queue.len() as u8,
+                })
+        }
+
+        walk_message_queue(self, queue)
+    }
 }
 
 #[cfg(test)]
@@ -240,6 +284,7 @@ mod tests {
         Digest, ProgramStates, Schedule,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
     };
+    use ethexe_runtime_common::state::{MaybeHashOf, Storage};
     use gear_core::{
         code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
         pages::WasmPagesAmount,
@@ -607,6 +652,69 @@ mod tests {
                 tasks: 0,
             }]
         );
+    }
+
+    #[test]
+    fn test_visit_message_queue_invalid_cached_size() {
+        let db = Database::memory();
+        let mut verifier = IntegrityVerifier::new(db.clone());
+
+        // Create a message queue with some messages
+        let queue = MessageQueue::default();
+        let hash = db.write_message_queue(queue.clone());
+
+        // Cache with wrong size (actual queue is empty, but we cache size as 5)
+        let queue_hash_with_size = MessageQueueHashWithSize {
+            hash: MaybeHashOf::from(Some(hash)),
+            cached_queue_size: 5, // Wrong size
+        };
+
+        verifier.visit_message_queue_hash_with_size(queue_hash_with_size);
+
+        // Should have an error about invalid cached size
+        assert_eq!(
+            verifier.errors,
+            [IntegrityVerifierError::InvalidCachedMessageQueueSize {
+                hash,
+                cached_size: 5,
+                actual_size: 0,
+            }]
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`"
+    )]
+    fn test_visit_message_queue_without_hash_panics() {
+        let db = Database::memory();
+        let mut verifier = IntegrityVerifier::new(db);
+
+        // Create a message queue
+        let queue = MessageQueue::default();
+
+        // Try to visit message queue without first calling visit_message_queue_hash_with_size
+        // This should panic
+        verifier.visit_message_queue(&queue);
+    }
+
+    #[test]
+    fn test_visit_message_queue_success() {
+        let db = Database::memory();
+        let mut verifier = IntegrityVerifier::new(db.clone());
+
+        let queue = MessageQueue::default();
+        let hash = db.write_message_queue(queue.clone());
+
+        let queue_hash_with_size = MessageQueueHashWithSize {
+            hash: MaybeHashOf::from(Some(hash)),
+            cached_queue_size: queue.len() as u8,
+        };
+
+        verifier.visit_message_queue_hash_with_size(queue_hash_with_size);
+
+        assert!(verifier.message_queue_sizes.is_empty());
+        assert!(verifier.errors.is_empty());
     }
 
     #[test]

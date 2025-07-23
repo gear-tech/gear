@@ -393,7 +393,7 @@ impl MaybeHashOf<MemoryPages> {
 }
 
 // TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueueHashWithSize {
     pub hash: MaybeHashOf<MessageQueue>,

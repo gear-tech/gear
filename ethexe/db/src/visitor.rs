@@ -24,8 +24,8 @@ use ethexe_common::{
 };
 use ethexe_runtime_common::state::{
     ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf, MemoryPages,
-    MemoryPagesRegion, MessageQueue, PayloadLookup, Program, ProgramState, Storage, UserMailbox,
-    Waitlist,
+    MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
+    ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{buffer::Payload, memory::PageBuf};
 use gprimitives::{ActorId, CodeId, H256};
@@ -124,6 +124,13 @@ pub trait DatabaseVisitor: Sized {
     }
 
     fn visit_payload(&mut self, _payload: &Payload) {}
+
+    fn visit_message_queue_hash_with_size(
+        &mut self,
+        queue_hash_with_size: MessageQueueHashWithSize,
+    ) {
+        walk_message_queue_hash_with_size(self, queue_hash_with_size)
+    }
 
     fn visit_message_queue(&mut self, queue: &MessageQueue) {
         walk_message_queue(self, queue)
@@ -315,9 +322,7 @@ pub fn walk_program_state(visitor: &mut impl DatabaseVisitor, state: &ProgramSta
         }
     }
 
-    if let Some(message_queue) = queue.hash.to_inner() {
-        visit_or_error!(visitor, message_queue.as_ref());
-    }
+    visitor.visit_message_queue_hash_with_size(*queue);
 
     if let Some(waitlist) = waitlist_hash.to_inner() {
         visit_or_error!(visitor, waitlist.as_ref());
@@ -425,6 +430,15 @@ pub fn walk_memory_pages(visitor: &mut impl DatabaseVisitor, pages: &MemoryPages
 pub fn walk_memory_pages_region(visitor: &mut impl DatabaseVisitor, region: &MemoryPagesRegion) {
     for &page_data in region.as_inner().values() {
         visit_or_error!(visitor, page_data.as_ref());
+    }
+}
+
+pub fn walk_message_queue_hash_with_size(
+    visitor: &mut impl DatabaseVisitor,
+    message_queue_hash_with_size: MessageQueueHashWithSize,
+) {
+    if let Some(message_queue) = message_queue_hash_with_size.hash.to_inner() {
+        visit_or_error!(visitor, message_queue.as_ref());
     }
 }
 
