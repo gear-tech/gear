@@ -226,19 +226,18 @@ impl DatabaseVisitor for IntegrityVerifier {
         height: u32,
         tasks: &BTreeSet<ScheduledTask>,
     ) {
-        let Some(header) = self.db().block_header(block) else {
+        if let Some(header) = self.db().block_header(block) {
+            if height <= header.height {
+                self.errors
+                    .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                        block,
+                        expiry: height,
+                        tasks: tasks.len(),
+                    });
+            }
+        } else {
             self.errors
                 .push(IntegrityVerifierError::NoBlockHeader(block));
-            return;
-        };
-
-        if height <= header.height {
-            self.errors
-                .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                    block,
-                    expiry: height,
-                    tasks: tasks.len(),
-                });
         }
 
         walk_block_schedule_tasks(self, tasks);
