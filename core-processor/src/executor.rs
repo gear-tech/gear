@@ -134,7 +134,6 @@ where
         let env = Environment::new(
             ext,
             program.instrumented_code.bytes(),
-            kind,
             program.code_metadata.exports().clone(),
             memory_size,
             |ctx, memory, globals_config| {
@@ -364,7 +363,6 @@ where
         let env = Environment::new(
             ext,
             program.instrumented_code.bytes(),
-            function,
             program.code_metadata.exports().clone(),
             memory_size,
             |ctx, memory, globals_config| {

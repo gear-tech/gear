@@ -1055,11 +1055,12 @@ fn execute_wasm_with_custom_configs(
         ..ProcessorContext::new_mock()
     };
 
+    let mut memory_dumper = Ext::memory_dumper();
+
     let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
         code.instrumented_code().bytes(),
-        DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
         |ctx, mem, globals_config| {
@@ -1088,7 +1089,7 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to create environment");
 
     let execution_result = env
-        .execute(DispatchKind::Init)
+        .execute(DispatchKind::Init, &mut memory_dumper)
         .expect("Failed to execute WASM module");
 
     execution_result

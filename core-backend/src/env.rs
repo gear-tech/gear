@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
-    BackendExternalities,
+    BackendExternalities, MemoryStorer,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
@@ -27,7 +27,6 @@ use crate::{
     funcs::FuncsHandler,
     memory::{BackendMemory, ExecutorMemory},
     state::{HostState, State},
-    BackendExternalities, MemoryStorer,
 };
 use alloc::{collections::BTreeSet, format, string::String};
 use core::{
@@ -38,13 +37,13 @@ use core::{
 use gear_core::{
     env::{Externalities, WasmEntryPoint},
     gas::GasAmount,
-    memory::{HostPointer, MemoryError},
-    message::{DispatchKind, WasmEntryPoint},
+    memory::MemoryError,
+    message::DispatchKind,
     pages::WasmPagesAmount,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, GlobalsAccessMod};
 use gear_sandbox::{
-    AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+    AsContextExt, Error, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
     default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
 };
@@ -198,11 +197,13 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 struct GlobalsAccessProvider<Ext: Externalities> {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
 }
 
+#[cfg(feature = "std")]
 impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
@@ -660,14 +661,14 @@ where
             instance,
             entries,
             mut store,
-            mut memory,
+            memory,
             code,
             #[cfg(feature = "std")]
             globals_holder,
             ..
         } = self;
 
-        memory_storer.revert_memory(&mut store, &mut memory)?;
+        memory_storer.revert_memory(&mut store, &memory)?;
 
         Ok(Environment {
             instance,

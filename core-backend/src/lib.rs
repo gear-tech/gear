@@ -72,7 +72,7 @@ mod tests {
     use crate::{
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
-        mock::MockExt,
+        mock::{MockExt, MockMemoryDumper},
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
@@ -106,10 +106,12 @@ mod tests {
             .unwrap();
         let code = module.serialize().unwrap();
 
+        let mut memory_dumper = MockMemoryDumper {};
+
         // Execute wasm and check success.
         let ext = MockExt::default();
         let env = Environment::new(ext, &code, Default::default(), 0.into(), |_, _, _| {}).unwrap();
-        let execution_result = env.execute(DispatchKind::Init).unwrap();
+        let execution_result = env.execute(DispatchKind::Init, &mut memory_dumper).unwrap();
 
         let BackendReport {
             termination_reason, ..

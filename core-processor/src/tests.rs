@@ -1,14 +1,13 @@
 use crate::{ext::ExtInfo, ProcessorContext, ProcessorExternalities};
 use alloc::{vec, vec::Vec};
 use gear_core::{
+    buffer::Payload,
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, CodeId, ProgramId},
+    ids::{prelude::*, ActorId, CodeId},
     memory::AllocationsContext,
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext, Payload,
-    },
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
 };
 use gear_core_backend::{
     env::{BackendReport, Environment, EnvironmentExecutionResult, ReadyToExecute},
@@ -239,20 +238,17 @@ fn execute_environment_multiple_times_and_compare_results() {
     let ext_info_normal_2 = chain_execute(configs_normal_execution_2, &mut memory_dumper);
 
     assert_eq!(
-        ext_info_failed_with_memory_replace,
-        ext_info_normal,
+        ext_info_failed_with_memory_replace, ext_info_normal,
         "Execution results are different, failed execution: {ext_info_failed_with_memory_replace:?}, normal execution: {ext_info_normal:?}"
     );
 
     assert_ne!(
-        ext_info_normal,
-        ext_info_normal_2,
+        ext_info_normal, ext_info_normal_2,
         "Execution results are the same, normal execution: {ext_info_normal:?}, normal execution 2: {ext_info_normal_2:?}"
     );
 
     assert_eq!(
-        ext_info_failed_with_memory_replace,
-        ext_info_normal,
+        ext_info_failed_with_memory_replace, ext_info_normal,
         "Execution results are different, failed execution: {ext_info_failed_with_memory_replace:?}, normal execution: {ext_info_normal:?}"
     );
 }
@@ -280,7 +276,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
     .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
-    let program_id = ProgramId::generate_from_user(code_id, b"");
+    let program_id = ActorId::generate_from_user(code_id, b"");
 
     let mut env;
     let mut execution_result: Option<EnvironmentExecutionResult<Ext>> = None;
@@ -299,8 +295,8 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
 
             env = Environment::new(
                 ext,
-                code.code(),
-                code.exports().clone(),
+                code.original_code(),
+                code.metadata().exports().clone(),
                 MEMORY_SIZE.into(),
                 |ctx, mem, globals_config| {
                     Ext::lazy_pages_init_for_program(
@@ -308,7 +304,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
                         mem,
                         program_id,
                         Default::default(),
-                        code.stack_end(),
+                        code.metadata().stack_end(),
                         globals_config,
                         Default::default(),
                     );
@@ -339,10 +335,10 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
 
         execution_result = Some(
             env.execute(test_config.dispatch_kind, memory_dumper)
-                .unwrap_or_else(|_| {
+                .unwrap_or_else(|e| {
                     panic!(
-                        "Failed to execute WASM module, config_name: {}",
-                        test_config.name
+                        "Failed to execute WASM module, config_name: {}, with error: {}",
+                        test_config.name, e
                     );
                 }),
         );
@@ -382,7 +378,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
 fn inspect_and_set_payload<'a>(
     execution_result: EnvironmentExecutionResult<'a, Ext>,
     dispatch_kind: DispatchKind,
-    program_id: ProgramId,
+    actor_id: ActorId,
     code: &Code,
     payload: Payload,
     expectation: ExecutionExpectation,
@@ -392,7 +388,7 @@ fn inspect_and_set_payload<'a>(
     match execution_result {
         Ok(success_execution) => match expectation {
             ExecutionExpectation::Success => {
-                let ext = make_ext(dispatch_kind, program_id, code, payload);
+                let ext = make_ext(dispatch_kind, actor_id, code, payload);
 
                 success_execution
                     .set_ext(ext)
@@ -413,7 +409,7 @@ fn inspect_and_set_payload<'a>(
                 );
             }
             ExecutionExpectation::Failure => {
-                let ext = make_ext(dispatch_kind, program_id, code, payload);
+                let ext = make_ext(dispatch_kind, actor_id, code, payload);
 
                 let success_execution =
                     failed_execution.revert(memory_dumper).unwrap_or_else(|_| {
@@ -428,12 +424,7 @@ fn inspect_and_set_payload<'a>(
     }
 }
 
-fn make_ext(
-    dispatch_kind: DispatchKind,
-    program_id: ProgramId,
-    code: &Code,
-    payload: Payload,
-) -> Ext {
+fn make_ext(dispatch_kind: DispatchKind, actor_id: ActorId, code: &Code, payload: Payload) -> Ext {
     let incoming_message = IncomingMessage::new(
         0.into(),
         message_sender(),
@@ -445,21 +436,21 @@ fn make_ext(
 
     let message_context = MessageContext::new(
         IncomingDispatch::new(dispatch_kind, incoming_message, None),
-        program_id,
+        actor_id,
         ContextSettings::with_outgoing_limits(1024, u32::MAX),
     );
 
     let processor_context = ProcessorContext {
         message_context,
-        program_id,
+        program_id: actor_id,
         value_counter: ValueCounter::new(250_000_000_000),
         gas_counter: GasCounter::new(250_000_000_000),
         gas_allowance_counter: GasAllowanceCounter::new(250_000_000_000),
         allocations_context: AllocationsContext::try_new(
             MEMORY_SIZE.into(),
             Default::default(),
-            code.static_pages(),
-            code.stack_end(),
+            code.metadata().static_pages(),
+            code.metadata().stack_end(),
             MAX_MEMORY.into(),
         )
         .expect("Failed to create AllocationsContext"),
@@ -469,7 +460,7 @@ fn make_ext(
     Ext::new(processor_context)
 }
 
-fn message_sender() -> ProgramId {
+fn message_sender() -> ActorId {
     let bytes = [1, 2, 3, 4].repeat(8);
-    ProgramId::try_from(bytes.as_ref()).unwrap()
+    ActorId::try_from(bytes.as_ref()).unwrap()
 }

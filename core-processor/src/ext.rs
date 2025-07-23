@@ -49,13 +49,12 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities,
+    BackendExternalities, MemoryStorer,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
     },
-    BackendExternalities, MemoryStorer,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
