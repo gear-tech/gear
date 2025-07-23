@@ -68,7 +68,7 @@ mod state {
 }
 
 mod types {
-    use gstd::{exec, msg, MessageId};
+    use gstd::{MessageId, exec, msg};
 
     /// Package with counter
     pub struct Package {

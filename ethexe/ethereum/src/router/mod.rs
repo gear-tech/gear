@@ -17,21 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
-    wvara::WVara,
     AlloyEthereum, AlloyProvider, TryGetReceipt,
+    abi::{IRouter, utils::uint256_to_u256},
+    wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, B256, U256},
+    eips::BlockId,
+    primitives::{Address, B256, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{eth::state::AccountOverride, Filter},
+    rpc::types::{Filter, eth::state::AccountOverride},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
+    Address as LocalAddress, Digest,
     ecdsa::ContractSignature,
-    gear::{AggregatedPublicKey, BatchCommitment, SignatureType},
-    Address as LocalAddress,
+    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType},
 };
 use events::signatures;
 use futures::StreamExt;
@@ -242,12 +243,12 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn latest_committed_block_hash(&self) -> Result<H256> {
+    pub async fn latest_committed_batch_hash(&self) -> Result<Digest> {
         self.instance
-            .latestCommittedBlockHash()
+            .latestCommittedBatchHash()
             .call()
             .await
-            .map(|res| H256(*res))
+            .map(|res| Digest(res.0))
             .map_err(Into::into)
     }
 
@@ -321,16 +322,11 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn code_state(&self, code_id: CodeId) -> Result<CodeState> {
-        self.instance
-            .codeState(code_id.into_bytes().into())
-            .call()
-            .await
-            .map(CodeState::from)
-            .map_err(Into::into)
-    }
-
-    pub async fn codes_states(&self, code_ids: Vec<CodeId>) -> Result<Vec<CodeState>> {
+    pub async fn codes_states_at(
+        &self,
+        code_ids: impl IntoIterator<Item = CodeId>,
+        block: H256,
+    ) -> Result<Vec<CodeState>> {
         self.instance
             .codesStates(
                 code_ids
@@ -339,6 +335,7 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
             .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
@@ -352,7 +349,11 @@ impl RouterQuery {
         Ok(code_id)
     }
 
-    pub async fn programs_code_ids(&self, program_ids: Vec<ActorId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids_at(
+        &self,
+        program_ids: impl IntoIterator<Item = ActorId>,
+        block: H256,
+    ) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids
@@ -364,18 +365,94 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
     }
 
-    pub async fn programs_count(&self) -> Result<U256> {
-        let count = self.instance.programsCount().call().await?;
+    pub async fn programs_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .programsCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count.try_into().expect("infallible");
         Ok(count)
     }
 
-    pub async fn validated_codes_count(&self) -> Result<U256> {
-        let count = self.instance.validatedCodesCount().call().await?;
+    pub async fn validated_codes_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .validatedCodesCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count.try_into().expect("infallible");
         Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Ethereum;
+    use alloy::node_bindings::Anvil;
+    use ethexe_signer::Signer;
+    use roast_secp256k1_evm::frost;
+
+    #[tokio::test]
+    async fn inexistent_code_is_unknown() {
+        let anvil = Anvil::new().spawn();
+
+        let (shares, _pubkey_package) = frost::keys::generate_with_dealer(
+            5,
+            3,
+            frost::keys::IdentifierList::Default,
+            rand::thread_rng(),
+        )
+        .unwrap();
+        let first_share = shares.values().next().unwrap();
+
+        let signer = Signer::memory();
+        let alice = signer
+            .storage_mut()
+            .add_key(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let ethereum = Ethereum::deploy(
+            anvil.endpoint_url().as_str(),
+            vec![],
+            signer,
+            alice.to_address(),
+            first_share.commitment().clone(),
+        )
+        .await
+        .unwrap();
+
+        let router =
+            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+
+        let latest_block = router
+            .instance
+            .provider()
+            .get_block(BlockId::latest())
+            .await
+            .expect("failed to get latest block")
+            .expect("latest block is None");
+        let latest_block = H256(latest_block.header.hash.0);
+
+        let states = router
+            .codes_states_at([CodeId::new([0xfe; 32])], latest_block)
+            .await
+            .unwrap();
+        assert_eq!(states, vec![CodeState::Unknown]);
     }
 }

@@ -19,10 +19,10 @@
 use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
+    ScheduledTask,
     db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
-    ScheduledTask,
 };
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};

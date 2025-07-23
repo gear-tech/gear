@@ -19,7 +19,7 @@
 //! Requires node to be built in release mode
 
 use gear_core::{
-    ids::{prelude::*, ActorId, CodeId},
+    ids::{ActorId, CodeId, prelude::*},
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -27,7 +27,7 @@ use gsdk::{Api, Error, Result};
 use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{error::RpcError, utils::H256, Error as SubxtError};
+use subxt::{Error as SubxtError, error::RpcError, utils::H256};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -479,8 +479,8 @@ async fn query_program_counters(
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
     use gsdk::{
-        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
         BlockNumber,
+        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
     };
     use parity_scale_codec::Decode;
     use subxt::dynamic::Value;

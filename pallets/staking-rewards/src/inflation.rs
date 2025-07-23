@@ -23,8 +23,8 @@
 
 use pallet_staking_reward_fn::compute_inflation;
 use sp_runtime::{
-    traits::{AtLeast32BitUnsigned, CheckedDiv},
     FixedU128, PerThing, Perquintill, Saturating,
+    traits::{AtLeast32BitUnsigned, CheckedDiv},
 };
 
 /// The total payout to all validators (and their nominators) per era and

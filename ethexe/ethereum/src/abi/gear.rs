@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{utils::*, Gear};
+use crate::abi::{Gear, utils::*};
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -34,14 +34,31 @@ impl From<AggregatedPublicKey> for Gear::AggregatedPublicKey {
     }
 }
 
-impl From<BlockCommitment> for Gear::BlockCommitment {
-    fn from(value: BlockCommitment) -> Self {
+impl From<ChainCommitment> for Gear::ChainCommitment {
+    fn from(value: ChainCommitment) -> Self {
         Self {
-            hash: h256_to_bytes32(value.hash),
-            timestamp: u64_to_uint48_lossy(value.timestamp),
-            previousCommittedBlock: h256_to_bytes32(value.previous_committed_block),
-            predecessorBlock: h256_to_bytes32(value.predecessor_block),
             transitions: value.transitions.into_iter().map(Into::into).collect(),
+            blocks: value.gear_blocks.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<GearBlock> for Gear::GearBlock {
+    fn from(value: GearBlock) -> Self {
+        Self {
+            hash: value.hash.0.into(),
+            gasAllowance: value.gas_allowance,
+            offchainTransactionsHash: value.off_chain_transactions_hash.0.into(),
+        }
+    }
+}
+
+impl From<Gear::GearBlock> for GearBlock {
+    fn from(value: Gear::GearBlock) -> Self {
+        Self {
+            hash: value.hash.0.into(),
+            gas_allowance: value.gasAllowance,
+            off_chain_transactions_hash: value.offchainTransactionsHash.0.into(),
         }
     }
 }
@@ -50,7 +67,6 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
     fn from(value: CodeCommitment) -> Self {
         Self {
             id: code_id_to_bytes32(value.id),
-            timestamp: u64_to_uint48_lossy(value.timestamp),
             valid: value.valid,
         }
     }
@@ -89,7 +105,7 @@ impl From<OperatorRewardsCommitment> for Gear::OperatorRewardsCommitment {
 impl From<StakerRewards> for Gear::StakerRewards {
     fn from(value: StakerRewards) -> Self {
         Self {
-            vault: value.vault.into(),
+            vault: value.vault.0.into(),
             amount: u256_to_uint256(value.amount),
         }
     }
@@ -100,7 +116,7 @@ impl From<StakerRewardsCommitment> for Gear::StakerRewardsCommitment {
         Self {
             distribution: value.distribution.into_iter().map(Into::into).collect(),
             totalAmount: u256_to_uint256(value.total_amount),
-            token: value.token.into(),
+            token: value.token.0.into(),
         }
     }
 }
@@ -118,14 +134,18 @@ impl From<RewardsCommitment> for Gear::RewardsCommitment {
 impl From<BatchCommitment> for Gear::BatchCommitment {
     fn from(value: BatchCommitment) -> Self {
         Self {
-            blockCommitments: value
-                .block_commitments
+            blockHash: value.block_hash.0.into(),
+            blockTimestamp: u64_to_uint48_lossy(value.timestamp),
+            previousCommittedBatchHash: value.previous_batch.0.into(),
+            chainCommitment: value.chain_commitment.into_iter().map(Into::into).collect(),
+            codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
+            rewardsCommitment: value
+                .rewards_commitment
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
-            rewardCommitments: value
-                .rewards_commitments
+            validatorsCommitment: value
+                .validators_commitment
                 .into_iter()
                 .map(Into::into)
                 .collect(),

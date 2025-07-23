@@ -18,17 +18,17 @@
 
 use clap::Subcommand;
 
-use crate::{parse, rpc_err_handler, BlockHashOrNumber, LOG_TARGET};
+use crate::{BlockHashOrNumber, LOG_TARGET, parse, rpc_err_handler};
 use frame_remote_externalities::{
     Builder, Mode, OfflineConfig, OnlineConfig, RemoteExternalities, SnapshotConfig,
 };
 use sp_core::{storage::well_known_keys, twox_128};
 use sp_runtime::{
-    traits::{Block as BlockT, Header as HeaderT},
     DeserializeOwned,
+    traits::{Block as BlockT, Header as HeaderT},
 };
 use std::{fmt::Debug, path::PathBuf};
-use substrate_rpc_client::{ws_client, ChainApi};
+use substrate_rpc_client::{ChainApi, ws_client};
 
 /// The `Snap` variant [`State`]
 #[derive(Debug, Clone, clap::Args)]

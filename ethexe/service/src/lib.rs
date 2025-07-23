@@ -17,23 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
+use async_trait::async_trait;
 use ethexe_blob_loader::{
+    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
-    BlobData, BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
 };
-use ethexe_common::{
-    ecdsa::{PublicKey, SignedData},
-    ProducerBlock,
-};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{NetworkEvent, NetworkService};
+use ethexe_network::{NetworkEvent, NetworkService, db_sync::ExternalDataProvider};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -42,9 +40,9 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolService};
 use futures::StreamExt;
-use gprimitives::H256;
+use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
-use std::pin::Pin;
+use std::{collections::BTreeSet, pin::Pin};
 
 pub mod config;
 
@@ -61,6 +59,43 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
+}
+
+// TODO #4176: consider to move this to another module
+#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
+pub enum NetworkMessage {
+    ProducerBlock(SignedProducerBlock),
+    RequestBatchValidation(SignedValidationRequest),
+    ApproveBatch(BatchCommitmentValidationReply),
+    OffchainTransaction {
+        transaction: SignedOffchainTransaction,
+    },
+}
+
+#[derive(Clone)]
+struct RouterDataProvider(RouterQuery);
+
+#[async_trait]
+impl ExternalDataProvider for RouterDataProvider {
+    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+        Box::new(self.clone())
+    }
+
+    async fn programs_code_ids_at(
+        self: Box<Self>,
+        program_ids: BTreeSet<ActorId>,
+        block: H256,
+    ) -> Result<Vec<CodeId>> {
+        self.0.programs_code_ids_at(program_ids, block).await
+    }
+
+    async fn codes_states_at(
+        self: Box<Self>,
+        code_ids: BTreeSet<CodeId>,
+        block: H256,
+    ) -> Result<Vec<CodeState>> {
+        self.0.codes_states_at(code_ids, block).await
+    }
 }
 
 /// ethexe service.
@@ -84,17 +119,6 @@ pub struct Service {
     sender: tests::utils::TestingEventSender,
 }
 
-// TODO #4176: consider to move this to another module
-#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedData<ProducerBlock>),
-    RequestBatchValidation(SignedData<BatchCommitmentValidationRequest>),
-    ApproveBatch(BatchCommitmentValidationReply),
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
-}
-
 impl Service {
     pub async fn new(config: &Config) -> Result<Self> {
         let rocks_db = RocksDatabase::open(
@@ -107,7 +131,7 @@ impl Service {
 
         let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
             let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new(db.clone(), storage.clone());
+            let blob_loader = LocalBlobLoader::new(storage.clone());
 
             (blob_loader.into_box(), Some(storage))
         } else {
@@ -210,8 +234,13 @@ impl Service {
 
         let network = if let Some(net_config) = &config.network {
             Some(
-                NetworkService::new(net_config.clone(), &signer, db.clone())
-                    .with_context(|| "failed to create network service")?,
+                NetworkService::new(
+                    net_config.clone(),
+                    &signer,
+                    Box::new(RouterDataProvider(router_query)),
+                    db.clone(),
+                )
+                .with_context(|| "failed to create network service")?,
             )
         } else {
             None
@@ -367,22 +396,18 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(synced_block) => {
-                        // NOTE: Observer guarantees that, if this event is emitted,
-                        // then from latest synced block and up to `block_hash`:
-                        // 1) all blocks on-chain data (see OnChainStorage) is loaded and available in database.
+                    ObserverEvent::BlockSynced(data) => {
+                        // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
+                        // then from latest synced block and up to `data.block_hash`:
+                        // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block(synced_block.block_hash);
-                        consensus.receive_synced_block(synced_block)?;
+                        compute.prepare_block(data.block_hash);
+                        consensus.receive_synced_block(data)?;
                     }
                 },
                 Event::BlobLoader(event) => match event {
-                    BlobLoaderEvent::BlobLoaded(BlobData {
-                        code_id,
-                        timestamp,
-                        code,
-                    }) => {
-                        compute.process_code(code_id, timestamp, code);
+                    BlobLoaderEvent::BlobLoaded(code_and_id) => {
+                        compute.process_code(code_and_id);
                     }
                 },
                 Event::Compute(event) => match event {
@@ -429,7 +454,9 @@ impl Service {
                                         &db,
                                         network.as_mut(),
                                     ) {
-                                        log::warn!("Failed to process offchain transaction received by p2p: {e}");
+                                        log::warn!(
+                                            "Failed to process offchain transaction received by p2p: {e}"
+                                        );
                                     }
                                 }
                             };
@@ -452,6 +479,15 @@ impl Service {
 
                             p.update_observer_metrics(last_block, pending_codes);
 
+                            // Collect compute service metrics
+                            let metrics = compute.get_metrics();
+
+                            p.update_compute_metrics(
+                                metrics.blocks_queue_len,
+                                metrics.waiting_codes_count,
+                                metrics.process_codes_count,
+                            );
+
                             // TODO #4643: support metrics for consensus service
                         }
                     }
@@ -473,13 +509,17 @@ impl Service {
                             .context("Failed to process offchain transaction received from RPC");
 
                             let Some(response_sender) = response_sender else {
-                                unreachable!("Response sender isn't set for the `RpcEvent::OffchainTransaction` event");
+                                unreachable!(
+                                    "Response sender isn't set for the `RpcEvent::OffchainTransaction` event"
+                                );
                             };
                             if let Err(e) = response_sender.send(res) {
                                 // No panic case as a responsibility of the service is fulfilled.
                                 // The dropped receiver signalizes that the rpc service has crashed
                                 // or is malformed, so problems should be handled there.
-                                log::error!("Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}");
+                                log::error!(
+                                    "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
+                                );
                             }
                         }
                     }
@@ -490,7 +530,9 @@ impl Service {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
                         {
-                            todo!("#4638 #4639 off-chain transactions and gas allowance are not supported yet");
+                            todo!(
+                                "#4638 #4639 off-chain transactions and gas allowance are not supported yet"
+                            );
                         }
 
                         compute.process_block(producer_block.block_hash);

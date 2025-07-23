@@ -19,10 +19,10 @@
 //! Packages publisher
 
 use crate::{
-    handler, Manifest, PackageStatus, Simulator, Workspace, PACKAGES, SAFE_DEPENDENCIES,
-    STACKED_DEPENDENCIES, TEAM_OWNER,
+    Manifest, PACKAGES, PackageStatus, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator,
+    TEAM_OWNER, Workspace, handler,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::path::PathBuf;
 
@@ -64,7 +64,7 @@ impl Publisher {
         let version = workspace.version()?;
 
         for name in self.index.iter() {
-            let Some(pkg) = self.metadata.packages.iter().find(|pkg| pkg.name == *name) else {
+            let Some(pkg) = self.metadata.packages.iter().find(|pkg| *pkg.name == *name) else {
                 println!("Package {name}@{version} not found in cargo metadata!");
                 continue;
             };

@@ -19,7 +19,7 @@
 use crate::export::{Multiaddr, PeerId};
 use libp2p::{
     allow_block_list,
-    core::{transport::PortUse, Endpoint},
+    core::{Endpoint, transport::PortUse},
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
@@ -272,7 +272,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::{swarm::SwarmEvent, Swarm};
+    use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
@@ -294,6 +294,7 @@ mod tests {
         let mut chad = new_swarm().await;
         let chad_peer_id = *chad.local_peer_id();
         alice.connect(&mut chad).await;
+        tokio::spawn(chad.loop_on_next());
 
         let handle = alice.behaviour_mut().handle();
         handle.excessive_data(chad_peer_id);

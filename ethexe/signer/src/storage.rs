@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
-    ecdsa::{PrivateKey, PublicKey},
     Address,
+    ecdsa::{PrivateKey, PublicKey},
 };
 use std::{collections::BTreeMap, fmt, fs, path::PathBuf, str::FromStr};
 use tempfile::TempDir;

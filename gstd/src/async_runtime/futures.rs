@@ -20,7 +20,7 @@
 
 #[cfg(not(feature = "ethexe"))]
 use crate::critical;
-use crate::{prelude::Box, MessageId};
+use crate::{MessageId, prelude::Box};
 use core::{
     future::Future,
     pin::Pin,
