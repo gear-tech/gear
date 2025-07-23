@@ -21,14 +21,14 @@
 #![no_std]
 
 use gprimitives::ActorId;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// Request that can be handled by the proxy builtin.
 ///
 /// Currently all proxies aren't required to send announcement,
 /// i.e. no delays for the delegate actions.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum Request {
     /// Add proxy request.
     ///
@@ -54,7 +54,7 @@ pub enum Request {
 /// Proxy type.
 ///
 /// The mirror enum for the one defined in vara-runtime crate.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum ProxyType {
     Any,
     NonTransfer,

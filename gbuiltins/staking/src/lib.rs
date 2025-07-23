@@ -61,6 +61,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Type that should be used to create a message to the staking built-in actor.
 ///

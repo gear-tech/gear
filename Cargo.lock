@@ -5909,6 +5909,7 @@ dependencies = [
  "ark-scale",
  "ark-serialize 0.4.2",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -5926,6 +5927,7 @@ version = "1.8.1"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -5934,6 +5936,7 @@ version = "1.8.1"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
