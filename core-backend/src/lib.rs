@@ -36,7 +36,7 @@ pub mod state;
 use gear_core::{
     env::Externalities,
     gas::{CountersOwner, GasAmount},
-    memory::MemoryInterval,
+    memory::{Memory, MemoryDump, MemoryError, MemoryInterval},
 };
 use gear_lazy_pages_common::ProcessAccessError;
 
@@ -53,12 +53,26 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
+pub trait MemoryStorer {
+    fn dump_memory<Context>(
+        &mut self,
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError>;
+
+    fn revert_memory<Context>(
+        &self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError>;
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
-        mock::MockExt,
+        mock::{MockExt, MockMemoryDumper},
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
@@ -92,15 +106,16 @@ mod tests {
             .unwrap();
         let code = module.serialize().unwrap();
 
+        let mut memory_dumper = MockMemoryDumper {};
+
         // Execute wasm and check success.
         let ext = MockExt::default();
-        let env =
-            Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-        let report = env.execute(|_, _, _| {}).unwrap();
+        let env = Environment::new(ext, &code, Default::default(), 0.into(), |_, _, _| {}).unwrap();
+        let execution_result = env.execute(DispatchKind::Init, &mut memory_dumper).unwrap();
 
         let BackendReport {
             termination_reason, ..
-        } = report;
+        } = execution_result.unwrap().report();
 
         assert_eq!(termination_reason, ActorTerminationReason::Success.into());
     }

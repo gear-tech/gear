@@ -1055,39 +1055,46 @@ fn execute_wasm_with_custom_configs(
         ..ProcessorContext::new_mock()
     };
 
+    let mut memory_dumper = Ext::memory_dumper();
+
     let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
         code.instrumented_code().bytes(),
-        DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
+        |ctx, mem, globals_config| {
+            Ext::lazy_pages_init_for_program(
+                ctx,
+                mem,
+                program_id,
+                Default::default(),
+                Some(
+                    mem.size(ctx)
+                        .to_page_number()
+                        .expect("Memory size is 4GB, so cannot be stack end"),
+                ),
+                globals_config,
+                Default::default(),
+            );
+
+            if let Some(mem_writes) = initial_memory_write {
+                for mem_write in mem_writes {
+                    mem.write(ctx, mem_write.offset, &mem_write.content)
+                        .expect("Failed to write to memory");
+                }
+            };
+        },
     )
     .expect("Failed to create environment");
 
-    env.execute(|ctx, mem, globals_config| {
-        Ext::lazy_pages_init_for_program(
-            ctx,
-            mem,
-            program_id,
-            Default::default(),
-            Some(
-                mem.size(ctx)
-                    .to_page_number()
-                    .expect("Memory size is 4GB, so cannot be stack end"),
-            ),
-            globals_config,
-            Default::default(),
-        );
+    let execution_result = env
+        .execute(DispatchKind::Init, &mut memory_dumper)
+        .expect("Failed to execute WASM module");
 
-        if let Some(mem_writes) = initial_memory_write {
-            for mem_write in mem_writes {
-                mem.write(ctx, mem_write.offset, &mem_write.content)
-                    .expect("Failed to write to memory");
-            }
-        };
-    })
-    .expect("Failed to execute WASM module")
+    execution_result
+        .expect("Failed to execute WASM module")
+        .report()
 }
 
 fn message_sender() -> ActorId {
