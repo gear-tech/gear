@@ -148,10 +148,8 @@ pub trait DatabaseVisitor: Sized {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum DatabaseVisitorError {
-    /* block header */
-    NoBlockHeader(H256),
-
     /* block */
+    NoBlockHeader(H256),
     NoBlockEvents(H256),
     NoBlockProgramStates(H256),
     NoBlockSchedule(H256),

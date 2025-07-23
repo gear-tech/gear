@@ -58,6 +58,7 @@ pub enum IntegrityVerifierError {
         original_len: u32,
     },
 
+    /* rest */
     NoBlockHeader(H256),
     BlockScheduleHasExpiredTasks {
         block: H256,
