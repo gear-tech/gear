@@ -28,7 +28,7 @@ use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSiz
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeSet, HashSet, VecDeque},
     hash::Hash,
 };
 
@@ -80,7 +80,7 @@ pub enum IntegrityVerifierError {
 pub struct IntegrityVerifier {
     db: Database,
     visited_blocks: HashSet<H256>,
-    message_queue_sizes: HashMap<HashOf<MessageQueue>, u8>,
+    message_queue_size: Option<u8>,
     errors: Vec<IntegrityVerifierError>,
 }
 
@@ -89,7 +89,7 @@ impl IntegrityVerifier {
         Self {
             db,
             visited_blocks: HashSet::new(),
-            message_queue_sizes: HashMap::new(),
+            message_queue_size: None,
             errors: Vec::new(),
         }
     }
@@ -247,9 +247,8 @@ impl DatabaseVisitor for IntegrityVerifier {
         &mut self,
         queue_hash_with_size: MessageQueueHashWithSize,
     ) {
-        if let Some(hash) = queue_hash_with_size.hash.to_inner() {
-            self.message_queue_sizes
-                .insert(hash, queue_hash_with_size.cached_queue_size);
+        if let Some(_hash) = queue_hash_with_size.hash.to_inner() {
+            self.message_queue_size = Some(queue_hash_with_size.cached_queue_size);
         }
 
         walk_message_queue_hash_with_size(self, queue_hash_with_size)
@@ -260,7 +259,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         let hash = crate::hash(&encoded_queue);
         let hash = unsafe { HashOf::new(hash) };
 
-        let cached_queue_size = self.message_queue_sizes.remove(&hash).expect(
+        let cached_queue_size = self.message_queue_size.take().expect(
             "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`",
         );
         if cached_queue_size != queue.len() as u8 {
@@ -706,8 +705,8 @@ mod tests {
 
         verifier.visit_message_queue_hash_with_size(queue_hash_with_size);
 
-        assert!(verifier.message_queue_sizes.is_empty());
-        assert!(verifier.errors.is_empty());
+        assert_eq!(verifier.message_queue_size, None);
+        assert_eq!(verifier.errors, []);
     }
 
     #[test]
