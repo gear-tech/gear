@@ -18,7 +18,7 @@
 
 use ethexe_common::{
     BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
-    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    db::{BlockMetaStorageRead, BlockOutcome, CodesStorageRead, OnChainStorageRead},
     events::BlockEvent,
     gear::StateTransition,
 };
@@ -99,11 +99,7 @@ pub trait DatabaseVisitor: Sized {
         walk_scheduled_task(self, task)
     }
 
-    fn visit_block_outcome_is_empty(&mut self, block: H256, outcome_is_empty: bool) {
-        walk_block_outcome_is_empty(self, block, outcome_is_empty)
-    }
-
-    fn visit_block_outcome(&mut self, _block: H256, outcome: &[StateTransition]) {
+    fn visit_block_outcome(&mut self, _block: H256, outcome: &BlockOutcome) {
         walk_block_outcome(self, outcome)
     }
 
@@ -263,12 +259,7 @@ pub fn walk_block(visitor: &mut impl DatabaseVisitor, block: H256) {
 
     visit_or_error!(visitor, &block.block_schedule);
 
-    let outcome_is_empty = visitor.db().block_outcome_is_empty(block);
-    if let Some(outcome_is_empty) = outcome_is_empty {
-        visitor.visit_block_outcome_is_empty(block, outcome_is_empty);
-    } else {
-        visitor.on_db_error(DatabaseVisitorError::NoBlockOutcome(block));
-    }
+    visit_or_error!(visitor, &block.block_outcome);
 }
 
 pub fn walk_block_codes_queue(visitor: &mut impl DatabaseVisitor, queue: &VecDeque<CodeId>) {
@@ -395,27 +386,14 @@ pub fn walk_scheduled_task(visitor: &mut impl DatabaseVisitor, task: &ScheduledT
     }
 }
 
-pub fn walk_block_outcome_is_empty(
-    visitor: &mut impl DatabaseVisitor,
-    block: H256,
-    outcome_is_empty: bool,
-) {
-    let Some(outcome_is_forced_non_empty) = visitor.db().block_outcome_is_forced_non_empty(block)
-    else {
-        if !outcome_is_empty {
-            visitor.on_db_error(DatabaseVisitorError::NoBlockOutcome(block));
+pub fn walk_block_outcome(visitor: &mut impl DatabaseVisitor, outcome: &BlockOutcome) {
+    match outcome {
+        BlockOutcome::Transitions(outcome) => {
+            for transition in outcome {
+                visitor.visit_state_transition(transition);
+            }
         }
-        return;
-    };
-
-    if !outcome_is_empty && !outcome_is_forced_non_empty {
-        visit_or_error!(visitor, &block.block_outcome);
-    }
-}
-
-pub fn walk_block_outcome(visitor: &mut impl DatabaseVisitor, outcome: &[StateTransition]) {
-    for transition in outcome {
-        visitor.visit_state_transition(transition);
+        BlockOutcome::ForcedNonEmpty => {}
     }
 }
 
@@ -759,33 +737,34 @@ mod tests {
     }
 
     #[test]
-    fn walk_block_outcome_empty() {
-        let mut visitor = TestVisitor::new();
-        let block_hash = H256::from([15u8; 32]);
-
-        visitor.visit_block_outcome_is_empty(block_hash, true);
-
-        // Should not try to get block outcome if it's empty
-        assert!(
-            !visitor
-                .errors
-                .iter()
-                .any(|e| matches!(e, DatabaseVisitorError::NoBlockOutcome(_)))
-        );
-    }
-
-    #[test]
-    fn walk_block_outcome_not_empty() {
+    fn walk_block_outcome() {
         let mut visitor = TestVisitor::new();
         let block_hash = H256::from([16u8; 32]);
+        let actor_id = ActorId::from([15u8; 32]);
+        let new_state_hash = H256::random();
 
-        visitor.visit_block_outcome_is_empty(block_hash, false);
+        visitor.visit_block_outcome(
+            block_hash,
+            &BlockOutcome::Transitions(vec![StateTransition {
+                actor_id,
+                new_state_hash,
+                exited: false,
+                inheritor: Default::default(),
+                value_to_receive: 0,
+                value_claims: vec![],
+                messages: vec![],
+            }]),
+        );
 
-        // Should try to get block outcome and fail
         assert!(
             visitor
                 .errors
-                .contains(&DatabaseVisitorError::NoBlockOutcome(block_hash))
+                .contains(&DatabaseVisitorError::NoProgramCodeId(actor_id))
+        );
+        assert!(
+            visitor
+                .errors
+                .contains(&DatabaseVisitorError::NoProgramState(new_state_hash))
         );
     }
 

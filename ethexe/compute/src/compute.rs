@@ -101,8 +101,9 @@ fn propagate_data_from_parent<'a, DB: BlockMetaStorageRead + BlockMetaStorageWri
 ) -> Result<VecDeque<H256>> {
     // Propagate prev commitment (prev not empty block hash or zero for genesis).
     if db
-        .block_outcome_is_empty(parent)
+        .block_outcome(parent)
         .ok_or(ComputeError::ParentNotFound(block))?
+        .is_empty()
     {
         let parent_prev_commitment = db
             .previous_non_empty_block(parent)
@@ -372,7 +373,7 @@ mod tests {
         assert!(meta.computed);
 
         // Verify transitions were stored in DB
-        let stored_transitions = db.block_outcome(block_hash).unwrap();
+        let stored_transitions = db.block_outcome(block_hash).unwrap().unwrap_transitions();
         assert_eq!(stored_transitions.len(), 1);
         assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));

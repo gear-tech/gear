@@ -240,7 +240,11 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead>(
 
         let transitions = db
             .block_outcome(block)
-            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?
+            .into_transitions()
+            .ok_or_else(|| {
+                anyhow!("`block_outcome` is called on forced non-empty outcome: {block}")
+            })?;
 
         let gear_blocks = vec![GearBlock {
             hash: block,

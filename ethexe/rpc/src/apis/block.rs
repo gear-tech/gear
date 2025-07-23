@@ -90,6 +90,8 @@ impl BlockServer for BlockApi {
 
         self.db
             .block_outcome(block_hash)
-            .ok_or_else(|| errors::db("Block outcome wasn't found"))
+            .ok_or_else(|| errors::db("Block outcome wasn't found"))?
+            .into_transitions()
+            .ok_or_else(|| errors::db("`block_outcome` is called on forced non-empty outcome"))
     }
 }

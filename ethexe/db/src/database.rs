@@ -26,8 +26,8 @@ use anyhow::{Result, bail};
 use ethexe_common::{
     BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
+        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -65,13 +65,6 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
-}
-
-#[derive(Debug, Encode, Decode)]
-enum BlockOutcome {
-    Transitions(Vec<StateTransition>),
-    /// The actual outcome is not available but it must be considered non-empty.
-    ForcedNonEmpty,
 }
 
 impl Key {
@@ -250,15 +243,6 @@ impl Database {
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
 
-    fn block_outcome_inner(&self, block_hash: H256) -> Option<BlockOutcome> {
-        self.kv
-            .get(&Key::BlockOutcome(block_hash).to_bytes())
-            .map(|data| {
-                BlockOutcome::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<StateTransition>`")
-            })
-    }
-
     /// # Safety
     ///
     /// If the block is actually empty but forced to be not, then database invariants are violated.
@@ -312,29 +296,12 @@ impl BlockMetaStorageRead for Database {
             })
     }
 
-    fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
-        self.block_outcome_inner(block_hash)
-            .map(|outcome| match outcome {
-                BlockOutcome::Transitions(transitions) => transitions,
-                BlockOutcome::ForcedNonEmpty => {
-                    panic!("`block_outcome()` called on forced non-empty block {block_hash}")
-                }
-            })
-    }
-
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
-        self.block_outcome_inner(block_hash)
-            .map(|outcome| match outcome {
-                BlockOutcome::Transitions(transitions) => transitions.is_empty(),
-                BlockOutcome::ForcedNonEmpty => false,
-            })
-    }
-
-    fn block_outcome_is_forced_non_empty(&self, block_hash: H256) -> Option<bool> {
-        self.block_outcome_inner(block_hash)
-            .map(|outcome| match outcome {
-                BlockOutcome::Transitions(_transitions) => false,
-                BlockOutcome::ForcedNonEmpty => true,
+    fn block_outcome(&self, block_hash: H256) -> Option<BlockOutcome> {
+        self.kv
+            .get(&Key::BlockOutcome(block_hash).to_bytes())
+            .map(|data| {
+                BlockOutcome::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
             })
     }
 
@@ -973,7 +940,10 @@ mod tests {
         let block_hash = H256::random();
         let block_outcome = vec![StateTransition::default()];
         db.set_block_outcome(block_hash, block_outcome.clone());
-        assert_eq!(db.block_outcome(block_hash), Some(block_outcome));
+        assert_eq!(
+            db.block_outcome(block_hash),
+            Some(BlockOutcome::Transitions(block_outcome))
+        );
     }
 
     #[test]

@@ -33,6 +33,30 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From, derive_more::Unwrap)]
+pub enum BlockOutcome {
+    Transitions(Vec<StateTransition>),
+    /// The actual outcome is not available, but it must be considered non-empty.
+    ForcedNonEmpty,
+}
+
+impl BlockOutcome {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            BlockOutcome::Transitions(transitions) => transitions.is_empty(),
+            BlockOutcome::ForcedNonEmpty => false,
+        }
+    }
+
+    pub fn into_transitions(self) -> Option<Vec<StateTransition>> {
+        match self {
+            BlockOutcome::Transitions(transitions) => Some(transitions),
+            BlockOutcome::ForcedNonEmpty => None,
+        }
+    }
+}
 
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -43,9 +67,7 @@ pub trait BlockMetaStorageRead {
     fn previous_non_empty_block(&self, block_hash: H256) -> Option<H256>;
     fn last_committed_batch(&self, block_hash: H256) -> Option<Digest>;
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
-    fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
-    fn block_outcome_is_forced_non_empty(&self, block_hash: H256) -> Option<bool>;
+    fn block_outcome(&self, block_hash: H256) -> Option<BlockOutcome>;
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
 }
