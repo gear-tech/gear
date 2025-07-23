@@ -292,7 +292,10 @@ mod tests {
         assert_eq!(ctx.output.len(), 1);
 
         let ConsensusEvent::PublishValidationReply(reply) = &ctx.output[0] else {
-            panic!("Expected PublishValidationReply event");
+            panic!(
+                "Expected PublishValidationReply event, got {:?}",
+                ctx.output[0]
+            );
         };
         assert_eq!(reply.digest, batch.to_digest());
         reply

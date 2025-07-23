@@ -267,7 +267,7 @@ impl ObserverService {
             meta.prepared = true;
             meta.synced = true;
             meta.last_committed_batch = Some(Digest([0; 32]));
-            meta.last_committed_head = Some(H256::zero());
+            meta.last_committed_head = Some(genesis_block_hash);
         });
 
         db.set_block_codes_queue(genesis_block_hash, Default::default());

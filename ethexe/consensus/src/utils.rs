@@ -217,10 +217,13 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             anyhow!("Cannot get from db last committed head for block {from_block_hash}")
         })?;
 
+    // log::warn!("{last_committed_head:?} {from_block_hash:?}");
+
     let mut block_hash = from_block_hash;
     let mut counter: u32 = 0;
     let mut transitions = vec![];
     while block_hash != last_committed_head {
+        // log::warn!("Processing block {block_hash} at depth {counter}");
         if max_deepness.map(|d| counter >= d).unwrap_or(false) {
             return Err(anyhow!(
                 "Chain commitment is too deep: {block_hash} at depth {counter}"
@@ -238,13 +241,9 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             }
         }
 
-        transitions.extend(
-            db.block_outcome(block_hash)
-                .ok_or_else(|| {
-                    anyhow!("Cannot get from db outcome for computed block {block_hash}")
-                })?
-                .into_iter(),
-        );
+        transitions.push(db.block_outcome(block_hash).ok_or_else(|| {
+            anyhow!("Cannot get from db outcome for computed block {block_hash}")
+        })?);
 
         block_hash = db
             .block_header(block_hash)
@@ -253,7 +252,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     }
 
     Ok(Some(ChainCommitment {
-        transitions,
+        transitions: transitions.into_iter().rev().flatten().collect(),
         head: from_block_hash,
     }))
 }

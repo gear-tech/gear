@@ -237,7 +237,7 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
         timestamp: block0.header.timestamp,
         previous_batch: last_committed_batch,
         chain_commitment: Some(ChainCommitment {
-            transitions: [cc1.transitions, cc2.transitions].concat(),
+            transitions: [cc2.transitions, cc1.transitions].concat(),
             head: block0.hash,
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
