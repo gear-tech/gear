@@ -20,11 +20,13 @@ use crate::{
     Database,
     visitor::{
         DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, walk_block,
-        walk_block_schedule_tasks, walk_message_queue, walk_message_queue_hash_with_size,
+        walk_block_schedule_tasks, walk_code_id, walk_message_queue,
+        walk_message_queue_hash_with_size,
     },
 };
 use ethexe_common::{BlockHeader, BlockMeta, ScheduledTask};
 use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
+use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
@@ -53,18 +55,13 @@ pub enum IntegrityVerifierError {
     },
 
     /* code */
-    NoCodeValid,
     CodeIsNotValid,
-    NoOriginalCode,
-    NoInstrumentedCode(CodeId),
-    NoCodeMetadata,
     InvalidCodeLenInMetadata {
         metadata_len: u32,
         original_len: u32,
     },
 
     /* rest */
-    NoBlockHeader(H256),
     BlockScheduleHasExpiredTasks {
         block: H256,
         expiry: u32,
@@ -79,18 +76,24 @@ pub enum IntegrityVerifierError {
 
 pub struct IntegrityVerifier {
     db: Database,
-    visited_blocks: HashSet<H256>,
-    message_queue_size: Option<u8>,
     errors: Vec<IntegrityVerifierError>,
+    visited_blocks: HashSet<H256>,
+    block_header: Option<BlockHeader>,
+    message_queue_size: Option<u8>,
+    original_code: Option<Vec<u8>>,
+    code_metadata: Option<CodeMetadata>,
 }
 
 impl IntegrityVerifier {
     pub fn new(db: Database) -> Self {
         Self {
             db,
-            visited_blocks: HashSet::new(),
-            message_queue_size: None,
             errors: Vec::new(),
+            visited_blocks: HashSet::new(),
+            block_header: None,
+            message_queue_size: None,
+            original_code: None,
+            code_metadata: None,
         }
     }
 
@@ -150,6 +153,8 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_block_header(&mut self, _block: H256, header: BlockHeader) {
+        self.block_header = Some(header);
+
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             self.errors
                 .push(IntegrityVerifierError::NoParentBlockHeader(
@@ -182,33 +187,10 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_code_id(&mut self, code: CodeId) {
-        if let Some(valid) = self.db().code_valid(code) {
-            if !valid {
-                self.errors.push(IntegrityVerifierError::CodeIsNotValid);
-            }
-        } else {
-            self.errors.push(IntegrityVerifierError::NoCodeValid);
-        };
+        walk_code_id(self, code);
 
-        let original_code = self.db().original_code(code);
-        if original_code.is_none() {
-            self.errors.push(IntegrityVerifierError::NoOriginalCode)
-        }
-
-        if self
-            .db()
-            .instrumented_code(ethexe_runtime_common::VERSION, code)
-            .is_none()
-        {
-            self.errors
-                .push(IntegrityVerifierError::NoInstrumentedCode(code));
-        }
-
-        let code_metadata = self.db().code_metadata(code);
-        if code_metadata.is_none() {
-            self.errors.push(IntegrityVerifierError::NoCodeMetadata);
-        }
-
+        let original_code = self.original_code.take();
+        let code_metadata = self.code_metadata.take();
         if let (Some(original_code), Some(code_metadata)) = (original_code, code_metadata)
             && code_metadata.original_code_len() != original_code.len() as u32
         {
@@ -220,24 +202,37 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
+    fn visit_code_valid(&mut self, _code_id: CodeId, code_valid: bool) {
+        if !code_valid {
+            self.errors.push(IntegrityVerifierError::CodeIsNotValid);
+        }
+    }
+
+    fn visit_original_code(&mut self, original_code: &[u8]) {
+        self.original_code = Some(original_code.to_vec());
+    }
+
+    fn visit_code_metadata(&mut self, _code_id: CodeId, metadata: &CodeMetadata) {
+        self.code_metadata = Some(metadata.clone());
+    }
+
     fn visit_block_schedule_tasks(
         &mut self,
         block: H256,
         height: u32,
         tasks: &BTreeSet<ScheduledTask>,
     ) {
-        if let Some(header) = self.db().block_header(block) {
-            if height <= header.height {
-                self.errors
-                    .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                        block,
-                        expiry: height,
-                        tasks: tasks.len(),
-                    });
-            }
-        } else {
+        let header = self
+            .block_header
+            .take()
+            .expect("`visit_block_header` must be called first");
+        if height <= header.height {
             self.errors
-                .push(IntegrityVerifierError::NoBlockHeader(block));
+                .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                    block,
+                    expiry: height,
+                    tasks: tasks.len(),
+                });
         }
 
         walk_block_schedule_tasks(self, tasks);
@@ -474,21 +469,6 @@ mod tests {
     }
 
     #[test]
-    fn test_no_code_valid_error() {
-        let db = Database::memory();
-        let code_id = CodeId::from(1);
-
-        let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_code_id(code_id);
-
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::NoCodeValid)
-        );
-    }
-
-    #[test]
     fn test_code_is_not_valid_error() {
         let db = Database::memory();
         let code_id = CodeId::from(1);
@@ -504,64 +484,6 @@ mod tests {
                 .errors
                 .contains(&IntegrityVerifierError::CodeIsNotValid)
         );
-    }
-
-    #[test]
-    fn test_no_original_code_error() {
-        let db = Database::memory();
-        let code_id = CodeId::from(1);
-
-        // Set code as valid but no original code
-        db.set_code_valid(code_id, true);
-
-        let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_code_id(code_id);
-
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::NoOriginalCode)
-        );
-    }
-
-    #[test]
-    fn test_no_instrumented_code_error() {
-        let db = Database::memory();
-
-        // Set code as valid and add original code but no instrumented code
-        let code_id = db.set_original_code(&[1, 2, 3, 4]);
-        db.set_code_valid(code_id, true);
-
-        let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_code_id(code_id);
-
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::NoInstrumentedCode(code_id))
-        );
-    }
-
-    #[test]
-    fn test_no_code_metadata_error() {
-        let db = Database::memory();
-
-        // Set code as valid, add original and instrumented code but no metadata
-        let code_id = db.set_original_code(&[1, 2, 3, 4]);
-        db.set_code_valid(code_id, true);
-        db.set_instrumented_code(
-            ethexe_runtime_common::VERSION,
-            code_id,
-            InstrumentedCode::new(
-                vec![1, 2, 3, 4, 5],
-                InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
-            ),
-        );
-
-        let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_code_id(code_id);
-
-        assert_eq!(verifier.errors, [IntegrityVerifierError::NoCodeMetadata]);
     }
 
     #[test]
@@ -604,21 +526,6 @@ mod tests {
     }
 
     #[test]
-    fn test_no_block_header_in_schedule_tasks_error() {
-        let db = Database::memory();
-        let block_hash = H256::random();
-        let tasks = BTreeSet::new();
-
-        let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block_schedule_tasks(block_hash, 100, &tasks);
-
-        assert_eq!(
-            verifier.errors,
-            [IntegrityVerifierError::NoBlockHeader(block_hash)]
-        );
-    }
-
-    #[test]
     fn test_block_schedule_has_expired_tasks_error() {
         let db = Database::memory();
         let block_hash = H256::random();
@@ -630,19 +537,20 @@ mod tests {
             parent_hash,
             timestamp: 1000,
         };
-        db.set_block_header(block_hash, header);
 
         // Create tasks scheduled for height 50 (expired)
         let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block_header(block_hash, header);
         verifier.visit_block_schedule_tasks(block_hash, 50, &BTreeSet::new());
 
-        assert_eq!(
-            verifier.errors,
-            [IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                block: block_hash,
-                expiry: 50,
-                tasks: 0,
-            }]
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                    block: block_hash,
+                    expiry: 50,
+                    tasks: 0,
+                })
         );
     }
 

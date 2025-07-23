@@ -443,7 +443,11 @@ impl DatabaseVisitor for RequestManager {
             | DatabaseVisitorError::NoBlockCodesQueue(_)
             | DatabaseVisitorError::NoPreviousNonEmptyBlock(_)
             | DatabaseVisitorError::NoLastCommittedBatch(_)
-            | DatabaseVisitorError::NoProgramCodeId(_) => {
+            | DatabaseVisitorError::NoProgramCodeId(_)
+            | DatabaseVisitorError::NoCodeValid(_)
+            | DatabaseVisitorError::NoOriginalCode(_)
+            | DatabaseVisitorError::NoInstrumentedCode(_)
+            | DatabaseVisitorError::NoCodeMetadata(_) => {
                 unreachable!("{error:?}")
             }
         };

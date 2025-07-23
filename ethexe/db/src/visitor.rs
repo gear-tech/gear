@@ -27,7 +27,11 @@ use ethexe_runtime_common::state::{
     MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
     ProgramState, Storage, UserMailbox, Waitlist,
 };
-use gear_core::{buffer::Payload, memory::PageBuf};
+use gear_core::{
+    buffer::Payload,
+    code::{CodeMetadata, InstrumentedCode},
+    memory::PageBuf,
+};
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::{BTreeSet, VecDeque};
 
@@ -66,7 +70,18 @@ pub trait DatabaseVisitor: Sized {
         walk_block_codes_queue(self, queue)
     }
 
-    fn visit_code_id(&mut self, _code_id: CodeId) {}
+    fn visit_code_id(&mut self, code_id: CodeId) {
+        walk_code_id(self, code_id)
+    }
+
+    fn visit_code_valid(&mut self, _code_id: CodeId, _code_valid: bool) {}
+
+    fn visit_original_code(&mut self, _original_code: &[u8]) {}
+
+    fn visit_instrumented_code(&mut self, _code_id: CodeId, _instrumented_code: &InstrumentedCode) {
+    }
+
+    fn visit_code_metadata(&mut self, _code_id: CodeId, _metadata: &CodeMetadata) {}
 
     fn visit_program_id(&mut self, _program_id: ActorId) {}
 
@@ -170,6 +185,12 @@ pub enum DatabaseVisitorError {
     NoMemoryPages(HashOf<MemoryPages>),
     NoMemoryPagesRegion(HashOf<MemoryPagesRegion>),
     NoPageData(HashOf<PageBuf>),
+
+    /* code */
+    NoCodeValid(CodeId),
+    NoOriginalCode(CodeId),
+    NoInstrumentedCode(CodeId),
+    NoCodeMetadata(CodeId),
 
     /* rest */
     NoMessageQueue(HashOf<MessageQueue>),
@@ -280,6 +301,27 @@ pub fn walk_program_id(visitor: &mut impl DatabaseVisitor, program_id: ActorId) 
     };
 
     visitor.visit_code_id(code_id);
+}
+
+pub fn walk_code_id(visitor: &mut impl DatabaseVisitor, code: CodeId) {
+    visit_or_error!(visitor, code.code_valid);
+
+    if let Some(original_code) = visitor.db().original_code(code) {
+        visitor.visit_original_code(&original_code);
+    } else {
+        visitor.on_db_error(DatabaseVisitorError::NoOriginalCode(code));
+    }
+
+    if let Some(instrumented_code) = visitor
+        .db()
+        .instrumented_code(ethexe_runtime_common::RUNTIME_ID, code)
+    {
+        visitor.visit_instrumented_code(code, &instrumented_code);
+    } else {
+        visitor.on_db_error(DatabaseVisitorError::NoInstrumentedCode(code));
+    }
+
+    visit_or_error!(visitor, &code.code_metadata);
 }
 
 pub fn walk_block_program_states(
@@ -535,6 +577,7 @@ mod tests {
 
         fn visit_code_id(&mut self, code_id: CodeId) {
             self.visited_code_ids.push(code_id);
+            walk_code_id(self, code_id);
         }
 
         fn visit_program_id(&mut self, program_id: ActorId) {
@@ -586,12 +629,7 @@ mod tests {
         ];
 
         for expected_error in expected_errors {
-            assert!(
-                visitor.errors.contains(&expected_error),
-                "Expected error {:?} not found. Actual errors: {:?}",
-                expected_error,
-                visitor.errors
-            );
+            assert!(visitor.errors.contains(&expected_error));
         }
     }
 
@@ -653,6 +691,25 @@ mod tests {
                 .errors
                 .contains(&DatabaseVisitorError::NoProgramCodeId(program_id))
         );
+    }
+
+    #[test]
+    fn test_no_code_valid_error() {
+        let code_id = CodeId::from(1);
+
+        let mut visitor = TestVisitor::new();
+        visitor.visit_code_id(code_id);
+
+        let expected_errors = [
+            DatabaseVisitorError::NoCodeValid(code_id),
+            DatabaseVisitorError::NoOriginalCode(code_id),
+            DatabaseVisitorError::NoInstrumentedCode(code_id),
+            DatabaseVisitorError::NoCodeMetadata(code_id),
+        ];
+
+        for expected_error in expected_errors {
+            assert!(visitor.errors.contains(&expected_error));
+        }
     }
 
     #[test]
