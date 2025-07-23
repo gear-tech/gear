@@ -489,15 +489,11 @@ mod tests {
     use gprimitives::MessageId;
     use std::collections::BTreeMap;
 
-    // Test visitor implementation to track visits and errors
     #[derive(Debug)]
     struct TestVisitor {
         db: Database,
-        visited_blocks: Vec<H256>,
         visited_code_ids: Vec<CodeId>,
         visited_program_ids: Vec<ActorId>,
-        visited_program_states: Vec<ProgramState>,
-        visited_memory_pages: Vec<MemoryPages>,
         visited_payloads: Vec<Payload>,
         errors: Vec<DatabaseVisitorError>,
     }
@@ -506,11 +502,8 @@ mod tests {
         fn new() -> Self {
             Self {
                 db: Database::memory(),
-                visited_blocks: vec![],
                 visited_code_ids: vec![],
                 visited_program_ids: vec![],
-                visited_program_states: vec![],
-                visited_memory_pages: vec![],
                 visited_payloads: vec![],
                 errors: vec![],
             }
@@ -526,11 +519,6 @@ mod tests {
             self.errors.push(error);
         }
 
-        fn visit_block(&mut self, block: H256) {
-            self.visited_blocks.push(block);
-            walk_block(self, block);
-        }
-
         fn visit_code_id(&mut self, code_id: CodeId) {
             self.visited_code_ids.push(code_id);
         }
@@ -538,16 +526,6 @@ mod tests {
         fn visit_program_id(&mut self, program_id: ActorId) {
             self.visited_program_ids.push(program_id);
             walk_program_id(self, program_id);
-        }
-
-        fn visit_program_state(&mut self, state: &ProgramState) {
-            self.visited_program_states.push(state.clone());
-            walk_program_state(self, state);
-        }
-
-        fn visit_memory_pages(&mut self, memory_pages: &MemoryPages) {
-            self.visited_memory_pages.push(memory_pages.clone());
-            walk_memory_pages(self, memory_pages);
         }
 
         fn visit_payload(&mut self, payload: &Payload) {
