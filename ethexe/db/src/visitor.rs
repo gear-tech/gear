@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Database;
 use ethexe_common::{
     BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
@@ -30,7 +29,7 @@ use ethexe_runtime_common::state::{
 };
 use gear_core::{buffer::Payload, memory::PageBuf};
 use gprimitives::{ActorId, CodeId, H256};
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
 
 pub trait DatabaseVisitorStorage:
     OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage
@@ -227,8 +226,12 @@ macro_rules! visit_or_error {
 
 pub fn walk_chain(visitor: &mut impl DatabaseVisitor, head: H256, bottom: H256) {
     let mut block = head;
-    while block != bottom {
+    loop {
         visitor.visit_block(block);
+
+        if block == bottom {
+            break;
+        }
 
         let header = visitor.db().block_header(block);
         if let Some(header) = header {
@@ -397,7 +400,12 @@ pub fn walk_block_outcome_is_empty(
     block: H256,
     outcome_is_empty: bool,
 ) {
-    if !outcome_is_empty {
+    let outcome_is_forced_non_empty = visitor
+        .db()
+        .block_outcome_is_forced_non_empty(block)
+        .expect("`block_outcome` should exist");
+
+    if !outcome_is_empty && !outcome_is_forced_non_empty {
         visit_or_error!(visitor, &block.block_outcome);
     }
 }
@@ -495,214 +503,10 @@ pub fn walk_payload_lookup(visitor: &mut impl DatabaseVisitor, payload_lookup: &
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum IntegrityVerifierError {
-    DatabaseVisitor(DatabaseVisitorError),
-
-    /* block meta */
-    BlockIsNotSynced,
-    BlockIsNotPrepared,
-    BlockIsNotComputed,
-
-    /* block header */
-    NoParentBlockHeader(H256),
-    InvalidBlockParentHeight {
-        parent_height: u32,
-        height: u32,
-    },
-    InvalidParentTimestamp {
-        parent_timestamp: u64,
-        timestamp: u64,
-    },
-
-    /* code */
-    NoCodeValid,
-    CodeIsNotValid,
-    NoOriginalCode,
-    NoInstrumentedCode(CodeId),
-    NoCodeMetadata,
-    InvalidCodeLenInMetadata {
-        metadata_len: u32,
-        original_len: u32,
-    },
-
-    NoBlockHeader(H256),
-    BlockScheduleHasExpiredTasks {
-        block: H256,
-        expiry: u32,
-        tasks: usize,
-    },
-}
-
-pub struct IntegrityVerifier {
-    db: Database,
-    visited_blocks: HashSet<H256>,
-    errors: Vec<IntegrityVerifierError>,
-}
-
-impl IntegrityVerifier {
-    pub fn new(db: Database) -> Self {
-        Self {
-            db,
-            visited_blocks: HashSet::new(),
-            errors: Vec::new(),
-        }
-    }
-
-    pub fn verify_chain(
-        mut self,
-        head: H256,
-        bottom: H256,
-    ) -> Result<(), Vec<IntegrityVerifierError>> {
-        self.visit_chain(head, bottom);
-
-        #[cfg(debug_assertions)]
-        {
-            self.errors
-                .clone()
-                .into_iter()
-                .fold(HashSet::new(), |mut set, error| {
-                    assert!(set.insert(error), "Duplicate error: {error:?}");
-                    set
-                });
-        }
-
-        if self.errors.is_empty() {
-            Ok(())
-        } else {
-            Err(self.errors)
-        }
-    }
-}
-
-impl DatabaseVisitor for IntegrityVerifier {
-    fn db(&self) -> &dyn DatabaseVisitorStorage {
-        &self.db
-    }
-
-    fn on_db_error(&mut self, error: DatabaseVisitorError) {
-        self.errors
-            .push(IntegrityVerifierError::DatabaseVisitor(error));
-    }
-
-    fn visit_block(&mut self, block: H256) {
-        // avoid recursion
-        if self.visited_blocks.insert(block) {
-            walk_block(self, block);
-        }
-    }
-
-    fn visit_block_meta(&mut self, _block: H256, meta: &BlockMeta) {
-        if !meta.synced {
-            self.errors.push(IntegrityVerifierError::BlockIsNotSynced);
-        }
-        if !meta.prepared {
-            self.errors.push(IntegrityVerifierError::BlockIsNotPrepared);
-        }
-        if !meta.computed {
-            self.errors.push(IntegrityVerifierError::BlockIsNotComputed);
-        }
-    }
-
-    fn visit_block_header(&mut self, _block: H256, header: BlockHeader) {
-        let Some(parent_header) = self.db().block_header(header.parent_hash) else {
-            self.errors
-                .push(IntegrityVerifierError::NoParentBlockHeader(
-                    header.parent_hash,
-                ));
-            return;
-        };
-
-        if parent_header.height + 1 != header.height {
-            self.errors
-                .push(IntegrityVerifierError::InvalidBlockParentHeight {
-                    parent_height: parent_header.height,
-                    height: header.height,
-                });
-        }
-
-        if parent_header.timestamp > header.timestamp {
-            self.errors
-                .push(IntegrityVerifierError::InvalidParentTimestamp {
-                    parent_timestamp: parent_header.timestamp,
-                    timestamp: header.timestamp,
-                });
-        }
-    }
-
-    fn visit_block_commitment_queue(&mut self, _block: H256, queue: &VecDeque<H256>) {
-        for &block in queue {
-            self.visit_block(block);
-        }
-    }
-
-    fn visit_code_id(&mut self, code: CodeId) {
-        if let Some(valid) = self.db().code_valid(code) {
-            if !valid {
-                self.errors.push(IntegrityVerifierError::CodeIsNotValid);
-            }
-        } else {
-            self.errors.push(IntegrityVerifierError::NoCodeValid);
-        };
-
-        let original_code = self.db().original_code(code);
-        if original_code.is_none() {
-            self.errors.push(IntegrityVerifierError::NoOriginalCode)
-        }
-
-        if self
-            .db()
-            .instrumented_code(ethexe_runtime_common::VERSION, code)
-            .is_none()
-        {
-            self.errors
-                .push(IntegrityVerifierError::NoInstrumentedCode(code));
-        }
-
-        let code_metadata = self.db().code_metadata(code);
-        if code_metadata.is_none() {
-            self.errors.push(IntegrityVerifierError::NoCodeMetadata);
-        }
-
-        if let (Some(original_code), Some(code_metadata)) = (original_code, code_metadata)
-            && code_metadata.original_code_len() != original_code.len() as u32
-        {
-            self.errors
-                .push(IntegrityVerifierError::InvalidCodeLenInMetadata {
-                    metadata_len: code_metadata.original_code_len(),
-                    original_len: original_code.len() as u32,
-                });
-        }
-    }
-
-    fn visit_block_schedule_tasks(
-        &mut self,
-        block: H256,
-        height: u32,
-        tasks: &BTreeSet<ScheduledTask>,
-    ) {
-        let Some(header) = self.db().block_header(block) else {
-            self.errors
-                .push(IntegrityVerifierError::NoBlockHeader(block));
-            return;
-        };
-
-        if height <= header.height {
-            self.errors
-                .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                    block,
-                    expiry: height,
-                    tasks: tasks.len(),
-                });
-        }
-
-        walk_block_schedule_tasks(self, tasks);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Database;
     use gprimitives::MessageId;
     use std::collections::BTreeMap;
 

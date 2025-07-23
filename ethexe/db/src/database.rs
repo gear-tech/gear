@@ -330,6 +330,14 @@ impl BlockMetaStorageRead for Database {
             })
     }
 
+    fn block_outcome_is_forced_non_empty(&self, block_hash: H256) -> Option<bool> {
+        self.block_outcome_inner(block_hash)
+            .map(|outcome| match outcome {
+                BlockOutcome::Transitions(_transitions) => false,
+                BlockOutcome::ForcedNonEmpty => true,
+            })
+    }
+
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule> {
         self.kv
             .get(&Key::BlockSchedule(block_hash).to_bytes())

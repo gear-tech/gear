@@ -45,6 +45,7 @@ pub trait BlockMetaStorageRead {
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
     fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>>;
     fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool>;
+    fn block_outcome_is_forced_non_empty(&self, block_hash: H256) -> Option<bool>;
     fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
 }

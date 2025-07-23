@@ -25,6 +25,7 @@ mod database;
 mod mem;
 mod overlay;
 mod rocks;
+pub mod verifier;
 pub mod visitor;
 
 pub use database::Database;

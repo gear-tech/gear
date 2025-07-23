@@ -1,0 +1,714 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{
+    Database,
+    visitor::{
+        DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, walk_block,
+        walk_block_schedule_tasks,
+    },
+};
+use ethexe_common::{BlockHeader, BlockMeta, ScheduledTask};
+use gprimitives::{CodeId, H256};
+use std::collections::{BTreeSet, HashSet, VecDeque};
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum IntegrityVerifierError {
+    DatabaseVisitor(DatabaseVisitorError),
+
+    /* block meta */
+    BlockIsNotSynced,
+    BlockIsNotPrepared,
+    BlockIsNotComputed,
+
+    /* block header */
+    NoParentBlockHeader(H256),
+    InvalidBlockParentHeight {
+        parent_height: u32,
+        height: u32,
+    },
+    InvalidParentTimestamp {
+        parent_timestamp: u64,
+        timestamp: u64,
+    },
+
+    /* code */
+    NoCodeValid,
+    CodeIsNotValid,
+    NoOriginalCode,
+    NoInstrumentedCode(CodeId),
+    NoCodeMetadata,
+    InvalidCodeLenInMetadata {
+        metadata_len: u32,
+        original_len: u32,
+    },
+
+    NoBlockHeader(H256),
+    BlockScheduleHasExpiredTasks {
+        block: H256,
+        expiry: u32,
+        tasks: usize,
+    },
+}
+
+pub struct IntegrityVerifier {
+    db: Database,
+    visited_blocks: HashSet<H256>,
+    errors: Vec<IntegrityVerifierError>,
+}
+
+impl IntegrityVerifier {
+    pub fn new(db: Database) -> Self {
+        Self {
+            db,
+            visited_blocks: HashSet::new(),
+            errors: Vec::new(),
+        }
+    }
+
+    pub fn verify_chain(
+        mut self,
+        head: H256,
+        bottom: H256,
+    ) -> Result<(), Vec<IntegrityVerifierError>> {
+        self.visit_chain(head, bottom);
+
+        #[cfg(debug_assertions)]
+        {
+            self.errors
+                .clone()
+                .into_iter()
+                .fold(HashSet::new(), |mut set, error| {
+                    assert!(set.insert(error), "Duplicate error: {error:?}");
+                    set
+                });
+        }
+
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(self.errors)
+        }
+    }
+}
+
+impl DatabaseVisitor for IntegrityVerifier {
+    fn db(&self) -> &dyn DatabaseVisitorStorage {
+        &self.db
+    }
+
+    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+        self.errors
+            .push(IntegrityVerifierError::DatabaseVisitor(error));
+    }
+
+    fn visit_block(&mut self, block: H256) {
+        // avoid recursion
+        if self.visited_blocks.insert(block) {
+            walk_block(self, block);
+        }
+    }
+
+    fn visit_block_meta(&mut self, _block: H256, meta: &BlockMeta) {
+        if !meta.synced {
+            self.errors.push(IntegrityVerifierError::BlockIsNotSynced);
+        }
+        if !meta.prepared {
+            self.errors.push(IntegrityVerifierError::BlockIsNotPrepared);
+        }
+        if !meta.computed {
+            self.errors.push(IntegrityVerifierError::BlockIsNotComputed);
+        }
+    }
+
+    fn visit_block_header(&mut self, _block: H256, header: BlockHeader) {
+        let Some(parent_header) = self.db().block_header(header.parent_hash) else {
+            self.errors
+                .push(IntegrityVerifierError::NoParentBlockHeader(
+                    header.parent_hash,
+                ));
+            return;
+        };
+
+        if parent_header.height + 1 != header.height {
+            self.errors
+                .push(IntegrityVerifierError::InvalidBlockParentHeight {
+                    parent_height: parent_header.height,
+                    height: header.height,
+                });
+        }
+
+        if parent_header.timestamp > header.timestamp {
+            self.errors
+                .push(IntegrityVerifierError::InvalidParentTimestamp {
+                    parent_timestamp: parent_header.timestamp,
+                    timestamp: header.timestamp,
+                });
+        }
+    }
+
+    fn visit_block_commitment_queue(&mut self, _block: H256, queue: &VecDeque<H256>) {
+        for &block in queue {
+            self.visit_block(block);
+        }
+    }
+
+    fn visit_code_id(&mut self, code: CodeId) {
+        if let Some(valid) = self.db().code_valid(code) {
+            if !valid {
+                self.errors.push(IntegrityVerifierError::CodeIsNotValid);
+            }
+        } else {
+            self.errors.push(IntegrityVerifierError::NoCodeValid);
+        };
+
+        let original_code = self.db().original_code(code);
+        if original_code.is_none() {
+            self.errors.push(IntegrityVerifierError::NoOriginalCode)
+        }
+
+        if self
+            .db()
+            .instrumented_code(ethexe_runtime_common::VERSION, code)
+            .is_none()
+        {
+            self.errors
+                .push(IntegrityVerifierError::NoInstrumentedCode(code));
+        }
+
+        let code_metadata = self.db().code_metadata(code);
+        if code_metadata.is_none() {
+            self.errors.push(IntegrityVerifierError::NoCodeMetadata);
+        }
+
+        if let (Some(original_code), Some(code_metadata)) = (original_code, code_metadata)
+            && code_metadata.original_code_len() != original_code.len() as u32
+        {
+            self.errors
+                .push(IntegrityVerifierError::InvalidCodeLenInMetadata {
+                    metadata_len: code_metadata.original_code_len(),
+                    original_len: original_code.len() as u32,
+                });
+        }
+    }
+
+    fn visit_block_schedule_tasks(
+        &mut self,
+        block: H256,
+        height: u32,
+        tasks: &BTreeSet<ScheduledTask>,
+    ) {
+        let Some(header) = self.db().block_header(block) else {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockHeader(block));
+            return;
+        };
+
+        if height <= header.height {
+            self.errors
+                .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                    block,
+                    expiry: height,
+                    tasks: tasks.len(),
+                });
+        }
+
+        walk_block_schedule_tasks(self, tasks);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        Digest, ProgramStates, Schedule,
+        db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
+    };
+    use gear_core::{
+        code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
+        pages::WasmPagesAmount,
+    };
+
+    #[test]
+    fn test_block_meta_not_synced_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+
+        // Insert block with not synced meta
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = false;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::BlockIsNotSynced)
+        );
+    }
+
+    #[test]
+    fn test_block_meta_not_prepared_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+
+        // Insert block with not prepared meta
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = false;
+            meta.computed = true;
+        });
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::BlockIsNotPrepared)
+        );
+    }
+
+    #[test]
+    fn test_block_meta_not_computed_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+
+        // Insert block with not computed meta
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = false;
+        });
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::BlockIsNotComputed)
+        );
+    }
+
+    #[test]
+    fn test_no_parent_block_header_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+        let parent_hash = H256::random();
+
+        // Insert valid meta but header with non-existent parent
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+
+        let header = BlockHeader {
+            height: 1,
+            parent_hash,
+            timestamp: 1000,
+        };
+        db.set_block_header(block_hash, header);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::NoParentBlockHeader(parent_hash))
+        );
+    }
+
+    #[test]
+    fn test_invalid_block_parent_height_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+        let parent_hash = H256::random();
+
+        // Setup parent block
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+
+        let parent_hash1 = H256::zero();
+        let parent_header = BlockHeader {
+            height: 5,
+            parent_hash: parent_hash1,
+            timestamp: 1000,
+        };
+        db.set_block_header(parent_hash, parent_header);
+
+        // Setup child block with invalid height
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+
+        let header = BlockHeader {
+            height: 10,
+            parent_hash,
+            timestamp: 2000,
+        }; // Should be 6, not 10
+        db.set_block_header(block_hash, header);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::InvalidBlockParentHeight {
+                    parent_height: 5,
+                    height: 10,
+                })
+        );
+    }
+
+    #[test]
+    fn test_invalid_parent_timestamp_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+        let parent_hash = H256::random();
+
+        // Setup parent block
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+
+        let parent_hash1 = H256::zero();
+        let parent_header = BlockHeader {
+            height: 5,
+            parent_hash: parent_hash1,
+            timestamp: 2000,
+        };
+        db.set_block_header(parent_hash, parent_header);
+
+        // Setup child block with earlier timestamp
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+        let header = BlockHeader {
+            height: 6,
+            parent_hash,
+            timestamp: 1000,
+        }; // Earlier than parent
+        db.set_block_header(block_hash, header);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::InvalidParentTimestamp {
+                    parent_timestamp: 2000,
+                    timestamp: 1000,
+                })
+        );
+    }
+
+    #[test]
+    fn test_no_code_valid_error() {
+        let db = Database::memory();
+        let code_id = CodeId::from(1);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_code_id(code_id);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::NoCodeValid)
+        );
+    }
+
+    #[test]
+    fn test_code_is_not_valid_error() {
+        let db = Database::memory();
+        let code_id = CodeId::from(1);
+
+        // Set code as invalid
+        db.set_code_valid(code_id, false);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_code_id(code_id);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::CodeIsNotValid)
+        );
+    }
+
+    #[test]
+    fn test_no_original_code_error() {
+        let db = Database::memory();
+        let code_id = CodeId::from(1);
+
+        // Set code as valid but no original code
+        db.set_code_valid(code_id, true);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_code_id(code_id);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::NoOriginalCode)
+        );
+    }
+
+    #[test]
+    fn test_no_instrumented_code_error() {
+        let db = Database::memory();
+
+        // Set code as valid and add original code but no instrumented code
+        let code_id = db.set_original_code(&[1, 2, 3, 4]);
+        db.set_code_valid(code_id, true);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_code_id(code_id);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::NoInstrumentedCode(code_id))
+        );
+    }
+
+    #[test]
+    fn test_no_code_metadata_error() {
+        let db = Database::memory();
+
+        // Set code as valid, add original and instrumented code but no metadata
+        let code_id = db.set_original_code(&[1, 2, 3, 4]);
+        db.set_code_valid(code_id, true);
+        db.set_instrumented_code(
+            ethexe_runtime_common::VERSION,
+            code_id,
+            InstrumentedCode::new(
+                vec![1, 2, 3, 4, 5],
+                InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+            ),
+        );
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_code_id(code_id);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::NoCodeMetadata)
+        );
+    }
+
+    #[test]
+    fn test_invalid_code_len_in_metadata_error() {
+        const ORIGINAL_CODE: &[u8] = &[1, 2, 3, 4];
+
+        let db = Database::memory();
+
+        let metadata = CodeMetadata::new(
+            10,
+            BTreeSet::default(),
+            WasmPagesAmount::from(0),
+            None,
+            InstrumentationStatus::NotInstrumented,
+        ); // Wrong length: 10 instead of 4
+
+        // Set up all required code data with mismatched length
+        let code_id = db.set_original_code(ORIGINAL_CODE);
+        db.set_code_valid(code_id, true);
+        db.set_instrumented_code(
+            ethexe_runtime_common::VERSION,
+            code_id,
+            InstrumentedCode::new(
+                vec![1, 2, 3, 4, 5],
+                InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+            ),
+        );
+        db.set_code_metadata(code_id, metadata);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_code_id(code_id);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::InvalidCodeLenInMetadata {
+                    metadata_len: 10,
+                    original_len: ORIGINAL_CODE.len() as u32,
+                })
+        );
+    }
+
+    #[test]
+    fn test_no_block_header_in_schedule_tasks_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+        let tasks = BTreeSet::new();
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block_schedule_tasks(block_hash, 100, &tasks);
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::NoBlockHeader(block_hash))
+        );
+    }
+
+    #[test]
+    fn test_block_schedule_has_expired_tasks_error() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+
+        // Setup block with height 100
+        let parent_hash = H256::zero();
+        let header = BlockHeader {
+            height: 100,
+            parent_hash,
+            timestamp: 1000,
+        };
+        db.set_block_header(block_hash, header);
+
+        // Create tasks scheduled for height 50 (expired)
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block_schedule_tasks(block_hash, 50, &BTreeSet::new());
+
+        assert_eq!(
+            verifier.errors,
+            [IntegrityVerifierError::BlockScheduleHasExpiredTasks {
+                block: block_hash,
+                expiry: 50,
+                tasks: 0,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_multiple_errors_collected() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+
+        // Insert block with multiple issues
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = false;
+            meta.prepared = false;
+            meta.computed = false;
+        });
+
+        let verifier = IntegrityVerifier::new(db);
+        let errors = verifier.verify_chain(block_hash, block_hash).unwrap_err();
+        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotSynced));
+        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotPrepared));
+        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotComputed));
+        assert!(errors.len() >= 3);
+    }
+
+    #[test]
+    fn test_successful_verification_with_valid_data() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+        let parent_hash = H256::zero();
+        let block_header = BlockHeader {
+            height: 100,
+            parent_hash,
+            timestamp: 1000,
+        };
+        let parent_header = BlockHeader {
+            height: 99,
+            parent_hash: H256::zero(),
+            timestamp: 999,
+        };
+
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+        db.set_block_header(block_hash, block_header);
+        db.set_block_events(block_hash, &[]);
+        db.set_block_commitment_queue(block_hash, VecDeque::new());
+        db.set_block_codes_queue(block_hash, VecDeque::new());
+        db.set_previous_not_empty_block(block_hash, H256::random());
+        db.set_last_committed_batch(block_hash, Digest::random());
+        db.set_block_program_states(block_hash, ProgramStates::new());
+        db.set_block_schedule(block_hash, Schedule::new());
+        db.set_block_outcome(block_hash, Vec::new());
+
+        db.set_block_header(parent_hash, parent_header);
+
+        let verifier = IntegrityVerifier::new(db);
+        verifier.verify_chain(block_hash, block_hash).unwrap();
+    }
+
+    #[test]
+    fn test_database_visitor_error_propagation() {
+        let db = Database::memory();
+        let verifier = IntegrityVerifier::new(db);
+
+        // This should trigger DatabaseVisitorError due to missing block
+        let non_existent_block = H256::random();
+        let errors = verifier
+            .verify_chain(non_existent_block, non_existent_block)
+            .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, IntegrityVerifierError::DatabaseVisitor(_)))
+        );
+    }
+
+    #[test]
+    fn test_commitment_queue_processing() {
+        let db = Database::memory();
+        let block_hash = H256::random();
+        let queued_block = H256::random();
+
+        // Setup main block
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.synced = true;
+            meta.prepared = true;
+            meta.computed = true;
+        });
+
+        // Setup commitment queue with another block
+        let mut queue = VecDeque::new();
+        queue.push_back(queued_block);
+        db.set_block_commitment_queue(block_hash, queue);
+
+        let mut verifier = IntegrityVerifier::new(db);
+        verifier.visit_block(block_hash);
+
+        // Should fail because queued_block doesn't exist
+        assert!(
+            verifier
+                .errors
+                .iter()
+                .any(|e| matches!(e, IntegrityVerifierError::DatabaseVisitor(_)))
+        );
+    }
+}
