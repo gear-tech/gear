@@ -109,7 +109,7 @@ pub enum Request {
 /// An account where the rewards should accumulate on.
 ///
 /// A "mirror" of the staking pallet's `RewardDestination` enum.
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub enum RewardAccount {
     /// Pay rewards to the sender's account and increase the amount at stake.
     Staked,
