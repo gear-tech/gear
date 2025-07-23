@@ -60,6 +60,8 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         slot_duration: Duration::from_secs(1),
         signatures_threshold: 1,
         router_address: 12345.into(),
+        genesis_timestamp: 0,
+        era_duration: 12 * 32 * 10,
         pub_key: keys.pop().unwrap(),
         signer,
         db: Database::memory(),

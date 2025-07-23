@@ -24,7 +24,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, ProducerBlock, SimpleBlockData,
-    db::BlockMetaStorageRead,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -193,15 +193,15 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<RewardsCommitment>> {
-        // Replace with actual implementation
         let config = crate::rewards::RewardsConfig {
-            genesis_timestamp: 0,
-            era_duration: 10,
+            genesis_timestamp: ctx.genesis_timestamp,
+            era_duration: ctx.era_duration,
             wvara_digets: U256::from(10),
             wvara_address: Address::default(),
         };
-        // let _commitment = crate::rewards::rewards_commitment(&ctx.db, &config, block_hash)?;
-        Ok(None)
+        Ok(crate::rewards::rewards_commitment(
+            &ctx.db, &config, block_hash,
+        )?)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {

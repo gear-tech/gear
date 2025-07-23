@@ -49,7 +49,8 @@ use crate::{
         submitter::Submitter, subordinate::Subordinate,
     },
 };
-use anyhow::Result;
+use alloy::providers::Provider;
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
@@ -120,11 +121,21 @@ impl ValidatorService {
         .await?;
 
         let router = ethereum.router();
+        let genesis_block_hash = router.query().genesis_block_hash().await?;
+        let genesis_block = ethereum
+            .provider()
+            .get_block_by_hash(genesis_block_hash.0.into())
+            .await?
+            .ok_or(anyhow!("genesis block not found by rpc"))?;
 
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
             signatures_threshold: config.signatures_threshold,
             router_address: config.router_address,
+
+            // TODO: use router.query().timelines() after merge PR
+            era_duration: 12 * 32 * 10,
+            genesis_timestamp: genesis_block.header.timestamp,
             pub_key: config.pub_key,
             signer,
             db,
@@ -419,6 +430,9 @@ struct ValidatorContext {
     slot_duration: Duration,
     signatures_threshold: u64,
     router_address: Address,
+    genesis_timestamp: u64,
+    era_duration: u64,
+
     pub_key: PublicKey,
 
     #[debug(skip)]

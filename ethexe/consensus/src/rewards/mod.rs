@@ -1,11 +1,16 @@
 use std::{collections::BTreeMap, ops::Range};
 
 use ethexe_common::{
-    Address,
+    Address, ToDigest,
     db::{BlockMetaStorageRead, OnChainStorageRead},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewardsCommitment},
 };
 use gprimitives::{H256, U256};
+use rs_merkle::Hasher;
+use sha3::Digest;
+
+#[cfg(test)]
+mod tests;
 
 /*
 TODO: wait for 3 eth eras to calculate rewards
@@ -44,9 +49,9 @@ pub enum DistributionError {
     #[error("block header not found for: {0:?}")]
     BlockHeaderNotFound(H256),
 }
-
 type Result<T> = std::result::Result<T, DistributionError>;
 
+///
 pub(crate) fn rewards_commitment<DB>(
     db: &DB,
     config: &RewardsConfig,
@@ -58,6 +63,8 @@ where
     let Some(eras_to_reward) = eras_to_reward(db, config, chain_head)? else {
         return Ok(None);
     };
+
+    log::info!("💕💕💕 eras to reward: {:?}", eras_to_reward);
 
     let rewards_commitment = RewardsCommitment {
         operators: operator_rewards_commitment(db, config, eras_to_reward, chain_head)?,
@@ -81,7 +88,6 @@ where
         .block_header(chain_head)
         .ok_or(DistributionError::BlockHeaderNotFound(chain_head))?;
 
-    // Check rewards are already distributed
     let latest_rewarded_era = db.latest_rewarded_era(chain_head).unwrap_or_default();
     let current_era = utils::era_index(config, header.timestamp);
 
@@ -98,10 +104,6 @@ where
     // maybe need check something else
     Ok(Some(latest_rewarded_era..current_era))
 }
-
-// Criteria for distribution of rewards:
-// 1. In the current era rewards are not distributed yet
-// 2. Era is finished (current era is not equal to latest rewarded era + 1)
 
 fn operator_rewards_commitment<DB>(
     db: &DB,
@@ -146,7 +148,8 @@ where
 
     Ok(OperatorRewardsCommitment {
         amount: total_rewards,
-        root: build_rewards_merkle_tree(rewards_statistics),
+        // root: operators_merkle_tree(rewards_statistics),
+        root: H256::zero(),
     })
 }
 
@@ -163,8 +166,20 @@ fn validators(_block_hash: H256) -> Vec<Address> {
     vec![]
 }
 
-fn build_rewards_merkle_tree(_rewards_data: BTreeMap<Address, U256>) -> H256 {
-    todo!()
+fn operators_merkle_tree(rewards_data: BTreeMap<Address, U256>) -> H256 {
+    let leaves = rewards_data
+        .into_iter()
+        .map(|(address, amount)| {
+            let mut hasher = sha3::Keccak256::new();
+            hasher.update(&address.0);
+            hasher.update(<[u8; 32]>::from(amount));
+            hasher.finalize().to_digest().0
+        })
+        .collect::<Vec<_>>();
+
+    let tree =
+        rs_merkle::MerkleTree::<rs_merkle::algorithms::Keccak256>::from_leaves(leaves.as_slice());
+    tree.root().expect("Merkle tree should have a root").into()
 }
 
 mod utils {
@@ -174,5 +189,3 @@ mod utils {
         (block_ts - config.genesis_timestamp) / config.era_duration
     }
 }
-#[cfg(test)]
-mod tests {}
