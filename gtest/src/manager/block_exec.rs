@@ -410,7 +410,7 @@ impl ExtManager {
 
             let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
                 let err_msg = format!(
-                    "Сode metadata for the existing program does not contain \
+                    "Code metadata for the existing program does not contain \
                     instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
                 );
 
