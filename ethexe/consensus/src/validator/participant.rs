@@ -21,8 +21,7 @@ use super::{
     initial::Initial,
 };
 use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    SignedValidationRequest, utils,
+    utils, validator::MAX_CHAIN_DEEPNESS, BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent, SignedValidationRequest
 };
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
@@ -154,14 +153,14 @@ impl Participant {
         );
 
         let chain_commitment = if let Some(head) = head {
-            // TODO +_+_+: support head != current block hash
+            // TODO #4791: support head != current block hash, have to check head is predecessor of current block
             ensure!(
                 head == self.block.hash,
                 "Head cannot be different from current block hash"
             );
 
-            // +_+_+: customize the limit
-            utils::aggregate_chain_commitment(&self.ctx.db, head, true, Some(1000))?
+            utils::aggregate_chain_commitment(&self.ctx.db, head, true, Some(MAX_CHAIN_DEEPNESS))?
+                .map(|(commitment, _)| commitment)
         } else {
             None
         };

@@ -47,7 +47,6 @@ pub(crate) fn prepare<
         let events = db
             .block_events(block.hash)
             .ok_or(ComputeError::BlockEventsNotFound(block.hash))?;
-        log::trace!("+_+_+ {:?} events: {:#?}", block.hash, events);
         let (block_missing_codes, block_missing_validated_codes) =
             propagate_data_from_parent(db, block.hash, block.header.parent_hash, events.iter())?;
         missing_codes.extend(block_missing_codes);

@@ -19,7 +19,10 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, utils};
+use crate::{
+    ConsensusEvent, utils,
+    validator::{CHAIN_DEEPNESS_THRESHOLD, MAX_CHAIN_DEEPNESS},
+};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -160,7 +163,22 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<ChainCommitment>> {
-        utils::aggregate_chain_commitment(&ctx.db, block_hash, false, None)
+        let Some((commitment, deepness)) = utils::aggregate_chain_commitment(
+            &ctx.db,
+            block_hash,
+            false,
+            Some(MAX_CHAIN_DEEPNESS),
+        )?
+        else {
+            return Ok(None);
+        };
+
+        if commitment.transitions.is_empty() && deepness <= CHAIN_DEEPNESS_THRESHOLD {
+            // No transitions and chain is not deep enough, skip chain commitment
+            Ok(None)
+        } else {
+            Ok(Some(commitment))
+        }
     }
 
     fn aggregate_code_commitments(

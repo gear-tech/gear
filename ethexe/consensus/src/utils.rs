@@ -207,7 +207,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     from_block_hash: H256,
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
-) -> Result<Option<ChainCommitment>> {
+) -> Result<Option<(ChainCommitment, u32)>> {
     // TODO #4744: improve squashing - removing redundant state transitions
 
     let last_committed_head = db
@@ -217,13 +217,10 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             anyhow!("Cannot get from db last committed head for block {from_block_hash}")
         })?;
 
-    // log::warn!("{last_committed_head:?} {from_block_hash:?}");
-
     let mut block_hash = from_block_hash;
     let mut counter: u32 = 0;
     let mut transitions = vec![];
     while block_hash != last_committed_head {
-        // log::warn!("Processing block {block_hash} at depth {counter}");
         if max_deepness.map(|d| counter >= d).unwrap_or(false) {
             return Err(anyhow!(
                 "Chain commitment is too deep: {block_hash} at depth {counter}"
@@ -251,10 +248,13 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             .parent_hash;
     }
 
-    Ok(Some(ChainCommitment {
-        transitions: transitions.into_iter().rev().flatten().collect(),
-        head: from_block_hash,
-    }))
+    Ok(Some((
+        ChainCommitment {
+            transitions: transitions.into_iter().rev().flatten().collect(),
+            head: from_block_hash,
+        },
+        counter,
+    )))
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
@@ -297,7 +297,7 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::db::CodesStorageWrite;
+    use ethexe_common::db::{BlockMetaStorageWrite, CodesStorageWrite};
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);
@@ -405,64 +405,36 @@ mod tests {
         assert_eq!(multisigned_batch.signatures.len(), 2);
     }
 
-    // #[test]
-    // fn test_aggregate_chain_commitment() {
-    //     let db = Database::memory();
-    //     let block1 = H256([1; 32]);
-    //     let block2 = H256([2; 32]);
-    //     let block3 = H256([3; 32]);
-    //     let for_block =  H256([4; 32]);
+    #[test]
+    fn test_aggregate_chain_commitment() {
+        let db = Database::memory();
+        let BatchCommitment { block_hash, .. } = prepared_mock_batch_commitment(&db);
 
-    //     // Set up the database with computed blocks and outcomes
-    //     db.mutate_block_meta(block1, |meta| meta.computed = true);
-    //     db.mutate_block_meta(block2, |meta| meta.computed = true);
-    //     db.set_block_outcome(block1, vec![]);
-    //     db.set_block_outcome(block2, vec![]);
+        let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, false, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitment.head, block_hash);
+        assert!(commitment.transitions.len() > 0);
+        assert!(counter == 3);
 
-    //     // Test with valid blocks
-    //     aggregate_chain_commitment(&db, for_block, vec![block1, block2], true)
-    //         .unwrap()
-    //         .unwrap();
+        let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, true, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitment.head, block_hash);
+        assert!(commitment.transitions.len() > 0);
+        assert!(counter == 3);
 
-    //     // Test with a block that is not computed
-    //     aggregate_chain_commitment(&db, for_block, vec![block1, block3], true).unwrap_err();
+        aggregate_chain_commitment(&db, block_hash, false, Some(2)).unwrap_err();
+        aggregate_chain_commitment(&db, block_hash, true, Some(2)).unwrap_err();
 
-    //     // Test with fail_if_not_computed set to false
-    //     let chain_commitment =
-    //         aggregate_chain_commitment(&db, vec![block1, block3], false).unwrap();
-    //     assert!(chain_commitment.is_none());
-    // }
-
-    // #[test]
-    // fn test_squash_chain_commitments() {
-    //     let block1 = H256::from([1; 32]);
-    //     let block2 = H256::from([2; 32]);
-
-    //     let transition1 = StateTransition::mock(());
-    //     let transition2 = StateTransition::mock(());
-    //     let transition3 = StateTransition::mock(());
-
-    //     let chain_commitment1 = ChainCommitment {
-    //         transitions: vec![transition1.clone(), transition2.clone()],
-    //         head: block1,
-    //     };
-
-    //     let chain_commitment2 = ChainCommitment {
-    //         transitions: vec![transition3.clone()],
-    //         head: block2,
-    //     };
-
-    //     let squashed = squash_transactions(vec![chain_commitment1, chain_commitment2]).unwrap();
-
-    //     assert_eq!(squashed.head, block2); // head should be from the last commitment
-    //     assert_eq!(
-    //         squashed.transitions,
-    //         vec![transition1, transition2, transition3]
-    //     );
-
-    //     let squashed = squash_transactions(vec![]);
-    //     assert!(squashed.is_none());
-    // }
+        db.mutate_block_meta(block_hash, |meta| meta.computed = false);
+        assert!(
+            aggregate_chain_commitment(&db, block_hash, false, None)
+                .unwrap()
+                .is_none()
+        );
+        aggregate_chain_commitment(&db, block_hash, true, None).unwrap_err();
+    }
 
     #[test]
     fn test_aggregate_code_commitments() {
