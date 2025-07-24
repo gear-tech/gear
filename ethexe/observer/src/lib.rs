@@ -60,12 +60,6 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-// #[derive(Clone, Debug, PartialEq, Eq)]
-// pub struct BlockSyncedData {
-//     pub block_hash: H256,
-//     pub validators: Vec<Address>,
-// }
-
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
