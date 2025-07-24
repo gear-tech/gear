@@ -21,7 +21,6 @@ use crate::{ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
-use ethexe_common::SimpleBlockData;
 use ethexe_ethereum::router::Router;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
@@ -36,7 +35,6 @@ pub struct Submitter {
     ctx: ValidatorContext,
     #[debug(skip)]
     future: BoxFuture<'static, Result<H256>>,
-    head_received: Option<SimpleBlockData>,
 }
 
 impl StateHandler for Submitter {
@@ -52,31 +50,18 @@ impl StateHandler for Submitter {
         self.ctx
     }
 
-    fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
-        self.head_received = Some(block);
-        Ok(self.into())
-    }
-
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
                 self.output(ConsensusEvent::CommitmentSubmitted(tx));
 
-                if let Some(block) = self.head_received {
-                    Initial::create_with_chain_head(self.ctx, block)
-                } else {
-                    Initial::create(self.ctx)
-                }
+                Initial::create(self.ctx)
             }
             Poll::Ready(Err(err)) => {
                 // TODO: consider retries
                 self.warning(format!("failed to submit batch commitment: {err:?}"));
 
-                if let Some(block) = self.head_received {
-                    Initial::create_with_chain_head(self.ctx, block)
-                } else {
-                    Initial::create(self.ctx)
-                }
+                Initial::create(self.ctx)
             }
             Poll::Pending => Ok(self.into()),
         }
@@ -89,12 +74,7 @@ impl Submitter {
         batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
         let future = ctx.committer.clone_boxed().commit_batch(batch);
-        Ok(Self {
-            ctx,
-            future,
-            head_received: None,
-        }
-        .into())
+        Ok(Self { ctx, future }.into())
     }
 }
 

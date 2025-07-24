@@ -21,7 +21,8 @@ use super::{
     initial::Initial,
 };
 use crate::{
-    utils, validator::MAX_CHAIN_DEEPNESS, BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent, SignedValidationRequest
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
+    SignedValidationRequest, utils, validator::MAX_CHAIN_DEEPNESS,
 };
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};

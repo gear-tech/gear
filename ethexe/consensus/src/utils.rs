@@ -414,15 +414,15 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(commitment.head, block_hash);
-        assert!(commitment.transitions.len() > 0);
-        assert!(counter == 3);
+        assert_eq!(commitment.transitions.len(), 4);
+        assert_eq!(counter, 3);
 
         let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, true, None)
             .unwrap()
             .unwrap();
         assert_eq!(commitment.head, block_hash);
-        assert!(commitment.transitions.len() > 0);
-        assert!(counter == 3);
+        assert_eq!(commitment.transitions.len(), 4);
+        assert_eq!(counter, 3);
 
         aggregate_chain_commitment(&db, block_hash, false, Some(2)).unwrap_err();
         aggregate_chain_commitment(&db, block_hash, true, Some(2)).unwrap_err();

@@ -384,9 +384,9 @@ mod tests {
         assert!(matches!(
             result,
             Err(ComputeError::CodeValidationStatusMismatch {
-            code_id: err_code_id,
-            local_status: true,
-            remote_status: false,
+                code_id: err_code_id,
+                local_status: true,
+                remote_status: false,
             }) if err_code_id == code_id
         ));
     }
