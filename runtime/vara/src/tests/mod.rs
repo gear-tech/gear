@@ -22,8 +22,14 @@ use super::*;
 use crate::Runtime;
 use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
-use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
-use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
+use gear_core::costs::{
+    DbCosts, InstantiationCosts, InstrumentationCosts, IoCosts, LazyPagesCosts, PagesCosts,
+    ProcessCosts, RentCosts,
+};
+use pallet_gear::{
+    DbWeights, InstantiationWeights, InstructionWeights, InstrumentationWeights, MemoryWeights,
+    RentWeights, Schedule, SyscallWeights,
+};
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
 
@@ -385,6 +391,93 @@ fn lazy_page_costs_heuristic_test() {
 
     assert!(result.is_ok(), "{:#?}", result.err().unwrap());
     assert_eq!(result.unwrap(), expected_lazy_pages_costs_count());
+}
+
+#[test]
+fn load_allocations_costs_heuristic_test() {
+    let process_costs: ProcessCosts = Schedule::<Runtime>::default().process_costs();
+
+    let expected_load_allocations_costs = 25197;
+
+    let result = check_load_allocations_costs(
+        process_costs.load_allocations_per_interval.into(),
+        expected_load_allocations_costs,
+    );
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_load_allocations_costs_count());
+}
+
+#[test]
+fn instantiation_costs_heuristic_test() {
+    let instantiation_costs = InstantiationWeights::<Runtime>::default().into();
+
+    let expected_instantiation_costs = InstantiationCosts {
+        code_section_per_byte: 2582.into(),
+        data_section_per_byte: 595.into(),
+        global_section_per_byte: 2400.into(),
+        table_section_per_byte: 651.into(),
+        element_section_per_byte: 2523.into(),
+        type_section_per_byte: 18285.into(),
+    };
+
+    let result = check_instantiation_costs(instantiation_costs, expected_instantiation_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_instantiation_costs_count());
+}
+
+#[test]
+fn rent_costs_heuristic_test() {
+    let rent_costs = RentWeights::<Runtime>::default().into();
+
+    let expected_rent_costs = RentCosts {
+        waitlist: 100.into(),
+        dispatch_stash: 100.into(),
+        reservation: 100.into(),
+        mailbox: 100.into(),
+        mailbox_threshold: 3000.into(),
+    };
+
+    let result = check_rent_costs(rent_costs, expected_rent_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_rent_costs_count());
+}
+
+#[test]
+fn db_costs_heuristic_test() {
+    let db_costs = DbWeights::<Runtime>::default().into();
+
+    let expected_db_costs = DbCosts {
+        read: 25000000.into(),
+        read_per_byte: 687.into(),
+        write: 100000000.into(),
+        write_per_byte: 270.into(),
+    };
+
+    let result = check_db_costs(db_costs, expected_db_costs);
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_db_costs_count());
+}
+
+#[test]
+fn code_instrumentation_costs_heuristic_test() {
+    let code_instrumentation_costs = InstrumentationWeights::<Runtime>::default().into();
+
+    let expected_code_instrumentation_costs = InstrumentationCosts {
+        instrumentation: 325729000.into(),
+        instrumentation_per_byte: 715243.into(),
+    };
+
+    let result = check_code_instrumentation_costs(
+        code_instrumentation_costs,
+        expected_code_instrumentation_costs,
+    );
+
+    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
+    assert_eq!(result.unwrap(), expected_code_instrumentation_costs_count());
 }
 
 /// Check that it is not possible to write/change memory pages too cheaply,

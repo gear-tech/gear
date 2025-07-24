@@ -25,8 +25,8 @@ use frame_support::{traits::Get, weights::Weight};
 use gear_core::{
     code::MAX_WASM_PAGES_AMOUNT,
     costs::{
-        ExtCosts, InstantiationCosts, IoCosts, LazyPagesCosts, PagesCosts, ProcessCosts, RentCosts,
-        SyscallCosts,
+        DbCosts, ExtCosts, InstantiationCosts, InstrumentationCosts, IoCosts, LazyPagesCosts,
+        PagesCosts, ProcessCosts, RentCosts, SyscallCosts,
     },
     pages::{GearPage, WasmPage},
 };
@@ -133,11 +133,8 @@ pub struct Schedule<T: Config> {
     /// The weights for instantiation of the module.
     pub instantiation_weights: InstantiationWeights<T>,
 
-    /// WASM code instrumentation base cost.
-    pub code_instrumentation_cost: Weight,
-
-    /// WASM code instrumentation per-byte cost.
-    pub code_instrumentation_byte_cost: Weight,
+    /// Code instrumentation weights.
+    pub code_instrumentation_weights: InstrumentationWeights<T>,
 
     /// Load allocations weight.
     pub load_allocations_weight: Weight,
@@ -727,6 +724,33 @@ impl<T: Config> Default for TaskWeights<T> {
     }
 }
 
+/// Describes DB access weights.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct InstrumentationWeights<T: Config> {
+    /// WASM code instrumentation base cost.
+    pub instrumentation_cost: Weight,
+    /// WASM code instrumentation per-byte cost.
+    pub instrumentation_byte_cost: Weight,
+    /// The type parameter is used in the default implementation.
+    #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
+    pub _phantom: PhantomData<T>,
+}
+
+impl<T: Config> Default for InstrumentationWeights<T> {
+    fn default() -> Self {
+        type W<T> = <T as Config>::WeightInfo;
+
+        Self {
+            instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
+            instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
+            _phantom: PhantomData,
+        }
+    }
+}
+
 #[inline]
 fn cost(w: fn(u32) -> Weight) -> Weight {
     Weight::from_parts(w(1).saturating_sub(w(0)).ref_time(), 0)
@@ -805,8 +829,7 @@ impl<T: Config> Default for Schedule<T> {
             db_weights: Default::default(),
             task_weights: Default::default(),
             instantiation_weights: Default::default(),
-            code_instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
-            code_instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
+            code_instrumentation_weights: Default::default(),
             load_allocations_weight: cost(W::<T>::load_allocations_per_interval),
         }
     }
@@ -1366,6 +1389,8 @@ impl<T: Config> From<RentWeights<T>> for RentCosts {
             waitlist: val.waitlist.ref_time().into(),
             dispatch_stash: val.dispatch_stash.ref_time().into(),
             reservation: val.reservation.ref_time().into(),
+            mailbox: val.mailbox.ref_time().into(),
+            mailbox_threshold: val.mailbox_threshold.ref_time().into(),
         }
     }
 }
@@ -1379,6 +1404,17 @@ impl<T: Config> Default for DbWeights<T> {
             write_per_byte: cost_byte(W::<T>::db_write_per_kb),
             read_per_byte: cost_byte(W::<T>::db_read_per_kb),
             _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> From<DbWeights<T>> for DbCosts {
+    fn from(val: DbWeights<T>) -> Self {
+        Self {
+            write: val.write.ref_time().into(),
+            read: val.read.ref_time().into(),
+            write_per_byte: val.write_per_byte.ref_time().into(),
+            read_per_byte: val.read_per_byte.ref_time().into(),
         }
     }
 }
@@ -1407,6 +1443,15 @@ impl<T: Config> From<InstantiationWeights<T>> for InstantiationCosts {
             table_section_per_byte: val.table_section_per_byte.ref_time().into(),
             element_section_per_byte: val.element_section_per_byte.ref_time().into(),
             type_section_per_byte: val.type_section_per_byte.ref_time().into(),
+        }
+    }
+}
+
+impl<T: Config> From<InstrumentationWeights<T>> for InstrumentationCosts {
+    fn from(val: InstrumentationWeights<T>) -> Self {
+        Self {
+            instrumentation: val.instrumentation_cost.ref_time().into(),
+            instrumentation_per_byte: val.instrumentation_byte_cost.ref_time().into(),
         }
     }
 }
@@ -1571,12 +1616,9 @@ impl<T: Config> Schedule<T> {
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
+            db_costs: self.db_weights.clone().into(),
+            instrumentation_costs: self.code_instrumentation_weights.clone().into(),
             lazy_pages: self.memory_weights.clone().into(),
-            read: self.db_weights.read.ref_time().into(),
-            read_per_byte: self.db_weights.read_per_byte.ref_time().into(),
-            write: self.db_weights.write.ref_time().into(),
-            instrumentation: self.code_instrumentation_cost.ref_time().into(),
-            instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
             instantiation_costs: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }

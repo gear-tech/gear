@@ -43,10 +43,8 @@ pub struct Schedule {
     pub task_weights: TaskWeights,
     #[doc = " The weights for instantiation of the module."]
     pub instantiation_weights: InstantiationWeights,
-    #[doc = " WASM code instrumentation base cost."]
-    pub code_instrumentation_cost: Weight,
-    #[doc = " WASM code instrumentation per-byte cost."]
-    pub code_instrumentation_byte_cost: Weight,
+    #[doc = " The weights for WASM code instrumentation."]
+    pub code_instrumentation_weights: InstrumentationWeights,
     #[doc = " Load allocations weight."]
     pub load_allocations_weight: Weight,
 }
@@ -62,14 +60,7 @@ impl Default for Schedule {
             db_weights: DbWeights::default(),
             task_weights: TaskWeights::default(),
             instantiation_weights: InstantiationWeights::default(),
-            code_instrumentation_cost: Weight {
-                ref_time: 325729000,
-                proof_size: 3793,
-            },
-            code_instrumentation_byte_cost: Weight {
-                ref_time: 715243,
-                proof_size: 0,
-            },
+            code_instrumentation_weights: InstrumentationWeights::default(),
             load_allocations_weight: Weight {
                 ref_time: 25197,
                 proof_size: 0,
@@ -1024,6 +1015,17 @@ impl Default for DbWeights {
     }
 }
 
+impl From<DbWeights> for DbCosts {
+    fn from(val: DbWeights) -> Self {
+        Self {
+            read: val.read.ref_time().into(),
+            read_per_byte: val.read_per_byte.ref_time().into(),
+            write: val.write.ref_time().into(),
+            write_per_byte: val.write_per_byte.ref_time().into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[doc = " Describes weights for running tasks."]
 pub struct TaskWeights {
@@ -1072,6 +1074,37 @@ impl Default for TaskWeights {
                 ref_time: 1844454000,
                 proof_size: 7338,
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[doc = " Describes weights for WASM code instrumentation."]
+pub struct InstrumentationWeights {
+    pub instrumentation_cost: Weight,
+    pub instrumentation_byte_cost: Weight,
+}
+
+impl Default for InstrumentationWeights {
+    fn default() -> Self {
+        Self {
+            instrumentation_cost: Weight {
+                ref_time: 325729000,
+                proof_size: 3793,
+            },
+            instrumentation_byte_cost: Weight {
+                ref_time: 715243,
+                proof_size: 0,
+            },
+        }
+    }
+}
+
+impl From<InstrumentationWeights> for InstrumentationCosts {
+    fn from(val: InstrumentationWeights) -> Self {
+        Self {
+            instrumentation: val.instrumentation_cost.ref_time().into(),
+            instrumentation_per_byte: val.instrumentation_byte_cost.ref_time().into(),
         }
     }
 }
@@ -1249,6 +1282,8 @@ impl From<RentWeights> for RentCosts {
             waitlist: val.waitlist.ref_time().into(),
             dispatch_stash: val.dispatch_stash.ref_time().into(),
             reservation: val.reservation.ref_time().into(),
+            mailbox: val.mailbox.ref_time.into(),
+            mailbox_threshold: val.mailbox_threshold.ref_time.into(),
         }
     }
 }
@@ -1276,11 +1311,8 @@ impl Schedule {
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
             lazy_pages: self.memory_weights.clone().into(),
-            read: self.db_weights.read.ref_time().into(),
-            read_per_byte: self.db_weights.read_per_byte.ref_time().into(),
-            write: self.db_weights.write.ref_time().into(),
-            instrumentation: self.code_instrumentation_cost.ref_time().into(),
-            instrumentation_per_byte: self.code_instrumentation_byte_cost.ref_time().into(),
+            db_costs: self.db_weights.clone().into(),
+            instrumentation_costs: self.code_instrumentation_weights.clone().into(),
             instantiation_costs: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }

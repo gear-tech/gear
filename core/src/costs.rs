@@ -554,6 +554,10 @@ pub struct RentCosts {
     pub dispatch_stash: CostOf<BlocksAmount>,
     /// Holding reservation cost per block.
     pub reservation: CostOf<BlocksAmount>,
+    /// Holding message in mailbox weight.
+    pub mailbox: CostOf<u64>,
+    /// The minimal gas amount for message to be inserted in mailbox.
+    pub mailbox_threshold: CostOf<u64>,
 }
 
 /// Execution externalities costs.
@@ -586,6 +590,28 @@ pub struct InstantiationCosts {
     pub type_section_per_byte: CostOf<BytesAmount>,
 }
 
+/// Database costs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DbCosts {
+    /// Storage read cost.
+    pub read: CostOf<CallsAmount>,
+    /// Storage read per byte cost.
+    pub read_per_byte: CostOf<BytesAmount>,
+    /// Storage write cost.
+    pub write: CostOf<CallsAmount>,
+    /// Storage write per byte cost.
+    pub write_per_byte: CostOf<BytesAmount>,
+}
+
+/// Code instrumentation costs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InstrumentationCosts {
+    /// Code instrumentation cost.
+    pub instrumentation: CostOf<CallsAmount>,
+    /// Code instrumentation per byte cost.
+    pub instrumentation_per_byte: CostOf<BytesAmount>,
+}
+
 /// Costs for message processing
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProcessCosts {
@@ -593,18 +619,12 @@ pub struct ProcessCosts {
     pub ext: ExtCosts,
     /// Lazy pages costs.
     pub lazy_pages: LazyPagesCosts,
-    /// Storage read cost.
-    pub read: CostOf<CallsAmount>,
-    /// Storage read per byte cost.
-    pub read_per_byte: CostOf<BytesAmount>,
-    /// Storage write cost.
-    pub write: CostOf<CallsAmount>,
-    /// Code instrumentation cost.
-    pub instrumentation: CostOf<CallsAmount>,
-    /// Code instrumentation per byte cost.
-    pub instrumentation_per_byte: CostOf<BytesAmount>,
     /// Module instantiation costs.
     pub instantiation_costs: InstantiationCosts,
+    /// DB costs.
+    pub db_costs: DbCosts,
+    /// Instrumentation costs.
+    pub instrumentation_costs: InstrumentationCosts,
     /// Load program allocations cost per interval.
     pub load_allocations_per_interval: CostOf<u32>,
 }

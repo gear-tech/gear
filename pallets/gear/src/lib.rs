@@ -50,7 +50,10 @@ pub use crate::{
     builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn},
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
+    schedule::{
+        DbWeights, InstantiationWeights, InstructionWeights, InstrumentationWeights, Limits,
+        MemoryWeights, RentWeights, Schedule, SyscallWeights, TaskWeights,
+    },
 };
 pub use gear_core::rpc::{GasInfo, ReplyInfo};
 pub use weights::WeightInfo;
