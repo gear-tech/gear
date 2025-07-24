@@ -18,11 +18,7 @@
 
 use crate::{
     Database,
-    visitor::{
-        DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, walk_block,
-        walk_block_schedule_tasks, walk_code_id, walk_message_queue,
-        walk_message_queue_hash_with_size,
-    },
+    visitor::{DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, DatabaseWalker},
 };
 use ethexe_common::{BlockHeader, BlockMeta, ScheduledTask};
 use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
@@ -30,7 +26,7 @@ use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeSet, HashSet, VecDeque},
+    collections::{BTreeSet, HashSet},
     hash::Hash,
 };
 
@@ -57,6 +53,7 @@ pub enum IntegrityVerifierError {
     /* code */
     CodeIsNotValid,
     InvalidCodeLenInMetadata {
+        code_id: CodeId,
         metadata_len: u32,
         original_len: u32,
     },
@@ -77,11 +74,9 @@ pub enum IntegrityVerifierError {
 pub struct IntegrityVerifier {
     db: Database,
     errors: Vec<IntegrityVerifierError>,
-    visited_blocks: HashSet<H256>,
     block_header: Option<BlockHeader>,
     message_queue_size: Option<u8>,
     original_code: Option<Vec<u8>>,
-    code_metadata: Option<CodeMetadata>,
 }
 
 impl IntegrityVerifier {
@@ -89,11 +84,9 @@ impl IntegrityVerifier {
         Self {
             db,
             errors: Vec::new(),
-            visited_blocks: HashSet::new(),
             block_header: None,
             message_queue_size: None,
             original_code: None,
-            code_metadata: None,
         }
     }
 
@@ -102,7 +95,7 @@ impl IntegrityVerifier {
         head: H256,
         bottom: H256,
     ) -> Result<(), Vec<IntegrityVerifierError>> {
-        self.visit_chain(head, bottom);
+        DatabaseWalker::new(&mut self).visit_chain(head, bottom);
 
         #[cfg(debug_assertions)]
         {
@@ -131,13 +124,6 @@ impl DatabaseVisitor for IntegrityVerifier {
     fn on_db_error(&mut self, error: DatabaseVisitorError) {
         self.errors
             .push(IntegrityVerifierError::DatabaseVisitor(error));
-    }
-
-    fn visit_block(&mut self, block: H256) {
-        // avoid recursion
-        if self.visited_blocks.insert(block) {
-            walk_block(self, block);
-        }
     }
 
     fn visit_block_meta(&mut self, _block: H256, meta: &BlockMeta) {
@@ -180,28 +166,6 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_block_commitment_queue(&mut self, _block: H256, queue: &VecDeque<H256>) {
-        for &block in queue {
-            self.visit_block(block);
-        }
-    }
-
-    fn visit_code_id(&mut self, code: CodeId) {
-        walk_code_id(self, code);
-
-        let original_code = self.original_code.take();
-        let code_metadata = self.code_metadata.take();
-        if let (Some(original_code), Some(code_metadata)) = (original_code, code_metadata)
-            && code_metadata.original_code_len() != original_code.len() as u32
-        {
-            self.errors
-                .push(IntegrityVerifierError::InvalidCodeLenInMetadata {
-                    metadata_len: code_metadata.original_code_len(),
-                    original_len: original_code.len() as u32,
-                });
-        }
-    }
-
     fn visit_code_valid(&mut self, _code_id: CodeId, code_valid: bool) {
         if !code_valid {
             self.errors.push(IntegrityVerifierError::CodeIsNotValid);
@@ -212,8 +176,18 @@ impl DatabaseVisitor for IntegrityVerifier {
         self.original_code = Some(original_code.to_vec());
     }
 
-    fn visit_code_metadata(&mut self, _code_id: CodeId, metadata: &CodeMetadata) {
-        self.code_metadata = Some(metadata.clone());
+    fn visit_code_metadata(&mut self, code_id: CodeId, metadata: &CodeMetadata) {
+        let original_code = self.original_code.take();
+        if let Some(original_code) = original_code
+            && metadata.original_code_len() != original_code.len() as u32
+        {
+            self.errors
+                .push(IntegrityVerifierError::InvalidCodeLenInMetadata {
+                    code_id,
+                    metadata_len: metadata.original_code_len(),
+                    original_len: original_code.len() as u32,
+                });
+        }
     }
 
     fn visit_block_schedule_tasks(
@@ -234,8 +208,6 @@ impl DatabaseVisitor for IntegrityVerifier {
                     tasks: tasks.len(),
                 });
         }
-
-        walk_block_schedule_tasks(self, tasks);
     }
 
     fn visit_message_queue_hash_with_size(
@@ -245,8 +217,6 @@ impl DatabaseVisitor for IntegrityVerifier {
         if let Some(_hash) = queue_hash_with_size.hash.to_inner() {
             self.message_queue_size = Some(queue_hash_with_size.cached_queue_size);
         }
-
-        walk_message_queue_hash_with_size(self, queue_hash_with_size)
     }
 
     fn visit_message_queue(&mut self, queue: &MessageQueue) {
@@ -265,8 +235,6 @@ impl DatabaseVisitor for IntegrityVerifier {
                     actual_size: queue.len() as u8,
                 })
         }
-
-        walk_message_queue(self, queue)
     }
 }
 
@@ -282,6 +250,7 @@ mod tests {
         code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
         pages::WasmPagesAmount,
     };
+    use std::collections::VecDeque;
 
     #[test]
     fn test_block_meta_not_synced_error() {
@@ -296,7 +265,7 @@ mod tests {
         });
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
         assert!(
             verifier
                 .errors
@@ -317,7 +286,7 @@ mod tests {
         });
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
         assert!(
             verifier
                 .errors
@@ -338,7 +307,7 @@ mod tests {
         });
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
         assert!(
             verifier
                 .errors
@@ -367,7 +336,7 @@ mod tests {
         db.set_block_header(block_hash, header);
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
         assert!(
             verifier
                 .errors
@@ -411,7 +380,7 @@ mod tests {
         db.set_block_header(block_hash, header);
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
         assert!(
             verifier
                 .errors
@@ -457,7 +426,7 @@ mod tests {
         db.set_block_header(block_hash, header);
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
         assert!(
             verifier
                 .errors
@@ -477,7 +446,7 @@ mod tests {
         db.set_code_valid(code_id, false);
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_code_id(code_id);
+        DatabaseWalker::new(&mut verifier).visit_code_id(code_id);
 
         assert!(
             verifier
@@ -514,11 +483,12 @@ mod tests {
         db.set_code_metadata(code_id, metadata);
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_code_id(code_id);
+        DatabaseWalker::new(&mut verifier).visit_code_id(code_id);
 
         assert_eq!(
             verifier.errors,
             [IntegrityVerifierError::InvalidCodeLenInMetadata {
+                code_id,
                 metadata_len: 10,
                 original_len: ORIGINAL_CODE.len() as u32,
             }]
@@ -540,8 +510,12 @@ mod tests {
 
         // Create tasks scheduled for height 50 (expired)
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block_header(block_hash, header);
-        verifier.visit_block_schedule_tasks(block_hash, 50, &BTreeSet::new());
+        DatabaseWalker::new(&mut verifier).visit_block_header(block_hash, header);
+        DatabaseWalker::new(&mut verifier).visit_block_schedule_tasks(
+            block_hash,
+            50,
+            &BTreeSet::new(),
+        );
 
         assert!(
             verifier
@@ -569,7 +543,7 @@ mod tests {
             cached_queue_size: 5, // Wrong size
         };
 
-        verifier.visit_message_queue_hash_with_size(queue_hash_with_size);
+        DatabaseWalker::new(&mut verifier).visit_message_queue_hash_with_size(queue_hash_with_size);
 
         // Should have an error about invalid cached size
         assert_eq!(
@@ -595,7 +569,7 @@ mod tests {
 
         // Try to visit message queue without first calling visit_message_queue_hash_with_size
         // This should panic
-        verifier.visit_message_queue(&queue);
+        DatabaseWalker::new(&mut verifier).visit_message_queue(&queue);
     }
 
     #[test]
@@ -611,7 +585,7 @@ mod tests {
             cached_queue_size: queue.len() as u8,
         };
 
-        verifier.visit_message_queue_hash_with_size(queue_hash_with_size);
+        DatabaseWalker::new(&mut verifier).visit_message_queue_hash_with_size(queue_hash_with_size);
 
         assert_eq!(verifier.message_queue_size, None);
         assert_eq!(verifier.errors, []);
@@ -710,7 +684,7 @@ mod tests {
         db.set_block_commitment_queue(block_hash, queue);
 
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block(block_hash);
+        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
 
         // Should fail because queued_block doesn't exist
         assert!(

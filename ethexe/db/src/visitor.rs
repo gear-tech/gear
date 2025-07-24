@@ -33,7 +33,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::{ActorId, CodeId, H256};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 
 pub trait DatabaseVisitorStorage:
     OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage
@@ -50,13 +50,9 @@ pub trait DatabaseVisitor: Sized {
 
     fn on_db_error(&mut self, error: DatabaseVisitorError);
 
-    fn visit_chain(&mut self, head: H256, bottom: H256) {
-        walk_chain(self, head, bottom)
-    }
+    fn visit_chain(&mut self, _head: H256, _bottom: H256) {}
 
-    fn visit_block(&mut self, block: H256) {
-        walk_block(self, block)
-    }
+    fn visit_block(&mut self, _block: H256) {}
 
     fn visit_block_meta(&mut self, _block: H256, _meta: &BlockMeta) {}
 
@@ -66,13 +62,9 @@ pub trait DatabaseVisitor: Sized {
 
     fn visit_block_commitment_queue(&mut self, _block: H256, _queue: &VecDeque<H256>) {}
 
-    fn visit_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
-        walk_block_codes_queue(self, queue)
-    }
+    fn visit_block_codes_queue(&mut self, _block: H256, _queue: &VecDeque<CodeId>) {}
 
-    fn visit_code_id(&mut self, code_id: CodeId) {
-        walk_code_id(self, code_id)
-    }
+    fn visit_code_id(&mut self, _code_id: CodeId) {}
 
     fn visit_code_valid(&mut self, _code_id: CodeId, _code_valid: bool) {}
 
@@ -89,16 +81,136 @@ pub trait DatabaseVisitor: Sized {
 
     fn visit_last_committed_batch(&mut self, _block: H256, _batch: Digest) {}
 
+    fn visit_block_program_states(&mut self, _block: H256, _program_states: &ProgramStates) {}
+
+    fn visit_program_state(&mut self, _state: &ProgramState) {}
+
+    fn visit_block_schedule(&mut self, _block: H256, _schedule: &Schedule) {}
+
+    fn visit_block_schedule_tasks(
+        &mut self,
+        _block: H256,
+        _height: u32,
+        _tasks: &BTreeSet<ScheduledTask>,
+    ) {
+    }
+
+    fn visit_scheduled_task(&mut self, _task: &ScheduledTask) {}
+
+    fn visit_block_outcome(&mut self, _block: H256, _outcome: &BlockOutcome) {}
+
+    fn visit_state_transition(&mut self, _state_transition: &StateTransition) {}
+
+    fn visit_allocations(&mut self, _allocations: &Allocations) {}
+
+    fn visit_memory_pages(&mut self, _memory_pages: &MemoryPages) {}
+
+    fn visit_memory_pages_region(&mut self, _memory_pages_region: &MemoryPagesRegion) {}
+
+    fn visit_page_data(&mut self, _page_data: &[u8]) {}
+
+    fn visit_payload_lookup(&mut self, _payload_lookup: &PayloadLookup) {}
+
+    fn visit_payload(&mut self, _payload: &Payload) {}
+
+    fn visit_message_queue_hash_with_size(
+        &mut self,
+        _queue_hash_with_size: MessageQueueHashWithSize,
+    ) {
+    }
+
+    fn visit_message_queue(&mut self, _queue: &MessageQueue) {}
+
+    fn visit_waitlist(&mut self, _waitlist: &Waitlist) {}
+
+    fn visit_mailbox(&mut self, _mailbox: &Mailbox) {}
+
+    fn visit_user_mailbox(&mut self, _user_mailbox: &UserMailbox) {}
+
+    fn visit_dispatch_stash(&mut self, _stash: &DispatchStash) {}
+}
+
+impl<T> DatabaseVisitor for &mut T
+where
+    T: DatabaseVisitor,
+{
+    fn db(&self) -> &dyn DatabaseVisitorStorage {
+        T::db(self)
+    }
+
+    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+        T::on_db_error(self, error)
+    }
+
+    fn visit_chain(&mut self, head: H256, _bottom: H256) {
+        T::visit_chain(self, head, _bottom)
+    }
+
+    fn visit_block(&mut self, block: H256) {
+        T::visit_block(self, block)
+    }
+
+    fn visit_block_meta(&mut self, _block: H256, _meta: &BlockMeta) {
+        T::visit_block_meta(self, _block, _meta)
+    }
+
+    fn visit_block_header(&mut self, _block: H256, _header: BlockHeader) {
+        T::visit_block_header(self, _block, _header)
+    }
+
+    fn visit_block_events(&mut self, _block: H256, _events: &[BlockEvent]) {
+        T::visit_block_events(self, _block, _events)
+    }
+
+    fn visit_block_commitment_queue(&mut self, _block: H256, _queue: &VecDeque<H256>) {
+        T::visit_block_commitment_queue(self, _block, _queue)
+    }
+
+    fn visit_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
+        T::visit_block_codes_queue(self, _block, queue)
+    }
+
+    fn visit_code_id(&mut self, code_id: CodeId) {
+        T::visit_code_id(self, code_id)
+    }
+
+    fn visit_code_valid(&mut self, _code_id: CodeId, _code_valid: bool) {
+        T::visit_code_valid(self, _code_id, _code_valid)
+    }
+
+    fn visit_original_code(&mut self, _original_code: &[u8]) {
+        T::visit_original_code(self, _original_code)
+    }
+
+    fn visit_instrumented_code(&mut self, _code_id: CodeId, _instrumented_code: &InstrumentedCode) {
+    }
+
+    fn visit_code_metadata(&mut self, _code_id: CodeId, _metadata: &CodeMetadata) {
+        T::visit_code_metadata(self, _code_id, _metadata)
+    }
+
+    fn visit_program_id(&mut self, _program_id: ActorId) {
+        T::visit_program_id(self, _program_id)
+    }
+
+    fn visit_previous_non_empty_block(&mut self, _block: H256, _previous_non_empty_block: H256) {
+        T::visit_previous_non_empty_block(self, _block, _previous_non_empty_block)
+    }
+
+    fn visit_last_committed_batch(&mut self, _block: H256, _batch: Digest) {
+        T::visit_last_committed_batch(self, _block, _batch)
+    }
+
     fn visit_block_program_states(&mut self, _block: H256, program_states: &ProgramStates) {
-        walk_block_program_states(self, program_states)
+        T::visit_block_program_states(self, _block, program_states)
     }
 
     fn visit_program_state(&mut self, state: &ProgramState) {
-        walk_program_state(self, state)
+        T::visit_program_state(self, state)
     }
 
     fn visit_block_schedule(&mut self, block: H256, schedule: &Schedule) {
-        walk_block_schedule(self, block, schedule)
+        T::visit_block_schedule(self, block, schedule)
     }
 
     fn visit_block_schedule_tasks(
@@ -107,64 +219,70 @@ pub trait DatabaseVisitor: Sized {
         _height: u32,
         tasks: &BTreeSet<ScheduledTask>,
     ) {
-        walk_block_schedule_tasks(self, tasks)
+        T::visit_block_schedule_tasks(self, _block, _height, tasks)
     }
 
     fn visit_scheduled_task(&mut self, task: &ScheduledTask) {
-        walk_scheduled_task(self, task)
+        T::visit_scheduled_task(self, task)
     }
 
     fn visit_block_outcome(&mut self, _block: H256, outcome: &BlockOutcome) {
-        walk_block_outcome(self, outcome)
+        T::visit_block_outcome(self, _block, outcome)
     }
 
     fn visit_state_transition(&mut self, state_transition: &StateTransition) {
-        walk_state_transition(self, state_transition)
+        T::visit_state_transition(self, state_transition)
     }
 
-    fn visit_allocations(&mut self, _allocations: &Allocations) {}
+    fn visit_allocations(&mut self, _allocations: &Allocations) {
+        T::visit_allocations(self, _allocations)
+    }
 
     fn visit_memory_pages(&mut self, memory_pages: &MemoryPages) {
-        walk_memory_pages(self, memory_pages)
+        T::visit_memory_pages(self, memory_pages)
     }
 
     fn visit_memory_pages_region(&mut self, memory_pages_region: &MemoryPagesRegion) {
-        walk_memory_pages_region(self, memory_pages_region)
+        T::visit_memory_pages_region(self, memory_pages_region)
     }
 
-    fn visit_page_data(&mut self, _page_data: &[u8]) {}
+    fn visit_page_data(&mut self, _page_data: &[u8]) {
+        T::visit_page_data(self, _page_data)
+    }
 
     fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
-        walk_payload_lookup(self, payload_lookup)
+        T::visit_payload_lookup(self, payload_lookup)
     }
 
-    fn visit_payload(&mut self, _payload: &Payload) {}
+    fn visit_payload(&mut self, _payload: &Payload) {
+        T::visit_payload(self, _payload)
+    }
 
     fn visit_message_queue_hash_with_size(
         &mut self,
         queue_hash_with_size: MessageQueueHashWithSize,
     ) {
-        walk_message_queue_hash_with_size(self, queue_hash_with_size)
+        T::visit_message_queue_hash_with_size(self, queue_hash_with_size)
     }
 
     fn visit_message_queue(&mut self, queue: &MessageQueue) {
-        walk_message_queue(self, queue)
+        T::visit_message_queue(self, queue)
     }
 
     fn visit_waitlist(&mut self, waitlist: &Waitlist) {
-        walk_waitlist(self, waitlist)
+        T::visit_waitlist(self, waitlist)
     }
 
     fn visit_mailbox(&mut self, mailbox: &Mailbox) {
-        walk_mailbox(self, mailbox)
+        T::visit_mailbox(self, mailbox)
     }
 
     fn visit_user_mailbox(&mut self, user_mailbox: &UserMailbox) {
-        walk_user_mailbox(self, user_mailbox)
+        T::visit_user_mailbox(self, user_mailbox)
     }
 
     fn visit_dispatch_stash(&mut self, stash: &DispatchStash) {
-        walk_dispatch_stash(self, stash)
+        T::visit_dispatch_stash(self, stash)
     }
 }
 
@@ -246,295 +364,500 @@ macro_rules! visit_or_error {
     }};
 }
 
-pub fn walk_chain(visitor: &mut impl DatabaseVisitor, head: H256, bottom: H256) {
-    let mut block = head;
-    loop {
-        visitor.visit_block(block);
-
-        if block == bottom {
-            break;
-        }
-
-        let header = visitor.db().block_header(block);
-        if let Some(header) = header {
-            block = header.parent_hash;
-        } else {
-            visitor.on_db_error(DatabaseVisitorError::NoBlockHeader(block));
-            break;
-        }
-    }
+pub struct DatabaseWalker<V> {
+    visitor: V,
+    visited_blocks: HashSet<H256>,
 }
 
-pub fn walk_block(visitor: &mut impl DatabaseVisitor, block: H256) {
-    let meta = visitor.db().block_meta(block);
-    visitor.visit_block_meta(block, &meta);
-
-    visit_or_error!(visitor, block.block_header);
-
-    visit_or_error!(visitor, &block.block_events);
-
-    visit_or_error!(visitor, &block.block_commitment_queue);
-
-    visit_or_error!(visitor, &block.block_codes_queue);
-
-    visit_or_error!(visitor, block.previous_non_empty_block);
-
-    visit_or_error!(visitor, block.last_committed_batch);
-
-    visit_or_error!(visitor, &block.block_program_states);
-
-    visit_or_error!(visitor, &block.block_schedule);
-
-    visit_or_error!(visitor, &block.block_outcome);
-}
-
-pub fn walk_block_codes_queue(visitor: &mut impl DatabaseVisitor, queue: &VecDeque<CodeId>) {
-    for &code in queue {
-        visitor.visit_code_id(code);
-    }
-}
-
-pub fn walk_program_id(visitor: &mut impl DatabaseVisitor, program_id: ActorId) {
-    let Some(code_id) = visitor.db().program_code_id(program_id) else {
-        visitor.on_db_error(DatabaseVisitorError::NoProgramCodeId(program_id));
-        return;
-    };
-
-    visitor.visit_code_id(code_id);
-}
-
-pub fn walk_code_id(visitor: &mut impl DatabaseVisitor, code: CodeId) {
-    visit_or_error!(visitor, code.code_valid);
-
-    if let Some(original_code) = visitor.db().original_code(code) {
-        visitor.visit_original_code(&original_code);
-    } else {
-        visitor.on_db_error(DatabaseVisitorError::NoOriginalCode(code));
-    }
-
-    if let Some(instrumented_code) = visitor
-        .db()
-        .instrumented_code(ethexe_runtime_common::RUNTIME_ID, code)
-    {
-        visitor.visit_instrumented_code(code, &instrumented_code);
-    } else {
-        visitor.on_db_error(DatabaseVisitorError::NoInstrumentedCode(code));
-    }
-
-    visit_or_error!(visitor, &code.code_metadata);
-}
-
-pub fn walk_block_program_states(
-    visitor: &mut impl DatabaseVisitor,
-    program_states: &ProgramStates,
-) {
-    for StateHashWithQueueSize {
-        hash: program_state,
-        cached_queue_size: _,
-    } in program_states.values().copied()
-    {
-        visit_or_error!(visitor, program_state.as_ref());
-    }
-}
-
-pub fn walk_program_state(visitor: &mut impl DatabaseVisitor, state: &ProgramState) {
-    let ProgramState {
-        program,
-        queue,
-        waitlist_hash,
-        stash_hash,
-        mailbox_hash,
-        balance: _,
-        executable_balance: _,
-    } = state;
-
-    if let Program::Active(ActiveProgram {
-        allocations_hash,
-        pages_hash,
-        memory_infix: _,
-        initialized: _,
-    }) = program
-    {
-        if let Some(allocations) = allocations_hash.to_inner() {
-            visit_or_error!(visitor, allocations.as_ref());
-        }
-
-        if let Some(memory_pages) = pages_hash.to_inner() {
-            visit_or_error!(visitor, memory_pages.as_ref());
+impl<V> DatabaseWalker<V>
+where
+    V: DatabaseVisitor,
+{
+    pub fn new(visitor: V) -> Self {
+        Self {
+            visitor,
+            visited_blocks: HashSet::new(),
         }
     }
 
-    visitor.visit_message_queue_hash_with_size(*queue);
-
-    if let Some(waitlist) = waitlist_hash.to_inner() {
-        visit_or_error!(visitor, waitlist.as_ref());
+    pub fn into_visitor(self) -> V {
+        self.visitor
     }
 
-    if let Some(dispatch_stash) = stash_hash.to_inner() {
-        visit_or_error!(visitor, dispatch_stash.as_ref());
-    }
+    fn walk_chain(&mut self, head: H256, bottom: H256) {
+        let mut block = head;
+        loop {
+            self.visit_block(block);
 
-    if let Some(mailbox) = mailbox_hash.to_inner() {
-        visit_or_error!(visitor, mailbox.as_ref());
-    }
-}
+            if block == bottom {
+                break;
+            }
 
-pub fn walk_block_schedule(visitor: &mut impl DatabaseVisitor, block: H256, schedule: &Schedule) {
-    for (&height, tasks) in schedule {
-        visitor.visit_block_schedule_tasks(block, height, tasks);
-    }
-}
-
-pub fn walk_block_schedule_tasks(
-    visitor: &mut impl DatabaseVisitor,
-    tasks: &BTreeSet<ScheduledTask>,
-) {
-    for task in tasks {
-        visitor.visit_scheduled_task(task);
-    }
-}
-
-pub fn walk_scheduled_task(visitor: &mut impl DatabaseVisitor, task: &ScheduledTask) {
-    match *task {
-        ScheduledTask::PauseProgram(program_id) => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::RemoveCode(code_id) => {
-            visitor.visit_code_id(code_id);
-        }
-        ScheduledTask::RemoveFromMailbox((program_id, _destination), _msg_id) => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::RemoveFromWaitlist(program_id, _) => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::RemovePausedProgram(program_id) => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::WakeMessage(program_id, _) => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::SendDispatch((program_id, _msg_id)) => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::SendUserMessage {
-            message_id: _,
-            to_mailbox: program_id,
-        } => {
-            visitor.visit_program_id(program_id);
-        }
-        ScheduledTask::RemoveGasReservation(program_id, _) => {
-            visitor.visit_program_id(program_id);
-        }
-        #[allow(deprecated)]
-        ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
-    }
-}
-
-pub fn walk_block_outcome(visitor: &mut impl DatabaseVisitor, outcome: &BlockOutcome) {
-    match outcome {
-        BlockOutcome::Transitions(outcome) => {
-            for transition in outcome {
-                visitor.visit_state_transition(transition);
+            let header = self.db().block_header(block);
+            if let Some(header) = header {
+                block = header.parent_hash;
+            } else {
+                self.on_db_error(DatabaseVisitorError::NoBlockHeader(block));
+                break;
             }
         }
-        BlockOutcome::ForcedNonEmpty => {}
     }
-}
 
-pub fn walk_state_transition(
-    visitor: &mut impl DatabaseVisitor,
-    state_transition: &StateTransition,
-) {
-    let &StateTransition {
-        actor_id,
-        new_state_hash: program_state,
-        exited: _,
-        inheritor: _,
-        value_to_receive: _,
-        value_claims: _,
-        messages: _,
-    } = state_transition;
+    fn walk_block(&mut self, block: H256) {
+        let meta = self.db().block_meta(block);
+        self.visit_block_meta(block, &meta);
 
-    visitor.visit_program_id(actor_id);
+        visit_or_error!(self, block.block_header);
 
-    if program_state != H256::zero() {
-        visit_or_error!(visitor, program_state.as_ref());
+        visit_or_error!(self, &block.block_events);
+
+        visit_or_error!(self, &block.block_commitment_queue);
+
+        visit_or_error!(self, &block.block_codes_queue);
+
+        visit_or_error!(self, block.previous_non_empty_block);
+
+        visit_or_error!(self, block.last_committed_batch);
+
+        visit_or_error!(self, &block.block_program_states);
+
+        visit_or_error!(self, &block.block_schedule);
+
+        visit_or_error!(self, &block.block_outcome);
     }
-}
 
-pub fn walk_memory_pages(visitor: &mut impl DatabaseVisitor, pages: &MemoryPages) {
-    for memory_pages_region in pages.to_inner().into_iter().flat_map(MaybeHashOf::to_inner) {
-        visit_or_error!(visitor, memory_pages_region.as_ref());
-    }
-}
-
-pub fn walk_memory_pages_region(visitor: &mut impl DatabaseVisitor, region: &MemoryPagesRegion) {
-    for &page_data in region.as_inner().values() {
-        visit_or_error!(visitor, page_data.as_ref());
-    }
-}
-
-pub fn walk_message_queue_hash_with_size(
-    visitor: &mut impl DatabaseVisitor,
-    message_queue_hash_with_size: MessageQueueHashWithSize,
-) {
-    if let Some(message_queue) = message_queue_hash_with_size.hash.to_inner() {
-        visit_or_error!(visitor, message_queue.as_ref());
-    }
-}
-
-pub fn walk_message_queue(visitor: &mut impl DatabaseVisitor, queue: &MessageQueue) {
-    for dispatch in queue.as_ref() {
-        visitor.visit_payload_lookup(&dispatch.payload);
-    }
-}
-
-pub fn walk_waitlist(visitor: &mut impl DatabaseVisitor, waitlist: &Waitlist) {
-    for Expiring {
-        value: dispatch,
-        expiry: _,
-    } in waitlist.as_ref().values()
-    {
-        visitor.visit_payload_lookup(&dispatch.payload);
-    }
-}
-
-pub fn walk_mailbox(visitor: &mut impl DatabaseVisitor, mailbox: &Mailbox) {
-    for &user_mailbox in mailbox.as_ref().values() {
-        visit_or_error!(visitor, user_mailbox.as_ref());
-    }
-}
-
-pub fn walk_user_mailbox(visitor: &mut impl DatabaseVisitor, user_mailbox: &UserMailbox) {
-    for Expiring {
-        value: msg,
-        expiry: _,
-    } in user_mailbox.as_ref().values()
-    {
-        visitor.visit_payload_lookup(&msg.payload);
-    }
-}
-
-pub fn walk_dispatch_stash(visitor: &mut impl DatabaseVisitor, stash: &DispatchStash) {
-    for Expiring {
-        value: (dispatch, _user_id),
-        expiry: _,
-    } in stash.as_ref().values()
-    {
-        visitor.visit_payload_lookup(&dispatch.payload);
-    }
-}
-
-pub fn walk_payload_lookup(visitor: &mut impl DatabaseVisitor, payload_lookup: &PayloadLookup) {
-    match payload_lookup {
-        PayloadLookup::Direct(payload) => {
-            visitor.visit_payload(payload);
+    fn walk_block_commitment_queue(&mut self, _block: H256, queue: &VecDeque<H256>) {
+        for &block in queue {
+            self.visit_block(block);
         }
-        PayloadLookup::Stored(payload) => {
-            let payload = *payload;
-            visit_or_error!(visitor, payload.as_ref());
+    }
+
+    fn walk_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
+        for &code in queue {
+            self.visit_code_id(code);
         }
+    }
+
+    fn walk_program_id(&mut self, program_id: ActorId) {
+        let Some(code_id) = self.db().program_code_id(program_id) else {
+            self.on_db_error(DatabaseVisitorError::NoProgramCodeId(program_id));
+            return;
+        };
+
+        self.visit_code_id(code_id);
+    }
+
+    fn walk_code_id(&mut self, code: CodeId) {
+        visit_or_error!(self, code.code_valid);
+
+        if let Some(original_code) = self.db().original_code(code) {
+            self.visit_original_code(&original_code);
+        } else {
+            self.on_db_error(DatabaseVisitorError::NoOriginalCode(code));
+        }
+
+        if let Some(instrumented_code) = self
+            .db()
+            .instrumented_code(ethexe_runtime_common::RUNTIME_ID, code)
+        {
+            self.visit_instrumented_code(code, &instrumented_code);
+        } else {
+            self.on_db_error(DatabaseVisitorError::NoInstrumentedCode(code));
+        }
+
+        visit_or_error!(self, &code.code_metadata);
+    }
+
+    fn walk_block_program_states(&mut self, _block: H256, program_states: &ProgramStates) {
+        for StateHashWithQueueSize {
+            hash: program_state,
+            cached_queue_size: _,
+        } in program_states.values().copied()
+        {
+            visit_or_error!(self, program_state.as_ref());
+        }
+    }
+
+    fn walk_program_state(&mut self, state: &ProgramState) {
+        let ProgramState {
+            program,
+            queue,
+            waitlist_hash,
+            stash_hash,
+            mailbox_hash,
+            balance: _,
+            executable_balance: _,
+        } = state;
+
+        if let Program::Active(ActiveProgram {
+            allocations_hash,
+            pages_hash,
+            memory_infix: _,
+            initialized: _,
+        }) = program
+        {
+            if let Some(allocations) = allocations_hash.to_inner() {
+                visit_or_error!(self, allocations.as_ref());
+            }
+
+            if let Some(memory_pages) = pages_hash.to_inner() {
+                visit_or_error!(self, memory_pages.as_ref());
+            }
+        }
+
+        self.visit_message_queue_hash_with_size(*queue);
+
+        if let Some(waitlist) = waitlist_hash.to_inner() {
+            visit_or_error!(self, waitlist.as_ref());
+        }
+
+        if let Some(dispatch_stash) = stash_hash.to_inner() {
+            visit_or_error!(self, dispatch_stash.as_ref());
+        }
+
+        if let Some(mailbox) = mailbox_hash.to_inner() {
+            visit_or_error!(self, mailbox.as_ref());
+        }
+    }
+
+    fn walk_block_schedule(&mut self, block: H256, schedule: &Schedule) {
+        for (&height, tasks) in schedule {
+            self.visit_block_schedule_tasks(block, height, tasks);
+        }
+    }
+
+    fn walk_block_schedule_tasks(&mut self, tasks: &BTreeSet<ScheduledTask>) {
+        for task in tasks {
+            self.visit_scheduled_task(task);
+        }
+    }
+
+    fn walk_scheduled_task(&mut self, task: &ScheduledTask) {
+        match *task {
+            ScheduledTask::PauseProgram(program_id) => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::RemoveCode(code_id) => {
+                self.visit_code_id(code_id);
+            }
+            ScheduledTask::RemoveFromMailbox((program_id, _destination), _msg_id) => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::RemoveFromWaitlist(program_id, _) => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::RemovePausedProgram(program_id) => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::WakeMessage(program_id, _) => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::SendDispatch((program_id, _msg_id)) => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::SendUserMessage {
+                message_id: _,
+                to_mailbox: program_id,
+            } => {
+                self.visit_program_id(program_id);
+            }
+            ScheduledTask::RemoveGasReservation(program_id, _) => {
+                self.visit_program_id(program_id);
+            }
+            #[allow(deprecated)]
+            ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
+        }
+    }
+
+    fn walk_block_outcome(&mut self, outcome: &BlockOutcome) {
+        match outcome {
+            BlockOutcome::Transitions(outcome) => {
+                for transition in outcome {
+                    self.visit_state_transition(transition);
+                }
+            }
+            BlockOutcome::ForcedNonEmpty => {}
+        }
+    }
+
+    fn walk_state_transition(&mut self, state_transition: &StateTransition) {
+        let &StateTransition {
+            actor_id,
+            new_state_hash: program_state,
+            exited: _,
+            inheritor: _,
+            value_to_receive: _,
+            value_claims: _,
+            messages: _,
+        } = state_transition;
+
+        self.visit_program_id(actor_id);
+
+        if program_state != H256::zero() {
+            visit_or_error!(self, program_state.as_ref());
+        }
+    }
+
+    fn walk_memory_pages(&mut self, pages: &MemoryPages) {
+        for memory_pages_region in pages.to_inner().into_iter().flat_map(MaybeHashOf::to_inner) {
+            visit_or_error!(self, memory_pages_region.as_ref());
+        }
+    }
+
+    fn walk_memory_pages_region(&mut self, region: &MemoryPagesRegion) {
+        for &page_data in region.as_inner().values() {
+            visit_or_error!(self, page_data.as_ref());
+        }
+    }
+
+    fn walk_message_queue_hash_with_size(
+        &mut self,
+        message_queue_hash_with_size: MessageQueueHashWithSize,
+    ) {
+        if let Some(message_queue) = message_queue_hash_with_size.hash.to_inner() {
+            visit_or_error!(self, message_queue.as_ref());
+        }
+    }
+
+    fn walk_message_queue(&mut self, queue: &MessageQueue) {
+        for dispatch in queue.as_ref() {
+            self.visit_payload_lookup(&dispatch.payload);
+        }
+    }
+
+    fn walk_waitlist(&mut self, waitlist: &Waitlist) {
+        for Expiring {
+            value: dispatch,
+            expiry: _,
+        } in waitlist.as_ref().values()
+        {
+            self.visit_payload_lookup(&dispatch.payload);
+        }
+    }
+
+    fn walk_mailbox(&mut self, mailbox: &Mailbox) {
+        for &user_mailbox in mailbox.as_ref().values() {
+            visit_or_error!(self, user_mailbox.as_ref());
+        }
+    }
+
+    fn walk_user_mailbox(&mut self, user_mailbox: &UserMailbox) {
+        for Expiring {
+            value: msg,
+            expiry: _,
+        } in user_mailbox.as_ref().values()
+        {
+            self.visit_payload_lookup(&msg.payload);
+        }
+    }
+
+    fn walk_dispatch_stash(&mut self, stash: &DispatchStash) {
+        for Expiring {
+            value: (dispatch, _user_id),
+            expiry: _,
+        } in stash.as_ref().values()
+        {
+            self.visit_payload_lookup(&dispatch.payload);
+        }
+    }
+
+    fn walk_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
+        match payload_lookup {
+            PayloadLookup::Direct(payload) => {
+                self.visit_payload(payload);
+            }
+            PayloadLookup::Stored(payload) => {
+                let payload = *payload;
+                visit_or_error!(self, payload.as_ref());
+            }
+        }
+    }
+}
+
+impl<V> DatabaseVisitor for DatabaseWalker<V>
+where
+    V: DatabaseVisitor,
+{
+    fn db(&self) -> &dyn DatabaseVisitorStorage {
+        self.visitor.db()
+    }
+
+    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+        self.visitor.on_db_error(error);
+    }
+
+    fn visit_chain(&mut self, head: H256, bottom: H256) {
+        self.visitor.visit_chain(head, bottom);
+        self.walk_chain(head, bottom);
+    }
+
+    fn visit_block(&mut self, block: H256) {
+        // avoid recursion
+        if self.visited_blocks.insert(block) {
+            self.visitor.visit_block(block);
+            self.walk_block(block);
+        }
+    }
+
+    fn visit_block_meta(&mut self, _block: H256, _meta: &BlockMeta) {
+        self.visitor.visit_block_meta(_block, _meta);
+    }
+
+    fn visit_block_header(&mut self, _block: H256, _header: BlockHeader) {
+        self.visitor.visit_block_header(_block, _header);
+    }
+
+    fn visit_block_events(&mut self, _block: H256, _events: &[BlockEvent]) {
+        self.visitor.visit_block_events(_block, _events);
+    }
+
+    fn visit_block_commitment_queue(&mut self, _block: H256, _queue: &VecDeque<H256>) {
+        self.visitor.visit_block_commitment_queue(_block, _queue);
+        self.walk_block_commitment_queue(_block, _queue);
+    }
+
+    fn visit_block_codes_queue(&mut self, _block: H256, queue: &VecDeque<CodeId>) {
+        self.visitor.visit_block_codes_queue(_block, queue);
+        self.walk_block_codes_queue(_block, queue)
+    }
+
+    fn visit_code_id(&mut self, code_id: CodeId) {
+        self.visitor.visit_code_id(code_id);
+        self.walk_code_id(code_id);
+    }
+
+    fn visit_code_valid(&mut self, _code_id: CodeId, _code_valid: bool) {
+        self.visitor.visit_code_valid(_code_id, _code_valid);
+    }
+
+    fn visit_original_code(&mut self, _original_code: &[u8]) {
+        self.visitor.visit_original_code(_original_code);
+    }
+
+    fn visit_instrumented_code(&mut self, _code_id: CodeId, _instrumented_code: &InstrumentedCode) {
+        self.visitor
+            .visit_instrumented_code(_code_id, _instrumented_code);
+    }
+
+    fn visit_code_metadata(&mut self, _code_id: CodeId, _metadata: &CodeMetadata) {
+        self.visitor.visit_code_metadata(_code_id, _metadata);
+    }
+
+    fn visit_program_id(&mut self, _program_id: ActorId) {
+        self.visitor.visit_program_id(_program_id);
+        self.walk_program_id(_program_id);
+    }
+
+    fn visit_previous_non_empty_block(&mut self, _block: H256, _previous_non_empty_block: H256) {
+        self.visitor
+            .visit_previous_non_empty_block(_block, _previous_non_empty_block);
+    }
+
+    fn visit_last_committed_batch(&mut self, _block: H256, _batch: Digest) {
+        self.visitor.visit_last_committed_batch(_block, _batch);
+    }
+
+    fn visit_block_program_states(&mut self, _block: H256, program_states: &ProgramStates) {
+        self.visitor
+            .visit_block_program_states(_block, program_states);
+        self.walk_block_program_states(_block, program_states)
+    }
+
+    fn visit_program_state(&mut self, state: &ProgramState) {
+        self.visitor.visit_program_state(state);
+        self.walk_program_state(state);
+    }
+
+    fn visit_block_schedule(&mut self, block: H256, schedule: &Schedule) {
+        self.visitor.visit_block_schedule(block, schedule);
+        self.walk_block_schedule(block, schedule);
+    }
+
+    fn visit_block_schedule_tasks(
+        &mut self,
+        _block: H256,
+        _height: u32,
+        tasks: &BTreeSet<ScheduledTask>,
+    ) {
+        self.visitor
+            .visit_block_schedule_tasks(_block, _height, tasks);
+        self.walk_block_schedule_tasks(tasks);
+    }
+
+    fn visit_scheduled_task(&mut self, task: &ScheduledTask) {
+        self.visitor.visit_scheduled_task(task);
+        self.walk_scheduled_task(task);
+    }
+
+    fn visit_block_outcome(&mut self, _block: H256, outcome: &BlockOutcome) {
+        self.visitor.visit_block_outcome(_block, outcome);
+        self.walk_block_outcome(outcome);
+    }
+
+    fn visit_state_transition(&mut self, state_transition: &StateTransition) {
+        self.visitor.visit_state_transition(state_transition);
+        self.walk_state_transition(state_transition);
+    }
+
+    fn visit_allocations(&mut self, _allocations: &Allocations) {
+        self.visitor.visit_allocations(_allocations);
+    }
+
+    fn visit_memory_pages(&mut self, memory_pages: &MemoryPages) {
+        self.visitor.visit_memory_pages(memory_pages);
+        self.walk_memory_pages(memory_pages);
+    }
+
+    fn visit_memory_pages_region(&mut self, memory_pages_region: &MemoryPagesRegion) {
+        self.visitor.visit_memory_pages_region(memory_pages_region);
+        self.walk_memory_pages_region(memory_pages_region);
+    }
+
+    fn visit_page_data(&mut self, _page_data: &[u8]) {
+        self.visitor.visit_page_data(_page_data);
+    }
+
+    fn visit_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
+        self.visitor.visit_payload_lookup(payload_lookup);
+        self.walk_payload_lookup(payload_lookup);
+    }
+
+    fn visit_payload(&mut self, _payload: &Payload) {
+        self.visitor.visit_payload(_payload);
+    }
+
+    fn visit_message_queue_hash_with_size(
+        &mut self,
+        queue_hash_with_size: MessageQueueHashWithSize,
+    ) {
+        self.visitor
+            .visit_message_queue_hash_with_size(queue_hash_with_size);
+        self.walk_message_queue_hash_with_size(queue_hash_with_size);
+    }
+
+    fn visit_message_queue(&mut self, queue: &MessageQueue) {
+        self.visitor.visit_message_queue(queue);
+        self.walk_message_queue(queue);
+    }
+
+    fn visit_waitlist(&mut self, waitlist: &Waitlist) {
+        self.visitor.visit_waitlist(waitlist);
+        self.walk_waitlist(waitlist);
+    }
+
+    fn visit_mailbox(&mut self, mailbox: &Mailbox) {
+        self.visitor.visit_mailbox(mailbox);
+        self.walk_mailbox(mailbox);
+    }
+
+    fn visit_user_mailbox(&mut self, user_mailbox: &UserMailbox) {
+        self.visitor.visit_user_mailbox(user_mailbox);
+        self.walk_user_mailbox(user_mailbox);
+    }
+
+    fn visit_dispatch_stash(&mut self, stash: &DispatchStash) {
+        self.visitor.visit_dispatch_stash(stash);
+        self.walk_dispatch_stash(stash);
     }
 }
 
@@ -577,12 +900,10 @@ mod tests {
 
         fn visit_code_id(&mut self, code_id: CodeId) {
             self.visited_code_ids.push(code_id);
-            walk_code_id(self, code_id);
         }
 
         fn visit_program_id(&mut self, program_id: ActorId) {
             self.visited_program_ids.push(program_id);
-            walk_program_id(self, program_id);
         }
 
         fn visit_payload(&mut self, payload: &Payload) {
@@ -597,7 +918,7 @@ mod tests {
         let bottom = H256::from_low_u64_be(2);
 
         // This will fail because we don't have the block header in the database
-        visitor.visit_chain(head, bottom);
+        DatabaseWalker::new(&mut visitor).visit_chain(head, bottom);
 
         // Should have attempted to visit the head block
         assert!(!visitor.errors.is_empty());
@@ -613,7 +934,7 @@ mod tests {
         let mut visitor = TestVisitor::new();
         let block_hash = H256::from_low_u64_be(42);
 
-        visitor.visit_block(block_hash);
+        DatabaseWalker::new(&mut visitor).visit_block(block_hash);
 
         // Should have errors for all missing block data
         let expected_errors = [
@@ -644,7 +965,7 @@ mod tests {
         queue.push_back(code_id1);
         queue.push_back(code_id2);
 
-        visitor.visit_block_codes_queue(block_hash, &queue);
+        DatabaseWalker::new(&mut visitor).visit_block_codes_queue(block_hash, &queue);
 
         assert_eq!(visitor.visited_code_ids.len(), 2);
         assert!(visitor.visited_code_ids.contains(&code_id1));
@@ -668,7 +989,7 @@ mod tests {
             },
         );
 
-        visitor.visit_block_program_states(block_hash, &program_states);
+        DatabaseWalker::new(&mut visitor).visit_block_program_states(block_hash, &program_states);
 
         // Should have error because program state is not in database
         assert!(
@@ -683,7 +1004,7 @@ mod tests {
         let mut visitor = TestVisitor::new();
         let program_id = ActorId::from([5u8; 32]);
 
-        visitor.visit_program_id(program_id);
+        DatabaseWalker::new(&mut visitor).visit_program_id(program_id);
 
         // Should have error because program code ID is not in database
         assert!(
@@ -698,7 +1019,7 @@ mod tests {
         let code_id = CodeId::from(1);
 
         let mut visitor = TestVisitor::new();
-        visitor.visit_code_id(code_id);
+        DatabaseWalker::new(&mut visitor).visit_code_id(code_id);
 
         let expected_errors = [
             DatabaseVisitorError::NoCodeValid(code_id),
@@ -718,7 +1039,7 @@ mod tests {
         let program_id = ActorId::from([6u8; 32]);
         let task = ScheduledTask::PauseProgram(program_id);
 
-        visitor.visit_scheduled_task(&task);
+        DatabaseWalker::new(&mut visitor).visit_scheduled_task(&task);
 
         assert!(visitor.visited_program_ids.contains(&program_id));
     }
@@ -729,7 +1050,7 @@ mod tests {
         let code_id = CodeId::from([7u8; 32]);
         let task = ScheduledTask::RemoveCode(code_id);
 
-        visitor.visit_scheduled_task(&task);
+        DatabaseWalker::new(&mut visitor).visit_scheduled_task(&task);
 
         assert!(visitor.visited_code_ids.contains(&code_id));
     }
@@ -741,7 +1062,7 @@ mod tests {
         let msg_id = MessageId::from([9u8; 32]);
         let task = ScheduledTask::WakeMessage(program_id, msg_id);
 
-        visitor.visit_scheduled_task(&task);
+        DatabaseWalker::new(&mut visitor).visit_scheduled_task(&task);
 
         assert!(visitor.visited_program_ids.contains(&program_id));
     }
@@ -760,7 +1081,7 @@ mod tests {
         tasks.insert(ScheduledTask::RemoveCode(code_id));
         tasks.insert(ScheduledTask::WakeMessage(program_id2, MessageId::zero()));
 
-        visitor.visit_block_schedule_tasks(block_hash, 123, &tasks);
+        DatabaseWalker::new(&mut visitor).visit_block_schedule_tasks(block_hash, 123, &tasks);
 
         assert!(visitor.visited_program_ids.contains(&program_id1));
         assert!(visitor.visited_program_ids.contains(&program_id2));
@@ -778,7 +1099,7 @@ mod tests {
         tasks.insert(ScheduledTask::PauseProgram(program_id));
         schedule.insert(1000u32, tasks);
 
-        visitor.visit_block_schedule(block_hash, &schedule);
+        DatabaseWalker::new(&mut visitor).visit_block_schedule(block_hash, &schedule);
 
         assert!(visitor.visited_program_ids.contains(&program_id));
     }
@@ -790,7 +1111,7 @@ mod tests {
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 
-        visitor.visit_block_outcome(
+        DatabaseWalker::new(&mut visitor).visit_block_outcome(
             block_hash,
             &BlockOutcome::Transitions(vec![StateTransition {
                 actor_id,
@@ -831,7 +1152,7 @@ mod tests {
             messages: Vec::new(),
         };
 
-        visitor.visit_state_transition(&state_transition);
+        DatabaseWalker::new(&mut visitor).visit_state_transition(&state_transition);
 
         assert!(visitor.visited_program_ids.contains(&actor_id));
         // Should have error for missing program state
@@ -857,7 +1178,7 @@ mod tests {
             messages: Vec::new(),
         };
 
-        visitor.visit_state_transition(&state_transition);
+        DatabaseWalker::new(&mut visitor).visit_state_transition(&state_transition);
 
         assert!(visitor.visited_program_ids.contains(&actor_id));
         // Should not try to get program state for zero hash
@@ -873,7 +1194,7 @@ mod tests {
         let payload = Payload::try_from(payload_data.clone()).unwrap();
         let payload_lookup = PayloadLookup::Direct(payload.clone());
 
-        visitor.visit_payload_lookup(&payload_lookup);
+        DatabaseWalker::new(&mut visitor).visit_payload_lookup(&payload_lookup);
 
         assert!(visitor.visited_payloads.contains(&payload));
     }
@@ -884,7 +1205,7 @@ mod tests {
         let payload_hash = unsafe { HashOf::<Payload>::new(H256::zero()) };
         let payload_lookup = PayloadLookup::Stored(payload_hash);
 
-        visitor.visit_payload_lookup(&payload_lookup);
+        DatabaseWalker::new(&mut visitor).visit_payload_lookup(&payload_lookup);
 
         // Should have error for missing stored payload
         assert!(
