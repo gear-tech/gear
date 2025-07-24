@@ -64,7 +64,7 @@ pub(crate) fn prepare<
 /// (all missing codes, missing codes that have been already validated)
 fn propagate_data_from_parent<
     'a,
-    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead + OnChainStorageRead,
+    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
 >(
     db: &DB,
     block: H256,
