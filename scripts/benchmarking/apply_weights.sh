@@ -17,6 +17,8 @@ else
     exit 1
 fi
 
+# This will fail on MacOS, if it's not homebrew's gsed.
+# To fix it, install gnu-sed or add '' after -i.
 echo "[+] Changing trait paths for gear pallets"
 sed -i 's/pallet_gear[[:alnum:]_]*::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' "$WEIGHTS_OUTPUT_DIR"/*
 
