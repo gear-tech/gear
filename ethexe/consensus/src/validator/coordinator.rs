@@ -24,6 +24,7 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
 use ethexe_common::{Address, gear::BatchCommitment};
+use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -77,7 +78,7 @@ impl StateHandler for Coordinator {
 impl Coordinator {
     pub fn create(
         mut ctx: ValidatorContext,
-        validators: nonempty::NonEmpty<Address>,
+        validators: NonEmpty<Address>,
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
         ensure!(
@@ -119,14 +120,14 @@ mod tests {
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::ToDigest;
     use gprimitives::H256;
+    use nonempty::NonEmpty;
 
     #[test]
     fn coordinator_create_success() {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 2;
         let validators =
-            nonempty::NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect())
-                .unwrap();
+            NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
@@ -142,8 +143,7 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 3;
         let validators =
-            nonempty::NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect())
-                .unwrap();
+            NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
         assert!(
@@ -157,8 +157,7 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 0;
         let validators =
-            nonempty::NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect())
-                .unwrap();
+            NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
         assert!(
@@ -172,8 +171,8 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 3;
         let validators =
-            nonempty::NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect())
-                .unwrap();
+            NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
+
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();
 

@@ -34,6 +34,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     fmt,
@@ -263,7 +264,7 @@ impl ObserverService {
         };
 
         let genesis_validators =
-            nonempty::NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
+            NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
         db.set_block_header(genesis_block_hash, genesis_header.clone());

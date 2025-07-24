@@ -32,6 +32,7 @@ use ethexe_common::{
 };
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use std::collections::HashMap;
 
 pub(crate) trait SyncDB:
@@ -178,7 +179,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .validators_at(block)
                 .await?;
 
-                nonempty::NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
+                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
                     "validator set is empty on router for block({block})"
                 ))?
             }

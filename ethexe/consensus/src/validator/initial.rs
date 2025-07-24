@@ -24,6 +24,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{Address, SimpleBlockData, db::OnChainStorageRead};
 use gprimitives::H256;
+use nonempty::NonEmpty;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -113,7 +114,7 @@ impl Initial {
         .into())
     }
 
-    fn producer_for(&self, timestamp: u64, validators: &nonempty::NonEmpty<Address>) -> Address {
+    fn producer_for(&self, timestamp: u64, validators: &NonEmpty<Address>) -> Address {
         let slot = timestamp / self.ctx.slot_duration.as_secs();
         let index = crate::block_producer_index(validators.len(), slot);
         validators
@@ -129,6 +130,7 @@ mod tests {
     use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use ethexe_common::db::OnChainStorageWrite;
     use gprimitives::H256;
+    use nonempty::nonempty;
 
     #[test]
     fn create_initial_success() {
@@ -148,7 +150,7 @@ mod tests {
     #[tokio::test]
     async fn switch_to_producer() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty::nonempty![
+        let validators = nonempty![
             ctx.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
@@ -167,7 +169,7 @@ mod tests {
     #[test]
     fn switch_to_subordinate() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty::nonempty![
+        let validators = nonempty![
             ctx.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),
@@ -214,8 +216,7 @@ mod tests {
     #[test]
     fn producer_for_calculates_correct_producer() {
         let (ctx, keys) = mock_validator_context();
-        let validators =
-            nonempty::NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
+        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
         let timestamp = 10;
 
         let producer = Initial {
