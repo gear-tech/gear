@@ -77,7 +77,7 @@ impl StateHandler for Coordinator {
 impl Coordinator {
     pub fn create(
         mut ctx: ValidatorContext,
-        validators: Vec<Address>,
+        validators: nonempty::NonEmpty<Address>,
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
         ensure!(
@@ -124,7 +124,9 @@ mod tests {
     fn coordinator_create_success() {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 2;
-        let validators: Vec<_> = keys.iter().take(3).map(|k| k.to_address()).collect();
+        let validators =
+            nonempty::NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect())
+                .unwrap();
         let batch = BatchCommitment::default();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
@@ -139,7 +141,9 @@ mod tests {
     fn coordinator_create_insufficient_validators() {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 3;
-        let validators = keys.iter().take(2).map(|k| k.to_address()).collect();
+        let validators =
+            nonempty::NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect())
+                .unwrap();
         let batch = BatchCommitment::default();
 
         assert!(
@@ -152,7 +156,9 @@ mod tests {
     fn coordinator_create_zero_threshold() {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 0;
-        let validators: Vec<_> = keys.iter().take(1).map(|k| k.to_address()).collect();
+        let validators =
+            nonempty::NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect())
+                .unwrap();
         let batch = BatchCommitment::default();
 
         assert!(
@@ -165,7 +171,9 @@ mod tests {
     fn process_validation_reply() {
         let (mut ctx, keys) = mock_validator_context();
         ctx.signatures_threshold = 3;
-        let validators: Vec<_> = keys.iter().take(3).map(|k| k.to_address()).collect();
+        let validators =
+            nonempty::NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect())
+                .unwrap();
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();
 

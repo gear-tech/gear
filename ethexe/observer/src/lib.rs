@@ -60,16 +60,16 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BlockSyncedData {
-    pub block_hash: H256,
-    pub validators: Vec<Address>,
-}
+// #[derive(Clone, Debug, PartialEq, Eq)]
+// pub struct BlockSyncedData {
+//     pub block_hash: H256,
+//     pub validators: Vec<Address>,
+// }
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
-    BlockSynced(BlockSyncedData),
+    BlockSynced(H256),
 }
 
 impl fmt::Debug for ObserverEvent {
@@ -104,7 +104,7 @@ pub struct ObserverService {
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
+    sync_future: Option<BoxFuture<'static, Result<H256>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 

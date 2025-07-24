@@ -19,13 +19,13 @@
 //! Implementation of the on-chain data synchronization.
 
 use crate::{
-    BlockSyncedData, RuntimeConfig,
+    RuntimeConfig,
     utils::{load_block_data, load_blocks_data_batched},
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, Address, BlockData, BlockHeader, CodeBlobInfo,
+    self, BlockData, BlockHeader, CodeBlobInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
@@ -53,7 +53,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
-    pub async fn sync(self, chain_head: Header) -> Result<BlockSyncedData> {
+    pub async fn sync(self, chain_head: Header) -> Result<H256> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -65,13 +65,9 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, &header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        let validators = self.propagate_validators(block, &header).await?;
+        self.propagate_validators(block, &header).await?;
 
-        let synced_data = BlockSyncedData {
-            block_hash: block,
-            validators: validators.into(),
-        };
-        Ok(synced_data)
+        Ok(block)
     }
 
     async fn load_chain(
@@ -171,11 +167,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(
-        &self,
-        block: H256,
-        header: &BlockHeader,
-    ) -> Result<nonempty::NonEmpty<Address>> {
+    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
@@ -192,7 +184,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             }
         };
         self.db.set_validators(block, validators.clone());
-        Ok(validators)
+        Ok(())
     }
 
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
