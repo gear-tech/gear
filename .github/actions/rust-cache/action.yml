@@ -53,9 +53,12 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
+    - run: rustup --version &> ${{ runner.temp }}/rust-version.txt
+      shell: bash
+
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/wbuild'
+        prefix-key: "rust-cache/${{ hashFiles(format('{0}/rust-version.txt', runner.temp)) }}/wbuild"
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
