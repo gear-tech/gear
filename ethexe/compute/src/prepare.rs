@@ -19,10 +19,7 @@
 use crate::{ComputeError, Result, utils};
 use ethexe_common::{
     SimpleBlockData,
-    db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
-        OnChainStorageWrite,
-    },
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, RouterEvent},
 };
 use gprimitives::{CodeId, H256};
@@ -36,11 +33,7 @@ pub(crate) struct PrepareInfo {
 }
 
 pub(crate) fn prepare<
-    DB: OnChainStorageRead
-        + OnChainStorageWrite
-        + BlockMetaStorageRead
-        + BlockMetaStorageWrite
-        + CodesStorageRead,
+    DB: OnChainStorageRead + BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
 >(
     db: &DB,
     head: H256,
@@ -71,11 +64,7 @@ pub(crate) fn prepare<
 /// (all missing codes, missing codes that have been already validated)
 fn propagate_data_from_parent<
     'a,
-    DB: BlockMetaStorageRead
-        + BlockMetaStorageWrite
-        + CodesStorageRead
-        + OnChainStorageWrite
-        + OnChainStorageRead,
+    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead + OnChainStorageRead,
 >(
     db: &DB,
     block: H256,
@@ -124,14 +113,6 @@ fn propagate_data_from_parent<
 
     // Propagate last committed batch
     db.set_last_committed_batch(block, last_committed_batch);
-
-    // Propagate last validator set if it is not set in the `ObserverService`
-    if db.validators(block).is_none() {
-        let parent_validator_set = db
-            .validators(parent)
-            .ok_or(ComputeError::ValidatorSetNotFound(parent))?;
-        db.set_validators(block, parent_validator_set);
-    }
 
     // Propagate `wait for code validation` blocks queue
     let mut codes_queue = db

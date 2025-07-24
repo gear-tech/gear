@@ -376,11 +376,7 @@ impl RouterQuery {
             .timelines()
             .call()
             .await
-            .map(|res| Timelines {
-                era: res.era.to::<u64>(),
-                election: res.election.to::<u64>(),
-                validation_delay: res.validationDelay.to::<u64>(),
-            })
+            .map(|res| res.into())
             .map_err(Into::into)
     }
 
