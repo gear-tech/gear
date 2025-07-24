@@ -200,7 +200,7 @@ jobs:
           body: |
             `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
 
-            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests.rs`
+            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests/mod.rs`
           labels: A0-pleasereview
 
   destroy-runner:
