@@ -10,6 +10,10 @@
 #
 # Should be run from the root of the repo.
 
+# Profile to use for benchmarking.
+# This should be set to `production` for production benchmarks.
+PROFILE=production
+
 # Steps and repeats for main benchmark.
 BENCHMARK_STEPS=50
 BENCHMARK_REPEAT=20
@@ -88,10 +92,10 @@ done
 if [ "$skip_build" != true ]
 then
   echo "[+] Compiling Gear benchmarks..."
-  cargo build --profile=production --locked --features=runtime-benchmarks
+  cargo build -p gear-cli --profile="$PROFILE" --locked --features=runtime-benchmarks
 fi
 
-PATH_BASE=./target/production
+PATH_BASE="./target/$PROFILE"
 # The executable to use.
 GEAR=$PATH_BASE/gear
 # The runtime to use.
