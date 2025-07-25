@@ -22,10 +22,13 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
 };
-use ethexe_runtime_common::state::{
-    ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf, MemoryPages,
-    MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
-    ProgramState, Storage, UserMailbox, Waitlist,
+use ethexe_runtime_common::{
+    RUNTIME_ID,
+    state::{
+        ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf,
+        MemoryPages, MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup,
+        Program, ProgramState, Storage, UserMailbox, Waitlist,
+    },
 };
 use gear_core::{
     buffer::Payload,
@@ -327,17 +330,16 @@ pub enum DatabaseVisitorError {
 
 macro_rules! walk_or_error {
     ($walker:ident, $hash:ident.$element:ident) => {{
-        let x = $walker.visitor.db().$element($hash);
+        let x = $walker.db().$element($hash);
         if let Some(x) = x {
             paste::paste! {
                  $walker. [< walk_ $element >] ($hash, x);
             }
         } else {
             paste::item! {
-                $walker.visitor.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($hash));
+                $walker.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($hash));
             }
         }
-        x
     }};
     ($walker:ident, &$hash:ident.$element:ident) => {{
         let x = $walker.visitor.db().$element($hash);
@@ -347,29 +349,27 @@ macro_rules! walk_or_error {
             }
         } else {
             paste::item! {
-                $walker.visitor.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($hash));
+                $walker.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($hash));
             }
         }
-        x
     }};
     ($walker:ident, $element:ident.as_ref()) => {{
-        let x = $walker.visitor.db().$element($element);
+        let x = $walker.db().$element($element);
         if let Some(x) = x.as_ref() {
             paste::paste! {
                  $walker. [< walk_ $element >] (x);
             }
         } else {
             paste::item! {
-                $walker.visitor.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($element));
+                $walker.on_db_error(DatabaseVisitorError:: [< No $element:camel >] ($element));
             }
         }
-        x
     }};
 }
 
 macro_rules! walk {
     ($walker:ident, $hash:ident.$element:ident) => {{
-        let x = $walker.visitor.db().$element($hash);
+        let x = $walker.db().$element($hash);
         paste::paste! {
             $walker. [< walk_ $element >] ($hash, x);
         }
@@ -411,7 +411,7 @@ where
     }
 
     pub fn walk_chain(&mut self, head: H256, bottom: H256) {
-        self.visitor.visit_chain(head, bottom);
+        self.visit_chain(head, bottom);
 
         let mut block = head;
         loop {
@@ -437,7 +437,7 @@ where
             return;
         }
 
-        self.visitor.visit_block(block);
+        self.visit_block(block);
 
         walk!(self, block.block_meta);
 
@@ -461,28 +461,27 @@ where
     }
 
     pub fn walk_block_meta(&mut self, block: H256, meta: BlockMeta) {
-        self.visitor.visit_block_meta(block, &meta);
+        self.visit_block_meta(block, &meta);
     }
 
     pub fn walk_block_header(&mut self, block: H256, header: BlockHeader) {
-        self.visitor.visit_block_header(block, header);
+        self.visit_block_header(block, header);
     }
 
     pub fn walk_block_events(&mut self, block: H256, events: &[BlockEvent]) {
-        self.visitor.visit_block_events(block, events);
+        self.visit_block_events(block, events);
     }
 
     pub fn walk_previous_non_empty_block(&mut self, block: H256, previous_non_empty_block: H256) {
-        self.visitor
-            .visit_previous_non_empty_block(block, previous_non_empty_block);
+        self.visit_previous_non_empty_block(block, previous_non_empty_block);
     }
 
     pub fn walk_last_committed_batch(&mut self, block: H256, batch: Digest) {
-        self.visitor.visit_last_committed_batch(block, batch);
+        self.visit_last_committed_batch(block, batch);
     }
 
     pub fn walk_block_commitment_queue(&mut self, block: H256, queue: &VecDeque<H256>) {
-        self.visitor.visit_block_commitment_queue(block, queue);
+        self.visit_block_commitment_queue(block, queue);
 
         for &block in queue {
             self.walk_block(block);
@@ -490,40 +489,21 @@ where
     }
 
     pub fn walk_block_codes_queue(&mut self, block: H256, queue: &VecDeque<CodeId>) {
-        self.visitor.visit_block_codes_queue(block, queue);
+        self.visit_block_codes_queue(block, queue);
 
         for &code in queue {
-            self.walk_code_id(code);
+            self.walk_program_code_id(Default::default(), code);
         }
-    }
-
-    pub fn walk_program_id(&mut self, program_id: ActorId) {
-        self.visitor.visit_program_id(program_id);
-
-        let Some(code_id) = self.db().program_code_id(program_id) else {
-            self.visitor
-                .on_db_error(DatabaseVisitorError::NoProgramCodeId(program_id));
-            return;
-        };
-
-        self.walk_code_id(code_id);
     }
 
     pub fn walk_code_id(&mut self, code: CodeId) {
-        self.visitor.visit_code_id(code);
+        self.visit_code_id(code);
 
         walk_or_error!(self, code.code_valid);
 
-        if let Some(original_code) = self.db().original_code(code) {
-            self.walk_original_code(&original_code);
-        } else {
-            self.on_db_error(DatabaseVisitorError::NoOriginalCode(code));
-        }
+        walk_or_error!(self, code.original_code);
 
-        if let Some(instrumented_code) = self
-            .db()
-            .instrumented_code(ethexe_runtime_common::RUNTIME_ID, code)
-        {
+        if let Some(instrumented_code) = self.db().instrumented_code(RUNTIME_ID, code) {
             self.walk_instrumented_code(code, &instrumented_code);
         } else {
             self.on_db_error(DatabaseVisitorError::NoInstrumentedCode(code));
@@ -532,16 +512,28 @@ where
         walk_or_error!(self, &code.code_metadata);
     }
 
+    pub fn walk_program_id(&mut self, program_id: ActorId) {
+        self.visit_program_id(program_id);
+
+        walk_or_error!(self, program_id.program_code_id);
+    }
+
+    pub fn walk_program_code_id(&mut self, _program_id: ActorId, code: CodeId) {
+        // no visit special for program_id -> code_id, code id visit inside walk code id
+
+        self.walk_code_id(code);
+    }
+
     pub fn walk_code_valid(&mut self, code_id: CodeId, code_valid: bool) {
-        self.visitor.visit_code_valid(code_id, code_valid);
+        self.visit_code_valid(code_id, code_valid);
     }
 
     pub fn walk_code_metadata(&mut self, code_id: CodeId, metadata: &CodeMetadata) {
-        self.visitor.visit_code_metadata(code_id, metadata);
+        self.visit_code_metadata(code_id, metadata);
     }
 
-    pub fn walk_original_code(&mut self, original_code: &[u8]) {
-        self.visitor.visit_original_code(original_code);
+    pub fn walk_original_code(&mut self, _code_id: CodeId, original_code: Vec<u8>) {
+        self.visit_original_code(&original_code);
     }
 
     pub fn walk_instrumented_code(
@@ -549,13 +541,11 @@ where
         code_id: CodeId,
         instrumented_code: &InstrumentedCode,
     ) {
-        self.visitor
-            .visit_instrumented_code(code_id, instrumented_code);
+        self.visit_instrumented_code(code_id, instrumented_code);
     }
 
     pub fn walk_block_program_states(&mut self, block: H256, program_states: &ProgramStates) {
-        self.visitor
-            .visit_block_program_states(block, program_states);
+        self.visit_block_program_states(block, program_states);
 
         for StateHashWithQueueSize {
             hash: program_state,
@@ -567,7 +557,7 @@ where
     }
 
     pub fn walk_program_state(&mut self, state: &ProgramState) {
-        self.visitor.visit_program_state(state);
+        self.visit_program_state(state);
 
         let ProgramState {
             program,
@@ -611,11 +601,11 @@ where
     }
 
     pub fn walk_allocations(&mut self, allocations: &Allocations) {
-        self.visitor.visit_allocations(allocations);
+        self.visit_allocations(allocations);
     }
 
     pub fn walk_block_schedule(&mut self, block: H256, schedule: &Schedule) {
-        self.visitor.visit_block_schedule(block, schedule);
+        self.visit_block_schedule(block, schedule);
 
         for (&height, tasks) in schedule {
             self.walk_block_schedule_tasks(block, height, tasks);
@@ -628,8 +618,7 @@ where
         height: u32,
         tasks: &BTreeSet<ScheduledTask>,
     ) {
-        self.visitor
-            .visit_block_schedule_tasks(block, height, tasks);
+        self.visit_block_schedule_tasks(block, height, tasks);
 
         for task in tasks {
             self.walk_scheduled_task(task);
@@ -637,7 +626,7 @@ where
     }
 
     pub fn walk_scheduled_task(&mut self, task: &ScheduledTask) {
-        self.visitor.visit_scheduled_task(task);
+        self.visit_scheduled_task(task);
 
         match *task {
             ScheduledTask::PauseProgram(program_id) => {
@@ -676,7 +665,7 @@ where
     }
 
     pub fn walk_block_outcome(&mut self, block: H256, outcome: &BlockOutcome) {
-        self.visitor.visit_block_outcome(block, outcome);
+        self.visit_block_outcome(block, outcome);
 
         match outcome {
             BlockOutcome::Transitions(outcome) => {
@@ -689,7 +678,7 @@ where
     }
 
     pub fn walk_state_transition(&mut self, state_transition: &StateTransition) {
-        self.visitor.visit_state_transition(state_transition);
+        self.visit_state_transition(state_transition);
 
         let &StateTransition {
             actor_id,
@@ -709,7 +698,7 @@ where
     }
 
     pub fn walk_memory_pages(&mut self, pages: &MemoryPages) {
-        self.visitor.visit_memory_pages(pages);
+        self.visit_memory_pages(pages);
 
         for memory_pages_region in pages.to_inner().into_iter().flat_map(MaybeHashOf::to_inner) {
             walk_or_error!(self, memory_pages_region.as_ref());
@@ -717,7 +706,7 @@ where
     }
 
     pub fn walk_memory_pages_region(&mut self, region: &MemoryPagesRegion) {
-        self.visitor.visit_memory_pages_region(region);
+        self.visit_memory_pages_region(region);
 
         for &page_data in region.as_inner().values() {
             walk_or_error!(self, page_data.as_ref());
@@ -725,15 +714,14 @@ where
     }
 
     pub fn walk_page_data(&mut self, page_data: &[u8]) {
-        self.visitor.visit_page_data(page_data);
+        self.visit_page_data(page_data);
     }
 
     pub fn walk_message_queue_hash_with_size(
         &mut self,
         message_queue_hash_with_size: MessageQueueHashWithSize,
     ) {
-        self.visitor
-            .visit_message_queue_hash_with_size(message_queue_hash_with_size);
+        self.visit_message_queue_hash_with_size(message_queue_hash_with_size);
 
         if let Some(message_queue) = message_queue_hash_with_size.hash.to_inner() {
             walk_or_error!(self, message_queue.as_ref());
@@ -741,7 +729,7 @@ where
     }
 
     pub fn walk_message_queue(&mut self, queue: &MessageQueue) {
-        self.visitor.visit_message_queue(queue);
+        self.visit_message_queue(queue);
 
         for dispatch in queue.as_ref() {
             self.walk_payload_lookup(&dispatch.payload);
@@ -749,7 +737,7 @@ where
     }
 
     pub fn walk_waitlist(&mut self, waitlist: &Waitlist) {
-        self.visitor.visit_waitlist(waitlist);
+        self.visit_waitlist(waitlist);
 
         for Expiring {
             value: dispatch,
@@ -761,7 +749,7 @@ where
     }
 
     pub fn walk_mailbox(&mut self, mailbox: &Mailbox) {
-        self.visitor.visit_mailbox(mailbox);
+        self.visit_mailbox(mailbox);
 
         for &user_mailbox in mailbox.as_ref().values() {
             walk_or_error!(self, user_mailbox.as_ref());
@@ -769,7 +757,7 @@ where
     }
 
     pub fn walk_user_mailbox(&mut self, user_mailbox: &UserMailbox) {
-        self.visitor.visit_user_mailbox(user_mailbox);
+        self.visit_user_mailbox(user_mailbox);
 
         for Expiring {
             value: msg,
@@ -781,7 +769,7 @@ where
     }
 
     pub fn walk_dispatch_stash(&mut self, stash: &DispatchStash) {
-        self.visitor.visit_dispatch_stash(stash);
+        self.visit_dispatch_stash(stash);
 
         for Expiring {
             value: (dispatch, _user_id),
@@ -793,7 +781,7 @@ where
     }
 
     pub fn walk_payload_lookup(&mut self, payload_lookup: &PayloadLookup) {
-        self.visitor.visit_payload_lookup(payload_lookup);
+        self.visit_payload_lookup(payload_lookup);
 
         match payload_lookup {
             PayloadLookup::Direct(payload) => {
@@ -807,7 +795,7 @@ where
     }
 
     pub fn walk_payload(&mut self, payload: &Payload) {
-        self.visitor.visit_payload(payload);
+        self.visit_payload(payload);
     }
 }
 
