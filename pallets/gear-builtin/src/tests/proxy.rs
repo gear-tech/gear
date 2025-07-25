@@ -19,7 +19,7 @@
 //! Proxy builtin tests.
 
 use super::basic::init_logger;
-use crate::mock::*;
+use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
 use common::Origin;
 use demo_proxy_broker::WASM_BINARY;
 use frame_support::{assert_err, assert_ok, dispatch::GetDispatchInfo};
@@ -162,7 +162,7 @@ fn gas_allowance_respected() {
             RuntimeOrigin::signed(SIGNER),
             proxy_pid,
             remove_proxy_req.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -200,7 +200,7 @@ mod utils {
             code.to_vec(),
             salt.to_vec(),
             Default::default(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -222,7 +222,7 @@ mod utils {
             RuntimeOrigin::signed(SIGNER),
             proxy_pid,
             req.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
