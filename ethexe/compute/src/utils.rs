@@ -84,7 +84,7 @@ mod tests {
             parent_hash: H256::zero(),
             timestamp: 1000,
         };
-        db.set_block_header(genesis_hash, genesis_header.clone());
+        db.set_block_header(genesis_hash, genesis_header);
 
         // Setup block1 (not prepared)
         db.mutate_block_meta(block1_hash, |meta| {
@@ -96,7 +96,7 @@ mod tests {
             parent_hash: genesis_hash,
             timestamp: 2000,
         };
-        db.set_block_header(block1_hash, block1_header.clone());
+        db.set_block_header(block1_hash, block1_header);
 
         // Setup block2 (not prepared)
         db.mutate_block_meta(block2_hash, |meta| {
@@ -108,7 +108,7 @@ mod tests {
             parent_hash: block1_hash,
             timestamp: 3000,
         };
-        db.set_block_header(block2_hash, block2_header.clone());
+        db.set_block_header(block2_hash, block2_header);
 
         // Setup head (not prepared)
         db.mutate_block_meta(head_hash, |meta| {
@@ -120,7 +120,7 @@ mod tests {
             parent_hash: block2_hash,
             timestamp: 4000,
         };
-        db.set_block_header(head_hash, head_header.clone());
+        db.set_block_header(head_hash, head_header);
 
         // Test: collect all unprepared blocks
         let result = collect_chain(&db, head_hash, |meta| !meta.prepared).unwrap();

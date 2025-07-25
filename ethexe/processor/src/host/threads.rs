@@ -64,7 +64,7 @@ impl ThreadParams {
             let ProgramState {
                 program: Program::Active(ActiveProgram { pages_hash, .. }),
                 ..
-            } = self.db.read_state(self.state_hash).expect(UNKNOWN_STATE)
+            } = self.db.program_state(self.state_hash).expect(UNKNOWN_STATE)
             else {
                 unreachable!("program that is currently running can't be inactive");
             };
@@ -82,7 +82,7 @@ impl ThreadParams {
 
         let page_region = pages_regions.entry(region_idx).or_insert_with(|| {
             self.db
-                .read_pages_region(region_hash)
+                .memory_pages_region(region_hash)
                 .expect("Pages region not found")
                 .into()
         });
@@ -164,7 +164,7 @@ impl LazyPagesStorage for EthexeHostLazyPages {
 
             let page_hash = params.get_page_region(page)?.get(&page).cloned()?;
 
-            let data = params.db.read_page_data(page_hash).expect("Page not found");
+            let data = params.db.page_data(page_hash).expect("Page not found");
 
             buffer.copy_from_slice(&data);
 

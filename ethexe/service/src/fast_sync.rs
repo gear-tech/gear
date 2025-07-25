@@ -29,16 +29,18 @@ use ethexe_common::{
     gear::GearBlock,
 };
 use ethexe_compute::ComputeService;
-use ethexe_db::Database;
+use ethexe_db::{
+    Database,
+    visitor::{DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage},
+};
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkEvent, NetworkService, db_sync};
 use ethexe_observer::ObserverService;
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
-        ActiveProgram, DispatchStash, Expiring, Mailbox, MaybeHashOf, MemoryPages,
-        MemoryPagesRegion, MessageQueue, PayloadLookup, Program, ProgramState, UserMailbox,
-        Waitlist,
+        DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue, ProgramState,
+        UserMailbox, Waitlist,
     },
 };
 use futures::StreamExt;
@@ -69,7 +71,7 @@ impl EventData {
             })
         } else {
             let data = observer.load_block_data(block).await?;
-            db.set_block_header(block, data.header.clone());
+            db.set_block_header(block, data.header);
             db.set_block_events(block, &data.events);
             Ok(data)
         }
@@ -281,8 +283,10 @@ impl RequestMetadata {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct RequestManager {
+    db: Database,
+
     /// Total completed requests
     total_completed_requests: u64,
     /// Total pending requests
@@ -298,6 +302,16 @@ struct RequestManager {
 }
 
 impl RequestManager {
+    fn new(db: Database) -> Self {
+        Self {
+            db,
+            total_completed_requests: 0,
+            total_pending_requests: 0,
+            pending_requests: HashMap::new(),
+            responses: Vec::new(),
+        }
+    }
+
     fn add(&mut self, hash: H256, metadata: RequestMetadata) {
         debug_assert_ne!(
             hash,
@@ -317,9 +331,8 @@ impl RequestManager {
     async fn request(
         &mut self,
         network: &mut NetworkService,
-        db: &Database,
     ) -> Option<Vec<(RequestMetadata, Vec<u8>)>> {
-        let pending_network_requests = self.handle_pending_requests(db);
+        let pending_network_requests = self.handle_pending_requests();
 
         if !pending_network_requests.is_empty() {
             let request: BTreeSet<H256> = pending_network_requests.keys().copied().collect();
@@ -327,7 +340,7 @@ impl RequestManager {
                 .await
                 .expect("no external validation required");
 
-            self.handle_response(pending_network_requests, response, db);
+            self.handle_response(pending_network_requests, response);
         }
 
         let continue_processing = !(self.pending_requests.is_empty() && self.responses.is_empty());
@@ -340,15 +353,15 @@ impl RequestManager {
         }
     }
 
-    fn handle_pending_requests(&mut self, db: &Database) -> HashMap<H256, RequestMetadata> {
+    fn handle_pending_requests(&mut self) -> HashMap<H256, RequestMetadata> {
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.pending_requests.drain() {
-            if metadata.is_data() && db.contains_hash(hash) {
+            if metadata.is_data() && self.db.contains_hash(hash) {
                 self.total_completed_requests += 1;
                 continue;
             }
 
-            if let Some(data) = db.read_by_hash(hash) {
+            if let Some(data) = self.db.read_by_hash(hash) {
                 self.responses.push((metadata, data));
                 continue;
             }
@@ -363,7 +376,6 @@ impl RequestManager {
         &mut self,
         mut pending_network_requests: HashMap<H256, RequestMetadata>,
         response: db_sync::Response,
-        db: &Database,
     ) {
         let data = response.unwrap_hashes();
         for (hash, data) in data {
@@ -371,7 +383,7 @@ impl RequestManager {
                 .remove(&hash)
                 .expect("unknown pending request");
 
-            let db_hash = db.write_hash(&data);
+            let db_hash = self.db.write_hash(&data);
             debug_assert_eq!(hash, db_hash);
 
             self.responses.push((metadata, data));
@@ -393,11 +405,62 @@ impl RequestManager {
     }
 }
 
+impl DatabaseVisitor for RequestManager {
+    fn db(&self) -> &dyn DatabaseVisitorStorage {
+        &self.db
+    }
+
+    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+        let (hash, metadata) = match error {
+            DatabaseVisitorError::NoMemoryPages(hash) => {
+                (hash.hash(), RequestMetadata::MemoryPages)
+            }
+            DatabaseVisitorError::NoMemoryPagesRegion(hash) => {
+                (hash.hash(), RequestMetadata::MemoryPagesRegion)
+            }
+            DatabaseVisitorError::NoPageData(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseVisitorError::NoMessageQueue(hash) => {
+                (hash.hash(), RequestMetadata::MessageQueue)
+            }
+            DatabaseVisitorError::NoWaitlist(hash) => (hash.hash(), RequestMetadata::Waitlist),
+            DatabaseVisitorError::NoDispatchStash(hash) => {
+                (hash.hash(), RequestMetadata::DispatchStash)
+            }
+            DatabaseVisitorError::NoMailbox(hash) => (hash.hash(), RequestMetadata::Mailbox),
+            DatabaseVisitorError::NoUserMailbox(hash) => {
+                (hash.hash(), RequestMetadata::UserMailbox)
+            }
+            DatabaseVisitorError::NoAllocations(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseVisitorError::NoProgramState(hash) => (hash, RequestMetadata::ProgramState),
+            DatabaseVisitorError::NoPayload(hash) => (hash.hash(), RequestMetadata::Data),
+
+            DatabaseVisitorError::NoBlockHeader(_)
+            | DatabaseVisitorError::NoBlockEvents(_)
+            | DatabaseVisitorError::NoBlockProgramStates(_)
+            | DatabaseVisitorError::NoBlockSchedule(_)
+            | DatabaseVisitorError::NoBlockOutcome(_)
+            | DatabaseVisitorError::NoBlockCommitmentQueue(_)
+            | DatabaseVisitorError::NoBlockCodesQueue(_)
+            | DatabaseVisitorError::NoPreviousNonEmptyBlock(_)
+            | DatabaseVisitorError::NoLastCommittedBatch(_)
+            | DatabaseVisitorError::NoProgramCodeId(_)
+            | DatabaseVisitorError::NoCodeValid(_)
+            | DatabaseVisitorError::NoOriginalCode(_)
+            | DatabaseVisitorError::NoInstrumentedCode(_)
+            | DatabaseVisitorError::NoCodeMetadata(_) => {
+                unreachable!("{error:?}")
+            }
+        };
+        self.add(hash, metadata);
+    }
+}
+
 impl Drop for RequestManager {
     fn drop(&mut self) {
         #[cfg(debug_assertions)]
         {
             let Self {
+                db: _,
                 total_completed_requests,
                 total_pending_requests,
                 pending_requests,
@@ -421,16 +484,9 @@ async fn sync_from_network(
     code_ids: &BTreeSet<CodeId>,
     program_states: BTreeMap<ActorId, H256>,
 ) -> ProgramStates {
-    let add_payload = |manager: &mut RequestManager, payload: &PayloadLookup| match payload {
-        PayloadLookup::Direct(_) => {}
-        PayloadLookup::Stored(hash) => {
-            manager.add(hash.hash(), RequestMetadata::Data);
-        }
-    };
-
     let mut restored_cached_queue_sizes = BTreeMap::new();
 
-    let mut manager = RequestManager::default();
+    let mut manager = RequestManager::new(db.clone());
 
     for &state in program_states.values() {
         manager.add(state, RequestMetadata::ProgramState);
@@ -444,7 +500,7 @@ async fn sync_from_network(
         let (completed, pending) = manager.stats();
         log::info!("[{completed:>05} / {pending:>05}] Getting network data");
 
-        let Some(responses) = manager.request(network, db).await else {
+        let Some(responses) = manager.request(network).await else {
             break;
         };
 
@@ -453,115 +509,46 @@ async fn sync_from_network(
                 RequestMetadata::ProgramState => {
                     let state: ProgramState =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-
-                    let ProgramState {
-                        program,
-                        queue,
-                        waitlist_hash,
-                        stash_hash,
-                        mailbox_hash,
-                        balance: _,
-                        executable_balance: _,
-                    } = &state;
-
                     // Save restored cached queue sizes
                     let program_state_hash = ethexe_db::hash(&data);
-                    restored_cached_queue_sizes.insert(program_state_hash, queue.cached_queue_size);
-
-                    if let Program::Active(ActiveProgram {
-                        allocations_hash,
-                        pages_hash,
-                        memory_infix: _,
-                        initialized: _,
-                    }) = program
-                    {
-                        if let Some(allocations_hash) = allocations_hash.hash() {
-                            manager.add(allocations_hash, RequestMetadata::Data);
-                        }
-                        if let Some(pages_hash) = pages_hash.hash() {
-                            manager.add(pages_hash, RequestMetadata::MemoryPages);
-                        }
-                    }
-
-                    if let Some(queue_hash) = queue.hash.hash() {
-                        manager.add(queue_hash, RequestMetadata::MessageQueue);
-                    }
-                    if let Some(waitlist_hash) = waitlist_hash.hash() {
-                        manager.add(waitlist_hash, RequestMetadata::Waitlist);
-                    }
-                    if let Some(mailbox_hash) = mailbox_hash.hash() {
-                        manager.add(mailbox_hash, RequestMetadata::Mailbox);
-                    }
-                    if let Some(stash_hash) = stash_hash.hash() {
-                        manager.add(stash_hash, RequestMetadata::DispatchStash);
-                    }
+                    restored_cached_queue_sizes
+                        .insert(program_state_hash, state.queue.cached_queue_size);
+                    manager.visit_program_state(&state);
                 }
                 RequestMetadata::MemoryPages => {
                     let memory_pages: MemoryPages =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-
-                    for pages_region_hash in memory_pages
-                        .to_inner()
-                        .into_iter()
-                        .flat_map(MaybeHashOf::hash)
-                    {
-                        manager.add(pages_region_hash, RequestMetadata::MemoryPagesRegion);
-                    }
+                    manager.visit_memory_pages(&memory_pages);
                 }
                 RequestMetadata::MemoryPagesRegion => {
                     let pages_region: MemoryPagesRegion =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-
-                    for page_buf_hash in pages_region.as_inner().values().map(|hash| hash.hash()) {
-                        manager.add(page_buf_hash, RequestMetadata::Data);
-                    }
+                    manager.visit_memory_pages_region(&pages_region);
                 }
                 RequestMetadata::MessageQueue => {
                     let message_queue: MessageQueue =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for dispatch in message_queue.as_ref() {
-                        add_payload(&mut manager, &dispatch.payload);
-                    }
+                    manager.visit_message_queue(&message_queue);
                 }
                 RequestMetadata::Waitlist => {
                     let waitlist: Waitlist =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for Expiring {
-                        value: dispatch,
-                        expiry: _,
-                    } in waitlist.as_ref().values()
-                    {
-                        add_payload(&mut manager, &dispatch.payload);
-                    }
+                    manager.visit_waitlist(&waitlist);
                 }
                 RequestMetadata::Mailbox => {
                     let mailbox: Mailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for user_mailbox in mailbox.as_ref().values() {
-                        manager.add(user_mailbox.hash(), RequestMetadata::UserMailbox);
-                    }
+                    manager.visit_mailbox(&mailbox);
                 }
                 RequestMetadata::UserMailbox => {
                     let user_mailbox: UserMailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for Expiring {
-                        value: msg,
-                        expiry: _,
-                    } in user_mailbox.as_ref().values()
-                    {
-                        add_payload(&mut manager, &msg.payload);
-                    }
+                    manager.visit_user_mailbox(&user_mailbox);
                 }
                 RequestMetadata::DispatchStash => {
                     let dispatch_stash: DispatchStash =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    for Expiring {
-                        value: (dispatch, _user_id),
-                        expiry: _,
-                    } in dispatch_stash.as_ref().values()
-                    {
-                        add_payload(&mut manager, &dispatch.payload);
-                    }
+                    manager.visit_dispatch_stash(&dispatch_stash);
                 }
                 RequestMetadata::Data => {}
             }
@@ -688,7 +675,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     // TODO #4563: this is a temporary solution.
     // from `pre_process_genesis_for_db`
     {
-        db.set_block_header(latest_committed_block, latest_block_header.clone());
+        db.set_block_header(latest_committed_block, latest_block_header);
         db.set_block_events(latest_committed_block, &latest_block_events);
 
         db.set_latest_synced_block_height(latest_block_header.height);

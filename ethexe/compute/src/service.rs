@@ -95,7 +95,7 @@ impl<P: ProcessorExt> ComputeService<P> {
                 );
                 debug_assert!(
                     self.db
-                        .instrumented_code_exists(ethexe_runtime::VERSION, code_id),
+                        .instrumented_code_exists(ethexe_runtime_common::VERSION, code_id),
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
