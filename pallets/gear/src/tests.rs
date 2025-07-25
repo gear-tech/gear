@@ -11318,7 +11318,7 @@ fn system_reservation_panic_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Panic.encode(),
-            12_000_000_000,
+            13_000_000_000,
             0,
             false,
         ));
@@ -17271,7 +17271,7 @@ pub(crate) mod utils {
         use crate::tests::new_test_ext;
         use demo_signal_entry::{HandleAction, WASM_BINARY};
 
-        const GAS_LIMIT: u64 = 12_000_000_000;
+        const GAS_LIMIT: u64 = 13_000_000_000;
 
         init_logger();
         new_test_ext().execute_with(|| {
