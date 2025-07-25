@@ -50,20 +50,11 @@ library Gear {
         bool valid;
     }
 
-    struct GearBlock {
-        /// @dev Hash of corresponding ethereum block.
-        bytes32 hash;
-        /// @dev Gas allowance for programs execution.
-        uint64 gasAllowance;
-        /// @dev Hash (keccak256) of off-chain transaction hashes list.
-        bytes32 offchainTransactionsHash;
-    }
-
     struct ChainCommitment {
         /// @dev Transitions of program states, value and messages.
         StateTransition[] transitions;
-        /// @dev List of blocks in chain.
-        GearBlock[] blocks;
+        /// @dev Head of chain. Hash of the last block in chain.
+        bytes32 head;
     }
 
     struct ValidatorsCommitment {
@@ -224,16 +215,8 @@ library Gear {
         );
     }
 
-    function gearBlockHash(GearBlock memory gearBlock) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(gearBlock.hash, gearBlock.gasAllowance, gearBlock.offchainTransactionsHash));
-    }
-
-    function gearBlocksHash(bytes32[] memory gearBlockHashes) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(gearBlockHashes));
-    }
-
-    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _gearBlocksHash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_transitionsHash, _gearBlocksHash));
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_transitionsHash, _head));
     }
 
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {

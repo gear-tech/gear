@@ -27,9 +27,9 @@ impl From<IRouter::BatchCommitted> for RouterEvent {
     }
 }
 
-impl From<IRouter::GearBlockCommitted> for RouterEvent {
-    fn from(value: IRouter::GearBlockCommitted) -> Self {
-        Self::GearBlockCommitted(value.block.into())
+impl From<IRouter::HeadCommitted> for RouterEvent {
+    fn from(value: IRouter::HeadCommitted) -> Self {
+        Self::HeadCommitted(value.head.0.into())
     }
 }
 

@@ -4679,6 +4679,7 @@ dependencies = [
  "hex",
  "k256",
  "parity-scale-codec",
+ "primitive-types",
  "roast-secp256k1-evm",
  "serde",
  "sha3",

@@ -67,6 +67,8 @@ pub enum ComputeError {
     PreviousCommitmentNotFound(H256),
     #[error("last committed batch not found for computed block({0})")]
     LastCommittedBatchNotFound(H256),
+    #[error("last committed head not found for computed block({0})")]
+    LastCommittedHeadNotFound(H256),
     #[error(
         "code validation mismatch for code({code_id:?}), local status: {local_status}, remote status: {remote_status}"
     )]

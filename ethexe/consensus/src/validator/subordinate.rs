@@ -187,7 +187,7 @@ mod tests {
     fn create_empty() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
@@ -203,7 +203,7 @@ mod tests {
     fn create_with_producer_blocks() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
         let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
 
@@ -229,7 +229,7 @@ mod tests {
     fn create_with_validation_requests() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let request1 = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
         let request2 = SignedValidationRequest::mock((ctx.signer.clone(), keys[1], ()));
 
@@ -253,7 +253,7 @@ mod tests {
     fn create_with_many_pending_events() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         ctx.pending(pb.clone());
@@ -275,7 +275,7 @@ mod tests {
     fn simple() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
@@ -303,7 +303,7 @@ mod tests {
     fn simple_not_validator() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
@@ -331,7 +331,7 @@ mod tests {
     fn create_with_multiple_producer_blocks() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
         let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
 
@@ -348,7 +348,7 @@ mod tests {
     fn process_external_event_with_invalid_producer_block() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let invalid_pb = SignedProducerBlock::mock((ctx.signer.clone(), pub_keys[1], block.hash));
 
         let mut s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
@@ -364,7 +364,7 @@ mod tests {
     fn process_computed_block_with_unexpected_hash() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
         let unexpected_hash = H256::random();
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();

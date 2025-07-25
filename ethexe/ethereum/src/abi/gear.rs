@@ -38,27 +38,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            blocks: value.gear_blocks.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<GearBlock> for Gear::GearBlock {
-    fn from(value: GearBlock) -> Self {
-        Self {
-            hash: value.hash.0.into(),
-            gasAllowance: value.gas_allowance,
-            offchainTransactionsHash: value.off_chain_transactions_hash.0.into(),
-        }
-    }
-}
-
-impl From<Gear::GearBlock> for GearBlock {
-    fn from(value: Gear::GearBlock) -> Self {
-        Self {
-            hash: value.hash.0.into(),
-            gas_allowance: value.gasAllowance,
-            off_chain_transactions_hash: value.offchainTransactionsHash.0.into(),
+            head: value.head.0.into(),
         }
     }
 }
