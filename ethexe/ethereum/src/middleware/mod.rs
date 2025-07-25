@@ -19,7 +19,7 @@
 use crate::{AlloyProvider, abi::IMiddleware};
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
-    providers::{Provider, ProviderBuilder, RootProvider},
+    providers::{Provider, RootProvider},
 };
 use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
@@ -44,32 +44,22 @@ impl Middleware {
     }
 
     pub fn query(&self) -> MiddlewareQuery {
-        MiddlewareQuery {
-            instance: QueryInstance::new(
-                *self.instance.address(),
-                self.instance.provider().root().clone(),
-            ),
-        }
+        MiddlewareQuery(QueryInstance::new(
+            *self.instance.address(),
+            self.instance.provider().root().clone(),
+        ))
     }
 }
 
 #[derive(Clone)]
-pub struct MiddlewareQuery {
-    instance: QueryInstance,
-}
+pub struct MiddlewareQuery(QueryInstance);
 
 impl MiddlewareQuery {
-    pub async fn new(rpc_url: &str, middleware_address: LocalAddress) -> Result<Self> {
-        let provider = ProviderBuilder::default().connect(rpc_url).await?;
-        Ok(Self {
-            instance: QueryInstance::new(Address::new(middleware_address.0), provider),
-        })
-    }
-
-    pub fn from_provider(middleware_address: Address, provider: RootProvider) -> Self {
-        Self {
-            instance: QueryInstance::new(middleware_address, provider),
-        }
+    pub fn new(provider: RootProvider, middleware_address: LocalAddress) -> Self {
+        Self(QueryInstance::new(
+            Address::new(middleware_address.0),
+            provider,
+        ))
     }
 
     pub async fn make_election_at(
@@ -77,7 +67,7 @@ impl MiddlewareQuery {
         ts: u64,
         max_validators: u128,
     ) -> Result<Vec<LocalAddress>> {
-        self.instance
+        self.0
             .makeElectionAt(
                 alloy::primitives::Uint::from(ts),
                 AlloyU256::from(max_validators),

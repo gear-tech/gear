@@ -21,7 +21,6 @@ use alloy::sol;
 mod events;
 mod gear;
 
-#[allow(unused_imports)]
 pub use middleware_abi::*;
 pub use mirror_abi::*;
 
