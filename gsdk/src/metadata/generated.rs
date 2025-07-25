@@ -3183,8 +3183,8 @@ pub mod runtime_types {
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct InstrumentationWeights {
-                    pub instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
-                    pub instrumentation_byte_cost: runtime_types::sp_weights::weight_v2::Weight,
+                    pub base: runtime_types::sp_weights::weight_v2::Weight,
+                    pub per_byte: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Limits {

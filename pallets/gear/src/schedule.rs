@@ -730,9 +730,9 @@ impl<T: Config> Default for TaskWeights<T> {
 #[scale_info(skip_type_params(T))]
 pub struct InstrumentationWeights<T: Config> {
     /// WASM code instrumentation base cost.
-    pub instrumentation_cost: Weight,
+    pub base: Weight,
     /// WASM code instrumentation per-byte cost.
-    pub instrumentation_byte_cost: Weight,
+    pub per_byte: Weight,
     /// The type parameter is used in the default implementation.
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
@@ -744,9 +744,18 @@ impl<T: Config> Default for InstrumentationWeights<T> {
         type W<T> = <T as Config>::WeightInfo;
 
         Self {
-            instrumentation_cost: cost_zero(W::<T>::reinstrument_per_kb),
-            instrumentation_byte_cost: cost_byte(W::<T>::reinstrument_per_kb),
+            base: cost_zero(W::<T>::reinstrument_per_kb),
+            per_byte: cost_byte(W::<T>::reinstrument_per_kb),
             _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> From<InstrumentationWeights<T>> for InstrumentationCosts {
+    fn from(val: InstrumentationWeights<T>) -> Self {
+        Self {
+            base: val.base.ref_time().into(),
+            per_byte: val.per_byte.ref_time().into(),
         }
     }
 }
@@ -1389,8 +1398,6 @@ impl<T: Config> From<RentWeights<T>> for RentCosts {
             waitlist: val.waitlist.ref_time().into(),
             dispatch_stash: val.dispatch_stash.ref_time().into(),
             reservation: val.reservation.ref_time().into(),
-            mailbox: val.mailbox.ref_time().into(),
-            mailbox_threshold: val.mailbox_threshold.ref_time().into(),
         }
     }
 }
@@ -1443,15 +1450,6 @@ impl<T: Config> From<InstantiationWeights<T>> for InstantiationCosts {
             table_section_per_byte: val.table_section_per_byte.ref_time().into(),
             element_section_per_byte: val.element_section_per_byte.ref_time().into(),
             type_section_per_byte: val.type_section_per_byte.ref_time().into(),
-        }
-    }
-}
-
-impl<T: Config> From<InstrumentationWeights<T>> for InstrumentationCosts {
-    fn from(val: InstrumentationWeights<T>) -> Self {
-        Self {
-            instrumentation: val.instrumentation_cost.ref_time().into(),
-            instrumentation_per_byte: val.instrumentation_byte_cost.ref_time().into(),
         }
     }
 }
@@ -1616,10 +1614,10 @@ impl<T: Config> Schedule<T> {
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
-            db_costs: self.db_weights.clone().into(),
-            instrumentation_costs: self.code_instrumentation_weights.clone().into(),
+            db: self.db_weights.clone().into(),
+            instrumentation: self.code_instrumentation_weights.clone().into(),
             lazy_pages: self.memory_weights.clone().into(),
-            instantiation_costs: self.instantiation_weights.clone().into(),
+            instantiation: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }
     }

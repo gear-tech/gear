@@ -81,7 +81,7 @@ pub struct CallsAmount(u32);
 
 impl CostOf<CallsAmount> {
     /// Calculate (saturating add) cost for `per_byte` amount of `BytesAmount` (saturating mul).
-    pub fn cost_for_with_bytes(&self, per_byte: CostOf<BytesAmount>, amount: BytesAmount) -> u64 {
+    pub fn with_bytes(&self, per_byte: CostOf<BytesAmount>, amount: BytesAmount) -> u64 {
         self.cost_for_one()
             .saturating_add(per_byte.cost_for(amount))
     }
@@ -430,7 +430,7 @@ impl SyscallCosts {
         macro_rules! cost_with_per_byte {
             ($name:ident, $len:expr) => {
                 paste! {
-                    self.$name.cost_for_with_bytes(self.[< $name _per_byte >], $len)
+                    self.$name.with_bytes(self.[< $name _per_byte >], $len)
                 }
             };
         }
@@ -490,14 +490,14 @@ impl SyscallCosts {
             Wake => self.gr_wake.cost_for_one(),
             CreateProgram(payload, salt) => CostOf::from(
                 self.gr_create_program
-                    .cost_for_with_bytes(self.gr_create_program_payload_per_byte, payload),
+                    .with_bytes(self.gr_create_program_payload_per_byte, payload),
             )
-            .cost_for_with_bytes(self.gr_create_program_salt_per_byte, salt),
+            .with_bytes(self.gr_create_program_salt_per_byte, salt),
             CreateProgramWGas(payload, salt) => CostOf::from(
                 self.gr_create_program_wgas
-                    .cost_for_with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
+                    .with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
             )
-            .cost_for_with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
+            .with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
         }
     }
 }
@@ -554,10 +554,6 @@ pub struct RentCosts {
     pub dispatch_stash: CostOf<BlocksAmount>,
     /// Holding reservation cost per block.
     pub reservation: CostOf<BlocksAmount>,
-    /// Holding message in mailbox weight.
-    pub mailbox: CostOf<u64>,
-    /// The minimal gas amount for message to be inserted in mailbox.
-    pub mailbox_threshold: CostOf<u64>,
 }
 
 /// Execution externalities costs.
@@ -607,9 +603,9 @@ pub struct DbCosts {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct InstrumentationCosts {
     /// Code instrumentation cost.
-    pub instrumentation: CostOf<CallsAmount>,
+    pub base: CostOf<CallsAmount>,
     /// Code instrumentation per byte cost.
-    pub instrumentation_per_byte: CostOf<BytesAmount>,
+    pub per_byte: CostOf<BytesAmount>,
 }
 
 /// Costs for message processing
@@ -620,11 +616,11 @@ pub struct ProcessCosts {
     /// Lazy pages costs.
     pub lazy_pages: LazyPagesCosts,
     /// Module instantiation costs.
-    pub instantiation_costs: InstantiationCosts,
+    pub instantiation: InstantiationCosts,
     /// DB costs.
-    pub db_costs: DbCosts,
+    pub db: DbCosts,
     /// Instrumentation costs.
-    pub instrumentation_costs: InstrumentationCosts,
+    pub instrumentation: InstrumentationCosts,
     /// Load program allocations cost per interval.
     pub load_allocations_per_interval: CostOf<u32>,
 }

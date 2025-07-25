@@ -21,11 +21,11 @@ use crate::Runtime;
 
 use gear_core::costs::{
     DbCosts, InstantiationCosts, InstrumentationCosts, IoCosts, LazyPagesCosts, PagesCosts,
-    ProcessCosts, RentCosts,
+    ProcessCosts,
 };
 use pallet_gear::{
     DbWeights, InstantiationWeights, InstructionWeights, InstrumentationWeights, MemoryWeights,
-    RentWeights, Schedule, SyscallWeights,
+    Schedule, SyscallWeights,
 };
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
@@ -34,7 +34,6 @@ const PAGES_SPREAD: u8 = 10;
 const DB_SPREAD: u8 = 10;
 const ALLOCATIONS_SPREAD: u8 = 10;
 const INSTANTIATION_SPREAD: u8 = 10;
-const RENT_SPREAD: u8 = 10;
 const INSTRUMENTATION_SPREAD: u8 = 10;
 
 /// Structure to hold weight expectation
@@ -299,9 +298,9 @@ pub(super) fn expected_load_allocations_costs_count() -> usize {
     let ProcessCosts {
         ext: _,
         lazy_pages: _,
-        db_costs: _,
-        instantiation_costs: _,
-        instrumentation_costs: _,
+        db: _,
+        instantiation: _,
+        instrumentation: _,
         // Only field below is counted
         load_allocations_per_interval: _,
     } = Schedule::<Runtime>::default().process_costs();
@@ -324,19 +323,6 @@ pub(super) fn expected_instantiation_costs_count() -> usize {
     6
 }
 
-pub(super) fn expected_rent_costs_count() -> usize {
-    let RentCosts {
-        waitlist: _,
-        dispatch_stash: _,
-        reservation: _,
-        mailbox: _,
-        mailbox_threshold: _,
-    } = RentWeights::<Runtime>::default().into();
-
-    // total number of rent costs
-    5
-}
-
 pub(super) fn expected_db_costs_count() -> usize {
     let DbCosts {
         read: _,
@@ -351,8 +337,8 @@ pub(super) fn expected_db_costs_count() -> usize {
 
 pub(super) fn expected_code_instrumentation_costs_count() -> usize {
     let InstrumentationCosts {
-        instrumentation: _,
-        instrumentation_per_byte: _,
+        base: _,
+        per_byte: _,
     } = InstrumentationWeights::<Runtime>::default().into();
 
     // total number of code instrumentation costs
@@ -657,32 +643,6 @@ pub(super) fn check_instantiation_costs(
     check_expectations(&expectations)
 }
 
-pub(super) fn check_rent_costs(
-    rent_costs: RentCosts,
-    expected_rent_costs: RentCosts,
-) -> Result<usize, Vec<String>> {
-    macro_rules! expectation {
-        ($inst_name:ident) => {
-            WeightExpectation::new(
-                rent_costs.$inst_name.into(),
-                expected_rent_costs.$inst_name.into(),
-                RENT_SPREAD,
-                stringify!($inst_name),
-            )
-        };
-    }
-
-    let expectations = vec![
-        expectation!(waitlist),
-        expectation!(dispatch_stash),
-        expectation!(reservation),
-        expectation!(mailbox),
-        expectation!(mailbox_threshold),
-    ];
-
-    check_expectations(&expectations)
-}
-
 pub(super) fn check_db_costs(
     db_costs: DbCosts,
     expected_db_costs: DbCosts,
@@ -723,10 +683,7 @@ pub(super) fn check_code_instrumentation_costs(
         };
     }
 
-    let expectations = vec![
-        expectation!(instrumentation),
-        expectation!(instrumentation_per_byte),
-    ];
+    let expectations = vec![expectation!(base), expectation!(per_byte)];
 
     check_expectations(&expectations)
 }

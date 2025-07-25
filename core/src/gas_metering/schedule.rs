@@ -983,6 +983,16 @@ impl Default for RentWeights {
     }
 }
 
+impl From<RentWeights> for RentCosts {
+    fn from(val: RentWeights) -> Self {
+        Self {
+            waitlist: val.waitlist.ref_time().into(),
+            dispatch_stash: val.dispatch_stash.ref_time().into(),
+            reservation: val.reservation.ref_time().into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[doc = " Describes DB access weights."]
 pub struct DbWeights {
@@ -1081,18 +1091,18 @@ impl Default for TaskWeights {
 #[derive(Debug, Clone)]
 #[doc = " Describes weights for WASM code instrumentation."]
 pub struct InstrumentationWeights {
-    pub instrumentation_cost: Weight,
-    pub instrumentation_byte_cost: Weight,
+    pub base: Weight,
+    pub per_byte: Weight,
 }
 
 impl Default for InstrumentationWeights {
     fn default() -> Self {
         Self {
-            instrumentation_cost: Weight {
+            base: Weight {
                 ref_time: 325729000,
                 proof_size: 3793,
             },
-            instrumentation_byte_cost: Weight {
+            per_byte: Weight {
                 ref_time: 715243,
                 proof_size: 0,
             },
@@ -1103,8 +1113,8 @@ impl Default for InstrumentationWeights {
 impl From<InstrumentationWeights> for InstrumentationCosts {
     fn from(val: InstrumentationWeights) -> Self {
         Self {
-            instrumentation: val.instrumentation_cost.ref_time().into(),
-            instrumentation_per_byte: val.instrumentation_byte_cost.ref_time().into(),
+            base: val.base.ref_time().into(),
+            per_byte: val.per_byte.ref_time().into(),
         }
     }
 }
@@ -1276,18 +1286,6 @@ impl From<MemoryWeights> for LazyPagesCosts {
     }
 }
 
-impl From<RentWeights> for RentCosts {
-    fn from(val: RentWeights) -> Self {
-        Self {
-            waitlist: val.waitlist.ref_time().into(),
-            dispatch_stash: val.dispatch_stash.ref_time().into(),
-            reservation: val.reservation.ref_time().into(),
-            mailbox: val.mailbox.ref_time.into(),
-            mailbox_threshold: val.mailbox_threshold.ref_time.into(),
-        }
-    }
-}
-
 impl From<InstantiationWeights> for InstantiationCosts {
     fn from(val: InstantiationWeights) -> Self {
         Self {
@@ -1310,10 +1308,10 @@ impl Schedule {
                 mem_grow: self.memory_weights.mem_grow.ref_time().into(),
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
+            db: self.db_weights.clone().into(),
+            instrumentation: self.code_instrumentation_weights.clone().into(),
             lazy_pages: self.memory_weights.clone().into(),
-            db_costs: self.db_weights.clone().into(),
-            instrumentation_costs: self.code_instrumentation_weights.clone().into(),
-            instantiation_costs: self.instantiation_weights.clone().into(),
+            instantiation: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
         }
     }

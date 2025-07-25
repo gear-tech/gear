@@ -24,11 +24,11 @@ use frame_support::dispatch::GetDispatchInfo;
 use frame_system::limits::WeightsPerClass;
 use gear_core::costs::{
     DbCosts, InstantiationCosts, InstrumentationCosts, IoCosts, LazyPagesCosts, PagesCosts,
-    ProcessCosts, RentCosts,
+    ProcessCosts,
 };
 use pallet_gear::{
     DbWeights, InstantiationWeights, InstructionWeights, InstrumentationWeights, MemoryWeights,
-    RentWeights, Schedule, SyscallWeights,
+    Schedule, SyscallWeights,
 };
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
@@ -428,24 +428,6 @@ fn instantiation_costs_heuristic_test() {
 }
 
 #[test]
-fn rent_costs_heuristic_test() {
-    let rent_costs = RentWeights::<Runtime>::default().into();
-
-    let expected_rent_costs = RentCosts {
-        waitlist: 100.into(),
-        dispatch_stash: 100.into(),
-        reservation: 100.into(),
-        mailbox: 100.into(),
-        mailbox_threshold: 3000.into(),
-    };
-
-    let result = check_rent_costs(rent_costs, expected_rent_costs);
-
-    assert!(result.is_ok(), "{:#?}", result.err().unwrap());
-    assert_eq!(result.unwrap(), expected_rent_costs_count());
-}
-
-#[test]
 fn db_costs_heuristic_test() {
     let db_costs = DbWeights::<Runtime>::default().into();
 
@@ -467,8 +449,8 @@ fn code_instrumentation_costs_heuristic_test() {
     let code_instrumentation_costs = InstrumentationWeights::<Runtime>::default().into();
 
     let expected_code_instrumentation_costs = InstrumentationCosts {
-        instrumentation: 325729000.into(),
-        instrumentation_per_byte: 715243.into(),
+        base: 325729000.into(),
+        per_byte: 715243.into(),
     };
 
     let result = check_code_instrumentation_costs(

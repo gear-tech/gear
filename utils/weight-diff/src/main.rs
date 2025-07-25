@@ -127,6 +127,7 @@ struct DeserializableSchedule {
     db_weights: IndexMap<String, Value>,
     task_weights: IndexMap<String, Value>,
     instantiation_weights: IndexMap<String, Weight>,
+    code_instrumentation_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
 }
@@ -232,6 +233,7 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 | "DbWeights"
                 | "TaskWeights"
                 | "InstantiationWeights"
+                | "CodeInstrumentationWeights"
         ) {
             return;
         }
@@ -307,7 +309,9 @@ const TYPE_LIST: &[&str] = &[
     "MemoryCosts",
     "RentCosts",
     "InstantiationCosts",
+    "InstrumentationCosts",
     "IoCosts",
+    "DbCosts",
     "PagesCosts",
     "LazyPagesCosts",
 ];
@@ -550,7 +554,8 @@ fn main() -> Result<()> {
                         | "RentWeights"
                         | "DbWeights"
                         | "TaskWeights"
-                        | "InstantiationWeights" => {
+                        | "InstantiationWeights"
+                        | "InstrumentationWeights" => {
                             &raw_schedule[structure_name_snake_case.as_str()][field_name]
                         }
                         _ => &raw_schedule,
