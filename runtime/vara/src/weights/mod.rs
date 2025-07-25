@@ -18,15 +18,10 @@
 
 //! A list of the different weight modules for our runtime.
 
+// Dead code is allowed for the weights module due to unused copies of the `WeightInfo` trait.
 #![allow(dead_code)]
 
 pub mod frame_system;
 pub mod pallet_balances;
-pub mod pallet_gear;
-pub mod pallet_gear_builtin;
-pub mod pallet_gear_voucher;
 pub mod pallet_timestamp;
 pub mod pallet_utility;
-
-#[cfg(feature = "dev")]
-pub mod pallet_gear_eth_bridge;

@@ -17,4 +17,3 @@ hex.workspace = true
 
 [features]
 alloc = []
-std = ["alloc"]

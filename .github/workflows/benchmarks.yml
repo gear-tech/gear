@@ -139,77 +139,69 @@ jobs:
         run: sudo cpupower frequency-info | grep 'current CPU frequency'
 
       - name: Run all benchmarks
-        run: |
-          INSTANCE_TYPE="${{ inputs.instance_type }}"
-          INSTANCE_TYPE=${INSTANCE_TYPE} ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
-          cp ./scripts/benchmarking/weights-output/* runtime/vara/src/weights
+        id: run-bench
+        env:
+          INSTANCE_TYPE: ${{ inputs.instance_type }}
+        run: ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
 
-          # apply weight adjustments for baremetal runner to `runtime/vara/src/weights/pallet_gear.rs`
-          if [ "$INSTANCE_TYPE" = "c6i.metal" ]; then
-            echo "Applying baremetal weight patch"
-            ./scripts/benchmarking/apply_baremetal_weight_patch.rs -i runtime/vara/src/weights/pallet_gear.rs -o runtime/vara/src/weights/pallet_gear_patched.rs
-            mv runtime/vara/src/weights/pallet_gear_patched.rs runtime/vara/src/weights/pallet_gear.rs
-          fi
-
-          # apply some patches for `pallets/gear/src/weights.rs`
-          cp runtime/vara/src/weights/pallet_gear.rs pallets/gear/src/weights.rs
-          sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear/src/weights.rs
-
-          # apply some patches for `pallets/gear-builtin/src/weights.rs`
-          cp runtime/vara/src/weights/pallet_gear_builtin.rs pallets/gear-builtin/src/weights.rs
-          sed -i -E 's/\w+::WeightInfo for SubstrateWeight/WeightInfo for SubstrateWeight/' pallets/gear-builtin/src/weights.rs
-
-          # generate code for lightweight scheduler that is used in gtest and other crates
-          ./scripts/weight-dump.sh
-
-      - name: "ACTIONS: Upload artifact with benchmarking errors (if exist)"
-        if: ${{ always() }}
+      - name: "ACTIONS: Upload error artifact"
+        id: upload-errors
+        # This step will only run if the run-bench step failed
+        if: ${{ failure() && steps.run-bench.conclusion == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: benchmarking-errors
           path: scripts/benchmarking/benchmarking_errors.txt
           if-no-files-found: ignore
 
-      - name: "ACTIONS: Upload artifact with updated weights (vara)"
+      - name: "Apply baremetal patch"
+        if: ${{ inputs.instance_type == 'c6i.metal' }}
+        env:
+          OUTPUT_DIR: scripts/benchmarking/weights-output
+        run: |
+          ./scripts/benchmarking/apply_baremetal_weight_patch.rs -i "$OUTPUT_DIR/pallet_gear.rs" -o "$OUTPUT_DIR/pallet_gear_patched.rs"
+          mv "$OUTPUT_DIR/"pallet_gear_patched.rs" "$OUTPUT_DIR/pallet_gear.rs"
+
+      - name: "ACTIONS: Upload weights artifact"
+        # This step will run if benchmarking finished with no errors (upload-errors step was skipped),
+        # This runs even if baremetal patching was failed - in that case, make sure to handle it.
+        if: ${{ !cancelled() && steps.upload-errors.conclusion != 'skipped'}}
         uses: actions/upload-artifact@v4
         with:
-          name: weights-vara
-          path: |
-            core/src/gas_metering/
-            runtime/vara/src/weights/
+          name: weights-output
+          path: scripts/benchmarking/weights-output
 
-      - name: "TIP: download the artifacts and use `./scripts/unpack-weights.sh`"
-        run: |
-          echo "::notice::You can download the artifacts and use script \`./scripts/unpack-weights.sh\` to apply the changes to your branch"
+      - name: "Apply weights to codebase"
+        if: ${{ inputs.change-type != 'ignore' }}
+        run: ./scripts/benchmarking/apply_weights.sh
 
       - name: Create commit
         if: ${{ inputs.change-type == 'commit' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: >-
-            chore(runtime): update weights
-          file_pattern: "core/src/gas_metering/ pallets/gear/src/ pallets/gear-builtin/src/ runtime/vara/src/weights/"
+          commit_message: "chore(runtime): update weights"
+          file_pattern: >-
+            core/src/gas_metering/schedule.rs
+            pallets/*/src/weight.rs
+            runtime/vara/src/weights/
 
-      - name: Create Pull Request
+      - name: Create pull request
         if: ${{ inputs.change-type == 'pull_request' }}
         uses: peter-evans/create-pull-request@v7
         with:
           add-paths: |
-            core/src/gas_metering/
-            pallets/gear/src/
-            pallets/gear-builtin/src/
+            core/src/gas_metering/schedule.rs
+            pallets/*/src/weight.rs
             runtime/vara/src/weights/
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
-          title: >-
-            chore(runtime): update weights
+          title: "chore(runtime): update weights"
           body: |
             `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
-            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests.rs`
-          labels: |
-            A0-pleasereview
-            A4-insubstantial
+
+            **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests/mod.rs`
+          labels: A0-pleasereview
 
   destroy-runner:
     if: always()

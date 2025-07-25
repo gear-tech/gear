@@ -152,6 +152,11 @@ impl System {
             .try_init();
     }
 
+    /// Returns amount of dispatches in the queue.
+    pub fn queue_len(&self) -> usize {
+        self.0.borrow().dispatches.len()
+    }
+
     /// Run next block.
     ///
     /// Block execution model is the following:

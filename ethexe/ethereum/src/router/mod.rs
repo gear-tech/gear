@@ -370,6 +370,30 @@ impl RouterQuery {
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
     }
+
+    pub async fn programs_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .programsCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count.try_into().expect("infallible");
+        Ok(count)
+    }
+
+    pub async fn validated_codes_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .validatedCodesCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count.try_into().expect("infallible");
+        Ok(count)
+    }
 }
 
 #[cfg(test)]

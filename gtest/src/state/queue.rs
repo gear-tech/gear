@@ -55,7 +55,7 @@ impl QueueManager {
         storage().with(|queue| queue.data_mut().clear())
     }
 
-    #[cfg(test)]
+    /// Returns queue length.
     pub(crate) fn len(&self) -> usize {
         storage().with(|queue| queue.data().len())
     }

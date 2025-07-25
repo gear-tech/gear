@@ -112,11 +112,11 @@ where
     // Waking fee: double write cost for removal from waitlist
     // and further enqueueing.
     let msg_ctx_settings = ContextSettings {
-        sending_fee: costs.write.cost_for(2.into()),
-        scheduled_sending_fee: costs.write.cost_for(4.into()),
-        waiting_fee: costs.write.cost_for(3.into()),
-        waking_fee: costs.write.cost_for(2.into()),
-        reservation_fee: costs.write.cost_for(2.into()),
+        sending_fee: costs.db.write.cost_for(2.into()),
+        scheduled_sending_fee: costs.db.write.cost_for(4.into()),
+        waiting_fee: costs.db.write.cost_for(3.into()),
+        waking_fee: costs.db.write.cost_for(2.into()),
+        reservation_fee: costs.db.write.cost_for(2.into()),
         outgoing_limit,
         outgoing_bytes_limit,
     };

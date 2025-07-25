@@ -27,18 +27,27 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: ./.github/actions/setup-linker
+      - name: Free disk space
+        uses: insightsengineering/disk-space-reclaimer@v1
+        with:
+          large-packages: false
 
-      - uses: ./.github/actions/install-rust
+      - name: Setup linker
+        uses: ./.github/actions/setup-linker
 
-      - uses: ./.github/actions/setup-compilation-env
+      - name: Install Rust toolchain
+        uses: ./.github/actions/install-rust
+
+      - name: Install compilation environment
+        uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Cache
+      - name: Setup caching
         uses: ./.github/actions/rust-cache
         with:
           us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
