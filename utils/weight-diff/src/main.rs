@@ -127,7 +127,7 @@ struct DeserializableSchedule {
     db_weights: IndexMap<String, Value>,
     task_weights: IndexMap<String, Value>,
     instantiation_weights: IndexMap<String, Weight>,
-    code_instrumentation_weights: IndexMap<String, Weight>,
+    instrumentation_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
 }
@@ -233,7 +233,7 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 | "DbWeights"
                 | "TaskWeights"
                 | "InstantiationWeights"
-                | "CodeInstrumentationWeights"
+                | "InstrumentationWeights"
         ) {
             return;
         }

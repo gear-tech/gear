@@ -3237,7 +3237,7 @@ pub mod runtime_types {
                     pub task_weights: runtime_types::pallet_gear::schedule::TaskWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
-                    pub code_instrumentation_weights:
+                    pub instrumentation_weights:
                         runtime_types::pallet_gear::schedule::InstrumentationWeights,
                     pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }

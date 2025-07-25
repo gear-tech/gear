@@ -44,7 +44,7 @@ pub struct Schedule {
     #[doc = " The weights for instantiation of the module."]
     pub instantiation_weights: InstantiationWeights,
     #[doc = " The weights for WASM code instrumentation."]
-    pub code_instrumentation_weights: InstrumentationWeights,
+    pub instrumentation_weights: InstrumentationWeights,
     #[doc = " Load allocations weight."]
     pub load_allocations_weight: Weight,
 }
@@ -60,7 +60,7 @@ impl Default for Schedule {
             db_weights: DbWeights::default(),
             task_weights: TaskWeights::default(),
             instantiation_weights: InstantiationWeights::default(),
-            code_instrumentation_weights: InstrumentationWeights::default(),
+            instrumentation_weights: InstrumentationWeights::default(),
             load_allocations_weight: Weight {
                 ref_time: 25197,
                 proof_size: 0,
@@ -983,16 +983,6 @@ impl Default for RentWeights {
     }
 }
 
-impl From<RentWeights> for RentCosts {
-    fn from(val: RentWeights) -> Self {
-        Self {
-            waitlist: val.waitlist.ref_time().into(),
-            dispatch_stash: val.dispatch_stash.ref_time().into(),
-            reservation: val.reservation.ref_time().into(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 #[doc = " Describes DB access weights."]
 pub struct DbWeights {
@@ -1021,17 +1011,6 @@ impl Default for DbWeights {
                 ref_time: 270,
                 proof_size: 0,
             },
-        }
-    }
-}
-
-impl From<DbWeights> for DbCosts {
-    fn from(val: DbWeights) -> Self {
-        Self {
-            read: val.read.ref_time().into(),
-            read_per_byte: val.read_per_byte.ref_time().into(),
-            write: val.write.ref_time().into(),
-            write_per_byte: val.write_per_byte.ref_time().into(),
         }
     }
 }
@@ -1089,9 +1068,11 @@ impl Default for TaskWeights {
 }
 
 #[derive(Debug, Clone)]
-#[doc = " Describes weights for WASM code instrumentation."]
+#[doc = " Describes WASM code instrumentation weights."]
 pub struct InstrumentationWeights {
+    #[doc = " WASM code instrumentation base cost."]
     pub base: Weight,
+    #[doc = " WASM code instrumentation per-byte cost."]
     pub per_byte: Weight,
 }
 
@@ -1106,15 +1087,6 @@ impl Default for InstrumentationWeights {
                 ref_time: 715243,
                 proof_size: 0,
             },
-        }
-    }
-}
-
-impl From<InstrumentationWeights> for InstrumentationCosts {
-    fn from(val: InstrumentationWeights) -> Self {
-        Self {
-            base: val.base.ref_time().into(),
-            per_byte: val.per_byte.ref_time().into(),
         }
     }
 }
@@ -1141,6 +1113,15 @@ impl Weight {
         Self {
             ref_time: self.ref_time.saturating_add(other.ref_time),
             proof_size: self.proof_size.saturating_add(other.proof_size),
+        }
+    }
+}
+
+impl From<InstrumentationWeights> for InstrumentationCosts {
+    fn from(val: InstrumentationWeights) -> Self {
+        Self {
+            base: val.base.ref_time().into(),
+            per_byte: val.per_byte.ref_time().into(),
         }
     }
 }
@@ -1286,6 +1267,27 @@ impl From<MemoryWeights> for LazyPagesCosts {
     }
 }
 
+impl From<RentWeights> for RentCosts {
+    fn from(val: RentWeights) -> Self {
+        Self {
+            waitlist: val.waitlist.ref_time().into(),
+            dispatch_stash: val.dispatch_stash.ref_time().into(),
+            reservation: val.reservation.ref_time().into(),
+        }
+    }
+}
+
+impl From<DbWeights> for DbCosts {
+    fn from(val: DbWeights) -> Self {
+        Self {
+            write: val.write.ref_time().into(),
+            read: val.read.ref_time().into(),
+            write_per_byte: val.write_per_byte.ref_time().into(),
+            read_per_byte: val.read_per_byte.ref_time().into(),
+        }
+    }
+}
+
 impl From<InstantiationWeights> for InstantiationCosts {
     fn from(val: InstantiationWeights) -> Self {
         Self {
@@ -1309,7 +1311,7 @@ impl Schedule {
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
             db: self.db_weights.clone().into(),
-            instrumentation: self.code_instrumentation_weights.clone().into(),
+            instrumentation: self.instrumentation_weights.clone().into(),
             lazy_pages: self.memory_weights.clone().into(),
             instantiation: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),

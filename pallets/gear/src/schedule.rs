@@ -133,8 +133,8 @@ pub struct Schedule<T: Config> {
     /// The weights for instantiation of the module.
     pub instantiation_weights: InstantiationWeights<T>,
 
-    /// Code instrumentation weights.
-    pub code_instrumentation_weights: InstrumentationWeights<T>,
+    /// The weights for WASM code instrumentation.
+    pub instrumentation_weights: InstrumentationWeights<T>,
 
     /// Load allocations weight.
     pub load_allocations_weight: Weight,
@@ -724,7 +724,7 @@ impl<T: Config> Default for TaskWeights<T> {
     }
 }
 
-/// Describes DB access weights.
+/// Describes WASM code instrumentation weights.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
@@ -838,7 +838,7 @@ impl<T: Config> Default for Schedule<T> {
             db_weights: Default::default(),
             task_weights: Default::default(),
             instantiation_weights: Default::default(),
-            code_instrumentation_weights: Default::default(),
+            instrumentation_weights: Default::default(),
             load_allocations_weight: cost(W::<T>::load_allocations_per_interval),
         }
     }
@@ -1615,7 +1615,7 @@ impl<T: Config> Schedule<T> {
                 mem_grow_per_page: self.memory_weights.mem_grow_per_page.ref_time().into(),
             },
             db: self.db_weights.clone().into(),
-            instrumentation: self.code_instrumentation_weights.clone().into(),
+            instrumentation: self.instrumentation_weights.clone().into(),
             lazy_pages: self.memory_weights.clone().into(),
             instantiation: self.instantiation_weights.clone().into(),
             load_allocations_per_interval: self.load_allocations_weight.ref_time().into(),
