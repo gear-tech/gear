@@ -19,12 +19,22 @@
 use super::*;
 use crate::Runtime;
 
-use gear_core::costs::{IoCosts, LazyPagesCosts, PagesCosts};
-use pallet_gear::{InstructionWeights, MemoryWeights, SyscallWeights};
+use gear_core::costs::{
+    DbCosts, InstantiationCosts, InstrumentationCosts, IoCosts, LazyPagesCosts, PagesCosts,
+    ProcessCosts,
+};
+use pallet_gear::{
+    DbWeights, InstantiationWeights, InstructionWeights, InstrumentationWeights, MemoryWeights,
+    Schedule, SyscallWeights,
+};
 
 const INSTRUCTIONS_SPREAD: u8 = 50;
 const SYSCALL_SPREAD: u8 = 10;
 const PAGES_SPREAD: u8 = 10;
+const DB_SPREAD: u8 = 10;
+const ALLOCATIONS_SPREAD: u8 = 10;
+const INSTANTIATION_SPREAD: u8 = 10;
+const INSTRUMENTATION_SPREAD: u8 = 10;
 
 /// Structure to hold weight expectation
 pub(super) struct WeightExpectation {
@@ -50,7 +60,7 @@ impl WeightExpectation {
 
         if left > self.weight || self.weight > right {
             return Err(format!(
-                "[{}] instruction. Weight: {} ps. Expected: {} ps. {}% spread interval: [{left} ps, {right} ps]",
+                "[{}] field. Weight: {} ps. Expected: {} ps. {}% spread interval: [{left} ps, {right} ps]",
                 self.name, self.weight, self.expected, self.spread
             ));
         }
@@ -282,6 +292,57 @@ pub(super) fn expected_lazy_pages_costs_count() -> usize {
 
     // total number of lazy pages costs
     7
+}
+
+pub(super) fn expected_load_allocations_costs_count() -> usize {
+    let ProcessCosts {
+        ext: _,
+        lazy_pages: _,
+        db: _,
+        instantiation: _,
+        instrumentation: _,
+        // Only field below is counted
+        load_allocations_per_interval: _,
+    } = Schedule::<Runtime>::default().process_costs();
+
+    // total number of schedule costs
+    1
+}
+
+pub(super) fn expected_instantiation_costs_count() -> usize {
+    let InstantiationCosts {
+        code_section_per_byte: _,
+        data_section_per_byte: _,
+        global_section_per_byte: _,
+        table_section_per_byte: _,
+        element_section_per_byte: _,
+        type_section_per_byte: _,
+    } = InstantiationWeights::<Runtime>::default().into();
+
+    // total number of instantiation costs
+    6
+}
+
+pub(super) fn expected_db_costs_count() -> usize {
+    let DbCosts {
+        read: _,
+        read_per_byte: _,
+        write: _,
+        write_per_byte: _,
+    } = DbWeights::<Runtime>::default().into();
+
+    // total number of db costs
+    4
+}
+
+pub(super) fn expected_code_instrumentation_costs_count() -> usize {
+    let InstrumentationCosts {
+        base: _,
+        per_byte: _,
+    } = InstrumentationWeights::<Runtime>::default().into();
+
+    // total number of code instrumentation costs
+    2
 }
 
 /// Check that the weights of instructions are within the expected range
@@ -537,6 +598,92 @@ pub(super) fn check_pages_costs(
         expectation!(mem_grow_per_page),
         expectation!(parachain_read_heuristic),
     ];
+
+    check_expectations(&expectations)
+}
+
+pub(super) fn check_load_allocations_costs(
+    load_allocations_costs: u64,
+    expected_load_allocations_costs: u64,
+) -> Result<usize, Vec<String>> {
+    let expectation = WeightExpectation::new(
+        load_allocations_costs,
+        expected_load_allocations_costs,
+        ALLOCATIONS_SPREAD,
+        "load_allocations_per_interval",
+    );
+
+    check_expectations(&[expectation])
+}
+
+pub(super) fn check_instantiation_costs(
+    instantiation_costs: InstantiationCosts,
+    expected_instantiation_costs: InstantiationCosts,
+) -> Result<usize, Vec<String>> {
+    macro_rules! expectation {
+        ($inst_name:ident) => {
+            WeightExpectation::new(
+                instantiation_costs.$inst_name.into(),
+                expected_instantiation_costs.$inst_name.into(),
+                INSTANTIATION_SPREAD,
+                stringify!($inst_name),
+            )
+        };
+    }
+
+    let expectations = vec![
+        expectation!(code_section_per_byte),
+        expectation!(data_section_per_byte),
+        expectation!(global_section_per_byte),
+        expectation!(table_section_per_byte),
+        expectation!(element_section_per_byte),
+        expectation!(type_section_per_byte),
+    ];
+
+    check_expectations(&expectations)
+}
+
+pub(super) fn check_db_costs(
+    db_costs: DbCosts,
+    expected_db_costs: DbCosts,
+) -> Result<usize, Vec<String>> {
+    macro_rules! expectation {
+        ($inst_name:ident) => {
+            WeightExpectation::new(
+                db_costs.$inst_name.into(),
+                expected_db_costs.$inst_name.into(),
+                DB_SPREAD,
+                stringify!($inst_name),
+            )
+        };
+    }
+
+    let expectations = vec![
+        expectation!(read),
+        expectation!(read_per_byte),
+        expectation!(write),
+        expectation!(write_per_byte),
+    ];
+
+    check_expectations(&expectations)
+}
+
+pub(super) fn check_code_instrumentation_costs(
+    instrumentation_costs: InstrumentationCosts,
+    expected_instrumentation_costs: InstrumentationCosts,
+) -> Result<usize, Vec<String>> {
+    macro_rules! expectation {
+        ($inst_name:ident) => {
+            WeightExpectation::new(
+                instrumentation_costs.$inst_name.into(),
+                expected_instrumentation_costs.$inst_name.into(),
+                INSTRUMENTATION_SPREAD,
+                stringify!($inst_name),
+            )
+        };
+    }
+
+    let expectations = vec![expectation!(base), expectation!(per_byte)];
 
     check_expectations(&expectations)
 }
