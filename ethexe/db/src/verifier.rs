@@ -95,7 +95,7 @@ impl IntegrityVerifier {
         head: H256,
         bottom: H256,
     ) -> Result<(), Vec<IntegrityVerifierError>> {
-        DatabaseWalker::new(&mut self).visit_chain(head, bottom);
+        DatabaseWalker::new(&mut self).walk_chain(head, bottom);
 
         #[cfg(debug_assertions)]
         {
