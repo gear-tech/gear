@@ -25,6 +25,7 @@ derive_more.workspace = true
 thiserror.workspace = true
 alloy.workspace = true
 sha3.workspace = true
+nonempty.workspace = true
 
 rs_merkle = { version = "1.5.0", features = ["keccak256"] }
 

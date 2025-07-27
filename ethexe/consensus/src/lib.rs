@@ -42,7 +42,6 @@ mod mock;
 use anyhow::Result;
 pub use connect::SimpleConnectService;
 use ethexe_common::{ProducerBlock, SimpleBlockData};
-use ethexe_observer::BlockSyncedData;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 pub use utils::{
@@ -61,7 +60,7 @@ pub trait ConsensusService:
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
 
     /// Process a synced block info
-    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()>;
+    fn receive_synced_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
     fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;

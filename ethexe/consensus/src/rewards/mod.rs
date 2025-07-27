@@ -4,6 +4,7 @@ use ethexe_common::{
     Address, ToDigest,
     db::{BlockMetaStorageRead, OnChainStorageRead},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewardsCommitment},
+    k256::elliptic_curve::rand_core::block,
 };
 use gprimitives::{H256, U256};
 use rs_merkle::Hasher;
@@ -51,44 +52,46 @@ pub enum DistributionError {
 }
 type Result<T> = std::result::Result<T, DistributionError>;
 
-///
 pub(crate) fn rewards_commitment<DB>(
     db: &DB,
     config: &RewardsConfig,
-    chain_head: H256,
+    block_hash: H256,
 ) -> Result<Option<RewardsCommitment>>
 where
     DB: BlockMetaStorageRead + OnChainStorageRead,
 {
-    let Some(eras_to_reward) = eras_to_reward(db, config, chain_head)? else {
+    let Some(eras_to_reward) = eras_to_reward(db, config, block_hash)? else {
         return Ok(None);
     };
 
-    log::info!("💕💕💕 eras to reward: {:?}", eras_to_reward);
+    let (rewards_statistics, total_amount) =
+        collect_rewards_statistics(db, config, eras_to_reward, block_hash)?;
 
-    let rewards_commitment = RewardsCommitment {
-        operators: operator_rewards_commitment(db, config, eras_to_reward, chain_head)?,
-        stakers: stakers_rewards_commitment(config)?,
-        // TODO: add era timestamp
-        timestamp: 0u64,
-    };
+    return Ok(None);
 
-    Ok(Some(rewards_commitment))
+    // let rewards_commitment = RewardsCommitment {
+    //     operators: operator_rewards_commitment(db, config, eras_to_reward, chain_head)?,
+    //     stakers: stakers_rewards_commitment(config)?,
+    //     // TODO: add era timestamp
+    //     timestamp: 0u64,
+    // };
+
+    // Ok(Some(rewards_commitment))
 }
 
 fn eras_to_reward<DB>(
     db: &DB,
     config: &RewardsConfig,
-    chain_head: H256,
+    block_hash: H256,
 ) -> Result<Option<Range<u64>>>
 where
     DB: BlockMetaStorageRead + OnChainStorageRead,
 {
     let header = db
-        .block_header(chain_head)
-        .ok_or(DistributionError::BlockHeaderNotFound(chain_head))?;
+        .block_header(block_hash)
+        .ok_or(DistributionError::BlockHeaderNotFound(block_hash))?;
 
-    let latest_rewarded_era = db.latest_rewarded_era(chain_head).unwrap_or_default();
+    let latest_rewarded_era = db.latest_rewarded_era(block_hash).unwrap_or_default();
     let current_era = utils::era_index(config, header.timestamp);
 
     if current_era == latest_rewarded_era {
@@ -105,12 +108,12 @@ where
     Ok(Some(latest_rewarded_era..current_era))
 }
 
-fn operator_rewards_commitment<DB>(
+fn collect_rewards_statistics<DB>(
     db: &DB,
     config: &RewardsConfig,
     eras: Range<u64>,
     chain_head: H256,
-) -> Result<OperatorRewardsCommitment>
+) -> Result<(BTreeMap<Address, U256>, U256)>
 where
     DB: BlockMetaStorageRead + OnChainStorageRead,
 {
@@ -146,11 +149,16 @@ where
         current_block = block_header.parent_hash;
     }
 
-    Ok(OperatorRewardsCommitment {
-        amount: total_rewards,
-        // root: operators_merkle_tree(rewards_statistics),
-        root: H256::zero(),
-    })
+    Ok((rewards_statistics, total_rewards))
+}
+
+fn split_rewards(mut statistics: BTreeMap<Address, U256>) -> BTreeMap<Address, U256> {
+    let mut split_statistics = BTreeMap::new();
+    for (address, amount) in statistics {
+        let split_amount = amount / U256::from(2); // Example split logic
+        split_statistics.insert(address, split_amount);
+    }
+    split_statistics
 }
 
 fn stakers_rewards_commitment(config: &RewardsConfig) -> Result<StakerRewardsCommitment> {

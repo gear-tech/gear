@@ -22,6 +22,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 pub use ark_bls12_381;
 pub use ark_ec;
@@ -50,7 +51,7 @@ pub const REQUEST_MAP_TO_G2AFFINE: u8 = 7;
 /// Use the following crates to construct a request:
 ///  - `ark-scale`: <https://docs.rs/ark-scale/>;
 ///  - `ark-bls12-381`: <https://docs.rs/ark-bls12-381/>.
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub enum Request {
     /// Request to pairing multi Miller loop for *BLS12-381*.
     ///
@@ -112,7 +113,7 @@ pub enum Request {
 }
 
 /// The enumeration contains result to a request.
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub enum Response {
     /// Result of the multi Miller loop, encoded: [`ArkScale<Bls12_381::TargetField>`].
     #[codec(index = 0)]

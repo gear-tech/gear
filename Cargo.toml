@@ -151,7 +151,7 @@ jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
 num_enum = { version = "0.6.1", default-features = false }
-parity-scale-codec = { version = "3.7.4", default-features = false }
+parity-scale-codec = { version = "3.7.5", default-features = false }
 parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
@@ -211,6 +211,7 @@ tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
 sha3 = { version = "0.10", default-features = false }
+nonempty = { version = "0.12.0", default-features = false }
 
 # Published deps
 #
@@ -499,21 +500,20 @@ demo-wat = { path = "examples/wat" }
 # TODO: remove these dependencies (from this file?) or add more docs.
 
 atomic_enum = "0.3.0"
-cfg-if = "1.0.0" # gear-lazy-pages
-cargo-http-registry = "0.1.6" # crates-io
-errno = "0.3" # gear-lazy-pages
-nix = "0.26.4" # gear-lazy-pages
-itertools = "0.13" # utils/wasm-builder
-keyring = "1.2.1" # gcli
-libp2p = "=0.51.4" # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.46", default-features = false } # node/cli
-nacl = "0.5.3" # gcli
-nonempty = "0.8.1" # utils/utils
-libfuzzer-sys = "0.4" # utils/runtime-fuzzer/fuzz
-pathdiff = { version = "0.2.1", default-features = false } # utils/wasm-builder
-rand_pcg = "0.3.1" # pallets/gear
-rustc_version = "0.4.0" # utils/wasm-builder
-schnorrkel = "0.11.4" # gcli
+cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo-http-registry = "0.1.6"                                # crates-io
+errno = "0.3"                                                # gear-lazy-pages
+nix = "0.26.4"                                               # gear-lazy-pages
+itertools = "0.13"                                           # utils/wasm-builder
+keyring = "1.2.1"                                            # gcli
+libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.46", default-features = false }  # node/cli
+nacl = "0.5.3"                                               # gcli
+libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
+pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
+rand_pcg = "0.3.1"                                           # pallets/gear
+rustc_version = "0.4.0"                                      # utils/wasm-builder
+schnorrkel = "0.11.4"                                        # gcli
 scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
 hyper = "1.4.1" # ethexe/rpc
 tabled = "0.10.0" # utils/regression-analysis

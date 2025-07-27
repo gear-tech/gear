@@ -107,6 +107,8 @@ interface IRouter {
     function programsCount() external view returns (uint256);
     function validatedCodesCount() external view returns (uint256);
 
+    function timelines() external view returns (Gear.Timelines memory);
+
     // # Owner calls.
     function setMirror(address newMirror) external;
 

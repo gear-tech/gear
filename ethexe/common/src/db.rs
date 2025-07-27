@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule, events::BlockEvent,
-    gear::StateTransition,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -33,6 +33,7 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
+use nonempty::NonEmpty;
 
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -92,6 +93,7 @@ pub trait OnChainStorageRead {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
+    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
 }
 
 pub trait OnChainStorageWrite {
@@ -99,4 +101,5 @@ pub trait OnChainStorageWrite {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
+    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
 }
