@@ -243,9 +243,7 @@ impl<S: Sealed> Copy for MaybeHashOf<S> {}
 
 impl<S: Sealed> Hash for MaybeHashOf<S> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        if let Some(hash) = MaybeHashOf::hash(*self) {
-            hash.hash(state);
-        }
+        self.0.hash(state)
     }
 }
 
