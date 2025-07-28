@@ -396,13 +396,13 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(data) => {
+                    ObserverEvent::BlockSynced(block_hash) => {
                         // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
                         // then from latest synced block and up to `data.block_hash`:
                         // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block(data.block_hash);
-                        consensus.receive_synced_block(data)?;
+                        compute.prepare_block(block_hash);
+                        consensus.receive_synced_block(block_hash)?;
                     }
                 },
                 Event::BlobLoader(event) => match event {

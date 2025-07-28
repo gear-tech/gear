@@ -396,7 +396,7 @@ impl pallet_balances::Config for Runtime {
     type DustRemoval = pallet_gear_staking_rewards::OffsetPoolDust<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
     type FreezeIdentifier = RuntimeFreezeReason;
     type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
@@ -1152,7 +1152,7 @@ impl pallet_gear_bank::Config for Runtime {
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear::weights::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
     type OutgoingBytesLimit = OutgoingBytesLimit;
@@ -1227,7 +1227,7 @@ impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
     type BlockLimiter = GearGas;
-    type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1280,7 +1280,7 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;
-    type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1325,7 +1325,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
-    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_voucher::weights::SubstrateWeight<Runtime>;
     type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Runtime>;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
     type MaxProgramsAmount = ConstU8<32>;
