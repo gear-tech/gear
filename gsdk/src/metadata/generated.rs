@@ -3182,6 +3182,11 @@ pub mod runtime_types {
                     pub i32rotr: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct InstrumentationWeights {
+                    pub base: runtime_types::sp_weights::weight_v2::Weight,
+                    pub per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Limits {
                     pub stack_height: ::core::option::Option<::core::primitive::u32>,
                     pub globals: ::core::primitive::u32,
@@ -3232,9 +3237,8 @@ pub mod runtime_types {
                     pub task_weights: runtime_types::pallet_gear::schedule::TaskWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
-                    pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
-                    pub code_instrumentation_byte_cost:
-                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub instrumentation_weights:
+                        runtime_types::pallet_gear::schedule::InstrumentationWeights,
                     pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]

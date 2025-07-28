@@ -124,6 +124,23 @@ contract RouterTest is Base {
         commitValidators(wrongValidatorPrivateKeys, commitment, true);
     }
 
+    function test_emptyValidatorsCommitment() public {
+        address[] memory _validators = new address[](0);
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
+        Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+        );
+
+        rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration) - 2 * blockDuration);
+        rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration));
+
+        // Revert - empty validators list
+        commitValidators(commitment, true);
+    }
+
     function test_lateCommitments() public {
         address[] memory _validators = new address[](3);
         uint256[] memory _validatorPrivateKeys = new uint256[](3);

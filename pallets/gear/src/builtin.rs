@@ -59,7 +59,7 @@ impl BuiltinDispatcher for () {
     type Context = ();
     type Error = ();
 
-    fn lookup(&self, _id: &ActorId) -> Option<BuiltinInfo<Self::Context, Self::Error>> {
+    fn lookup(&self, _id: &ActorId) -> Option<BuiltinInfo<'_, Self::Context, Self::Error>> {
         None
     }
 

@@ -19,10 +19,10 @@
 //! Packages publisher
 
 use crate::{
-    handler, Manifest, PackageStatus, Simulator, Workspace, PACKAGES, SAFE_DEPENDENCIES,
-    STACKED_DEPENDENCIES, TEAM_OWNER,
+    Manifest, PACKAGES, PackageStatus, SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, Simulator,
+    TEAM_OWNER, Workspace, handler,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use cargo_metadata::{Metadata, MetadataCommand};
 use std::path::PathBuf;
 

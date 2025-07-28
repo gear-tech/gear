@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    initial::Initial, DefaultProcessing, PendingEvent, StateHandler, ValidatorContext,
-    ValidatorState,
+    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
+    initial::Initial,
 };
 use crate::{
-    validator::participant::Participant, ConsensusEvent, SignedProducerBlock,
-    SignedValidationRequest,
+    ConsensusEvent, SignedProducerBlock, SignedValidationRequest,
+    validator::participant::Participant,
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
@@ -181,7 +181,7 @@ impl Subordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, SignedProducerBlock, SignedValidationRequest};
+    use crate::{SignedProducerBlock, SignedValidationRequest, mock::*, validator::mock::*};
 
     #[test]
     fn create_empty() {

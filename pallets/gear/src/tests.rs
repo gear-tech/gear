@@ -17,24 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
+    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
+    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
     builtin::BuiltinDispatcherFactory,
     internal::{HoldBound, HoldBoundBuilder, InheritorForError},
     manager::HandleKind,
     mock::{
-        self, new_test_ext, run_for_blocks, run_to_block, run_to_block_maybe_with_queue,
-        run_to_next_block, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
-        RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, RENT_POOL, USER_1, USER_2, USER_3,
+        self, BLOCK_AUTHOR, Balances, BlockNumber, DynamicSchedule, Gear, GearVoucher,
+        LOW_BALANCE_USER, RENT_POOL, RuntimeEvent as MockRuntimeEvent, RuntimeOrigin, System, Test,
+        USER_1, USER_2, USER_3, new_test_ext, run_for_blocks, run_to_block,
+        run_to_block_maybe_with_queue, run_to_next_block,
     },
     pallet,
     runtime_api::{ALLOWANCE_LIMIT_ERR, RUNTIME_API_BLOCK_LIMITS_COUNT},
-    AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
-    Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
-    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
 };
 use common::{
-    event::*, scheduler::*, storage::*, CodeStorage, GasTree, GearPage, LockId, LockableTree,
-    Origin as _, Program, ProgramStorage, ReservableTree,
+    CodeStorage, GasTree, GearPage, LockId, LockableTree, Origin as _, Program, ProgramStorage,
+    ReservableTree, event::*, scheduler::*, storage::*,
 };
 use demo_constructor::{Calls, Scheme};
 use frame_support::{
@@ -49,15 +49,15 @@ use gear_core::{
         self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, ActorId, CodeId, MessageId},
+    ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::PageBuf,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
         StoredDispatch, UserStoredMessage,
     },
     pages::{
-        numerated::{self, tree::IntervalsTree},
         WasmPage, WasmPagesAmount,
+        numerated::{self, tree::IntervalsTree},
     },
     program::ActiveProgram,
     rpc::ReplyInfo,
@@ -73,9 +73,9 @@ use gstd::{
 use pallet_gear_voucher::PrepaidCall;
 use sp_core::H256;
 use sp_runtime::{
+    SaturatedConversion,
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
-    SaturatedConversion,
 };
 use sp_std::convert::TryFrom;
 use std::{collections::BTreeSet, num::NonZero};
@@ -670,37 +670,41 @@ fn calculate_gas_delayed_reservations_sending() {
         assert!(Gear::is_initialized(pid));
 
         // I. In-place case
-        assert!(Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            ReservationSendingShowcase::ToSourceInPlace {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
-                reservation_delay: 1_000,
-                sending_delay: 10,
-            }
-            .encode(),
-            0,
-            true,
-            true,
-        )
-        .is_ok());
+        assert!(
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                ReservationSendingShowcase::ToSourceInPlace {
+                    reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                    reservation_delay: 1_000,
+                    sending_delay: 10,
+                }
+                .encode(),
+                0,
+                true,
+                true,
+            )
+            .is_ok()
+        );
 
         // II. After-wait case (never failed before, added for test coverage).
-        assert!(Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid),
-            ReservationSendingShowcase::ToSourceAfterWait {
-                reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
-                reservation_delay: 1_000,
-                wait_for: 3,
-                sending_delay: 10,
-            }
-            .encode(),
-            0,
-            true,
-            true,
-        )
-        .is_ok());
+        assert!(
+            Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                ReservationSendingShowcase::ToSourceAfterWait {
+                    reservation_amount: 10 * <Test as Config>::MailboxThreshold::get(),
+                    reservation_delay: 1_000,
+                    wait_for: 3,
+                    sending_delay: 10,
+                }
+                .encode(),
+                0,
+                true,
+                true,
+            )
+            .is_ok()
+        );
     });
 }
 
@@ -1216,7 +1220,7 @@ fn auto_reply_from_user_no_mailbox() {
 #[test]
 fn auto_reply_out_of_rent_waitlist() {
     use demo_proxy::{InputArgs as ProxyInputArgs, WASM_BINARY as PROXY_WASM_BINARY};
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY as WAITER_WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY as WAITER_WASM_BINARY, WaitSubcommand};
 
     init_logger();
 
@@ -2040,7 +2044,7 @@ fn terminated_program_zero_gas() {
 
 #[test]
 fn exited_program_zero_gas_and_value() {
-    use crate::{fungible, Fortitude, Preservation};
+    use crate::{Fortitude, Preservation, fungible};
 
     init_logger();
 
@@ -2790,7 +2794,7 @@ fn read_state_works() {
 
 #[test]
 fn mailbox_rent_out_of_rent() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2880,7 +2884,7 @@ fn mailbox_rent_out_of_rent() {
 
 #[test]
 fn mailbox_rent_claimed() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2970,7 +2974,7 @@ fn mailbox_rent_claimed() {
 
 #[test]
 fn mailbox_sending_instant_transfer() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5299,7 +5303,7 @@ fn wake_messages_after_program_inited() {
 
 #[test]
 fn test_different_waits_success() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5453,7 +5457,7 @@ fn test_different_waits_success() {
 
 #[test]
 fn test_different_waits_fail() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -5656,7 +5660,7 @@ fn test_different_waits_fail() {
 
 #[test]
 fn wait_after_reply() {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     let test = |subcommand: WaitSubcommand| {
         new_test_ext().execute_with(|| {
@@ -5930,8 +5934,10 @@ fn test_wait_timeout() {
         run_to_next_block(None);
 
         // Timeout still works.
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
     })
 }
 
@@ -5988,15 +5994,19 @@ fn test_join_wait_timeout() {
         //
         // The timeout message has not been triggered yet.
         run_to_target(targets[0]);
-        assert!(!MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            !MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
 
         // Run to the end of the second duration.
         //
         // The timeout message has been triggered.
         run_to_target(targets[1]);
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
     })
 }
 
@@ -6049,8 +6059,10 @@ fn test_select_wait_timeout() {
         Gear::set_block_number(target);
         run_to_next_block(None);
 
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes().to_vec() == b"timeout")
+        );
     })
 }
 
@@ -6116,8 +6128,10 @@ fn test_wait_lost() {
         //
         // The timeout message has been triggered.
         run_to_target(targets[0]);
-        assert!(!MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable"));
+        assert!(
+            !MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes() == b"unreachable")
+        );
 
         // Run to the end of the second duration.
         //
@@ -6126,8 +6140,10 @@ fn test_wait_lost() {
         assert!(
             MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"timeout")
         );
-        assert!(MailboxOf::<Test>::iter_key(USER_1)
-            .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2"));
+        assert!(
+            MailboxOf::<Test>::iter_key(USER_1)
+                .any(|(msg, _bn)| msg.payload_bytes() == b"timeout2")
+        );
         assert!(
             MailboxOf::<Test>::iter_key(USER_1).any(|(msg, _bn)| msg.payload_bytes() == b"success")
         );
@@ -6239,7 +6255,7 @@ fn exit_locking_funds() {
 
 #[test]
 fn frozen_funds_remain_on_exit() {
-    use crate::{fungible, Fortitude, Preservation};
+    use crate::{Fortitude, Preservation, fungible};
     use demo_constructor::{Calls, Scheme};
     use frame_support::traits::{LockableCurrency, WithdrawReasons};
 
@@ -6707,7 +6723,7 @@ fn test_sequence_inheritor_of() {
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
                 let inheritor = programs.last().copied().unwrap_or_else(|| USER_1.cast());
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = Program::Exited(inheritor);
                 } else {
                     *program = Program::Terminated(inheritor);
@@ -6797,7 +6813,7 @@ fn test_cyclic_inheritor_of() {
                     .last()
                     .copied()
                     .unwrap_or_else(|| 2099.into());
-                if i % 2 == 0 {
+                if i.is_multiple_of(2) {
                     *program = Program::Exited(inheritor);
                 } else {
                     *program = Program::Terminated(inheritor);
@@ -7109,8 +7125,8 @@ fn state_request() {
     init_logger();
     new_test_ext().execute_with(|| {
         use demo_custom::{
-            btree::{Request, StateRequest},
             InitMessage, WASM_BINARY,
+            btree::{Request, StateRequest},
         };
 
         let code = WASM_BINARY;
@@ -7424,7 +7440,7 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use demo_constructor::{demo_exit_handle, WASM_BINARY};
+    use demo_constructor::{WASM_BINARY, demo_exit_handle};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -7738,7 +7754,7 @@ fn calculate_init_gas() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use demo_custom::{btree::Request, InitMessage, WASM_BINARY};
+    use demo_custom::{InitMessage, WASM_BINARY, btree::Request};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -8702,7 +8718,7 @@ fn cascading_messages_with_value_do_not_overcharge() {
 
 #[test]
 fn free_storage_hold_on_scheduler_overwhelm() {
-    use demo_constructor::{demo_value_sender::TestData, Scheme};
+    use demo_constructor::{Scheme, demo_value_sender::TestData};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -13025,7 +13041,7 @@ fn check_reply_push_payload_exceed() {
 /// Check that random works and it's changing on next epoch.
 #[test]
 fn check_random_works() {
-    use blake2::{digest::typenum::U32, Blake2b, Digest};
+    use blake2::{Blake2b, Digest, digest::typenum::U32};
 
     /// BLAKE2b-256 hasher state.
     type Blake2b256 = Blake2b<U32>;
@@ -15367,7 +15383,7 @@ fn allocate_in_init_free_in_handle() {
 
 #[test]
 fn create_program_with_reentrance_works() {
-    use crate::{fungible, Fortitude, Preservation};
+    use crate::{Fortitude, Preservation, fungible};
     use demo_constructor::demo_ping;
     use demo_create_program_reentrance::WASM_BINARY;
     use demo_distributor::WASM_BINARY as CHILD_WASM_BINARY;
@@ -16306,31 +16322,31 @@ pub(crate) mod utils {
     #![allow(unused)]
 
     use super::{
-        assert_ok, pallet, run_to_block, BlockNumber, Event, MailboxOf, MockRuntimeEvent,
-        RuntimeOrigin, Test,
+        BlockNumber, Event, MailboxOf, MockRuntimeEvent, RuntimeOrigin, Test, assert_ok, pallet,
+        run_to_block,
     };
     use crate::{
-        mock::{run_to_next_block, Balances, Gear, System, USER_1},
-        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, Config, CurrencyOf, GasHandlerOf,
-        GasInfo, GearBank, HandleKind, ProgramStorageOf, QueueOf, SentOf,
-        EXISTENTIAL_DEPOSIT_LOCK_ID,
+        BalanceOf, BlockGasLimitOf, BuiltinDispatcherFactory, Config, CurrencyOf,
+        EXISTENTIAL_DEPOSIT_LOCK_ID, GasHandlerOf, GasInfo, GearBank, HandleKind, ProgramStorageOf,
+        QueueOf, SentOf,
+        mock::{Balances, Gear, System, USER_1, run_to_next_block},
     };
     use common::{
+        CodeStorage, Origin, ProgramStorage, ReservableTree,
         event::*,
         storage::{CountedByKey, Counter, IterableByKeyMap, IterableMap},
-        CodeStorage, Origin, ProgramStorage, ReservableTree,
     };
     use core::{fmt, fmt::Display};
     use core_processor::common::ActorExecutionErrorReplyReason;
     use demo_constructor::{Scheme, WASM_BINARY as DEMO_CONSTRUCTOR_WASM_BINARY};
     use frame_support::{
         dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
-        traits::tokens::{currency::Currency, Balance},
+        traits::tokens::{Balance, currency::Currency},
     };
     use frame_system::pallet_prelude::{BlockNumberFor, OriginFor};
     use gear_core::{
         buffer::Payload,
-        ids::{prelude::*, ActorId, CodeId, MessageId},
+        ids::{ActorId, CodeId, MessageId, prelude::*},
         memory::PageBuf,
         message::{Message, ReplyDetails, StoredDispatch, UserMessage, UserStoredMessage},
         pages::{GearPage, WasmPagesAmount},
@@ -16752,12 +16768,12 @@ pub(crate) mod utils {
         let mut actual_error = None;
 
         System::events().into_iter().for_each(|e| {
-            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event {
-                if let Some(details) = message.details() {
-                    let (mid, code) = details.into_parts();
-                    if mid == message_id && code.is_error() {
-                        actual_error = Some((message.payload_bytes().to_vec(), code));
-                    }
+            if let MockRuntimeEvent::Gear(Event::UserMessageSent { message, .. }) = e.event
+                && let Some(details) = message.details()
+            {
+                let (mid, code) = details.into_parts();
+                if mid == message_id && code.is_error() {
+                    actual_error = Some((message.payload_bytes().to_vec(), code));
                 }
             }
         });

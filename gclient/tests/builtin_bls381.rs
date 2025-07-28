@@ -19,7 +19,7 @@
 use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::CanonicalSerialize;
-use ark_std::{ops::Mul, UniformRand};
+use ark_std::{UniformRand, ops::Mul};
 use demo_bls381::*;
 use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gstd::prelude::*;
@@ -59,10 +59,12 @@ async fn upload_program(
     let (message_id, program_id) =
         common_upload_program(client, WASM_BINARY.to_vec(), payload).await?;
 
-    assert!(listener
-        .message_processed(message_id.into())
-        .await?
-        .succeed());
+    assert!(
+        listener
+            .message_processed(message_id.into())
+            .await?
+            .succeed()
+    );
 
     Ok(program_id)
 }

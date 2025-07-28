@@ -20,12 +20,12 @@ use crate::Event;
 use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction, SimpleBlockData,
+    SimpleBlockData, db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::{BlockProcessed, ComputeEvent};
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{db_sync, export::PeerId, NetworkEvent};
+use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
@@ -227,21 +227,21 @@ impl ObserverEventsListener {
         loop {
             let event = self.next_event().await?;
 
-            let ObserverEvent::BlockSynced(data) = event else {
+            let ObserverEvent::BlockSynced(block_hash) = event else {
                 continue;
             };
 
             let header = self
                 .db
-                .block_header(data.block_hash)
+                .block_header(block_hash)
                 .expect("Block header not found");
             let events = self
                 .db
-                .block_events(data.block_hash)
+                .block_events(block_hash)
                 .expect("Block events not found");
 
             let block_data = SimpleBlockData {
-                hash: data.block_hash,
+                hash: block_hash,
                 header,
             };
 

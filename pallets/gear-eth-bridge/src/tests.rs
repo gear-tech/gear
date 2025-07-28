@@ -1,11 +1,11 @@
 use crate::{
+    Config, EthMessage, WeightInfo,
     internal::EthMessageExt,
     mock::{mock_builtin_id as builtin_id, *},
-    Config, EthMessage, WeightInfo,
 };
 use common::Origin as _;
 use frame_support::{
-    assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
+    Blake2_256, StorageHasher, assert_noop, assert_ok, assert_storage_noop, traits::Get,
 };
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};

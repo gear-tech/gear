@@ -18,7 +18,7 @@
 
 #![allow(async_fn_in_trait)]
 
-use futures::{future, stream::FusedStream, StreamExt};
+use futures::{StreamExt, future, stream::FusedStream};
 use std::future::Future;
 
 pub use task_local::LocalKey;

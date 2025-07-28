@@ -17,17 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    compute,
+    BlockProcessed, ComputeError, ComputeEvent, ProcessorExt, Result, compute,
     prepare::{self, PrepareInfo},
-    BlockProcessed, ComputeError, ComputeEvent, ProcessorExt, Result,
 };
 use ethexe_common::{
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
     CodeAndIdUnchecked, SimpleBlockData,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
-use futures::{future::BoxFuture, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{HashSet, VecDeque},
@@ -35,6 +34,13 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::task::JoinSet;
+
+#[derive(Debug, Clone)]
+pub struct ComputeMetrics {
+    pub blocks_queue_len: usize,
+    pub waiting_codes_count: usize,
+    pub process_codes_count: usize,
+}
 
 #[derive(Debug, Clone)]
 enum BlockAction {
@@ -54,7 +60,6 @@ enum State {
     ComputeBlock(BoxFuture<'static, Result<BlockProcessed>>),
 }
 
-// TODO #4548: add state monitoring in prometheus
 pub struct ComputeService<P: ProcessorExt = Processor> {
     db: Database,
     processor: P,
@@ -113,6 +118,22 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     pub fn process_block(&mut self, block: H256) {
         self.blocks_queue.push_front(BlockAction::Process(block));
+    }
+
+    /// Get all metrics from the compute service
+    pub fn get_metrics(&self) -> ComputeMetrics {
+        let waiting_codes_count =
+            if let State::WaitForCodes { waiting_codes, .. } = &self.blocks_state {
+                waiting_codes.len()
+            } else {
+                0
+            };
+
+        ComputeMetrics {
+            blocks_queue_len: self.blocks_queue.len(),
+            waiting_codes_count,
+            process_codes_count: self.process_codes.len(),
+        }
     }
 }
 
@@ -174,24 +195,23 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             chain,
             waiting_codes,
         } = &self.blocks_state
+            && waiting_codes.is_empty()
         {
-            if waiting_codes.is_empty() {
-                // All codes are loaded, we can mark the block as prepared
-                for block_data in chain {
-                    self.db
-                        .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
-                }
-                let event = ComputeEvent::BlockPrepared(*block);
-                self.blocks_state = State::WaitForBlock;
-                return Poll::Ready(Some(Ok(event)));
+            // All codes are loaded, we can mark the block as prepared
+            for block_data in chain {
+                self.db
+                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
             }
+            let event = ComputeEvent::BlockPrepared(*block);
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(Ok(event)));
         }
 
-        if let State::ComputeBlock(future) = &mut self.blocks_state {
-            if let Poll::Ready(res) = future.poll_unpin(cx) {
-                self.blocks_state = State::WaitForBlock;
-                return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
-            }
+        if let State::ComputeBlock(future) = &mut self.blocks_state
+            && let Poll::Ready(res) = future.poll_unpin(cx)
+        {
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
         }
 
         Poll::Pending
@@ -209,13 +229,14 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
+        Address, BlockHeader, CodeAndIdUnchecked,
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
-        BlockHeader, CodeAndIdUnchecked,
     };
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::{CodeId, H256};
+    use nonempty::nonempty;
     use std::collections::VecDeque;
 
     /// Test ComputeService block preparation functionality
@@ -248,6 +269,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
+        db.set_validators(block_hash, nonempty![Address::from([0u8; 20])]);
 
         // Request block preparation
         service.prepare_block(block_hash);

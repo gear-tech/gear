@@ -20,8 +20,8 @@ use crate::{
     buffer::Payload,
     ids::{ActorId, MessageId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, StoredDispatch,
-        StoredMessage, Value,
+        ContextStore, DispatchKind, GasLimit, StoredDispatch, StoredMessage, Value,
+        common::MessageDetails,
     },
 };
 use alloc::sync::Arc;

@@ -24,15 +24,15 @@ use alloy::{
     rpc::{
         client::BatchRequest,
         types::{
-            eth::{Filter, Topic},
             Block, Log,
+            eth::{Filter, Topic},
         },
     },
 };
-use anyhow::{anyhow, Result};
-use ethexe_common::{events::BlockEvent, Address, BlockData, BlockHeader};
+use anyhow::{Result, anyhow};
+use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
 use ethexe_ethereum::{mirror, router, wvara};
-use futures::{future, stream::FuturesUnordered, FutureExt};
+use futures::{FutureExt, future, stream::FuturesUnordered};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture};
 

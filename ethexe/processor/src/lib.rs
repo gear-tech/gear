@@ -19,18 +19,18 @@
 //! Program's execution service for eGPU.
 
 use ethexe_common::{
+    CodeAndIdUnchecked, ProgramStates, Schedule,
     db::CodesStorageWrite,
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    CodeAndIdUnchecked, ProgramStates, Schedule,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
-use gprimitives::{ActorId, CodeId, MessageId, H256};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{
-    run::{self, RunnerConfig},
     ProcessingHandler,
+    run::{self, RunnerConfig},
 };
 use host::InstanceCreator;
 
@@ -96,7 +96,9 @@ pub enum ProcessorError {
     // `ProcessingHandler` errors
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
-    #[error("db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}")]
+    #[error(
+        "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}"
+    )]
     DuplicatedProgram(ActorId),
 
     #[error(transparent)]

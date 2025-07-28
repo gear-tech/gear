@@ -18,6 +18,7 @@
 
 //! Gear storage apis
 use crate::{
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
     metadata::{
         runtime_types::{
             frame_system::{AccountInfo, EventRecord},
@@ -37,13 +38,13 @@ use crate::{
         vara_runtime::RuntimeEvent,
     },
     result::{Error, Result},
-    utils, Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
+    utils,
 };
 use anyhow::anyhow;
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
-use sp_core::{crypto::Ss58Codec, H256};
+use sp_core::{H256, crypto::Ss58Codec};
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
@@ -459,12 +460,11 @@ impl Api {
 
         let mut fetched_keys = 0;
         while let Some(key) = keys.next().await {
-            if let Some(storage_data) = storage.fetch_raw(key?).await? {
-                if let Ok(value) =
+            if let Some(storage_data) = storage.fetch_raw(key?).await?
+                && let Ok(value) =
                     <(UserStoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
-                {
-                    mailbox.push(value);
-                }
+            {
+                mailbox.push(value);
             }
 
             fetched_keys += 1;

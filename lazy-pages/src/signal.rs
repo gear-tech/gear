@@ -19,11 +19,11 @@
 //! Lazy-pages system signals accesses support.
 
 use crate::{
+    LAZY_PAGES_CONTEXT,
     common::{CostNo, Error, GasCharger, LazyPagesExecutionContext, LazyPagesRuntimeContext},
     globals::{self, GlobalNo},
     pages::GearPage,
     process::{self, AccessHandler},
-    LAZY_PAGES_CONTEXT,
 };
 use gear_lazy_pages_common::Status;
 use std::convert::TryFrom;

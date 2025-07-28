@@ -31,10 +31,10 @@ extern crate frame_benchmarking;
 #[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::{storage::Messenger, DelegateFee};
+use common::{DelegateFee, storage::Messenger};
 use frame_election_provider_support::{
-    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
-    VoteWeight,
+    ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain,
 };
 use frame_support::{
     dispatch::DispatchInfo,
@@ -44,14 +44,14 @@ use frame_support::{
     weights::ConstantMultiplier,
 };
 use frame_system::{
-    limits::{BlockLength, BlockWeights},
     EnsureRoot,
+    limits::{BlockLength, BlockWeights},
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_gear_builtin::ActorWithId;
 use pallet_grandpa::{
-    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+    AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList, fg_primitives,
 };
 use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -61,15 +61,15 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+use sp_core::{ConstBool, ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
 use sp_runtime::{
+    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -93,35 +93,34 @@ pub use pallet_gear_gas;
 pub use pallet_gear_payment;
 
 pub use frame_support::{
-    construct_runtime, derive_impl,
+    PalletId, StorageValue, construct_runtime, derive_impl,
     dispatch::{DispatchClass, WeighData},
     genesis_builder_helper::{build_state, get_preset},
     parameter_types,
     traits::{
-        fungible::HoldConsideration,
-        tokens::{PayFromAccount, UnityAssetBalanceConversion},
-        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
+        ConstU16, ConstU32, ConstU128, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
         LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, SortedMembers,
         StorageInfo, VariantCountOf, WithdrawReasons,
+        fungible::HoldConsideration,
+        tokens::{PayFromAccount, UnityAssetBalanceConversion},
     },
     weights::{
+        Weight,
         constants::{
             BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS,
             WEIGHT_REF_TIME_PER_SECOND,
         },
-        Weight,
     },
-    PalletId, StorageValue,
 };
 pub use gear_runtime_common::{
+    AVERAGE_ON_INITIALIZE_RATIO, BlockHashCount, DealWithFees, GAS_LIMIT_MIN_PERCENTAGE_NUM,
+    NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO, VALUE_PER_GAS,
     constants::{
         RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
         RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
-    VALUE_PER_GAS,
+    impl_runtime_apis_plus_common,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
@@ -154,7 +153,7 @@ mod weights;
 mod bag_thresholds;
 
 pub mod governance;
-use governance::{pallet_custom_origins, GeneralAdmin, StakingAdmin, Treasurer, TreasurySpender};
+use governance::{GeneralAdmin, StakingAdmin, Treasurer, TreasurySpender, pallet_custom_origins};
 
 mod migrations;
 
@@ -398,7 +397,7 @@ impl pallet_balances::Config for Runtime {
     type DustRemoval = pallet_gear_staking_rewards::OffsetPoolDust<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
     type FreezeIdentifier = RuntimeFreezeReason;
     type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
@@ -1152,7 +1151,7 @@ impl pallet_gear_bank::Config for Runtime {
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear::weights::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
     type OutgoingBytesLimit = OutgoingBytesLimit;
@@ -1231,7 +1230,7 @@ impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
     type BlockLimiter = GearGas;
-    type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1284,7 +1283,7 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;
-    type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1329,7 +1328,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
-    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_voucher::weights::SubstrateWeight<Runtime>;
     type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Runtime>;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
     type MaxProgramsAmount = ConstU8<32>;

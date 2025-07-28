@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{events::BlockRequestEvent, CodeAndIdUnchecked};
+use ethexe_common::{CodeAndIdUnchecked, events::BlockRequestEvent};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
@@ -67,12 +67,16 @@ pub enum ComputeError {
     PreviousCommitmentNotFound(H256),
     #[error("last committed batch not found for computed block({0})")]
     LastCommittedBatchNotFound(H256),
-    #[error("code validation mismatch for code({code_id:?}), local status: {local_status}, remote status: {remote_status}")]
+    #[error(
+        "code validation mismatch for code({code_id:?}), local status: {local_status}, remote status: {remote_status}"
+    )]
     CodeValidationStatusMismatch {
         code_id: CodeId,
         local_status: bool,
         remote_status: bool,
     },
+    #[error("validator set not found for block({0})")]
+    ValidatorSetNotFound(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
