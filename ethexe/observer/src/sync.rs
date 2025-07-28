@@ -63,10 +63,10 @@ impl<DB: SyncDB> ChainSync<DB> {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        let chain = self.load_chain(block, &header, blocks_data).await?;
+        let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, &header).await?;
+        self.propagate_validators(block, header).await?;
 
         Ok(block)
     }
@@ -74,7 +74,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     async fn load_chain(
         &self,
         block: H256,
-        header: &BlockHeader,
+        header: BlockHeader,
         mut blocks_data: HashMap<H256, BlockData>,
     ) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
@@ -168,7 +168,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
+    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
@@ -203,7 +203,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
     /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: &BlockHeader) -> Result<bool> {
+    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
         let chain_head_era = self.block_era_index(chain_head.timestamp);
 
         if chain_head_era.is_zero() {
