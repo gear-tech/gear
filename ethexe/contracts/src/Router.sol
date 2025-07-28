@@ -224,6 +224,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().protocolData.validatedCodesCount;
     }
 
+    function timelines() public view returns (Gear.Timelines memory) {
+        return _router().timelines;
+    }
+
     // Owner calls.
     function setMirror(address newMirror) external onlyOwner {
         _router().implAddresses.mirror = newMirror;
@@ -450,6 +454,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         }
 
         Gear.ValidatorsCommitment calldata _commitment = _batch.validatorsCommitment[0];
+
+        require(_commitment.validators.length > 0, "new validators list must not be empty");
 
         uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 

@@ -139,12 +139,13 @@ fn propagate_data_from_parent<
 mod tests {
     use super::*;
     use ethexe_common::{
-        BlockHeader, Digest,
+        Address, BlockHeader, Digest,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
     };
     use ethexe_db::Database as DB;
     use gprimitives::{CodeId, H256};
+    use nonempty::nonempty;
     use std::collections::VecDeque;
 
     /// Tests propagate_data_from_parent with empty events list
@@ -162,6 +163,7 @@ mod tests {
             meta.last_committed_head = Some(initial_head);
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = Vec::<BlockEvent>::new();
 
@@ -198,6 +200,7 @@ mod tests {
             meta.last_committed_head = Some(initial_head);
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let new_digest = Digest([99; 32]);
         let events = [BlockEvent::Router(
@@ -235,6 +238,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -272,6 +276,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = [BlockEvent::Router(
             ethexe_common::events::RouterEvent::CodeValidationRequested {
@@ -306,6 +311,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = [BlockEvent::Router(
             ethexe_common::events::RouterEvent::CodeGotValidated {
@@ -335,6 +341,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -404,6 +411,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = vec![
             BlockEvent::Router(
@@ -441,6 +449,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Code2 already exists in DB
         db.set_code_valid(code_id2, true);
@@ -525,6 +534,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -568,6 +578,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -619,6 +630,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(grandparent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Configure grandparent as prepared
         db.mutate_block_meta(grandparent_hash, |m| {

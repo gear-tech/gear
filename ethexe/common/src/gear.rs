@@ -211,6 +211,13 @@ impl ToDigest for BatchCommitment {
     }
 }
 
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct Timelines {
+    pub era: u64,
+    pub election: u64,
+    pub validation_delay: u64,
+}
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
     pub aggregated_public_key: AggregatedPublicKey,
