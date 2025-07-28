@@ -1,0 +1,1095 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use ethexe_common::{
+    BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    db::{BlockMetaStorageRead, BlockOutcome, CodesStorageRead, OnChainStorageRead},
+    events::BlockEvent,
+    gear::StateTransition,
+};
+use ethexe_runtime_common::state::{
+    ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf, MemoryPages,
+    MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
+    ProgramState, Storage, UserMailbox, Waitlist,
+};
+use gear_core::{
+    buffer::Payload,
+    code::{CodeMetadata, InstrumentedCode},
+    memory::PageBuf,
+};
+use gprimitives::{ActorId, CodeId, H256};
+use std::{
+    collections::{BTreeSet, HashSet, VecDeque},
+    hash::{DefaultHasher, Hash, Hasher},
+    marker::PhantomData,
+};
+
+pub trait DatabaseIteratorStorage:
+    OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage
+{
+}
+
+impl<T: OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage>
+    DatabaseIteratorStorage for T
+{
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct ChainNode {
+    pub head: H256,
+    pub bottom: H256,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct BlockNode {
+    pub block: H256,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct BlockMetaNode {
+    pub block: H256,
+    pub meta: BlockMeta,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct BlockHeaderNode {
+    pub block: H256,
+    pub block_header: BlockHeader,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockEventsNode {
+    pub block: H256,
+    pub block_events: Vec<BlockEvent>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockCommitmentQueueNode {
+    pub block: H256,
+    pub block_commitment_queue: VecDeque<H256>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockCodesQueueNode {
+    pub block: H256,
+    pub block_codes_queue: VecDeque<CodeId>,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct CodeIdNode {
+    pub code_id: CodeId,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct CodeValidNode {
+    pub code_id: CodeId,
+    pub code_valid: bool,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct OriginalCodeNode {
+    pub original_code: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct InstrumentedCodeNode {
+    pub code_id: CodeId,
+    pub instrumented_code: InstrumentedCode,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct CodeMetadataNode {
+    pub code_id: CodeId,
+    pub code_metadata: CodeMetadata,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct ProgramIdNode {
+    pub program_id: ActorId,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct PreviousNonEmptyBlockNode {
+    pub block: H256,
+    pub previous_non_empty_block: H256,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct LastCommittedBatchNode {
+    pub block: H256,
+    pub last_committed_batch: Digest,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockProgramStatesNode {
+    pub block: H256,
+    pub block_program_states: ProgramStates,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct ProgramStateNode {
+    pub program_state: ProgramState,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockScheduleNode {
+    pub block: H256,
+    pub block_schedule: Schedule,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockScheduleTasksNode {
+    pub block: H256,
+    pub height: u32,
+    pub tasks: BTreeSet<ScheduledTask>,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct ScheduledTaskNode {
+    pub task: ScheduledTask,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct BlockOutcomeNode {
+    pub block: H256,
+    pub block_outcome: BlockOutcome,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct StateTransitionNode {
+    pub state_transition: StateTransition,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct AllocationsNode {
+    pub allocations: Allocations,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct MemoryPagesNode {
+    pub memory_pages: MemoryPages,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct MemoryPagesRegionNode {
+    pub memory_pages_region: MemoryPagesRegion,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct PageDataNode {
+    pub page_data: PageBuf,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct PayloadLookupNode {
+    pub payload_lookup: PayloadLookup,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct PayloadNode {
+    pub payload: Payload,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct MessageQueueHashWithSizeNode {
+    pub queue_hash_with_size: MessageQueueHashWithSize,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct MessageQueueNode {
+    pub message_queue: MessageQueue,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct WaitlistNode {
+    pub waitlist: Waitlist,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct MailboxNode {
+    pub mailbox: Mailbox,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct UserMailboxNode {
+    pub user_mailbox: UserMailbox,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct DispatchStashNode {
+    pub dispatch_stash: DispatchStash,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::From, derive_more::IsVariant)]
+pub enum Node {
+    Chain(ChainNode),
+    Block(BlockNode),
+    BlockMeta(BlockMetaNode),
+    BlockHeader(BlockHeaderNode),
+    BlockEvents(BlockEventsNode),
+    BlockCommitmentQueue(BlockCommitmentQueueNode),
+    BlockCodesQueue(BlockCodesQueueNode),
+    CodeId(CodeIdNode),
+    CodeValid(CodeValidNode),
+    OriginalCode(OriginalCodeNode),
+    InstrumentedCode(InstrumentedCodeNode),
+    CodeMetadata(CodeMetadataNode),
+    ProgramId(ProgramIdNode),
+    PreviousNonEmptyBlock(PreviousNonEmptyBlockNode),
+    LastCommittedBatch(LastCommittedBatchNode),
+    BlockProgramStates(BlockProgramStatesNode),
+    ProgramState(ProgramStateNode),
+    BlockSchedule(BlockScheduleNode),
+    BlockScheduleTAsks(BlockScheduleTasksNode),
+    ScheduledTask(ScheduledTaskNode),
+    BlockOutcome(BlockOutcomeNode),
+    StateTransition(StateTransitionNode),
+    Allocations(AllocationsNode),
+    MemoryPages(Box<MemoryPagesNode>),
+    MemoryPagesRegion(MemoryPagesRegionNode),
+    PageData(PageDataNode),
+    PayloadLookup(PayloadLookupNode),
+    Payload(PayloadNode),
+    MessageQueueHashWithSize(MessageQueueHashWithSizeNode),
+    MessageQueue(MessageQueueNode),
+    Waitlist(WaitlistNode),
+    Mailbox(MailboxNode),
+    UserMailbox(UserMailboxNode),
+    DispatchStash(DispatchStashNode),
+    Error(DatabaseIteratorError),
+}
+
+impl From<MemoryPagesNode> for Node {
+    fn from(value: MemoryPagesNode) -> Self {
+        Self::MemoryPages(Box::new(value))
+    }
+}
+
+impl Node {
+    pub fn into_chain(self) -> Option<ChainNode> {
+        if let Node::Chain(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block(self) -> Option<BlockNode> {
+        if let Node::Block(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_meta(self) -> Option<BlockMetaNode> {
+        if let Node::BlockMeta(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_header(self) -> Option<BlockHeaderNode> {
+        if let Node::BlockHeader(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_events(self) -> Option<BlockEventsNode> {
+        if let Node::BlockEvents(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_commitment_queue(self) -> Option<BlockCommitmentQueueNode> {
+        if let Node::BlockCommitmentQueue(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_codes_queue(self) -> Option<BlockCodesQueueNode> {
+        if let Node::BlockCodesQueue(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_code_id(self) -> Option<CodeIdNode> {
+        if let Node::CodeId(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_code_valid(self) -> Option<CodeValidNode> {
+        if let Node::CodeValid(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_original_code(self) -> Option<OriginalCodeNode> {
+        if let Node::OriginalCode(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_instrumented_code(self) -> Option<InstrumentedCodeNode> {
+        if let Node::InstrumentedCode(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_code_metadata(self) -> Option<CodeMetadataNode> {
+        if let Node::CodeMetadata(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_program_id(self) -> Option<ProgramIdNode> {
+        if let Node::ProgramId(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_previous_non_empty_block(self) -> Option<PreviousNonEmptyBlockNode> {
+        if let Node::PreviousNonEmptyBlock(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_last_committed_batch(self) -> Option<LastCommittedBatchNode> {
+        if let Node::LastCommittedBatch(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_program_states(self) -> Option<BlockProgramStatesNode> {
+        if let Node::BlockProgramStates(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_program_state(self) -> Option<ProgramStateNode> {
+        if let Node::ProgramState(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_schedule(self) -> Option<BlockScheduleNode> {
+        if let Node::BlockSchedule(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_schedule_tasks(self) -> Option<BlockScheduleTasksNode> {
+        if let Node::BlockScheduleTAsks(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_scheduled_task(self) -> Option<ScheduledTaskNode> {
+        if let Node::ScheduledTask(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_block_outcome(self) -> Option<BlockOutcomeNode> {
+        if let Node::BlockOutcome(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_state_transition(self) -> Option<StateTransitionNode> {
+        if let Node::StateTransition(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_allocations(self) -> Option<AllocationsNode> {
+        if let Node::Allocations(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_memory_pages(self) -> Option<Box<MemoryPagesNode>> {
+        if let Node::MemoryPages(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_memory_pages_region(self) -> Option<MemoryPagesRegionNode> {
+        if let Node::MemoryPagesRegion(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_page_data(self) -> Option<PageDataNode> {
+        if let Node::PageData(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_payload_lookup(self) -> Option<PayloadLookupNode> {
+        if let Node::PayloadLookup(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_payload(self) -> Option<PayloadNode> {
+        if let Node::Payload(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_message_queue_hash_with_size(self) -> Option<MessageQueueHashWithSizeNode> {
+        if let Node::MessageQueueHashWithSize(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_message_queue(self) -> Option<MessageQueueNode> {
+        if let Node::MessageQueue(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_waitlist(self) -> Option<WaitlistNode> {
+        if let Node::Waitlist(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_mailbox(self) -> Option<MailboxNode> {
+        if let Node::Mailbox(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_user_mailbox(self) -> Option<UserMailboxNode> {
+        if let Node::UserMailbox(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_dispatch_stash(self) -> Option<DispatchStashNode> {
+        if let Node::DispatchStash(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_error(self) -> Option<DatabaseIteratorError> {
+        if let Node::Error(error) = self {
+            Some(error)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum DatabaseIteratorError {
+    /* block */
+    NoBlockHeader(H256),
+    NoBlockEvents(H256),
+    NoBlockProgramStates(H256),
+    NoBlockSchedule(H256),
+    NoBlockOutcome(H256),
+    NoBlockCommitmentQueue(H256),
+    NoBlockCodesQueue(H256),
+    NoPreviousNonEmptyBlock(H256),
+    NoLastCommittedBatch(H256),
+
+    /* memory */
+    NoMemoryPages(HashOf<MemoryPages>),
+    NoMemoryPagesRegion(HashOf<MemoryPagesRegion>),
+    NoPageData(HashOf<PageBuf>),
+
+    /* code */
+    NoCodeValid(CodeId),
+    NoOriginalCode(CodeId),
+    NoInstrumentedCode(CodeId),
+    NoCodeMetadata(CodeId),
+
+    /* rest */
+    NoMessageQueue(HashOf<MessageQueue>),
+    NoWaitlist(HashOf<Waitlist>),
+    NoDispatchStash(HashOf<DispatchStash>),
+    NoMailbox(HashOf<Mailbox>),
+    NoUserMailbox(HashOf<UserMailbox>),
+    NoAllocations(HashOf<Allocations>),
+    NoProgramState(H256),
+    NoPayload(HashOf<Payload>),
+    NoProgramCodeId(ActorId),
+}
+
+pub struct NewMarker;
+
+pub struct ReadyMarker;
+
+pub struct DatabaseIterator<S, M = ReadyMarker> {
+    storage: S,
+    stack: VecDeque<Node>,
+    visited_nodes: HashSet<u64>,
+    _marker: PhantomData<M>,
+}
+
+impl<S> DatabaseIterator<S, NewMarker>
+where
+    S: DatabaseIteratorStorage,
+{
+    pub fn new(storage: S) -> Self {
+        Self {
+            storage,
+            stack: Default::default(),
+            visited_nodes: HashSet::new(),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn start(self, node: impl Into<Node>) -> DatabaseIterator<S, ReadyMarker> {
+        let mut this = DatabaseIterator {
+            storage: self.storage,
+            stack: self.stack,
+            visited_nodes: self.visited_nodes,
+            _marker: PhantomData,
+        };
+        this.push_node(node);
+        this
+    }
+
+    pub fn start_with_chain(self, head: H256, bottom: H256) -> DatabaseIterator<S, ReadyMarker> {
+        self.start(ChainNode { head, bottom })
+    }
+}
+
+macro_rules! try_push_node {
+    (with_hash: $this:ident.$method:ident($hash:ident)) => {
+        if let Some(x) = $this.storage.$method($hash) {
+            paste::paste! {
+                $this.push_node(Node:: [< $method:camel >] ( [< $method:camel Node >] { $hash: $hash, $method: x } ));
+            }
+        } else {
+            paste::paste! {
+                $this.push_node(DatabaseIteratorError:: [< No $method:camel >] ($hash));
+            }
+        }
+    };
+    (no_hash: $this:ident.$method:ident($hash:ident)) => {
+        if let Some(x) = $this.storage.$method($hash) {
+            paste::paste! {
+                $this.push_node(Node:: [< $method:camel >] ( [< $method:camel Node >] { $method: x } ));
+            }
+        } else {
+            paste::paste! {
+                $this.push_node(DatabaseIteratorError:: [< No $method:camel >] ($hash));
+            }
+        }
+    };
+}
+
+impl<S> DatabaseIterator<S>
+where
+    S: DatabaseIteratorStorage,
+{
+    fn push_node(&mut self, node: impl Into<Node>) {
+        self.stack.push_back(node.into());
+    }
+
+    fn iter_node(&mut self, node: &Node) {
+        match node {
+            Node::Chain(node) => self.iter_chain(*node),
+            Node::Block(node) => self.iter_block(*node),
+            Node::BlockMeta(_) => {}
+            Node::BlockHeader(_) => {}
+            Node::BlockEvents(_) => {}
+            Node::BlockCommitmentQueue(node) => self.iter_block_commitment_queue(node),
+            Node::BlockCodesQueue(node) => self.iter_block_codes_queue(node),
+            Node::CodeId(node) => self.iter_code_id(*node),
+            Node::CodeValid(_) => {}
+            Node::OriginalCode(_) => {}
+            Node::InstrumentedCode(_) => {}
+            Node::CodeMetadata(_) => {}
+            Node::ProgramId(node) => self.iter_program_id(*node),
+            Node::PreviousNonEmptyBlock(_) => {}
+            Node::LastCommittedBatch(_) => {}
+            Node::BlockProgramStates(node) => self.iter_block_program_states(node),
+            Node::ProgramState(node) => self.iter_program_state(*node),
+            Node::BlockSchedule(node) => self.iter_block_schedule(node),
+            Node::BlockScheduleTAsks(node) => self.iter_block_schedule_tasks(node),
+            Node::ScheduledTask(node) => self.iter_scheduled_task(*node),
+            Node::BlockOutcome(node) => self.iter_block_outcome(node),
+            Node::StateTransition(node) => self.iter_state_transition(node),
+            Node::Allocations(_) => {}
+            Node::MemoryPages(node) => self.iter_memory_pages(node),
+            Node::MemoryPagesRegion(node) => self.iter_memory_pages_region(node),
+            Node::PageData(_) => {}
+            Node::PayloadLookup(node) => self.iter_payload_lookup(node),
+            Node::Payload(_) => {}
+            Node::MessageQueueHashWithSize(node) => self.iter_message_queue_hash_with_size(*node),
+            Node::MessageQueue(node) => self.iter_message_queue(node),
+            Node::Waitlist(node) => self.iter_waitlist(node),
+            Node::Mailbox(node) => self.iter_mailbox(node),
+            Node::UserMailbox(node) => self.iter_user_mailbox(node),
+            Node::DispatchStash(node) => self.iter_dispatch_stash(node),
+            Node::Error(_) => {}
+        }
+    }
+
+    fn iter_chain(&mut self, ChainNode { head, bottom }: ChainNode) {
+        let mut block = head;
+        loop {
+            self.push_node(BlockNode { block });
+
+            if block == bottom {
+                break;
+            }
+
+            let header = self.storage.block_header(block);
+            if let Some(header) = header {
+                block = header.parent_hash;
+            } else {
+                self.push_node(DatabaseIteratorError::NoBlockHeader(block));
+                break;
+            }
+        }
+    }
+
+    fn iter_block(&mut self, BlockNode { block }: BlockNode) {
+        let meta = self.storage.block_meta(block);
+        self.push_node(BlockMetaNode { block, meta });
+
+        try_push_node!(with_hash: self.block_header(block));
+
+        try_push_node!(with_hash: self.block_events(block));
+
+        try_push_node!(with_hash: self.block_commitment_queue(block));
+
+        try_push_node!(with_hash: self.block_codes_queue(block));
+
+        try_push_node!(with_hash: self.previous_non_empty_block(block));
+
+        try_push_node!(with_hash: self.last_committed_batch(block));
+
+        try_push_node!(with_hash: self.block_program_states(block));
+
+        try_push_node!(with_hash: self.block_schedule(block));
+
+        try_push_node!(with_hash: self.block_outcome(block));
+    }
+
+    fn iter_block_commitment_queue(
+        &mut self,
+        BlockCommitmentQueueNode {
+            block: _,
+            block_commitment_queue,
+        }: &BlockCommitmentQueueNode,
+    ) {
+        for &commitment_block in block_commitment_queue {
+            self.push_node(BlockNode {
+                block: commitment_block,
+            });
+        }
+    }
+
+    fn iter_block_codes_queue(
+        &mut self,
+        BlockCodesQueueNode {
+            block: _,
+            block_codes_queue,
+        }: &BlockCodesQueueNode,
+    ) {
+        for &code_id in block_codes_queue {
+            self.push_node(CodeIdNode { code_id });
+        }
+    }
+
+    fn iter_program_id(&mut self, ProgramIdNode { program_id }: ProgramIdNode) {
+        if let Some(code_id) = self.storage.program_code_id(program_id) {
+            self.push_node(CodeIdNode { code_id });
+        } else {
+            self.push_node(DatabaseIteratorError::NoProgramCodeId(program_id));
+        }
+    }
+
+    fn iter_code_id(&mut self, CodeIdNode { code_id }: CodeIdNode) {
+        try_push_node!(with_hash: self.code_valid(code_id));
+
+        try_push_node!(no_hash: self.original_code(code_id));
+
+        if let Some(instrumented_code) = self
+            .storage
+            .instrumented_code(ethexe_runtime_common::RUNTIME_ID, code_id)
+        {
+            self.push_node(InstrumentedCodeNode {
+                code_id,
+                instrumented_code,
+            });
+        } else {
+            self.push_node(DatabaseIteratorError::NoInstrumentedCode(code_id));
+        }
+
+        try_push_node!(with_hash: self.code_metadata(code_id));
+    }
+
+    fn iter_block_program_states(
+        &mut self,
+        BlockProgramStatesNode {
+            block: _,
+            block_program_states,
+        }: &BlockProgramStatesNode,
+    ) {
+        for StateHashWithQueueSize {
+            hash: program_state,
+            cached_queue_size: _,
+        } in block_program_states.values().copied()
+        {
+            try_push_node!(no_hash: self.program_state(program_state));
+        }
+    }
+
+    fn iter_program_state(&mut self, ProgramStateNode { program_state }: ProgramStateNode) {
+        let ProgramState {
+            program,
+            queue,
+            waitlist_hash,
+            stash_hash,
+            mailbox_hash,
+            balance: _,
+            executable_balance: _,
+        } = program_state;
+
+        if let Program::Active(ActiveProgram {
+            allocations_hash,
+            pages_hash,
+            memory_infix: _,
+            initialized: _,
+        }) = program
+        {
+            if let Some(allocations) = allocations_hash.to_inner() {
+                try_push_node!(no_hash: self.allocations(allocations));
+            }
+
+            if let Some(memory_pages) = pages_hash.to_inner() {
+                if let Some(x) = self.storage.memory_pages(memory_pages) {
+                    self.push_node(Node::MemoryPages(Box::new(MemoryPagesNode {
+                        memory_pages: x,
+                    })));
+                } else {
+                    self.push_node(DatabaseIteratorError::NoMemoryPages(memory_pages));
+                }
+            }
+        }
+
+        self.push_node(MessageQueueHashWithSizeNode {
+            queue_hash_with_size: queue,
+        });
+
+        if let Some(waitlist) = waitlist_hash.to_inner() {
+            try_push_node!(no_hash: self.waitlist(waitlist));
+        }
+
+        if let Some(dispatch_stash) = stash_hash.to_inner() {
+            try_push_node!(no_hash: self.dispatch_stash(dispatch_stash));
+        }
+
+        if let Some(mailbox) = mailbox_hash.to_inner() {
+            try_push_node!(no_hash: self.mailbox(mailbox));
+        }
+    }
+
+    fn iter_block_schedule(
+        &mut self,
+        BlockScheduleNode {
+            block,
+            block_schedule,
+        }: &BlockScheduleNode,
+    ) {
+        for (&height, tasks) in block_schedule {
+            self.push_node(BlockScheduleTasksNode {
+                block: *block,
+                height,
+                tasks: tasks.clone(),
+            });
+        }
+    }
+
+    fn iter_block_schedule_tasks(
+        &mut self,
+        BlockScheduleTasksNode {
+            block: _,
+            height: _,
+            tasks,
+        }: &BlockScheduleTasksNode,
+    ) {
+        for &task in tasks {
+            self.push_node(ScheduledTaskNode { task });
+        }
+    }
+
+    fn iter_scheduled_task(&mut self, ScheduledTaskNode { task }: ScheduledTaskNode) {
+        match task {
+            ScheduledTask::PauseProgram(program_id)
+            | ScheduledTask::RemoveFromMailbox((program_id, _), _)
+            | ScheduledTask::RemoveFromWaitlist(program_id, _)
+            | ScheduledTask::RemovePausedProgram(program_id)
+            | ScheduledTask::WakeMessage(program_id, _)
+            | ScheduledTask::SendDispatch((program_id, _))
+            | ScheduledTask::SendUserMessage {
+                message_id: _,
+                to_mailbox: program_id,
+            }
+            | ScheduledTask::RemoveGasReservation(program_id, _) => {
+                self.push_node(ProgramIdNode { program_id });
+            }
+            ScheduledTask::RemoveCode(code_id) => {
+                self.push_node(CodeIdNode { code_id });
+            }
+            #[allow(deprecated)]
+            ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
+        }
+    }
+
+    fn iter_block_outcome(
+        &mut self,
+        BlockOutcomeNode {
+            block: _,
+            block_outcome,
+        }: &BlockOutcomeNode,
+    ) {
+        match block_outcome {
+            BlockOutcome::Transitions(transitions) => {
+                for state_transition in transitions {
+                    self.push_node(StateTransitionNode {
+                        state_transition: state_transition.clone(),
+                    });
+                }
+            }
+            BlockOutcome::ForcedNonEmpty => {}
+        }
+    }
+
+    fn iter_state_transition(
+        &mut self,
+        StateTransitionNode { state_transition }: &StateTransitionNode,
+    ) {
+        let StateTransition {
+            actor_id,
+            new_state_hash,
+            exited: _,
+            inheritor: _,
+            value_to_receive: _,
+            value_claims: _,
+            messages: _,
+        } = state_transition;
+
+        let new_state_hash = *new_state_hash;
+
+        self.push_node(ProgramIdNode {
+            program_id: *actor_id,
+        });
+
+        if new_state_hash != H256::zero() {
+            try_push_node!(no_hash: self.program_state(new_state_hash));
+        }
+    }
+
+    fn iter_memory_pages(&mut self, MemoryPagesNode { memory_pages }: &MemoryPagesNode) {
+        for region_hash in memory_pages
+            .to_inner()
+            .into_iter()
+            .flat_map(MaybeHashOf::to_inner)
+        {
+            try_push_node!(no_hash: self.memory_pages_region(region_hash));
+        }
+    }
+
+    fn iter_memory_pages_region(
+        &mut self,
+        MemoryPagesRegionNode {
+            memory_pages_region,
+        }: &MemoryPagesRegionNode,
+    ) {
+        for &page_data_hash in memory_pages_region.as_inner().values() {
+            try_push_node!(no_hash: self.page_data(page_data_hash));
+        }
+    }
+
+    fn iter_message_queue_hash_with_size(
+        &mut self,
+        MessageQueueHashWithSizeNode {
+            queue_hash_with_size,
+        }: MessageQueueHashWithSizeNode,
+    ) {
+        if let Some(message_queue_hash) = queue_hash_with_size.hash.to_inner() {
+            try_push_node!(no_hash: self.message_queue(message_queue_hash));
+        }
+    }
+
+    fn iter_message_queue(&mut self, MessageQueueNode { message_queue }: &MessageQueueNode) {
+        for dispatch in message_queue.as_ref() {
+            self.push_node(PayloadLookupNode {
+                payload_lookup: dispatch.payload.clone(),
+            });
+        }
+    }
+
+    fn iter_waitlist(&mut self, WaitlistNode { waitlist }: &WaitlistNode) {
+        for Expiring {
+            value: dispatch,
+            expiry: _,
+        } in waitlist.as_ref().values()
+        {
+            self.push_node(PayloadLookupNode {
+                payload_lookup: dispatch.payload.clone(),
+            });
+        }
+    }
+
+    fn iter_mailbox(&mut self, MailboxNode { mailbox }: &MailboxNode) {
+        for &user_mailbox_hash in mailbox.as_ref().values() {
+            try_push_node!(no_hash: self.user_mailbox(user_mailbox_hash));
+        }
+    }
+
+    fn iter_user_mailbox(&mut self, UserMailboxNode { user_mailbox }: &UserMailboxNode) {
+        for Expiring {
+            value: msg,
+            expiry: _,
+        } in user_mailbox.as_ref().values()
+        {
+            self.push_node(PayloadLookupNode {
+                payload_lookup: msg.payload.clone(),
+            });
+        }
+    }
+
+    fn iter_dispatch_stash(&mut self, DispatchStashNode { dispatch_stash }: &DispatchStashNode) {
+        for Expiring {
+            value: (dispatch, _user_id),
+            expiry: _,
+        } in dispatch_stash.as_ref().values()
+        {
+            self.push_node(PayloadLookupNode {
+                payload_lookup: dispatch.payload.clone(),
+            });
+        }
+    }
+
+    fn iter_payload_lookup(&mut self, PayloadLookupNode { payload_lookup }: &PayloadLookupNode) {
+        match payload_lookup {
+            PayloadLookup::Direct(payload) => {
+                self.push_node(PayloadNode {
+                    payload: payload.clone(),
+                });
+            }
+            PayloadLookup::Stored(payload_hash) => {
+                let payload_hash = *payload_hash;
+                try_push_node!(no_hash: self.payload(payload_hash));
+            }
+        }
+    }
+}
+
+impl<S> Iterator for DatabaseIterator<S>
+where
+    S: DatabaseIteratorStorage,
+{
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(node) = self.stack.pop_front() {
+            let node_hash = {
+                let mut hasher = DefaultHasher::new();
+                node.hash(&mut hasher);
+                hasher.finish()
+            };
+
+            if !self.visited_nodes.insert(node_hash) {
+                // avoid recursion
+                continue;
+            }
+
+            self.iter_node(&node);
+
+            return Some(node);
+        }
+
+        None
+    }
+}

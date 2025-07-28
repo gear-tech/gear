@@ -60,6 +60,7 @@ impl BlockOutcome {
     }
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
@@ -74,6 +75,7 @@ pub trait BlockMetaStorageRead {
     fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait BlockMetaStorageWrite {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
@@ -91,6 +93,7 @@ pub trait BlockMetaStorageWrite {
     fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait CodesStorageRead {
     fn original_code_exists(&self, code_id: CodeId) -> bool;
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
@@ -101,6 +104,7 @@ pub trait CodesStorageRead {
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait CodesStorageWrite {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
@@ -110,6 +114,7 @@ pub trait CodesStorageWrite {
     fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
@@ -117,6 +122,7 @@ pub trait OnChainStorageRead {
     fn latest_synced_block_height(&self) -> Option<u32>;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait OnChainStorageWrite {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);

@@ -22,6 +22,7 @@ use gear_core::utils;
 use gprimitives::H256;
 
 mod database;
+pub mod iterator;
 mod mem;
 mod overlay;
 mod rocks;

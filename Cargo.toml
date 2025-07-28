@@ -135,6 +135,7 @@ defer = "0.2.1"
 derive_more = { version = "2.0.1", default-features = false, features = [
     "full",
 ] }
+auto_impl = "1.3.0"
 dirs = "4.0.0"
 dyn-clonable = "0.9.0"
 enum-iterator = "1.5.0"

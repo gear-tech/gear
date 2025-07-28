@@ -1269,6 +1269,7 @@ impl Allocations {
     }
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait Storage {
     /// Reads program state by state hash.
     fn program_state(&self, hash: H256) -> Option<ProgramState>;

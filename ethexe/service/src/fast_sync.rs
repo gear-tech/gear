@@ -31,7 +31,12 @@ use ethexe_common::{
 use ethexe_compute::ComputeService;
 use ethexe_db::{
     Database,
-    visitor::{DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, DatabaseWalker},
+    iterator::{
+        DatabaseIteratorError, DatabaseIteratorStorage, DispatchStashNode, MailboxNode,
+        MemoryPagesNode, MemoryPagesRegionNode, MessageQueueNode, ProgramStateNode,
+        UserMailboxNode, WaitlistNode,
+    },
+    visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkEvent, NetworkService, db_sync};
@@ -406,48 +411,52 @@ impl RequestManager {
 }
 
 impl DatabaseVisitor for RequestManager {
-    fn db(&self) -> &dyn DatabaseVisitorStorage {
+    fn db(&self) -> &dyn DatabaseIteratorStorage {
         &self.db
     }
 
-    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+    fn clone_boxed_db(&self) -> Box<dyn DatabaseIteratorStorage> {
+        Box::new(self.db.clone())
+    }
+
+    fn on_db_error(&mut self, error: DatabaseIteratorError) {
         let (hash, metadata) = match error {
-            DatabaseVisitorError::NoMemoryPages(hash) => {
+            DatabaseIteratorError::NoMemoryPages(hash) => {
                 (hash.hash(), RequestMetadata::MemoryPages)
             }
-            DatabaseVisitorError::NoMemoryPagesRegion(hash) => {
+            DatabaseIteratorError::NoMemoryPagesRegion(hash) => {
                 (hash.hash(), RequestMetadata::MemoryPagesRegion)
             }
-            DatabaseVisitorError::NoPageData(hash) => (hash.hash(), RequestMetadata::Data),
-            DatabaseVisitorError::NoMessageQueue(hash) => {
+            DatabaseIteratorError::NoPageData(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoMessageQueue(hash) => {
                 (hash.hash(), RequestMetadata::MessageQueue)
             }
-            DatabaseVisitorError::NoWaitlist(hash) => (hash.hash(), RequestMetadata::Waitlist),
-            DatabaseVisitorError::NoDispatchStash(hash) => {
+            DatabaseIteratorError::NoWaitlist(hash) => (hash.hash(), RequestMetadata::Waitlist),
+            DatabaseIteratorError::NoDispatchStash(hash) => {
                 (hash.hash(), RequestMetadata::DispatchStash)
             }
-            DatabaseVisitorError::NoMailbox(hash) => (hash.hash(), RequestMetadata::Mailbox),
-            DatabaseVisitorError::NoUserMailbox(hash) => {
+            DatabaseIteratorError::NoMailbox(hash) => (hash.hash(), RequestMetadata::Mailbox),
+            DatabaseIteratorError::NoUserMailbox(hash) => {
                 (hash.hash(), RequestMetadata::UserMailbox)
             }
-            DatabaseVisitorError::NoAllocations(hash) => (hash.hash(), RequestMetadata::Data),
-            DatabaseVisitorError::NoProgramState(hash) => (hash, RequestMetadata::ProgramState),
-            DatabaseVisitorError::NoPayload(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoAllocations(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoProgramState(hash) => (hash, RequestMetadata::ProgramState),
+            DatabaseIteratorError::NoPayload(hash) => (hash.hash(), RequestMetadata::Data),
 
-            DatabaseVisitorError::NoBlockHeader(_)
-            | DatabaseVisitorError::NoBlockEvents(_)
-            | DatabaseVisitorError::NoBlockProgramStates(_)
-            | DatabaseVisitorError::NoBlockSchedule(_)
-            | DatabaseVisitorError::NoBlockOutcome(_)
-            | DatabaseVisitorError::NoBlockCommitmentQueue(_)
-            | DatabaseVisitorError::NoBlockCodesQueue(_)
-            | DatabaseVisitorError::NoPreviousNonEmptyBlock(_)
-            | DatabaseVisitorError::NoLastCommittedBatch(_)
-            | DatabaseVisitorError::NoProgramCodeId(_)
-            | DatabaseVisitorError::NoCodeValid(_)
-            | DatabaseVisitorError::NoOriginalCode(_)
-            | DatabaseVisitorError::NoInstrumentedCode(_)
-            | DatabaseVisitorError::NoCodeMetadata(_) => {
+            DatabaseIteratorError::NoBlockHeader(_)
+            | DatabaseIteratorError::NoBlockEvents(_)
+            | DatabaseIteratorError::NoBlockProgramStates(_)
+            | DatabaseIteratorError::NoBlockSchedule(_)
+            | DatabaseIteratorError::NoBlockOutcome(_)
+            | DatabaseIteratorError::NoBlockCommitmentQueue(_)
+            | DatabaseIteratorError::NoBlockCodesQueue(_)
+            | DatabaseIteratorError::NoPreviousNonEmptyBlock(_)
+            | DatabaseIteratorError::NoLastCommittedBatch(_)
+            | DatabaseIteratorError::NoProgramCodeId(_)
+            | DatabaseIteratorError::NoCodeValid(_)
+            | DatabaseIteratorError::NoOriginalCode(_)
+            | DatabaseIteratorError::NoInstrumentedCode(_)
+            | DatabaseIteratorError::NoCodeMetadata(_) => {
                 unreachable!("{error:?}")
             }
         };
@@ -505,7 +514,6 @@ async fn sync_from_network(
         };
 
         for (metadata, data) in responses {
-            let mut visitor = DatabaseWalker::new(&mut manager);
             match metadata {
                 RequestMetadata::ProgramState => {
                     let state: ProgramState =
@@ -514,44 +522,54 @@ async fn sync_from_network(
                     let program_state_hash = ethexe_db::hash(&data);
                     restored_cached_queue_sizes
                         .insert(program_state_hash, state.queue.cached_queue_size);
-                    visitor.visit_program_state(&state);
+                    ethexe_db::visitor::walk(
+                        &mut manager,
+                        ProgramStateNode {
+                            program_state: state,
+                        },
+                    );
                 }
                 RequestMetadata::MemoryPages => {
                     let memory_pages: MemoryPages =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_memory_pages(&memory_pages);
+                    ethexe_db::visitor::walk(&mut manager, MemoryPagesNode { memory_pages });
                 }
                 RequestMetadata::MemoryPagesRegion => {
-                    let pages_region: MemoryPagesRegion =
+                    let memory_pages_region: MemoryPagesRegion =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_memory_pages_region(&pages_region);
+                    ethexe_db::visitor::walk(
+                        &mut manager,
+                        MemoryPagesRegionNode {
+                            memory_pages_region,
+                        },
+                    );
                 }
                 RequestMetadata::MessageQueue => {
                     let message_queue: MessageQueue =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_message_queue(&message_queue);
+                    ethexe_db::visitor::walk(&mut manager, MessageQueueNode { message_queue });
                 }
                 RequestMetadata::Waitlist => {
                     let waitlist: Waitlist =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_waitlist(&waitlist);
+                    ethexe_db::visitor::walk(&mut manager, WaitlistNode { waitlist });
                 }
                 RequestMetadata::Mailbox => {
                     let mailbox: Mailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_mailbox(&mailbox);
+                    ethexe_db::visitor::walk(&mut manager, MailboxNode { mailbox });
                 }
                 RequestMetadata::UserMailbox => {
                     let user_mailbox: UserMailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_user_mailbox(&user_mailbox);
+                    ethexe_db::visitor::walk(&mut manager, UserMailboxNode { user_mailbox });
                 }
                 RequestMetadata::DispatchStash => {
                     let dispatch_stash: DispatchStash =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    visitor.visit_dispatch_stash(&dispatch_stash);
+                    ethexe_db::visitor::walk(&mut manager, DispatchStashNode { dispatch_stash });
                 }
-                RequestMetadata::Data => {}
+                RequestMetadata::Data => continue,
             }
         }
     }

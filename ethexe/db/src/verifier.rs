@@ -18,7 +18,8 @@
 
 use crate::{
     Database,
-    visitor::{DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, DatabaseWalker},
+    iterator::{ChainNode, DatabaseIteratorError, DatabaseIteratorStorage},
+    visitor::{DatabaseVisitor, walk},
 };
 use ethexe_common::{BlockHeader, BlockMeta, ScheduledTask};
 use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
@@ -32,7 +33,7 @@ use std::{
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
-    DatabaseVisitor(DatabaseVisitorError),
+    DatabaseIterator(DatabaseIteratorError),
 
     /* block meta */
     BlockIsNotSynced,
@@ -95,7 +96,7 @@ impl IntegrityVerifier {
         head: H256,
         bottom: H256,
     ) -> Result<(), Vec<IntegrityVerifierError>> {
-        DatabaseWalker::new(&mut self).visit_chain(head, bottom);
+        walk(&mut self, ChainNode { head, bottom });
 
         #[cfg(debug_assertions)]
         {
@@ -117,13 +118,17 @@ impl IntegrityVerifier {
 }
 
 impl DatabaseVisitor for IntegrityVerifier {
-    fn db(&self) -> &dyn DatabaseVisitorStorage {
+    fn db(&self) -> &dyn DatabaseIteratorStorage {
         &self.db
     }
 
-    fn on_db_error(&mut self, error: DatabaseVisitorError) {
+    fn clone_boxed_db(&self) -> Box<dyn DatabaseIteratorStorage> {
+        Box::new(self.db.clone())
+    }
+
+    fn on_db_error(&mut self, error: DatabaseIteratorError) {
         self.errors
-            .push(IntegrityVerifierError::DatabaseVisitor(error));
+            .push(IntegrityVerifierError::DatabaseIterator(error));
     }
 
     fn visit_block_meta(&mut self, _block: H256, meta: &BlockMeta) {
@@ -241,6 +246,10 @@ impl DatabaseVisitor for IntegrityVerifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::iterator::{
+        BlockNode, BlockScheduleTasksNode, CodeIdNode, MessageQueueHashWithSizeNode,
+        MessageQueueNode,
+    };
     use ethexe_common::{
         Digest, ProgramStates, Schedule,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
@@ -255,17 +264,17 @@ mod tests {
     #[test]
     fn test_block_meta_not_synced_error() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
 
         // Insert block with not synced meta
-        db.mutate_block_meta(block_hash, |meta| {
+        db.mutate_block_meta(block, |meta| {
             meta.synced = false;
             meta.prepared = true;
             meta.computed = true;
         });
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
         assert!(
             verifier
                 .errors
@@ -276,17 +285,17 @@ mod tests {
     #[test]
     fn test_block_meta_not_prepared_error() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
 
         // Insert block with not prepared meta
-        db.mutate_block_meta(block_hash, |meta| {
+        db.mutate_block_meta(block, |meta| {
             meta.synced = true;
             meta.prepared = false;
             meta.computed = true;
         });
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
         assert!(
             verifier
                 .errors
@@ -297,17 +306,17 @@ mod tests {
     #[test]
     fn test_block_meta_not_computed_error() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
 
         // Insert block with not computed meta
-        db.mutate_block_meta(block_hash, |meta| {
+        db.mutate_block_meta(block, |meta| {
             meta.synced = true;
             meta.prepared = true;
             meta.computed = false;
         });
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
         assert!(
             verifier
                 .errors
@@ -318,11 +327,11 @@ mod tests {
     #[test]
     fn test_no_parent_block_header_error() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
         let parent_hash = H256::random();
 
         // Insert valid meta but header with non-existent parent
-        db.mutate_block_meta(block_hash, |meta| {
+        db.mutate_block_meta(block, |meta| {
             meta.synced = true;
             meta.prepared = true;
             meta.computed = true;
@@ -333,10 +342,10 @@ mod tests {
             parent_hash,
             timestamp: 1000,
         };
-        db.set_block_header(block_hash, header);
+        db.set_block_header(block, header);
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
         assert!(
             verifier
                 .errors
@@ -347,7 +356,7 @@ mod tests {
     #[test]
     fn test_invalid_block_parent_height_error() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
         let parent_hash = H256::random();
 
         // Setup parent block
@@ -366,7 +375,7 @@ mod tests {
         db.set_block_header(parent_hash, parent_header);
 
         // Setup child block with invalid height
-        db.mutate_block_meta(block_hash, |meta| {
+        db.mutate_block_meta(block, |meta| {
             meta.synced = true;
             meta.prepared = true;
             meta.computed = true;
@@ -377,10 +386,10 @@ mod tests {
             parent_hash,
             timestamp: 2000,
         }; // Should be 6, not 10
-        db.set_block_header(block_hash, header);
+        db.set_block_header(block, header);
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
         assert!(
             verifier
                 .errors
@@ -394,7 +403,7 @@ mod tests {
     #[test]
     fn test_invalid_parent_timestamp_error() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
         let parent_hash = H256::random();
 
         // Setup parent block
@@ -423,10 +432,10 @@ mod tests {
             parent_hash,
             timestamp: 1000,
         }; // Earlier than parent
-        db.set_block_header(block_hash, header);
+        db.set_block_header(block, header);
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
         assert!(
             verifier
                 .errors
@@ -446,7 +455,7 @@ mod tests {
         db.set_code_valid(code_id, false);
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_code_id(code_id);
+        walk(&mut verifier, CodeIdNode { code_id });
 
         assert!(
             verifier
@@ -483,7 +492,7 @@ mod tests {
         db.set_code_metadata(code_id, metadata);
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_code_id(code_id);
+        walk(&mut verifier, CodeIdNode { code_id });
 
         assert_eq!(
             verifier.errors,
@@ -510,11 +519,14 @@ mod tests {
 
         // Create tasks scheduled for height 50 (expired)
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block_header(block_hash, header);
-        DatabaseWalker::new(&mut verifier).visit_block_schedule_tasks(
-            block_hash,
-            50,
-            &BTreeSet::new(),
+        verifier.visit_block_header(block_hash, header);
+        walk(
+            &mut verifier,
+            BlockScheduleTasksNode {
+                block: block_hash,
+                height: 50,
+                tasks: BTreeSet::new(),
+            },
         );
 
         assert!(
@@ -543,7 +555,12 @@ mod tests {
             cached_queue_size: 5, // Wrong size
         };
 
-        DatabaseWalker::new(&mut verifier).visit_message_queue_hash_with_size(queue_hash_with_size);
+        walk(
+            &mut verifier,
+            MessageQueueHashWithSizeNode {
+                queue_hash_with_size,
+            },
+        );
 
         // Should have an error about invalid cached size
         assert_eq!(
@@ -565,11 +582,11 @@ mod tests {
         let mut verifier = IntegrityVerifier::new(db);
 
         // Create a message queue
-        let queue = MessageQueue::default();
+        let message_queue = MessageQueue::default();
 
         // Try to visit message queue without first calling visit_message_queue_hash_with_size
         // This should panic
-        DatabaseWalker::new(&mut verifier).visit_message_queue(&queue);
+        walk(&mut verifier, MessageQueueNode { message_queue });
     }
 
     #[test]
@@ -585,7 +602,12 @@ mod tests {
             cached_queue_size: queue.len() as u8,
         };
 
-        DatabaseWalker::new(&mut verifier).visit_message_queue_hash_with_size(queue_hash_with_size);
+        walk(
+            &mut verifier,
+            MessageQueueHashWithSizeNode {
+                queue_hash_with_size,
+            },
+        );
 
         assert_eq!(verifier.message_queue_size, None);
         assert_eq!(verifier.errors, []);
@@ -661,18 +683,18 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| matches!(e, IntegrityVerifierError::DatabaseVisitor(_)))
+                .any(|e| matches!(e, IntegrityVerifierError::DatabaseIterator(_)))
         );
     }
 
     #[test]
     fn test_commitment_queue_processing() {
         let db = Database::memory();
-        let block_hash = H256::random();
+        let block = H256::random();
         let queued_block = H256::random();
 
         // Setup main block
-        db.mutate_block_meta(block_hash, |meta| {
+        db.mutate_block_meta(block, |meta| {
             meta.synced = true;
             meta.prepared = true;
             meta.computed = true;
@@ -681,17 +703,17 @@ mod tests {
         // Setup commitment queue with another block
         let mut queue = VecDeque::new();
         queue.push_back(queued_block);
-        db.set_block_commitment_queue(block_hash, queue);
+        db.set_block_commitment_queue(block, queue);
 
         let mut verifier = IntegrityVerifier::new(db);
-        DatabaseWalker::new(&mut verifier).visit_block(block_hash);
+        walk(&mut verifier, BlockNode { block });
 
         // Should fail because queued_block doesn't exist
         assert!(
             verifier
                 .errors
                 .iter()
-                .any(|e| matches!(e, IntegrityVerifierError::DatabaseVisitor(_)))
+                .any(|e| matches!(e, IntegrityVerifierError::DatabaseIterator(_)))
         );
     }
 }
