@@ -49,6 +49,7 @@ use frame_system::{
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
+use pallet_gear_builtin::{BuiltinActorId, BuiltinActorType};
 use pallet_grandpa::{
     AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList, fg_primitives,
 };
@@ -65,7 +66,7 @@ use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
-        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
+        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -75,6 +76,9 @@ use sp_std::{
     prelude::*,
 };
 use sp_version::RuntimeVersion;
+
+#[cfg(feature = "dev")]
+use pallet_gear_builtin::BuiltinActor;
 
 #[cfg(not(feature = "dev"))]
 use sp_runtime::traits::OpaqueKeys;
@@ -784,9 +788,6 @@ parameter_types! {
     pub const NominationPoolsPalletId: PalletId = PalletId(*b"py/nopls");
     pub const MaxPointsToBalance: u8 = 10;
 }
-
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorId, BuiltinActorType};
-use sp_runtime::traits::Convert;
 
 pub struct BalanceToU256;
 impl Convert<Balance, sp_core::U256> for BalanceToU256 {
