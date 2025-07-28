@@ -35,6 +35,7 @@ std = [
 
     # Gear deps.
     "gprimitives/serde",
+    "gprimitives/std",
 
     # Substrate deps.
     "binary-merkle-tree/std",

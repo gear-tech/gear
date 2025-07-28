@@ -15,7 +15,6 @@ hex.workspace = true
 serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
 derive_more.workspace = true
-primitive-types= { workspace = true, optional = true }
 nonempty.workspace = true
 
 sha3 = { version = "0.10", default-features = false }
@@ -27,13 +26,9 @@ std = [
     "nonempty/std",
     "gear-core/std",
     "gprimitives/serde",
+    "gprimitives/std",
     "serde",
     "parity-scale-codec/std",
     "sha3/std",
     "k256/std",
-    "primitive-types",
-    "primitive-types/std",
 ]
-
-[package.metadata.cargo-shear]
-ignored = ["primitive-types"]

@@ -23,7 +23,7 @@ ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
 ethexe-tx-pool.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 log.workspace = true
 anyhow.workspace = true
 alloy.workspace = true

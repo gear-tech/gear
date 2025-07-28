@@ -30,6 +30,7 @@ std = [
     "anyhow/std",
     "core-processor/std",
     "gear-core/std",
+    "gprimitives/std",
     "gprimitives/serde",
     "log/std",
     "serde/std",

@@ -13,7 +13,7 @@ repository.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 anyhow.workspace = true
 futures.workspace = true
-gprimitives = { workspace = true, features = ["serde", "ethexe"] }
+gprimitives = { workspace = true, features = ["serde", "ethexe", "std"] }
 ethexe-db.workspace = true
 ethexe-processor.workspace = true
 tower = { workspace = true, features = ["util"] }
