@@ -31,7 +31,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeService;
 use ethexe_db::{
     Database,
-    visitor::{DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage},
+    visitor::{DatabaseVisitor, DatabaseVisitorError, DatabaseVisitorStorage, DatabaseWalker},
 };
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkEvent, NetworkService, db_sync};
@@ -505,6 +505,7 @@ async fn sync_from_network(
         };
 
         for (metadata, data) in responses {
+            let mut visitor = DatabaseWalker::new(&mut manager);
             match metadata {
                 RequestMetadata::ProgramState => {
                     let state: ProgramState =
@@ -513,42 +514,42 @@ async fn sync_from_network(
                     let program_state_hash = ethexe_db::hash(&data);
                     restored_cached_queue_sizes
                         .insert(program_state_hash, state.queue.cached_queue_size);
-                    manager.visit_program_state(&state);
+                    visitor.visit_program_state(&state);
                 }
                 RequestMetadata::MemoryPages => {
                     let memory_pages: MemoryPages =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_memory_pages(&memory_pages);
+                    visitor.visit_memory_pages(&memory_pages);
                 }
                 RequestMetadata::MemoryPagesRegion => {
                     let pages_region: MemoryPagesRegion =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_memory_pages_region(&pages_region);
+                    visitor.visit_memory_pages_region(&pages_region);
                 }
                 RequestMetadata::MessageQueue => {
                     let message_queue: MessageQueue =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_message_queue(&message_queue);
+                    visitor.visit_message_queue(&message_queue);
                 }
                 RequestMetadata::Waitlist => {
                     let waitlist: Waitlist =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_waitlist(&waitlist);
+                    visitor.visit_waitlist(&waitlist);
                 }
                 RequestMetadata::Mailbox => {
                     let mailbox: Mailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_mailbox(&mailbox);
+                    visitor.visit_mailbox(&mailbox);
                 }
                 RequestMetadata::UserMailbox => {
                     let user_mailbox: UserMailbox =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_user_mailbox(&user_mailbox);
+                    visitor.visit_user_mailbox(&user_mailbox);
                 }
                 RequestMetadata::DispatchStash => {
                     let dispatch_stash: DispatchStash =
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
-                    manager.visit_dispatch_stash(&dispatch_stash);
+                    visitor.visit_dispatch_stash(&dispatch_stash);
                 }
                 RequestMetadata::Data => {}
             }
