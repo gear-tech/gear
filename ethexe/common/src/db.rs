@@ -35,7 +35,9 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From, derive_more::Unwrap)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, Hash, Encode, Decode, derive_more::From, derive_more::Unwrap,
+)]
 pub enum BlockOutcome {
     Transitions(Vec<StateTransition>),
     /// The actual outcome is not available, but it must be considered non-empty.

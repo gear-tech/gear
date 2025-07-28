@@ -94,7 +94,7 @@ fn option_string<S: ToString>(value: &Option<S>) -> String {
 ///
 /// Motivation for usage: it's more optimized to held small payloads in place.
 /// Zero payload should always be stored directly.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PayloadLookup {
     Direct(Payload),
@@ -229,7 +229,7 @@ impl<S: Sealed> HashOf<S> {
     derive(serde::Serialize, serde::Deserialize),
     serde(bound = "")
 )]
-#[debug("MaybeHashOf<{}>({})", shortname::<S>(), option_string(&self.hash()))]
+#[debug("MaybeHashOf<{}>({})", shortname::<S>(), option_string(&Self::hash(*self)))]
 #[display("{}", option_string(_0))]
 pub struct MaybeHashOf<S: Sealed + 'static>(Option<HashOf<S>>);
 
@@ -240,6 +240,14 @@ impl<S: Sealed> Clone for MaybeHashOf<S> {
 }
 
 impl<S: Sealed> Copy for MaybeHashOf<S> {}
+
+impl<S: Sealed> Hash for MaybeHashOf<S> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if let Some(hash) = MaybeHashOf::hash(*self) {
+            hash.hash(state);
+        }
+    }
+}
 
 impl<S: Sealed> MaybeHashOf<S> {
     pub const fn empty() -> Self {
@@ -393,7 +401,7 @@ impl MaybeHashOf<MemoryPages> {
 }
 
 // TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
-#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueueHashWithSize {
     pub hash: MaybeHashOf<MessageQueue>,
@@ -467,7 +475,7 @@ impl MaybeHashOf<Waitlist> {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ActiveProgram {
     /// Hash of wasm memory pages allocations, see [`Allocations`].
@@ -480,7 +488,7 @@ pub struct ActiveProgram {
     pub initialized: bool,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Program {
     Active(ActiveProgram),
@@ -505,7 +513,7 @@ impl Program {
 }
 
 /// ethexe program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Decode, Encode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProgramState {
     /// Active, exited or terminated program state.
@@ -564,7 +572,7 @@ impl ProgramState {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Dispatch {
     /// Message id.
@@ -714,7 +722,7 @@ impl Dispatch {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Expiring<T> {
     pub value: T,
@@ -735,6 +743,7 @@ impl<T> From<(T, u32)> for Expiring<T> {
     Decode,
     PartialEq,
     Eq,
+    Hash,
     derive_more::Into,
     derive_more::AsRef,
     derive_more::IntoIterator,
@@ -769,7 +778,16 @@ impl MessageQueue {
 }
 
 #[derive(
-    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Into,
+    derive_more::AsRef,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
@@ -811,7 +829,16 @@ impl Waitlist {
 }
 
 #[derive(
-    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Into,
+    derive_more::AsRef,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
@@ -875,7 +902,7 @@ impl DispatchStash {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MailboxMessage {
     pub payload: PayloadLookup,
@@ -903,7 +930,7 @@ impl From<Dispatch> for MailboxMessage {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct UserMailbox(BTreeMap<MessageId, Expiring<MailboxMessage>>);
 
@@ -933,7 +960,16 @@ impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
 }
 
 #[derive(
-    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Into,
+    derive_more::AsRef,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
@@ -1026,7 +1062,7 @@ impl Mailbox {
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPages(MemoryPagesInner);
 
@@ -1175,7 +1211,7 @@ impl MemoryPages {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryPagesRegion(MemoryPagesRegionInner);
 
@@ -1195,7 +1231,7 @@ impl MemoryPagesRegion {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIdx(u8);
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Into)]
 pub struct Allocations {
     inner: IntervalsTree<WasmPage>,
     #[into(ignore)]

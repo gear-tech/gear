@@ -1106,7 +1106,7 @@ mod tests {
         let db = Database::memory();
 
         let state = ProgramState::zero();
-        let hash = db.write_program_state(state.clone());
+        let hash = db.write_program_state(state);
         assert_eq!(db.program_state(hash), Some(state));
     }
 

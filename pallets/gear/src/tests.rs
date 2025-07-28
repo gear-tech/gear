@@ -12326,7 +12326,7 @@ fn missing_block_tasks_handled() {
 
         let mid = get_last_message_id();
         let task = ScheduledTask::RemoveFromMailbox(USER_1, mid);
-        TaskPoolOf::<Test>::add(N + 1, task.clone()).unwrap();
+        TaskPoolOf::<Test>::add(N + 1, task).unwrap();
 
         assert!(MailboxOf::<Test>::contains(&USER_1, &mid));
 
