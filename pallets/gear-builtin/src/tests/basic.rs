@@ -20,7 +20,7 @@
 
 #![cfg(test)]
 
-use crate::{BuiltinActorType, mock::*};
+use crate::{BuiltinActorType, mock::*, tests::DEFAULT_GAS_LIMIT};
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
@@ -38,7 +38,7 @@ fn deploy_contract(init_payload: Vec<u8>) {
         WASM_BINARY.to_vec(),
         b"salt".to_vec(),
         init_payload,
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
         false,
     ));
@@ -49,7 +49,7 @@ fn send_message(contract_id: ActorId, payload: Vec<u8>) {
         RuntimeOrigin::signed(SIGNER),
         contract_id,
         payload,
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0,
         false,
     ));

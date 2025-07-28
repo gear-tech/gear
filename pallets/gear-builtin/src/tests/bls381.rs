@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::mock::*;
+use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::{
     Group, ScalarMul, VariableBaseMSM,
@@ -127,7 +127,7 @@ fn multi_miller_loop() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -338,7 +338,7 @@ fn msm_g1() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -456,7 +456,7 @@ fn msm_g2() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));

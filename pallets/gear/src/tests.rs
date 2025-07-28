@@ -10911,7 +10911,7 @@ fn signal_async_wait_works() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::None.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -12266,7 +12266,7 @@ fn signal_on_uninitialized_program() {
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             InitAction::Panic.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -14818,7 +14818,7 @@ fn critical_hook_works() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Simple.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -14876,7 +14876,7 @@ fn critical_hook_with_panic() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::Panic.encode(),
-            12_000_000_000,
+            15_000_000_000,
             0,
             false,
         ));
@@ -14935,7 +14935,7 @@ fn critical_hook_in_handle_reply() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::InHandleReply.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -14990,7 +14990,7 @@ fn critical_hook_in_handle_signal() {
             RuntimeOrigin::signed(USER_1),
             pid,
             HandleAction::InHandleSignal.encode(),
-            10_000_000_000,
+            12_000_000_000,
             0,
             false,
         ));
@@ -15048,7 +15048,7 @@ fn handle_reply_hook() {
             RuntimeOrigin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.encode(),
-            10_000_000_000,
+            20_000_000_000,
             0,
             false,
         ));
@@ -15446,7 +15446,7 @@ fn create_program_with_reentrance_works() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            15_000_000_000,
             amount,
             false,
         ));
@@ -15475,7 +15475,7 @@ fn create_program_with_reentrance_works() {
             RuntimeOrigin::signed(USER_1),
             program_id,
             payload,
-            10_000_000_000,
+            20_000_000_000,
             amount,
             false,
         ));
