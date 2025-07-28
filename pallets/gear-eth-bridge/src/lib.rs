@@ -186,7 +186,7 @@ pub mod pallet {
 
         /// The error happens when bridging thorough builtin and message value
         /// is inapplicable to operation or insufficient.
-        IncorrectValueApplied,
+        InsufficientValueApplied,
     }
 
     /// Lifecycle storage.

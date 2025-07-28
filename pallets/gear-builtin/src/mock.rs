@@ -18,7 +18,7 @@
 
 use crate::{
     self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, BuiltinActorId, BuiltinActorType,
-    BuiltinContext, GasAllowanceOf, bls12_381, proxy,
+    BuiltinContext, BuiltinReply, GasAllowanceOf, bls12_381, proxy,
 };
 use common::{GasProvider, GasTree, Origin, storage::Limiter};
 use core::cell::RefCell;
@@ -33,7 +33,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
+use gear_core::{ids::ActorId, message::StoredDispatch};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
@@ -236,7 +236,7 @@ impl BuiltinActor for SuccessBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         if !in_transaction() {
             let builtin_id =
                 GearBuiltin::builtin_id_into_actor_id(<Self as BuiltinActor>::TYPE.id()).cast();
@@ -254,7 +254,10 @@ impl BuiltinActor for SuccessBuiltinActor {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_000_u64)?;
 
-        Ok(payload)
+        Ok(BuiltinReply {
+            payload,
+            value: dispatch.value(),
+        })
     }
 
     fn max_gas() -> u64 {
@@ -270,7 +273,7 @@ impl BuiltinActor for ErrorBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         if !in_transaction() {
             let builtin_id =
                 GearBuiltin::builtin_id_into_actor_id(<Self as BuiltinActor>::TYPE.id()).cast();
@@ -302,7 +305,7 @@ impl BuiltinActor for HonestBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let is_error = context.to_gas_amount().left() < 500_000_u64;
 
         if !in_transaction() {
@@ -328,7 +331,10 @@ impl BuiltinActor for HonestBuiltinActor {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(500_000_u64)?;
 
-        Ok(payload)
+        Ok(BuiltinReply {
+            payload,
+            value: dispatch.value(),
+        })
     }
 
     fn max_gas() -> u64 {
