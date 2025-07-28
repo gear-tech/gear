@@ -39,6 +39,10 @@ pub mod weights;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+#[cfg(feature = "dev")]
+pub mod builtin;
+
+#[cfg(not(feature = "dev"))]
 mod builtin;
 mod internal;
 

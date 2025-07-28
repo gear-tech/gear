@@ -649,7 +649,7 @@ mod util {
         VAL_1_STASH, VAL_2_STASH, VAL_3_STASH, message_queue_empty,
     };
     use crate::{
-        self as pallet_gear_builtin, ActorWithId, GasAllowanceOf, staking::Actor as StakingBuiltin,
+        self as pallet_gear_builtin, GasAllowanceOf, staking::Actor as StakingBuiltin,
         tests::DEFAULT_GAS_LIMIT,
     };
     pub(super) use common::{Origin, storage::Limiter};
@@ -671,7 +671,7 @@ mod util {
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
     pub(super) use gear_core::ids::{ActorId, CodeId, prelude::*};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
-    use pallet_session::historical::{self as pallet_session_historical};
+    use pallet_session::historical as pallet_session_historical;
     pub(super) use parity_scale_codec::Encode;
     use sp_core::{H256, crypto::key_types};
     use sp_runtime::{
@@ -822,7 +822,7 @@ mod util {
 
     impl pallet_gear_builtin::Config for Test {
         type RuntimeCall = RuntimeCall;
-        type Builtins = (ActorWithId<2, StakingBuiltin<Self>>,);
+        type Builtins = (StakingBuiltin<Self>,);
         type BlockLimiter = GearGas;
         type WeightInfo = ();
     }
