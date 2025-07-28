@@ -21,7 +21,7 @@
 use crate::{Address, Digest, ToDigest};
 use alloc::vec::Vec;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
-use gprimitives::{ActorId, CodeId, MessageId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
 use sha3::Digest as _;
@@ -234,6 +234,13 @@ impl ToDigest for BatchCommitment {
         hasher.update(rewards_commitment.to_digest());
         hasher.update(validators_commitment.to_digest());
     }
+}
+
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+pub struct Timelines {
+    pub era: u64,
+    pub election: u64,
+    pub validation_delay: u64,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]

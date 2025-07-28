@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
+    ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
@@ -34,24 +36,22 @@ use crate::{
         task_pool::TaskPoolManager,
         waitlist::WaitlistManager,
     },
-    ProgramBuilder, Result, TestError, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER,
-    MAX_RESERVATIONS, MAX_USER_GAS_LIMIT, RESERVE_FOR, VALUE_PER_GAS,
 };
-use core_processor::{common::*, configs::BlockConfig, Ext};
+use core_processor::{Ext, common::*, configs::BlockConfig};
 use gear_common::{
+    LockId, Origin,
     event::{MessageWaitedReason, MessageWaitedRuntimeReason},
     gas_provider::auxiliary::PlainNodeId,
     scheduler::StorageType,
     storage::Interval,
-    LockId, Origin,
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas_metering::{DbWeights, RentWeights, Schedule},
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::PageBuf,
     message::{Dispatch, DispatchKind, Message, ReplyMessage, StoredMessage, UserStoredMessage},
-    pages::{num_traits::Zero, GearPage},
+    pages::{GearPage, num_traits::Zero},
     program::{ActiveProgram, Program, ProgramState},
     tasks::ScheduledTask,
 };
@@ -206,7 +206,9 @@ impl ExtManager {
             let Program::Active(active_program) =
                 program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
             else {
-                unreachable!("Before init finishes, program must always be active. But {program_id:?} program is not active.");
+                unreachable!(
+                    "Before init finishes, program must always be active. But {program_id:?} program is not active."
+                );
             };
 
             active_program.state = ProgramState::Initialized;

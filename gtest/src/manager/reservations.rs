@@ -20,7 +20,7 @@
 
 use super::ExtManager;
 use crate::state::programs::ProgramsStorageManager;
-use gear_common::{scheduler::StorageType, storage::Interval, ActorId, Program, ReservationId};
+use gear_common::{ActorId, Program, ReservationId, scheduler::StorageType, storage::Interval};
 use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
 use std::mem;
 

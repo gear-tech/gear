@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{utils, BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
+use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest, utils};
 use ethexe_common::{
+    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock, Message, StateTransition},
-    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;

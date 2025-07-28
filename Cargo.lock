@@ -2096,9 +2096,9 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "byte-slice-cast"
-version = "1.2.2"
+version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
+checksum = "7575182f7272186991736b70173b0ea045398f984bf5ebbb3804736ce1330c9d"
 
 [[package]]
 name = "byte-tools"
@@ -4619,7 +4619,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "976dd42dc7e85965fe702eb8164f21f450704bdde31faefd6471dba214cb594e"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4678,6 +4678,7 @@ dependencies = [
  "gprimitives",
  "hex",
  "k256",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
@@ -4698,6 +4699,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "thiserror 2.0.12",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4714,12 +4716,12 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-observer",
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "tokio",
 ]
@@ -4735,6 +4737,7 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "rocksdb",
  "scopeguard",
@@ -4798,6 +4801,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
@@ -4927,7 +4931,6 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
- "ethexe-runtime",
  "ethexe-runtime-common",
  "ethexe-service-utils",
  "ethexe-signer",
@@ -4937,6 +4940,7 @@ dependencies = [
  "gear-core-errors",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -5923,6 +5927,7 @@ dependencies = [
  "ark-scale",
  "ark-serialize 0.4.2",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -5940,6 +5945,7 @@ version = "1.8.1"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -5948,6 +5954,7 @@ version = "1.8.1"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -6598,7 +6605,7 @@ version = "1.8.1"
 dependencies = [
  "gear-core",
  "hex",
- "nonempty 0.8.1",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "path-clean",
  "serde",
@@ -6659,7 +6666,7 @@ dependencies = [
  "gsys",
  "indexmap 2.7.1",
  "log",
- "nonempty 0.8.1",
+ "nonempty 0.12.0",
  "proptest",
  "rand 0.8.5",
  "thiserror 2.0.12",
@@ -10615,9 +10622,9 @@ checksum = "e9e591e719385e6ebaeb5ce5d3887f7d5676fceca6411d1925ccc95745f3d6f7"
 
 [[package]]
 name = "nonempty"
-version = "0.8.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
+checksum = "9737e026353e5cd0736f98eddae28665118eb6f6600902a7f50db585621fecb6"
 
 [[package]]
 name = "nonzero_ext"
@@ -12114,9 +12121,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "3.7.4"
+version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9fde3d0718baf5bc92f577d652001da0f8d54cd03a7974e118d04fc888dc23d"
+checksum = "799781ae679d79a948e13d4824a40970bfa500058d245760dd857301059810fa"
 dependencies = [
  "arrayvec 0.7.4",
  "bitvec",
@@ -12131,9 +12138,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "3.7.4"
+version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "581c837bb6b9541ce7faa9377c20616e4fb7650f6b0f68bc93c827ee504fb7b3"
+checksum = "34b4653168b563151153c9e4c08ebed57fb8262bebfa79711552fa983c623e7a"
 dependencies = [
  "proc-macro-crate 3.1.0",
  "proc-macro2",
@@ -12779,9 +12786,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31971752e70b8b2686d7e46ec17fb38dad4051d94024c88df49b667caea9c84"
+checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
 dependencies = [
  "unicode-ident",
 ]
@@ -13218,7 +13225,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.7",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -13953,7 +13960,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -17651,7 +17658,7 @@ dependencies = [
  "getrandom 0.3.1",
  "once_cell",
  "rustix 1.0.7",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

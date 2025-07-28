@@ -19,7 +19,7 @@
 use crate::{Database, ProcessorError, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
-use ethexe_runtime_common::{unpack_i64_to_u32, ProgramJournals};
+use ethexe_runtime_common::{ProgramJournals, unpack_i64_to_u32};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::ActorId,

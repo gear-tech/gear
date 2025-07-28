@@ -41,23 +41,22 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest,
     utils::MultisignedBatchCommitment,
     validator::{
         coordinator::Coordinator, participant::Participant, producer::Producer,
         submitter::Submitter, subordinate::Subordinate,
     },
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
-    SignedValidationRequest,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{ecdsa::PublicKey, Address, SimpleBlockData};
+use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::BlockSyncedData;
 use ethexe_signer::Signer;
-use futures::{stream::FusedStream, Stream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
@@ -169,8 +168,8 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_new_head(block))
     }
 
-    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
-        self.update_inner(|inner| inner.process_synced_block(data))
+    fn receive_synced_block(&mut self, block: H256) -> Result<()> {
+        self.update_inner(|inner| inner.process_synced_block(block))
     }
 
     fn receive_computed_block(&mut self, computed_block: H256) -> Result<()> {
@@ -248,7 +247,7 @@ where
         DefaultProcessing::new_head(self.into(), block)
     }
 
-    fn process_synced_block(self, data: BlockSyncedData) -> Result<ValidatorState> {
+    fn process_synced_block(self, data: H256) -> Result<ValidatorState> {
         DefaultProcessing::synced_block(self.into(), data)
     }
 
@@ -328,8 +327,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_new_head(block))
     }
 
-    fn process_synced_block(self, data: BlockSyncedData) -> Result<ValidatorState> {
-        delegate_call!(self => process_synced_block(data))
+    fn process_synced_block(self, block: H256) -> Result<ValidatorState> {
+        delegate_call!(self => process_synced_block(block))
     }
 
     fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
@@ -366,9 +365,9 @@ impl DefaultProcessing {
         Initial::create_with_chain_head(s.into().into_context(), block)
     }
 
-    fn synced_block(s: impl Into<ValidatorState>, data: BlockSyncedData) -> Result<ValidatorState> {
+    fn synced_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
         let mut s = s.into();
-        s.warning(format!("unexpected synced block: {}", data.block_hash));
+        s.warning(format!("unexpected synced block: {block}"));
         Ok(s)
     }
 

@@ -32,7 +32,7 @@ use gear_core::{
         ChargeError, ChargeResult, CounterType, CountersOwner, GasAllowanceCounter, GasAmount,
         GasCounter, GasLeft, ValueCounter,
     },
-    ids::{prelude::*, ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::{
         AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
     },
@@ -41,19 +41,19 @@ use gear_core::{
         InitPacket, MessageContext, Packet, ReplyPacket,
     },
     pages::{
-        numerated::{interval::Interval, tree::IntervalsTree},
         GearPage, WasmPage, WasmPagesAmount,
+        numerated::{interval::Interval, tree::IntervalsTree},
     },
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
         UnrecoverableExtError as UnrecoverableExtErrorCore, UnrecoverableWaitError,
     },
-    BackendExternalities,
 };
 use gear_core_errors::{
     ExecutionError as FallibleExecutionError, ExtError as FallibleExtErrorCore, MessageError,
@@ -1440,7 +1440,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use gear_core::{
-        buffer::{Payload, MAX_PAYLOAD_SIZE},
+        buffer::{MAX_PAYLOAD_SIZE, Payload},
         costs::{CostOf, RentCosts, SyscallCosts},
         message::{ContextSettings, IncomingDispatch, IncomingMessage},
         reservation::{GasReservationMap, GasReservationSlot, GasReservationState},
@@ -2315,12 +2315,13 @@ mod tests {
         );
 
         // Check all the reseravations are in "existing" state.
-        assert!(ext
-            .context
-            .gas_reserver
-            .states()
-            .iter()
-            .all(|(_, state)| matches!(state, GasReservationState::Exists { .. })));
+        assert!(
+            ext.context
+                .gas_reserver
+                .states()
+                .iter()
+                .all(|(_, state)| matches!(state, GasReservationState::Exists { .. }))
+        );
 
         // Unreserving existing and checking no gas reimbursed.
         let gas_before = ext.gas_amount();

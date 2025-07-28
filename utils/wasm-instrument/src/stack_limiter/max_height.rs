@@ -19,8 +19,8 @@
 
 use super::{instrument_call, resolve_func_type};
 use crate::{
-    module::{CodeSection, FuncSection, Instruction, TypeSection},
     Module,
+    module::{CodeSection, FuncSection, Instruction, TypeSection},
 };
 use alloc::vec::Vec;
 use wasmparser::{BlockType, FuncType, TypeRef};

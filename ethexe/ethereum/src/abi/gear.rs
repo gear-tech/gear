@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{utils::*, Gear};
+use crate::abi::{Gear, utils::*};
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
@@ -162,6 +162,16 @@ impl From<Message> for Gear::Message {
             value: value.value,
             replyDetails: value.reply_details.into(),
             call: value.call,
+        }
+    }
+}
+
+impl From<Gear::Timelines> for Timelines {
+    fn from(value: Gear::Timelines) -> Self {
+        Self {
+            era: value.era.to::<u64>(),
+            election: value.election.to::<u64>(),
+            validation_delay: value.validationDelay.to::<u64>(),
         }
     }
 }

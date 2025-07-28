@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gstd::{
+    ActorId,
     errors::{CoreError, ExecutionError, ExtError},
     msg,
     prelude::*,
-    ActorId,
 };
 
 #[unsafe(no_mangle)]

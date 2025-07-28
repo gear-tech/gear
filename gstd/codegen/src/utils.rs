@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use proc_macro2::Span;
 use syn::{
+    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier, TypeParam, TypeParamBound,
     parse_quote,
     punctuated::Punctuated,
     token::{Comma, Plus},
-    Expr, Generics, Ident, Path, Token, TraitBound, TraitBoundModifier, TypeParam, TypeParamBound,
 };
 
 /// Describes how to output documentation for `_for_reply_(as)`
@@ -71,11 +71,12 @@ pub fn with_suffix(i: &Ident, suffix: &str) -> Ident {
 /// Get arguments from the inputs for function signature
 pub fn get_args(inputs: &Punctuated<syn::FnArg, syn::token::Comma>) -> Expr {
     let idents = inputs.iter().filter_map(|param| {
-        if let syn::FnArg::Typed(pat_type) = param {
-            if let syn::Pat::Ident(pat_ident) = *pat_type.pat.clone() {
-                return Some(pat_ident.ident);
-            }
+        if let syn::FnArg::Typed(pat_type) = param
+            && let syn::Pat::Ident(pat_ident) = *pat_type.pat.clone()
+        {
+            return Some(pat_ident.ident);
         }
+
         None
     });
 

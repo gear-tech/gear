@@ -20,7 +20,7 @@ use crate::{Processor, ProcessorError, Result};
 use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
-    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
+    InBlockTransitions, ScheduleHandler, TransitionController, state::ProgramState,
 };
 use gprimitives::{ActorId, CodeId, H256};
 

@@ -108,7 +108,7 @@ pub trait TaskHandler<RFM, SD, SUM> {
 
     /// Remove gas reservation action.
     fn remove_gas_reservation(&mut self, program_id: ActorId, reservation_id: ReservationId)
-        -> Gas;
+    -> Gas;
 }
 
 #[test]

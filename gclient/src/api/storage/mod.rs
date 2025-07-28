@@ -25,7 +25,7 @@ use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::UserStoredMessage};
 use gsdk::{
     ext::{
-        sp_core::{crypto::Ss58Codec, H256},
+        sp_core::{H256, crypto::Ss58Codec},
         sp_runtime::AccountId32,
     },
     metadata::runtime_types::{

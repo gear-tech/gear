@@ -374,11 +374,11 @@ fn validate_metering_injections(
 
 mod tests {
     use super::*;
-    use crate::{gas_metering::determine_metered_blocks, Module};
+    use crate::{Module, gas_metering::determine_metered_blocks};
     use arbitrary::Unstructured;
     use proptest::{
         arbitrary::any,
-        prelude::{prop, ProptestConfig},
+        prelude::{ProptestConfig, prop},
         proptest,
     };
 

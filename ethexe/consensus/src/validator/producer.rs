@@ -17,21 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
+    StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{utils, ConsensusEvent};
-use anyhow::{anyhow, Result};
+use crate::{ConsensusEvent, utils};
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
+    Address, ProducerBlock, SimpleBlockData,
     db::BlockMetaStorageRead,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
-    Address, ProducerBlock, SimpleBlockData,
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -42,7 +43,7 @@ use std::task::Context;
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
-    validators: Vec<Address>,
+    validators: NonEmpty<Address>,
     state: State,
 }
 
@@ -102,7 +103,7 @@ impl Producer {
     pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: Vec<Address>,
+        validators: NonEmpty<Address>,
     ) -> Result<ValidatorState> {
         assert!(
             validators.contains(&ctx.pub_key.to_address()),
@@ -218,14 +219,14 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*, SignedValidationRequest};
-    use ethexe_common::{db::BlockMetaStorageWrite, Digest, ToDigest};
-    use std::vec;
+    use crate::{SignedValidationRequest, mock::*, validator::mock::*};
+    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
+    use nonempty::{NonEmpty, nonempty};
 
     #[tokio::test]
     async fn create() {
         let (mut ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(());
 
         ctx.pending(SignedValidationRequest::mock((
@@ -247,7 +248,7 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
@@ -265,7 +266,7 @@ mod tests {
     #[tokio::test]
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
         let batch = prepared_mock_batch_commitment(&ctx.db, &block);
 
@@ -324,7 +325,7 @@ mod tests {
     #[tokio::test]
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
@@ -354,7 +355,7 @@ mod tests {
     async fn create_producer_skip_timer(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: Vec<Address>,
+        validators: NonEmpty<Address>,
     ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert!(producer.is_producer());

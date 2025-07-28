@@ -19,7 +19,7 @@
 //! Benchmarks for Pallet Gear Eth Bridge.
 
 use crate::{Call, Config, CurrencyOf, Pallet};
-use common::{benchmarking, Origin};
+use common::{Origin, benchmarking};
 use frame_benchmarking::benchmarks;
 use frame_support::traits::Currency;
 use frame_system::RawOrigin;

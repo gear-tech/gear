@@ -19,11 +19,12 @@
 //! Database for ethexe.
 
 use crate::{
-    overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase, MemDb,
+    overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ethexe_common::{
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
@@ -31,7 +32,6 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -44,6 +44,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -65,6 +66,7 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
+    ValidatorSet(H256) = 13,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -91,7 +93,8 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash)
+            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -105,6 +108,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
@@ -193,7 +197,9 @@ impl Database {
             .height
             .checked_sub(reference_block_header.height)
         else {
-            bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
+            bail!(
+                "Can't calculate actual window: reference block hash doesn't suit actual blocks state"
+            );
         };
 
         if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
@@ -666,6 +672,17 @@ impl OnChainStorageRead for Database {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
+
+    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+        self.kv
+            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .map(|data| {
+                NonEmpty::from_vec(
+                    Vec::<Address>::decode(&mut data.as_slice())
+                        .expect("Failed to decode data into `Vec<Address>`"),
+                )
+            })?
+    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -686,6 +703,13 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    }
+
+    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+        self.kv.put(
+            &Key::ValidatorSet(block_hash).to_bytes(),
+            Into::<Vec<Address>>::into(validator_set).encode(),
+        );
     }
 }
 
@@ -769,16 +793,18 @@ mod tests {
 
             // Check block near the end of the window
             let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_mid)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_mid)
+                    .unwrap()
+            );
 
             // Check block at the edge of the window
             // Block at BASE_HEIGHT
             let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_edge)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_edge)
+                    .unwrap()
+            );
         }
 
         // --- Fail: Outside Window ---
@@ -869,10 +895,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No latest valid block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No latest valid block found")
+            );
         }
 
         // --- Error: No Reference Block ---
@@ -892,10 +920,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No reference block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No reference block found")
+            );
         }
 
         // --- Error: Missing History ---
@@ -926,10 +956,12 @@ mod tests {
 
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("not found in the window"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("not found in the window")
+            );
         }
     }
 

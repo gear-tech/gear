@@ -21,8 +21,8 @@
 use crate::code::Code;
 use alloc::vec::Vec;
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 /// Instantiated section sizes for charging during module instantiation.
