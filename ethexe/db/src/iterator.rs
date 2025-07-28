@@ -562,7 +562,7 @@ impl Node {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, derive_more::IsVariant)]
 pub enum DatabaseIteratorError {
     /* block */
     NoBlockHeader(H256),
@@ -1091,5 +1091,336 @@ where
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Database, iterator::DatabaseIteratorError};
+    use ethexe_common::StateHashWithQueueSize;
+    use ethexe_runtime_common::state::HashOf;
+    use gprimitives::MessageId;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn walk_chain_basic() {
+        let head = H256::from_low_u64_be(1);
+        let bottom = H256::from_low_u64_be(2);
+
+        // This will fail because we don't have the block header in the database
+        assert!(
+            DatabaseIterator::new(Database::memory())
+                .start(ChainNode { head, bottom })
+                .filter_map(Node::into_error)
+                .any(|error| error.is_no_block_header())
+        );
+    }
+
+    #[test]
+    fn walk_block_with_missing_data() {
+        let block = H256::from_low_u64_be(42);
+
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(BlockNode { block })
+            .filter_map(Node::into_error)
+            .collect();
+
+        // Should have errors for all missing block data
+        let expected_errors = [
+            DatabaseIteratorError::NoBlockHeader(block),
+            DatabaseIteratorError::NoBlockEvents(block),
+            DatabaseIteratorError::NoBlockCommitmentQueue(block),
+            DatabaseIteratorError::NoBlockCodesQueue(block),
+            DatabaseIteratorError::NoPreviousNonEmptyBlock(block),
+            DatabaseIteratorError::NoLastCommittedBatch(block),
+            DatabaseIteratorError::NoBlockProgramStates(block),
+            DatabaseIteratorError::NoBlockSchedule(block),
+            DatabaseIteratorError::NoBlockOutcome(block),
+        ];
+
+        for expected_error in expected_errors {
+            assert!(errors.contains(&expected_error));
+        }
+    }
+
+    #[test]
+    fn walk_block_codes_queue() {
+        let block = H256::random();
+        let code_id1 = CodeId::from([1u8; 32]);
+        let code_id2 = CodeId::from([2u8; 32]);
+        let mut queue = VecDeque::new();
+        queue.push_back(code_id1);
+        queue.push_back(code_id2);
+
+        let visited_codes: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(BlockCodesQueueNode {
+                block,
+                block_codes_queue: queue,
+            })
+            .filter_map(Node::into_code_id)
+            .map(|node| node.code_id)
+            .collect();
+
+        assert_eq!(visited_codes.len(), 2);
+        assert!(visited_codes.contains(&code_id1));
+        assert!(visited_codes.contains(&code_id2));
+    }
+
+    #[test]
+    fn walk_block_program_states() {
+        let block = H256::random();
+        let program_id = ActorId::from([3u8; 32]);
+        let state_hash = H256::random();
+
+        let mut block_program_states = BTreeMap::new();
+        block_program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                cached_queue_size: 0,
+            },
+        );
+
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(BlockProgramStatesNode {
+                block,
+                block_program_states,
+            })
+            .filter_map(Node::into_error)
+            .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(state_hash)));
+    }
+
+    #[test]
+    fn walk_program_id_missing_code() {
+        let program_id = ActorId::from([5u8; 32]);
+
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(ProgramIdNode { program_id })
+            .filter_map(Node::into_error)
+            .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(program_id)));
+    }
+
+    #[test]
+    fn walk_code_id_missing_data() {
+        let code_id = CodeId::from(1);
+
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(CodeIdNode { code_id })
+            .filter_map(Node::into_error)
+            .collect();
+
+        let expected_errors = [
+            DatabaseIteratorError::NoCodeValid(code_id),
+            DatabaseIteratorError::NoOriginalCode(code_id),
+            DatabaseIteratorError::NoInstrumentedCode(code_id),
+            DatabaseIteratorError::NoCodeMetadata(code_id),
+        ];
+
+        for expected_error in expected_errors {
+            assert!(errors.contains(&expected_error));
+        }
+    }
+
+    #[test]
+    fn walk_scheduled_task_pause_program() {
+        let program_id = ActorId::from([6u8; 32]);
+        let task = ScheduledTask::PauseProgram(program_id);
+
+        let visited_programs: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(ScheduledTaskNode { task })
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        assert!(visited_programs.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_scheduled_task_remove_code() {
+        let code_id = CodeId::from([7u8; 32]);
+        let task = ScheduledTask::RemoveCode(code_id);
+
+        let visited_codes: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(ScheduledTaskNode { task })
+            .filter_map(Node::into_code_id)
+            .map(|node| node.code_id)
+            .collect();
+
+        assert!(visited_codes.contains(&code_id));
+    }
+
+    #[test]
+    fn walk_block_schedule_tasks() {
+        let block = H256::random();
+        let program_id1 = ActorId::from([10u8; 32]);
+        let program_id2 = ActorId::from([11u8; 32]);
+        let code_id = CodeId::from([12u8; 32]);
+
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::PauseProgram(program_id1));
+        tasks.insert(ScheduledTask::RemoveCode(code_id));
+        tasks.insert(ScheduledTask::WakeMessage(program_id2, MessageId::zero()));
+
+        let visited: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(BlockScheduleTasksNode {
+                block,
+                height: 123,
+                tasks,
+            })
+            .collect();
+
+        let visited_programs: Vec<ActorId> = visited
+            .iter()
+            .cloned()
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        let visited_codes: Vec<CodeId> = visited
+            .iter()
+            .cloned()
+            .filter_map(Node::into_code_id)
+            .map(|node| node.code_id)
+            .collect();
+
+        assert!(visited_programs.contains(&program_id1));
+        assert!(visited_programs.contains(&program_id2));
+        assert!(visited_codes.contains(&code_id));
+    }
+
+    #[test]
+    fn walk_block_schedule() {
+        let block = H256::from([13u8; 32]);
+        let program_id = ActorId::from([14u8; 32]);
+
+        let mut block_schedule = BTreeMap::new();
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::PauseProgram(program_id));
+        block_schedule.insert(1000u32, tasks);
+
+        let visited_programs: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(BlockScheduleNode {
+                block,
+                block_schedule,
+            })
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        assert!(visited_programs.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_block_outcome() {
+        let block = H256::from([16u8; 32]);
+        let actor_id = ActorId::from([15u8; 32]);
+        let new_state_hash = H256::random();
+
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(BlockOutcomeNode {
+                block,
+                block_outcome: BlockOutcome::Transitions(vec![StateTransition {
+                    actor_id,
+                    new_state_hash,
+                    exited: false,
+                    inheritor: Default::default(),
+                    value_to_receive: 0,
+                    value_claims: vec![],
+                    messages: vec![],
+                }]),
+            })
+            .filter_map(Node::into_error)
+            .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(actor_id)));
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(new_state_hash)));
+    }
+
+    #[test]
+    fn walk_state_transition() {
+        let actor_id = ActorId::from([17u8; 32]);
+        let new_state_hash = H256::from([18u8; 32]);
+
+        let state_transition = StateTransition {
+            actor_id,
+            new_state_hash,
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_claims: Vec::new(),
+            messages: Vec::new(),
+        };
+
+        let nodes: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(StateTransitionNode { state_transition })
+            .collect();
+
+        let visited_programs: Vec<_> = nodes
+            .iter()
+            .cloned()
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        let errors: Vec<_> = nodes.into_iter().filter_map(Node::into_error).collect();
+
+        assert!(visited_programs.contains(&actor_id));
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(new_state_hash)));
+    }
+
+    #[test]
+    fn walk_state_transition_zero_state_hash() {
+        let actor_id = ActorId::from([19u8; 32]);
+
+        let state_transition = StateTransition {
+            actor_id,
+            new_state_hash: H256::zero(),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_claims: Vec::new(),
+            messages: Vec::new(),
+        };
+
+        let visited_programs: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(StateTransitionNode { state_transition })
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        assert!(visited_programs.contains(&actor_id));
+    }
+
+    #[test]
+    fn walk_payload_lookup_direct() {
+        let payload_data = vec![1, 2, 3, 4];
+        let payload = Payload::try_from(payload_data.clone()).unwrap();
+        let payload_lookup = PayloadLookup::Direct(payload.clone());
+
+        let visited_payloads: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(PayloadLookupNode { payload_lookup })
+            .filter_map(Node::into_payload)
+            .map(|node| node.payload)
+            .collect();
+
+        assert!(visited_payloads.contains(&payload));
+    }
+
+    #[test]
+    fn walk_payload_lookup_stored() {
+        let payload_hash = unsafe { HashOf::<Payload>::new(H256::zero()) };
+        let payload_lookup = PayloadLookup::Stored(payload_hash);
+
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
+            .start(PayloadLookupNode { payload_lookup })
+            .filter_map(Node::into_error)
+            .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoPayload(payload_hash)));
     }
 }
