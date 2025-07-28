@@ -442,10 +442,10 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 50_348_000 picoseconds.
-        Weight::from_parts(54_878_081, 0)
-            // Standard Error: 389
-            .saturating_add(Weight::from_parts(754, 0).saturating_mul(t.into()))
+        // Minimum execution time: 51_707_000 picoseconds.
+        Weight::from_parts(55_278_000, 0)
+            // Standard Error: 137_798
+            .saturating_add(Weight::from_parts(18_724_318, 0).saturating_mul(t.into()))
     }
     fn claim_value() -> Weight {
         // Proof Size summary in bytes:
@@ -2385,10 +2385,10 @@ impl WeightInfo for () {
         // Proof Size summary in bytes:
         //  Measured:  `0`
         //  Estimated: `0`
-        // Minimum execution time: 50_348_000 picoseconds.
-        Weight::from_parts(54_878_081, 0)
-            // Standard Error: 389
-            .saturating_add(Weight::from_parts(754, 0).saturating_mul(t.into()))
+        // Minimum execution time: 51_707_000 picoseconds.
+        Weight::from_parts(55_278_000, 0)
+            // Standard Error: 137_798
+            .saturating_add(Weight::from_parts(18_724_318, 0).saturating_mul(t.into()))
     }
     fn claim_value() -> Weight {
         // Proof Size summary in bytes:

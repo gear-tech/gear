@@ -418,8 +418,7 @@ fn instantiation_costs_heuristic_test() {
         global_section_per_byte: 3000.into(),
         table_section_per_byte: 651.into(),
         element_section_per_byte: 2523.into(),
-        // TODO: pay attention to this bench.
-        type_section_per_byte: 0.into(),
+        type_section_per_byte: 18285.into(),
     };
 
     let result = check_instantiation_costs(instantiation_costs, expected_instantiation_costs);

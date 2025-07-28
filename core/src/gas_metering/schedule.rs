@@ -934,7 +934,7 @@ impl Default for InstantiationWeights {
                 proof_size: 0,
             },
             type_section_per_byte: Weight {
-                ref_time: 0,
+                ref_time: 18285,
                 proof_size: 0,
             },
         }
