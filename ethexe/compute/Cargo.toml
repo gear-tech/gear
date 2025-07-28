@@ -26,3 +26,4 @@ gear-core.workspace = true
 gear-utils.workspace = true
 wat.workspace = true
 wasmparser.workspace = true
+nonempty.workspace = true

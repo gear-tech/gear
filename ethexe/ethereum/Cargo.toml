@@ -46,5 +46,5 @@ alloy = { workspace = true, features = [
     "rpc-client",
     "signers",
     "kzg",
-    "node-bindings"
+    "node-bindings",
 ] }

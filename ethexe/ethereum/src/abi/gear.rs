@@ -166,6 +166,16 @@ impl From<Message> for Gear::Message {
     }
 }
 
+impl From<Gear::Timelines> for Timelines {
+    fn from(value: Gear::Timelines) -> Self {
+        Self {
+            era: value.era.to::<u64>(),
+            election: value.election.to::<u64>(),
+            validation_delay: value.validationDelay.to::<u64>(),
+        }
+    }
+}
+
 impl From<Option<ReplyDetails>> for Gear::ReplyDetails {
     fn from(value: Option<ReplyDetails>) -> Self {
         value

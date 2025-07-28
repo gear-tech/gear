@@ -4678,6 +4678,7 @@ dependencies = [
  "gprimitives",
  "hex",
  "k256",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
@@ -4698,6 +4699,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "thiserror 2.0.12",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4714,12 +4716,12 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-observer",
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "tokio",
 ]
@@ -4735,6 +4737,7 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "rocksdb",
  "scopeguard",
@@ -4798,6 +4801,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
@@ -4936,6 +4940,7 @@ dependencies = [
  "gear-core-errors",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -6600,7 +6605,7 @@ version = "1.8.1"
 dependencies = [
  "gear-core",
  "hex",
- "nonempty 0.8.1",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "path-clean",
  "serde",
@@ -6661,7 +6666,7 @@ dependencies = [
  "gsys",
  "indexmap 2.7.1",
  "log",
- "nonempty 0.8.1",
+ "nonempty 0.12.0",
  "proptest",
  "rand 0.8.5",
  "thiserror 2.0.12",
@@ -10617,9 +10622,9 @@ checksum = "e9e591e719385e6ebaeb5ce5d3887f7d5676fceca6411d1925ccc95745f3d6f7"
 
 [[package]]
 name = "nonempty"
-version = "0.8.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
+checksum = "9737e026353e5cd0736f98eddae28665118eb6f6600902a7f50db585621fecb6"
 
 [[package]]
 name = "nonzero_ext"

@@ -40,6 +40,7 @@ rand.workspace = true
 tempfile.workspace = true
 derive_more.workspace = true
 async-trait.workspace = true
+nonempty.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = [
