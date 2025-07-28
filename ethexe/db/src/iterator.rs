@@ -1099,7 +1099,6 @@ mod tests {
     use super::*;
     use crate::{Database, iterator::DatabaseIteratorError};
     use ethexe_common::StateHashWithQueueSize;
-    use ethexe_runtime_common::state::HashOf;
     use gprimitives::MessageId;
     use std::collections::BTreeMap;
 
@@ -1412,14 +1411,18 @@ mod tests {
 
     #[test]
     fn walk_payload_lookup_stored() {
-        let payload_hash = unsafe { HashOf::<Payload>::new(H256::zero()) };
-        let payload_lookup = PayloadLookup::Stored(payload_hash);
+        let db = Database::memory();
+        let payload = Payload::filled_with(0xfe);
+        let payload_hash = db.write_payload(payload.clone());
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(PayloadLookupNode { payload_lookup })
-            .filter_map(Node::into_error)
+        let visited_payloads: Vec<_> = DatabaseIterator::new(db)
+            .start(PayloadLookupNode {
+                payload_lookup: PayloadLookup::Stored(payload_hash),
+            })
+            .filter_map(Node::into_payload)
+            .map(|node| node.payload)
             .collect();
 
-        assert!(errors.contains(&DatabaseIteratorError::NoPayload(payload_hash)));
+        assert_eq!(visited_payloads, [payload]);
     }
 }
