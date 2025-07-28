@@ -18,7 +18,7 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
@@ -50,6 +50,7 @@ use ethexe_runtime_common::{
 };
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
+use nonempty::NonEmpty;
 use parity_scale_codec::Decode;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -719,6 +720,15 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         }
 
         db.set_latest_computed_block(latest_committed_block, latest_block_header);
+
+        let validators = NonEmpty::from_vec(
+            observer
+                .router_query()
+                .validators_at(latest_committed_block)
+                .await?,
+        )
+        .ok_or(anyhow!("validator set is empty"))?;
+        db.set_validators(latest_committed_block, validators);
     }
 
     log::info!("Fast synchronization done");

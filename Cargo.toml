@@ -208,6 +208,7 @@ indexmap = { version = "2.2.6", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
+nonempty = { version = "0.12.0", default-features = false }
 
 # Published deps
 #
@@ -505,7 +506,6 @@ keyring = "1.2.1"                                            # gcli
 libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.46", default-features = false }  # node/cli
 nacl = "0.5.3"                                               # gcli
-nonempty = "0.8.1"                                           # utils/utils
 libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
 pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
 rand_pcg = "0.3.1"                                           # pallets/gear

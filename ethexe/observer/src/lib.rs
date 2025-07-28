@@ -28,12 +28,13 @@ use alloy::{
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, BlockHeader, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     fmt,
@@ -60,16 +61,10 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BlockSyncedData {
-    pub block_hash: H256,
-    pub validators: Vec<Address>,
-}
-
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
-    BlockSynced(BlockSyncedData),
+    BlockSynced(H256),
 }
 
 impl fmt::Debug for ObserverEvent {
@@ -90,6 +85,8 @@ struct RuntimeConfig {
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
+    genesis_timestamp: u64,
+    era_duration: u64,
 }
 
 // TODO #4552: make tests for observer service
@@ -102,7 +99,7 @@ pub struct ObserverService {
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BoxFuture<'static, Result<BlockSyncedData>>>,
+    sync_future: Option<BoxFuture<'static, Result<H256>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -193,7 +190,10 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+        let genesis_header =
+            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+
+        let timelines = router_query.timelines().await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -208,6 +208,8 @@ impl ObserverService {
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
             block_time: *block_time,
+            genesis_timestamp: genesis_header.timestamp,
+            era_duration: timelines.era,
         };
 
         let chain_sync = ChainSync {
@@ -234,16 +236,18 @@ impl ObserverService {
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db<
-        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageWrite,
+        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead + OnChainStorageWrite,
     >(
         db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<()> {
+    ) -> Result<BlockHeader> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_meta(genesis_block_hash).computed {
-            return Ok(());
+            return db
+                .block_header(genesis_block_hash)
+                .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
         }
 
         let genesis_block = provider
@@ -258,6 +262,10 @@ impl ObserverService {
             timestamp: genesis_block.header.timestamp,
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
+
+        let genesis_validators =
+            NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
+                .ok_or(anyhow!("genesis validator set is empty"))?;
 
         db.set_block_header(genesis_block_hash, genesis_header);
         db.set_block_events(genesis_block_hash, &[]);
@@ -275,9 +283,10 @@ impl ObserverService {
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header);
+        db.set_latest_computed_block(genesis_block_hash, genesis_header.clone());
+        db.set_validators(genesis_block_hash, genesis_validators);
 
-        Ok(())
+        Ok(genesis_header)
     }
 
     pub fn provider(&self) -> &RootProvider {

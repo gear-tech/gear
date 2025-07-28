@@ -24,7 +24,7 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
         CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
@@ -44,6 +44,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -65,6 +66,7 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
+    ValidatorSet(H256) = 13,
 }
 
 impl Key {
@@ -84,7 +86,8 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash)
+            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -98,6 +101,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
@@ -648,6 +652,17 @@ impl OnChainStorageRead for Database {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
+
+    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+        self.kv
+            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .map(|data| {
+                NonEmpty::from_vec(
+                    Vec::<Address>::decode(&mut data.as_slice())
+                        .expect("Failed to decode data into `Vec<Address>`"),
+                )
+            })?
+    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -668,6 +683,13 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    }
+
+    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+        self.kv.put(
+            &Key::ValidatorSet(block_hash).to_bytes(),
+            Into::<Vec<Address>>::into(validator_set).encode(),
+        );
     }
 }
 
