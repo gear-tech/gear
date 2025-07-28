@@ -1387,13 +1387,12 @@ mod tests {
             messages: Vec::new(),
         };
 
-        let visited_programs: Vec<_> = DatabaseIterator::new(Database::memory())
+        let visited_states: Vec<_> = DatabaseIterator::new(Database::memory())
             .start(StateTransitionNode { state_transition })
-            .filter_map(Node::into_program_id)
-            .map(|node| node.program_id)
+            .filter_map(Node::into_program_state)
+            .map(|node| node.program_state)
             .collect();
-
-        assert!(visited_programs.contains(&actor_id));
+        assert_eq!(visited_states, []);
     }
 
     #[test]
