@@ -432,7 +432,7 @@ where
 
         // Dummy type takes on average 10.5 bytes.
         module.types = Some(TypeSegment {
-            num_elements: target_bytes  * 2 / 21,
+            num_elements: target_bytes * 2 / 21,
         });
 
         module.into()
@@ -817,7 +817,7 @@ fn generate_uniq_prototypes(number: usize) -> Vec<FuncType> {
 
         params_len += 1;
     }
-    
+
     out
 }
 
