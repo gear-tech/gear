@@ -21,7 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, Address, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule, events::BlockEvent,
+    gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
