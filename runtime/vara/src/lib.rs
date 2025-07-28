@@ -116,10 +116,6 @@ pub use frame_support::{
 pub use gear_runtime_common::{
     AVERAGE_ON_INITIALIZE_RATIO, BlockHashCount, DealWithFees, GAS_LIMIT_MIN_PERCENTAGE_NUM,
     NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO, VALUE_PER_GAS,
-    constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
-    },
     impl_runtime_apis_plus_common,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};

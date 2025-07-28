@@ -10,7 +10,7 @@ use anyhow::Context;
 use ethexe_common::{ProgramStates, Rfm, Schedule, ScheduledTask, Sd, Sum, gear::ValueClaim};
 use gear_core::tasks::TaskHandler;
 use gear_core_errors::SuccessReplyReason;
-use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
+use gprimitives::{ActorId, H256, MessageId, ReservationId};
 
 pub struct Handler<'a, S: Storage> {
     pub controller: TransitionController<'a, S>,

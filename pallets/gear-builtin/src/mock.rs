@@ -26,9 +26,7 @@ use frame_support::{
     PalletId, construct_runtime,
     pallet_prelude::{DispatchClass, Weight},
     parameter_types,
-    traits::{
-        ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize,
-    },
+    traits::{ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};

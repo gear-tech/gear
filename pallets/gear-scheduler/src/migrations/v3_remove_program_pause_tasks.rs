@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{pallet::TaskPool, Config, Pallet};
+use crate::{Config, Pallet, pallet::TaskPool};
 use frame_support::{
     traits::{Get, GetStorageVersion, OnRuntimeUpgrade, StorageVersion},
     weights::Weight,
@@ -29,8 +29,8 @@ use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData};
 use {
     frame_support::ensure,
     sp_runtime::{
-        codec::{Decode, Encode},
         TryRuntimeError,
+        codec::{Decode, Encode},
     },
     sp_std::vec::Vec,
 };
@@ -58,7 +58,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
 
             let update_to = StorageVersion::new(MIGRATE_TO_VERSION);
 
-            log::info!("🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}.");
+            log::info!(
+                "🚚 Running migration from {onchain:?} to {update_to:?}, current storage version is {current:?}."
+            );
 
             let mut total_counter = 0;
             let mut removed_tasks = 0;
@@ -131,9 +133,13 @@ impl<T: Config> OnRuntimeUpgrade for MigrateRemoveProgramPauseTasks<T> {
 
             update_to.put::<Pallet<T>>();
 
-            log::info!("✅ Successfully migrated storage. {total_counter} tasks were traversed, {removed_tasks} tasks were removed.");
+            log::info!(
+                "✅ Successfully migrated storage. {total_counter} tasks were traversed, {removed_tasks} tasks were removed."
+            );
         } else {
-            log::info!("🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}");
+            log::info!(
+                "🟠 Migration requires onchain version {MIGRATE_FROM_VERSION}, so was skipped for {onchain:?}"
+            );
         }
 
         weight
