@@ -1081,7 +1081,7 @@ where
             };
 
             if !self.visited_nodes.insert(node_hash) {
-                // avoid recursion
+                // avoid recursion and duplicates
                 continue;
             }
 
