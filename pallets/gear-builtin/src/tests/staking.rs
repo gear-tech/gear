@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::tests::DEFAULT_GAS_LIMIT;
 use frame_support::assert_ok;
 use gprimitives::ActorId;
-
 use sp_staking::StakingAccount;
 use util::*;
 
@@ -105,7 +105,7 @@ fn bonding_works() {
                 payee: RewardAccount::Program
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             100 * UNITS,
             false,
         ));
@@ -169,7 +169,7 @@ fn unbonding_works() {
             contract_id,
             // expecting to unbond only 100 UNITS despite 200 UNITS are being requested
             Request::Unbond { value: 200 * UNITS }.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -205,7 +205,7 @@ fn payload_size_matters() {
                 targets: targets.clone()
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -247,7 +247,7 @@ fn nominating_works() {
                 targets: targets.clone()
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -276,7 +276,7 @@ fn nominating_works() {
                 targets: targets.clone()
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -316,7 +316,7 @@ fn withdraw_unbonded_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             Request::Unbond { value: 200 * UNITS }.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -343,7 +343,7 @@ fn withdraw_unbonded_works() {
                 num_slashing_spans: 0
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -392,7 +392,7 @@ fn set_payee_works() {
                 payee: RewardAccount::Custom(REWARD_PAYEE.into_origin().into())
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -436,7 +436,7 @@ fn rebond_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             Request::Unbond { value: 400 * UNITS }.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -462,7 +462,7 @@ fn rebond_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             Request::Rebond { value: 200 * UNITS }.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -487,7 +487,7 @@ fn rebond_works() {
             RuntimeOrigin::signed(SIGNER),
             contract_id,
             Request::Rebond { value: 300 * UNITS }.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -541,7 +541,7 @@ fn payout_stakers_works() {
                 targets: targets.clone()
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -650,6 +650,7 @@ mod util {
     };
     use crate::{
         self as pallet_gear_builtin, ActorWithId, GasAllowanceOf, staking::Actor as StakingBuiltin,
+        tests::DEFAULT_GAS_LIMIT,
     };
     pub(super) use common::{Origin, storage::Limiter};
     pub(super) use demo_staking_broker::WASM_BINARY;
@@ -682,11 +683,12 @@ mod util {
 
     pub(super) const SESSION_DURATION: u64 = 250;
     pub(super) const REWARD_PAYEE: AccountId = 2;
+    pub(super) type AccountId = u64;
+
     const VAL_1_AUTH_ID: UintAuthorityId = UintAuthorityId(11);
     const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(21);
     const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(31);
 
-    pub(super) type AccountId = u64;
     type BlockNumber = u64;
     type Balance = u128;
     type Block = frame_system::mocking::MockBlock<Test>;
@@ -1008,7 +1010,7 @@ mod util {
             WASM_BINARY.to_vec(),
             b"contract".to_vec(),
             Default::default(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -1027,7 +1029,7 @@ mod util {
                 payee: payee.unwrap_or(RewardAccount::Program)
             }
             .encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             amount,
             false,
         ));
@@ -1040,6 +1042,7 @@ mod util {
         Withdrawn,
     }
 
+    #[track_caller]
     pub(super) fn assert_staking_events(contract_id: AccountId, balance: Balance, t: EventType) {
         assert!(System::events().into_iter().any(|e| {
             match e.event {
@@ -1059,6 +1062,7 @@ mod util {
         }))
     }
 
+    #[track_caller]
     pub(super) fn assert_no_staking_events() {
         assert!(
             System::events()
@@ -1067,6 +1071,7 @@ mod util {
         )
     }
 
+    #[track_caller]
     pub(super) fn assert_error_message_sent() {
         assert!(System::events().into_iter().any(|e| {
             match e.event {
@@ -1086,6 +1091,7 @@ mod util {
         }))
     }
 
+    #[track_caller]
     pub(super) fn assert_payload_contains(s: &'static str) {
         assert!(System::events().into_iter().any(|e| {
             match e.event {

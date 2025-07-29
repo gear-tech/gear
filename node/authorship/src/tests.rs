@@ -201,10 +201,13 @@ impl CallBuilder {
                 })),
             }),
             TestCall::ExhaustResources => {
-                // Using 75% of the max possible weight so that two such calls will inevitably
+                // Using 70% of the max possible weight so that two such calls will inevitably
                 // exhaust block resources while one call will very likely fit in.
+                //
+                // NOTE: this percent used to be 75, but actual weights of other calls don't
+                // fit then in test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline
                 RuntimeCall::Gear(pallet_gear::Call::exhaust_block_resources {
-                    fraction: Percent::from_percent(75),
+                    fraction: Percent::from_percent(70),
                 })
             }
         }

@@ -18,10 +18,17 @@
 
 use super::*;
 use core_processor::common::JournalNote;
-use gear_core::{buffer::Payload, ids::ActorId, message::StoredDispatch};
+use gear_core::{ids::ActorId, message::StoredDispatch};
+
+/// The result of a builtin actor `handle` call.
+#[derive(Debug)]
+pub struct BuiltinReply {
+    pub payload: Payload,
+    pub value: Value,
+}
 
 /// Builtin actor `handle` function signature.
-pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<Payload, E>;
+pub type HandleFn<C, E> = dyn Fn(&StoredDispatch, &mut C) -> Result<BuiltinReply, E>;
 
 /// Builtin actor `max_gas` function signature.
 // TODO: #4395. Let the weight function take complexity arguments for more accurate gas estimation.
@@ -38,7 +45,7 @@ pub trait BuiltinDispatcher {
     type Error;
 
     /// Looks up a builtin actor by its actor id.
-    fn lookup<'a>(&'a self, id: &ActorId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>>;
+    fn lookup(&self, id: &ActorId) -> Option<BuiltinInfo<Self::Context, Self::Error>>;
 
     fn run(
         &self,
@@ -52,7 +59,7 @@ impl BuiltinDispatcher for () {
     type Context = ();
     type Error = ();
 
-    fn lookup<'a>(&'a self, _id: &ActorId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
+    fn lookup(&self, _id: &ActorId) -> Option<BuiltinInfo<'_, Self::Context, Self::Error>> {
         None
     }
 

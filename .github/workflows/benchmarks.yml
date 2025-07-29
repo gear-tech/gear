@@ -182,7 +182,7 @@ jobs:
           commit_message: "chore(runtime): update weights"
           file_pattern: >-
             core/src/gas_metering/schedule.rs
-            pallets/*/src/weight.rs
+            pallets/*/src/weights.rs
             runtime/vara/src/weights/
 
       - name: Create pull request
@@ -191,7 +191,7 @@ jobs:
         with:
           add-paths: |
             core/src/gas_metering/schedule.rs
-            pallets/*/src/weight.rs
+            pallets/*/src/weights.rs
             runtime/vara/src/weights/
           commit-message: update weights
           branch: weights/patch

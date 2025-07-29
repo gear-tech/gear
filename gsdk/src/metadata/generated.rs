@@ -3413,7 +3413,7 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
-                    IncorrectValueApplied,
+                    InsufficientValueApplied,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
