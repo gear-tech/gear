@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1810,
+    spec_version: 1900,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -196,7 +196,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1810,
+    spec_version: 1900,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
