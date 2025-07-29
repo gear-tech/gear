@@ -787,6 +787,8 @@ impl BitWidth {
 
 // Generate `number` unique WASM function prototypes
 fn generate_uniq_prototypes(number: usize) -> Vec<FuncType> {
+    // NOTE: types `F32`, `F64`, `V128` are not supported and only used for
+    // dummy type section generation.
     const ALPHABET: [ValType; 5] = [
         ValType::I32,
         ValType::I64,
