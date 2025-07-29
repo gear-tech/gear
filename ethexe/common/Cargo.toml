@@ -26,7 +26,6 @@ std = [
     "nonempty/std",
     "gear-core/std",
     "gprimitives/serde",
-    "gprimitives/std",
     "serde",
     "parity-scale-codec/std",
     "sha3/std",

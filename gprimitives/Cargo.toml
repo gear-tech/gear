@@ -25,5 +25,5 @@ thiserror.workspace = true
 default = ["std"]
 std = []
 codec = ["dep:scale-info"]
-serde = ["dep:serde", "primitive-types/serde"]
+serde = ["dep:serde", "primitive-types/serde", "std"]
 ethexe = ["dep:alloy-primitives", "dep:alloy-sol-types"]
