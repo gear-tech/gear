@@ -211,8 +211,11 @@ impl Producer {
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
+        let parent_announce = todo!();
+
         let pb = ProducerBlock {
             block_hash: self.block.hash,
+            parent: parent_announce,
             // TODO #4638: set gas allowance here
             gas_allowance: None,
             // TODO #4639: append off-chain transactions

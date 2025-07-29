@@ -18,8 +18,8 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
-    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
-    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    Address, AnnounceHash, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
+    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
 };
@@ -74,6 +74,7 @@ impl Mock for ProducerBlock {
     fn mock(block_hash: H256) -> Self {
         ProducerBlock {
             block_hash,
+            parent: AnnounceHash(H256::random()),
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         }
@@ -86,7 +87,7 @@ impl Mock for BatchCommitmentValidationRequest {
     fn mock(_args: Self::Args) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
-            head: Some(H256::random()),
+            head: Some(AnnounceHash(H256::random())),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
         }
     }
@@ -202,7 +203,7 @@ impl Prepare for ChainCommitment {
 
     fn prepare(self, db: &Database, _args: ()) -> Self {
         let Self { transitions, head } = &self;
-        db.set_block_outcome(*head, transitions.clone());
+        db.set_announce_outcome(*head, transitions.clone());
         self
     }
 }

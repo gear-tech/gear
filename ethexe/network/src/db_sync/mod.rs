@@ -487,7 +487,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{StateHashWithQueueSize, db::BlockMetaStorageWrite};
+    use ethexe_common::StateHashWithQueueSize;
     use ethexe_db::MemDb;
     use libp2p::{
         Swarm, Transport,

@@ -139,7 +139,8 @@ impl Participant {
         let waiting_codes = self
             .ctx
             .db
-            .block_codes_queue(self.block.hash)
+            .block_meta(self.block.hash)
+            .codes_queue
             .ok_or_else(|| {
                 anyhow!(
                     "Cannot get from db block codes queue for block {}",

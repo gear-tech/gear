@@ -21,12 +21,34 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gear_core::ids::prelude::CodeIdExt as _;
+use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::Display,
+)]
+#[display("{}", self.0)]
+pub struct AnnounceHash(pub H256);
+
+impl AnnounceHash {
+    pub fn zero() -> Self {
+        Self(H256::zero())
+    }
+}
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
@@ -71,20 +93,31 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
-pub struct BlockMeta {
-    pub synced: bool,
-    pub prepared: bool,
-    pub computed: bool,
-    pub last_committed_batch: Option<Digest>,
-    pub last_committed_head: Option<H256>,
-}
-
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ProducerBlock {
     pub block_hash: H256,
+    pub parent: AnnounceHash,
     pub gas_allowance: Option<u64>,
     pub off_chain_transactions: Vec<H256>,
+}
+
+impl ProducerBlock {
+    pub fn hash(&self) -> AnnounceHash {
+        AnnounceHash(H256(utils::hash(&self.encode())))
+    }
+
+    pub fn base(block_hash: H256, parent: AnnounceHash) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: None,
+            off_chain_transactions: Vec::new(),
+        }
+    }
+
+    pub fn is_base(&self) -> bool {
+        self.gas_allowance.is_none() && self.off_chain_transactions.is_empty()
+    }
 }
 
 impl ToDigest for ProducerBlock {
@@ -181,3 +214,15 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DataRequest {
+    Codes(BTreeSet<CodeId>),
+    Announces(AnnouncesRequest),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnouncesRequest {
+    pub head: AnnounceHash,
+    pub deepness: u32,
+}

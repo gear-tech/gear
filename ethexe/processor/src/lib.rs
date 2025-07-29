@@ -19,8 +19,8 @@
 //! Program's execution service for eGPU.
 
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule,
-    db::CodesStorageWrite,
+    AnnounceHash, CodeAndIdUnchecked, ProducerBlock, ProgramStates, Schedule,
+    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
@@ -66,10 +66,12 @@ pub enum ProcessorError {
     StatePartiallyPresentsInStorage,
     #[error("not found header for processing block ({0})")]
     BlockHeaderNotFound(H256),
+    #[error("not found events for processing block ({0})")]
+    BlockEventsNotFound(H256),
     #[error("not found program states for processing block ({0})")]
-    BlockProgramStatesNotFound(H256),
+    BlockProgramStatesNotFound(AnnounceHash),
     #[error("not found block start schedule for processing block ({0})")]
-    BlockScheduleNotFound(H256),
+    BlockScheduleNotFound(AnnounceHash),
 
     // `InstanceWrapper` errors
     #[error("couldn't find 'memory' export")]
@@ -181,24 +183,54 @@ impl Processor {
         Ok(valid)
     }
 
-    pub async fn process_block_events(
+    pub fn process_base_announce(
         &mut self,
-        block_hash: H256,
-        events: Vec<BlockRequestEvent>,
+        announce: ProducerBlock,
     ) -> Result<BlockProcessingResult> {
-        // Directly return the result from the raw processing function.
-        // The caller (ComputeService) will now handle this result.
-        self.process_block_events_raw(block_hash, events).await
+        assert!(announce.is_base(), "Base announce expected");
+
+        let block_hash = announce.block_hash;
+
+        let mut handler = self.handler(announce)?;
+
+        self.db
+            .block_events(block_hash)
+            .ok_or(ProcessorError::BlockEventsNotFound(block_hash))?
+            .into_iter()
+            .filter_map(|event| event.to_request())
+            .try_for_each(|event| -> Result<()> {
+                match event {
+                    BlockRequestEvent::Router(event) => {
+                        handler.handle_router_event(event)?;
+                    }
+                    BlockRequestEvent::Mirror { actor_id, event } => {
+                        handler.handle_mirror_event(actor_id, event)?;
+                    }
+                    BlockRequestEvent::WVara(event) => {
+                        handler.handle_wvara_event(event);
+                    }
+                }
+                Ok(())
+            })?;
+
+        handler.run_schedule();
+
+        let (transitions, states, schedule) = handler.transitions.finalize();
+        Ok(BlockProcessingResult {
+            transitions,
+            states,
+            schedule,
+        })
     }
 
-    pub async fn process_block_events_raw(
+    pub async fn process_announce(
         &mut self,
-        block_hash: H256,
+        announce: ProducerBlock,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        log::debug!("Processing events for {block_hash:?}: {events:#?}");
+        // log::debug!("Processing events for {block_hash:?}: {events:#?}");
 
-        let mut handler = self.handler(block_hash)?;
+        let mut handler = self.handler(announce)?;
 
         for event in events {
             match event {
@@ -218,7 +250,6 @@ impl Processor {
         self.process_queue(&mut handler).await;
 
         let (transitions, states, schedule) = handler.transitions.finalize();
-
         Ok(BlockProcessingResult {
             transitions,
             states,
@@ -227,7 +258,7 @@ impl Processor {
     }
 
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
-        self.creator.set_chain_head(handler.block_hash);
+        self.creator.set_chain_head(handler.announce.block_hash);
 
         run::run(
             self.db.clone(),
@@ -257,7 +288,24 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
-        let mut handler = self.0.handler(block_hash)?;
+        // +_+_+ change errors
+        let hash = self
+            .0
+            .db
+            .block_meta(block_hash)
+            .announces
+            .ok_or(ProcessorError::BlockEventsNotFound(block_hash))?
+            .into_iter()
+            .next()
+            .ok_or(ProcessorError::BlockEventsNotFound(block_hash))?;
+
+        let announce = self
+            .0
+            .db
+            .announce(hash)
+            .ok_or(ProcessorError::BlockHeaderNotFound(block_hash))?;
+
+        let mut handler = self.0.handler(announce)?;
 
         let state_hash = handler
             .transitions

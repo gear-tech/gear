@@ -25,8 +25,8 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    self, BlockData, BlockHeader, CodeBlobInfo, LatestDataStorage, OnChainStorageRead,
+    OnChainStorageWrite,
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
@@ -36,14 +36,10 @@ use nonempty::NonEmpty;
 use std::collections::HashMap;
 
 pub(crate) trait SyncDB:
-    OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone
+    OnChainStorageRead + OnChainStorageWrite + LatestDataStorage + Clone
 {
 }
-impl<
-    T: OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone,
-> SyncDB for T
-{
-}
+impl<T: OnChainStorageRead + OnChainStorageWrite + LatestDataStorage + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -80,7 +76,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let mut chain = Vec::new();
 
         let mut hash = block;
-        while !self.db.block_meta(hash).synced {
+        while !self.db.block_synced(hash) {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
@@ -127,7 +123,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
+        let Some(latest_synced_block_height) = self.db.latest_data().synced_block_height else {
             log::warn!("latest_synced_block_height is not set in the database");
             return Ok(Default::default());
         };
@@ -195,9 +191,10 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            self.db.mutate_block_meta(hash, |meta| meta.synced = true);
+            self.db.set_block_synced(hash);
 
-            self.db.set_latest_synced_block_height(block_header.height);
+            self.db
+                .mutate_latest_data(|data| data.synced_block_height = Some(block_header.height));
         }
     }
 

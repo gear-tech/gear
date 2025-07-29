@@ -103,7 +103,7 @@ pub struct Service {
     db: Database,
     observer: ObserverService,
     blob_loader: Box<dyn BlobLoaderService>,
-    compute: ComputeService,
+    compute: ComputeService<Processor>,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
     tx_pool: TxPoolService,
@@ -525,7 +525,7 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.process_block(block),
+                    ConsensusEvent::ComputeBlock(block) => compute.compute_announce(block),
                     ConsensusEvent::ComputeProducerBlock(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
@@ -535,7 +535,7 @@ impl Service {
                             );
                         }
 
-                        compute.process_block(producer_block.block_hash);
+                        compute.compute_announce(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
                         let Some(n) = network.as_mut() else {
