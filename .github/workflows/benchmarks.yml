@@ -132,7 +132,6 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
           curl -o wasm-opt-linux-x64.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux")) | .browser_download_url' |grep -v sha256`
           tar xzf wasm-opt-linux-x64.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
-          cargo install rust-script
           wasm-opt --version
 
       - name: Check CPU frequency
@@ -159,7 +158,7 @@ jobs:
         env:
           OUTPUT_DIR: scripts/benchmarking/weights-output
         run: |
-          ./scripts/benchmarking/apply_baremetal_weight_patch.rs -i "$OUTPUT_DIR/pallet_gear.rs" -o "$OUTPUT_DIR/pallet_gear_patched.rs"
+          cargo r -p gear-baremetal-weights-patcher -- -i "$OUTPUT_DIR/pallet_gear.rs" -o "$OUTPUT_DIR/pallet_gear_patched.rs"
           mv "$OUTPUT_DIR/"pallet_gear_patched.rs" "$OUTPUT_DIR/pallet_gear.rs"
 
       - name: "ACTIONS: Upload weights artifact"
