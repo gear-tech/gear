@@ -14,8 +14,7 @@ ethexe-signer.workspace = true
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
-
-gprimitives = { workspace = true, features = ["codec"] }
+gprimitives = { workspace = true, features = ["std", "codec"] }
 
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
