@@ -149,7 +149,7 @@ library Gear {
         mapping(address => bytes32) programs;
         uint256 programsCount;
         uint256 validatedCodesCount;
-        uint256 lastRewardedEraIndex;
+        uint256 latestRewardedEraIndex;
     }
 
     struct ReplyDetails {
@@ -193,8 +193,7 @@ library Gear {
         address networkRegistry;
         address middlewareService;
         address networkOptIn;
-        // address operatorRewards;
-        // address operatorRewardsFactory;
+        // address vaultOptInService;
         address stakerRewardsFactory;
     }
 

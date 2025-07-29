@@ -84,6 +84,7 @@ interface IRouter {
     function genesisTimestamp() external view returns (uint48);
     function latestCommittedBatchHash() external view returns (bytes32);
     function latestCommittedBatchTimestamp() external view returns (uint48);
+    function latestRewardedEraIndex() external view returns (uint256);
 
     function mirrorImpl() external view returns (address);
     function wrappedVara() external view returns (address);

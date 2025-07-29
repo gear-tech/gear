@@ -129,6 +129,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().latestCommittedBatch.timestamp;
     }
 
+    function latestRewardedEraIndex() public view returns (uint256) {
+        return _router().protocolData.latestRewardedEraIndex;
+    }
+
     function mirrorImpl() public view returns (address) {
         return _router().implAddresses.mirror;
     }

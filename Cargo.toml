@@ -212,6 +212,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
 sha3 = { version = "0.10", default-features = false }
 nonempty = { version = "0.12.0", default-features = false }
+rs_merkle = { version = "1.5.0", features = ["keccak256"] }
 
 # Published deps
 #

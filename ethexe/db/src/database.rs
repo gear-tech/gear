@@ -27,7 +27,7 @@ use ethexe_common::{
     Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        OnChainStorageRead, OnChainStorageWrite, StakingStorageRead, StakingStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -43,7 +43,7 @@ use gear_core::{
     ids::{ActorId, CodeId},
     memory::PageBuf,
 };
-use gprimitives::H256;
+use gprimitives::{H160, H256, U256};
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -724,6 +724,32 @@ impl OnChainStorageWrite for Database {
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
         );
+    }
+}
+
+impl StakingStorageRead for Database {
+    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>> {
+        todo!()
+    }
+
+    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256> {
+        todo!()
+    }
+
+    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>> {
+        todo!()
+    }
+}
+
+impl StakingStorageWrite for Database {
+    fn set_operators_rewards_distribution_at(&self, era: u64, tree: BTreeMap<Address, U256>) {
+        todo!()
+    }
+    fn set_operator_stake_at(&self, operator: H160, era: u64) {
+        todo!()
+    }
+    fn set_operator_stake_vaults_at(&self, operator: H160, era: u64, vaults: Vec<(Address, U256)>) {
+        todo!()
     }
 }
 

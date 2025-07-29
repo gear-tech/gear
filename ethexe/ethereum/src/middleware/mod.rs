@@ -18,7 +18,7 @@
 
 use crate::{AlloyProvider, abi::IMiddleware};
 use alloy::{
-    primitives::{Address, U256 as AlloyU256},
+    primitives::{Address, U256 as AlloyU256, Uint},
     providers::{Provider, RootProvider},
 };
 use anyhow::Result;
@@ -68,13 +68,30 @@ impl MiddlewareQuery {
         max_validators: u128,
     ) -> Result<Vec<LocalAddress>> {
         self.0
-            .makeElectionAt(
-                alloy::primitives::Uint::from(ts),
-                AlloyU256::from(max_validators),
-            )
+            .makeElectionAt(Uint::from(ts), AlloyU256::from(max_validators))
             .call()
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::into)
+    }
+
+    pub async fn operator_stake_at(&self, operator: LocalAddress, ts: u64) -> Result<AlloyU256> {
+        self.0
+            .getOperatorStakeAt(operator.0.into(), Uint::from(ts))
+            .call()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn operator_stake_vaults_at(
+        &self,
+        operator: LocalAddress,
+        ts: u64,
+    ) -> Result<Vec<IMiddleware::VaultWithStake>> {
+        self.0
+            .getOperatorStakeVaultsAt(operator.0.into(), Uint::from(ts))
+            .call()
+            .await
             .map_err(Into::into)
     }
 }

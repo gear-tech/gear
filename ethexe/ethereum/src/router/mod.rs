@@ -252,6 +252,15 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
+    pub async fn latest_rewarded_era_index(&self) -> Result<u64> {
+        self.instance
+            .latestRewardedEraIndex()
+            .call()
+            .await
+            .map(|res| res.to::<u64>())
+            .map_err(Into::into)
+    }
+
     pub async fn mirror_impl(&self) -> Result<LocalAddress> {
         self.instance
             .mirrorImpl()
