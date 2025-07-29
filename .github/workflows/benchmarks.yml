@@ -24,6 +24,14 @@ on:
         description: Disk size (in GB) for the instance.
         required: true
         default: '100'
+      selected_pallet:
+        description: "Name of the pallet to benchmark (e.g.: pallet_gear)."
+        required: true
+        default: '*'
+      selected_extrinsics:
+        description: "Comma-separated list of extrinsics to benchmark (e.g.: gr_reply,gr_wait)."
+        required: true
+        default: '*'
 
 concurrency:
   group: benchmarks
@@ -141,6 +149,8 @@ jobs:
         id: run-bench
         env:
           INSTANCE_TYPE: ${{ inputs.instance_type }}
+          SELECTED_PALLET: ${{ inputs.selected_pallet }}
+          SELECTED_EXTRINSICS: ${{ inputs.selected_extrinsics }}
         run: ./scripts/benchmarking/run_all_benchmarks.sh -c vara-dev -m
 
       - name: "ACTIONS: Upload error artifact"
@@ -158,13 +168,15 @@ jobs:
         env:
           OUTPUT_DIR: scripts/benchmarking/weights-output
         run: |
-          cargo r -p gear-baremetal-weights-patcher -- -i "$OUTPUT_DIR/pallet_gear.rs" -o "$OUTPUT_DIR/pallet_gear_patched.rs"
-          mv "$OUTPUT_DIR/"pallet_gear_patched.rs" "$OUTPUT_DIR/pallet_gear.rs"
+          if [ -e "$OUTPUT_DIR/pallet_gear.rs" ]; then
+            cargo r -p gear-baremetal-weights-patcher -- -i "$OUTPUT_DIR/pallet_gear.rs" -o "$OUTPUT_DIR/pallet_gear_patched.rs"
+            mv "$OUTPUT_DIR/pallet_gear_patched.rs" "$OUTPUT_DIR/pallet_gear.rs"
+          fi
 
       - name: "ACTIONS: Upload weights artifact"
         # This step will run if benchmarking finished with no errors (upload-errors step was skipped),
         # This runs even if baremetal patching was failed - in that case, make sure to handle it.
-        if: ${{ !cancelled() && steps.upload-errors.conclusion != 'skipped'}}
+        if: ${{ !cancelled() && steps.upload-errors.conclusion == 'skipped'}}
         uses: actions/upload-artifact@v4
         with:
           name: weights-output
