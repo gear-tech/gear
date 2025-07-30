@@ -275,20 +275,8 @@ impl BlockMetaStorageRead for Database {
             .unwrap_or_default()
     }
 
-    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
-        self.with_small_data(block_hash, |data| data.commitment_queue)?
-    }
-
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>> {
         self.with_small_data(block_hash, |data| data.codes_queue)?
-    }
-
-    fn previous_non_empty_block(&self, block_hash: H256) -> Option<H256> {
-        self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
-    }
-
-    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest> {
-        self.with_small_data(block_hash, |data| data.last_committed_batch)?
     }
 
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
@@ -339,26 +327,9 @@ impl BlockMetaStorageWrite for Database {
         });
     }
 
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
-        log::trace!("For block {block_hash} set commitment queue: {queue:?}");
-        self.mutate_small_data(block_hash, |data| data.commitment_queue = Some(queue));
-    }
-
     fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
         log::trace!("For block {block_hash} set codes queue: {queue:?}");
         self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
-    }
-
-    fn set_previous_not_empty_block(&self, block_hash: H256, prev_not_empty_block_hash: H256) {
-        log::trace!("For block {block_hash} set prev commitment: {prev_not_empty_block_hash}");
-        self.mutate_small_data(block_hash, |data| {
-            data.prev_not_empty_block = Some(prev_not_empty_block_hash)
-        });
-    }
-
-    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest) {
-        log::trace!("For block {block_hash} set last committed batch: {batch:?}");
-        self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {

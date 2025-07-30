@@ -26,7 +26,6 @@ use ethexe_common::{
         OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
-    gear::GearBlock,
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -59,8 +58,6 @@ struct EventData {
     latest_committed_batch: Digest,
     /// Latest committed on the chain and not computed local block
     latest_committed_block: BlockData,
-    /// Previous committed block
-    previous_committed_block: Option<H256>,
 }
 
 impl EventData {
@@ -90,9 +87,7 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut previous_committed_block = None;
-        let mut latest_committed_block = None;
-        let mut latest_committed_batch = None;
+        let mut latest_committed: Option<(Digest, Option<H256>)> = None;
 
         let mut block = highest_block;
         'computed: while !db.block_meta(block).computed {
@@ -100,66 +95,43 @@ impl EventData {
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
-                if latest_committed_batch.is_none() {
-                    if let BlockEvent::Router(RouterEvent::BatchCommitted { digest }) = event {
-                        latest_committed_batch = Some(digest);
-                    }
-                    // we don't collect any further info
-                    // because the latest committed batch is the first event we need
-                    continue;
-                }
-
-                if latest_committed_block.is_none() {
-                    if let BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock {
-                        hash,
-                        ..
-                    })) = event
+                match event {
+                    BlockEvent::Router(RouterEvent::BatchCommitted { digest })
+                        if latest_committed.is_none() =>
                     {
-                        latest_committed_block = Some(hash);
+                        latest_committed = Some((digest, None));
                     }
+                    BlockEvent::Router(RouterEvent::HeadCommitted(head)) => {
+                        let Some((_, latest_committed_head)) = latest_committed.as_mut() else {
+                            anyhow::bail!(
+                                "Inconsistent block events: head commitment before batch commitment"
+                            );
+                        };
+                        assert!(
+                            latest_committed_head.is_none(),
+                            "The loop have to be broken after the first head commitment"
+                        );
+                        *latest_committed_head = Some(head);
 
-                    // we don't collect any further info
-                    // because the latest committed block is the second event we need
-                    continue;
-                }
-
-                if let BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock {
-                    hash, ..
-                })) = event
-                {
-                    previous_committed_block = Some(hash);
-                    // the previous committed block is the last event we need
-                    break 'computed;
+                        break 'computed;
+                    }
+                    _ => {}
                 }
             }
 
-            let parent = block_data.header.parent_hash;
-            block = parent;
+            block = block_data.header.parent_hash;
         }
 
-        let Some(latest_committed_block) = latest_committed_block else {
+        let Some((latest_committed_batch, Some(latest_committed_block))) = latest_committed else {
             return Ok(None);
         };
 
-        let Some(latest_committed_batch) = latest_committed_batch else {
-            anyhow::bail!("Inconsistent block events: block commitment without batch commitment");
-        };
-
-        let latest_committed_block =
+        let latest_committed_block_data =
             Self::get_block_data(observer, db, latest_committed_block).await?;
-
-        if let Some(previous_committed_block) = previous_committed_block {
-            let previous_committed_block =
-                Self::get_block_data(observer, db, previous_committed_block).await?;
-            debug_assert!(
-                previous_committed_block.header.height < latest_committed_block.header.height
-            );
-        }
 
         Ok(Some(Self {
             latest_committed_batch,
-            latest_committed_block,
-            previous_committed_block,
+            latest_committed_block: latest_committed_block_data,
         }))
     }
 }
@@ -666,7 +638,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                 header: latest_block_header,
                 events: latest_block_events,
             },
-        previous_committed_block,
     }) = EventData::collect(observer, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
@@ -703,16 +674,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             meta.synced = true;
             meta.prepared = true;
             meta.computed = true;
+            meta.last_committed_batch = Some(latest_committed_batch);
+            meta.last_committed_head = Some(latest_committed_block);
         });
 
         // NOTE: there is no invariant that fast sync should recover queues
-        db.set_block_commitment_queue(latest_committed_block, Default::default());
         db.set_block_codes_queue(latest_committed_block, Default::default());
-        db.set_previous_not_empty_block(
-            latest_committed_block,
-            previous_committed_block.unwrap_or_else(H256::zero),
-        );
-        db.set_last_committed_batch(latest_committed_block, latest_committed_batch);
         db.set_block_program_states(latest_committed_block, program_states);
         db.set_block_schedule(latest_committed_block, schedule);
         unsafe {

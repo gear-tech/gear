@@ -99,6 +99,7 @@ std = [
 	"ark-std?/std",
 	# To be removed after migrations applied.
 	"pallet-balances/std",
+	"gprimitives/std",
 ]
 runtime-benchmarks = [
 	"common/runtime-benchmarks",

@@ -253,8 +253,9 @@ mod tests {
         db.mutate_block_meta(parent_hash, |meta| {
             meta.synced = true;
             meta.prepared = true;
+            meta.last_committed_batch = Some(Default::default());
+            meta.last_committed_head = Some(Default::default());
         });
-        db.set_last_committed_batch(parent_hash, Default::default());
         db.set_block_codes_queue(parent_hash, VecDeque::new());
 
         // Setup block as synced but not prepared
@@ -294,9 +295,7 @@ mod tests {
 
         // Setup parent block as computed
         db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-        db.set_block_commitment_queue(parent_hash, VecDeque::new());
         db.set_block_outcome(parent_hash, vec![]);
-        db.set_previous_not_empty_block(parent_hash, parent_hash);
 
         // Setup block as prepared
         db.mutate_block_meta(block_hash, |meta| {

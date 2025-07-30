@@ -24,10 +24,10 @@
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
-    db::{BlockMetaStorageRead, CodesStorageRead},
+    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, GearBlock},
-    sha3::{self, digest::Update},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
@@ -46,25 +46,13 @@ pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
     /// List of blocks to validate
-    pub blocks: Vec<H256>,
+    pub head: Option<H256>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
 }
 
 impl BatchCommitmentValidationRequest {
     pub fn new(batch: &BatchCommitment) -> Self {
-        let blocks = batch
-            .chain_commitment
-            .iter()
-            .flat_map(|commitment| {
-                commitment.gear_blocks.iter().map(
-                    |GearBlock {
-                         hash: block_hash, ..
-                     }| *block_hash,
-                )
-            })
-            .collect();
-
         let codes = batch
             .code_commitments
             .iter()
@@ -73,7 +61,7 @@ impl BatchCommitmentValidationRequest {
 
         BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
-            blocks,
+            head: batch.chain_commitment.as_ref().map(|c| c.head),
             codes,
         }
     }
@@ -83,24 +71,17 @@ impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             digest,
-            blocks,
+            head,
             codes,
         } = self;
 
-        hasher.update(digest.as_ref());
-        hasher.update(
-            blocks
-                .iter()
-                .flat_map(|h| h.to_fixed_bytes())
-                .collect::<Vec<u8>>()
-                .as_ref(),
-        );
+        hasher.update(digest);
+        head.map(|head| hasher.update(head));
         hasher.update(
             codes
                 .iter()
                 .flat_map(|h| h.into_bytes())
-                .collect::<Vec<u8>>()
-                .as_ref(),
+                .collect::<Vec<u8>>(),
         );
     }
 }
@@ -221,44 +202,59 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead>(
+pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>(
     db: &DB,
-    blocks: impl IntoIterator<Item = H256>,
+    from_block_hash: H256,
     fail_if_not_computed: bool,
-) -> Result<Option<ChainCommitment>> {
-    let mut chain_commitments = Vec::new();
+    max_deepness: Option<u32>,
+) -> Result<Option<(ChainCommitment, u32)>> {
+    // TODO #4744: improve squashing - removing redundant state transitions
 
-    for block in blocks {
-        if !db.block_meta(block).computed {
+    let last_committed_head = db
+        .block_meta(from_block_hash)
+        .last_committed_head
+        .ok_or_else(|| {
+            anyhow!("Cannot get from db last committed head for block {from_block_hash}")
+        })?;
+
+    let mut block_hash = from_block_hash;
+    let mut counter: u32 = 0;
+    let mut transitions = vec![];
+    while block_hash != last_committed_head {
+        if max_deepness.map(|d| counter >= d).unwrap_or(false) {
+            return Err(anyhow!(
+                "Chain commitment is too deep: {block_hash} at depth {counter}"
+            ));
+        }
+
+        counter += 1;
+
+        if !db.block_meta(block_hash).computed {
             // This can happen when validator syncs from p2p network and skips some old blocks.
             if fail_if_not_computed {
-                return Err(anyhow!("Block {block} is not computed"));
+                return Err(anyhow!("Block {block_hash} is not computed"));
             } else {
                 return Ok(None);
             }
         }
 
-        let transitions = db
-            .block_outcome(block)
-            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?
-            .into_transitions()
-            .ok_or_else(|| {
-                anyhow!("`block_outcome` is called on forced non-empty outcome: {block}")
-            })?;
+        transitions.push(db.block_outcome(block_hash).ok_or_else(|| {
+            anyhow!("Cannot get from db outcome for computed block {block_hash}")
+        })?);
 
-        let gear_blocks = vec![GearBlock {
-            hash: block,
-            off_chain_transactions_hash: H256::zero(),
-            gas_allowance: 0,
-        }];
-
-        chain_commitments.push(ChainCommitment {
-            transitions,
-            gear_blocks,
-        });
+        block_hash = db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block_hash}"))?
+            .parent_hash;
     }
 
-    Ok(squash_chain_commitments(chain_commitments))
+    Ok(Some((
+        ChainCommitment {
+            transitions: transitions.into_iter().rev().flatten().collect(),
+            head: from_block_hash,
+        },
+        counter,
+    )))
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
@@ -271,12 +267,15 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
         return Ok(None);
     }
 
-    let last_committed = db.last_committed_batch(block.hash).ok_or_else(|| {
-        anyhow!(
-            "Cannot get from db last committed block for block {}",
-            block.hash
-        )
-    })?;
+    let last_committed = db
+        .block_meta(block.hash)
+        .last_committed_batch
+        .ok_or_else(|| {
+            anyhow!(
+                "Cannot get from db last committed block for block {}",
+                block.hash
+            )
+        })?;
 
     Ok(Some(BatchCommitment {
         block_hash: block.hash,
@@ -289,28 +288,6 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     }))
 }
 
-// TODO #4744: improve squashing - removing redundant state transitions
-pub fn squash_chain_commitments(
-    chain_commitments: Vec<ChainCommitment>,
-) -> Option<ChainCommitment> {
-    if chain_commitments.is_empty() {
-        return None;
-    }
-
-    let mut transitions = Vec::new();
-    let mut gear_blocks = Vec::new();
-
-    for commitment in chain_commitments {
-        transitions.extend(commitment.transitions);
-        gear_blocks.extend(commitment.gear_blocks);
-    }
-
-    Some(ChainCommitment {
-        transitions,
-        gear_blocks,
-    })
-}
-
 pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
@@ -320,10 +297,7 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::{
-        db::{BlockMetaStorageWrite, CodesStorageWrite},
-        gear::StateTransition,
-    };
+    use ethexe_common::db::{BlockMetaStorageWrite, CodesStorageWrite};
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);
@@ -434,71 +408,32 @@ mod tests {
     #[test]
     fn test_aggregate_chain_commitment() {
         let db = Database::memory();
-        let block1 = H256([1; 32]);
-        let block2 = H256([2; 32]);
-        let block3 = H256([3; 32]);
+        let BatchCommitment { block_hash, .. } = prepared_mock_batch_commitment(&db);
 
-        // Set up the database with computed blocks and outcomes
-        db.mutate_block_meta(block1, |meta| meta.computed = true);
-        db.mutate_block_meta(block2, |meta| meta.computed = true);
-        db.set_block_outcome(block1, vec![]);
-        db.set_block_outcome(block2, vec![]);
-
-        // Test with valid blocks
-        aggregate_chain_commitment(&db, vec![block1, block2], true)
+        let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, false, None)
             .unwrap()
             .unwrap();
+        assert_eq!(commitment.head, block_hash);
+        assert_eq!(commitment.transitions.len(), 4);
+        assert_eq!(counter, 3);
 
-        // Test with a block that is not computed
-        aggregate_chain_commitment(&db, vec![block1, block3], true).unwrap_err();
+        let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, true, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitment.head, block_hash);
+        assert_eq!(commitment.transitions.len(), 4);
+        assert_eq!(counter, 3);
 
-        // Test with fail_if_not_computed set to false
-        let chain_commitment =
-            aggregate_chain_commitment(&db, vec![block1, block3], false).unwrap();
-        assert!(chain_commitment.is_none());
-    }
+        aggregate_chain_commitment(&db, block_hash, false, Some(2)).unwrap_err();
+        aggregate_chain_commitment(&db, block_hash, true, Some(2)).unwrap_err();
 
-    #[test]
-    fn test_squash_chain_commitments() {
-        let block1 = H256::from([1; 32]);
-        let block2 = H256::from([2; 32]);
-
-        let transition1 = StateTransition::mock(());
-        let transition2 = StateTransition::mock(());
-        let transition3 = StateTransition::mock(());
-
-        let gb1 = GearBlock {
-            hash: block1,
-            off_chain_transactions_hash: H256::zero(),
-            gas_allowance: 0,
-        };
-        let gb2 = GearBlock {
-            hash: block2,
-            off_chain_transactions_hash: H256::zero(),
-            gas_allowance: 0,
-        };
-        let chain_commitment1 = ChainCommitment {
-            transitions: vec![transition1.clone(), transition2.clone()],
-            gear_blocks: vec![gb1.clone()],
-        };
-
-        let chain_commitment2 = ChainCommitment {
-            transitions: vec![transition3.clone()],
-            gear_blocks: vec![gb2.clone()],
-        };
-
-        let squashed =
-            squash_chain_commitments(vec![chain_commitment1.clone(), chain_commitment2.clone()])
-                .unwrap();
-
-        assert_eq!(squashed.gear_blocks, vec![gb1, gb2]);
-        assert_eq!(
-            squashed.transitions,
-            vec![transition1, transition2, transition3]
+        db.mutate_block_meta(block_hash, |meta| meta.computed = false);
+        assert!(
+            aggregate_chain_commitment(&db, block_hash, false, None)
+                .unwrap()
+                .is_none()
         );
-
-        let squashed = squash_chain_commitments(vec![]);
-        assert!(squashed.is_none());
+        aggregate_chain_commitment(&db, block_hash, true, None).unwrap_err();
     }
 
     #[test]

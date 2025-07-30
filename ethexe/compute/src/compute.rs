@@ -20,12 +20,9 @@ use crate::{BlockProcessed, ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead},
-    events::{BlockEvent, RouterEvent},
-    gear::GearBlock,
 };
 use ethexe_processor::BlockProcessingResult;
 use gprimitives::H256;
-use std::collections::VecDeque;
 
 pub(crate) async fn compute<
     DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead,
@@ -62,7 +59,6 @@ async fn compute_one_block<
     if !db.block_meta(parent).computed {
         unreachable!("Parent block {parent} must be computed before the current one {block}",);
     }
-    let mut waiting_blocks = propagate_data_from_parent(db, block, parent, events.iter())?;
 
     let block_request_events = events
         .into_iter()
@@ -79,11 +75,6 @@ async fn compute_one_block<
         schedule,
     } = processing_result;
 
-    if !transitions.is_empty() {
-        waiting_blocks.push_back(block);
-    }
-
-    db.set_block_commitment_queue(block, waiting_blocks);
     db.set_block_outcome(block, transitions);
     db.set_block_program_states(block, states);
     db.set_block_schedule(block, schedule);
@@ -93,48 +84,6 @@ async fn compute_one_block<
     Ok(())
 }
 
-fn propagate_data_from_parent<'a, DB: BlockMetaStorageRead + BlockMetaStorageWrite>(
-    db: &DB,
-    block: H256,
-    parent: H256,
-    events: impl Iterator<Item = &'a BlockEvent>,
-) -> Result<VecDeque<H256>> {
-    // Propagate prev commitment (prev not empty block hash or zero for genesis).
-    if db
-        .block_outcome(parent)
-        .ok_or(ComputeError::ParentNotFound(block))?
-        .is_empty()
-    {
-        let parent_prev_commitment = db
-            .previous_non_empty_block(parent)
-            .ok_or(ComputeError::PreviousCommitmentNotFound(parent))?;
-        db.set_previous_not_empty_block(block, parent_prev_commitment);
-    } else {
-        db.set_previous_not_empty_block(block, parent);
-    }
-
-    let mut blocks_queue = db
-        .block_commitment_queue(parent)
-        .ok_or(ComputeError::CommitmentQueueNotFound(parent))?;
-    for event in events {
-        if let BlockEvent::Router(RouterEvent::GearBlockCommitted(GearBlock { hash, .. })) = event {
-            if let Some(index) = blocks_queue
-                .iter()
-                .enumerate()
-                .find_map(|(index, h)| (*h == *hash).then_some(index))
-            {
-                blocks_queue.drain(..=index);
-            } else {
-                log::warn!(
-                    "Block {hash} not found in parent waiting blocks queue at block {parent}"
-                );
-            }
-        }
-    }
-
-    Ok(blocks_queue)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,11 +91,9 @@ mod tests {
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
-        events::BlockEvent,
     };
     use ethexe_db::Database as DB;
     use gprimitives::H256;
-    use std::collections::VecDeque;
 
     /// Test compute function with chain of 3 blocks
     #[tokio::test]
@@ -162,9 +109,7 @@ mod tests {
 
         // Setup genesis block as computed
         db.mutate_block_meta(genesis_hash, |meta| meta.computed = true);
-        db.set_block_commitment_queue(genesis_hash, VecDeque::new());
         db.set_block_outcome(genesis_hash, vec![]);
-        db.set_previous_not_empty_block(genesis_hash, genesis_hash);
         let genesis_header = BlockHeader {
             height: 0,
             parent_hash: H256::zero(),
@@ -222,9 +167,7 @@ mod tests {
 
         // Setup parent block as computed
         db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-        db.set_block_commitment_queue(parent_hash, VecDeque::new());
         db.set_block_outcome(parent_hash, vec![]);
-        db.set_previous_not_empty_block(parent_hash, parent_hash); // Add missing previous commitment
 
         // Setup block data
         let header = BlockHeader {
@@ -250,69 +193,6 @@ mod tests {
         assert!(meta.computed);
     }
 
-    /// Test propagate_data_from_parent function
-    #[test]
-    fn test_propagate_data_from_parent() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let committed_block_hash = H256::from([3; 32]);
-
-        // Setup parent data
-        let mut parent_queue = VecDeque::new();
-        parent_queue.push_back(committed_block_hash);
-        parent_queue.push_back(H256::from([4; 32]));
-
-        db.set_block_commitment_queue(parent_hash, parent_queue);
-        db.set_block_outcome(parent_hash, vec![]);
-        db.set_previous_not_empty_block(parent_hash, parent_hash); // Add missing previous commitment
-
-        // Create events with GearBlockCommitted
-        let events = [BlockEvent::Router(RouterEvent::GearBlockCommitted(
-            GearBlock {
-                hash: committed_block_hash,
-                off_chain_transactions_hash: H256::zero(),
-                gas_allowance: 1000,
-            },
-        ))];
-
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        // Should have one block remaining in queue (the second one)
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], H256::from([4; 32]));
-
-        // Verify previous not empty block was set correctly
-        let prev_not_empty = db.previous_non_empty_block(block_hash).unwrap();
-        assert_eq!(prev_not_empty, parent_hash);
-    }
-
-    /// Test propagate_data_from_parent with empty parent outcome
-    #[test]
-    fn test_propagate_data_from_parent_empty_parent_outcome() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let grandparent_hash = H256::from([0; 32]);
-
-        // Setup parent with empty outcome
-        db.set_block_commitment_queue(parent_hash, VecDeque::new());
-        db.set_block_outcome(parent_hash, vec![]);
-        db.set_previous_not_empty_block(parent_hash, grandparent_hash);
-
-        let events = [];
-
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        assert!(result.is_empty());
-
-        // Should propagate grandparent as previous not empty block
-        let prev_not_empty = db.previous_non_empty_block(block_hash).unwrap();
-        assert_eq!(prev_not_empty, grandparent_hash);
-    }
-
     /// Test compute_one_block function with non-empty processor result
     #[tokio::test]
     async fn test_compute_one_block_with_non_empty_result() {
@@ -328,9 +208,7 @@ mod tests {
 
         // Setup parent block as computed
         db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-        db.set_block_commitment_queue(parent_hash, VecDeque::new());
         db.set_block_outcome(parent_hash, vec![]);
-        db.set_previous_not_empty_block(parent_hash, parent_hash);
 
         // Setup block data
         let header = BlockHeader {
@@ -377,10 +255,5 @@ mod tests {
         assert_eq!(stored_transitions.len(), 1);
         assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
-
-        // Verify that block was added to waiting blocks queue since transitions are not empty
-        let commitment_queue = db.block_commitment_queue(block_hash).unwrap();
-        assert_eq!(commitment_queue.len(), 1);
-        assert_eq!(commitment_queue[0], block_hash);
     }
 }

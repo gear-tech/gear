@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ToDigest, events::BlockEvent};
+use crate::{Digest, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -76,6 +76,8 @@ pub struct BlockMeta {
     pub synced: bool,
     pub prepared: bool,
     pub computed: bool,
+    pub last_committed_batch: Option<Digest>,
+    pub last_committed_head: Option<H256>,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]

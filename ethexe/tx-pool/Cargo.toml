@@ -11,7 +11,7 @@ rust-version.workspace = true
 [dependencies]
 ethexe-common.workspace = true
 ethexe-db.workspace = true
-gprimitives = { workspace = true, features = ["codec"] }
+gprimitives = { workspace = true, features = ["codec", "std"] }
 
 anyhow.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }

@@ -14,7 +14,7 @@ ethexe-processor.workspace = true
 ethexe-common.workspace = true
 ethexe-db.workspace = true
 ethexe-runtime-common.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 thiserror.workspace = true
 futures.workspace = true
 tokio.workspace = true

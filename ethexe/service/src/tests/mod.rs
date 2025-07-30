@@ -1134,10 +1134,6 @@ async fn fast_sync() {
             log::trace!("assert block {block}");
 
             assert_eq!(
-                alice.db.block_commitment_queue(block),
-                bob.db.block_commitment_queue(block)
-            );
-            assert_eq!(
                 alice.db.block_codes_queue(block),
                 bob.db.block_codes_queue(block)
             );
@@ -1145,10 +1141,6 @@ async fn fast_sync() {
             assert_eq!(
                 alice.db.block_meta(block).computed,
                 bob.db.block_meta(block).computed
-            );
-            assert_eq!(
-                alice.db.previous_non_empty_block(block),
-                bob.db.previous_non_empty_block(block)
             );
             assert_eq!(
                 alice.db.block_program_states(block),
