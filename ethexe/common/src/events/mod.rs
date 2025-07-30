@@ -27,7 +27,7 @@ pub use mirror::{Event as MirrorEvent, RequestEvent as MirrorRequestEvent};
 pub use router::{Event as RouterEvent, RequestEvent as RouterRequestEvent};
 pub use wvara::{Event as WVaraEvent, RequestEvent as WVaraRequestEvent};
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum BlockEvent {
     Mirror {
         actor_id: ActorId,

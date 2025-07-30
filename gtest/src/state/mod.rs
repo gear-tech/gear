@@ -509,8 +509,8 @@ mod tests {
         let task1 = VaraScheduledTask::WakeMessage(H256::random().cast(), H256::random().cast());
         let task2 = VaraScheduledTask::WakeMessage(H256::random().cast(), H256::random().cast());
 
-        TaskPoolStorageWrap::insert(task1_bn, task1.clone(), ());
-        TaskPoolStorageWrap::insert(task2_bn, task2.clone(), ());
+        TaskPoolStorageWrap::insert(task1_bn, task1, ());
+        TaskPoolStorageWrap::insert(task2_bn, task2, ());
 
         // Fill the waitlist storage with some data.
         let waitlist_key1_1 = H256::random().cast();
@@ -607,8 +607,8 @@ mod tests {
         let task3_bn = 7;
         let task3 = VaraScheduledTask::WakeMessage(H256::random().cast(), H256::random().cast());
 
-        TaskPoolStorageWrap::insert(task3_bn, task3.clone(), ());
-        assert!(TaskPoolStorageWrap::take(task1_bn, task1.clone()).is_some());
+        TaskPoolStorageWrap::insert(task3_bn, task3, ());
+        assert!(TaskPoolStorageWrap::take(task1_bn, task1).is_some());
 
         // Adjust waitlist storage the same way.
         let waitlist_key3_1 = H256::random().cast();

@@ -18,10 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// TODO: consider format.
-/// Version of the runtime.
-pub const VERSION: u32 = 1;
-
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 

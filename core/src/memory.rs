@@ -107,7 +107,7 @@ pub struct IntoPageBufError;
 pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo)]
 pub struct PageBuf(PageBufInner);
 
 // These traits are implemented intentionally by hand to achieve two goals:
