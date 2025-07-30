@@ -17,17 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::iterator::{
-    AllocationsNode, BlockCodesQueueNode, BlockCommitmentQueueNode, BlockEventsNode,
-    BlockHeaderNode, BlockMetaNode, BlockNode, BlockOutcomeNode, BlockProgramStatesNode,
-    BlockScheduleNode, BlockScheduleTasksNode, ChainNode, CodeIdNode, CodeMetadataNode,
-    CodeValidNode, DatabaseIterator, DatabaseIteratorError, DatabaseIteratorStorage,
-    DispatchStashNode, InstrumentedCodeNode, LastCommittedBatchNode, MailboxNode,
-    MemoryPagesRegionNode, MessageQueueHashWithSizeNode, MessageQueueNode, Node, OriginalCodeNode,
-    PageDataNode, PayloadLookupNode, PayloadNode, PreviousNonEmptyBlockNode, ProgramIdNode,
+    AllocationsNode, BlockCodesQueueNode, BlockEventsNode, BlockHeaderNode, BlockMetaNode,
+    BlockNode, BlockOutcomeNode, BlockProgramStatesNode, BlockScheduleNode, BlockScheduleTasksNode,
+    ChainNode, CodeIdNode, CodeMetadataNode, CodeValidNode, DatabaseIterator,
+    DatabaseIteratorError, DatabaseIteratorStorage, DispatchStashNode, InstrumentedCodeNode,
+    MailboxNode, MemoryPagesRegionNode, MessageQueueHashWithSizeNode, MessageQueueNode, Node,
+    OriginalCodeNode, PageDataNode, PayloadLookupNode, PayloadNode, ProgramIdNode,
     ProgramStateNode, ScheduledTaskNode, StateTransitionNode, UserMailboxNode, WaitlistNode,
 };
 use ethexe_common::{
-    BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, ScheduledTask, db::BlockOutcome,
+    BlockHeader, BlockMeta, ProgramStates, Schedule, ScheduledTask, db::BlockOutcome,
     events::BlockEvent, gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
@@ -59,8 +58,6 @@ pub trait DatabaseVisitor: Sized {
 
     fn visit_block_events(&mut self, _block: H256, _events: &[BlockEvent]) {}
 
-    fn visit_block_commitment_queue(&mut self, _block: H256, _queue: &VecDeque<H256>) {}
-
     fn visit_block_codes_queue(&mut self, _block: H256, _queue: &VecDeque<CodeId>) {}
 
     fn visit_code_id(&mut self, _code_id: CodeId) {}
@@ -75,10 +72,6 @@ pub trait DatabaseVisitor: Sized {
     fn visit_code_metadata(&mut self, _code_id: CodeId, _metadata: &CodeMetadata) {}
 
     fn visit_program_id(&mut self, _program_id: ActorId) {}
-
-    fn visit_previous_non_empty_block(&mut self, _block: H256, _previous_non_empty_block: H256) {}
-
-    fn visit_last_committed_batch(&mut self, _block: H256, _batch: Digest) {}
 
     fn visit_block_program_states(&mut self, _block: H256, _program_states: &ProgramStates) {}
 
@@ -152,12 +145,6 @@ fn visit_node(visitor: &mut impl DatabaseVisitor, node: Node) {
         }) => {
             visitor.visit_block_events(block, &block_events);
         }
-        Node::BlockCommitmentQueue(BlockCommitmentQueueNode {
-            block,
-            block_commitment_queue,
-        }) => {
-            visitor.visit_block_commitment_queue(block, &block_commitment_queue);
-        }
         Node::BlockCodesQueue(BlockCodesQueueNode {
             block,
             block_codes_queue,
@@ -190,18 +177,6 @@ fn visit_node(visitor: &mut impl DatabaseVisitor, node: Node) {
         }
         Node::ProgramId(ProgramIdNode { program_id }) => {
             visitor.visit_program_id(program_id);
-        }
-        Node::PreviousNonEmptyBlock(PreviousNonEmptyBlockNode {
-            block,
-            previous_non_empty_block,
-        }) => {
-            visitor.visit_previous_non_empty_block(block, previous_non_empty_block);
-        }
-        Node::LastCommittedBatch(LastCommittedBatchNode {
-            block,
-            last_committed_batch,
-        }) => {
-            visitor.visit_last_committed_batch(block, last_committed_batch);
         }
         Node::BlockProgramStates(BlockProgramStatesNode {
             block,

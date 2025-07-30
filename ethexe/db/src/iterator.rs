@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    BlockHeader, BlockMeta, Digest, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    BlockHeader, BlockMeta, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     db::{BlockMetaStorageRead, BlockOutcome, CodesStorageRead, OnChainStorageRead},
     events::BlockEvent,
     gear::StateTransition,
@@ -79,12 +79,6 @@ pub struct BlockEventsNode {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockCommitmentQueueNode {
-    pub block: H256,
-    pub block_commitment_queue: VecDeque<H256>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct BlockCodesQueueNode {
     pub block: H256,
     pub block_codes_queue: VecDeque<CodeId>,
@@ -121,18 +115,6 @@ pub struct CodeMetadataNode {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ProgramIdNode {
     pub program_id: ActorId,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct PreviousNonEmptyBlockNode {
-    pub block: H256,
-    pub previous_non_empty_block: H256,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct LastCommittedBatchNode {
-    pub block: H256,
-    pub last_committed_batch: Digest,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -242,7 +224,6 @@ pub enum Node {
     BlockMeta(BlockMetaNode),
     BlockHeader(BlockHeaderNode),
     BlockEvents(BlockEventsNode),
-    BlockCommitmentQueue(BlockCommitmentQueueNode),
     BlockCodesQueue(BlockCodesQueueNode),
     CodeId(CodeIdNode),
     CodeValid(CodeValidNode),
@@ -250,8 +231,6 @@ pub enum Node {
     InstrumentedCode(InstrumentedCodeNode),
     CodeMetadata(CodeMetadataNode),
     ProgramId(ProgramIdNode),
-    PreviousNonEmptyBlock(PreviousNonEmptyBlockNode),
-    LastCommittedBatch(LastCommittedBatchNode),
     BlockProgramStates(BlockProgramStatesNode),
     ProgramState(ProgramStateNode),
     BlockSchedule(BlockScheduleNode),
@@ -321,14 +300,6 @@ impl Node {
         }
     }
 
-    pub fn into_block_commitment_queue(self) -> Option<BlockCommitmentQueueNode> {
-        if let Node::BlockCommitmentQueue(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
     pub fn into_block_codes_queue(self) -> Option<BlockCodesQueueNode> {
         if let Node::BlockCodesQueue(node) = self {
             Some(node)
@@ -379,22 +350,6 @@ impl Node {
 
     pub fn into_program_id(self) -> Option<ProgramIdNode> {
         if let Node::ProgramId(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_previous_non_empty_block(self) -> Option<PreviousNonEmptyBlockNode> {
-        if let Node::PreviousNonEmptyBlock(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_last_committed_batch(self) -> Option<LastCommittedBatchNode> {
-        if let Node::LastCommittedBatch(node) = self {
             Some(node)
         } else {
             None
@@ -675,7 +630,6 @@ where
             Node::BlockMeta(_) => {}
             Node::BlockHeader(_) => {}
             Node::BlockEvents(_) => {}
-            Node::BlockCommitmentQueue(node) => self.iter_block_commitment_queue(node),
             Node::BlockCodesQueue(node) => self.iter_block_codes_queue(node),
             Node::CodeId(node) => self.iter_code_id(*node),
             Node::CodeValid(_) => {}
@@ -683,8 +637,6 @@ where
             Node::InstrumentedCode(_) => {}
             Node::CodeMetadata(_) => {}
             Node::ProgramId(node) => self.iter_program_id(*node),
-            Node::PreviousNonEmptyBlock(_) => {}
-            Node::LastCommittedBatch(_) => {}
             Node::BlockProgramStates(node) => self.iter_block_program_states(node),
             Node::ProgramState(node) => self.iter_program_state(*node),
             Node::BlockSchedule(node) => self.iter_block_schedule(node),
@@ -742,20 +694,6 @@ where
         try_push_node!(with_hash: self.block_schedule(block));
 
         try_push_node!(with_hash: self.block_outcome(block));
-    }
-
-    fn iter_block_commitment_queue(
-        &mut self,
-        BlockCommitmentQueueNode {
-            block: _,
-            block_commitment_queue,
-        }: &BlockCommitmentQueueNode,
-    ) {
-        for &commitment_block in block_commitment_queue {
-            self.push_node(BlockNode {
-                block: commitment_block,
-            });
-        }
     }
 
     fn iter_block_codes_queue(
