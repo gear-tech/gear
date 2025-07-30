@@ -570,10 +570,7 @@ pub enum DatabaseIteratorError {
     NoBlockProgramStates(H256),
     NoBlockSchedule(H256),
     NoBlockOutcome(H256),
-    NoBlockCommitmentQueue(H256),
     NoBlockCodesQueue(H256),
-    NoPreviousNonEmptyBlock(H256),
-    NoLastCommittedBatch(H256),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -738,13 +735,7 @@ where
 
         try_push_node!(with_hash: self.block_events(block));
 
-        try_push_node!(with_hash: self.block_commitment_queue(block));
-
         try_push_node!(with_hash: self.block_codes_queue(block));
-
-        try_push_node!(with_hash: self.previous_non_empty_block(block));
-
-        try_push_node!(with_hash: self.last_committed_batch(block));
 
         try_push_node!(with_hash: self.block_program_states(block));
 
@@ -1129,17 +1120,17 @@ mod tests {
         let expected_errors = [
             DatabaseIteratorError::NoBlockHeader(block),
             DatabaseIteratorError::NoBlockEvents(block),
-            DatabaseIteratorError::NoBlockCommitmentQueue(block),
             DatabaseIteratorError::NoBlockCodesQueue(block),
-            DatabaseIteratorError::NoPreviousNonEmptyBlock(block),
-            DatabaseIteratorError::NoLastCommittedBatch(block),
             DatabaseIteratorError::NoBlockProgramStates(block),
             DatabaseIteratorError::NoBlockSchedule(block),
             DatabaseIteratorError::NoBlockOutcome(block),
         ];
 
         for expected_error in expected_errors {
-            assert!(errors.contains(&expected_error));
+            assert!(
+                errors.contains(&expected_error),
+                "No expected error: {expected_error:?}",
+            );
         }
     }
 

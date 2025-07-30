@@ -39,6 +39,8 @@ pub enum IntegrityVerifierError {
     BlockIsNotSynced,
     BlockIsNotPrepared,
     BlockIsNotComputed,
+    NoBlockLastCommittedBlock,
+    NoBlockLastCommittedHead,
 
     /* block header */
     NoParentBlockHeader(H256),
@@ -78,6 +80,7 @@ pub struct IntegrityVerifier {
     block_header: Option<BlockHeader>,
     message_queue_size: Option<u8>,
     original_code: Option<Vec<u8>>,
+    bottom: Option<H256>,
 }
 
 impl IntegrityVerifier {
@@ -88,6 +91,7 @@ impl IntegrityVerifier {
             block_header: None,
             message_queue_size: None,
             original_code: None,
+            bottom: None,
         }
     }
 
@@ -96,6 +100,7 @@ impl IntegrityVerifier {
         head: H256,
         bottom: H256,
     ) -> Result<(), Vec<IntegrityVerifierError>> {
+        self.bottom = Some(bottom);
         walk(&mut self, ChainNode { head, bottom });
 
         #[cfg(debug_assertions)]
@@ -141,12 +146,25 @@ impl DatabaseVisitor for IntegrityVerifier {
         if !meta.computed {
             self.errors.push(IntegrityVerifierError::BlockIsNotComputed);
         }
+        if meta.last_committed_batch.is_none() {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockLastCommittedBlock);
+        }
+        if meta.last_committed_head.is_none() {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockLastCommittedHead);
+        }
     }
 
-    fn visit_block_header(&mut self, _block: H256, header: BlockHeader) {
+    fn visit_block_header(&mut self, block: H256, header: BlockHeader) {
         self.block_header = Some(header);
 
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
+            if self.bottom == Some(block) {
+                // it's not guaranteed bottom parent block has header
+                return;
+            }
+
             self.errors
                 .push(IntegrityVerifierError::NoParentBlockHeader(
                     header.parent_hash,
@@ -653,13 +671,12 @@ mod tests {
             meta.synced = true;
             meta.prepared = true;
             meta.computed = true;
+            meta.last_committed_batch = Some(Digest::random());
+            meta.last_committed_head = Some(H256::random());
         });
         db.set_block_header(block_hash, block_header);
         db.set_block_events(block_hash, &[]);
-        db.set_block_commitment_queue(block_hash, VecDeque::new());
         db.set_block_codes_queue(block_hash, VecDeque::new());
-        db.set_previous_not_empty_block(block_hash, H256::random());
-        db.set_last_committed_batch(block_hash, Digest::random());
         db.set_block_program_states(block_hash, ProgramStates::new());
         db.set_block_schedule(block_hash, Schedule::new());
         db.set_block_outcome(block_hash, Vec::new());
@@ -682,36 +699,6 @@ mod tests {
             .unwrap_err();
         assert!(
             errors
-                .iter()
-                .any(|e| matches!(e, IntegrityVerifierError::DatabaseIterator(_)))
-        );
-    }
-
-    #[test]
-    fn test_commitment_queue_processing() {
-        let db = Database::memory();
-        let block = H256::random();
-        let queued_block = H256::random();
-
-        // Setup main block
-        db.mutate_block_meta(block, |meta| {
-            meta.synced = true;
-            meta.prepared = true;
-            meta.computed = true;
-        });
-
-        // Setup commitment queue with another block
-        let mut queue = VecDeque::new();
-        queue.push_back(queued_block);
-        db.set_block_commitment_queue(block, queue);
-
-        let mut verifier = IntegrityVerifier::new(db);
-        walk(&mut verifier, BlockNode { block });
-
-        // Should fail because queued_block doesn't exist
-        assert!(
-            verifier
-                .errors
                 .iter()
                 .any(|e| matches!(e, IntegrityVerifierError::DatabaseIterator(_)))
         );
