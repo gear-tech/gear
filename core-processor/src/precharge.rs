@@ -191,7 +191,7 @@ impl ContextCharged<ForNothing> {
     ) -> PrechargeResult<ContextCharged<ForProgram>> {
         self.charge_gas(
             PreChargeGasOperation::ProgramData,
-            block_config.costs.read.cost_for_one(),
+            block_config.costs.db.read.cost_for_one(),
         )
     }
 }
@@ -204,7 +204,7 @@ impl ContextCharged<ForProgram> {
     ) -> PrechargeResult<ContextCharged<ForCodeMetadata>> {
         self.charge_gas(
             PreChargeGasOperation::CodeMetadata,
-            block_config.costs.read.cost_for_one(),
+            block_config.costs.db.read.cost_for_one(),
         )
     }
 }
@@ -220,8 +220,9 @@ impl ContextCharged<ForCodeMetadata> {
             PreChargeGasOperation::OriginalCode,
             block_config
                 .costs
+                .db
                 .read
-                .cost_for_with_bytes(block_config.costs.read_per_byte, code_len_bytes.into()),
+                .with_bytes(block_config.costs.db.read_per_byte, code_len_bytes.into()),
         )
     }
 
@@ -235,8 +236,9 @@ impl ContextCharged<ForCodeMetadata> {
             PreChargeGasOperation::InstrumentedCode,
             block_config
                 .costs
+                .db
                 .read
-                .cost_for_with_bytes(block_config.costs.read_per_byte, code_len_bytes.into()),
+                .with_bytes(block_config.costs.db.read_per_byte, code_len_bytes.into()),
         )
     }
 }
@@ -250,8 +252,8 @@ impl ContextCharged<ForOriginalCode> {
     ) -> PrechargeResult<ContextCharged<ForInstrumentedCode>> {
         self.charge_gas(
             PreChargeGasOperation::ModuleInstrumentation,
-            block_config.costs.instrumentation.cost_for_with_bytes(
-                block_config.costs.instrumentation_per_byte,
+            block_config.costs.instrumentation.base.with_bytes(
+                block_config.costs.instrumentation.per_byte,
                 original_code_len_bytes.into(),
             ),
         )
@@ -281,7 +283,7 @@ impl ContextCharged<ForInstrumentedCode> {
             .costs
             .load_allocations_per_interval
             .cost_for(allocations_tree_len)
-            .saturating_add(block_config.costs.read.cost_for_one());
+            .saturating_add(block_config.costs.db.read.cost_for_one());
 
         self.charge_gas(PreChargeGasOperation::Allocations, amount)
     }
@@ -365,7 +367,7 @@ impl ContextCharged<ForAllocations> {
         section_name: SectionName,
         section_len: BytesAmount,
     ) -> PrechargeResult<ContextCharged<ForAllocations>> {
-        let instantiation_costs = &costs.instantiation_costs;
+        let instantiation_costs = &costs.instantiation;
 
         let cost_per_byte = match section_name {
             SectionName::Function => &instantiation_costs.code_section_per_byte,

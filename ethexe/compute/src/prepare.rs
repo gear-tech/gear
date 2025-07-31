@@ -71,18 +71,26 @@ fn propagate_data_from_parent<
     parent: H256,
     events: impl Iterator<Item = &'a BlockEvent>,
 ) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
+    let parent_meta = db.block_meta(parent);
+
     let mut missing_codes = HashSet::new();
     let mut missing_validated_codes = HashSet::new();
     let mut requested_codes = HashSet::new();
     let mut validated_codes = HashSet::new();
-    let mut last_committed_batch = db
-        .last_committed_batch(parent)
-        .ok_or_else(|| ComputeError::LastCommittedBatchNotFound(parent))?;
+    let mut last_committed_batch = parent_meta
+        .last_committed_batch
+        .ok_or(ComputeError::LastCommittedBatchNotFound(parent))?;
+    let mut last_committed_head = parent_meta
+        .last_committed_head
+        .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?;
 
     for event in events {
         match event {
             BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
                 last_committed_batch = *digest;
+            }
+            BlockEvent::Router(RouterEvent::HeadCommitted(head)) => {
+                last_committed_head = *head;
             }
             BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
                 requested_codes.insert(*code_id);
@@ -111,8 +119,10 @@ fn propagate_data_from_parent<
         }
     }
 
-    // Propagate last committed batch
-    db.set_last_committed_batch(block, last_committed_batch);
+    db.mutate_block_meta(block, |meta| {
+        meta.last_committed_batch = Some(last_committed_batch);
+        meta.last_committed_head = Some(last_committed_head);
+    });
 
     // Propagate `wait for code validation` blocks queue
     let mut codes_queue = db
@@ -129,12 +139,13 @@ fn propagate_data_from_parent<
 mod tests {
     use super::*;
     use ethexe_common::{
-        BlockHeader, Digest,
+        Address, BlockHeader, Digest,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
     };
     use ethexe_db::Database as DB;
     use gprimitives::{CodeId, H256};
+    use nonempty::nonempty;
     use std::collections::VecDeque;
 
     /// Tests propagate_data_from_parent with empty events list
@@ -146,8 +157,13 @@ mod tests {
 
         // Set initial data for parent block
         let initial_digest = Digest([42; 32]);
-        db.set_last_committed_batch(parent_hash, initial_digest);
+        let initial_head = H256::from([43; 32]);
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(initial_digest);
+            meta.last_committed_head = Some(initial_head);
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = Vec::<BlockEvent>::new();
 
@@ -158,8 +174,14 @@ mod tests {
         assert!(result.1.is_empty()); // missing_validated_codes
 
         // Verify that data was propagated from parent
-        let expected_digest = Digest([42; 32]);
-        assert_eq!(db.last_committed_batch(block_hash), Some(expected_digest));
+        assert_eq!(
+            db.block_meta(block_hash).last_committed_batch,
+            Some(initial_digest)
+        );
+        assert_eq!(
+            db.block_meta(block_hash).last_committed_head,
+            Some(initial_head)
+        );
         assert_eq!(db.block_codes_queue(block_hash), Some(VecDeque::new()));
     }
 
@@ -172,8 +194,13 @@ mod tests {
 
         // Set initial data for parent block
         let initial_digest = Digest([42; 32]);
-        db.set_last_committed_batch(parent_hash, initial_digest);
+        let initial_head = H256::from([43; 32]);
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(initial_digest);
+            meta.last_committed_head = Some(initial_head);
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let new_digest = Digest([99; 32]);
         let events = [BlockEvent::Router(
@@ -187,7 +214,14 @@ mod tests {
         assert!(result.1.is_empty());
 
         // Verify that last_committed_batch was updated
-        assert_eq!(db.last_committed_batch(block_hash), Some(new_digest));
+        assert_eq!(
+            db.block_meta(block_hash).last_committed_batch,
+            Some(new_digest)
+        );
+        assert_eq!(
+            db.block_meta(block_hash).last_committed_head,
+            Some(initial_head)
+        );
     }
 
     /// Tests propagate_data_from_parent with CodeValidationRequested for existing code
@@ -199,8 +233,12 @@ mod tests {
         let code_id = CodeId::from([3; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -233,8 +271,12 @@ mod tests {
         let code_id = CodeId::from([3; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = [BlockEvent::Router(
             ethexe_common::events::RouterEvent::CodeValidationRequested {
@@ -264,8 +306,12 @@ mod tests {
         let code_id = CodeId::from([3; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = [BlockEvent::Router(
             ethexe_common::events::RouterEvent::CodeGotValidated {
@@ -290,8 +336,12 @@ mod tests {
         let code_id = CodeId::from([3; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -319,7 +369,10 @@ mod tests {
         let code_id = CodeId::from([3; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
 
         // Add code to DB as valid
@@ -353,8 +406,12 @@ mod tests {
         let parent_hash = H256::from([1; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         let events = vec![
             BlockEvent::Router(
@@ -387,8 +444,12 @@ mod tests {
         let code_id3 = CodeId::from([5; 32]);
 
         // Set initial data for parent block
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Code2 already exists in DB
         db.set_code_valid(code_id2, true);
@@ -430,7 +491,10 @@ mod tests {
         assert!(result.1.contains(&code_id3));
 
         // Verify updates
-        assert_eq!(db.last_committed_batch(block_hash), Some(new_digest));
+        assert_eq!(
+            db.block_meta(block_hash).last_committed_batch,
+            Some(new_digest)
+        );
 
         let codes_queue = db.block_codes_queue(block_hash).unwrap();
         assert!(codes_queue.contains(&code_id1));
@@ -465,8 +529,12 @@ mod tests {
         let head = H256::from([10; 32]);
 
         // Set initial data for parent block (required for propagate_data_from_parent)
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -505,8 +573,12 @@ mod tests {
         let code_id = CodeId::from([20; 32]);
 
         // Set initial data for parent block (required for propagate_data_from_parent)
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -553,8 +625,12 @@ mod tests {
         let code_id2 = CodeId::from([21; 32]);
 
         // Set initial data for grandparent block
-        db.set_last_committed_batch(grandparent_hash, Digest([42; 32]));
+        db.mutate_block_meta(grandparent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(grandparent_hash, VecDeque::new());
+        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
         // Configure grandparent as prepared
         db.mutate_block_meta(grandparent_hash, |m| {
@@ -657,7 +733,10 @@ mod tests {
         let code_id = CodeId::from([20; 32]);
 
         // Set initial data for parent block (required for propagate_data_from_parent)
-        db.set_last_committed_batch(parent_hash, Digest([42; 32]));
+        db.mutate_block_meta(parent_hash, |meta| {
+            meta.last_committed_batch = Some(Digest([42; 32]));
+            meta.last_committed_head = Some(H256::from([43; 32]));
+        });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
 
         // Configure parent as prepared

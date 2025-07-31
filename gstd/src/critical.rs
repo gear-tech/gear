@@ -66,7 +66,15 @@ fn hooks() -> &'static mut HooksMap {
     unsafe { crate::static_mut!(HOOKS).get_or_insert_with(HashMap::new) }
 }
 
-/// Sets critical hook.
+/// Sets a critical hook.
+///
+/// # PANICS
+/// If called in the `handle_reply` or `handle_signal` entrypoints.
+///
+/// # SAFETY
+/// Ensure that sufficient `gstd::Config::SYSTEM_RESERVE` is set in your
+/// program, as this gas is locked during each async call to provide resources
+/// for hook execution in case it is triggered.
 pub fn set_hook<F: FnMut() + 'static>(f: F) {
     if msg::reply_code().is_ok() {
         panic!("`gstd::critical::set_hook()` must not be called in `handle_reply` entrypoint")

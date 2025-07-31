@@ -24,7 +24,7 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
@@ -44,6 +44,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -65,6 +66,7 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
+    ValidatorSet(H256) = 13,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -91,7 +93,8 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash)
+            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -105,6 +108,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
@@ -285,20 +289,8 @@ impl BlockMetaStorageRead for Database {
             .unwrap_or_default()
     }
 
-    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
-        self.with_small_data(block_hash, |data| data.commitment_queue)?
-    }
-
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>> {
         self.with_small_data(block_hash, |data| data.codes_queue)?
-    }
-
-    fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
-        self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
-    }
-
-    fn last_committed_batch(&self, block_hash: H256) -> Option<Digest> {
-        self.with_small_data(block_hash, |data| data.last_committed_batch)?
     }
 
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
@@ -358,26 +350,9 @@ impl BlockMetaStorageWrite for Database {
         });
     }
 
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
-        log::trace!("For block {block_hash} set commitment queue: {queue:?}");
-        self.mutate_small_data(block_hash, |data| data.commitment_queue = Some(queue));
-    }
-
     fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
         log::trace!("For block {block_hash} set codes queue: {queue:?}");
         self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
-    }
-
-    fn set_previous_not_empty_block(&self, block_hash: H256, prev_not_empty_block_hash: H256) {
-        log::trace!("For block {block_hash} set prev commitment: {prev_not_empty_block_hash}");
-        self.mutate_small_data(block_hash, |data| {
-            data.prev_not_empty_block = Some(prev_not_empty_block_hash)
-        });
-    }
-
-    fn set_last_committed_batch(&self, block_hash: H256, batch: Digest) {
-        log::trace!("For block {block_hash} set last committed batch: {batch:?}");
-        self.mutate_small_data(block_hash, |data| data.last_committed_batch = Some(batch));
     }
 
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {
@@ -668,6 +643,17 @@ impl OnChainStorageRead for Database {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
+
+    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+        self.kv
+            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .map(|data| {
+                NonEmpty::from_vec(
+                    Vec::<Address>::decode(&mut data.as_slice())
+                        .expect("Failed to decode data into `Vec<Address>`"),
+                )
+            })?
+    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -688,6 +674,13 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    }
+
+    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+        self.kv.put(
+            &Key::ValidatorSet(block_hash).to_bytes(),
+            Into::<Vec<Address>>::into(validator_set).encode(),
+        );
     }
 }
 

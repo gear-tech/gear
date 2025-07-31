@@ -229,13 +229,14 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        BlockHeader, CodeAndIdUnchecked,
+        Address, BlockHeader, CodeAndIdUnchecked,
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::{CodeId, H256};
+    use nonempty::nonempty;
     use std::collections::VecDeque;
 
     /// Test ComputeService block preparation functionality
@@ -252,8 +253,9 @@ mod tests {
         db.mutate_block_meta(parent_hash, |meta| {
             meta.synced = true;
             meta.prepared = true;
+            meta.last_committed_batch = Some(Default::default());
+            meta.last_committed_head = Some(Default::default());
         });
-        db.set_last_committed_batch(parent_hash, Default::default());
         db.set_block_codes_queue(parent_hash, VecDeque::new());
 
         // Setup block as synced but not prepared
@@ -268,6 +270,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
+        db.set_validators(block_hash, nonempty![Address::from([0u8; 20])]);
 
         // Request block preparation
         service.prepare_block(block_hash);
@@ -292,9 +295,7 @@ mod tests {
 
         // Setup parent block as computed
         db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-        db.set_block_commitment_queue(parent_hash, VecDeque::new());
         db.set_block_outcome(parent_hash, vec![]);
-        db.set_previous_not_empty_block(parent_hash, parent_hash);
 
         // Setup block as prepared
         db.mutate_block_meta(block_hash, |meta| {
