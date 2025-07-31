@@ -67,12 +67,32 @@ pub trait MemoryStorer {
     ) -> Result<(), MemoryError>;
 }
 
+pub struct DummyStorer;
+impl MemoryStorer for DummyStorer {
+    fn dump_memory<Context>(
+        &mut self,
+        _ctx: &Context,
+        _memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError> {
+        Err(Default::default())
+    }
+
+    fn revert_memory<Context>(
+        &self,
+        _ctx: &mut Context,
+        _memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError> {
+        Err(Default::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
+        DummyStorer,
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
-        mock::{MockExt, MockMemoryDumper},
+        mock::MockExt,
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
@@ -106,16 +126,16 @@ mod tests {
             .unwrap();
         let code = module.serialize().unwrap();
 
-        let mut memory_dumper = MockMemoryDumper {};
-
         // Execute wasm and check success.
         let ext = MockExt::default();
         let env = Environment::new(ext, &code, Default::default(), 0.into(), |_, _, _| {}).unwrap();
-        let execution_result = env.execute(DispatchKind::Init, &mut memory_dumper).unwrap();
+        let execution_result = env
+            .execute(DispatchKind::Init, None::<&mut DummyStorer>)
+            .unwrap();
 
         let BackendReport {
             termination_reason, ..
-        } = execution_result.unwrap().report();
+        } = execution_result.expect("Expecting success run").report();
 
         assert_eq!(termination_reason, ActorTerminationReason::Success.into());
     }

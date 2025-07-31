@@ -37,7 +37,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities,
+    BackendExternalities, DummyStorer,
     env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -148,61 +148,33 @@ where
                 )
             },
         )?;
-        env.execute(kind, &mut memory_dumper)
+        env.execute(kind, Some(&mut memory_dumper))
     };
 
     let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
-            match report {
-                Ok(success_execution) => {
-                    let BackendReport {
-                        termination_reason,
-                        mut store,
-                        mut memory,
-                        ext,
-                    } = success_execution.report();
+        Ok(execution_result) => {
+            let BackendReport {
+                termination_reason,
+                mut store,
+                mut memory,
+                ext,
+            } = execution_result.report();
 
-                    let mut termination = match termination_reason {
-                        TerminationReason::Actor(reason) => reason,
-                        TerminationReason::System(reason) => {
-                            return Err(ExecutionError::System(reason.into()));
-                        }
-                    };
-
-                    // released pages initial data will be added to `pages_initial_data` after execution.
-                    Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
-
-                    if !Ext::lazy_pages_status().is_normal() {
-                        termination = ext.current_counter_type().into()
-                    }
-
-                    (termination, store, memory, ext)
+            let mut termination = match termination_reason {
+                TerminationReason::Actor(reason) => reason,
+                TerminationReason::System(reason) => {
+                    return Err(ExecutionError::System(reason.into()));
                 }
-                Err(failed_execution) => {
-                    let BackendReport {
-                        termination_reason,
-                        mut store,
-                        mut memory,
-                        ext,
-                    } = failed_execution.report();
+            };
 
-                    let mut termination = match termination_reason {
-                        TerminationReason::Actor(reason) => reason,
-                        TerminationReason::System(reason) => {
-                            return Err(ExecutionError::System(reason.into()));
-                        }
-                    };
+            // released pages initial data will be added to `pages_initial_data` after execution.
+            Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
 
-                    // released pages initial data will be added to `pages_initial_data` after execution.
-                    Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
-
-                    if !Ext::lazy_pages_status().is_normal() {
-                        termination = ext.current_counter_type().into()
-                    }
-
-                    (termination, store, memory, ext)
-                }
+            if !Ext::lazy_pages_status().is_normal() {
+                termination = ext.current_counter_type().into()
             }
+
+            (termination, store, memory, ext)
         }
         Err(EnvironmentError::System(e)) => {
             return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
@@ -356,8 +328,6 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
-    let mut memory_dumper = Ext::memory_dumper();
-
     // Execute program in backend env.
     let execute = || {
         let env = Environment::new(
@@ -377,46 +347,27 @@ where
                 )
             },
         )?;
-        env.execute(function, &mut memory_dumper)
+        env.execute(function, None::<&mut DummyStorer>)
     };
 
     let (termination, mut store, memory, ext) = match execute() {
-        Ok(execution_result) => match execution_result {
-            Ok(success_execution) => {
-                let BackendReport {
-                    termination_reason,
-                    store,
-                    memory,
-                    ext,
-                } = success_execution.report();
+        Ok(execution_result) => {
+            let BackendReport {
+                termination_reason,
+                store,
+                memory,
+                ext,
+            } = execution_result.report();
 
-                let termination_reason = match termination_reason {
-                    TerminationReason::Actor(reason) => reason,
-                    TerminationReason::System(reason) => {
-                        return Err(format!("Backend error: {reason}"));
-                    }
-                };
+            let termination_reason = match termination_reason {
+                TerminationReason::Actor(reason) => reason,
+                TerminationReason::System(reason) => {
+                    return Err(format!("Backend error: {reason}"));
+                }
+            };
 
-                (termination_reason, store, memory, ext)
-            }
-            Err(failed_execution) => {
-                let BackendReport {
-                    termination_reason,
-                    store,
-                    memory,
-                    ext,
-                } = failed_execution.report();
-
-                let termination_reason = match termination_reason {
-                    TerminationReason::Actor(reason) => reason,
-                    TerminationReason::System(reason) => {
-                        return Err(format!("Backend error: {reason}"));
-                    }
-                };
-
-                (termination_reason, store, memory, ext)
-            }
-        },
+            (termination_reason, store, memory, ext)
+        }
         Err(e) => return Err(format!("Backend error: {e}")),
     };
 

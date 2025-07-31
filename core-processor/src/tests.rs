@@ -1,17 +1,17 @@
-use crate::{ext::ExtInfo, ProcessorContext, ProcessorExternalities};
+use crate::{ProcessorContext, ProcessorExternalities, ext::ExtInfo};
 use alloc::{vec, vec::Vec};
 use gear_core::{
     buffer::Payload,
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, ActorId, CodeId},
+    ids::{ActorId, CodeId, prelude::*},
     memory::AllocationsContext,
     message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
 };
 use gear_core_backend::{
-    env::{BackendReport, Environment, EnvironmentExecutionResult, ReadyToExecute},
     MemoryStorer,
+    env::{BackendReport, Environment, ExecutedEnvironment, ReadyToExecute},
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
@@ -279,7 +279,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
     let program_id = ActorId::generate_from_user(code_id, b"");
 
     let mut env;
-    let mut execution_result: Option<EnvironmentExecutionResult<Ext>> = None;
+    let mut execution_result: Option<ExecutedEnvironment<Ext>> = None;
 
     let mut previous_expectation = ExecutionExpectation::Success;
     let mut previous_config_name = "";
@@ -295,7 +295,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
 
             env = Environment::new(
                 ext,
-                code.original_code(),
+                code.instrumented_code().bytes(),
                 code.metadata().exports().clone(),
                 MEMORY_SIZE.into(),
                 |ctx, mem, globals_config| {
@@ -334,7 +334,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
         previous_config_name = test_config.name;
 
         execution_result = Some(
-            env.execute(test_config.dispatch_kind, memory_dumper)
+            env.execute(test_config.dispatch_kind, Some(memory_dumper))
                 .unwrap_or_else(|e| {
                     panic!(
                         "Failed to execute WASM module, config_name: {}, with error: {}",
@@ -345,8 +345,8 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
     }
 
     let env = match execution_result {
-        Some(Ok(success_execution)) => success_execution,
-        Some(Err(_failed_execution)) => {
+        Some(ExecutedEnvironment::SuccessExecution(success_execution)) => success_execution,
+        Some(ExecutedEnvironment::FailedExecution(_failed_execution)) => {
             panic!(
                 "Execution result is failed, config name: {}",
                 previous_config_name
@@ -376,7 +376,7 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
 
 #[allow(clippy::too_many_arguments)]
 fn inspect_and_set_payload<'a>(
-    execution_result: EnvironmentExecutionResult<'a, Ext>,
+    execution_result: ExecutedEnvironment<'a, Ext>,
     dispatch_kind: DispatchKind,
     actor_id: ActorId,
     code: &Code,
@@ -386,7 +386,7 @@ fn inspect_and_set_payload<'a>(
     config_name: &str,
 ) -> Environment<'a, Ext, ReadyToExecute> {
     match execution_result {
-        Ok(success_execution) => match expectation {
+        ExecutedEnvironment::SuccessExecution(success_execution) => match expectation {
             ExecutionExpectation::Success => {
                 let ext = make_ext(dispatch_kind, actor_id, code, payload);
 
@@ -401,7 +401,7 @@ fn inspect_and_set_payload<'a>(
                 );
             }
         },
-        Err(failed_execution) => match expectation {
+        ExecutedEnvironment::FailedExecution(failed_execution) => match expectation {
             ExecutionExpectation::Success => {
                 panic!(
                     "Should succeed to execute WASM module, config name: {}",

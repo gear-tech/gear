@@ -316,16 +316,17 @@ impl<LP: LazyPagesInterface> MemoryStorer for MemoryDumper<LP> {
         ctx: &Context,
         memory: &impl Memory<Context>,
     ) -> Result<MemoryDump, MemoryError> {
-        let accessed_pages = LP::get_write_accessed_pages();
-
-        let mut pages_data = MemoryDump::new();
-        for page in accessed_pages {
-            let mut data = PageBuf::new_zeroed();
-            memory.read(ctx, page.offset(), &mut data)?;
-            pages_data.try_push(PageDump { page, data })?;
-        }
-
-        Ok(pages_data)
+        LP::get_write_accessed_pages()
+            .into_iter()
+            .map(|page| {
+                let mut data = PageBuf::new_zeroed();
+                memory.read(ctx, page.offset(), &mut data)?;
+                Ok(PageDump { page, data })
+            })
+            .try_fold(MemoryDump::new(), |mut dump, page_dump| {
+                dump.try_push(page_dump?)?;
+                Ok(dump)
+            })
     }
 
     fn revert_memory<Context>(
@@ -333,12 +334,10 @@ impl<LP: LazyPagesInterface> MemoryStorer for MemoryDumper<LP> {
         ctx: &mut Context,
         memory: &impl Memory<Context>,
     ) -> Result<(), MemoryError> {
-        for page_dump in self.dump.inner() {
-            let page = page_dump.page;
-            memory.write(ctx, page.offset(), &page_dump.data)?;
-        }
-
-        Ok(())
+        self.dump
+            .inner()
+            .iter()
+            .try_for_each(|page_dump| memory.write(ctx, page_dump.page.offset(), &page_dump.data))
     }
 }
 

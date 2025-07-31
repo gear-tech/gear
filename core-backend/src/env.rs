@@ -81,18 +81,6 @@ fn store_host_state_mut<Ext: Send + 'static>(
         unreachable!("{err_msg}")
     })
 }
-
-pub type EnvironmentExecutionOk<'a, Ext> = Environment<'a, Ext, SuccessExecution>;
-pub type EnvironmentExecutionErr<'a, Ext> = Environment<'a, Ext, FailedExecution>;
-pub type EnvironmentExecutionResult<'a, Ext> =
-    Result<EnvironmentExecutionOk<'a, Ext>, EnvironmentExecutionErr<'a, Ext>>;
-
-impl<Ext: BackendExternalities> Debug for EnvironmentExecutionErr<'_, Ext> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("EnvironmentExecutionErr").finish()
-    }
-}
-
 pub type SetupMemoryResult<Ext> = Result<
     (
         Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
@@ -123,6 +111,71 @@ pub enum SystemEnvironmentError {
 pub struct ReadyToExecute;
 pub struct FailedExecution;
 pub struct SuccessExecution;
+
+pub enum ExecutedEnvironment<'a, Ext: BackendExternalities> {
+    SuccessExecution(Environment<'a, Ext, SuccessExecution>),
+    FailedExecution(Environment<'a, Ext, FailedExecution>),
+}
+
+impl<'a, Ext> ExecutedEnvironment<'a, Ext>
+where
+    Ext: BackendExternalities + Send + 'static,
+{
+    fn from_execution_result(
+        execution_result: Result<ReturnValue, Error>,
+        instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+        entries: BTreeSet<DispatchKind>,
+        store: Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+        memory: BackendMemory<ExecutorMemory>,
+        code: &'a [u8],
+        #[cfg(feature = "std")] globals_holder: Pin<Box<GlobalsHolder<Ext>>>,
+    ) -> Self {
+        match execution_result {
+            Ok(_) => ExecutedEnvironment::SuccessExecution(Environment {
+                instance,
+                entries,
+                store,
+                memory,
+                code,
+                execution_result: Some(execution_result),
+                #[cfg(feature = "std")]
+                globals_holder,
+                _phantom: PhantomData,
+            }),
+            Err(_) => ExecutedEnvironment::FailedExecution(Environment {
+                instance,
+                entries,
+                store,
+                memory,
+                code,
+                execution_result: Some(execution_result),
+                #[cfg(feature = "std")]
+                globals_holder,
+                _phantom: PhantomData,
+            }),
+        }
+    }
+
+    pub fn report(self) -> BackendReport<Ext>
+    where
+        Ext: BackendExternalities + Send + 'static,
+        Ext::UnrecoverableError: BackendSyscallError,
+        RunFallibleError: From<Ext::FallibleError>,
+        Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    {
+        match self {
+            ExecutedEnvironment::FailedExecution(env) => env.report(),
+            ExecutedEnvironment::SuccessExecution(env) => env.report(),
+        }
+    }
+
+    pub fn expect(self, msg: &str) -> Environment<'a, Ext, SuccessExecution> {
+        match self {
+            ExecutedEnvironment::SuccessExecution(env) => env,
+            ExecutedEnvironment::FailedExecution(_) => panic!("{}", msg),
+        }
+    }
+}
 
 /// Environment to run one module at a time providing Ext.
 pub struct Environment<'a, Ext, State = ReadyToExecute>
@@ -480,14 +533,11 @@ where
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
 {
-    pub fn execute<M>(
+    pub fn execute<M: MemoryStorer>(
         self,
         entry_point: impl WasmEntryPoint,
-        memory_storer: &mut M,
-    ) -> Result<EnvironmentExecutionResult<'a, EnvExt>, EnvironmentError>
-    where
-        M: MemoryStorer,
-    {
+        memory_storer: Option<&mut M>,
+    ) -> Result<ExecutedEnvironment<'a, EnvExt>, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
 
@@ -561,35 +611,23 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        memory_storer
-            .dump_memory(&store, &memory)
-            .map_err(|e| System(DumpMemoryError(e)))?;
-
-        if res.is_ok() {
-            Ok(Ok(Environment {
-                instance,
-                entries,
-                store,
-                memory,
-                code,
-                execution_result: Some(res),
-                #[cfg(feature = "std")]
-                globals_holder,
-                _phantom: PhantomData,
-            }))
-        } else {
-            Ok(Err(Environment {
-                instance,
-                entries,
-                store,
-                memory,
-                code,
-                execution_result: Some(res),
-                #[cfg(feature = "std")]
-                globals_holder,
-                _phantom: PhantomData,
-            }))
+        if let Some(memory_storer) = memory_storer {
+            // If we have a memory storer, we dump the memory after execution.
+            memory_storer
+                .dump_memory(&store, &memory)
+                .map_err(|e| System(DumpMemoryError(e)))?;
         }
+
+        Ok(ExecutedEnvironment::from_execution_result(
+            res,
+            instance,
+            entries,
+            store,
+            memory,
+            code,
+            #[cfg(feature = "std")]
+            globals_holder,
+        ))
     }
 }
 
@@ -650,13 +688,10 @@ where
         self.report_impl()
     }
 
-    pub fn revert<M>(
+    pub fn revert(
         self,
-        memory_storer: &M,
-    ) -> Result<Environment<'a, EnvExt, SuccessExecution>, MemoryError>
-    where
-        M: MemoryStorer,
-    {
+        memory_storer: &impl MemoryStorer,
+    ) -> Result<Environment<'a, EnvExt, SuccessExecution>, MemoryError> {
         let Self {
             instance,
             entries,

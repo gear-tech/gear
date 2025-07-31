@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    BackendExternalities, MemoryStorer,
+    BackendExternalities,
     error::{
         BackendAllocSyscallError, BackendSyscallError, RunFallibleError, UndefinedTerminationReason,
     },
@@ -31,7 +31,7 @@ use gear_core::{
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{ActorId, MessageId, ReservationId},
-    memory::{Memory, MemoryDump, MemoryError, MemoryInterval},
+    memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
 };
@@ -301,26 +301,6 @@ impl BackendExternalities for MockExt {
         self.reads.extend(new_reads);
         self.writes.extend(new_writes);
 
-        Ok(())
-    }
-}
-
-pub struct MockMemoryDumper {}
-
-impl MemoryStorer for MockMemoryDumper {
-    fn dump_memory<Context>(
-        &mut self,
-        _ctx: &Context,
-        _memory: &impl Memory<Context>,
-    ) -> Result<MemoryDump, MemoryError> {
-        Ok(MemoryDump::new())
-    }
-
-    fn revert_memory<Context>(
-        &self,
-        _ctx: &mut Context,
-        _memory: &impl Memory<Context>,
-    ) -> Result<(), MemoryError> {
         Ok(())
     }
 }
