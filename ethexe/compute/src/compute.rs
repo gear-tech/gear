@@ -126,8 +126,8 @@ mod tests {
     async fn test_compute() {
         let db = DB::memory();
 
-        let genesis_hash = H256::from([0; 32]);
-        let block_hash = H256::from([1; 32]);
+        let genesis_hash = H256::random();
+        let block_hash = H256::random();
 
         ethexe_common::set_genesis_in_db(
             &db,

@@ -47,9 +47,6 @@ mod tests;
 // Default amount of virtual threads to use for programs processing.
 pub const DEFAULT_CHUNK_PROCESSING_THREADS: u8 = 16;
 
-// Default block gas limit for the node.
-pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
-
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
     // `OverlaidProcessor` errors
@@ -125,14 +122,12 @@ pub struct BlockProcessingResult {
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
-    pub block_gas_limit: u64,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
             chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
-            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
         }
     }
 }
@@ -225,7 +220,10 @@ impl Processor {
         announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        // log::debug!("Processing events for {block_hash:?}: {events:#?}");
+        log::debug!(
+            "Processing events for {:?}: {events:#?}",
+            announce.block_hash
+        );
 
         let mut handler = self.handler(announce)?;
 
@@ -243,8 +241,11 @@ impl Processor {
             }
         }
 
+        if handler.announce.gas_allowance.is_some() {
+            self.process_queue(&mut handler).await;
+        }
+
         handler.run_schedule();
-        self.process_queue(&mut handler).await;
 
         let (transitions, states, schedule) = handler.transitions.finalize();
         Ok(BlockProcessingResult {
@@ -255,6 +256,10 @@ impl Processor {
     }
 
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
+        let Some(block_gas_limit) = handler.announce.gas_allowance else {
+            return;
+        };
+
         self.creator.set_chain_head(handler.announce.block_hash);
 
         run::run(
@@ -263,7 +268,7 @@ impl Processor {
             &mut handler.transitions,
             RunnerConfig {
                 chunk_processing_threads: self.config().chunk_processing_threads,
-                block_gas_limit: self.config().block_gas_limit,
+                block_gas_limit,
             },
         )
         .await;
