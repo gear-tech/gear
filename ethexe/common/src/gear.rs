@@ -57,47 +57,22 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GearBlock {
-    pub hash: H256,
-    pub off_chain_transactions_hash: H256,
-    pub gas_allowance: u64,
-}
-
-impl ToDigest for GearBlock {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self {
-            hash,
-            off_chain_transactions_hash,
-            gas_allowance,
-        } = &self;
-
-        hasher.update(hash);
-        hasher.update(off_chain_transactions_hash);
-        hasher.update(gas_allowance.to_be_bytes());
-    }
-}
-
 /// Squashed chain commitment that contains all state transitions and gear blocks.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub gear_blocks: Vec<GearBlock>,
+    pub head: H256,
 }
 
 impl ToDigest for Option<ChainCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment {
-            transitions,
-            gear_blocks,
-        }) = self
-        else {
+        let Some(ChainCommitment { transitions, head }) = self else {
             return;
         };
 
-        hasher.update(transitions.to_digest().as_ref());
-        hasher.update(gear_blocks.to_digest().as_ref());
+        hasher.update(transitions.to_digest());
+        hasher.update(head);
     }
 }
 

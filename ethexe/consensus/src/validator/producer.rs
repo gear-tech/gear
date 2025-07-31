@@ -19,7 +19,10 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, utils};
+use crate::{
+    ConsensusEvent, utils,
+    validator::{CHAIN_DEEPNESS_THRESHOLD, MAX_CHAIN_DEEPNESS},
+};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -161,12 +164,22 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<ChainCommitment>> {
-        let waiting_blocks_queue = ctx
-            .db
-            .block_commitment_queue(block_hash)
-            .ok_or_else(|| anyhow!("Block {block_hash} commitment queue is not in storage"))?;
+        let Some((commitment, deepness)) = utils::aggregate_chain_commitment(
+            &ctx.db,
+            block_hash,
+            false,
+            Some(MAX_CHAIN_DEEPNESS),
+        )?
+        else {
+            return Ok(None);
+        };
 
-        utils::aggregate_chain_commitment(&ctx.db, waiting_blocks_queue, false)
+        if commitment.transitions.is_empty() && deepness <= CHAIN_DEEPNESS_THRESHOLD {
+            // No transitions and chain is not deep enough, skip chain commitment
+            Ok(None)
+        } else {
+            Ok(Some(commitment))
+        }
     }
 
     fn aggregate_code_commitments(
@@ -239,7 +252,7 @@ mod tests {
     async fn create() {
         let (mut ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::mock(H256::random());
 
         ctx.pending(SignedValidationRequest::mock((
             ctx.signer.clone(),
@@ -261,7 +274,7 @@ mod tests {
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -279,8 +292,8 @@ mod tests {
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
-        let batch = prepared_mock_batch_commitment(&ctx.db, &block);
+        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let block = simple_block_data(&ctx.db, batch.block_hash);
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
@@ -338,14 +351,16 @@ mod tests {
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, ());
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
-        ctx.db
-            .set_last_committed_batch(block.hash, Digest::random());
+        ctx.db.mutate_block_meta(block.hash, |meta| {
+            meta.last_committed_batch = Some(Digest::random());
+            meta.last_committed_head = Some(H256::random());
+        });
 
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await

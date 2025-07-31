@@ -11,7 +11,7 @@ repository.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 dashmap = "5.5.3"

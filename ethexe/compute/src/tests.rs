@@ -120,11 +120,10 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
     db.mutate_block_meta(genesis_hash, |meta| {
         meta.computed = true;
         meta.prepared = true;
+        meta.last_committed_batch = Some(Digest::random());
+        meta.last_committed_head = Some(H256::random());
     });
     db.set_block_outcome(genesis_hash, vec![]);
-    db.set_previous_not_empty_block(genesis_hash, H256::random());
-    db.set_last_committed_batch(genesis_hash, Digest::random());
-    db.set_block_commitment_queue(genesis_hash, Default::default());
     db.set_block_program_states(genesis_hash, Default::default());
     db.set_block_schedule(genesis_hash, Default::default());
     db.set_block_header(
