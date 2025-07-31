@@ -19,7 +19,7 @@
 use crate::{AlloyProvider, abi::IMiddleware};
 use alloy::{
     primitives::{Address, U256 as AlloyU256, Uint},
-    providers::{Provider, RootProvider},
+    providers::{Provider, ProviderBuilder, RootProvider},
 };
 use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
@@ -55,11 +55,14 @@ impl Middleware {
 pub struct MiddlewareQuery(QueryInstance);
 
 impl MiddlewareQuery {
-    pub fn new(provider: RootProvider, middleware_address: LocalAddress) -> Self {
-        Self(QueryInstance::new(
-            Address::new(middleware_address.0),
-            provider,
-        ))
+    pub async fn new(rpc_url: &str, middleware_address: Address) -> Result<Self> {
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
+
+        Ok(Self(QueryInstance::new(middleware_address, provider)))
+    }
+
+    pub fn from_provider(middleware_address: Address, provider: RootProvider) -> Self {
+        Self(QueryInstance::new(middleware_address, provider))
     }
 
     pub async fn make_election_at(

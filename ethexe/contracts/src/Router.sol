@@ -32,7 +32,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address _mirror,
         address _wrappedVara,
         address _middleware,
-        uint256 _eraDuration,
+        uint48 _eraDuration,
         uint256 _electionDuration,
         uint256 _validationDelay,
         Gear.AggregatedPublicKey calldata _aggregatedPublicKey,

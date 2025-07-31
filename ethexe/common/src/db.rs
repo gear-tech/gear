@@ -94,6 +94,12 @@ pub trait OnChainStorageRead {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
+
+    // 1. Add to network sharing the tree of operators rewards for the era.
+    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>>;
+    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256>;
+    // Temporary solution: returns all operator vaults with stake in it.
+    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>>;
 }
 
 pub trait OnChainStorageWrite {
@@ -102,20 +108,8 @@ pub trait OnChainStorageWrite {
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
     fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
-}
 
-pub trait StakingStorageRead {
-    // 1. Add to network sharing the tree of operators rewards for the era.
-    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>>;
-
-    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256>;
-
-    // Temporary solution: returns all operator vaults with stake in it.
-    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>>;
-}
-
-pub trait StakingStorageWrite {
     fn set_operators_rewards_distribution_at(&self, era: u64, tree: BTreeMap<Address, U256>);
-    fn set_operator_stake_at(&self, operator: H160, era: u64);
+    fn set_operator_stake_at(&self, operator: H160, era: u64, stake: U256);
     fn set_operator_stake_vaults_at(&self, operator: H160, era: u64, vaults: Vec<(Address, U256)>);
 }

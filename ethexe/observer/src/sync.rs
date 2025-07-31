@@ -25,13 +25,13 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
+    self, Address, BlockData, BlockHeader, CodeBlobInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
-use ethexe_ethereum::router::RouterQuery;
-use gprimitives::H256;
+use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
+use gprimitives::{H256, U256};
 use nonempty::NonEmpty;
 use std::collections::HashMap;
 
@@ -66,7 +66,14 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, &header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, &header).await?;
+
+        let era_first_block = self.era_first_block(&header)?;
+        self.propagate_validators(block, &header, era_first_block)
+            .await?;
+
+        if era_first_block && self.config.fetch_staking_data {
+            self.load_staking_data(block, &header).await?;
+        }
 
         Ok(block)
     }
@@ -167,10 +174,60 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
+    async fn load_staking_data(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        let middleware_query = MiddlewareQuery::from_provider(
+            self.config.middleware_address.0.into(),
+            self.provider.clone(),
+        );
+
+        let validators = self
+            .db
+            .validators(block)
+            .expect("Must be propagate in `propagate_validators`");
+
+        for validator in validators.iter() {
+            // THINK: maybe timestamp not from header
+            let validator_stake = middleware_query
+                .operator_stake_at(validator.0.into(), header.timestamp)
+                .await?;
+
+            let validator_stake_vaults = middleware_query
+                .operator_stake_vaults_at(validator.0.into(), header.timestamp)
+                .await?
+                .iter()
+                .map(|vault_with_stake| {
+                    (
+                        Address(vault_with_stake.vault.into_array()),
+                        U256::from_little_endian(vault_with_stake.stake.as_le_slice()),
+                    )
+                })
+                .collect();
+            self.db.set_operator_stake_at(
+                validator.0.into(),
+                self.block_era_index(header.timestamp),
+                U256::from_little_endian(validator_stake.as_le_slice()),
+            );
+
+            self.db.set_operator_stake_vaults_at(
+                validator.0.into(),
+                self.block_era_index(header.timestamp),
+                validator_stake_vaults,
+            );
+        }
+
+        self.db.set_validators(block, validators);
+        Ok(())
+    }
+
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
+    async fn propagate_validators(
+        &self,
+        block: H256,
+        header: &BlockHeader,
+        era_first_block: bool,
+    ) -> Result<()> {
         let validators = match self.db.validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
+            Some(validators) if !era_first_block => validators,
             _ => {
                 let fetched_validators = RouterQuery::from_provider(
                     self.config.router_address.0.into(),
@@ -203,7 +260,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
     /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: &BlockHeader) -> Result<bool> {
+    fn era_first_block(&self, chain_head: &BlockHeader) -> Result<bool> {
         let chain_head_era = self.block_era_index(chain_head.timestamp);
 
         if chain_head_era.is_zero() {

@@ -27,7 +27,7 @@ use ethexe_common::{
     Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite, StakingStorageRead, StakingStorageWrite,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -68,6 +68,10 @@ enum Key {
     LatestSyncedBlockHeight = 12,
     ValidatorSet(H256) = 13,
     LatestRewardedEra(H256) = 14,
+
+    OperatorsRewardsDistributionAt(u64) = 15,
+    OperatorStakeAt(H160, u64) = 16,
+    OperatorStakeVaultsAt(H160, u64) = 17,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -112,6 +116,16 @@ impl Key {
             .concat(),
 
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+
+            Self::OperatorsRewardsDistributionAt(era) => {
+                [prefix.as_ref(), era.to_le_bytes().as_ref()].concat()
+            }
+            Self::OperatorStakeAt(address, era) | Self::OperatorStakeVaultsAt(address, era) => [
+                prefix.as_ref(),
+                address.as_ref(),
+                era.to_le_bytes().as_ref(),
+            ]
+            .concat(),
         }
     }
 }
@@ -697,6 +711,32 @@ impl OnChainStorageRead for Database {
                 )
             })?
     }
+
+    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>> {
+        self.kv
+            .get(&Key::OperatorsRewardsDistributionAt(era).to_bytes())
+            .map(|data| {
+                BTreeMap::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeMap<Address, U256>`")
+            })
+    }
+
+    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256> {
+        self.kv
+            .get(&Key::OperatorStakeAt(operator, era).to_bytes())
+            .map(|data| {
+                U256::decode(&mut data.as_slice()).expect("Failed to decode data into `U256`")
+            })
+    }
+
+    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>> {
+        self.kv
+            .get(&Key::OperatorStakeVaultsAt(operator, era).to_bytes())
+            .map(|data| {
+                Vec::<(Address, U256)>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<(Address, U256)>`")
+            })
+    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -725,31 +765,26 @@ impl OnChainStorageWrite for Database {
             Into::<Vec<Address>>::into(validator_set).encode(),
         );
     }
-}
 
-impl StakingStorageRead for Database {
-    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>> {
-        todo!()
-    }
-
-    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256> {
-        todo!()
-    }
-
-    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>> {
-        todo!()
-    }
-}
-
-impl StakingStorageWrite for Database {
     fn set_operators_rewards_distribution_at(&self, era: u64, tree: BTreeMap<Address, U256>) {
-        todo!()
+        self.kv.put(
+            &Key::OperatorsRewardsDistributionAt(era).to_bytes(),
+            tree.encode(),
+        );
     }
-    fn set_operator_stake_at(&self, operator: H160, era: u64) {
-        todo!()
+
+    fn set_operator_stake_at(&self, operator: H160, era: u64, stake: U256) {
+        self.kv.put(
+            &Key::OperatorStakeAt(operator, era).to_bytes(),
+            stake.encode(),
+        );
     }
+
     fn set_operator_stake_vaults_at(&self, operator: H160, era: u64, vaults: Vec<(Address, U256)>) {
-        todo!()
+        self.kv.put(
+            &Key::OperatorStakeVaultsAt(operator, era).to_bytes(),
+            vaults.encode(),
+        );
     }
 }
 

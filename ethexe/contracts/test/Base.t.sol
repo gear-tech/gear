@@ -117,7 +117,7 @@ contract Base is POCBaseTest {
                             mirrorAddress,
                             wrappedVaraAddress,
                             middlewareAddress,
-                            uint256(eraDuration),
+                            eraDuration,
                             uint256(electionDuration),
                             uint256(validationDelay),
                             _aggregatedPublicKey,
@@ -487,7 +487,6 @@ contract Base is POCBaseTest {
 
         params = IMiddleware.InitParams({
             owner: admin,
-            eraDuration: eraDuration,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,
             vaultGracePeriod: eraDuration * 2,

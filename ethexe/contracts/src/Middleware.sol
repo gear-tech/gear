@@ -7,6 +7,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 import {IMiddleware} from "./IMiddleware.sol";
+import {IRouter} from "./IRouter.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
@@ -65,7 +66,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();
 
-        $.eraDuration = _params.eraDuration;
+        $.eraDuration = IRouter(_params.router).timelines().era;
         $.minVaultEpochDuration = _params.minVaultEpochDuration;
         $.operatorGracePeriod = _params.operatorGracePeriod;
         $.vaultGracePeriod = _params.vaultGracePeriod;

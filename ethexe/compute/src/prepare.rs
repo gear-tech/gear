@@ -114,9 +114,7 @@ fn propagate_data_from_parent<
                 if let Some(latest_era) = latest_rewarded_era {
                     debug_assert!(
                         *era > latest_era,
-                        "Rewards distributed for the same or earlier era: {} <= {}",
-                        era,
-                        latest_era
+                        "Rewards distributed for the same or earlier era: {era} <= {latest_era}",
                     );
                 }
                 // Propagate latest rewarded era

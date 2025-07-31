@@ -170,7 +170,7 @@ library Gear {
     }
 
     struct Timelines {
-        uint256 era;
+        uint48 era;
         uint256 election;
         uint256 validationDelay;
     }

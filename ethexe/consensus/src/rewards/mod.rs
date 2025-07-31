@@ -1,11 +1,9 @@
 use ethexe_common::{
     Address, ToDigest,
-    db::{BlockMetaStorageRead, OnChainStorageRead, StakingStorageRead},
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewards, StakerRewardsCommitment},
-    k256::elliptic_curve::rand_core::block,
 };
 use gprimitives::{H160, H256, U256};
-use rs_merkle::Hasher;
 use sha3::Digest;
 use std::{collections::BTreeMap, ops::Range};
 
@@ -31,7 +29,7 @@ NOTES:
 - consensus doesn't load anything from the eth rpc
 
 Validators count in db:
-- 0: iter through all previous eras and find latest setted validators
+- 0: iter through all previous eras and find latest set validators
 - 1: best case
 - 2: iter through all parent blocks and find one of the blocks from parent blocks
 */
@@ -41,15 +39,15 @@ const STAKER_REWARDS_RATIO: u32 = 90; // 90% of rewards goes to stakers
 #[derive(thiserror::Error, Debug)]
 pub enum DistributionError {
     #[error("block header not found for: {0:?}")]
-    BlockHeaderNotFound(H256),
+    BlockHeader(H256),
     #[error("validators not found for block({0:?})")]
-    BlockValidatorsNotFound(H256),
+    BlockValidators(H256),
     #[error("operator stake vaults not found for block({0:?}")]
-    OperatorStakeVaultsNotFound(H160),
+    OperatorStakeVaults(H160),
     #[error("stake not found for operator({0:?}) in era {1}")]
-    OperatorEraStakeNotFound(H160, u64),
+    OperatorEraStake(H160, u64),
     #[error("re")]
-    RewardsDistributionNotFound(u64),
+    RewardsDistribution(u64),
 }
 type Result<T> = std::result::Result<T, DistributionError>;
 
@@ -57,7 +55,7 @@ type Result<T> = std::result::Result<T, DistributionError>;
 pub(crate) struct RewardsConfig {
     pub genesis_timestamp: u64,
     pub era_duration: u64,
-    pub wvara_digets: U256,
+    pub wvara_digests: U256,
     pub wvara_address: Address,
 }
 
@@ -67,28 +65,34 @@ pub(crate) fn rewards_commitment<DB>(
     block_hash: H256,
 ) -> Result<Option<RewardsCommitment>>
 where
-    DB: BlockMetaStorageRead + OnChainStorageRead + StakingStorageRead,
+    DB: BlockMetaStorageRead + OnChainStorageRead,
 {
-    let Some(eras_to_reward) = eras_to_reward(db, config, block_hash)? else {
+    let header = db
+        .block_header(block_hash)
+        .ok_or(DistributionError::BlockHeader(block_hash))?;
+
+    let Some(eras_to_reward) = eras_to_reward(db, config, block_hash, header.timestamp)? else {
         return Ok(None);
     };
 
     // Need to check for the 0 era and set the default value
-    let mut cumulative_operator_rewards = db.operators_rewards_distribution_at(0).unwrap();
-
+    // THINK: here must be `eras_to_reward.start - 1`, but i dont know what to do with 0 era
+    let mut cumulative_operator_rewards = db
+        .operators_rewards_distribution_at(0)
+        .ok_or(DistributionError::RewardsDistribution(0))?;
     let mut total_operator_rewards = U256::zero();
 
     let mut cumulative_vault_rewards = BTreeMap::new();
+    let mut total_staker_rewards = U256::zero();
 
     for era in eras_to_reward {
-        let (mut operators_rewards, total_amount) =
+        let (mut operators_rewards, era_total_amount) =
             collect_era_rewards(db, config, era, block_hash)?;
 
         let vault_rewards = extract_vault_rewards(db, era, &mut operators_rewards)?;
 
+        total_operator_rewards += era_total_amount;
         operators_rewards.into_iter().for_each(|(address, amount)| {
-            total_operator_rewards += amount;
-
             cumulative_operator_rewards
                 .entry(address)
                 .and_modify(|e| *e += amount)
@@ -96,6 +100,8 @@ where
         });
 
         vault_rewards.into_iter().for_each(|(address, amount)| {
+            total_staker_rewards += amount;
+
             cumulative_vault_rewards
                 .entry(address)
                 .and_modify(|e| *e += amount)
@@ -105,26 +111,37 @@ where
 
     let operators_commitment = OperatorRewardsCommitment {
         amount: total_operator_rewards,
-        root: operators_merkle_tree(db, cumulative_operator_rewards),
+        root: operators_merkle_tree(cumulative_operator_rewards),
     };
 
-    return Ok(None);
+    let stakers_commitment = StakerRewardsCommitment {
+        distribution: cumulative_vault_rewards
+            .into_iter()
+            .map(|(vault, amount)| StakerRewards { vault, amount })
+            .collect(),
+        total_amount: total_staker_rewards,
+        token: config.wvara_address,
+    };
+
+    Ok(Some(RewardsCommitment {
+        operators: operators_commitment,
+        stakers: stakers_commitment,
+        timestamp: header.timestamp,
+    }))
 }
 
 fn eras_to_reward<DB>(
     db: &DB,
     config: &RewardsConfig,
     block_hash: H256,
+    block_timestamp: u64,
 ) -> Result<Option<Range<u64>>>
 where
     DB: BlockMetaStorageRead + OnChainStorageRead,
 {
-    let header = db
-        .block_header(block_hash)
-        .ok_or(DistributionError::BlockHeaderNotFound(block_hash))?;
-
+    // THINK: maybe need to fetch from router, not use default value - 0
     let latest_rewarded_era = db.latest_rewarded_era(block_hash).unwrap_or_default();
-    let current_era = utils::era_index(config, header.timestamp);
+    let current_era = utils::era_index(config, block_timestamp);
 
     if current_era == latest_rewarded_era {
         // rewards can not be distribute, because of in this era they were already
@@ -156,7 +173,7 @@ where
     loop {
         let block_header = db
             .block_header(current_block)
-            .ok_or(DistributionError::BlockHeaderNotFound(current_block))?;
+            .ok_or(DistributionError::BlockHeader(current_block))?;
         let block_era = utils::era_index(config, block_header.timestamp);
 
         if era <= block_era {
@@ -171,12 +188,12 @@ where
 
         let block_validators = db
             .validators(current_block)
-            .ok_or(DistributionError::BlockValidatorsNotFound(current_block))?;
+            .ok_or(DistributionError::BlockValidators(current_block))?;
 
         for validator in block_validators.iter() {
             let operator_rewards = rewards_statistics.entry(*validator).or_insert(U256::zero());
 
-            let value = U256::from(100) * U256::from(10).pow(config.wvara_digets);
+            let value = U256::from(100) * U256::from(10).pow(config.wvara_digests);
 
             *operator_rewards += value;
             total_rewards += value;
@@ -194,19 +211,19 @@ fn extract_vault_rewards<DB>(
     operators_rewards: &mut BTreeMap<Address, U256>,
 ) -> Result<BTreeMap<Address, U256>>
 where
-    DB: StakingStorageRead,
+    DB: OnChainStorageRead,
 {
     let mut vault_rewards = BTreeMap::new();
     for (address, amount) in operators_rewards.iter_mut() {
         let staker_amount = *amount * U256::from(STAKER_REWARDS_RATIO) / U256::from(100);
         *amount -= staker_amount;
 
-        let operator_total_stake = db.operator_stake_at(H160(address.0), era).ok_or(
-            DistributionError::OperatorEraStakeNotFound(H160(address.0), era),
-        )?;
-        let stake_vaults = db.operator_stake_vaults_at(H160(address.0), era).ok_or(
-            DistributionError::OperatorStakeVaultsNotFound(H160(address.0)),
-        )?;
+        let operator_total_stake = db
+            .operator_stake_at(H160(address.0), era)
+            .ok_or(DistributionError::OperatorEraStake(H160(address.0), era))?;
+        let stake_vaults = db
+            .operator_stake_vaults_at(H160(address.0), era)
+            .ok_or(DistributionError::OperatorStakeVaults(H160(address.0)))?;
 
         for (vault, stake_in_vault) in stake_vaults {
             let vault_rewards = vault_rewards.entry(vault).or_insert(U256::zero());
@@ -216,24 +233,12 @@ where
     Ok(vault_rewards)
 }
 
-fn stakers_rewards_commitment(config: &RewardsConfig) -> Result<StakerRewardsCommitment> {
-    let stakers_rewards = StakerRewardsCommitment {
-        distribution: Vec::new(),
-        total_amount: U256::zero(),
-        token: config.wvara_address,
-    };
-    Ok(stakers_rewards)
-}
-
-fn operators_merkle_tree<DB>(db: &DB, rewards: BTreeMap<Address, U256>) -> H256
-where
-    DB: StakingStorageRead,
-{
+fn operators_merkle_tree(rewards: BTreeMap<Address, U256>) -> H256 {
     let leaves = rewards
         .into_iter()
         .map(|(address, amount)| {
             let mut hasher = sha3::Keccak256::new();
-            hasher.update(&address.0);
+            hasher.update(address.0);
             hasher.update(<[u8; 32]>::from(amount));
             hasher.finalize().to_digest().0
         })
