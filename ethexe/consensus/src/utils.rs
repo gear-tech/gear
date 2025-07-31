@@ -23,21 +23,22 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, AnnounceStorageRead, Digest, ProducerBlock, SimpleBlockData, ToDigest,
+    Address, Announce, AnnounceHash, AnnounceStorageRead, Digest, OnChainStorageRead,
+    SimpleBlockData, ToDigest,
     db::{BlockMetaStorageRead, CodesStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment},
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, HashSet},
     hash::Hash,
 };
 
-pub type SignedProducerBlock = SignedData<ProducerBlock>;
+pub type SignedAnnounce = SignedData<Announce>;
 pub type SignedValidationRequest = SignedData<BatchCommitmentValidationRequest>;
 
 /// Represents a request for validating a batch commitment.
@@ -61,7 +62,7 @@ impl BatchCommitmentValidationRequest {
 
         BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
-            head: batch.chain_commitment.map(|cc| cc.head_announce),
+            head: batch.chain_commitment.as_ref().map(|cc| cc.head_announce),
             codes,
         }
     }
@@ -221,7 +222,7 @@ pub fn aggregate_chain_commitment<
         .block_meta(block_hash)
         .last_committed_announce
         .ok_or_else(|| {
-            anyhow!("Cannot get from db last committed head for block {from_block_hash}")
+            anyhow!("Cannot get from db last committed head for block {head_announce}")
         })?;
 
     let mut announce_hash = head_announce;
@@ -245,7 +246,7 @@ pub fn aggregate_chain_commitment<
             }
         }
 
-        transitions.push(db.block_outcome(block_hash).ok_or_else(|| {
+        transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
             anyhow!("Cannot get from db outcome for computed block {block_hash}")
         })?);
 
@@ -258,7 +259,7 @@ pub fn aggregate_chain_commitment<
     Ok(Some((
         ChainCommitment {
             transitions: transitions.into_iter().rev().flatten().collect(),
-            head: announce_hash,
+            head_announce,
         },
         counter,
     )))
@@ -304,7 +305,7 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::db::{BlockMetaStorageWrite, CodesStorageWrite};
+    use ethexe_common::db::{AnnounceStorageWrite, CodesStorageWrite};
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);
@@ -412,36 +413,37 @@ mod tests {
         assert_eq!(multisigned_batch.signatures.len(), 2);
     }
 
-    // #[test]
-    // fn test_aggregate_chain_commitment() {
-    //     let db = Database::memory();
-    //     let BatchCommitment { block_hash, .. } = prepared_mock_batch_commitment(&db);
+    #[test]
+    fn test_aggregate_chain_commitment() {
+        let db = Database::memory();
+        let BatchCommitment { block_hash, .. } = prepared_mock_batch_commitment(&db);
+        let announce = db.announce_hash(block_hash);
 
-    //     let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, false, None)
-    //         .unwrap()
-    //         .unwrap();
-    //     assert_eq!(commitment.head, block_hash);
-    //     assert_eq!(commitment.transitions.len(), 4);
-    //     assert_eq!(counter, 3);
+        let (commitment, counter) = aggregate_chain_commitment(&db, announce, false, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitment.head_announce, announce);
+        assert_eq!(commitment.transitions.len(), 4);
+        assert_eq!(counter, 3);
 
-    //     let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, true, None)
-    //         .unwrap()
-    //         .unwrap();
-    //     assert_eq!(commitment.head, block_hash);
-    //     assert_eq!(commitment.transitions.len(), 4);
-    //     assert_eq!(counter, 3);
+        let (commitment, counter) = aggregate_chain_commitment(&db, announce, true, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(commitment.head_announce, announce);
+        assert_eq!(commitment.transitions.len(), 4);
+        assert_eq!(counter, 3);
 
-    //     aggregate_chain_commitment(&db, block_hash, false, Some(2)).unwrap_err();
-    //     aggregate_chain_commitment(&db, block_hash, true, Some(2)).unwrap_err();
+        aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap_err();
+        aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap_err();
 
-    //     db.mutate_block_meta(block_hash, |meta| meta.computed = false);
-    //     assert!(
-    //         aggregate_chain_commitment(&db, block_hash, false, None)
-    //             .unwrap()
-    //             .is_none()
-    //     );
-    //     aggregate_chain_commitment(&db, block_hash, true, None).unwrap_err();
-    // }
+        db.mutate_announce_meta(announce, |meta| meta.computed = false);
+        assert!(
+            aggregate_chain_commitment(&db, announce, false, None)
+                .unwrap()
+                .is_none()
+        );
+        aggregate_chain_commitment(&db, announce, true, None).unwrap_err();
+    }
 
     #[test]
     fn test_aggregate_code_commitments() {

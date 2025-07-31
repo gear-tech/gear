@@ -27,7 +27,7 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::gear::CodeState;
+use ethexe_common::{AnnounceHash, gear::CodeState};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -166,7 +166,7 @@ pub trait ExternalDataProvider: Send + Sync {
     async fn programs_code_ids_at(
         self: Box<Self>,
         program_ids: BTreeSet<ActorId>,
-        block: H256,
+        announce_hash: AnnounceHash,
     ) -> anyhow::Result<Vec<CodeId>>;
 
     async fn codes_states_at(
@@ -189,7 +189,7 @@ pub struct HashesRequest(
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ProgramIdsRequest {
-    pub at: H256,
+    pub at: AnnounceHash,
     pub expected_count: u64,
 }
 
@@ -211,7 +211,7 @@ impl Request {
         Self::Hashes(HashesRequest(request.into()))
     }
 
-    pub fn program_ids(at: H256, expected_count: u64) -> Self {
+    pub fn program_ids(at: AnnounceHash, expected_count: u64) -> Self {
         Self::ProgramIds(ProgramIdsRequest { at, expected_count })
     }
 
@@ -234,7 +234,7 @@ pub enum Response {
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsRequest {
-    at: H256,
+    at: AnnounceHash,
 }
 
 /// Network-only type to be encoded-decoded and sent over the network
@@ -487,7 +487,9 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::StateHashWithQueueSize;
+    use ethexe_common::{
+        Announce, AnnounceHash, AnnounceStorageWrite, BlockMetaStorageWrite, StateHashWithQueueSize,
+    };
     use ethexe_db::MemDb;
     use libp2p::{
         Swarm, Transport,
@@ -1170,7 +1172,7 @@ pub(crate) mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::program_ids(H256::zero(), 2));
+            .request(Request::program_ids(AnnounceHash::zero(), 2));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -1209,10 +1211,19 @@ pub(crate) mod tests {
         let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
         let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
         left_data_provider
-            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
+            .set_programs_code_ids_at(program_ids.clone(), AnnounceHash::zero(), code_ids.clone())
             .await;
-        right_db.set_block_program_states(
-            H256::zero(),
+
+        let mut announce_hash = AnnounceHash::zero();
+        right_db.mutate_block_meta(H256::zero(), |meta| {
+            assert!(meta.announces.is_none());
+            let announce = Announce::base(H256::zero(), AnnounceHash::zero());
+            announce_hash = announce.hash();
+            meta.announces = Some(vec![announce_hash]);
+        });
+
+        right_db.set_announce_program_states(
+            announce_hash,
             iter::zip(
                 program_ids.clone(),
                 iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {

@@ -26,7 +26,7 @@ use ethexe_blob_loader::{
 use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
 use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
@@ -64,7 +64,7 @@ pub enum Event {
 // TODO #4176: consider to move this to another module
 #[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
-    ProducerBlock(SignedProducerBlock),
+    ProducerBlock(SignedAnnounce),
     RequestBatchValidation(SignedValidationRequest),
     ApproveBatch(BatchCommitmentValidationReply),
     OffchainTransaction {
@@ -415,7 +415,7 @@ impl Service {
                         blob_loader.load_codes(codes, None)?;
                     }
                     ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        consensus.receive_computed_block(block_hash)?
+                        consensus.receive_computed_announce(block_hash)?
                     }
                     ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
                         // Nothing
@@ -439,7 +439,7 @@ impl Service {
 
                             match message {
                                 NetworkMessage::ProducerBlock(block) => {
-                                    consensus.receive_block_from_producer(block)?
+                                    consensus.receive_announce(block)?
                                 }
                                 NetworkMessage::RequestBatchValidation(request) => {
                                     consensus.receive_validation_request(request)?
@@ -526,7 +526,7 @@ impl Service {
                 }
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeBlock(block) => compute.compute_announce(block),
-                    ConsensusEvent::ComputeProducerBlock(producer_block) => {
+                    ConsensusEvent::ComputeAnnounce(producer_block) => {
                         if !producer_block.off_chain_transactions.is_empty()
                             || producer_block.gas_allowance.is_some()
                         {
@@ -537,7 +537,7 @@ impl Service {
 
                         compute.compute_announce(producer_block.block_hash);
                     }
-                    ConsensusEvent::PublishProducerBlock(block) => {
+                    ConsensusEvent::PublishAnnounce(block) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };

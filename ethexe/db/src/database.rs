@@ -23,7 +23,7 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, ProducerBlock, ProgramStates, Schedule,
+    Address, Announce, AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead,
         BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage,
@@ -82,10 +82,10 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash)
-            | Self::BlockEvents(hash)
-            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
-            | Self::AnnounceProgramStates(AnnounceHash(hash))
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::ValidatorSet(hash) => {
+                [prefix.as_ref(), hash.as_ref()].concat()
+            }
+            Self::AnnounceProgramStates(AnnounceHash(hash))
             | Self::AnnounceOutcome(AnnounceHash(hash))
             | Self::AnnounceSchedule(AnnounceHash(hash))
             | Self::AnnounceMeta(AnnounceHash(hash))
@@ -573,10 +573,9 @@ impl OnChainStorageWrite for Database {
 }
 
 impl AnnounceStorageRead for Database {
-    fn announce(&self, hash: AnnounceHash) -> Option<ProducerBlock> {
+    fn announce(&self, hash: AnnounceHash) -> Option<Announce> {
         self.cas.read(hash.0).map(|data| {
-            ProducerBlock::decode(&mut &data[..])
-                .expect("Failed to decode data into `ProducerBlock`")
+            Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
         })
     }
 
@@ -619,8 +618,8 @@ impl AnnounceStorageRead for Database {
 }
 
 impl AnnounceStorageWrite for Database {
-    fn set_announce(&self, announce: ProducerBlock) {
-        self.cas.write(&announce.encode());
+    fn set_announce(&self, announce: Announce) -> AnnounceHash {
+        AnnounceHash(self.cas.write(&announce.encode()))
     }
 
     fn set_announce_program_states(

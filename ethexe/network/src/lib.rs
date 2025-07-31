@@ -638,7 +638,7 @@ mod tests {
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
-    use ethexe_common::gear::CodeState;
+    use ethexe_common::{AnnounceHash, gear::CodeState};
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
@@ -653,7 +653,7 @@ mod tests {
 
     #[derive(Default)]
     struct DataProviderInner {
-        programs_code_ids_at: HashMap<(BTreeSet<ActorId>, H256), Vec<CodeId>>,
+        programs_code_ids_at: HashMap<(BTreeSet<ActorId>, AnnounceHash), Vec<CodeId>>,
         code_states_at: HashMap<(BTreeSet<CodeId>, H256), Vec<CodeState>>,
     }
 
@@ -664,7 +664,7 @@ mod tests {
         pub async fn set_programs_code_ids_at(
             &self,
             program_ids: BTreeSet<ActorId>,
-            at: H256,
+            at: AnnounceHash,
             code_ids: Vec<CodeId>,
         ) {
             self.0
@@ -684,7 +684,7 @@ mod tests {
         async fn programs_code_ids_at(
             self: Box<Self>,
             program_ids: BTreeSet<ActorId>,
-            block: H256,
+            announce_hash: AnnounceHash,
         ) -> anyhow::Result<Vec<CodeId>> {
             assert!(!program_ids.is_empty());
             Ok(self
@@ -692,7 +692,7 @@ mod tests {
                 .read()
                 .await
                 .programs_code_ids_at
-                .get(&(program_ids, block))
+                .get(&(program_ids, announce_hash))
                 .cloned()
                 .unwrap_or_default())
         }
@@ -810,7 +810,7 @@ mod tests {
 
         let request_id = alice
             .db_sync()
-            .request(db_sync::Request::program_ids(H256::zero(), 2));
+            .request(db_sync::Request::program_ids(AnnounceHash::zero(), 2));
 
         let event = timeout(Duration::from_secs(5), alice.next())
             .await

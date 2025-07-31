@@ -22,14 +22,13 @@ use crate::{
     prepare::{self, MissingData},
 };
 use ethexe_common::{
-    AnnounceHash, AnnouncesRequest, BlockMetaStorageRead, CodeAndIdUnchecked, CodesStorageRead,
-    DataRequest, ProducerBlock,
+    Announce, AnnounceHash, BlockMetaStorageRead, CodeAndIdUnchecked, CodesStorageRead,
 };
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -39,13 +38,13 @@ use tokio::task::JoinSet;
 pub struct ComputeMetrics {
     pub blocks_queue_len: usize,
     pub process_codes_count: usize,
-    pub waiting_for_requests: Vec<DataRequest>,
+    pub waiting_codes_count: usize,
 }
 
 #[derive(Debug, Clone)]
 enum BlockAction {
     Prepare(H256),
-    Process(ProducerBlock),
+    Compute(Announce),
 }
 
 #[derive(Default)]
@@ -54,7 +53,7 @@ enum State {
     WaitForBlock,
     WaitForRequestedData {
         block_hash: H256,
-        requests: Vec<DataRequest>,
+        codes: HashSet<CodeId>,
     },
     Preparation {
         block_hash: H256,
@@ -122,8 +121,8 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.blocks_queue.push_front(BlockAction::Prepare(block));
     }
 
-    pub fn compute_announce(&mut self, announce: ProducerBlock) {
-        self.blocks_queue.push_front(BlockAction::Process(announce));
+    pub fn compute_announce(&mut self, announce: Announce) {
+        self.blocks_queue.push_front(BlockAction::Compute(announce));
     }
 
     pub fn receive_requested_announces(
@@ -136,17 +135,17 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
-        let waiting_for_requests =
-            if let State::WaitForRequestedData { requests, .. } = &self.blocks_state {
-                requests.clone()
+        let waiting_codes_count =
+            if let State::WaitForRequestedData { codes, .. } = &self.blocks_state {
+                codes.len()
             } else {
-                Vec::new()
+                0
             };
 
         ComputeMetrics {
             blocks_queue_len: self.blocks_queue.len(),
             process_codes_count: self.process_codes.len(),
-            waiting_for_requests,
+            waiting_codes_count,
         }
     }
 }
@@ -158,23 +157,10 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
-                    if let (Ok(code_id), State::WaitForRequestedData { requests, .. }) =
+                    if let (Ok(code_id), State::WaitForRequestedData { codes, .. }) =
                         (&res, &mut self.blocks_state)
                     {
-                        let mut ready_request_positions = Vec::new();
-                        for (pos, request) in requests.iter_mut().enumerate() {
-                            if let DataRequest::Codes(codes) = request {
-                                codes.remove(code_id);
-                                if codes.is_empty() {
-                                    ready_request_positions.push(pos);
-                                }
-                            }
-                        }
-
-                        // Remove requests that are now empty
-                        for pos in ready_request_positions.into_iter().rev() {
-                            requests.remove(pos);
-                        }
+                        codes.remove(code_id);
                     }
 
                     return Poll::Ready(Some(res.map(ComputeEvent::CodeProcessed)));
@@ -189,8 +175,7 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
                     let MissingData {
                         codes,
                         validated_codes,
-                        announces_request,
-                    } = prepare::missing_data(&self.db, block, 3)?;
+                    } = prepare::missing_data(&self.db, block)?;
 
                     debug_assert!(
                         validated_codes
@@ -199,24 +184,16 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
                         "All missing validated codes must be in the missing codes list"
                     );
 
-                    let mut requests = vec![];
-                    if !validated_codes.is_empty() {
-                        requests.push(DataRequest::Codes(validated_codes.into_iter().collect()));
-                    }
-                    if let Some((head, deepness)) = announces_request {
-                        requests.push(DataRequest::Announces(AnnouncesRequest { head, deepness }));
-                    }
-
                     self.blocks_state = State::WaitForRequestedData {
                         block_hash: block,
-                        requests,
+                        codes: validated_codes,
                     };
 
                     if !codes.is_empty() {
                         return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes))));
                     }
                 }
-                Some(BlockAction::Process(announce)) => {
+                Some(BlockAction::Compute(announce)) => {
                     if !self.db.block_meta(announce.block_hash).prepared {
                         return Poll::Ready(Some(Err(ComputeError::BlockNotPrepared(
                             announce.block_hash,
@@ -233,15 +210,12 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             }
         }
 
-        if let State::WaitForRequestedData {
-            block_hash,
-            requests,
-        } = &self.blocks_state
-            && requests.is_empty()
+        if let State::WaitForRequestedData { block_hash, codes } = &self.blocks_state
+            && codes.is_empty()
         {
             self.blocks_state = State::Preparation {
                 block_hash: *block_hash,
-                future: prepare::prepare(self.db.clone(), self.processor.clone(), *block_hash, 3)
+                future: prepare::prepare(self.db.clone(), self.processor.clone(), *block_hash)
                     .boxed(),
             };
         }
@@ -284,7 +258,7 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, CodeAndIdUnchecked,
+        Address, AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, CodeAndIdUnchecked,
         db::{BlockMeta, BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use ethexe_db::Database as DB;
@@ -304,7 +278,7 @@ mod tests {
         let block_hash = H256::from([2; 32]);
 
         // Setup parent block as prepared and with computed announce
-        let parent_announce = ProducerBlock::base(parent_hash, Default::default());
+        let parent_announce = Announce::base(parent_hash, Default::default());
         db.set_announce(parent_announce.clone());
         db.mutate_announce_meta(parent_announce.hash(), |meta| {
             meta.computed = true;
@@ -348,7 +322,7 @@ mod tests {
         let block_hash = H256::from([2; 32]);
 
         // Setup parent block and one computed announce inside
-        let parent_announce = ProducerBlock::base(parent_hash, Default::default());
+        let parent_announce = Announce::base(parent_hash, Default::default());
         db.set_announce(parent_announce.clone());
         db.mutate_announce_meta(parent_announce.hash(), |meta| {
             meta.computed = true;
@@ -371,7 +345,7 @@ mod tests {
         assert_eq!(event, ComputeEvent::BlockPrepared(block_hash));
 
         // Request computation
-        let announce = ProducerBlock {
+        let announce = Announce {
             block_hash,
             parent: parent_announce.hash(),
             gas_allowance: Some(42),

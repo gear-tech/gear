@@ -61,18 +61,22 @@ pub struct AddressBook {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head: AnnounceHash,
+    pub head_announce: AnnounceHash,
 }
 
 impl ToDigest for Option<ChainCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment { transitions, head }) = self else {
+        let Some(ChainCommitment {
+            transitions,
+            head_announce,
+        }) = self
+        else {
             return;
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head.0);
+        hasher.update(head_announce.0);
     }
 }
 

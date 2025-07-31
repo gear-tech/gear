@@ -21,13 +21,12 @@ use super::{
 };
 use crate::{
     ConsensusEvent, utils,
-    validator::{CHAIN_DEEPNESS_THRESHOLD, MAX_CHAIN_DEEPNESS},
+    validator::{CHAIN_DEEPNESS_THRESHOLD, DefaultProcessing, MAX_CHAIN_DEEPNESS},
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, ProducerBlock, SimpleBlockData,
-    db::BlockMetaStorageRead,
+    Address, Announce, AnnounceHash, AnnounceStorageRead, BlockMetaStorageRead, SimpleBlockData,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -48,6 +47,8 @@ pub struct Producer {
     block: SimpleBlockData,
     validators: NonEmpty<Address>,
     state: State,
+
+    block_prepared: bool,
 }
 
 #[derive(Debug)]
@@ -56,7 +57,8 @@ enum State {
         #[debug(skip)]
         timer: Timer,
     },
-    WaitingBlockComputed,
+    WaitingBlockPrepared,
+    WaitingAnnounceComputed,
 }
 
 impl StateHandler for Producer {
@@ -72,10 +74,43 @@ impl StateHandler for Producer {
         self.ctx
     }
 
-    fn process_computed_block(mut self, computed_block: H256) -> Result<ValidatorState> {
-        if !matches!(&self.state, State::WaitingBlockComputed if self.block.hash == computed_block)
+    fn process_prepared_block(mut self, block: H256) -> Result<ValidatorState> {
+        if self.block.hash != block {
+            return DefaultProcessing::prepared_block(self, block);
+        }
+
+        if self.block_prepared {
+            self.warning(format!("Block {block} is already prepared, ignoring"));
+            return Ok(self.into());
+        }
+
+        match self.state {
+            State::CollectCodes { .. } => {
+                self.block_prepared = true;
+                Ok(self.into())
+            }
+            State::WaitingBlockPrepared => {
+                self.block_prepared = true;
+                self.create_announce()?;
+                Ok(self.into())
+            }
+            State::WaitingAnnounceComputed => {
+                // Impossible, because "self.block" must be already prepared then
+                unreachable!("Impossible, receive prepared block in WaitingAnnounceComputed state");
+            }
+        }
+    }
+
+    fn process_computed_announce(mut self, announce_hash: AnnounceHash) -> Result<ValidatorState> {
+        let announce = self.ctx.db.announce(announce_hash).ok_or(anyhow!(
+            "Computed announce {announce_hash} is not found in storage"
+        ))?;
+        if !matches!(&self.state, State::WaitingAnnounceComputed if self.block.hash == announce.block_hash)
         {
-            self.warning(format!("unexpected computed block {computed_block}"));
+            self.warning(format!(
+                "announce block hash {} is not expected, expected {}",
+                announce.block_hash, self.block.hash
+            ));
 
             return Ok(self.into());
         }
@@ -89,13 +124,15 @@ impl StateHandler for Producer {
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
-        match &mut self.state {
-            State::CollectCodes { timer } => {
-                if timer.poll_unpin(cx).is_ready() {
-                    self.create_producer_block()?
-                }
+        if let State::CollectCodes { timer } = &mut self.state
+            && timer.poll_unpin(cx).is_ready()
+        {
+            // Timer is ready, we can create announce
+            if self.block_prepared {
+                self.create_announce()?;
+            } else {
+                self.state = State::WaitingBlockPrepared;
             }
-            State::WaitingBlockComputed => {}
         }
 
         Ok(self.into())
@@ -123,6 +160,7 @@ impl Producer {
             block,
             validators,
             state: State::CollectCodes { timer },
+            block_prepared: false,
         }
         .into())
     }
@@ -164,9 +202,18 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<ChainCommitment>> {
+        let head_announce = ctx
+            .db
+            .block_meta(block_hash)
+            .announces
+            .ok_or_else(|| anyhow!("No announces found for {block_hash}"))?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("No announces found for {block_hash} in block meta storage"))?;
+
         let Some((commitment, deepness)) = utils::aggregate_chain_commitment(
             &ctx.db,
-            block_hash,
+            head_announce,
             false,
             Some(MAX_CHAIN_DEEPNESS),
         )?
@@ -186,10 +233,10 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Vec<CodeCommitment>> {
-        let queue = ctx
-            .db
-            .block_codes_queue(block_hash)
-            .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
+        let queue =
+            ctx.db.block_meta(block_hash).codes_queue.ok_or_else(|| {
+                anyhow!("Computed block {block_hash} codes queue is not in storage")
+            })?;
 
         utils::aggregate_code_commitments(&ctx.db, queue, false)
     }
@@ -210,10 +257,22 @@ impl Producer {
         Ok(None)
     }
 
-    fn create_producer_block(&mut self) -> Result<()> {
-        let parent_announce = todo!();
+    fn create_announce(&mut self) -> Result<()> {
+        if !self.ctx.db.block_meta(self.block.hash).prepared {
+            unreachable!("Impossible, block must be prepared before creating producer block");
+        }
 
-        let pb = ProducerBlock {
+        let parent_announce = self
+            .ctx
+            .db
+            .block_meta(self.block.hash)
+            .announces
+            .ok_or_else(|| anyhow!("No announces found for block"))?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("No announces found for block in block meta storage"))?;
+
+        let pb = Announce {
             block_hash: self.block.hash,
             parent: parent_announce,
             // TODO #4638: set gas allowance here
@@ -224,9 +283,9 @@ impl Producer {
 
         let signed_pb = self.ctx.signer.signed_data(self.ctx.pub_key, pb.clone())?;
 
-        self.state = State::WaitingBlockComputed;
-        self.output(ConsensusEvent::PublishProducerBlock(signed_pb));
-        self.output(ConsensusEvent::ComputeProducerBlock(pb));
+        self.state = State::WaitingAnnounceComputed;
+        self.output(ConsensusEvent::PublishAnnounce(signed_pb));
+        self.output(ConsensusEvent::ComputeAnnounce(pb));
 
         Ok(())
     }
@@ -236,7 +295,7 @@ impl Producer {
 mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
-    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
+    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::BlockMetaStorageWrite};
     use nonempty::{NonEmpty, nonempty};
 
     #[tokio::test]
@@ -265,7 +324,8 @@ mod tests {
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
+        let announce_hash = ctx.db.announce_hash(block.hash);
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -273,7 +333,7 @@ mod tests {
             .0;
 
         // No commitments - no batch and goes to initial state
-        let initial = producer.process_computed_block(block.hash).unwrap();
+        let initial = producer.process_computed_announce(announce_hash).unwrap();
         assert!(initial.is_initial());
         assert_eq!(initial.context().output.len(), 0);
         with_batch(|batch| assert!(batch.is_none()));
@@ -284,14 +344,15 @@ mod tests {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let batch = prepared_mock_batch_commitment(&ctx.db);
-        let block = simple_block_data(&ctx.db, batch.block_hash);
+        let block = ctx.db.simple_block_data(batch.block_hash);
+        let announce_hash = ctx.db.announce_hash(block.hash);
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
-            .process_computed_block(block.hash)
+            .process_computed_announce(announce_hash)
             .unwrap();
         assert!(submitter.is_submitter());
         assert_eq!(submitter.context().output.len(), 0);
@@ -326,7 +387,7 @@ mod tests {
             .await
             .unwrap()
             .0
-            .process_computed_block(block.hash)
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_event()
             .await
@@ -342,22 +403,24 @@ mod tests {
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
+        let announce_hash = ctx.db.announce_hash(block.hash);
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
-        ctx.db
-            .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
+        ctx.db.mutate_block_meta(block.hash, |meta| {
+            meta.codes_queue = Some([code1.id, code2.id].into_iter().collect())
+        });
         ctx.db.mutate_block_meta(block.hash, |meta| {
             meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_head = Some(H256::random());
+            meta.last_committed_announce = Some(AnnounceHash::random());
         });
 
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
-            .process_computed_block(block.hash)
+            .process_computed_announce(announce_hash)
             .unwrap();
 
         let initial = submitter.wait_for_event().await.unwrap().0;
@@ -378,19 +441,16 @@ mod tests {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert!(producer.is_producer());
 
+        let producer = producer.process_prepared_block(block.hash)?;
+        assert!(producer.is_producer());
+
         let (producer, publish_event) = producer.wait_for_event().await?;
         assert!(producer.is_producer());
-        assert!(matches!(
-            publish_event,
-            ConsensusEvent::PublishProducerBlock(_)
-        ));
+        assert!(matches!(publish_event, ConsensusEvent::PublishAnnounce(_)));
 
         let (producer, compute_event) = producer.wait_for_event().await?;
         assert!(producer.is_producer());
-        assert!(matches!(
-            compute_event,
-            ConsensusEvent::ComputeProducerBlock(_)
-        ));
+        assert!(matches!(compute_event, ConsensusEvent::ComputeAnnounce(_)));
 
         Ok((producer, publish_event, compute_event))
     }

@@ -19,7 +19,7 @@
 //! Program's execution service for eGPU.
 
 use ethexe_common::{
-    AnnounceHash, CodeAndIdUnchecked, ProducerBlock, ProgramStates, Schedule,
+    Announce, AnnounceHash, CodeAndIdUnchecked, ProgramStates, Schedule,
     db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
@@ -183,10 +183,7 @@ impl Processor {
         Ok(valid)
     }
 
-    pub fn process_base_announce(
-        &mut self,
-        announce: ProducerBlock,
-    ) -> Result<BlockProcessingResult> {
+    pub fn process_base_announce(&mut self, announce: Announce) -> Result<BlockProcessingResult> {
         assert!(announce.is_base(), "Base announce expected");
 
         let block_hash = announce.block_hash;
@@ -225,7 +222,7 @@ impl Processor {
 
     pub async fn process_announce(
         &mut self,
-        announce: ProducerBlock,
+        announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
         // log::debug!("Processing events for {block_hash:?}: {events:#?}");

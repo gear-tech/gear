@@ -21,11 +21,11 @@
 //! Simple "connect-node" consensus service implementation.
 
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest,
 };
 use anyhow::Result;
-use ethexe_common::SimpleBlockData;
+use ethexe_common::{AnnounceHash, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
@@ -38,7 +38,7 @@ use std::{
 /// in order to keep the program states in local database actual.
 #[derive(Debug, Default)]
 pub struct SimpleConnectService {
-    chain_head: Option<SimpleBlockData>,
+    // chain_head: Option<SimpleBlockData>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -54,41 +54,23 @@ impl ConsensusService for SimpleConnectService {
         "Connect".to_string()
     }
 
-    fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
-        self.chain_head = Some(block);
-
+    fn receive_new_chain_head(&mut self, _block: SimpleBlockData) -> Result<()> {
         Ok(())
     }
 
-    fn receive_synced_block(&mut self, block: H256) -> Result<()> {
-        let Some(block_data) = self.chain_head.as_ref() else {
-            self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {block}, but no chain-head was received yet",
-            )));
-
-            return Ok(());
-        };
-
-        if block_data.hash != block {
-            self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {block} is different from the expected block hash {}",
-                block_data.hash
-            )));
-
-            return Ok(());
-        }
-
-        self.output
-            .push_back(ConsensusEvent::ComputeBlock(block_data.hash));
-
+    fn receive_synced_block(&mut self, _block: H256) -> Result<()> {
         Ok(())
     }
 
-    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
+    fn receive_prepared_block(&mut self, _block: H256) -> Result<()> {
         Ok(())
     }
 
-    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce: AnnounceHash) -> Result<()> {
+        Ok(())
+    }
+
+    fn receive_announce(&mut self, _block_hash: SignedAnnounce) -> Result<()> {
         Ok(())
     }
 

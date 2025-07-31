@@ -21,7 +21,7 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProducerBlock, ProgramStates, Schedule,
+    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
     events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
@@ -109,7 +109,7 @@ pub struct AnnounceMeta {
 }
 
 pub trait AnnounceStorageRead {
-    fn announce(&self, hash: AnnounceHash) -> Option<ProducerBlock>;
+    fn announce(&self, hash: AnnounceHash) -> Option<Announce>;
     fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates>;
     fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>>;
     fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule>;
@@ -117,7 +117,7 @@ pub trait AnnounceStorageRead {
 }
 
 pub trait AnnounceStorageWrite {
-    fn set_announce(&self, announce: ProducerBlock);
+    fn set_announce(&self, announce: Announce) -> AnnounceHash;
     fn set_announce_program_states(
         &self,
         announce_hash: AnnounceHash,

@@ -40,11 +40,11 @@ mod mock;
 
 use anyhow::Result;
 pub use connect::SimpleConnectService;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{AnnounceHash, Announce, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 pub use utils::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
     SignedValidationRequest,
 };
 pub use validator::{ValidatorConfig, ValidatorService};
@@ -61,11 +61,14 @@ pub trait ConsensusService:
     /// Process a synced block info
     fn receive_synced_block(&mut self, block: H256) -> Result<()>;
 
+    /// Process a prepared block received
+    fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
+
     /// Process a computed block received
-    fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
+    fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()>;
 
     /// Process a received producer block
-    fn receive_block_from_producer(&mut self, block: SignedProducerBlock) -> Result<()>;
+    fn receive_announce(&mut self, block: SignedAnnounce) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: SignedValidationRequest) -> Result<()>;
@@ -76,13 +79,10 @@ pub trait ConsensusService:
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub enum ConsensusEvent {
-    /// Outer service have to compute block
-    #[from(skip)]
-    ComputeBlock(H256),
-    /// Outer service have to compute producer block
-    ComputeProducerBlock(ProducerBlock),
-    /// Outer service have to publish signed producer block
-    PublishProducerBlock(SignedProducerBlock),
+    /// Outer service have to compute announce
+    ComputeAnnounce(Announce),
+    /// Outer service have to publish signed announce
+    PublishAnnounce(SignedAnnounce),
     /// Outer service have to publish signed validation request
     PublishValidationRequest(SignedValidationRequest),
     /// Outer service have to publish signed validation reply

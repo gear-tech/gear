@@ -25,8 +25,7 @@ use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
 use ethexe_common::{
-    BlockHeader,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
+    AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, LatestDataStorage, OnChainStorageWrite,
 };
 use ethexe_db::Database;
 use gprimitives::{H160, H256};
@@ -55,7 +54,7 @@ impl BlocksManager {
     pub(crate) fn add_block(&self) -> (H256, BlockHeader) {
         let block_hash = H256::random();
 
-        match self.db.latest_computed_block() {
+        match self.db.latest_data().computed_announce_hash {
             Some((parent_hash, parent_header)) => {
                 let header = BlockHeader {
                     height: parent_header.height + 1,

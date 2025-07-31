@@ -23,7 +23,7 @@ use crate::{
     },
     export::PeerId,
 };
-use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite};
+use ethexe_common::db::{AnnounceStorageRead, CodesStorageWrite};
 use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};
@@ -70,7 +70,7 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
-                db.block_program_states(request.at)
+                db.announce_program_states(request.at)
                     .map(|states| states.into_keys().collect())
                     .unwrap_or_default(), // FIXME: Option might be more suitable
             )

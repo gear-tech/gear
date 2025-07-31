@@ -41,7 +41,7 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest,
     utils::MultisignedBatchCommitment,
     validator::{
@@ -52,7 +52,7 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
@@ -181,12 +181,16 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_synced_block(block))
     }
 
-    fn receive_computed_block(&mut self, computed_block: H256) -> Result<()> {
-        self.update_inner(|inner| inner.process_computed_block(computed_block))
+    fn receive_prepared_block(&mut self, block: H256) -> Result<()> {
+        self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_block_from_producer(&mut self, signed: SignedProducerBlock) -> Result<()> {
-        self.update_inner(|inner| inner.process_block_from_producer(signed))
+    fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()> {
+        self.update_inner(|inner| inner.process_computed_announce(announce))
+    }
+
+    fn receive_announce(&mut self, signed: SignedAnnounce) -> Result<()> {
+        self.update_inner(|inner| inner.process_announce(signed))
     }
 
     fn receive_validation_request(&mut self, signed: SignedValidationRequest) -> Result<()> {
@@ -227,7 +231,7 @@ impl FusedStream for ValidatorService {
 #[derive(Clone, Debug, From, PartialEq, Eq)]
 enum PendingEvent {
     /// A block from the producer
-    ProducerBlock(SignedProducerBlock),
+    Announce(SignedAnnounce),
     /// A validation request
     ValidationRequest(SignedValidationRequest),
 }
@@ -256,15 +260,19 @@ where
         DefaultProcessing::new_head(self.into(), block)
     }
 
-    fn process_synced_block(self, data: H256) -> Result<ValidatorState> {
-        DefaultProcessing::synced_block(self.into(), data)
+    fn process_synced_block(self, block: H256) -> Result<ValidatorState> {
+        DefaultProcessing::synced_block(self.into(), block)
     }
 
-    fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
-        DefaultProcessing::computed_block(self.into(), computed_block)
+    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
+        DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_block_from_producer(self, block: SignedProducerBlock) -> Result<ValidatorState> {
+    fn process_computed_announce(self, announce: AnnounceHash) -> Result<ValidatorState> {
+        DefaultProcessing::computed_announce(self.into(), announce)
+    }
+
+    fn process_announce(self, block: SignedAnnounce) -> Result<ValidatorState> {
         DefaultProcessing::block_from_producer(self, block)
     }
 
@@ -340,12 +348,16 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_synced_block(block))
     }
 
-    fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
-        delegate_call!(self => process_computed_block(computed_block))
+    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
+        delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_block_from_producer(self, block: SignedProducerBlock) -> Result<ValidatorState> {
-        delegate_call!(self => process_block_from_producer(block))
+    fn process_computed_announce(self, announce: AnnounceHash) -> Result<ValidatorState> {
+        delegate_call!(self => process_computed_announce(announce))
+    }
+
+    fn process_announce(self, block: SignedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_announce(block))
     }
 
     fn process_validation_request(
@@ -380,24 +392,30 @@ impl DefaultProcessing {
         Ok(s)
     }
 
-    fn computed_block(
+    fn prepared_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.warning(format!("unexpected processed block: {block}"));
+        Ok(s)
+    }
+
+    fn computed_announce(
         s: impl Into<ValidatorState>,
-        computed_block: H256,
+        announce_hash: AnnounceHash,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
-        s.warning(format!("unexpected computed block: {computed_block}"));
+        s.warning(format!("unexpected computed block: {announce_hash}"));
         Ok(s)
     }
 
     fn block_from_producer(
         s: impl Into<ValidatorState>,
-        block: SignedProducerBlock,
+        signed_announce: SignedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected block from producer: {block:?}, saved for later."
+            "unexpected block from producer: {signed_announce:?}, saved for later."
         ));
-        s.context_mut().pending(block);
+        s.context_mut().pending(signed_announce);
         Ok(s)
     }
 

@@ -18,7 +18,7 @@
 
 use crate::{Processor, ProcessorError, Result};
 use ethexe_common::{
-    ProducerBlock,
+    Announce,
     db::{AnnounceStorageRead, CodesStorageWrite, OnChainStorageRead},
 };
 use ethexe_db::Database;
@@ -31,7 +31,7 @@ pub(crate) mod events;
 pub(crate) mod run;
 
 pub struct ProcessingHandler {
-    pub announce: ProducerBlock,
+    pub announce: Announce,
     pub db: Database,
     pub transitions: InBlockTransitions,
 }
@@ -54,7 +54,7 @@ impl ProcessingHandler {
 }
 
 impl Processor {
-    pub fn handler(&self, announce: ProducerBlock) -> Result<ProcessingHandler> {
+    pub fn handler(&self, announce: Announce) -> Result<ProcessingHandler> {
         let corresponding_block_header = self
             .db
             .block_header(announce.block_hash)

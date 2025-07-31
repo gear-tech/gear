@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Digest, ToDigest, events::BlockEvent};
+use crate::{ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -35,6 +35,9 @@ pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
     Default,
     PartialEq,
     Eq,
+    PartialOrd,
+    Ord,
+    Hash,
     Encode,
     Decode,
     derive_more::Deref,
@@ -47,6 +50,11 @@ pub struct AnnounceHash(pub H256);
 impl AnnounceHash {
     pub fn zero() -> Self {
         Self(H256::zero())
+    }
+
+    #[cfg(feature = "std")]
+    pub fn random() -> Self {
+        Self(H256::random())
     }
 }
 
@@ -94,14 +102,14 @@ pub struct SimpleBlockData {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-pub struct ProducerBlock {
+pub struct Announce {
     pub block_hash: H256,
     pub parent: AnnounceHash,
     pub gas_allowance: Option<u64>,
     pub off_chain_transactions: Vec<H256>,
 }
 
-impl ProducerBlock {
+impl Announce {
     pub fn hash(&self) -> AnnounceHash {
         AnnounceHash(H256(utils::hash(&self.encode())))
     }
@@ -120,7 +128,7 @@ impl ProducerBlock {
     }
 }
 
-impl ToDigest for ProducerBlock {
+impl ToDigest for Announce {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.block_hash);
         hasher.update(self.gas_allowance.encode());

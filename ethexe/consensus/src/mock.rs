@@ -18,8 +18,9 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
-    Address, AnnounceHash, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest,
-    db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
+    Address, Announce, AnnounceHash, AnnounceMeta, AnnounceStorageWrite, BlockHeader, BlockMeta,
+    BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageWrite, Digest, OnChainStorageRead,
+    OnChainStorageWrite, SimpleBlockData, ToDigest,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
 };
@@ -68,13 +69,13 @@ impl Mock for SimpleBlockData {
     }
 }
 
-impl Mock for ProducerBlock {
-    type Args = H256;
+impl Mock for Announce {
+    type Args = (H256, AnnounceHash);
 
-    fn mock(block_hash: H256) -> Self {
-        ProducerBlock {
+    fn mock((block_hash, parent): (H256, AnnounceHash)) -> Self {
+        Announce {
             block_hash,
-            parent: AnnounceHash(H256::random()),
+            parent,
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         }
@@ -118,12 +119,12 @@ impl Mock for CodeCommitment {
 }
 
 impl Mock for ChainCommitment {
-    type Args = H256;
+    type Args = AnnounceHash;
 
-    fn mock(head: Self::Args) -> Self {
+    fn mock(head_announce: Self::Args) -> Self {
         ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
-            head,
+            head_announce,
         }
     }
 }
@@ -136,7 +137,7 @@ impl Mock for BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
             previous_batch: Digest::random(),
-            chain_commitment: Some(ChainCommitment::mock(H256::random())),
+            chain_commitment: Some(ChainCommitment::mock(AnnounceHash::random())),
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,
             rewards_commitment: None,
@@ -174,17 +175,33 @@ pub trait Prepare {
 }
 
 impl Prepare for SimpleBlockData {
-    type Args = H256;
+    type Args = AnnounceHash;
 
-    fn prepare(self, db: &Database, last_committed_head: H256) -> Self {
+    fn prepare(self, db: &Database, last_committed_announce: AnnounceHash) -> Self {
         db.set_block_header(self.hash, self.header.clone());
-        db.mutate_block_meta(self.hash, |meta| {
-            meta.computed = true;
-            meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_head = Some(last_committed_head);
+
+        let parent_announce = db
+            .block_meta(self.header.parent_hash)
+            .announces
+            .map(|a| a[0])
+            .unwrap_or(last_committed_announce);
+        let announce = Announce::mock((self.hash, parent_announce));
+        let announce_hash = db.set_announce(announce);
+        db.set_announce_outcome(announce_hash, Default::default());
+        db.mutate_announce_meta(announce_hash, |meta| {
+            *meta = AnnounceMeta { computed: true }
         });
-        db.set_block_outcome(self.hash, Default::default());
-        db.set_block_codes_queue(self.hash, Default::default());
+
+        db.mutate_block_meta(self.hash, |meta| {
+            *meta = BlockMeta {
+                prepared: true,
+                announces: Some(vec![announce_hash]),
+                codes_queue: Some(Default::default()),
+                last_committed_batch: None,
+                last_committed_announce: Some(AnnounceHash::from(last_committed_announce)),
+            }
+        });
+
         self
     }
 }
@@ -202,7 +219,10 @@ impl Prepare for ChainCommitment {
     type Args = ();
 
     fn prepare(self, db: &Database, _args: ()) -> Self {
-        let Self { transitions, head } = &self;
+        let Self {
+            transitions,
+            head_announce: head,
+        } = &self;
         db.set_announce_outcome(*head, transitions.clone());
         self
     }
@@ -211,27 +231,28 @@ impl Prepare for ChainCommitment {
 pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
     // [block3] <- [block2] <- [block1] <- [block0]
 
-    let block3 = H256::random();
-    db.mutate_block_meta(block3, |meta| meta.computed = true);
+    let block3 = SimpleBlockData::mock(H256::zero()).prepare(db, AnnounceHash::random());
+    let block3_announce_hash = db.block_meta(block3.hash).announces.map(|a| a[0]).unwrap();
 
-    let block2 = SimpleBlockData::mock(block3).prepare(db, block3);
-    let block1 = SimpleBlockData::mock(block2.hash).prepare(db, block3);
-    let block0 = SimpleBlockData::mock(block1.hash).prepare(db, block3);
+    let block2 = SimpleBlockData::mock(block3.hash).prepare(db, block3_announce_hash);
+    let block1 = SimpleBlockData::mock(block2.hash).prepare(db, block3_announce_hash);
+    let block0 = SimpleBlockData::mock(block1.hash).prepare(db, block3_announce_hash);
 
     let last_committed_batch = Digest::random();
     db.mutate_block_meta(block0.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
     });
 
-    let cc1 = ChainCommitment::mock(block1.hash).prepare(db, ());
-    let cc2 = ChainCommitment::mock(block2.hash).prepare(db, ());
+    let cc1 =
+        ChainCommitment::mock(db.block_meta(block1.hash).announces.unwrap()[0]).prepare(db, ());
+    let cc2 =
+        ChainCommitment::mock(db.block_meta(block2.hash).announces.unwrap()[0]).prepare(db, ());
 
     let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
     let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
-    db.set_block_codes_queue(
-        block0.hash,
-        From::from([code_commitment1.id, code_commitment2.id]),
-    );
+    db.mutate_block_meta(block0.hash, |m| {
+        m.codes_queue = Some(From::from([code_commitment1.id, code_commitment2.id]))
+    });
 
     BatchCommitment {
         block_hash: block0.hash,
@@ -239,7 +260,7 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
         previous_batch: last_committed_batch,
         chain_commitment: Some(ChainCommitment {
             transitions: [cc2.transitions, cc1.transitions].concat(),
-            head: block0.hash,
+            head_announce: db.block_meta(block0.hash).announces.unwrap()[0],
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,
@@ -247,10 +268,26 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
     }
 }
 
-pub fn simple_block_data(db: &Database, block: H256) -> SimpleBlockData {
-    let header = db.block_header(block).expect("block header not found");
-    SimpleBlockData {
-        hash: block,
-        header,
+pub trait DBExt {
+    fn simple_block_data(&self, block: H256) -> SimpleBlockData;
+    fn announce_hash(&self, block: H256) -> AnnounceHash;
+}
+
+impl DBExt for Database {
+    fn simple_block_data(&self, block: H256) -> SimpleBlockData {
+        let header = self.block_header(block).expect("block header not found");
+        SimpleBlockData {
+            hash: block,
+            header,
+        }
+    }
+
+    fn announce_hash(&self, block: H256) -> AnnounceHash {
+        self.block_meta(block)
+            .announces
+            .expect("block announces not found")
+            .into_iter()
+            .next()
+            .expect("must be at list one announce")
     }
 }

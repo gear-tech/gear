@@ -89,7 +89,7 @@ async fn process_observer_event() {
     assert!(valid);
 
     // Block1 base announce
-    let block1_announce = ProducerBlock::base(block1, AnnounceHash::zero());
+    let block1_announce = Announce::base(block1, AnnounceHash::zero());
     let block1_announce_hash = block1_announce.hash();
 
     // Process and save results
@@ -131,7 +131,7 @@ async fn process_observer_event() {
     ];
 
     // block2 base announce
-    let block2_announce = ProducerBlock::base(block2, block1_announce_hash);
+    let block2_announce = Announce::base(block2, block1_announce_hash);
     let block2_announce_hash = block2_announce.hash();
 
     // Process block2 announce and save results
@@ -162,7 +162,7 @@ async fn process_observer_event() {
     );
 
     // block3 base announce
-    let block3_announce = ProducerBlock::base(block3, block2_announce_hash);
+    let block3_announce = Announce::base(block3, block2_announce_hash);
 
     // Process block3 announce
     processor
@@ -273,7 +273,7 @@ async fn ping_pong() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = ProducerBlock::base(block, AnnounceHash::zero());
+    let block_announce = Announce::base(block, AnnounceHash::zero());
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -354,7 +354,7 @@ async fn async_and_ping() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = ProducerBlock::base(block, AnnounceHash::zero());
+    let block_announce = Announce::base(block, AnnounceHash::zero());
 
     let ping_id = ActorId::from(0x10000000);
     let async_id = ActorId::from(0x20000000);
@@ -495,7 +495,7 @@ async fn many_waits() {
 
     let genesis = init_genesis_block(&mut processor);
     let block1 = init_new_block_from_parent(&mut processor, genesis);
-    let block1_announce = ProducerBlock::base(block1, AnnounceHash::zero());
+    let block1_announce = Announce::base(block1, AnnounceHash::zero());
     let block1_announce_hash = block1_announce.hash();
 
     let code_id = processor
@@ -582,7 +582,7 @@ async fn many_waits() {
     let mut block_announce_hash = block1_announce_hash;
     for _ in 0..9 {
         block = init_new_block_from_parent(&mut processor, block);
-        let block_announce = ProducerBlock::base(block, block_announce_hash);
+        let block_announce = Announce::base(block, block_announce_hash);
         let parent_announce_hash = block_announce_hash;
         block_announce_hash = block_announce.hash();
 
@@ -603,7 +603,7 @@ async fn many_waits() {
     }
 
     let block12 = init_new_block_from_parent(&mut processor, block);
-    let block12_announce = ProducerBlock::base(block12, block_announce_hash);
+    let block12_announce = Announce::base(block12, block_announce_hash);
 
     let states = processor
         .db
