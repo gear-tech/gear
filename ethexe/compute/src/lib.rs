@@ -204,6 +204,7 @@ impl ChainHeadProcessContext {
         let outcomes: Vec<_> = block_outcomes
             .into_iter()
             .map(|outcome| {
+                // todo [sab] not needed, because the `process_block_events_raw` already returns the outcomes
                 if let LocalOutcome::Transition(transition) = outcome {
                     transition
                 } else {

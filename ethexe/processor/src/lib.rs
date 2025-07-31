@@ -109,7 +109,7 @@ impl Processor {
         Ok(valid)
     }
 
-    /// High level wrapper for `process_block_events_raw`.
+    /// High level wrapper for `process_block_events_raw`, converting state transitions into block outcomes.
     pub fn process_block_events(
         &mut self,
         block_hash: H256,
@@ -124,7 +124,6 @@ impl Processor {
         Ok(outcomes)
     }
 
-    /// todo [sab]
     pub fn process_block_events_raw(
         &mut self,
         block_hash: H256,
@@ -208,20 +207,21 @@ impl OverlaidProcessor {
             },
         )?;
 
-        self.process_queue(&mut handler, program_id);
+        run::run_overlaid(self, &mut handler.transitions, program_id);
 
         // Getting message to users now, because later transitions are moved.
         let current_messages = handler.transitions.current_messages();
 
-        // Setiing program states and schedule for the block is not necessary,
-        // but important for testing.
-        let (_, states, schedule) = handler.transitions.finalize();
-        self.0.db.set_block_program_states(block_hash, states);
-        self.0.db.set_block_schedule(block_hash, schedule);
+        // Setting program states and schedule for the block is not necessary, but important for testing.
+        {
+            let (_, states, schedule) = handler.transitions.finalize();
+            self.0.db.set_block_program_states(block_hash, states);
+            self.0.db.set_block_schedule(block_hash, schedule);
+        }
 
         let res = current_messages
             .into_iter()
-            .find_map(|(_source, message)| {
+            .find_map(|(_, message)| {
                 message.reply_details.and_then(|details| {
                     (details.to_message_id() == MessageId::zero()).then(|| ReplyInfo {
                         payload: message.payload,
@@ -233,11 +233,5 @@ impl OverlaidProcessor {
             .ok_or_else(|| anyhow!("reply wasn't found"))?;
 
         Ok(res)
-    }
-
-    fn process_queue(&mut self, handler: &mut ProcessingHandler, program_id: ActorId) {
-        self.0.creator.set_chain_head(handler.block_hash);
-
-        run::run_overlaid(self, &mut handler.transitions, program_id);
     }
 }
