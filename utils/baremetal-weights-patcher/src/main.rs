@@ -1,10 +1,8 @@
 use clap::Parser;
-use std::fs;
-use std::ops::Range;
-use std::path::PathBuf;
-use syn::spanned::Spanned;
-use syn::visit::Visit;
-use syn::{Expr, ExprCall, ExprMethodCall, File, ImplItem, ItemImpl, Stmt};
+use std::{fs, ops::Range, path::PathBuf};
+use syn::{
+    Expr, ExprCall, ExprMethodCall, File, ImplItem, ItemImpl, Stmt, spanned::Spanned, visit::Visit,
+};
 
 // Adjust specific weights by 10 percent
 const WEIGHT_SLOPE_MULTI: (usize, usize) = (110, 100);
