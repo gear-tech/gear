@@ -97,7 +97,7 @@ impl ProcessExecutionContext {
 }
 
 /// System reservation context.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct SystemReservationContext {
     /// Reservation created in current execution.
     pub current_reservation: Option<u64>,

@@ -37,7 +37,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities,
+    BackendExternalities, DummyStorer,
     env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -127,36 +127,38 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
+    let mut memory_dumper = Ext::memory_dumper();
+
     // Execute program in backend env.
     let execute = || {
         let env = Environment::new(
             ext,
             program.instrumented_code.bytes(),
-            kind,
             program.code_metadata.exports().clone(),
             memory_size,
+            |ctx, memory, globals_config| {
+                Ext::lazy_pages_init_for_program(
+                    ctx,
+                    memory,
+                    program.id,
+                    program.memory_infix,
+                    program.code_metadata.stack_end(),
+                    globals_config,
+                    settings.lazy_pages_costs,
+                )
+            },
         )?;
-        env.execute(|ctx, memory, globals_config| {
-            Ext::lazy_pages_init_for_program(
-                ctx,
-                memory,
-                program.id,
-                program.memory_infix,
-                program.code_metadata.stack_end(),
-                globals_config,
-                settings.lazy_pages_costs,
-            )
-        })
+        env.execute(kind, Some(&mut memory_dumper))
     };
 
     let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
+        Ok(execution_result) => {
             let BackendReport {
                 termination_reason,
                 mut store,
                 mut memory,
                 ext,
-            } = report;
+            } = execution_result.report();
 
             let mut termination = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
@@ -331,31 +333,31 @@ where
         let env = Environment::new(
             ext,
             program.instrumented_code.bytes(),
-            function,
             program.code_metadata.exports().clone(),
             memory_size,
+            |ctx, memory, globals_config| {
+                Ext::lazy_pages_init_for_program(
+                    ctx,
+                    memory,
+                    program_id,
+                    program.memory_infix,
+                    program.code_metadata.stack_end(),
+                    globals_config,
+                    Default::default(),
+                )
+            },
         )?;
-        env.execute(|ctx, memory, globals_config| {
-            Ext::lazy_pages_init_for_program(
-                ctx,
-                memory,
-                program_id,
-                program.memory_infix,
-                program.code_metadata.stack_end(),
-                globals_config,
-                Default::default(),
-            )
-        })
+        env.execute(function, None::<&mut DummyStorer>)
     };
 
     let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
+        Ok(execution_result) => {
             let BackendReport {
                 termination_reason,
                 store,
                 memory,
                 ext,
-            } = report;
+            } = execution_result.report();
 
             let termination_reason = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
