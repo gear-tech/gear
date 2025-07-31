@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PreChargeGasOperation"],"struct":["ContextCharged","ForAllocations","ForCodeMetadata","ForInstrumentedCode","ForModuleInstantiation","ForNothing","ForOriginalCode","ForProgram"],"type":["PrechargeResult"]};

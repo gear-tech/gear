@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["EnvironmentError","ExecutedEnvironment","SystemEnvironmentError"],"struct":["BackendReport","Environment","FailedExecution","ReadyToExecute","SuccessExecution"],"type":["SetupMemoryResult"]};
