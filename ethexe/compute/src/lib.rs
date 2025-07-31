@@ -80,8 +80,10 @@ pub enum ComputeError {
     },
     #[error("validator set not found for block({0})")]
     ValidatorSetNotFound(H256),
-    #[error("Meta for announce {0:?} not found in db")]
+    #[error("Announce {0:?} not found in db")]
     AnnounceNotFound(AnnounceHash),
+    #[error("Announces for block {0:?} not found in db")]
+    AnnouncesNotFound(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

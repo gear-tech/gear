@@ -115,7 +115,7 @@ pub enum ProcessorError {
 
 pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
     pub states: ProgramStates,

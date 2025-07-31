@@ -18,12 +18,13 @@
 
 use crate::{ComputeError, ProcessorExt, Result};
 use ethexe_common::{
-    Announce,
+    Announce, BlockMetaStorageRead, BlockMetaStorageWrite,
     db::{AnnounceStorageRead, AnnounceStorageWrite, OnChainStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum ComputationStatus {
     Rejected,
     Computed,
@@ -35,6 +36,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
     announce: Announce,
 ) -> Result<ComputationStatus> {
     let announce_hash = announce.hash();
+    let block_hash = announce.block_hash;
 
     if db.announce_meta(announce_hash).computed {
         log::warn!("{announce:?} is already computed");
@@ -43,20 +45,24 @@ pub(crate) async fn compute<P: ProcessorExt>(
 
     if !db.announce_meta(announce.parent).computed {
         log::warn!(
-            "{announce:?} is from unknown branch: parent {} not found",
+            "{announce:?} is from unknown branch: parent {} not computed",
             announce.parent
         );
         return Ok(ComputationStatus::Rejected);
     }
 
+    if !db.block_meta(block_hash).prepared {
+        return Err(ComputeError::BlockNotPrepared(block_hash));
+    }
+
     debug_assert!(
         !announce.is_base(),
-        "At this point announce cannot be base, else it must be already computed"
+        "Announce cannot be base, else it must be already computed in prepare"
     );
 
     let events = db
-        .block_events(announce.block_hash)
-        .ok_or(ComputeError::BlockEventsNotFound(announce.block_hash))?;
+        .block_events(block_hash)
+        .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
 
     let block_request_events = events
         .into_iter()
@@ -73,187 +79,119 @@ pub(crate) async fn compute<P: ProcessorExt>(
         schedule,
     } = processing_result;
 
+    // replace previous announce from corresponding block
+    let old_announce = db
+        .block_meta(block_hash)
+        .announces
+        .ok_or_else(|| ComputeError::AnnouncesNotFound(block_hash))?
+        .pop()
+        .expect("TODO: temporary panic - number of announces in prepared block must be always 1");
+
+    // TODO +_+_+: bug here - announce marked as not computed before block meta is updated,
+    // this should be fixed by using database transactions, which are not yet implemented
+    db.mutate_announce_meta(old_announce, |meta| meta.computed = false);
+
     db.set_announce(announce);
     db.set_announce_outcome(announce_hash, transitions);
     db.set_announce_program_states(announce_hash, states);
     db.set_announce_schedule(announce_hash, schedule);
+
+    // TODO +_+_+: bug here - announce marked as computed before block meta is updated,
+    // this should be fixed by using database transactions, which are not yet implemented
     db.mutate_announce_meta(announce_hash, |meta| {
         meta.computed = true;
+    });
+
+    db.mutate_block_meta(block_hash, |meta| {
+        meta.announces = Some(vec![announce_hash]);
     });
 
     Ok(ComputationStatus::Computed)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::tests::MockProcessor;
-//     use ethexe_common::{
-//         BlockHeader,
-//         db::{BlockMetaStorageWrite, OnChainStorageWrite},
-//     };
-//     use ethexe_db::Database as DB;
-//     use gprimitives::H256;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::{MockProcessor, PROCESSOR_RESULT};
+    use ethexe_common::{
+        AnnounceHash, BlockHeader, BlockMeta, SimpleBlockData,
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
+        gear::StateTransition,
+    };
+    use ethexe_db::Database as DB;
+    use gprimitives::{ActorId, H256};
+    use nonempty::NonEmpty;
 
-//     /// Test compute function with chain of 3 blocks
-//     #[tokio::test]
-//     async fn test_compute() {
-//         let db = DB::memory();
-//         let processor = MockProcessor;
+    #[tokio::test]
+    async fn test_compute() {
+        let db = DB::memory();
 
-//         // Create a chain: genesis -> block1 -> block2 -> head
-//         let genesis_hash = H256::from([0; 32]);
-//         let block1_hash = H256::from([1; 32]);
-//         let block2_hash = H256::from([2; 32]);
-//         let head_hash = H256::from([3; 32]);
+        let genesis_hash = H256::from([0; 32]);
+        let block_hash = H256::from([1; 32]);
 
-//         // Setup genesis block as computed
-//         db.mutate_block_meta(genesis_hash, |meta| meta.computed = true);
-//         db.set_block_outcome(genesis_hash, vec![]);
-//         let genesis_header = BlockHeader {
-//             height: 0,
-//             parent_hash: H256::zero(),
-//             timestamp: 1000,
-//         };
-//         db.set_block_header(genesis_hash, genesis_header);
+        ethexe_common::set_genesis_in_db(
+            &db,
+            SimpleBlockData {
+                hash: genesis_hash,
+                header: BlockHeader {
+                    height: 0,
+                    timestamp: 1000,
+                    parent_hash: H256::random(),
+                },
+            },
+            NonEmpty::from_vec(vec![Default::default()]).unwrap(),
+        );
 
-//         // Setup block1 as synced but not computed
-//         db.mutate_block_meta(block1_hash, |meta| meta.synced = true);
-//         let block1_header = BlockHeader {
-//             height: 1,
-//             parent_hash: genesis_hash,
-//             timestamp: 2000,
-//         };
-//         db.set_block_header(block1_hash, block1_header);
-//         db.set_block_events(block1_hash, &[]);
+        // Setup block as prepared
+        db.mutate_block_meta(block_hash, |meta| {
+            *meta = BlockMeta {
+                announces: Some(vec![AnnounceHash::random()]),
+                ..BlockMeta::default_prepared()
+            }
+        });
+        db.set_block_events(block_hash, &[]);
 
-//         // Setup block2 as synced but not computed
-//         db.mutate_block_meta(block2_hash, |meta| meta.synced = true);
-//         let block2_header = BlockHeader {
-//             height: 2,
-//             parent_hash: block1_hash,
-//             timestamp: 3000,
-//         };
-//         db.set_block_header(block2_hash, block2_header);
-//         db.set_block_events(block2_hash, &[]);
+        let announce = Announce {
+            block_hash: block_hash,
+            parent: AnnounceHash::zero(),
+            gas_allowance: Some(100),
+            off_chain_transactions: vec![],
+        };
+        let announce_hash = announce.hash();
 
-//         // Setup head as synced but not computed
-//         db.mutate_block_meta(head_hash, |meta| meta.synced = true);
-//         let head_header = BlockHeader {
-//             height: 3,
-//             parent_hash: block2_hash,
-//             timestamp: 4000,
-//         };
-//         db.set_block_header(head_hash, head_header);
-//         db.set_block_events(head_hash, &[]);
+        // Create non-empty processor result with transitions
+        let non_empty_result = BlockProcessingResult {
+            transitions: vec![StateTransition {
+                actor_id: ActorId::from([1; 32]),
+                new_state_hash: H256::from([2; 32]),
+                value_to_receive: 100,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
 
-//         let result = compute(db.clone(), processor, head_hash).await.unwrap();
+        // Set the PROCESSOR_RESULT to return non-empty result
+        PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
+        let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
+        assert_eq!(status, ComputationStatus::Computed);
 
-//         assert_eq!(result.block_hash, head_hash);
+        // Verify block was marked as computed
+        assert!(db.announce_meta(announce_hash).computed);
 
-//         // Verify all blocks were computed
-//         assert!(db.block_meta(block1_hash).computed);
-//         assert!(db.block_meta(block2_hash).computed);
-//         assert!(db.block_meta(head_hash).computed);
-//     }
+        // Verify transitions were stored in DB
+        let stored_transitions = db.announce_outcome(announce_hash).unwrap();
+        assert_eq!(stored_transitions.len(), 1);
+        assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
+        assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
-//     /// Test compute_one_block function
-//     #[tokio::test]
-//     async fn test_compute_one_block() {
-//         let db = DB::memory();
-//         let mut processor = MockProcessor;
-//         let block_hash = H256::from([2; 32]);
-//         let parent_hash = H256::from([1; 32]);
-
-//         // Setup parent block as computed
-//         db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-//         db.set_block_outcome(parent_hash, vec![]);
-
-//         // Setup block data
-//         let header = BlockHeader {
-//             height: 2,
-//             parent_hash,
-//             timestamp: 2000,
-//         };
-
-//         let block_data = SimpleBlockData {
-//             hash: block_hash,
-//             header,
-//         };
-
-//         // Setup block events
-//         db.set_block_events(block_hash, &[]);
-
-//         let result = compute_one_block(&db, &mut processor, block_data).await;
-
-//         assert!(result.is_ok());
-
-//         // Verify block was marked as computed
-//         let meta = db.block_meta(block_hash);
-//         assert!(meta.computed);
-//     }
-
-//     /// Test compute_one_block function with non-empty processor result
-//     #[tokio::test]
-//     async fn test_compute_one_block_with_non_empty_result() {
-//         use crate::tests::PROCESSOR_RESULT;
-//         use ethexe_common::gear::StateTransition;
-//         use gprimitives::ActorId;
-//         use std::collections::BTreeMap;
-
-//         let db = DB::memory();
-//         let mut processor = MockProcessor;
-//         let block_hash = H256::from([2; 32]);
-//         let parent_hash = H256::from([1; 32]);
-
-//         // Setup parent block as computed
-//         db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-//         db.set_block_outcome(parent_hash, vec![]);
-
-//         // Setup block data
-//         let header = BlockHeader {
-//             height: 2,
-//             parent_hash,
-//             timestamp: 2000,
-//         };
-
-//         let block_data = SimpleBlockData {
-//             hash: block_hash,
-//             header,
-//         };
-
-//         // Setup block events
-//         db.set_block_events(block_hash, &[]);
-
-//         // Create non-empty processor result with transitions
-//         let non_empty_result = BlockProcessingResult {
-//             transitions: vec![StateTransition {
-//                 actor_id: ActorId::from([1; 32]),
-//                 new_state_hash: H256::from([2; 32]),
-//                 exited: false,
-//                 inheritor: ActorId::zero(),
-//                 value_to_receive: 100,
-//                 value_claims: vec![],
-//                 messages: vec![],
-//             }],
-//             states: BTreeMap::new(),
-//             schedule: BTreeMap::new(),
-//         };
-
-//         // Set the PROCESSOR_RESULT to return non-empty result
-//         PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
-//         let result = compute_one_block(&db, &mut processor, block_data).await;
-
-//         assert!(result.is_ok());
-
-//         // Verify block was marked as computed
-//         let meta = db.block_meta(block_hash);
-//         assert!(meta.computed);
-
-//         // Verify transitions were stored in DB
-//         let stored_transitions = db.block_outcome(block_hash).unwrap();
-//         assert_eq!(stored_transitions.len(), 1);
-//         assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
-//         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
-//     }
-// }
+        // Try with unknown parent
+        let announce = Announce {
+            block_hash: block_hash,
+            parent: AnnounceHash::random(),
+            gas_allowance: Some(100),
+            off_chain_transactions: vec![],
+        };
+        let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
+        assert_eq!(status, ComputationStatus::Rejected);
+    }
+}

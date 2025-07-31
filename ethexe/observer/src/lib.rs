@@ -27,9 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, AnnounceStorageWrite, BlockData, BlockHeader, BlockMeta,
-    BlockMetaStorageRead, BlockMetaStorageWrite, Digest, LatestDataStorage, OnChainStorageRead,
-    OnChainStorageWrite, SimpleBlockData,
+    Address, BlockData, BlockHeader, BlockMetaStorageRead, OnChainStorageRead, SimpleBlockData,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -266,33 +264,14 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
-        db.set_block_header(genesis_block_hash, genesis_header.clone());
-        db.set_block_events(genesis_block_hash, &[]);
-        db.set_block_synced(genesis_block_hash);
-
-        // Genesis block is the only one block where announce is committed in the same block.
-        let genesis_announce_hash = AnnounceHash::default();
-        db.mutate_block_meta(genesis_block_hash, |meta| {
-            *meta = BlockMeta {
-                prepared: true,
-                announces: Some(vec![genesis_announce_hash]),
-                codes_queue: Some(Default::default()),
-                last_committed_batch: Some(Digest([0; 32])),
-                last_committed_announce: Some(genesis_announce_hash),
-            }
-        });
-        db.set_validators(genesis_block_hash, genesis_validators);
-
-        db.set_announce_outcome(genesis_announce_hash, vec![]);
-        db.set_announce_program_states(genesis_announce_hash, Default::default());
-        db.set_announce_schedule(genesis_announce_hash, Default::default());
-        db.mutate_announce_meta(genesis_announce_hash, |meta| meta.computed = true);
-
-        db.mutate_latest_data(|data| {
-            data.computed_announce_hash = Some(Default::default());
-            data.prepared_block_hash = Some(genesis_block_hash);
-            data.synced_block_height = Some(genesis_header.height);
-        });
+        ethexe_common::set_genesis_in_db(
+            db,
+            SimpleBlockData {
+                hash: genesis_block_hash,
+                header: genesis_header.clone(),
+            },
+            genesis_validators,
+        );
 
         Ok(genesis_header)
     }
