@@ -30,7 +30,7 @@ pub(crate) mod run;
 /// A high-level interface for executing ops,
 /// which mutate states based on the current block request events.
 ///
-/// This is based a wrapper which hols data needed to instantiate [`TransitionController`],
+/// This is based a wrapper which holds data needed to instantiate [`TransitionController`],
 /// which itself performs recording actual state transitions.
 pub struct ProcessingHandler {
     pub block_hash: H256,
