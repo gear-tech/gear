@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["DbWeights","InstantiationWeights","InstructionWeights","InstrumentationWeights","Limits","MemoryWeights","RentWeights","Schedule","SyscallWeights","TaskWeights"]};
