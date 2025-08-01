@@ -28,6 +28,15 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, H256};
 
+/// In-memory store for the state transitions
+/// that are going to be applied in the current block.
+///
+/// The type is instantiated with states taken from the parent
+/// block, as parent block stores latest states to be possibly
+/// updated in the current block.
+///
+/// The type actually stores latest state transitions, which are going to be
+/// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
@@ -55,7 +64,7 @@ impl InBlockTransitions {
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
-        self.states.get(actor_id).cloned()
+        self.states.get(actor_id).copied()
     }
 
     pub fn states_amount(&self) -> usize {
@@ -67,7 +76,7 @@ impl InBlockTransitions {
     }
 
     pub fn known_programs(&self) -> Vec<ActorId> {
-        self.states.keys().cloned().collect()
+        self.states.keys().copied().collect()
     }
 
     pub fn current_messages(&self) -> Vec<(ActorId, Message)> {
