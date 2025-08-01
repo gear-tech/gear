@@ -237,6 +237,7 @@ impl Processor {
                 chunk_processing_threads: self.config().chunk_processing_threads,
                 block_gas_limit: self.config().block_gas_limit,
             },
+            None,
         )
         .await;
     }
@@ -288,7 +289,17 @@ impl OverlaidProcessor {
             },
         )?;
 
-        run::run_overlaid().await;
+        run::run_overlaid(
+            self.0.db.clone(),
+            self.0.creator.clone(),
+            &mut handler.transitions,
+            RunnerConfig {
+                chunk_processing_threads: self.0.config().chunk_processing_threads,
+                block_gas_limit: self.0.config().block_gas_limit,
+            },
+            program_id,
+        )
+        .await;
 
         // run::run_overlaid(self, &mut handler.transitions, program_id);
 
