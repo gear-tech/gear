@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a>    ids::{<a href="../../../gear_core/ids/struct.ActorId.html">ActorId</a>, <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, <a href="../ids.rs.html#47-158">prelude</a>::<span class="kw-2">*</span>},
 <a href=#21 id=21 data-nosnippet>21</a>    message::{<a href="common.rs.html#279-284">Dispatch</a>, <a href="mod.rs.html#63-73">DispatchKind</a>, <a href="common.rs.html#34-49">Message</a>, <a href="common.rs.html#248-253">SignalDetails</a>},
 <a href=#22 id=22 data-nosnippet>22</a>};
-<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span><a href="../../../gear_core_errors/simple/enum.SignalCode.html">gear_core_errors::SignalCode</a>;
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>gear_core_errors::SignalCode;
 <a href=#24 id=24 data-nosnippet>24</a>
 <a href=#25 id=25 data-nosnippet>25</a><span class="doccomment">/// Message for signal entry point.
 <a href=#26 id=26 data-nosnippet>26</a></span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,12 +28,12 @@
 <a href=#28 id=28 data-nosnippet>28</a>    <span class="doccomment">/// Message id.
 <a href=#29 id=29 data-nosnippet>29</a>    </span>id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>,
 <a href=#30 id=30 data-nosnippet>30</a>    <span class="doccomment">/// Reply status code.
-<a href=#31 id=31 data-nosnippet>31</a>    </span>code: <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>,
+<a href=#31 id=31 data-nosnippet>31</a>    </span>code: SignalCode,
 <a href=#32 id=32 data-nosnippet>32</a>}
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">impl </span><a href="#27-32">SignalMessage</a> {
 <a href=#35 id=35 data-nosnippet>35</a>    <span class="doccomment">/// Creates a new [`SignalMessage`].
-<a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub fn </span>new(origin_msg_id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, code: <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a>) -&gt; <span class="self">Self </span>{
+<a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub fn </span>new(origin_msg_id: <a href="../../../gear_core/ids/struct.MessageId.html">MessageId</a>, code: SignalCode) -&gt; <span class="self">Self </span>{
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="kw">let </span>id = <a href="../ids.rs.html#103">MessageId::generate_signal</a>(<a href="#36">origin_msg_id</a>);
 <a href=#38 id=38 data-nosnippet>38</a>
 <a href=#39 id=39 data-nosnippet>39</a>        <span class="self">Self </span>{ <a href="#37">id</a>, <a href="#36">code</a> }
@@ -66,7 +66,7 @@
 <a href=#66 id=66 data-nosnippet>66</a>    }
 <a href=#67 id=67 data-nosnippet>67</a>
 <a href=#68 id=68 data-nosnippet>68</a>    <span class="doccomment">/// Status code of the reply message.
-<a href=#69 id=69 data-nosnippet>69</a>    </span><span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a href="../../../gear_core_errors/simple/enum.SignalCode.html">SignalCode</a> {
+<a href=#69 id=69 data-nosnippet>69</a>    </span><span class="kw">pub fn </span>code(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SignalCode {
 <a href=#70 id=70 data-nosnippet>70</a>        <a class="self" href="#69">self</a>.code
 <a href=#71 id=71 data-nosnippet>71</a>    }
 <a href=#72 id=72 data-nosnippet>72</a>}</code></pre></div></section></main></body></html>
