@@ -29,16 +29,16 @@ use crate::Config;
 use common::Origin;
 use frame_support::traits::Get;
 use gear_core::{
-    ids::{prelude::*, CodeId},
+    ids::{CodeId, prelude::*},
     pages::{WasmPage, WasmPagesAmount},
 };
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
     SandboxEnvironmentBuilder, SandboxMemory,
+    default_executor::{EnvironmentDefinitionBuilder, Memory, Store},
 };
 use gear_wasm_instrument::{
-    syscalls::SyscallName, BlockType, Data, Element, Export, FuncType, Function, Global, Import,
-    Instruction, ModuleBuilder, Table, ValType, STACK_END_EXPORT_NAME,
+    BlockType, Data, Element, Export, FuncType, Function, Global, Import, Instruction,
+    ModuleBuilder, STACK_END_EXPORT_NAME, Table, ValType, syscalls::SyscallName,
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, prelude::*};
 
@@ -283,8 +283,8 @@ where
 
         // Add dummy type section
         if let Some(types) = def.types {
-            for _ in 0..types.num_elements {
-                program.push_type(FuncType::new([ValType::I64; 6], [ValType::I64; 1]));
+            for proto in generate_uniq_prototypes(types.num_elements as usize).into_iter() {
+                program.push_type(proto);
             }
         }
 
@@ -374,11 +374,11 @@ where
             }
 
             // Add residual bytes to the last data segment
-            if residual_bytes != 0 {
-                if let Some(last) = module.data_segments.last_mut() {
-                    last.value
-                        .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
-                }
+            if residual_bytes != 0
+                && let Some(last) = module.data_segments.last_mut()
+            {
+                last.value
+                    .resize(data_segment_size as usize + residual_bytes as usize, 0xA5)
             }
         }
 
@@ -430,9 +430,9 @@ where
             ..Default::default()
         };
 
-        // Dummy type section takes 10 bytes.
+        // Dummy type takes on average 10.5 bytes.
         module.types = Some(TypeSegment {
-            num_elements: target_bytes / 10,
+            num_elements: target_bytes * 2 / 21,
         });
 
         module.into()
@@ -508,7 +508,7 @@ where
 /// Mechanisms to generate a function body that can be used inside a `ModuleDefinition`.
 pub mod body {
     use super::*;
-    use gear_core::pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage};
+    use gear_core::pages::{GearPage, WasmPage, numerated::iterators::IntervalIterator};
     use gear_wasm_instrument::{BlockType, MemArg};
 
     /// When generating program code by repeating a wasm sequence, it's sometimes necessary
@@ -783,4 +783,54 @@ impl BitWidth {
             BitWidth::X86 => body::DynInstr::RandomI32Repeated(count),
         }
     }
+}
+
+// Generate `number` unique WASM function prototypes
+fn generate_uniq_prototypes(number: usize) -> Vec<FuncType> {
+    // NOTE: types `F32`, `F64`, `V128` are not supported and only used for
+    // dummy type section generation.
+    const ALPHABET: [ValType; 5] = [
+        ValType::I32,
+        ValType::I64,
+        ValType::F32,
+        ValType::F64,
+        ValType::V128,
+    ];
+
+    let mut out = Vec::with_capacity(number);
+    if number == 0 {
+        return out;
+    }
+
+    let k = ALPHABET.len();
+    let mut params_len: usize = 0;
+
+    'fill: loop {
+        let patterns = k.pow(params_len as u32);
+
+        for idx in 0..patterns {
+            let params = index_to_types(params_len, idx, &ALPHABET, k);
+            out.push(FuncType::new(params, [ValType::I64; 1]));
+
+            if out.len() == number {
+                break 'fill;
+            }
+        }
+
+        params_len += 1;
+    }
+
+    out
+}
+
+// Map an index in base-`k` to a sequence of `len` ValTypes.
+// Least-significant “digit” becomes the first element.
+fn index_to_types(len: usize, mut idx: usize, alphabet: &[ValType], k: usize) -> Vec<ValType> {
+    let mut v = Vec::with_capacity(len);
+    for _ in 0..len {
+        let d = idx % k;
+        v.push(alphabet[d]);
+        idx /= k;
+    }
+    v
 }

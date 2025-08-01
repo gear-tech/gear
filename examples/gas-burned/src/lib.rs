@@ -13,7 +13,7 @@ mod wasm;
 
 #[cfg(test)]
 mod tests {
-    use gtest::{constants::DEFAULT_USER_ALICE, Gas, Program, System};
+    use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
 
     #[test]
     fn gas_burned() {
@@ -31,7 +31,7 @@ mod tests {
             .copied()
             .expect("internal error: init message isn't sent");
         log::debug!("Init gas burned: {init_gas_burned}");
-        assert!(init_gas_burned > Gas::zero());
+        assert!(init_gas_burned > 0);
 
         let handle_msg_id = program.send_bytes(from, "handle");
         let res = system.run_next_block();

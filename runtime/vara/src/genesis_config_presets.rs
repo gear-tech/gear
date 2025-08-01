@@ -17,14 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{UNITS as TOKEN, *};
+use crate::{GearBank, GearBuiltin};
 use pallet_balances::GenesisConfig;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::{Forcing, StakerStatus};
 use runtime_primitives::AccountPublic;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_core::{sr25519, Pair, Public};
-use sp_genesis_builder::{PresetId, DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET};
+use sp_core::{Pair, Public, sr25519};
+use sp_genesis_builder::{DEV_RUNTIME_PRESET, LOCAL_TESTNET_RUNTIME_PRESET, PresetId};
 use sp_runtime::{format, traits::IdentifyAccount};
 
 /// Configure initial storage state for FRAME modules.
@@ -39,10 +40,9 @@ pub fn testnet_genesis(
     )>,
     root_key: AccountId,
     endowed_accounts: Vec<AccountId>,
-    bank_account: AccountId,
     _enable_println: bool,
 ) -> RuntimeGenesisConfig {
-    const ENDOWMENT: u128 = 1_000_000 * TOKEN;
+    const ENDOWMENT: u128 = 1_000_000_000 * TOKEN;
     const STASH: u128 = 100 * TOKEN;
     const MIN_NOMINATOR_BOND: u128 = 50 * TOKEN;
 
@@ -56,7 +56,15 @@ pub fn testnet_genesis(
         .chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
         .collect::<Vec<_>>();
 
-    balances.push((bank_account, EXISTENTIAL_DEPOSIT));
+    // Bank account.
+    balances.push((GearBank::bank_address(), EXISTENTIAL_DEPOSIT));
+
+    // Builtin accounts.
+    balances.extend(
+        GearBuiltin::list_builtins()
+            .into_iter()
+            .map(|v| (v, EXISTENTIAL_DEPOSIT)),
+    );
 
     RuntimeGenesisConfig {
         balances: GenesisConfig { balances },
@@ -118,6 +126,9 @@ pub fn testnet_genesis(
         sudo: SudoConfig {
             // Assign network admin rights.
             key: Some(root_key),
+        },
+        gear_bank: GearBankConfig {
+            _config: Default::default(),
         },
         ..Default::default()
     }
@@ -185,7 +196,6 @@ pub fn development_genesis() -> RuntimeGenesisConfig {
             get_account_id_from_seed::<sr25519::Public>("Alice"),
             get_account_id_from_seed::<sr25519::Public>("Bob"),
         ],
-        BANK_ADDRESS.into(),
         true,
     )
 }
@@ -208,7 +218,6 @@ pub fn local_testnet_genesis() -> RuntimeGenesisConfig {
             get_account_id_from_seed::<sr25519::Public>("Eve"),
             get_account_id_from_seed::<sr25519::Public>("Ferdie"),
         ],
-        BANK_ADDRESS.into(),
         true,
     )
 }

@@ -17,29 +17,33 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{utils::uint256_to_u256, Gear::CodeState, IRouter},
-    wvara::WVara,
     AlloyEthereum, AlloyProvider, TryGetReceipt,
+    abi::{IRouter, utils::uint256_to_u256},
+    wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    primitives::{fixed_bytes, Address, Bytes, B256, U256},
+    eips::BlockId,
+    primitives::{Address, B256, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{eth::state::AccountOverride, Filter},
+    rpc::types::{Filter, eth::state::AccountOverride},
 };
-use anyhow::{anyhow, Result};
-use ethexe_common::gear::{AggregatedPublicKey, BatchCommitment, SignatureType};
-use ethexe_signer::{Address as LocalAddress, Signature as LocalSignature};
+use anyhow::{Result, anyhow};
+use ethexe_common::{
+    Address as LocalAddress, Digest,
+    ecdsa::ContractSignature,
+    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
+};
 use events::signatures;
 use futures::StreamExt;
-use gear_core::ids::{prelude::CodeIdExt as _, ProgramId};
+use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::HashMap;
 
 pub mod events;
 
-type Instance = IRouter::IRouterInstance<(), AlloyProvider>;
-type QueryInstance = IRouter::IRouterInstance<(), RootProvider>;
+type Instance = IRouter::IRouterInstance<AlloyProvider>;
+type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
@@ -140,9 +144,11 @@ impl Router {
     }
 
     pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
-        let builder = self
-            .instance
-            .createProgram(code_id.into_bytes().into(), salt.to_fixed_bytes().into());
+        let builder = self.instance.createProgram(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            Address::ZERO,
+        );
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
@@ -166,14 +172,14 @@ impl Router {
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
-        signatures: Vec<LocalSignature>,
+        signatures: Vec<ContractSignature>,
     ) -> Result<H256> {
         let builder = self.instance.commitBatch(
             commitment.into(),
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
-                .map(|signature| Bytes::copy_from_slice(signature.as_ref()))
+                .map(|signature| Bytes::from(signature.into_pre_eip155_bytes()))
                 .collect(),
         );
 
@@ -233,16 +239,16 @@ impl RouterQuery {
             .genesisBlockHash()
             .call()
             .await
-            .map(|res| H256(*res._0))
+            .map(|res| H256(*res))
             .map_err(Into::into)
     }
 
-    pub async fn latest_committed_block_hash(&self) -> Result<H256> {
+    pub async fn latest_committed_batch_hash(&self) -> Result<Digest> {
         self.instance
-            .latestCommittedBlockHash()
+            .latestCommittedBatchHash()
             .call()
             .await
-            .map(|res| H256(*res._0))
+            .map(|res| Digest(res.0))
             .map_err(Into::into)
     }
 
@@ -251,17 +257,12 @@ impl RouterQuery {
             .mirrorImpl()
             .call()
             .await
-            .map(|res| LocalAddress(res._0.into()))
+            .map(|res| LocalAddress(res.into()))
             .map_err(Into::into)
     }
 
     pub async fn wvara_address(&self) -> Result<Address> {
-        self.instance
-            .wrappedVara()
-            .call()
-            .await
-            .map(|res| res._0)
-            .map_err(Into::into)
+        self.instance.wrappedVara().call().await.map_err(Into::into)
     }
 
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
@@ -270,8 +271,8 @@ impl RouterQuery {
             .call()
             .await
             .map(|res| AggregatedPublicKey {
-                x: uint256_to_u256(res._0.x),
-                y: uint256_to_u256(res._0.y),
+                x: uint256_to_u256(res.x),
+                y: uint256_to_u256(res.y),
             })
             .map_err(Into::into)
     }
@@ -281,7 +282,7 @@ impl RouterQuery {
             .validatorsVerifiableSecretSharingCommitment()
             .call()
             .await
-            .map(|res| res._0.into())
+            .map(|res| res.into())
             .map_err(Into::into)
     }
 
@@ -290,7 +291,7 @@ impl RouterQuery {
             .validators()
             .call()
             .await
-            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)
     }
 
@@ -300,7 +301,7 @@ impl RouterQuery {
             .call()
             .block(B256::from(block.0).into())
             .await
-            .map(|res| res._0.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)
     }
 
@@ -309,7 +310,7 @@ impl RouterQuery {
             .validatorsThreshold()
             .call()
             .await
-            .map(|res| res._0.to())
+            .map(|res| res.to())
             .map_err(Into::into)
     }
 
@@ -318,20 +319,14 @@ impl RouterQuery {
             .signingThresholdPercentage()
             .call()
             .await
-            .map(|res| res._0)
             .map_err(Into::into)
     }
 
-    pub async fn code_state(&self, code_id: CodeId) -> Result<CodeState> {
-        self.instance
-            .codeState(code_id.into_bytes().into())
-            .call()
-            .await
-            .map(|res| CodeState::from(res._0))
-            .map_err(Into::into)
-    }
-
-    pub async fn codes_states(&self, code_ids: Vec<CodeId>) -> Result<Vec<CodeState>> {
+    pub async fn codes_states_at(
+        &self,
+        code_ids: impl IntoIterator<Item = CodeId>,
+        block: H256,
+    ) -> Result<Vec<CodeState>> {
         self.instance
             .codesStates(
                 code_ids
@@ -340,20 +335,25 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
-            .map(|res| res._0.into_iter().map(CodeState::from).collect())
+            .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
 
-    pub async fn program_code_id(&self, program_id: ProgramId) -> Result<Option<CodeId>> {
+    pub async fn program_code_id(&self, program_id: ActorId) -> Result<Option<CodeId>> {
         let program_id = LocalAddress::try_from(program_id).expect("infallible");
         let program_id = Address::new(program_id.0);
         let code_id = self.instance.programCodeId(program_id).call().await?;
-        let code_id = Some(CodeId::new(code_id._0.0)).filter(|&code_id| code_id != CodeId::zero());
+        let code_id = Some(CodeId::new(code_id.0)).filter(|&code_id| code_id != CodeId::zero());
         Ok(code_id)
     }
 
-    pub async fn programs_code_ids(&self, program_ids: Vec<ProgramId>) -> Result<Vec<CodeId>> {
+    pub async fn programs_code_ids_at(
+        &self,
+        program_ids: impl IntoIterator<Item = ActorId>,
+        block: H256,
+    ) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
                 program_ids
@@ -365,18 +365,103 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
+            .block(BlockId::hash(block.0.into()))
             .await
-            .map(|res| res._0.into_iter().map(|c| CodeId::new(c.0)).collect())
+            .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
     }
 
-    pub async fn programs_count(&self) -> Result<U256> {
-        let count = self.instance.programsCount().call().await?;
-        Ok(count._0)
+    pub async fn timelines(&self) -> Result<Timelines> {
+        self.instance
+            .timelines()
+            .call()
+            .await
+            .map(|res| res.into())
+            .map_err(Into::into)
     }
 
-    pub async fn validated_codes_count(&self) -> Result<U256> {
-        let count = self.instance.validatedCodesCount().call().await?;
-        Ok(count._0)
+    pub async fn programs_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .programsCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count.try_into().expect("infallible");
+        Ok(count)
+    }
+
+    pub async fn validated_codes_count_at(&self, block: H256) -> Result<u64> {
+        let count = self
+            .instance
+            .validatedCodesCount()
+            .call()
+            .block(BlockId::hash(block.0.into()))
+            .await?;
+        // it's impossible to ever reach 18 quintillion programs (maximum of u64)
+        let count: u64 = count.try_into().expect("infallible");
+        Ok(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Ethereum;
+    use alloy::node_bindings::Anvil;
+    use ethexe_signer::Signer;
+    use roast_secp256k1_evm::frost;
+
+    #[tokio::test]
+    async fn inexistent_code_is_unknown() {
+        let anvil = Anvil::new().spawn();
+
+        let (shares, _pubkey_package) = frost::keys::generate_with_dealer(
+            5,
+            3,
+            frost::keys::IdentifierList::Default,
+            rand::thread_rng(),
+        )
+        .unwrap();
+        let first_share = shares.values().next().unwrap();
+
+        let signer = Signer::memory();
+        let alice = signer
+            .storage_mut()
+            .add_key(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let ethereum = Ethereum::deploy(
+            anvil.endpoint_url().as_str(),
+            vec![],
+            signer,
+            alice.to_address(),
+            first_share.commitment().clone(),
+        )
+        .await
+        .unwrap();
+
+        let router =
+            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+
+        let latest_block = router
+            .instance
+            .provider()
+            .get_block(BlockId::latest())
+            .await
+            .expect("failed to get latest block")
+            .expect("latest block is None");
+        let latest_block = H256(latest_block.header.hash.0);
+
+        let states = router
+            .codes_states_at([CodeId::new([0xfe; 32])], latest_block)
+            .await
+            .unwrap();
+        assert_eq!(states, vec![CodeState::Unknown]);
     }
 }

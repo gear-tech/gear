@@ -18,9 +18,10 @@
 
 use super::utils;
 use crate::params::Params;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
-use ethexe_signer::{Signature, Signer, ToDigest as _};
+use ethexe_common::{ToDigest as _, ecdsa::Signature};
+use ethexe_signer::Signer;
 use std::path::PathBuf;
 
 /// Keystore manipulations.
@@ -50,13 +51,14 @@ impl KeyCommand {
     pub fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::new(key_store).with_context(|| "failed to create signer")?;
+        let signer = Signer::fs(key_store);
 
         match self.command {
             KeySubcommand::Clear => {
-                let len = signer.list_keys()?.len();
+                let len = signer.storage().list_keys()?.len();
 
                 signer
+                    .storage_mut()
                     .clear_keys()
                     .with_context(|| "failed to clear keys")?;
 
@@ -77,6 +79,7 @@ impl KeyCommand {
                     .with_context(|| "invalid `private-key`")?;
 
                 let public = signer
+                    .storage_mut()
                     .add_key(private)
                     .with_context(|| "failed to add key")?;
 
@@ -84,7 +87,10 @@ impl KeyCommand {
                 println!("Ethereum address: {}", public.to_address());
             }
             KeySubcommand::List => {
-                let publics = signer.list_keys().with_context(|| "failed to list keys")?;
+                let publics = signer
+                    .storage()
+                    .list_keys()
+                    .with_context(|| "failed to list keys")?;
 
                 println!("[ No | {:^66} | {:^42} ]", "Public key", "Ethereum address");
 
@@ -103,10 +109,11 @@ impl KeyCommand {
                     .map_err(|_| anyhow!("signature isn't 65 bytes len"))
                     .with_context(|| "invalid `signature`")?;
 
-                let signature = unsafe { Signature::from_bytes(signature_bytes) };
+                let signature = Signature::from_pre_eip155_bytes(signature_bytes)
+                    .ok_or_else(|| anyhow!("invalid signature"))?;
 
                 let public = signature
-                    .recover_from_digest(message.to_digest())
+                    .recover(message.to_digest())
                     .with_context(|| "failed to recover signature from digest")?;
 
                 println!("Signed by: {public}");
@@ -124,18 +131,22 @@ impl KeyCommand {
                         .with_context(|| "invalid `key`")?;
 
                     signer
+                        .storage()
                         .get_key_by_addr(address_bytes.into())?
                         .ok_or_else(|| anyhow!("Unrecognized eth address"))
                         .with_context(|| "invalid `key`")?
                 } else {
-                    bail!("Invalid key length: should be 33 bytes public key or 20 bytes eth address ");
+                    bail!(
+                        "Invalid key length: should be 33 bytes public key or 20 bytes eth address "
+                    );
                 };
 
                 let private = signer
+                    .storage()
                     .get_private_key(public)
                     .with_context(|| "failed to get private key")?;
 
-                println!("Secret key: {}", hex::encode(private.0));
+                println!("Secret key: {private}");
                 println!("Public key: {public}");
                 println!("Ethereum address: {}", public.to_address());
             }
@@ -146,7 +157,7 @@ impl KeyCommand {
                     utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
 
                 let signature = signer
-                    .sign(public, &message)
+                    .sign(public, message)
                     .with_context(|| "failed to sign message")?;
 
                 println!("Signature: {signature}");

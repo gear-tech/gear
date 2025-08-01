@@ -21,14 +21,14 @@ use gear_utils::codegen::LICENSE;
 use heck::ToSnakeCase as _;
 use parity_scale_codec::Decode;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use std::{
     collections::BTreeMap,
     env, fs,
     io::{self, Write},
 };
 use subxt_codegen::{CodegenBuilder, Metadata};
-use syn::{parse_quote, Fields, ItemEnum, ItemImpl, ItemMod, Variant};
+use syn::{Fields, ItemEnum, ItemImpl, ItemMod, Variant, parse_quote};
 
 const RUNTIME_WASM: &str = "RUNTIME_WASM";
 const PRINT_SCALE: &str = "PRINT_SCALE";
@@ -193,7 +193,7 @@ fn generate_calls(metadata: &Metadata) -> ItemMod {
             })
             .collect::<Vec<Variant>>();
 
-        let doc = format!("Calls of pallet `{}`.", pallet);
+        let doc = format!("Calls of pallet `{pallet}`.");
         ie.push(parse_quote! {
             #[doc = #doc]
             pub enum #pallet_ident {
@@ -270,7 +270,7 @@ fn generate_storage(metadata: &Metadata) -> ItemMod {
             })
             .collect::<Vec<Variant>>();
 
-        let doc = format!("Storage of pallet `{}`.", pallet);
+        let doc = format!("Storage of pallet `{pallet}`.");
         ie.push(parse_quote! {
             #[doc = #doc]
             pub enum #pallet_ident {

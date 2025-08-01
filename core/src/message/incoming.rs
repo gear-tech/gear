@@ -17,29 +17,28 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
     message::{
-        common::MessageDetails, ContextStore, DispatchKind, GasLimit, Payload, StoredDispatch,
-        StoredMessage, Value,
+        ContextStore, DispatchKind, GasLimit, StoredDispatch, StoredMessage, Value,
+        common::MessageDetails,
     },
 };
+use alloc::sync::Arc;
 use core::ops::Deref;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Incoming message.
 ///
 /// Used for program execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct IncomingMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message payload.
-    payload: Payload,
+    payload: Arc<Payload>,
     /// Message gas limit. Required here.
     gas_limit: GasLimit,
     /// Message value.
@@ -52,7 +51,7 @@ impl IncomingMessage {
     /// Create new IncomingMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
+        source: ActorId,
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
@@ -61,23 +60,33 @@ impl IncomingMessage {
         Self {
             id,
             source,
-            payload,
             gas_limit,
             value,
             details,
+            payload: Arc::new(payload),
         }
     }
 
     /// Convert IncomingMessage into gasless StoredMessage.
-    pub fn into_stored(self, destination: ProgramId) -> StoredMessage {
+    pub fn into_stored(self, destination: ActorId) -> StoredMessage {
         StoredMessage::new(
             self.id,
             self.source,
             destination,
-            self.payload,
+            Arc::try_unwrap(self.payload).unwrap_or_else(|payload| {
+                log::error!(
+                    "IncomingMessage payload has multiple references, this is unexpected behavior"
+                );
+                Arc::unwrap_or_clone(payload)
+            }),
             self.value,
             self.details,
         )
+    }
+
+    /// Message payload.
+    pub fn payload(&self) -> Arc<Payload> {
+        self.payload.clone()
     }
 
     /// Message id.
@@ -86,18 +95,8 @@ impl IncomingMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
-    }
-
-    /// Message payload bytes.
-    pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
-    }
-
-    /// Mutable reference to message payload.
-    pub fn payload_mut(&mut self) -> &mut Payload {
-        &mut self.payload
     }
 
     /// Message gas limit.
@@ -127,7 +126,8 @@ impl IncomingMessage {
 }
 
 /// Incoming message with entry point and previous execution context, if exists.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(any(feature = "mock", test), derive(Default))]
 pub struct IncomingDispatch {
     /// Entry point.
     kind: DispatchKind,
@@ -158,7 +158,7 @@ impl IncomingDispatch {
     }
 
     /// Convert IncomingDispatch into gasless StoredDispatch with updated (or recently set) context.
-    pub fn into_stored(self, destination: ProgramId, context: ContextStore) -> StoredDispatch {
+    pub fn into_stored(self, destination: ActorId, context: ContextStore) -> StoredDispatch {
         StoredDispatch::new(
             self.kind,
             self.message.into_stored(destination),

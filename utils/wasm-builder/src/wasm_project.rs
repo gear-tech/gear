@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
-use anyhow::{anyhow, Context, Ok, Result};
+use anyhow::{Context, Ok, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
@@ -279,7 +279,7 @@ impl WasmProject {
             let mut optimizer = Optimizer::new(&original_copy_wasm_path)?;
             optimizer
                 .insert_stack_end_export()
-                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {}", err));
+                .unwrap_or_else(|err| log::info!("Cannot insert stack end export: {err}"));
             optimizer.strip_custom_sections();
             optimizer.strip_exports();
             optimizer.flush_to_file(&opt_wasm_path);
@@ -293,7 +293,7 @@ impl WasmProject {
                     );
                 })
                 .unwrap_or_else(|err| {
-                    println!("cargo:warning=wasm-opt optimizations error: {}", err);
+                    println!("cargo:warning=wasm-opt optimizations error: {err}");
                 });
         }
 

@@ -81,7 +81,7 @@ pub struct CallsAmount(u32);
 
 impl CostOf<CallsAmount> {
     /// Calculate (saturating add) cost for `per_byte` amount of `BytesAmount` (saturating mul).
-    pub fn cost_for_with_bytes(&self, per_byte: CostOf<BytesAmount>, amount: BytesAmount) -> u64 {
+    pub fn with_bytes(&self, per_byte: CostOf<BytesAmount>, amount: BytesAmount) -> u64 {
         self.cost_for_one()
             .saturating_add(per_byte.cost_for(amount))
     }
@@ -331,7 +331,7 @@ pub enum CostToken {
     /// Cost of calling `gr_message_id`.
     MsgId,
     /// Cost of calling `gr_program_id`.
-    ProgramId,
+    ActorId,
     /// Cost of calling `gr_source`.
     Source,
     /// Cost of calling `gr_value`.
@@ -430,7 +430,7 @@ impl SyscallCosts {
         macro_rules! cost_with_per_byte {
             ($name:ident, $len:expr) => {
                 paste! {
-                    self.$name.cost_for_with_bytes(self.[< $name _per_byte >], $len)
+                    self.$name.with_bytes(self.[< $name _per_byte >], $len)
                 }
             };
         }
@@ -445,7 +445,7 @@ impl SyscallCosts {
             SystemReserveGas => self.gr_system_reserve_gas.cost_for_one(),
             GasAvailable => self.gr_gas_available.cost_for_one(),
             MsgId => self.gr_message_id.cost_for_one(),
-            ProgramId => self.gr_program_id.cost_for_one(),
+            ActorId => self.gr_program_id.cost_for_one(),
             Source => self.gr_source.cost_for_one(),
             Value => self.gr_value.cost_for_one(),
             ValueAvailable => self.gr_value_available.cost_for_one(),
@@ -490,14 +490,14 @@ impl SyscallCosts {
             Wake => self.gr_wake.cost_for_one(),
             CreateProgram(payload, salt) => CostOf::from(
                 self.gr_create_program
-                    .cost_for_with_bytes(self.gr_create_program_payload_per_byte, payload),
+                    .with_bytes(self.gr_create_program_payload_per_byte, payload),
             )
-            .cost_for_with_bytes(self.gr_create_program_salt_per_byte, salt),
+            .with_bytes(self.gr_create_program_salt_per_byte, salt),
             CreateProgramWGas(payload, salt) => CostOf::from(
                 self.gr_create_program_wgas
-                    .cost_for_with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
+                    .with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
             )
-            .cost_for_with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
+            .with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
         }
     }
 }
@@ -586,6 +586,28 @@ pub struct InstantiationCosts {
     pub type_section_per_byte: CostOf<BytesAmount>,
 }
 
+/// Database costs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DbCosts {
+    /// Storage read cost.
+    pub read: CostOf<CallsAmount>,
+    /// Storage read per byte cost.
+    pub read_per_byte: CostOf<BytesAmount>,
+    /// Storage write cost.
+    pub write: CostOf<CallsAmount>,
+    /// Storage write per byte cost.
+    pub write_per_byte: CostOf<BytesAmount>,
+}
+
+/// Code instrumentation costs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InstrumentationCosts {
+    /// Code instrumentation cost.
+    pub base: CostOf<CallsAmount>,
+    /// Code instrumentation per byte cost.
+    pub per_byte: CostOf<BytesAmount>,
+}
+
 /// Costs for message processing
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ProcessCosts {
@@ -593,18 +615,12 @@ pub struct ProcessCosts {
     pub ext: ExtCosts,
     /// Lazy pages costs.
     pub lazy_pages: LazyPagesCosts,
-    /// Storage read cost.
-    pub read: CostOf<CallsAmount>,
-    /// Storage read per byte cost.
-    pub read_per_byte: CostOf<BytesAmount>,
-    /// Storage write cost.
-    pub write: CostOf<CallsAmount>,
-    /// Code instrumentation cost.
-    pub instrumentation: CostOf<CallsAmount>,
-    /// Code instrumentation per byte cost.
-    pub instrumentation_per_byte: CostOf<BytesAmount>,
     /// Module instantiation costs.
-    pub instantiation_costs: InstantiationCosts,
+    pub instantiation: InstantiationCosts,
+    /// DB costs.
+    pub db: DbCosts,
+    /// Instrumentation costs.
+    pub instrumentation: InstrumentationCosts,
     /// Load program allocations cost per interval.
     pub load_allocations_per_interval: CostOf<u32>,
 }

@@ -154,11 +154,11 @@ fn assert_removed_nodes_form_path(
 // Check that only `Cut` is removed after `consume`
 #[track_caller]
 fn assert_only_cut_node_removed(consumed: NodeId, removed_nodes: &RemovedNodes) {
-    if let Some(node) = removed_nodes.get(&consumed) {
-        if node.is_cut() {
-            // only `Cut` must be removed
-            assert_eq!(removed_nodes.len(), 1);
-        }
+    if let Some(node) = removed_nodes.get(&consumed)
+        && node.is_cut()
+    {
+        // only `Cut` must be removed
+        assert_eq!(removed_nodes.len(), 1);
     }
 }
 
@@ -192,16 +192,16 @@ pub(super) fn assert_root_children_removed(
 
 #[track_caller]
 fn assert_another_root_not_removed(consumed: NodeId, removed_nodes: &RemovedNodes) {
-    if let Some(node) = removed_nodes.get(&consumed) {
-        if node.is_external() || node.is_reserved() {
-            assert_eq!(
-                removed_nodes
-                    .iter()
-                    .filter(|(_, v)| v.is_external() || v.is_reserved())
-                    .count(),
-                1 // only `root_node`
-            );
-        }
+    if let Some(node) = removed_nodes.get(&consumed)
+        && (node.is_external() || node.is_reserved())
+    {
+        assert_eq!(
+            removed_nodes
+                .iter()
+                .filter(|(_, v)| v.is_external() || v.is_reserved())
+                .count(),
+            1 // only `root_node`
+        );
     }
 }
 
@@ -217,7 +217,7 @@ pub(super) fn assert_not_invariant_error(err: GasTreeError) {
         | UnexpectedNodeType
         | ValueIsNotCaught
         | ValueIsBlocked
-        | ValueIsNotBlocked => panic!("Invariant error occurred {:?}", err),
-        _ => log::error!("Non invariant error occurred: {:?}", err),
+        | ValueIsNotBlocked => panic!("Invariant error occurred {err:?}"),
+        _ => log::error!("Non invariant error occurred: {err:?}"),
     }
 }

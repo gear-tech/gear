@@ -16,28 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::{MessageDetails, StoredMessage};
 use crate::{
-    ids::{MessageId, ProgramId},
-    message::{Payload, ReplyDetails, Value},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
+    message::{ReplyDetails, Value},
 };
 use core::convert::TryFrom;
 use gear_core_errors::ReplyCode;
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
-
-use super::{MessageDetails, StoredMessage};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Message sent to user and deposited as event.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct UserMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message value.
@@ -51,8 +49,8 @@ impl UserMessage {
     /// Create new UserMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         value: Value,
         details: Option<ReplyDetails>,
@@ -73,12 +71,12 @@ impl UserMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -103,7 +101,7 @@ impl UserMessage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FromStoredMessageError;
 
 impl TryFrom<StoredMessage> for UserMessage {
@@ -147,14 +145,14 @@ impl From<UserMessage> for StoredMessage {
 ///
 /// May be represented only with `DispatchKind::Handle`,
 /// so does not contain message details.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 pub struct UserStoredMessage {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message value.
@@ -166,8 +164,8 @@ impl UserStoredMessage {
     /// Create new UserStoredMessage.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         value: Value,
     ) -> Self {
@@ -186,12 +184,12 @@ impl UserStoredMessage {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -206,7 +204,7 @@ impl UserStoredMessage {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UserStoredMessageConvertError;
 
 impl TryFrom<StoredMessage> for UserStoredMessage {

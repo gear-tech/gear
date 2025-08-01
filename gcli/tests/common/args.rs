@@ -18,13 +18,27 @@
 
 //! Command line args builder
 
+use std::fmt;
+
 /// Command line args
 #[derive(Clone)]
 pub struct Args {
-    endpoint: Option<String>,
-    command: String,
-    args: Vec<(String, String)>,
-    with: Vec<String>,
+    pub endpoint: Option<String>,
+    pub command: String,
+    pub args: Vec<String>,
+    pub with: Vec<String>,
+    pub stdin: Vec<u8>,
+}
+
+impl<const N: usize> From<[&'static str; N]> for Args {
+    fn from(value: [&str; N]) -> Self {
+        let command = value[0];
+        let with = value[1..].iter().map(|s| s.to_string()).collect();
+
+        let mut args = Args::new(command);
+        args.with = with;
+        args
+    }
 }
 
 impl Args {
@@ -35,6 +49,7 @@ impl Args {
             command: command.to_string(),
             args: vec![],
             with: vec![],
+            stdin: vec![],
         }
     }
 
@@ -43,37 +58,23 @@ impl Args {
         self.endpoint = Some(endpoint.to_string());
         self
     }
-}
 
-impl From<Args> for Vec<String> {
-    fn from(args: Args) -> Self {
-        [
-            if let Some(endpoint) = args.endpoint {
-                vec!["--endpoint".into(), endpoint]
-            } else {
-                vec![]
-            },
-            vec![args.command.to_string()],
-            args.args
-                .into_iter()
-                .map(|(f, a)| [f, a])
-                .collect::<Vec<[String; 2]>>()
-                .concat(),
-            args.with,
-        ]
-        .concat()
+    pub fn program_stdin(mut self, bytes: impl Into<Vec<u8>>) -> Self {
+        self.with.push("-".to_string());
+        self.stdin = bytes.into();
+        self
     }
 }
 
 macro_rules! impl_args {
-    ([$($flag:tt),+], [$($value:tt),+]) => {
+    (
+        flags: $($flag:tt),+;
+        values: $($value:tt),+;
+    ) => {
         impl Args {
             $(
-                pub fn $flag(mut self, value: impl ToString) -> Self {
-                    self.args.push((
-                        "--".to_string() + &stringify!($flag).replace("_", "-"),
-                        value.to_string(),
-                    ));
+                pub fn $flag(mut self, value: impl fmt::Display) -> Self {
+                    self.args.push(format!("--{flag}={value}", flag = stringify!($flag).replace("_", "-")));
                     self
                 }
             )*
@@ -89,16 +90,12 @@ macro_rules! impl_args {
 }
 
 impl_args!(
-    [payload, gas_limit, value],
-    [
-        program,
+    flags: payload, gas_limit;
+    values:
         message_id,
         address,
         action,
         destination,
         amount,
-        meta,
-        flag,
-        derive
-    ]
+        flag;
 );

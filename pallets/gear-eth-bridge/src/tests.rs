@@ -1,11 +1,16 @@
-use crate::{builtin, mock::*, Config, EthMessage, WeightInfo};
+use crate::{
+    Config, EthMessage, WeightInfo,
+    internal::EthMessageExt,
+    mock::{mock_builtin_id as builtin_id, *},
+};
 use common::Origin as _;
 use frame_support::{
-    assert_noop, assert_ok, assert_storage_noop, traits::Get, Blake2_256, StorageHasher,
+    Blake2_256, StorageHasher, assert_noop, assert_ok, assert_storage_noop, traits::Get,
 };
 use gbuiltin_eth_bridge::{Request, Response};
-use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
+use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use pallet_gear::Event as GearEvent;
+use pallet_gear_builtin::BuiltinActorError;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
 use parity_scale_codec::{Decode, Encode};
@@ -26,6 +31,7 @@ type Initialized = crate::Initialized<Test>;
 type Paused = crate::Paused<Test>;
 type Event = crate::Event<Test>;
 type Error = crate::Error<Test>;
+type Currency = crate::CurrencyOf<Test>;
 
 #[test]
 fn bridge_got_initialized() {
@@ -163,6 +169,10 @@ fn bridge_send_eth_message_works() {
     new_test_ext().execute_with(|| {
         run_to_block(WHEN_INITIALIZED);
 
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
         assert_noop!(
@@ -173,10 +183,19 @@ fn bridge_send_eth_message_works() {
         assert_eq!(MessageNonce::get(), 0.into());
         assert!(Queue::get().is_empty());
 
+        // Send a message via the pallet extrinsic
+
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let builtin_id = AccountId::from_origin(builtin_id().into());
+        let mut builtin_balance = balance_of(&builtin_id);
+        let fee = MockTransportFee::get();
 
-        let message = EthMessage::new(0.into(), SIGNER.cast(), destination, payload.clone());
+        let message = unsafe {
+            EthMessage::new_unchecked(0.into(), SIGNER.cast(), destination, payload.clone())
+        };
         let hash = message.hash();
         let mut queue = vec![hash];
 
@@ -186,29 +205,40 @@ fn bridge_send_eth_message_works() {
             payload
         ));
 
+        signer_balance -= gas_meter.spent() + fee;
+        builtin_balance += fee;
+
         System::assert_last_event(Event::MessageQueued { message, hash }.into());
 
         assert_eq!(MessageNonce::get(), 1.into());
         assert_eq!(Queue::get(), queue);
+        // Check that the fee was charged and transferred to the builtin
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
 
         let destination = H160::random();
         let payload = H256::random().as_bytes().to_vec();
 
-        let message = EthMessage::new(1.into(), SIGNER.cast(), destination, payload.clone());
+        let message = unsafe {
+            EthMessage::new_unchecked(1.into(), SIGNER.cast(), destination, payload.clone())
+        };
         let nonce = message.nonce();
         let hash = message.hash();
 
         queue.push(hash);
 
-        let (response, _) = run_block_with_builtin_call(
+        let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination,
                 payload,
             },
             None,
-            0,
+            fee,
         );
+
+        signer_balance -= gas_meter.spent() + fee;
+        builtin_balance += fee;
 
         let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
 
@@ -218,6 +248,9 @@ fn bridge_send_eth_message_works() {
 
         assert_eq!(MessageNonce::get(), 2.into());
         assert_eq!(Queue::get(), queue);
+        // Check that the fee was charged and transferred to the builtin
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
     })
 }
 
@@ -401,6 +434,55 @@ fn bridge_updates_authorities_and_clears() {
 }
 
 #[test]
+fn bridge_queues_governance_messages_when_over_capacity() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
+
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let queue_capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+
+        for _ in 0..queue_capacity {
+            assert_ok!(GearEthBridge::send_eth_message(
+                RuntimeOrigin::signed(SIGNER),
+                H160::zero(),
+                vec![]
+            ));
+        }
+
+        let msg_queue_len = Queue::get().len();
+        assert_eq!(msg_queue_len, queue_capacity as usize);
+
+        GearEthBridge::send_eth_message(
+            RuntimeOrigin::signed(<Test as crate::Config>::BridgeAdmin::get()),
+            H160::zero(),
+            vec![],
+        )
+        .unwrap();
+
+        assert_eq!(Queue::get().len(), msg_queue_len + 1);
+
+        let _ = run_block_with_builtin_call(
+            <Test as crate::Config>::BridgePauser::get(),
+            Request::SendEthMessage {
+                destination: H160::zero(),
+                payload: vec![],
+            },
+            None,
+            0,
+        );
+
+        assert_eq!(Queue::get().len(), msg_queue_len + 2);
+    })
+}
+
+#[test]
 fn bridge_is_not_yet_initialized_err() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -485,13 +567,18 @@ fn bridge_queue_capacity_exceeded_err() {
 fn bridge_incorrect_value_applied_err() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::IncorrectValueApplied;
-
         run_to_block(WHEN_INITIALIZED);
 
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        let (response, _) = run_block_with_builtin_call(
+        let signer_balance = balance_of(&SIGNER);
+        let mut gas_meter = GasSpentMeter::start();
+
+        let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
@@ -503,8 +590,59 @@ fn bridge_incorrect_value_applied_err() {
 
         assert_eq!(
             String::from_utf8_lossy(&response),
-            format!("Panic occurred: {}", builtin::error_to_str(&ERR))
+            format!("{}", BuiltinActorError::InsufficientValue)
         );
+
+        // Check that value/fee was not charged
+        assert_eq!(balance_of(&SIGNER), signer_balance - gas_meter.spent());
+    })
+}
+
+#[test]
+fn bridge_value_returned() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        const ADDITIONAL_VALUE: u128 = 42;
+
+        run_to_block(WHEN_INITIALIZED);
+
+        assert_ok!(GearEthBridge::set_fee(
+            RuntimeOrigin::root(),
+            MockTransportFee::get()
+        ));
+        assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
+
+        let mut gas_meter = GasSpentMeter::start();
+        let mut signer_balance = balance_of(&SIGNER);
+        let builtin_id = AccountId::from_origin(builtin_id().into());
+        let mut builtin_balance = balance_of(&builtin_id);
+        let transfer_fee = MockTransportFee::get();
+
+        let destination = H160::random();
+        let payload = H256::random().as_bytes().to_vec();
+
+        let (response, value, err_code) = run_block_with_builtin_call(
+            SIGNER,
+            Request::SendEthMessage {
+                destination,
+                payload,
+            },
+            None,
+            transfer_fee + ADDITIONAL_VALUE,
+        );
+
+        let _response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
+
+        signer_balance -= gas_meter.spent() + transfer_fee;
+        builtin_balance += transfer_fee;
+
+        run_for_n_blocks(40);
+
+        assert_eq!(err_code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+        assert_eq!(value, ADDITIONAL_VALUE);
+        assert_eq!(balance_of(&SIGNER), signer_balance);
+        assert_eq!(balance_of(&builtin_id), builtin_balance);
     })
 }
 
@@ -520,7 +658,7 @@ fn bridge_insufficient_gas_err() {
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
-        let (_, code) = run_block_with_builtin_call(
+        let (_, _, code) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
@@ -537,12 +675,8 @@ fn bridge_insufficient_gas_err() {
 mod utils {
     use super::*;
     use crate::builtin;
-    use gear_core::message::UserMessage;
-    use gprimitives::{ActorId, MessageId};
-
-    pub(crate) fn builtin_id() -> ActorId {
-        GearBuiltin::generate_actor_id(BUILTIN_ID)
-    }
+    use gear_core::message::{UserMessage, Value};
+    use gprimitives::MessageId;
 
     #[track_caller]
     pub(crate) fn run_block_and_assert_bridge_error(error: Error) {
@@ -579,12 +713,9 @@ mod utils {
             error
         );
 
-        let (response, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
+        let (response, _, _) = run_block_with_builtin_call(SIGNER, request, None, 0);
 
-        assert_eq!(
-            String::from_utf8_lossy(&response),
-            format!("Panic occurred: {err_str}")
-        );
+        assert_eq!(String::from_utf8_lossy(&response), err_str);
     }
 
     #[track_caller]
@@ -593,7 +724,7 @@ mod utils {
         request: Request,
         gas_limit: Option<u64>,
         value: u128,
-    ) -> (Vec<u8>, ReplyCode) {
+    ) -> (Vec<u8>, Value, ReplyCode) {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(source),
             builtin_id(),
@@ -615,6 +746,7 @@ mod utils {
 
         (
             message.payload_bytes().to_vec(),
+            message.value(),
             reply_details.to_reply_code(),
         )
     }
@@ -673,5 +805,31 @@ mod utils {
         }
 
         System::reset_events();
+    }
+
+    pub(crate) fn balance_of(account: &AccountId) -> Value {
+        Currency::free_balance(account)
+    }
+
+    pub(crate) fn balance_of_author() -> Value {
+        balance_of(&Authorship::author().expect("author exist"))
+    }
+
+    pub(crate) struct GasSpentMeter {
+        current: Value,
+    }
+
+    impl GasSpentMeter {
+        pub(crate) fn start() -> Self {
+            Self {
+                current: balance_of_author(),
+            }
+        }
+
+        pub(crate) fn spent(&mut self) -> Value {
+            let spent = balance_of_author() - self.current;
+            self.current = balance_of_author();
+            spent
+        }
     }
 }

@@ -12,9 +12,9 @@ repository.workspace = true
 [dependencies]
 ethexe-signer.workspace = true
 ethexe-db.workspace = true
-
-gprimitives = { workspace = true, features = ["codec"] }
-gear-core.workspace = true
+ethexe-service-utils.workspace = true
+ethexe-common.workspace = true
+gprimitives = { workspace = true, features = ["std", "codec"] }
 
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
@@ -23,16 +23,15 @@ parity-scale-codec.workspace = true
 async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
-void = "1.0.2"
+derive_more.workspace = true
+itertools.workspace = true
 
 [dependencies.libp2p]
-git = "https://github.com/gear-tech/rust-libp2p"
-branch = "al/v0.54.1-patches"
+version = "0.55.0"
 features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "tls", "tokio", "macros", "plaintext", "yamux"]
 
 [dev-dependencies]
-# newer versions are not supported on crates.io
-libp2p-swarm-test = { git = "https://github.com/gear-tech/rust-libp2p", branch = "al/v0.54.1-patches", default-features = false, features = ["tokio"] }
-tempfile.workspace = true
+libp2p-swarm-test = { version = "0.5.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
+assert_matches.workspace = true

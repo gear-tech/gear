@@ -69,11 +69,16 @@ impl<'a> LimitedStr<'a> {
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
+
+    /// Return inner value.
+    pub fn into_inner(self) -> Cow<'a, str> {
+        self.0
+    }
 }
 
 /// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
 #[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "String must be less than {} bytes.", TRIMMED_MAX_LEN)]
+#[display("String must be less than {TRIMMED_MAX_LEN} bytes")]
 pub struct LimitedStrTryFromError;
 
 impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
@@ -98,7 +103,7 @@ impl From<String> for LimitedStr<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{distributions::Standard, Rng};
+    use rand::{Rng, distributions::Standard};
 
     fn assert_result(string: &'static str, max_bytes: usize, expectation: &'static str) {
         let mut string = string.into();
@@ -169,8 +174,9 @@ mod tests {
         assert_result(cjk, 10, "你好吗");
 
         // String for demonstration with mixed CJK and UTF-8 encoding.
-        let mix = "你he好l吗lo"; // Chaotic sum of "hello" and "你好吗".
-                                 // Length in bytes.
+        // Chaotic sum of "hello" and "你好吗".
+        // Length in bytes.
+        let mix = "你he好l吗lo";
         assert_eq!(mix.len(), utf_8.len() + cjk.len());
         assert_eq!(mix.len(), 14);
         // Length in chars.

@@ -1,5 +1,5 @@
 use gclient::{Error, EventProcessor, GearApi};
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
 
@@ -231,7 +231,7 @@ async fn upload_program_to_node<E>(
     code: &[u8],
     salt: &[u8],
     init_payload: Option<E>,
-) -> (GearApi, ProgramId)
+) -> (GearApi, ActorId)
 where
     E: Encode,
 {
@@ -260,11 +260,13 @@ where
         .expect("Unable to load a program");
 
     // Asserting successful initialization.
-    assert!(listener
-        .message_processed(mid)
-        .await
-        .expect("Unable to obtain confirmation on processed message")
-        .succeed());
+    assert!(
+        listener
+            .message_processed(mid)
+            .await
+            .expect("Unable to obtain confirmation on processed message")
+            .succeed()
+    );
 
     (api, pid)
 }

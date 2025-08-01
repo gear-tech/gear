@@ -19,7 +19,7 @@
 use crate::{CASDatabase, KVDatabase};
 use anyhow::Result;
 use gprimitives::H256;
-use rocksdb::{DBIteratorWithThreadMode, Options, DB};
+use rocksdb::{DB, DBIteratorWithThreadMode, Options};
 use std::{path::PathBuf, sync::Arc};
 
 /// Database for storing states and codes in memory.
@@ -47,6 +47,15 @@ impl CASDatabase for RocksDatabase {
         self.inner
             .get(hash.as_bytes())
             .expect("Failed to read data, database is not in valid state")
+    }
+
+    fn contains(&self, hash: H256) -> bool {
+        self.inner.key_may_exist(hash)
+            && self
+                .inner
+                .get_pinned(hash)
+                .expect("Failed to read data, database is not in valid state")
+                .is_some()
     }
 
     fn write(&self, data: &[u8]) -> H256 {
@@ -78,6 +87,15 @@ impl KVDatabase for RocksDatabase {
             self.inner.delete(key).expect("Failed to delete data");
         }
         data
+    }
+
+    fn contains(&self, key: &[u8]) -> bool {
+        self.inner.key_may_exist(key)
+            && self
+                .inner
+                .get_pinned(key)
+                .expect("Failed to read data, database is not in valid state")
+                .is_some()
     }
 
     fn put(&self, key: &[u8], value: Vec<u8>) {

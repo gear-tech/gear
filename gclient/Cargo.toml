@@ -10,6 +10,12 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[package.metadata.cargo-shear]
+ignored = [
+  # docs
+  "hex-literal",
+]
+
 [dependencies]
 gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
@@ -29,21 +35,11 @@ url.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 wat.workspace = true
-env_logger.workspace = true
-hex-literal.workspace = true
+tracing-subscriber.workspace = true
 log.workspace = true
-demo-async-tester.workspace = true
-demo-calc-hash.workspace = true
-demo-calc-hash-in-one-block.workspace = true
 demo-custom.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
-demo-distributor.workspace = true
-demo-fungible-token.workspace = true
 demo-mul-by-const.workspace = true
-demo-node.workspace = true
-demo-program-factory.workspace = true
-demo-proxy = { workspace = true, features = ["std"] }
-demo-proxy-relay.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
 gstd = { workspace = true, features = ["debug"] }
 demo-wat.workspace = true
@@ -52,5 +48,5 @@ ark-serialize = { workspace = true, features = ["derive"] }
 ark-scale = { workspace = true, features = ["hazmat"] }
 ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-ec = { workspace = true }
-ark-ff = { workspace = true }
 ark-std = { workspace = true }
+hex-literal.workspace = true

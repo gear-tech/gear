@@ -16,9 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{mock::*, GasMultiplier, OnFinalizeValue, UnusedValue, *};
-use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use sp_runtime::{traits::Zero, Percent, StateVersion};
+use crate::{GasMultiplier, OnFinalizeValue, UnusedValue, mock::*, *};
+use frame_support::{
+    assert_noop, assert_ok,
+    storage::{generator::StorageValue, unhashed},
+    traits::Hooks,
+};
+use sp_runtime::{Percent, StateVersion, traits::Zero};
 use utils::*;
 
 #[test]
@@ -151,7 +155,7 @@ fn deposit_gas_insufficient_deposit() {
         assert!(gas_price(GAS_AMOUNT) < CurrencyOf::<Test>::minimum_balance());
 
         assert_ok!(Balances::transfer_all(
-            RuntimeOrigin::signed(BANK_ADDRESS),
+            RuntimeOrigin::signed(GearBank::bank_address()),
             Zero::zero(),
             false,
         ));
@@ -294,7 +298,10 @@ fn withdraw_gas_small_amount_user_account_deleted() {
         assert_ok!(GearBank::withdraw_gas(&ALICE, GAS_AMOUNT, mult()));
 
         assert_eq!(UnusedValue::<Test>::get(), GAS_VALUE_AMOUNT);
-        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT);
+        assert_balance(
+            &GearBank::bank_address(),
+            EXISTENTIAL_DEPOSIT + GAS_VALUE_AMOUNT,
+        );
 
         assert_bank_balance(0, 0);
 
@@ -330,7 +337,7 @@ fn withdraw_gas_insufficient_bank_balance() {
         assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
 
         assert_ok!(Balances::transfer_all(
-            RuntimeOrigin::signed(BANK_ADDRESS),
+            RuntimeOrigin::signed(GearBank::bank_address()),
             Zero::zero(),
             false,
         ));
@@ -552,7 +559,10 @@ fn spend_gas_small_amount_validator_account_deleted() {
         let unused_value_inc = block_author_share * GAS_VALUE_AMOUNT;
 
         assert_eq!(UnusedValue::<Test>::get(), unused_value_inc);
-        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + unused_value_inc);
+        assert_balance(
+            &GearBank::bank_address(),
+            EXISTENTIAL_DEPOSIT + unused_value_inc,
+        );
 
         assert_bank_balance(0, 0);
 
@@ -590,16 +600,17 @@ fn spend_gas_insufficient_bank_balance() {
         let _block_author = Authorship::author();
 
         const GAS_AMOUNT: u64 = 123_456;
+        let bank_address = GearBank::bank_address();
 
         assert_ok!(GearBank::deposit_gas(&ALICE, GAS_AMOUNT, false));
 
         assert_ok!(Balances::transfer_all(
-            RuntimeOrigin::signed(BANK_ADDRESS),
+            RuntimeOrigin::signed(bank_address),
             Zero::zero(),
             false,
         ));
 
-        assert_balance(&BANK_ADDRESS, 0);
+        assert_balance(&bank_address, 0);
 
         assert_noop!(
             GearBank::spend_gas(&ALICE, GAS_AMOUNT, mult()),
@@ -775,7 +786,7 @@ fn deposit_value_insufficient_deposit() {
         const VALUE: Balance = EXISTENTIAL_DEPOSIT - 1;
 
         assert_ok!(Balances::transfer_all(
-            RuntimeOrigin::signed(BANK_ADDRESS),
+            RuntimeOrigin::signed(GearBank::bank_address()),
             Zero::zero(),
             false,
         ));
@@ -908,7 +919,7 @@ fn withdraw_value_small_amount_user_account_deleted() {
         assert_ok!(GearBank::withdraw_value(&ALICE, VALUE));
 
         assert_eq!(UnusedValue::<Test>::get(), VALUE);
-        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
+        assert_balance(&GearBank::bank_address(), EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
 
@@ -944,7 +955,7 @@ fn withdraw_value_insufficient_bank_balance() {
         assert_ok!(GearBank::deposit_value(&ALICE, VALUE, false));
 
         assert_ok!(Balances::transfer_all(
-            RuntimeOrigin::signed(BANK_ADDRESS),
+            RuntimeOrigin::signed(GearBank::bank_address()),
             Zero::zero(),
             false,
         ));
@@ -1192,7 +1203,7 @@ fn transfer_value_small_amount_destination_account_deleted() {
         assert_ok!(GearBank::transfer_value(&ALICE, &CHARLIE, VALUE));
 
         assert_eq!(UnusedValue::<Test>::get(), VALUE);
-        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
+        assert_balance(&GearBank::bank_address(), EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
 
@@ -1218,7 +1229,7 @@ fn transfer_value_small_amount_self_account_deleted() {
         assert_ok!(GearBank::transfer_value(&ALICE, &ALICE, VALUE));
 
         assert_eq!(UnusedValue::<Test>::get(), VALUE);
-        assert_balance(&BANK_ADDRESS, EXISTENTIAL_DEPOSIT + VALUE);
+        assert_balance(&GearBank::bank_address(), EXISTENTIAL_DEPOSIT + VALUE);
 
         assert_bank_balance(0, 0);
 
@@ -1253,16 +1264,17 @@ fn transfer_value_insufficient_bank_balance() {
     // Unreachable case for Gear protocol.
     new_test_ext().execute_with(|| {
         const VALUE: Balance = 123_456_000;
+        let bank_address = GearBank::bank_address();
 
         assert_ok!(GearBank::deposit_value(&ALICE, VALUE, false));
 
         assert_ok!(Balances::transfer_all(
-            RuntimeOrigin::signed(BANK_ADDRESS),
+            RuntimeOrigin::signed(bank_address),
             Zero::zero(),
             false,
         ));
 
-        assert_balance(&BANK_ADDRESS, 0);
+        assert_balance(&bank_address, 0);
 
         assert_noop!(
             GearBank::transfer_value(&ALICE, &CHARLIE, VALUE),
@@ -1569,6 +1581,15 @@ fn spend_gas_on_finalize_single_user() {
     })
 }
 
+#[test]
+fn bank_address_always_in_storage() {
+    new_test_ext().execute_with(|| {
+        let key = BankAddress::<Test>::storage_value_final_key();
+        unhashed::get::<<Test as frame_system::Config>::AccountId>(&key)
+            .expect("Bank address not found in storage");
+    })
+}
+
 mod utils {
     use super::*;
 
@@ -1608,7 +1629,7 @@ mod utils {
     pub fn assert_bank_balance(gas: u64, value: Balance) {
         let gas_value = gas_price(gas);
         assert_balance(
-            &BANK_ADDRESS,
+            &GearBank::bank_address(),
             CurrencyOf::<Test>::minimum_balance()
                 + UnusedValue::<Test>::get()
                 + OnFinalizeValue::<Test>::get()

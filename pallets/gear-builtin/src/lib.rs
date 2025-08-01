@@ -25,7 +25,7 @@
 //! ## Overview
 //!
 //! The pallet implements the `pallet_gear::BuiltinDispatcher` allowing to restore builtin actors
-//! claimed `BuiltinId`'s based on their corresponding `ProgramId` address.
+//! claimed `BuiltinId`'s based on their corresponding `ActorId` address.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
@@ -36,6 +36,7 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
+pub mod migration;
 pub mod proxy;
 pub mod staking;
 pub mod weights;
@@ -49,55 +50,58 @@ mod tests;
 pub use weights::WeightInfo;
 
 use alloc::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     format,
-    string::ToString,
 };
-use common::{storage::Limiter, BlockLimiter};
+use common::{BlockLimiter, storage::Limiter};
 use core::marker::PhantomData;
 use core_processor::{
-    common::{ActorExecutionErrorReplyReason, DispatchResult, JournalNote, TrapExplanation},
+    SystemReservationContext,
+    common::{
+        ActorExecutionErrorReplyReason, DispatchResult, JournalNote, SuccessfulDispatchResultKind,
+        TrapExplanation,
+    },
     process_allowance_exceed, process_execution_error, process_success,
-    SuccessfulDispatchResultKind, SystemReservationContext,
 };
-use frame_support::dispatch::extract_actual_weight;
+use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::ProgramId,
-    message::{
-        ContextOutcomeDrain, DispatchKind, MessageContext, Payload, ReplyPacket, StoredDispatch,
-    },
+    ids::ActorId,
+    message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     str::LimitedStr,
     utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;
+pub use pallet::*;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
 use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
-pub use pallet::*;
+pub use pallet_gear::BuiltinReply;
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 const LOG_TARGET: &str = "gear::builtin";
-
 pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 
 /// Built-in actor error type
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
 pub enum BuiltinActorError {
     /// Occurs if the underlying call has the weight greater than the `gas_limit`.
-    #[display(fmt = "Not enough gas supplied")]
+    #[display("Not enough gas supplied")]
     InsufficientGas,
+    /// Occurs if the dispatch's value is less than the minimum required value.
+    #[display("Not enough value supplied")]
+    InsufficientValue,
     /// Occurs if the dispatch's message can't be decoded into a known type.
-    #[display(fmt = "Failure to decode message")]
+    #[display("Failure to decode message")]
     DecodingError,
     /// Actor's inner error encoded as a String.
-    #[display(fmt = "Builtin execution resulted in error: {_0}")]
+    #[display("Builtin execution resulted in error: {_0}")]
     Custom(LimitedStr<'static>),
     /// Occurs if a builtin actor execution does not fit in the current block.
-    #[display(fmt = "Block gas allowance exceeded")]
+    #[display("Block gas allowance exceeded")]
     GasAllowanceExceeded,
 }
 
@@ -108,11 +112,16 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
             BuiltinActorError::InsufficientGas => {
                 ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
             }
+            BuiltinActorError::InsufficientValue => {
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                    LimitedStr::from_small_str("Not enough value supplied").into(),
+                ))
+            }
             BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
-                TrapExplanation::Panic("Message decoding error".to_string().into()),
+                TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
             ),
             BuiltinActorError::Custom(e) => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e))
+                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
             }
             BuiltinActorError::GasAllowanceExceeded => {
                 unreachable!("Never supposed to be converted to error reply reason")
@@ -167,7 +176,7 @@ pub trait BuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError>;
+    ) -> Result<BuiltinReply, BuiltinActorError>;
 
     /// Returns the maximum gas that can be spent by the actor.
     fn max_gas() -> u64;
@@ -191,8 +200,8 @@ impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
 /// a in-memory collection of builtin actors.
 pub trait BuiltinCollection {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
-        id_converter: &dyn Fn(u64) -> ProgramId,
+        registry: &mut BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+        id_converter: &dyn Fn(u64) -> ActorId,
     );
 }
 
@@ -201,8 +210,8 @@ pub trait BuiltinCollection {
 #[tuple_types_custom_trait_bound(BuiltinActorWithId + 'static)]
 impl BuiltinCollection for Tuple {
     fn collect(
-        registry: &mut BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
-        id_converter: &dyn Fn(u64) -> ProgramId,
+        registry: &mut BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+        id_converter: &dyn Fn(u64) -> ActorId,
     ) {
         for_tuples!(
             #(
@@ -223,6 +232,9 @@ impl BuiltinCollection for Tuple {
     }
 }
 
+/// The current storage version.
+pub(crate) const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -235,11 +247,6 @@ pub mod pallet {
     use sp_runtime::traits::Dispatchable;
 
     pub(crate) const SEED: [u8; 8] = *b"built/in";
-
-    // This pallet doesn't define a storage version because it doesn't use any storage
-    #[pallet::pallet]
-    #[pallet::without_storage_info]
-    pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -258,21 +265,40 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
+    /// The pallet's storage version.
+    #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
+    pub struct Pallet<T>(_);
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     impl<T: Config> Pallet<T> {
+        /// Returns list of known builtins.
+        ///
+        /// This fn has some overhead, therefore it should be called only when necessary.
+        pub fn list_builtins() -> Vec<T::AccountId>
+        where
+            T::AccountId: Origin,
+        {
+            BuiltinRegistry::<T>::new()
+                .list()
+                .into_iter()
+                .map(Origin::cast)
+                .collect()
+        }
+
         /// Generate an `actor_id` given a builtin ID.
         ///
         ///
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
-        pub fn generate_actor_id(builtin_id: u64) -> ProgramId {
+        pub fn generate_actor_id(builtin_id: u64) -> ActorId {
             hash((SEED, builtin_id).encode().as_slice()).into()
         }
 
         pub(crate) fn dispatch_call(
-            origin: ProgramId,
+            origin: ActorId,
             call: CallOf<T>,
             context: &mut BuiltinContext,
         ) -> Result<(), BuiltinActorError>
@@ -300,7 +326,7 @@ pub mod pallet {
             })
             .map(|_| ())
             .inspect_err(|e| {
-                log::debug!(target: LOG_TARGET, "Error dispatching call: {:?}", e);
+                log::debug!(target: LOG_TARGET, "Error dispatching call: {e:?}");
             })
             .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(e.into())))
         }
@@ -310,7 +336,6 @@ pub mod pallet {
 impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
     type Context = BuiltinContext;
     type Error = BuiltinActorError;
-
     type Output = BuiltinRegistry<T>;
 
     fn create() -> (BuiltinRegistry<T>, u64) {
@@ -322,9 +347,10 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ProgramId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+    pub registry: BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
+
 impl<T: Config> BuiltinRegistry<T> {
     fn new() -> Self {
         let mut registry = BTreeMap::new();
@@ -335,13 +361,17 @@ impl<T: Config> BuiltinRegistry<T> {
             _phantom: Default::default(),
         }
     }
+
+    pub fn list(&self) -> Vec<ActorId> {
+        self.registry.keys().copied().collect()
+    }
 }
 
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     type Context = BuiltinContext;
     type Error = BuiltinActorError;
 
-    fn lookup<'a>(&'a self, id: &ProgramId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
+    fn lookup<'a>(&'a self, id: &ActorId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
         self.registry
             .get(id)
             .map(|(f, g)| BuiltinInfo::<'a, Self::Context, Self::Error> {
@@ -398,18 +428,18 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let gas_amount = context.to_gas_amount();
 
         match res {
-            Ok(response_payload) => {
+            Ok(reply) => {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
 
-                let mut dispatch_result =
-                    DispatchResult::success(dispatch.clone(), actor_id, gas_amount);
+                let mut dispatch_result = DispatchResult::success(&dispatch, actor_id, gas_amount);
 
                 // Create an artificial `MessageContext` object that will help us to generate
                 // a reply from the builtin actor.
+                // Dispatch clone is cheap here since it only contains Arc<Payload>
                 let mut message_context =
-                    MessageContext::new(dispatch, actor_id, Default::default());
-                let packet = ReplyPacket::new(response_payload, 0);
+                    MessageContext::new(dispatch.clone(), actor_id, Default::default());
+                let packet = ReplyPacket::new(reply.payload, reply.value);
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
@@ -427,7 +457,11 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 };
 
                 // Using the core processor logic create necessary `JournalNote`'s for us.
-                process_success(SuccessfulDispatchResultKind::Success, dispatch_result)
+                process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    dispatch,
+                )
             }
             Err(BuiltinActorError::GasAllowanceExceeded) => {
                 // Ideally, this should never happen, as we should have checked the gas allowance
@@ -438,7 +472,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             }
             Err(err) => {
                 // Builtin actor call failed.
-                log::debug!(target: LOG_TARGET, "Builtin actor error: {:?}", err);
+                log::debug!(target: LOG_TARGET, "Builtin actor error: {err:?}");
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(

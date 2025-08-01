@@ -18,7 +18,7 @@ services:
       insert-key ${VALIDATOR_KEY} &&
       ethexe
       -d /data
-      --ethereum-rpc wss://reth-rpc.gear-tech.io
+      --ethereum-rpc wss://reth-rpc.gear-tech.io/ws
       --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
       --validator-key ${VALIDATOR_PUB_KEY}
       --prometheus-external"
@@ -26,39 +26,8 @@ services:
       testing_net:
         ipv4_address: 172.28.1.1
 
-  node_sequencer:
-    build:
-      context: .
-    ports:
-      - "20334:20334/udp"
-      - "9636:9636"
-    image: gear-tech/gear-egpu:latest
-    volumes:
-      - "gear-data-sequencer:/data"
-    environment:
-      SEQUENCER_KEY: ${SEQUENCER_KEY}
-      SEQUENCER_PUB_KEY: ${SEQUENCER_PUB_KEY}
-      RUST_LOG: ethexe=debug
-    links:
-      - "node_validator:validator"
-    command: bash -c "ethexe -d /data insert-key ${SEQUENCER_KEY}
-      && sleep 1
-      && ethexe
-      -d /data
-      --port 20334
-      --bootnodes '/ip4/172.28.1.1/udp/20333/quic-v1'
-      --ethereum-rpc wss://reth-rpc.gear-tech.io
-      --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
-      --sequencer-key ${SEQUENCER_PUB_KEY}"
-      --prometheus-port 9636
-      --prometheus-external"
-    networks:
-      testing_net:
-        ipv4_address: 172.28.1.2
-
 volumes:
   gear-data-validator:
-  gear-data-sequencer:
 
 networks:
   testing_net:

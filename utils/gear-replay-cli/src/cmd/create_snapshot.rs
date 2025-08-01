@@ -19,14 +19,14 @@
 //! Create a chain state snapshot
 
 use crate::{
+    LOG_TARGET,
     shared_parameters::SharedParams,
     state::{LiveState, State},
-    LOG_TARGET,
 };
 use clap::Parser;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
+use sp_runtime::{DeserializeOwned, traits::Block as BlockT};
 use std::fmt::Debug;
-use substrate_rpc_client::{ws_client, StateApi};
+use substrate_rpc_client::{StateApi, ws_client};
 
 /// Create snapshot subcommand
 #[derive(Clone, Debug, Parser)]
@@ -60,7 +60,7 @@ where
                 .await
                 .unwrap();
             let block_hash = match command.from.block {
-                Some(ref h) => format!("{}", h),
+                Some(ref h) => format!("{h}"),
                 _ => "latext".to_owned(),
             };
             let path_str = format!(

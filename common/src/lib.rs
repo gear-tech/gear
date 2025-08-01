@@ -23,8 +23,6 @@
 #[macro_use]
 extern crate gear_common_codegen;
 
-#[cfg(feature = "std")]
-pub mod auxiliary;
 pub mod event;
 pub mod scheduler;
 pub mod storage;
@@ -54,13 +52,13 @@ use frame_support::{
     traits::Get,
 };
 pub use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
     pages::GearPage,
     program::{ActiveProgram, MemoryInfix, Program},
 };
 use primitive_types::H256;
-use sp_arithmetic::traits::{BaseArithmetic, One, Saturating, UniqueSaturatedInto, Unsigned};
+use sp_arithmetic::traits::{BaseArithmetic, Saturating, UniqueSaturatedInto, Unsigned};
 use sp_runtime::{
     codec::{self, Decode, Encode},
     scale_info::{self, TypeInfo},
@@ -131,7 +129,7 @@ impl Origin for MessageId {
     }
 }
 
-impl Origin for ProgramId {
+impl Origin for ActorId {
     fn into_origin(self) -> H256 {
         H256(self.into())
     }
@@ -170,12 +168,6 @@ impl Origin for ReservationId {
 pub enum GasMultiplier<Balance, Gas> {
     ValuePerGas(Balance),
     GasPerValue(Gas),
-}
-
-impl<Balance: One, Gas> Default for GasMultiplier<Balance, Gas> {
-    fn default() -> Self {
-        Self::ValuePerGas(One::one())
-    }
 }
 
 impl<Balance, Gas> GasMultiplier<Balance, Gas>
@@ -230,24 +222,6 @@ pub trait BlockLimiter {
 
     /// Type manages a gas that is available at the moment of call.
     type GasAllowance: storage::Limiter<Value = Self::Balance>;
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
-#[codec(crate = codec)]
-#[scale_info(crate = scale_info)]
-pub struct CodeMetadata {
-    pub author: H256,
-    #[codec(compact)]
-    pub block_number: u32,
-}
-
-impl CodeMetadata {
-    pub fn new(author: H256, block_number: u32) -> Self {
-        CodeMetadata {
-            author,
-            block_number,
-        }
-    }
 }
 
 /// A trait whose purpose is to extract the `Call` variant of an extrinsic

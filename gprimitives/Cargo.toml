@@ -19,8 +19,11 @@ scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
+thiserror.workspace = true
 
 [features]
+default = ["std"]
+std = []
 codec = ["dep:scale-info"]
-serde = ["dep:serde", "primitive-types/serde_no_std"]
+serde = ["dep:serde", "primitive-types/serde", "std"]
 ethexe = ["dep:alloy-primitives", "dep:alloy-sol-types"]

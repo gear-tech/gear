@@ -20,9 +20,9 @@
 
 use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
-use gear_core::ids::{MessageId, ProgramId};
-use gstd::{vec, ActorId, Encode, Vec};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use gear_core::ids::MessageId;
+use gstd::{ActorId, Encode, Vec, vec};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use statrs::statistics::Statistics;
 
 /// Path to the gear node binary.
@@ -39,7 +39,7 @@ async fn send_messages_in_parallel(
     api: &GearApi,
     batch_size: usize,
     treads_number: usize,
-    messages: &[(ProgramId, Vec<u8>, u64, u128)],
+    messages: &[(ActorId, Vec<u8>, u64, u128)],
 ) -> Result<Vec<MessageId>> {
     // TODO: currently have problem with transaction priorities from one user.
     // Fix this after loader become a lib #2781
@@ -232,11 +232,13 @@ async fn stress_transfer() -> Result<()> {
         .await
         .unwrap();
 
-    assert!(listener
-        .message_processed(message_id)
-        .await
-        .unwrap()
-        .succeed());
+    assert!(
+        listener
+            .message_processed(message_id)
+            .await
+            .unwrap()
+            .succeed()
+    );
 
     // Fill program with test users balances
     let mut actions: Vec<FTAction> = vec![];

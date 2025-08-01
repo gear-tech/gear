@@ -25,7 +25,6 @@ bytes.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
-env_logger.workspace = true
 
 [target.'cfg(loom)'.dev-dependencies]
 loom.workspace = true

@@ -22,6 +22,7 @@
 
 extern crate alloc;
 
+mod accessors;
 pub mod env;
 pub mod error;
 mod funcs;
@@ -63,11 +64,15 @@ mod tests {
     use gear_wasm_instrument::{
         FuncType, Function, Import, InstrumentationBuilder, ModuleBuilder, SyscallName,
     };
+    use tracing_subscriber::EnvFilter;
 
     /// Check that all syscalls are supported by backend.
     #[test]
     fn test_syscalls_table() {
-        env_logger::builder().is_test(true).init();
+        tracing_subscriber::fmt::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_test_writer()
+            .init();
 
         // Make module with one empty function.
         let mut module = ModuleBuilder::default();

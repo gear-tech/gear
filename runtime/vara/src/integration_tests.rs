@@ -20,19 +20,18 @@ use crate::*;
 use frame_support::{
     assert_noop, assert_ok,
     traits::{
-        fungible,
+        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons, fungible,
         tokens::{DepositConsequence, Fortitude, Preservation, Provenance},
-        LockableCurrency, OnFinalize, OnInitialize, WithdrawReasons,
     },
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::gas_metering::CustomConstantCostRules;
 use gear_wasm_instrument::{BlockType, Instruction, MemArg, Module, Rules};
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
-use sp_core::{ed25519, sr25519, Pair};
+use sp_core::{Pair, ed25519, sr25519};
 use sp_keyring::AccountKeyring;
 use sp_runtime::{BuildStorage, Digest, DigestItem};
 
@@ -159,7 +158,7 @@ impl ExtBuilder {
             )
             .collect::<Vec<_>>();
 
-        balances.push((BankAddress::get(), EXISTENTIAL_DEPOSIT));
+        balances.push((GearBank::bank_address(), EXISTENTIAL_DEPOSIT));
 
         pallet_balances::GenesisConfig::<Runtime> { balances }
             .assimilate_storage(&mut storage)
@@ -239,10 +238,7 @@ pub(crate) fn run_for_n_blocks(n: u32) {
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 pub(crate) fn get_last_program_id() -> [u8; 32] {
@@ -712,12 +708,14 @@ fn fungible_api_works() {
             );
 
             // Ok case
-            assert_ok!(<Balances as fungible::Inspect<AccountId>>::can_deposit(
-                &charlie.into(),
-                ok_value,
-                Provenance::Extant
-            )
-            .into_result());
+            assert_ok!(
+                <Balances as fungible::Inspect<AccountId>>::can_deposit(
+                    &charlie.into(),
+                    ok_value,
+                    Provenance::Extant
+                )
+                .into_result()
+            );
 
             // Trivial check of reducible balance
             Balances::make_free_balance_be(&charlie.into(), 5 * EXISTENTIAL_DEPOSIT);

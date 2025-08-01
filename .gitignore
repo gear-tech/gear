@@ -8,6 +8,7 @@ log/
 weight-dumps/
 .binpath
 /.vscode
+/.cursor
 .DS_Store
 .idea
 .log
@@ -20,3 +21,4 @@ utils/**/fuzz/fuzz/*
 .ethexe.toml
 fuzz_run
 lazy_pages_fuzz_run
+.direnv/

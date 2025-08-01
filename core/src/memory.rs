@@ -35,8 +35,8 @@ use numerated::{
     tree::IntervalsTree,
 };
 use scale_info::{
-    scale::{self, Decode, Encode, EncodeLike, Input, Output},
     TypeInfo,
+    scale::{self, Decode, Encode, EncodeLike, Input, Output},
 };
 
 /// Interval in wasm program memory.
@@ -100,10 +100,7 @@ impl Debug for MemoryInterval {
 
 /// Error in attempt to make wrong size page buffer.
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, TypeInfo, derive_more::Display)]
-#[display(
-    fmt = "Trying to make wrong size page buffer, must be {:#x}",
-    GearPage::SIZE
-)]
+#[display("Trying to make wrong size page buffer, must be {:#x}", GearPage::SIZE)]
 pub struct IntoPageBufError;
 
 /// Alias for inner type of page buffer.
@@ -189,10 +186,10 @@ pub type HostPointer = u64;
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 /// Core memory error.
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Display)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum MemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
-    #[display(fmt = "Trying to access memory outside wasm program memory")]
+    #[display("Trying to access memory outside wasm program memory")]
     AccessOutOfBounds,
 }
 
@@ -265,7 +262,7 @@ impl<Context> GrowHandler<Context> for NoopGrowHandler {
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum MemorySetupError {
     /// Memory size exceeds max pages
-    #[display(fmt = "Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
+    #[display("Memory size {memory_size:?} must be less than or equal to {max_pages:?}")]
     MemorySizeExceedsMaxPages {
         /// Memory size
         memory_size: WasmPagesAmount,
@@ -273,7 +270,7 @@ pub enum MemorySetupError {
         max_pages: WasmPagesAmount,
     },
     /// Insufficient memory size
-    #[display(fmt = "Memory size {memory_size:?} must be at least {static_pages:?}")]
+    #[display("Memory size {memory_size:?} must be at least {static_pages:?}")]
     InsufficientMemorySize {
         /// Memory size
         memory_size: WasmPagesAmount,
@@ -281,7 +278,7 @@ pub enum MemorySetupError {
         static_pages: WasmPagesAmount,
     },
     /// Stack end is out of static memory
-    #[display(fmt = "Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
+    #[display("Stack end {stack_end:?} is out of static memory 0..{static_pages:?}")]
     StackEndOutOfStaticMemory {
         /// Stack end
         stack_end: WasmPage,
@@ -290,7 +287,7 @@ pub enum MemorySetupError {
     },
     /// Allocated page is out of allowed memory interval
     #[display(
-        fmt = "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
+        "Allocated page {page:?} is out of allowed memory interval {static_pages:?}..{memory_size:?}"
     )]
     AllocatedPageOutOfAllowedInterval {
         /// Allocated page
@@ -307,18 +304,16 @@ pub enum MemorySetupError {
 pub enum AllocError {
     /// The error occurs when a program tries to allocate more memory than
     /// allowed.
-    #[display(fmt = "Trying to allocate more wasm program memory than allowed")]
+    #[display("Trying to allocate more wasm program memory than allowed")]
     ProgramAllocOutOfBounds,
     /// The error occurs in attempt to free-up a memory page from static area or
     /// outside additionally allocated for this program.
-    #[display(fmt = "{_0:?} cannot be freed by the current program")]
+    #[display("{_0:?} cannot be freed by the current program")]
     InvalidFree(WasmPage),
     /// Invalid range for free_range
-    #[display(fmt = "Invalid range {_0:?}..={_1:?} for free_range")]
+    #[display("Invalid range {_0:?}..={_1:?} for free_range")]
     InvalidFreeRange(WasmPage, WasmPage),
     /// Gas charge error
-    #[from]
-    #[display(fmt = "{_0}")]
     GasCharge(ChargeError),
 }
 
@@ -383,32 +378,32 @@ impl AllocationsContext {
             });
         }
 
-        if let Some(stack_end) = stack_end {
-            if stack_end > static_pages {
-                return Err(MemorySetupError::StackEndOutOfStaticMemory {
-                    stack_end,
-                    static_pages,
-                });
-            }
+        if let Some(stack_end) = stack_end
+            && stack_end > static_pages
+        {
+            return Err(MemorySetupError::StackEndOutOfStaticMemory {
+                stack_end,
+                static_pages,
+            });
         }
 
-        if let Some(page) = allocations.end() {
-            if page >= memory_size {
-                return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                    page,
-                    static_pages,
-                    memory_size,
-                });
-            }
+        if let Some(page) = allocations.end()
+            && page >= memory_size
+        {
+            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
+                page,
+                static_pages,
+                memory_size,
+            });
         }
-        if let Some(page) = allocations.start() {
-            if page < static_pages {
-                return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
-                    page,
-                    static_pages,
-                    memory_size,
-                });
-            }
+        if let Some(page) = allocations.start()
+            && page < static_pages
+        {
+            return Err(MemorySetupError::AllocatedPageOutOfAllowedInterval {
+                page,
+                static_pages,
+                memory_size,
+            });
         }
 
         Ok(())
@@ -465,12 +460,15 @@ impl AllocationsContext {
 
     /// Free specific memory page.
     pub fn free(&mut self, page: WasmPage) -> Result<(), AllocError> {
-        if let Some(heap) = self.heap {
-            if page >= heap.start() && page <= heap.end() && self.allocations.remove(page) {
-                self.allocations_changed = true;
-                return Ok(());
-            }
+        if let Some(heap) = self.heap
+            && page >= heap.start()
+            && page <= heap.end()
+            && self.allocations.remove(page)
+        {
+            self.allocations_changed = true;
+            return Ok(());
         }
+
         Err(AllocError::InvalidFree(page))
     }
 
@@ -548,12 +546,12 @@ mod tests {
 
     #[test]
     fn page_buf() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         let mut data = PageBufInner::filled_with(199u8);
         data.inner_mut()[1] = 2;
         let page_buf = PageBuf::from_inner(data);
-        log::debug!("page buff = {:?}", page_buf);
+        log::debug!("page buff = {page_buf:?}");
     }
 
     #[test]
@@ -599,7 +597,7 @@ mod tests {
 
     #[test]
     fn alloc() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt::try_init();
 
         let mut ctx = AllocationsContext::try_new(
             256.into(),
@@ -952,7 +950,7 @@ mod tests {
                 mem_params in combined_memory_params(),
                 actions in actions(),
             ) {
-                let _ = env_logger::try_init();
+                let _ = tracing_subscriber::fmt::try_init();
 
                 let MemoryParams{max_pages, mem_size, static_pages, allocations} = mem_params;
                 let mut ctx = AllocationsContext::try_new(mem_size, allocations, static_pages, None, max_pages).unwrap();

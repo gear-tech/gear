@@ -18,7 +18,7 @@
 
 //! Gear primitive types.
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
@@ -40,30 +40,30 @@ use core::{
     fmt,
     str::{self, FromStr},
 };
-use derive_more::{AsMut, AsRef, Display, From, Into};
+use derive_more::{AsMut, AsRef, From, Into};
 use gear_ss58::RawSs58Address;
 #[cfg(feature = "codec")]
 use scale_info::{
-    scale::{self, Decode, Encode, MaxEncodedLen},
     TypeInfo,
+    scale::{self, Decode, Encode, MaxEncodedLen},
 };
 #[cfg(feature = "serde")]
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 /// The error type returned when conversion fails.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ConversionError {
     /// Invalid slice length.
-    #[display(fmt = "Slice should be 32 length")]
+    #[error("Slice should be 32 length")]
     InvalidSliceLength,
     /// Invalid hex string.
-    #[display(fmt = "Invalid hex string")]
+    #[error("Invalid hex string")]
     InvalidHexString,
     /// Invalid SS58 address.
-    #[display(fmt = "Invalid SS58 address")]
+    #[error("Invalid SS58 address")]
     InvalidSs58Address,
     /// SS58 encoding failed.
-    #[display(fmt = "SS58 encoding failed")]
+    #[error("SS58 encoding failed")]
     Ss58Encode,
 }
 
@@ -184,16 +184,16 @@ impl fmt::Display for ActorId {
             let mut e1 = median;
             let mut s2 = median;
 
-            if let Some(precision) = f.precision() {
-                if precision < median {
-                    e1 = precision;
-                    s2 = len - precision;
-                }
+            if let Some(precision) = f.precision()
+                && precision < median
+            {
+                e1 = precision;
+                s2 = len - precision;
             }
 
             let p1 = &address_str[..e1];
             let p2 = &address_str[s2..];
-            let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+            let sep = if e1.ne(&s2) { ".." } else { Default::default() };
 
             write!(f, "{p1}{sep}{p2}")?;
         } else {

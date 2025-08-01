@@ -18,7 +18,7 @@
 
 //! The module provides primitives for all available regular or time-dependent tasks.
 
-use crate::ids::{CodeId, MessageId, ProgramId, ReservationId};
+use crate::ids::{ActorId, CodeId, MessageId, ReservationId};
 use gsys::Gas;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
@@ -37,7 +37,7 @@ pub enum ScheduledTask<RFM, SD, SUM> {
     // -----
     /// Pause program as out of rent one.
     #[codec(index = 0)]
-    PauseProgram(ProgramId),
+    PauseProgram(ActorId),
 
     /// Remove code from code storage as out of rent one.
     #[codec(index = 1)]
@@ -49,17 +49,17 @@ pub enum ScheduledTask<RFM, SD, SUM> {
 
     /// Remove message from waitlist as out of rent one.
     #[codec(index = 3)]
-    RemoveFromWaitlist(ProgramId, MessageId),
+    RemoveFromWaitlist(ActorId, MessageId),
 
     /// Remove paused program as dead one (issue #1014).
     #[codec(index = 4)]
-    RemovePausedProgram(ProgramId),
+    RemovePausedProgram(ActorId),
 
     // Time chained section.
     // -----
     /// Delayed wake of the message at concrete block.
     #[codec(index = 5)]
-    WakeMessage(ProgramId, MessageId),
+    WakeMessage(ActorId, MessageId),
 
     /// Delayed message to program sending.
     ///
@@ -80,7 +80,7 @@ pub enum ScheduledTask<RFM, SD, SUM> {
 
     /// Remove gas reservation.
     #[codec(index = 8)]
-    RemoveGasReservation(ProgramId, ReservationId),
+    RemoveGasReservation(ActorId, ReservationId),
 
     /// Remove resume program session.
     #[codec(index = 9)]
@@ -123,20 +123,20 @@ pub trait TaskHandler<RFM, SD, SUM> {
     // Rent charging section.
     // -----
     /// Pause program action.
-    fn pause_program(&mut self, program_id: ProgramId) -> Gas;
+    fn pause_program(&mut self, program_id: ActorId) -> Gas;
     /// Remove code action.
     fn remove_code(&mut self, code_id: CodeId) -> Gas;
     /// Remove from mailbox action.
     fn remove_from_mailbox(&mut self, user_id: RFM, message_id: MessageId) -> Gas;
     /// Remove from waitlist action.
-    fn remove_from_waitlist(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
+    fn remove_from_waitlist(&mut self, program_id: ActorId, message_id: MessageId) -> Gas;
     /// Remove paused program action.
-    fn remove_paused_program(&mut self, program_id: ProgramId) -> Gas;
+    fn remove_paused_program(&mut self, program_id: ActorId) -> Gas;
 
     // Time chained section.
     // -----
     /// Wake message action.
-    fn wake_message(&mut self, program_id: ProgramId, message_id: MessageId) -> Gas;
+    fn wake_message(&mut self, program_id: ActorId, message_id: MessageId) -> Gas;
 
     /// Send delayed message to program action.
     fn send_dispatch(&mut self, stashed_message_id: SD) -> Gas;
@@ -145,11 +145,8 @@ pub trait TaskHandler<RFM, SD, SUM> {
     fn send_user_message(&mut self, stashed_message_id: MessageId, to_mailbox: SUM) -> Gas;
 
     /// Remove gas reservation action.
-    fn remove_gas_reservation(
-        &mut self,
-        program_id: ProgramId,
-        reservation_id: ReservationId,
-    ) -> Gas;
+    fn remove_gas_reservation(&mut self, program_id: ActorId, reservation_id: ReservationId)
+    -> Gas;
 
     /// Remove data created by resume program session.
     fn remove_resume_session(&mut self, session_id: u32) -> Gas;
@@ -160,6 +157,6 @@ fn task_encoded_size() {
     // We will force represent task with no more then 2^8 (256) bytes.
     const MAX_SIZE: usize = 256;
 
-    // For example we will take `AccountId` = `ProgramId` from `gear_core`.
-    assert!(VaraScheduledTask::<ProgramId>::max_encoded_len() <= MAX_SIZE);
+    // For example we will take `AccountId` = `ActorId` from `gear_core`.
+    assert!(VaraScheduledTask::<ActorId>::max_encoded_len() <= MAX_SIZE);
 }

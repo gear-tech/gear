@@ -6,23 +6,9 @@ on:
       macos:
         type: boolean
         default: false
-      win-native:
+      windows:
         type: boolean
         default: false
-      release:
-        type: boolean
-        default: false
-      production:
-        type: boolean
-        default: false
-  workflow_dispatch:
-    inputs:
-      title:
-        type: string
-        description: "Pull request title that triggers this workflow."
-      number:
-        type: string
-        description: "Pull request number that triggers this workflow"
       release:
         type: boolean
         default: false
@@ -33,271 +19,136 @@ on:
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
 env:
-  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  TERM: xterm-256color
-  BINARYEN_VERSION: version_111
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  CARGO_INCREMENTAL: 0
+  NEXTEST_PROFILE: ci
+  __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
 
 jobs:
-  dynamic-profiles:
+  dynamic-matrix:
     runs-on: ubuntu-latest
     outputs:
-      profiles: ${{ steps.set-matrix.outputs.profiles }}
+      profiles: ${{ steps.profiles.outputs.value }}
+      targets: ${{ steps.targets.outputs.value }}
     steps:
-      - id: set-matrix
+      - id: profiles
         run: |
-          profiles='{"name": "debug", "flags": ""}'
-          if [ "${{ inputs.release }}" = "true" ]; then
-            profiles+=', {"name": "release", "flags": "--release"}'
+          profiles=$(jq -c -n '[{name: "debug", flags: ""}]')
+          if ${{ inputs.release }}; then
+            profiles=$(echo "$profiles" | jq -c '. += [{name: "release", flags: "--release"}]')
           fi
-          profiles="[${profiles}]"
           echo "Profiles: ${profiles}"
-          echo "profiles=${profiles}" >> $GITHUB_OUTPUT
+          echo "value=${profiles}" >> $GITHUB_OUTPUT
+      - id: targets
+        run: |
+          targets=$(jq -c -n '[
+            {
+              name: "linux-x86_64",
+              target: "x86_64-unknown-linux-gnu",
+              "runs-on": ["kuberunner", "github-runner-02"]
+            }
+          ]')
+          
+          if ${{ inputs.macos }}; then
+            targets=$(echo "$targets" | jq -c '. += [
+              {
+                name: "macos-aarch64",
+                target: "aarch64-apple-darwin",
+                "runs-on": "macos-latest"
+              },
+              {
+                name: "macos-x86_64",
+                target: "x86_64-apple-darwin",
+                "runs-on": "macos-latest"
+              }
+            ]')
+          fi
+          
+          if ${{ inputs.windows }}; then
+            targets=$(echo "$targets" | jq -c '. += [
+              {
+                name: "windows-x86_64",
+                target: "x86_64-pc-windows-msvc",
+                "runs-on": ["kuberunner", "github-runner-02"]
+              }
+            ]')
+          fi
+          
+          echo "Targets: ${targets}"
+          echo "value=${targets}" >> $GITHUB_OUTPUT
 
-  linux:
-    runs-on: [kuberunner, github-runner-02]
-    needs: dynamic-profiles
+  node:
+    needs: dynamic-matrix
     strategy:
-      matrix:
-        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
       fail-fast: false
-    name: linux (${{ matrix.profiles.name }})
-    env:
-      LLVM_PROFILE_FILE: "gear-%p-%m.profraw"
-      RUSTUP_HOME: /tmp/rustup_home
+      matrix:
+        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.targets) }}
+    runs-on: ${{ matrix.targets.runs-on }}
+    name: node (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
-      - name: "Install: Foundry"
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: ${{ matrix.targets.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Show: Versioning"
-        run: |
-          ./scripts/gear.sh show
-          forge --version
-
-      - name: "Build: Init"
-        run: ./scripts/gear.sh init cargo
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
-      - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --locked ${{ matrix.profiles.flags }}
-
-      - name: "Build fuzzer"
-        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profiles.flags }}
-
-      - name: "Check: Vara runtime imports"
-        run: ./target/${{ matrix.profiles.name }}/wasm-proc --check-runtime-imports target/release/wbuild/vara-runtime/vara_runtime.compact.wasm
-
-      - name: "Check: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.flags == 'release' }}
-        run: cargo run -p calc-stack-height --release --locked
-
-      - name: "Test: Gear workspace"
-        run: ./scripts/gear.sh test gear --locked ${{ matrix.profiles.flags }}
-
-      - name: "Test: gsdk tests"
-        run: ./scripts/gear.sh test gsdk ${{ matrix.profiles.flags }}
-
-      - name: "Test: `gcli`"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/gear.sh test gcli --locked --retries 3 ${{ matrix.profiles.flags }}
-
-      - name: "Test: Client tests"
-        run: ./scripts/gear.sh test client ${{ matrix.profiles.flags }}
-
-      - name: "Test: Benchmarks in native"
+      - name: "Build: Prepare artifact"
         run: |
-          # fast benchmark tests before long run
-          cargo test -p "pallet-*" --features runtime-benchmarks,runtime-benchmarks-checkers --locked ${{ matrix.profiles.flags }} bench
+          mkdir -p artifact/wbuild/vara-runtime
+          cp target/${{ matrix.targets.target }}/release/gear* artifact/
+          cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
 
-      - name: "Test: Benchmarks in WASM"
-        # unoptimized benchmarks take a few hours to run
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: |
-          cargo build -p gear-cli --features=runtime-benchmarks,runtime-benchmarks-checkers ${{ matrix.profiles.flags }}
-          # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet="*" --steps=5 --repeat=0 --extrinsic="*" --heap-pages=4096
-          # check that read_big_state benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="read_big_state" --heap-pages=4096 --extra
-          # check that signal_stack_limit_exceeded_works benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="signal_stack_limit_exceeded_works" --heap-pages=4096 --extra
-          # check that check/test benchmarks works
-          ./target/${{ matrix.profiles.name }}/gear benchmark pallet --chain=dev --pallet=pallet_gear --repeat=0 --extrinsic="check_all" --heap-pages=4096 --extra
-
-      - name: "Test: Syscalls Wasmi integrity"
-        run: ./scripts/gear.sh test syscalls ${{ matrix.profiles.flags }}
-
-      - name: "Test: `try-runtime` feature tests"
-        run: |
-          cargo test -p "pallet-*" --features try-runtime --locked ${{ matrix.profiles.flags }}
-
-      - name: "Test: Try runtime migrations"
-        run: |
-          echo "---------- Downloading try-runtime CLI ----------"
-
-          curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
-          chmod +x ./try-runtime
-
-
-          echo "---------- Creating Vara Mainnet db snapshot [vara_ci.snap] ----------"
-
-          time ./try-runtime \
-            create-snapshot \
-            --uri wss://rpc-private.vara-network.io \
-            vara_ci.snap
-
-
-          echo "---------- Building Vara Mainnet runtime ----------"
-
-          time cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
-
-
-          echo "---------- Executing on-runtime-upgrade for snapshot ----------"
-
-          time ./try-runtime \
-            --runtime ./target/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm \
-            on-runtime-upgrade \
-            --blocktime 3000 \
-            --checks all \
-            --disable-spec-version-check \
-            --no-weight-warnings \
-            snap -p vara_ci.snap
-
-      - name: "Build: Production binaries"
-        if: ${{ inputs.production && matrix.profiles.name == 'release' }}
-        run: cargo build -p gear-cli -F cli --profile production
-
-      - name: Prepare artifacts
-        if: ${{ inputs.production && matrix.profiles.name == 'release' }}
-        run: |
-          mkdir -p artifact
-          tar czvf artifact/examples.tar.gz target/wasm32-gear/release/*.wasm
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
-          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          cp target/production/gear artifact/
-          cp target/release/wasm-proc artifact/
-          strip artifact/gear || true
-          strip artifact/wasm-proc || true
-
-      - name: Upload artifacts
-        if: ${{ github.event_name == 'push' && inputs.production && matrix.profiles.name == 'release' }}
+      - name: "ACTIONS: Upload node and VARA runtime"
         uses: actions/upload-artifact@v4
         with:
+          name: node-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
 
-  win-cross:
-    runs-on: [kuberunner, github-runner-03]
-    needs: dynamic-profiles
-    strategy:
-      matrix:
-        profiles: ${{ fromJson(needs.dynamic-profiles.outputs.profiles) }}
-      fail-fast: false
-    name: win-cross (${{ matrix.profiles.name }})
-    env:
-      XWIN_ARCH: x86_64
-      RUSTUP_HOME: /tmp/rustup_home
-      WINEDEBUG: fixme-all
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    steps:
-      - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
-
-      - name: "Install: MSVC target"
-        run: rustup target add x86_64-pc-windows-msvc
-
-      - name: "Install: cargo config"
-        run: cp ./.github/build-win-cross/config.toml ${CARGO_HOME:-~/.cargo}/config.toml
-
-      - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
-
-      - name: "Install: Wine"
-        run: |
-          wineboot
-          winetricks win10
-
-      - name: "Install: FireDaemon OpenSSL"
-        run: |
-          wget https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-3.4.0.zip
-          unzip openssl-3.4.0.zip "x64/*" -d openssl
-          echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
-          echo "OPENSSL_DIR=$(pwd)/openssl/x64" >> $GITHUB_ENV
-
-      - name: "Install: LLVM"
-        run: |
-          sudo ./.github/build-win-cross/update-alternatives-clang.sh 12 100
-
-      - name: "Install: binaryen"
-        run: |
-          sudo wget -c https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN_VERSION/binaryen-$BINARYEN_VERSION-x86_64-linux.tar.gz -O - | sudo tar -xz -C .
-          sudo cp binaryen-$BINARYEN_VERSION/bin/wasm-opt /usr/bin/
-
-      - name: "Install: cargo-xwin"
-        run: |
-          curl -L https://github.com/rust-cross/cargo-xwin/releases/download/v0.14.0/cargo-xwin-v0.14.0.x86_64-unknown-linux-musl.tar.gz | tar zxf -
-          mv ./cargo-xwin ${CARGO_HOME:-~/.cargo}/bin/
-
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Check: Stack height limit"
-        # no need to run check twice
-        if: ${{ matrix.profiles.name == 'release' }}
-        run: cargo xwin run -p calc-stack-height --release --locked
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      # These tests randomly stops responding
-
-      #- name: "Test: Client tests"
-      #  run: |
-      #    cp ./target/x86_64-pc-windows-msvc/release/gear.exe ./target/release/
-      #    ./scripts/gear.sh test client
-      #  env:
-      #    CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-      - name: "Test: Lazy pages"
-        run: >-
-          cargo xwin test
-          -p "pallet-*"
-          -p gear-lazy-pages
-          -p gear-runtime-interface
-          ${{ matrix.profiles.flags }}
-        env:
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
-
-  win-native:
-    needs: [dynamic-profiles, linux]
-    if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || inputs.win-native) }}
-    uses: ./.github/workflows/build-win-native.yml
+  linux:
+    needs: [dynamic-matrix, node]
+    uses: ./.github/workflows/build-linux.yml
+    secrets: inherit
     with:
-      profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
+      production: ${{ inputs.production }}
+
+  windows:
+    needs: [dynamic-matrix, node, linux]
+    if: ${{ inputs.windows }}
+    uses: ./.github/workflows/build-windows.yml
+    secrets: inherit
+    with:
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
 
   macos:
-    needs: [dynamic-profiles, linux]
-    if: ${{ !cancelled() && inputs.macos }}
+    needs: [dynamic-matrix, node, linux]
+    if: ${{ inputs.macos }}
     uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
     with:
-      profiles: ${{ needs.dynamic-profiles.outputs.profiles }}
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}

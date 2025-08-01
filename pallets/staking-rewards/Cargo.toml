@@ -32,7 +32,6 @@ frame-election-provider-support.workspace = true
 [dev-dependencies]
 sp-core = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
-sp-authority-discovery = { workspace = true, features = ["std"] }
 sp-npos-elections = { workspace = true, features = ["std"] }
 frame-election-provider-support = { workspace = true, features = ["std"] }
 pallet-treasury = { workspace = true, features = ["std"] }
@@ -43,7 +42,7 @@ pallet-sudo = { workspace = true, features = ["std"] }
 pallet-utility = { workspace = true, features = ["std"] }
 pallet-election-provider-multi-phase = { workspace = true, features = ["std"] }
 frame-executive = { workspace = true, features = ["std"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 common = { workspace = true, features = ["std"] }
 
 [features]

@@ -22,7 +22,7 @@ use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, CodeId, ProgramId},
+    ids::{ActorId, CodeId, prelude::*},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -40,7 +40,7 @@ use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
 use nonempty::nonempty;
 use proptest::prelude::*;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::num::NonZero;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
@@ -430,7 +430,7 @@ fn test_existing_address_as_address_param() {
 
     assert_eq!(
         dispatch.destination(),
-        ProgramId::try_from(some_address.as_ref()).unwrap()
+        ActorId::try_from(some_address.as_ref()).unwrap()
     );
 }
 
@@ -563,7 +563,7 @@ fn test_msg_value_ptr_dest() {
                     ActorKind::ExistingAddresses(_) => {
                         assert_eq!(
                             destination,
-                            ProgramId::try_from(some_address.as_ref()).unwrap()
+                            ActorId::try_from(some_address.as_ref()).unwrap()
                         )
                     }
                     ActorKind::Random => {}
@@ -780,11 +780,13 @@ fn test_code_id_with_value_ptr() {
             backend_report.ext.context.value_counter.left(),
             INITIAL_BALANCE - REPLY_VALUE
         );
-        assert!(backend_report
-            .ext
-            .context
-            .program_candidates_data
-            .contains_key(&some_code_id));
+        assert!(
+            backend_report
+                .ext
+                .context
+                .program_candidates_data
+                .contains_key(&some_code_id)
+        );
         assert_eq!(
             backend_report.termination_reason,
             TerminationReason::Actor(ActorTerminationReason::Success)
@@ -1024,7 +1026,7 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to create Code");
 
     let code_id = CodeId::generate(code.original_code());
-    let program_id = ProgramId::generate_from_user(code_id, b"");
+    let program_id = ActorId::generate_from_user(code_id, b"");
 
     let incoming_message = IncomingMessage::new(
         message_id.into(),
@@ -1056,7 +1058,7 @@ fn execute_wasm_with_custom_configs(
     let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
-        code.code(),
+        code.instrumented_code().bytes(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
@@ -1088,7 +1090,7 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to execute WASM module")
 }
 
-fn message_sender() -> ProgramId {
+fn message_sender() -> ActorId {
     let bytes = [1, 2, 3, 4].repeat(8);
-    ProgramId::try_from(bytes.as_ref()).unwrap()
+    ActorId::try_from(bytes.as_ref()).unwrap()
 }

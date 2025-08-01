@@ -22,13 +22,13 @@
 use crate::Pallet as BuiltinActorPallet;
 use crate::*;
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::{pairing::Pairing, short_weierstrass::SWCurveConfig, Group, ScalarMul};
+use ark_ec::{Group, ScalarMul, pairing::Pairing, short_weierstrass::SWCurveConfig};
 use ark_ff::biginteger::BigInt;
 use ark_scale::hazmat::ArkScaleProjective;
-use ark_std::{ops::Mul, UniformRand};
+use ark_std::{UniformRand, ops::Mul};
 use common::Origin;
 use frame_benchmarking::benchmarks;
-use gear_core::message::MAX_PAYLOAD_SIZE;
+use gear_core::buffer::MAX_PAYLOAD_SIZE;
 use parity_scale_codec::{Compact, Encode, Input};
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;

@@ -24,11 +24,14 @@ use core::{
     marker::PhantomData,
 };
 
-use alloc::{vec, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
+use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
+
+use crate::str::LimitedStr;
 
 /// Limited len vector.
 /// `T` is data type.
@@ -62,7 +65,7 @@ where
 
         let p1 = hex::encode(&self.0[..e1]);
         let p2 = hex::encode(&self.0[s2..]);
-        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        let sep = if e1.ne(&s2) { ".." } else { Default::default() };
 
         if f.alternate() {
             write!(f, "LimitedVec(0x{p1}{sep}{p2})")
@@ -98,6 +101,9 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
 }
 
 impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
+    /// Maximum length of the vector.
+    pub const MAX_LEN: usize = N;
+
     /// Constructs a new, empty `LimitedVec<T>`.
     pub const fn new() -> Self {
         Self(Vec::new(), PhantomData)
@@ -168,6 +174,11 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         &mut self.0
     }
 
+    /// Clones self into vector.
+    pub fn to_vec(&self) -> Vec<T> {
+        self.0.clone()
+    }
+
     /// Destruct limited vector and returns inner vector.
     pub fn into_vec(self) -> Vec<T> {
         self.0
@@ -207,13 +218,147 @@ impl Display for RuntimeBufferSizeError {
     }
 }
 
+/// Wrapper for payload slice.
+pub struct PayloadSlice {
+    /// Start of the slice.
+    start: usize,
+    /// End of the slice.
+    end: usize,
+    /// Payload
+    payload: Arc<Payload>,
+}
+
+impl PayloadSlice {
+    /// Try to create a new PayloadSlice.
+    pub fn try_new(start: u32, end: u32, payload: Arc<Payload>) -> Option<Self> {
+        // Check if start and end are within the bounds of the payload
+        if start > end || end > payload.len_u32() {
+            return None;
+        }
+
+        Some(Self {
+            start: start as usize,
+            end: end as usize,
+            payload,
+        })
+    }
+
+    /// Get slice of the payload.
+    pub fn slice(&self) -> &[u8] {
+        &self.payload.inner()[self.start..self.end]
+    }
+}
+
 /// Buffer which size cannot be bigger then max allowed allocation size in runtime.
 pub type RuntimeBuffer = LimitedVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
 
+/// Max payload size which one message can have (8 MiB).
+pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
+
+// **WARNING**: do not remove this check
+const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
+
+/// Payload size exceed error
+#[derive(
+    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct PayloadSizeError;
+
+impl From<PayloadSizeError> for &str {
+    fn from(_: PayloadSizeError) -> Self {
+        "Payload size limit exceeded"
+    }
+}
+
+impl Display for PayloadSizeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str((*self).into())
+    }
+}
+
+/// Payload type for message.
+pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
+
+impl Payload {
+    /// Get payload length as u32.
+    pub fn len_u32(&self) -> u32 {
+        // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
+        self.inner().len() as u32
+    }
+}
+
+impl MaxEncodedLen for Payload {
+    fn max_encoded_len() -> usize {
+        Compact::<u32>::max_encoded_len() + MAX_PAYLOAD_SIZE
+    }
+}
+
+/// Panic buffer which size cannot be bigger then max allowed payload size.
+#[derive(
+    Clone,
+    Default,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    Encode,
+    TypeInfo,
+    derive_more::From,
+    derive_more::Into,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct PanicBuffer(Payload);
+
+impl PanicBuffer {
+    /// Returns ref to the internal data.
+    pub fn inner(&self) -> &Payload {
+        &self.0
+    }
+
+    fn to_limited_str(&self) -> Option<LimitedStr<'_>> {
+        let s = core::str::from_utf8(self.0.inner()).ok()?;
+        LimitedStr::try_from(s).ok()
+    }
+}
+
+impl From<LimitedStr<'_>> for PanicBuffer {
+    fn from(value: LimitedStr) -> Self {
+        const _: () = assert!(crate::str::TRIMMED_MAX_LEN <= MAX_PAYLOAD_SIZE);
+        Payload::try_from(value.into_inner().into_owned().into_bytes())
+            .map(Self)
+            .unwrap_or_else(|PayloadSizeError| {
+                unreachable!("`LimitedStr` is always smaller than maximum payload size",)
+            })
+    }
+}
+
+impl Display for PanicBuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(s) = self.to_limited_str() {
+            Display::fmt(&s, f)
+        } else {
+            Display::fmt(&self.0, f)
+        }
+    }
+}
+
+impl Debug for PanicBuffer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(s) = self.to_limited_str() {
+            Debug::fmt(s.as_str(), f)
+        } else {
+            Debug::fmt(&self.0, f)
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{LimitedVec, RuntimeBufferSizeError};
-    use alloc::{string::String, vec, vec::Vec};
+    use super::{LimitedVec, PanicBuffer, Payload, RuntimeBufferSizeError};
+    use alloc::{format, string::String, vec, vec::Vec};
     use core::convert::{TryFrom, TryInto};
 
     const N: usize = 1000;
@@ -332,5 +477,27 @@ mod test {
         );
         // Alternate formatter with precision 2.
         assert_eq!(format!("{buffer:#.2}"), "LimitedVec(0x6162..3435)");
+    }
+
+    fn panic_buf(bytes: &[u8]) -> PanicBuffer {
+        Payload::try_from(bytes).map(PanicBuffer).unwrap()
+    }
+
+    #[test]
+    fn panic_buffer_debug() {
+        let buf = panic_buf(b"Hello, world!");
+        assert_eq!(format!("{buf:?}"), r#""Hello, world!""#);
+
+        let buf = panic_buf(b"\xE0\x80\x80");
+        assert_eq!(format!("{buf:?}"), "0xe08080");
+    }
+
+    #[test]
+    fn panic_buffer_display() {
+        let buf = panic_buf(b"Hello, world!");
+        assert_eq!(format!("{buf}"), "Hello, world!");
+
+        let buf = panic_buf(b"\xE0\x80\x80");
+        assert_eq!(format!("{buf}"), "0xe08080");
     }
 }

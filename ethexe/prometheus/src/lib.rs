@@ -17,20 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
-use futures::{ready, stream::FusedStream, FutureExt, Stream};
+use futures::{FutureExt, Stream, ready, stream::FusedStream};
 use hyper::{
+    Body, Request, Response, Server,
     http::StatusCode,
     server::conn::AddrIncoming,
     service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
 };
 use prometheus::{
-    self,
+    self, Encoder, Opts, Registry, TextEncoder,
     core::{
         AtomicU64 as U64, AtomicU64, Collector, GenericCounterVec, GenericGauge as Gauge,
         GenericGaugeVec,
     },
-    Encoder, Opts, Registry, TextEncoder,
 };
 use std::{
     net::SocketAddr,
@@ -95,7 +94,7 @@ impl PrometheusConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PrometheusEvent {
     CollectMetrics,
 }
@@ -149,26 +148,30 @@ impl PrometheusService {
         self.metrics.pending_codes.set(pending_codes as u64);
     }
 
-    pub fn update_sequencer_metrics(
+    pub fn update_compute_metrics(
         &mut self,
-        submitted_code_commitments: usize,
-        submitted_block_commitments: usize,
+        blocks_queue_len: usize,
+        waiting_codes_count: usize,
+        process_codes_count: usize,
     ) {
         self.metrics
-            .submitted_code_commitments
-            .set(submitted_code_commitments as u64);
-
+            .compute_blocks_queue
+            .set(blocks_queue_len as u64);
         self.metrics
-            .submitted_block_commitments
-            .set(submitted_block_commitments as u64);
+            .compute_waiting_codes
+            .set(waiting_codes_count as u64);
+        self.metrics
+            .compute_processing_codes
+            .set(process_codes_count as u64);
     }
 }
 
 struct PrometheusMetrics {
     eth_best_height: Gauge<U64>,
     pending_codes: Gauge<U64>,
-    submitted_code_commitments: Gauge<U64>,
-    submitted_block_commitments: Gauge<U64>,
+    compute_blocks_queue: Gauge<U64>,
+    compute_waiting_codes: Gauge<U64>,
+    compute_processing_codes: Gauge<U64>,
 }
 
 impl PrometheusMetrics {
@@ -218,18 +221,26 @@ impl PrometheusMetrics {
                 registry,
             )?,
 
-            submitted_code_commitments: register(
+            compute_blocks_queue: register(
                 Gauge::<U64>::new(
-                    "ethexe_submitted_code_commitments",
-                    "Number of submitted code commitments in sequencer",
+                    "ethexe_compute_blocks_queue",
+                    "Number of blocks in the queue for processing",
                 )?,
                 registry,
             )?,
 
-            submitted_block_commitments: register(
+            compute_waiting_codes: register(
                 Gauge::<U64>::new(
-                    "ethexe_submitted_block_commitments",
-                    "Number of submitted block commitments in sequencer",
+                    "ethexe_compute_waiting_codes",
+                    "Number of codes waiting for loading to advance block processing",
+                )?,
+                registry,
+            )?,
+
+            compute_processing_codes: register(
+                Gauge::<U64>::new(
+                    "ethexe_compute_processing_codes",
+                    "Number of processing codes",
                 )?,
                 registry,
             )?,

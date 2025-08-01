@@ -1,0 +1,17 @@
+name: install-rust
+
+runs:
+  using: composite
+  steps:
+    - run: |
+        Invoke-WebRequest -OutFile rustup-init.exe https://win.rustup.rs/x86_64
+        .\rustup-init.exe -y --profile minimal
+        Remove-Item rustup-init.exe
+        Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
+      if: ${{ runner.os == 'Windows' }}
+      shell: powershell
+
+    - uses: dsherret/rust-toolchain-file@v1
+
+    - run: rustup default stable
+      shell: bash

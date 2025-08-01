@@ -20,7 +20,7 @@ async-trait.workspace = true
 colored.workspace = true
 color-eyre.workspace = true
 dirs.workspace = true
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 gear-core.workspace = true
 gring = { workspace = true, features = ["cli"] }
 hex.workspace = true
@@ -38,17 +38,11 @@ url = { workspace = true, features = ["serde"] }
 toml.workspace = true
 
 [dev-dependencies]
-rand.workspace = true
 demo-messenger.workspace = true
 demo-fungible-token.workspace = true
-demo-waiter.workspace = true
 gear-node-wrapper.workspace = true
 
 [build-dependencies]
-which.workspace = true
-
-[features]
-embed = []
 
 [package.metadata.docs.rs]
 all-features = true

@@ -24,9 +24,10 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use core::{
     any::Any,
+    cell::RefCell,
     cmp::Ordering,
     marker::PhantomData,
     mem,
@@ -35,16 +36,15 @@ use core::{
 use ethexe_common::gear::{Message, Origin};
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
-    ids::{prelude::MessageIdExt as _, ProgramId},
+    buffer::Payload,
+    ids::prelude::MessageIdExt as _,
     memory::PageBuf,
-    message::{
-        ContextStore, DispatchKind, MessageDetails, Payload, ReplyDetails, StoredDispatch, Value,
-    },
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    message::{ContextStore, DispatchKind, MessageDetails, ReplyDetails, StoredDispatch, Value},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     program::MemoryInfix,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gprimitives::{ActorId, MessageId, H256};
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use private::Sealed;
 
@@ -69,13 +69,22 @@ mod private {
     // TODO (breathx): consider using HashOf<ProgramState> everywhere.
     // impl Sealed for ProgramState {}
     impl Sealed for Waitlist {}
+}
 
-    pub fn shortname<S: Any>() -> &'static str {
-        core::any::type_name::<S>()
-            .split("::")
-            .last()
-            .expect("name is empty")
-    }
+#[allow(unused)]
+fn shortname<S: Any>() -> &'static str {
+    core::any::type_name::<S>()
+        .split("::")
+        .last()
+        .expect("name is empty")
+}
+
+#[allow(unused)]
+fn option_string<S: ToString>(value: &Option<S>) -> String {
+    value
+        .as_ref()
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "<none>".to_string())
 }
 
 /// Represents payload provider (lookup).
@@ -143,10 +152,10 @@ impl PayloadLookup {
     }
 }
 
-#[derive(Encode, Decode, derive_more::Into, derive_more::DebugCustom, derive_more::Display)]
+#[derive(Encode, Decode, derive_more::Into, derive_more::Debug, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-#[debug(fmt = "HashOf<{}>({hash:?})", "private::shortname::<S>()")]
-#[display(fmt = "{hash}")]
+#[debug("HashOf<{}>({hash:?})", shortname::<S>())]
+#[display("{hash}")]
 pub struct HashOf<S: Sealed + 'static> {
     hash: H256,
     #[into(ignore)]
@@ -205,7 +214,7 @@ impl<S: Sealed> HashOf<S> {
     Eq,
     derive_more::Into,
     derive_more::From,
-    derive_more::DebugCustom,
+    derive_more::Debug,
     derive_more::Display,
 )]
 #[cfg_attr(
@@ -213,15 +222,8 @@ impl<S: Sealed> HashOf<S> {
     derive(serde::Serialize, serde::Deserialize),
     serde(bound = "")
 )]
-#[debug(
-    fmt = "MaybeHashOf<{}>({})",
-    "private::shortname::<S>()",
-    "self.hash().map(|v| v.to_string()).unwrap_or_else(|| String::from(\"<none>\"))"
-)]
-#[display(
-    fmt = "{}",
-    "_0.map(|v| v.to_string()).unwrap_or_else(|| String::from(\"<none>\"))"
-)]
+#[debug("MaybeHashOf<{}>({})", shortname::<S>(), option_string(&self.hash()))]
+#[display("{}", option_string(_0))]
 pub struct MaybeHashOf<S: Sealed + 'static>(Option<HashOf<S>>);
 
 impl<S: Sealed> Clone for MaybeHashOf<S> {
@@ -383,9 +385,18 @@ impl MaybeHashOf<MemoryPages> {
     }
 }
 
-impl MaybeHashOf<MessageQueue> {
+// TODO(romanm): consider to make it into general primitive: `HashOf`, `SizedHashOf`, `MaybeHashOf`, `SizedMaybeHashOf`
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct MessageQueueHashWithSize {
+    pub hash: MaybeHashOf<MessageQueue>,
+    // NOTE: only here to propagate queue size to the parent state (`StateHashWithQueueSize`).
+    pub cached_queue_size: u8,
+}
+
+impl MessageQueueHashWithSize {
     pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
-        self.try_map_or_default(|hash| {
+        self.hash.try_map_or_default(|hash| {
             storage.read_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
             ))
@@ -401,9 +412,15 @@ impl MaybeHashOf<MessageQueue> {
 
         let r = f(&mut queue);
 
-        *self = queue.store(storage);
+        // Emulate saturating behavior for queue size.
+        self.cached_queue_size = queue.len().min(u8::MAX as usize) as u8;
+        self.hash = queue.store(storage);
 
         r
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.hash.is_empty()
     }
 }
 
@@ -486,8 +503,8 @@ impl Program {
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue, see [`MessageQueue`].
-    pub queue_hash: MaybeHashOf<MessageQueue>,
+    /// Hash of incoming message queue with its cached size, see [`MessageQueueHashWithSize`].
+    pub queue: MessageQueueHashWithSize,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
     /// Hash of dispatch stash, see [`DispatchStash`].
@@ -509,7 +526,10 @@ impl ProgramState {
                 memory_infix: MemoryInfix::new(0),
                 initialized: false,
             }),
-            queue_hash: MaybeHashOf::empty(),
+            queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
             waitlist_hash: MaybeHashOf::empty(),
             stash_hash: MaybeHashOf::empty(),
             mailbox_hash: MaybeHashOf::empty(),
@@ -533,7 +553,7 @@ impl ProgramState {
             return false;
         }
 
-        self.queue_hash.is_empty() && self.waitlist_hash.is_empty()
+        self.queue.hash.is_empty() && self.waitlist_hash.is_empty()
     }
 }
 
@@ -545,7 +565,7 @@ pub struct Dispatch {
     /// Dispatch kind.
     pub kind: DispatchKind,
     /// Message source.
-    pub source: ProgramId,
+    pub source: ActorId,
     /// Message payload.
     pub payload: PayloadLookup,
     /// Message value.
@@ -556,9 +576,13 @@ pub struct Dispatch {
     pub context: Option<ContextStore>,
     /// Origin of the message.
     pub origin: Origin,
+    /// If to call on eth.
+    /// Currently only used for replies: assert_eq!(message.call, replyToThisMessage.call);
+    pub call: bool,
 }
 
 impl Dispatch {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<S: Storage>(
         storage: &S,
         id: MessageId,
@@ -567,6 +591,7 @@ impl Dispatch {
         value: u128,
         is_init: bool,
         origin: Origin,
+        call: bool,
     ) -> Result<Self> {
         let payload = storage.write_payload_raw(payload)?;
 
@@ -585,6 +610,7 @@ impl Dispatch {
             details: None,
             context: None,
             origin,
+            call,
         })
     }
 
@@ -595,6 +621,7 @@ impl Dispatch {
         payload: Vec<u8>,
         value: u128,
         origin: Origin,
+        call: bool,
     ) -> Result<Self> {
         let payload_hash = storage.write_payload_raw(payload)?;
 
@@ -605,6 +632,7 @@ impl Dispatch {
             value,
             SuccessReplyReason::Manual,
             origin,
+            call,
         ))
     }
 
@@ -615,6 +643,7 @@ impl Dispatch {
         value: u128,
         reply_code: impl Into<ReplyCode>,
         origin: Origin,
+        call: bool,
     ) -> Self {
         Self {
             id: MessageId::generate_reply(reply_to),
@@ -625,6 +654,7 @@ impl Dispatch {
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
             origin,
+            call,
         }
     }
 
@@ -632,6 +662,7 @@ impl Dispatch {
         storage: &S,
         value: StoredDispatch,
         origin: Origin,
+        call_reply: bool,
     ) -> Self {
         let (kind, message, context) = value.into_parts();
         let (id, source, _destination, payload, value, details) = message.into_parts();
@@ -649,6 +680,7 @@ impl Dispatch {
             details,
             context,
             origin,
+            call: call_reply,
         }
     }
 
@@ -658,6 +690,7 @@ impl Dispatch {
             payload,
             value,
             details,
+            call,
             ..
         } = self;
 
@@ -669,6 +702,7 @@ impl Dispatch {
             payload,
             value,
             reply_details: details.and_then(|d| d.to_reply_details()),
+            call,
         }
     }
 }
@@ -686,13 +720,28 @@ impl<T> From<(T, u32)> for Expiring<T> {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(
+    Clone,
+    Default,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    derive_more::Into,
+    derive_more::AsRef,
+    derive_more::IntoIterator,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueue(VecDeque<Dispatch>);
 
 impl MessageQueue {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     pub fn queue(&mut self, dispatch: Dispatch) {
@@ -715,10 +764,6 @@ impl MessageQueue {
 /// Methods introduced due to solution to #4513.
 /// Remove when becomes unnecessary.
 impl MessageQueue {
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
     pub fn clear(&mut self) {
         self.0.clear()
     }
@@ -728,9 +773,10 @@ impl MessageQueue {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
+    #[as_ref]
     inner: BTreeMap<MessageId, Expiring<Dispatch>>,
     #[into(ignore)]
     #[codec(skip)]
@@ -738,11 +784,11 @@ pub struct Waitlist {
 }
 
 impl Waitlist {
-    pub fn wait(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
+    pub fn wait(&mut self, dispatch: Dispatch, expiry: u32) {
         self.changed = true;
 
         let r = self.inner.insert(
-            message_id,
+            dispatch.id,
             Expiring {
                 value: dispatch,
                 expiry,
@@ -767,14 +813,16 @@ impl Waitlist {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct DispatchStash(BTreeMap<MessageId, Expiring<(Dispatch, Option<ActorId>)>>);
 
 impl DispatchStash {
-    pub fn add_to_program(&mut self, message_id: MessageId, dispatch: Dispatch, expiry: u32) {
+    pub fn add_to_program(&mut self, dispatch: Dispatch, expiry: u32) {
         let r = self.0.insert(
-            message_id,
+            dispatch.id,
             Expiring {
                 value: (dispatch, None),
                 expiry,
@@ -783,15 +831,9 @@ impl DispatchStash {
         debug_assert!(r.is_none());
     }
 
-    pub fn add_to_user(
-        &mut self,
-        message_id: MessageId,
-        dispatch: Dispatch,
-        expiry: u32,
-        user_id: ActorId,
-    ) {
+    pub fn add_to_user(&mut self, dispatch: Dispatch, expiry: u32, user_id: ActorId) {
         let r = self.0.insert(
-            message_id,
+            dispatch.id,
             Expiring {
                 value: (dispatch, Some(user_id)),
                 expiry,
@@ -887,9 +929,18 @@ impl UserMailbox {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
+impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
+    fn as_ref(&self) -> &BTreeMap<MessageId, Expiring<MailboxMessage>> {
+        &self.0
+    }
+}
+
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mailbox {
+    #[as_ref]
     inner: BTreeMap<ActorId, HashOf<UserMailbox>>,
     #[into(ignore)]
     #[codec(skip)]
@@ -1025,7 +1076,7 @@ impl MemoryPages {
 
     /// Pages amount per each region.
     pub const PAGES_PER_REGION: usize = Self::MAX_PAGES / Self::REGIONS_AMOUNT;
-    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES % Self::REGIONS_AMOUNT == 0);
+    const _DIVISIBILITY_ASSERT: () = assert!(Self::MAX_PAGES.is_multiple_of(Self::REGIONS_AMOUNT));
 
     pub fn page_region(page: GearPage) -> RegionIdx {
         RegionIdx((u32::from(page) as usize / Self::PAGES_PER_REGION) as u8)
@@ -1121,6 +1172,10 @@ impl MemoryPages {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages(self)))
     }
+
+    pub fn to_inner(&self) -> MemoryPagesInner {
+        self.0
+    }
 }
 
 #[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into)]
@@ -1132,6 +1187,10 @@ pub type MemoryPagesRegionInner = BTreeMap<GearPage, HashOf<PageBuf>>;
 impl MemoryPagesRegion {
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf((!self.0.is_empty()).then(|| storage.write_pages_region(self)))
+    }
+
+    pub fn as_inner(&self) -> &MemoryPagesRegionInner {
+        &self.0
     }
 }
 
@@ -1212,7 +1271,7 @@ pub trait Storage {
     fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
 
     /// Writes user mailbox and returns its hash.
-    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox>;
+    fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox>;
 
     /// Reads memory pages by pages hash.
     fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
@@ -1267,5 +1326,118 @@ pub trait Storage {
             .into_iter()
             .map(|(k, v)| (k, self.write_page_data(v)))
             .collect()
+    }
+}
+
+/// In-memory storage for testing purposes.
+#[derive(Debug, Default)]
+pub struct MemStorage {
+    inner: RefCell<BTreeMap<H256, Vec<u8>>>,
+}
+
+impl MemStorage {
+    fn read<T: Decode>(&self, hash: H256) -> Option<T> {
+        self.inner
+            .borrow()
+            .get(&hash)
+            .map(|vec| Decode::decode(&mut &vec[..]).unwrap())
+    }
+
+    fn write<T: Encode>(&self, value: T) -> H256 {
+        let value = value.encode();
+        let hash = gear_core::utils::hash(&value);
+        let hash = H256(hash);
+        self.inner.borrow_mut().insert(hash, value);
+        hash
+    }
+}
+
+impl Storage for MemStorage {
+    fn read_state(&self, hash: H256) -> Option<ProgramState> {
+        self.read(hash)
+    }
+
+    fn write_state(&self, state: ProgramState) -> H256 {
+        self.write(state)
+    }
+
+    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+        self.read(hash.hash())
+    }
+
+    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+        unsafe { HashOf::new(self.write(queue)) }
+    }
+
+    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+        self.read(hash.hash())
+    }
+
+    fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
+        unsafe { HashOf::new(self.write(waitlist)) }
+    }
+
+    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+        self.read(hash.hash())
+    }
+
+    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+        unsafe { HashOf::new(self.write(stash)) }
+    }
+
+    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+        self.read(hash.hash())
+    }
+
+    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
+        unsafe { HashOf::new(self.write(mailbox)) }
+    }
+
+    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+        self.read(hash.hash())
+    }
+
+    fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox> {
+        unsafe { HashOf::new(self.write(user_mailbox)) }
+    }
+
+    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+        self.read(hash.hash())
+    }
+
+    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+        self.read(hash.hash())
+    }
+
+    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+        unsafe { HashOf::new(self.write(pages)) }
+    }
+
+    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+        unsafe { HashOf::new(self.write(pages_region)) }
+    }
+
+    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+        self.read(hash.hash())
+    }
+
+    fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
+        unsafe { HashOf::new(self.write(allocations)) }
+    }
+
+    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+        self.read(hash.hash())
+    }
+
+    fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
+        unsafe { HashOf::new(self.write(payload)) }
+    }
+
+    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+        self.read(hash.hash())
+    }
+
+    fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
+        unsafe { HashOf::new(self.write(data)) }
     }
 }

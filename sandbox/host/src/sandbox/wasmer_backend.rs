@@ -18,9 +18,9 @@
 
 //! Wasmer specific impls for sandbox
 
-use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
-use sp_wasm_interface_common::{util, Pointer, ReturnValue, Value, WordSize};
+use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue};
+use parity_scale_codec::{Decode, Encode};
+use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize, util};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmer::{AsStoreMut, RuntimeError, Store};
 use wasmer_types::TrapCode;
@@ -44,7 +44,7 @@ mod store_refcell_ctx {
 
     use wasmer::StoreMut;
 
-    use super::{store_refcell::BorrowScopeError, StoreRefCell};
+    use super::{StoreRefCell, store_refcell::BorrowScopeError};
 
     // We cannot store `StoreRefCell` in `wasmer::FunctionEnv` because it doesn't implement Send/Sync,
     // so we have to use `environment!` to access it from `dispatch_function` functions.
@@ -140,8 +140,7 @@ pub fn invoke(
 
         [wasm_value] => match into_value(wasm_value) {
             None => Err(Error::Sandbox(format!(
-                "Unsupported return value: {:?}",
-                wasm_value,
+                "Unsupported return value: {wasm_value:?}",
             ))),
             Some(v) => Ok(Some(v)),
         },
@@ -409,7 +408,7 @@ fn dispatch_function(
                     .iter()
                     .map(|value| {
                         into_value(value).ok_or_else(|| {
-                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
+                            RuntimeError::new(format!("Unsupported function argument: {value:?}"))
                         })
                     })
                     .collect::<std::result::Result<Vec<_>, _>>()?
@@ -458,7 +457,7 @@ fn dispatch_function_v2(
                     .chain(params.iter())
                     .map(|value| {
                         into_value(value).ok_or_else(|| {
-                            RuntimeError::new(format!("Unsupported function argument: {:?}", value))
+                            RuntimeError::new(format!("Unsupported function argument: {value:?}"))
                         })
                     })
                     .collect::<std::result::Result<Vec<_>, _>>()?
@@ -631,8 +630,7 @@ impl MemoryTransfer for MemoryWrapper {
             .grow(&mut self.store.borrow_mut(), pages)
             .map_err(|e| {
                 Error::Sandbox(format!(
-                    "Cannot grow memory in wasmer sandbox executor: {}",
-                    e
+                    "Cannot grow memory in wasmer sandbox executor: {e}",
                 ))
             })
             .map(|p| p.0)

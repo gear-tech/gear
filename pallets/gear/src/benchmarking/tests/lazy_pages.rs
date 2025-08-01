@@ -19,13 +19,13 @@
 //! Lazy-pages wasm runtime tests.
 
 use crate::{
+    Config, Ext, HandleKind, LazyPagesInterface, LazyPagesRuntimeInterface, ProgramStorageOf,
     benchmarking::{
-        code::{body, ImportedMemory, ModuleDefinition},
+        Program,
+        code::{ImportedMemory, ModuleDefinition, body},
         utils as common_utils,
         utils::PrepareConfig,
-        Program,
     },
-    Config, Ext, HandleKind, LazyPagesInterface, LazyPagesRuntimeInterface, ProgramStorageOf,
 };
 use ::alloc::{collections::BTreeSet, format, vec};
 use common::{Origin, ProgramStorage};
@@ -34,7 +34,7 @@ use core_processor::common::{DispatchOutcome, JournalNote};
 use gear_core::{
     costs::LazyPagesCosts,
     memory::{MemoryInterval, PageBuf},
-    pages::{numerated::iterators::IntervalIterator, GearPage, GearPagesAmount},
+    pages::{GearPage, GearPagesAmount, numerated::iterators::IntervalIterator},
 };
 use gear_lazy_pages_common::Status;
 use gear_wasm_instrument::{Instruction, MemArg, SyscallName};
@@ -69,7 +69,7 @@ impl Debug for PageSets {
             } else {
                 self.sets[set_no].clone()
             };
-            f.write_str(&format!("{set_no:?} {:?}", set))?;
+            f.write_str(&format!("{set_no:?} {set:?}"))?;
         }
         Ok(())
     }

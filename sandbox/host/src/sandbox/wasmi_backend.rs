@@ -23,8 +23,8 @@ use std::{
     slice,
 };
 
-use codec::{Decode, Encode};
-use gear_sandbox_env::{HostError, Instantiate, WasmReturnValue, GLOBAL_NAME_GAS};
+use gear_sandbox_env::{GLOBAL_NAME_GAS, HostError, Instantiate, WasmReturnValue};
+use parity_scale_codec::{Decode, Encode};
 use region::{Allocation, Protection};
 use wasmi::{
     AsContext, AsContextMut, Engine, ExternType, Linker, MemoryType, Module, StackLimits, Val,
@@ -371,7 +371,7 @@ fn dispatch_function(
                     .iter()
                     .map(|value| {
                         into_value(value).ok_or_else(|| {
-                            host_trap(format!("Unsupported function argument: {:?}", value))
+                            host_trap(format!("Unsupported function argument: {value:?}"))
                         })
                     })
                     .collect::<Result<Vec<_>, _>>()?
@@ -425,7 +425,7 @@ fn dispatch_function_v2(
                             .chain(params.iter())
                             .map(|value| {
                                 into_value(value).ok_or_else(|| {
-                                    host_trap(format!("Unsupported function argument: {:?}", value))
+                                    host_trap(format!("Unsupported function argument: {value:?}"))
                                 })
                             })
                             .collect::<Result<Vec<_>, _>>()?
@@ -454,7 +454,7 @@ fn dispatch_function_v2(
 
                 gas_global
                     .set(caller, Val::I64(deserialized_result.gas))
-                    .map_err(|e| host_trap(format!("Failed to set gas global: {:?}", e)))?;
+                    .map_err(|e| host_trap(format!("Failed to set gas global: {e:?}")))?;
 
                 Ok(())
             })

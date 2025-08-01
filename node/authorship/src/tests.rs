@@ -25,19 +25,18 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::{
+    ProposerFactory,
     authorship::MAX_SKIPPED_TRANSACTIONS,
     block_builder::{BlockBuilder, BlockBuilderBuilder},
-    ProposerFactory,
 };
-use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use demo_constructor::{Calls, Scheme, WASM_BINARY};
 use frame_support::{assert_ok, storage::storage_prefix, traits::PalletInfoAccess};
 use futures::executor::block_on;
 use gear_core::program::Program;
-use gear_runtime_common::constants::BANK_ADDRESS;
 use pallet_gear_rpc_runtime_api::GearApi;
-use parking_lot::{Mutex, RwLock};
+use parity_scale_codec::{Decode, Encode};
+use parking_lot::Mutex;
 use runtime_primitives::{Block as TestBlock, BlockNumber};
 use sc_client_api::Backend as _;
 use sc_service::client::Client;
@@ -49,20 +48,20 @@ use sp_api::{ApiExt, Core, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{BlockOrigin, Environment, Proposer};
 use sp_consensus_babe::{
+    BABE_ENGINE_ID, Slot,
     digests::{PreDigest, SecondaryPlainPreDigest},
-    Slot, BABE_ENGINE_ID,
 };
 use sp_inherents::InherentDataProvider;
 use sp_runtime::{
+    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
     generic::BlockId,
     traits::{Block as BlockT, Header as HeaderT, NumberFor},
-    Digest, DigestItem, OpaqueExtrinsic, Perbill, Percent,
 };
 use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
 use std::{
     ops::Deref,
-    sync::{Arc, OnceLock},
+    sync::{Arc, LazyLock},
     time::{self, SystemTime, UNIX_EPOCH},
 };
 use testing::{
@@ -70,18 +69,15 @@ use testing::{
         Backend as TestBackend, Client as TestClient, ClientBlockImportExt, RuntimeExecutor,
         TestClientBuilder, TestClientBuilderExt,
     },
-    keyring::{alice, bob, sign, signed_extra, CheckedExtrinsic},
+    keyring::{CheckedExtrinsic, alice, bob, sign, signed_extra},
 };
 use vara_runtime::{
-    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, UncheckedExtrinsic, SLOT_DURATION, VERSION,
+    AccountId, Runtime, RuntimeApi as RA, RuntimeCall, SLOT_DURATION, UncheckedExtrinsic, VERSION,
 };
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
-fn get_executor() -> &'static RwLock<RuntimeExecutor> {
-    static EXECUTOR: OnceLock<RwLock<RuntimeExecutor>> = OnceLock::new();
-    EXECUTOR.get_or_init(|| RwLock::new(RuntimeExecutor::builder().build()))
-}
+static EXECUTOR: LazyLock<RuntimeExecutor> = LazyLock::new(|| RuntimeExecutor::builder().build());
 
 const SOURCE: TransactionSource = TransactionSource::External;
 const DEFAULT_GAS_LIMIT: u64 = 10_000_000_000;
@@ -151,7 +147,6 @@ fn salt() -> [u8; 16] {
 }
 
 enum TestCall {
-    DepositToBank,
     Noop,
     InitLoop(u64),
     ToggleRunQueue(bool),
@@ -162,11 +157,6 @@ struct CallBuilder {
     call: TestCall,
 }
 impl CallBuilder {
-    pub fn deposit_to_bank() -> Self {
-        Self {
-            call: TestCall::DepositToBank,
-        }
-    }
     pub fn noop() -> Self {
         Self {
             call: TestCall::Noop,
@@ -189,14 +179,6 @@ impl CallBuilder {
     }
     fn build(self) -> RuntimeCall {
         match self.call {
-            TestCall::DepositToBank => RuntimeCall::Sudo(pallet_sudo::Call::sudo {
-                call: Box::new(RuntimeCall::Balances(
-                    pallet_balances::Call::force_set_balance {
-                        who: sp_runtime::MultiAddress::Id(AccountId::from(BANK_ADDRESS)),
-                        new_free: 1_000_000_000_000_000,
-                    },
-                )),
-            }),
             TestCall::Noop => RuntimeCall::Gear(pallet_gear::Call::upload_program {
                 code: WASM_BINARY.to_vec(),
                 salt: salt().to_vec(),
@@ -219,10 +201,13 @@ impl CallBuilder {
                 })),
             }),
             TestCall::ExhaustResources => {
-                // Using 75% of the max possible weight so that two such calls will inevitably
+                // Using 70% of the max possible weight so that two such calls will inevitably
                 // exhaust block resources while one call will very likely fit in.
-                RuntimeCall::GearDebug(pallet_gear_debug::Call::exhaust_block_resources {
-                    fraction: Percent::from_percent(75),
+                //
+                // NOTE: this percent used to be 75, but actual weights of other calls don't
+                // fit then in test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline
+                RuntimeCall::Gear(pallet_gear::Call::exhaust_block_resources {
+                    fraction: Percent::from_percent(70),
                 })
             }
         }
@@ -230,10 +215,7 @@ impl CallBuilder {
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 pub fn init() -> (
@@ -245,8 +227,7 @@ pub fn init() -> (
 ) {
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
-    let executor = get_executor().read();
-    let client = Arc::new(client_builder.build(Some(executor.clone())));
+    let client = Arc::new(client_builder.build(Some(EXECUTOR.clone())));
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(
         Default::default(),
@@ -318,46 +299,30 @@ where
     )));
 }
 
-type TestCase = Box<dyn Fn() + Send + 'static>;
-
 #[test]
 fn run_all_tests() {
-    init_logger();
-
     use basic_tests::*;
 
-    let tests = vec![
-        Box::new(test_pseudo_inherent_placed_in_each_block) as TestCase,
-        Box::new(test_queue_remains_intact_if_processing_fails) as TestCase,
-        Box::new(test_block_max_gas_works) as TestCase,
-        Box::new(test_pseudo_inherent_discarded_from_txpool) as TestCase,
-        Box::new(test_block_builder_cloned_ok) as TestCase,
-        Box::new(test_proposal_timing_consistent) as TestCase,
-        Box::new(test_building_block_ceased_when_deadline_is_reached) as TestCase,
-        Box::new(test_no_panic_when_deadline_is_reached) as TestCase,
-        Box::new(test_proposed_storage_changes_match_execute_block_storage_changes) as TestCase,
-        Box::new(test_invalid_transactions_not_removed_when_skipping) as TestCase,
-        Box::new(test_building_block_ceased_when_block_limit_is_reached) as TestCase,
-        Box::new(test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline)
-            as TestCase,
-        Box::new(test_skipping_only_up_to_some_limit_after_soft_deadline) as TestCase,
+    const TESTS: &[fn()] = &[
+        test_pseudo_inherent_placed_in_each_block,
+        test_queue_remains_intact_if_processing_fails,
+        test_block_max_gas_works,
+        test_pseudo_inherent_discarded_from_txpool,
+        test_block_builder_cloned_ok,
+        test_proposal_timing_consistent,
+        test_building_block_ceased_when_deadline_is_reached,
+        test_no_panic_when_deadline_is_reached,
+        test_proposed_storage_changes_match_execute_block_storage_changes,
+        test_invalid_transactions_not_removed_when_skipping,
+        test_building_block_ceased_when_block_limit_is_reached,
+        test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline,
+        test_skipping_only_up_to_some_limit_after_soft_deadline,
     ];
 
-    let handles: Vec<_> = tests
-        .into_iter()
-        .map(|test| {
-            std::thread::spawn(move || {
-                test();
-            })
-        })
-        .collect();
+    init_logger();
 
-    let mut output = vec![];
-    for handle in handles {
-        output.push(handle.join());
-    }
-    for result in output {
-        assert!(result.is_ok());
+    for &test in TESTS {
+        test();
     }
 }
 
@@ -398,21 +363,12 @@ fn test_queue_remains_intact_if_processing_fails() {
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
-    // Create an extrinsic that prefunds the bank account
-    let pre_fund_bank_xt = CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
-        function: CallBuilder::deposit_to_bank().build(),
-    };
-
-    let mut checked = vec![pre_fund_bank_xt];
-    checked.extend(checked_extrinsics(5, bob(), 0_u32, || {
-        CallBuilder::noop().build()
-    }));
+    let mut checked = checked_extrinsics(5, bob(), 0_u32, || CallBuilder::noop().build());
     let nonce = 5_u32; // Bob's nonce for the future
 
     // Disable queue processing in Gear pallet as the root
     checked.push(CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(1))),
+        signed: Some((alice(), signed_extra(0))),
         function: CallBuilder::toggle_run_queue(false).build(),
     });
     let extrinsics = sign_extrinsics(
@@ -422,7 +378,7 @@ fn test_queue_remains_intact_if_processing_fails() {
         genesis_hash,
     );
     submit_and_maintain(client.clone(), txpool.clone(), extrinsics);
-    assert_eq!(txpool.ready().count(), 7);
+    assert_eq!(txpool.ready().count(), 6);
 
     let current_block = client.info().best_number;
 
@@ -451,7 +407,7 @@ fn test_queue_remains_intact_if_processing_fails() {
     )
     .block;
     // Pseudo-inherent rolled back, therefore only have 1 inherent + 7 normal
-    assert_eq!(block.extrinsics().len(), 8);
+    assert_eq!(block.extrinsics().len(), 7);
 
     let best_hash = block.hash();
 
@@ -522,19 +478,8 @@ fn test_block_max_gas_works() {
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Prepare block #1
-    // Create an extrinsic that prefunds the bank account
-    let extrinsics = vec![sign(
-        CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(0))),
-            function: CallBuilder::deposit_to_bank().build(),
-        },
-        VERSION.spec_version,
-        VERSION.transaction_version,
-        genesis_hash,
-        None,
-    )
-    .into()];
-    submit_and_maintain(client.clone(), txpool.clone(), extrinsics.clone());
+    // Proposing it's empty to workaround block author in RPC.
+    submit_and_maintain(client.clone(), txpool.clone(), vec![]);
 
     let current_block = client.info().best_number;
 
@@ -553,7 +498,7 @@ fn test_block_max_gas_works() {
     let best_hash = block.hash();
 
     let api = client.runtime_api();
-    let gear_core::gas::GasInfo { min_limit, .. } = api
+    let gear_core::rpc::GasInfo { min_limit, .. } = api
         .calculate_gas_info(
             best_hash,
             sp_core::H256::from(alice().as_ref()),
@@ -660,7 +605,7 @@ fn test_pseudo_inherent_discarded_from_txpool() {
     let legit_xt = sign(
         CheckedExtrinsic {
             signed: Some((alice(), signed_extra(0))),
-            function: CallBuilder::deposit_to_bank().build(),
+            function: CallBuilder::noop().build(),
         },
         VERSION.spec_version,
         VERSION.transaction_version,
@@ -770,18 +715,11 @@ fn test_proposal_timing_consistent() {
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
-    // Create an extrinsic that prefunds the bank account
-    let pre_fund_bank_xt = CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(0))),
-        function: CallBuilder::deposit_to_bank().build(),
-    };
-    let mut checked = vec![pre_fund_bank_xt];
-
     // Disable queue processing in block #1
-    checked.push(CheckedExtrinsic {
-        signed: Some((alice(), signed_extra(1))),
+    let mut checked = vec![CheckedExtrinsic {
+        signed: Some((alice(), signed_extra(0))),
         function: CallBuilder::toggle_run_queue(false).build(),
-    });
+    }];
 
     // Creating a bunch of extrinsics that will put N time-consuming init messages
     // to the message queue. The number of extrinsics should better allow all of
@@ -832,7 +770,7 @@ fn test_proposal_timing_consistent() {
     // Re-enable queue processing in block #2
     let extrinsics = sign_extrinsics(
         vec![CheckedExtrinsic {
-            signed: Some((alice(), signed_extra(2))),
+            signed: Some((alice(), signed_extra(1))),
             function: CallBuilder::toggle_run_queue(true).build(),
         }],
         VERSION.spec_version,

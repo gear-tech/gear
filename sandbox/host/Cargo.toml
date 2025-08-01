@@ -16,7 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 atomic_enum.workspace = true
-codec = { workspace = true, features = ["std"] }
+parity-scale-codec = { workspace = true, features = ["std"] }
 defer.workspace = true
 environmental.workspace = true
 thiserror.workspace = true

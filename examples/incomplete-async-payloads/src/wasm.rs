@@ -18,9 +18,8 @@
 
 use crate::Command;
 use gstd::{
-    msg::{self, MessageHandle},
-    prelude::*,
     ActorId,
+    msg::{self, MessageHandle},
 };
 
 static mut DESTINATION: ActorId = ActorId::zero();

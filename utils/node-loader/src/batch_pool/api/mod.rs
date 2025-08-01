@@ -1,14 +1,14 @@
 #![allow(clippy::redundant_async_block)]
 
 use crate::utils;
-use anyhow::{anyhow, Result};
-use futures::{future::BoxFuture, Future};
+use anyhow::{Result, anyhow};
+use futures::{Future, future::BoxFuture};
 use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, MessageId};
 use primitive_types::H256;
 
 pub type UploadProgramBatchOutput = StandardBatchOutput;
@@ -17,7 +17,7 @@ pub type SendMessageBatchOutput = StandardBatchOutput;
 pub type SendReplyBatchOutput = StandardBatchOutput;
 pub type UploadCodeBatchOutput = (Vec<GClientResult<CodeId>>, H256);
 pub type ClaimValueBatchOutput = (Vec<GClientResult<u128>>, H256);
-type StandardBatchOutput = (Vec<GClientResult<(MessageId, ProgramId)>>, H256);
+type StandardBatchOutput = (Vec<GClientResult<(MessageId, ActorId)>>, H256);
 
 mod nonce;
 

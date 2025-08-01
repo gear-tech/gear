@@ -19,20 +19,20 @@
 //! Apply the `gear::run()` extrinsic on top of state changes introduced in a block
 
 use crate::{
-    build_executor, fetch_block, full_extensions,
+    BlockHashOrNumber, LOG_TARGET, build_executor, fetch_block, full_extensions,
     shared_parameters::SharedParams,
     state::{LiveState, SnapState, State},
-    state_machine_call, BlockHashOrNumber, LOG_TARGET,
+    state_machine_call,
 };
 use clap::Parser;
-use codec::{Decode, Encode, Joiner};
+use parity_scale_codec::{Decode, Encode, Joiner};
 #[cfg(feature = "always-wasm")]
 use sc_executor::sp_wasm_interface::ExtendedHostFunctions;
 #[cfg(all(not(feature = "always-wasm"), feature = "vara-native"))]
 use service::VaraExecutorDispatch;
 use sp_runtime::{
-    traits::{Block as BlockT, Header as HeaderT},
     ApplyExtrinsicResult, DeserializeOwned,
+    traits::{Block as BlockT, Header as HeaderT},
 };
 use std::fmt::Debug;
 use substrate_rpc_client::ws_client;

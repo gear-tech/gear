@@ -32,14 +32,13 @@ enum-iterator.workspace = true
 byteorder.workspace = true
 num-traits.workspace = true
 numerated.workspace = true
-primitive-types = { workspace = true, features = ["scale-info"] }
 
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }
 impl-serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 wat.workspace = true
 proptest.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
@@ -56,3 +55,4 @@ std = [
     "gear-wasm-instrument/std",
     "gprimitives/serde",
 ]
+mock = []

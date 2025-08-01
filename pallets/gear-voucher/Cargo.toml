@@ -32,7 +32,6 @@ sp-std.workspace = true
 pallet-balances.workspace = true
 
 [dev-dependencies]
-env_logger.workspace = true
 common = { workspace = true, features = ["std"] }
 sp-core = {workspace = true, features = ["std"] }
 

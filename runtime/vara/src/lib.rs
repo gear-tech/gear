@@ -23,14 +23,18 @@
 #![allow(clippy::legacy_numeric_constants)]
 #![allow(non_local_definitions)]
 
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking;
+
 // Make the WASM binary available.
 #[cfg(all(feature = "std", not(fuzz)))]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use common::{storage::Messenger, DelegateFee};
+use common::{DelegateFee, storage::Messenger};
 use frame_election_provider_support::{
-    bounds::ElectionBoundsBuilder, onchain, ElectionDataProvider, NposSolution, SequentialPhragmen,
-    VoteWeight,
+    ElectionDataProvider, NposSolution, SequentialPhragmen, VoteWeight,
+    bounds::ElectionBoundsBuilder, onchain,
 };
 use frame_support::{
     dispatch::DispatchInfo,
@@ -40,32 +44,32 @@ use frame_support::{
     weights::ConstantMultiplier,
 };
 use frame_system::{
-    limits::{BlockLength, BlockWeights},
     EnsureRoot,
+    limits::{BlockLength, BlockWeights},
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_gear_builtin::ActorWithId;
 use pallet_grandpa::{
-    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+    AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList, fg_primitives,
 };
 use pallet_identity::legacy::IdentityInfo;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_session::historical::{self as pallet_session_historical};
+use pallet_session::historical as pallet_session_historical;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, ConstBool, ConstU64, ConstU8, OpaqueMetadata, H256};
+use sp_core::{ConstBool, ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
 use sp_runtime::{
+    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
         AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -88,39 +92,35 @@ pub use pallet_gear;
 pub use pallet_gear_gas;
 pub use pallet_gear_payment;
 
-#[cfg(feature = "dev")]
-pub use pallet_gear_debug;
-
 pub use frame_support::{
-    construct_runtime, derive_impl,
+    PalletId, StorageValue, construct_runtime, derive_impl,
     dispatch::{DispatchClass, WeighData},
     genesis_builder_helper::{build_state, get_preset},
     parameter_types,
     traits::{
-        fungible::HoldConsideration,
-        tokens::{PayFromAccount, UnityAssetBalanceConversion},
-        ConstU128, ConstU16, ConstU32, Contains, Currency, EitherOf, EitherOfDiverse,
+        ConstU16, ConstU32, ConstU128, Contains, Currency, EitherOf, EitherOfDiverse,
         EqualPrivilegeOnly, Everything, FindAuthor, InstanceFilter, KeyOwnerProofSystem,
         LinearStoragePrice, LockIdentifier, Nothing, OnUnbalanced, Randomness, SortedMembers,
         StorageInfo, VariantCountOf, WithdrawReasons,
+        fungible::HoldConsideration,
+        tokens::{PayFromAccount, UnityAssetBalanceConversion},
     },
     weights::{
+        Weight,
         constants::{
             BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS,
             WEIGHT_REF_TIME_PER_SECOND,
         },
-        Weight,
     },
-    PalletId, StorageValue,
 };
 pub use gear_runtime_common::{
+    AVERAGE_ON_INITIALIZE_RATIO, BlockHashCount, DealWithFees, GAS_LIMIT_MIN_PERCENTAGE_NUM,
+    NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO, VALUE_PER_GAS,
     constants::{
-        BANK_ADDRESS, RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR,
-        RENT_RESUME_WEEK_FACTOR, RESUME_SESSION_DURATION_HOUR_FACTOR,
+        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
+        RESUME_SESSION_DURATION_HOUR_FACTOR,
     },
-    impl_runtime_apis_plus_common, BlockHashCount, DealWithFees, AVERAGE_ON_INITIALIZE_RATIO,
-    GAS_LIMIT_MIN_PERCENTAGE_NUM, NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO,
-    VALUE_PER_GAS,
+    impl_runtime_apis_plus_common,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use pallet_gear_payment::CustomChargeTransactionPayment;
@@ -153,7 +153,7 @@ mod weights;
 mod bag_thresholds;
 
 pub mod governance;
-use governance::{pallet_custom_origins, GeneralAdmin, StakingAdmin, Treasurer, TreasurySpender};
+use governance::{GeneralAdmin, StakingAdmin, Treasurer, TreasurySpender, pallet_custom_origins};
 
 mod migrations;
 
@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1710,
+    spec_version: 1900,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -196,7 +196,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1710,
+    spec_version: 1900,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -397,7 +397,7 @@ impl pallet_balances::Config for Runtime {
     type DustRemoval = pallet_gear_staking_rewards::OffsetPoolDust<Self>;
     type ExistentialDeposit = ConstU128<EXISTENTIAL_DEPOSIT>;
     type AccountStore = System;
-    type WeightInfo = ();
+    type WeightInfo = weights::pallet_balances::SubstrateWeight<Runtime>;
     type FreezeIdentifier = RuntimeFreezeReason;
     type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
@@ -1043,12 +1043,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => {
                 // Dev pallets.
                 #[cfg(feature = "dev")]
-                if matches!(
-                    c,
-                    RuntimeCall::GearDebug(..)
-                        | RuntimeCall::GearEthBridge(..)
-                        | RuntimeCall::Sudo(..)
-                ) {
+                if matches!(c, |RuntimeCall::GearEthBridge(..)| RuntimeCall::Sudo(..)) {
                     return false;
                 }
 
@@ -1138,7 +1133,7 @@ parameter_types! {
 
 parameter_types! {
     pub Schedule: pallet_gear::Schedule<Runtime> = Default::default();
-    pub BankAddress: AccountId = BANK_ADDRESS.into();
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
     pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(VALUE_PER_GAS);
     pub const TreasuryGasFeeShare: Percent = Percent::one();
     pub const TreasuryTxFeeShare: Percent = Percent::one();
@@ -1146,7 +1141,7 @@ parameter_types! {
 
 impl pallet_gear_bank::Config for Runtime {
     type Currency = Balances;
-    type BankAddress = BankAddress;
+    type PalletId = BankPalletId;
     type GasMultiplier = GasMultiplier;
     type TreasuryAddress = TreasuryAccount;
     type TreasuryGasFeeShare = TreasuryGasFeeShare;
@@ -1156,12 +1151,11 @@ impl pallet_gear_bank::Config for Runtime {
 impl pallet_gear::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-    type WeightInfo = weights::pallet_gear::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear::weights::SubstrateWeight<Runtime>;
     type Schedule = Schedule;
     type OutgoingLimit = OutgoingLimit;
     type OutgoingBytesLimit = OutgoingBytesLimit;
     type PerformanceMultiplier = PerformanceMultiplier;
-    type DebugInfo = DebugInfo;
     type CodeStorage = GearProgram;
     type ProgramStorage = GearProgram;
     type MailboxThreshold = MailboxThreshold;
@@ -1187,15 +1181,6 @@ impl pallet_gear::Config for Runtime {
     type RentPoolId = pallet_gear_staking_rewards::RentPoolId<Self>;
 }
 
-#[cfg(feature = "dev")]
-impl pallet_gear_debug::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
-    type CodeStorage = GearProgram;
-    type ProgramStorage = GearProgram;
-    type Messenger = GearMessenger;
-}
-
 impl pallet_gear_scheduler::Config for Runtime {
     type BlockLimiter = GearGas;
     type ReserveThreshold = ReserveThreshold;
@@ -1215,6 +1200,9 @@ impl pallet_gear_messenger::Config for Runtime {
 }
 
 /// Builtin actors arranged in a tuple.
+///
+/// # Security
+/// Make sure to mint ED for each new builtin actor added to the tuple.
 #[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
@@ -1223,12 +1211,18 @@ pub type BuiltinActors = (
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
+#[cfg(feature = "dev")]
+const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
+
 /// Builtin actors arranged in a tuple.
+///
+/// # Security
+/// Make sure to mint ED for each new builtin actor added to the tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    ActorWithId<3, pallet_gear_eth_bridge::Actor<Runtime>>,
+    ActorWithId<{ ETH_BRIDGE_BUILTIN_ID }, pallet_gear_eth_bridge::Actor<Runtime>>,
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
 );
 
@@ -1236,7 +1230,7 @@ impl pallet_gear_builtin::Config for Runtime {
     type RuntimeCall = RuntimeCall;
     type Builtins = BuiltinActors;
     type BlockLimiter = GearGas;
-    type WeightInfo = weights::pallet_gear_builtin::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_builtin::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1244,6 +1238,12 @@ parameter_types! {
 
     pub GearEthBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
+}
+
+#[cfg(feature = "dev")]
+parameter_types! {
+    pub GearEthBridgeBuiltinAddress: AccountId
+        = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 }
 
 /// Provides the set of accounts allowed to control the Gear ETH Bridge (admin and pauser).
@@ -1263,16 +1263,27 @@ impl SortedMembers<AccountId> for GearEthBridgeControlAccounts {
 }
 
 #[cfg(feature = "dev")]
+pub struct GearEthBridgeAdminAccounts;
+#[cfg(feature = "dev")]
+impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        vec![GearEthBridgeAdminAccount::get()]
+    }
+}
+
+#[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
+    type BuiltinAddress = GearEthBridgeBuiltinAddress;
     type ControlOrigin = frame_system::EnsureSignedBy<GearEthBridgeControlAccounts, AccountId>;
+    type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
     type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;
-    type WeightInfo = weights::pallet_gear_eth_bridge::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1317,7 +1328,7 @@ impl pallet_gear_voucher::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type PalletId = VoucherPalletId;
-    type WeightInfo = weights::pallet_gear_voucher::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_gear_voucher::weights::SubstrateWeight<Runtime>;
     type CallsDispatcher = pallet_gear::PrepaidCallDispatcher<Runtime>;
     type Mailbox = <GearMessenger as Messenger>::Mailbox;
     type MaxProgramsAmount = ConstU8<32>;
@@ -1506,10 +1517,7 @@ mod runtime {
     pub type Sudo = pallet_sudo;
 
     // NOTE (!): `pallet_airdrop` used to be idx(198).
-
-    // Only available with "dev" feature on
-    #[runtime::pallet_index(199)]
-    pub type GearDebug = pallet_gear_debug;
+    // NOTE (!): `pallet_gear_debug` used to be idx(199).
 }
 
 #[cfg(not(feature = "dev"))]
@@ -1707,15 +1715,6 @@ mod tests;
 
 #[cfg(test)]
 mod integration_tests;
-
-#[cfg(feature = "dev")]
-type DebugInfo = GearDebug;
-#[cfg(not(feature = "dev"))]
-type DebugInfo = ();
-
-#[cfg(feature = "runtime-benchmarks")]
-#[macro_use]
-extern crate frame_benchmarking;
 
 #[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
 mod benches {

@@ -17,17 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    internal::HoldBoundBuilder,
-    manager::{CodeInfo, ExtManager},
-    Config, CostsPerBlockOf, CurrencyOf, Event, GasAllowanceOf, GasHandlerOf, GasTree, GearBank,
-    Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    Config, CostsPerBlockOf, CurrencyOf, EXISTENTIAL_DEPOSIT_LOCK_ID, Event, GasAllowanceOf,
+    GasHandlerOf, GasTree, GearBank, Pallet, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    internal::HoldBoundBuilder, manager::ExtManager,
 };
 use alloc::format;
 use common::{
+    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
     event::*,
     scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
     storage::*,
-    CodeStorage, LockableTree, Origin, ProgramStorage, ReservableTree,
 };
 use core_processor::common::{DispatchOutcome as CoreDispatchOutcome, JournalHandler};
 use frame_support::{
@@ -36,10 +35,11 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    env::MessageWaitedType,
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, StoredDispatch},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    message::{Dispatch, StoredDispatch},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     program::{Program, ProgramState},
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},
@@ -56,14 +56,14 @@ where
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        source: ProgramId,
+        source: ActorId,
         outcome: CoreDispatchOutcome,
     ) {
         use CoreDispatchOutcome::*;
 
         let status = match outcome {
             Exit { program_id } => {
-                log::trace!("Dispatch outcome exit: {:?}", message_id);
+                log::trace!("Dispatch outcome exit: {message_id:?}");
 
                 Pallet::<T>::deposit_event(Event::ProgramChanged {
                     id: program_id,
@@ -73,12 +73,12 @@ where
                 DispatchStatus::Success
             }
             Success => {
-                log::trace!("Dispatch outcome success: {:?}", message_id);
+                log::trace!("Dispatch outcome success: {message_id:?}");
 
                 DispatchStatus::Success
             }
             MessageTrap { program_id, trap } => {
-                log::trace!("Dispatch outcome trap: {:?}", message_id);
+                log::trace!("Dispatch outcome trap: {message_id:?}");
                 log::debug!(
                     "🪤 Program {} terminated with a trap: {}",
                     program_id.into_origin(),
@@ -88,11 +88,7 @@ where
                 DispatchStatus::Failed
             }
             InitSuccess { program_id, .. } => {
-                log::trace!(
-                    "Dispatch ({:?}) init success for program {:?}",
-                    message_id,
-                    program_id
-                );
+                log::trace!("Dispatch ({message_id:?}) init success for program {program_id:?}");
 
                 let expiration =
                     ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {
@@ -141,7 +137,7 @@ where
                 DispatchStatus::Failed
             }
             NoExecution => {
-                log::trace!("Dispatch ({:?}) for program wasn't executed", message_id);
+                log::trace!("Dispatch ({message_id:?}) for program wasn't executed");
 
                 DispatchStatus::NotExecuted
             }
@@ -153,14 +149,14 @@ where
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
+        log::debug!("Burned: {amount:?} from: {message_id:?}");
 
         GasAllowanceOf::<T>::decrease(amount);
 
         Pallet::<T>::spend_burned(message_id, amount)
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId) {
         log::debug!(
             "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
         );
@@ -230,7 +226,12 @@ where
                 gas_limit,
             );
 
-            if dispatch.value() != 0 {
+            // It's necessary to deposit value so the source would have enough
+            // balance locked (in gear-bank) for future value processing.
+            //
+            // In case of error replies, we don't need to do it, since original
+            // message value is already on locked balance in gear-bank.
+            if dispatch.value() != 0 && !dispatch.is_error_reply() {
                 GearBank::<T>::deposit_value(
                     &dispatch.source().cast(),
                     dispatch.value().unique_saturated_into(),
@@ -314,7 +315,7 @@ where
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     ) {
@@ -360,18 +361,10 @@ where
             return;
         }
 
-        log::debug!(
-            "Attempt to wake unknown message {:?} from {:?}",
-            awakening_id,
-            message_id
-        );
+        log::debug!("Attempt to wake unknown message {awakening_id:?} from {message_id:?}");
     }
 
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-    ) {
+    fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
         self.state_changes.insert(program_id);
 
         // TODO: pass `memory_infix` as argument #4025
@@ -389,7 +382,7 @@ where
         }
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+    fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
         // TODO: pass `memory_infix` as argument #4025
         let memory_infix = ProgramStorageOf::<T>::memory_infix(program_id).unwrap_or_else(|| {
             // Guaranteed to be called on existing active program
@@ -409,30 +402,41 @@ where
         ProgramStorageOf::<T>::set_allocations(program_id, allocations.clone());
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
-        let to = to.unwrap_or(from).cast();
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, locked: bool) {
         let from = from.cast();
+        let to = to.cast();
         let value = value.unique_saturated_into();
 
-        GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
-            let err_msg = format!(
-                "JournalHandler::send_value: failed transferring bank value. \
-                From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
-            );
+        if locked {
+            GearBank::<T>::transfer_locked_value(&from, &to, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::send_value: failed transferring bank locked value. \
+                    From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
+                );
 
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+        } else {
+            GearBank::<T>::transfer_value(&from, &to, value).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "JournalHandler::send_value: failed transferring bank value. \
+                    From - {from:?}, to - {to:?}, value - {value:?}. Got error: {e:?}"
+                );
+
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+        }
     }
 
     fn store_new_programs(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         code_id: CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
+        candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = T::CodeStorage::get_code(code_id) {
-            let code_info = CodeInfo::from_code(&code_id, &code);
+        if T::CodeStorage::original_code_exists(code_id) {
             for (init_message, candidate_id) in candidates {
                 if !Pallet::<T>::program_exists(self.builtins(), candidate_id) {
                     let block_number = Pallet::<T>::block_number();
@@ -465,7 +469,7 @@ where
                         WithdrawReasons::all(),
                     );
 
-                    self.set_program(candidate_id, &code_info, init_message, block_number);
+                    self.set_program(candidate_id, code_id, init_message, block_number);
 
                     Pallet::<T>::deposit_event(Event::ProgramChanged {
                         id: candidate_id,
@@ -474,14 +478,11 @@ where
                         },
                     });
                 } else {
-                    log::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!("Program with id {candidate_id:?} already exists");
                 }
             }
         } else {
-            log::debug!(
-                "No referencing code with code hash {:?} for candidate programs",
-                code_id
-            );
+            log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             // SAFETY:
             // Do not remove insertion into programs map as it gives guarantee
             // that init message for destination with no code won't enter
@@ -520,16 +521,12 @@ where
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         amount: u64,
         duration: u32,
     ) {
         log::debug!(
-            "Reserved: {:?} from {:?} with {:?} for {} blocks",
-            amount,
-            message_id,
-            reservation_id,
-            duration
+            "Reserved: {amount:?} from {message_id:?} with {reservation_id:?} for {duration} blocks"
         );
 
         let hold = HoldBoundBuilder::<T>::new(StorageType::Reservation)
@@ -599,7 +596,7 @@ where
     fn unreserve_gas(
         &mut self,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         expiration: u32,
     ) {
         <Self as TaskHandler<T::AccountId, MessageId, bool>>::remove_gas_reservation(
@@ -614,7 +611,7 @@ where
         );
     }
 
-    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+    fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         ProgramStorageOf::<T>::update_active_program(program_id, |p| {
             p.gas_reservation_map = reserver.into_map(
                 Pallet::<T>::block_number().unique_saturated_into(),
@@ -639,7 +636,7 @@ where
     }
 
     fn system_reserve_gas(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Reserve {} of gas for system from {}", amount, message_id);
+        log::debug!("Reserve {amount} of gas for system from {message_id}");
 
         GasHandlerOf::<T>::system_reserve(message_id, amount).unwrap_or_else(|e| {
             let err_msg = format!(
@@ -664,16 +661,15 @@ where
         });
 
         if amount != 0 {
-            log::debug!("Unreserved {} gas for system from {}", amount, message_id);
+            log::debug!("Unreserved {amount} gas for system from {message_id}");
         } else {
             log::debug!(
-                "Gas for system was not unreserved from {} as there is no supply",
-                message_id
+                "Gas for system was not unreserved from {message_id} as there is no supply"
             );
         }
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+    fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode) {
         Self::send_signal(self, message_id, destination, code)
     }
 

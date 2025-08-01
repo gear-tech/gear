@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Encode;
 use common::Deconstructable;
 use futures::{
     channel::oneshot,
@@ -27,8 +26,9 @@ use futures::{
 use futures_timer::Delay;
 use log::{debug, error, info, trace, warn};
 use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
+use parity_scale_codec::Encode;
 use sc_block_builder::BlockBuilderApi;
-use sc_telemetry::{telemetry, TelemetryHandle, CONSENSUS_INFO};
+use sc_telemetry::{CONSENSUS_INFO, TelemetryHandle, telemetry};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::{ApiExt, ApiRef, CallApiAt, ProvideRuntimeApi};
 use sp_blockchain::{ApplyExtrinsicFailed::Validity, Error::ApplyExtrinsicFailed, HeaderBackend};
@@ -36,8 +36,8 @@ use sp_consensus::{DisableProofRecording, EnableProofRecording, ProofRecording, 
 use sp_core::traits::SpawnNamed;
 use sp_inherents::InherentData;
 use sp_runtime::{
-    traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
     Digest, Percent, SaturatedConversion,
+    traits::{BlakeTwo256, Block as BlockT, Hash as HashT, Header as HeaderT},
 };
 use std::{
     marker::PhantomData,
@@ -264,10 +264,7 @@ where
     ) -> Proposer<Block, C, A, PR> {
         let parent_hash = parent_header.hash();
 
-        info!(
-            "🙌 Starting consensus session on top of parent {:?}",
-            parent_hash
-        );
+        info!("🙌 Starting consensus session on top of parent {parent_hash:?}");
 
         Proposer::<_, _, _, PR> {
             spawn_handle: self.spawn_handle.clone(),
@@ -457,7 +454,7 @@ where
                 Err(e) => {
                     warn!(
                         target: LOG_TARGET,
-                        "❗️ Inherent extrinsic returned unexpected error: {}. Dropping.", e
+                        "❗️ Inherent extrinsic returned unexpected error: {e}. Dropping."
                     );
                 }
                 Ok(_) => {}
@@ -566,11 +563,11 @@ where
                 }
             }
 
-            trace!(target: LOG_TARGET, "[{:?}] Pushing to the block.", pending_tx_hash);
+            trace!(target: LOG_TARGET, "[{pending_tx_hash:?}] Pushing to the block.");
             match block_builder.push(pending_tx_data) {
                 Ok(()) => {
                     transaction_pushed = true;
-                    debug!(target: LOG_TARGET, "[{:?}] Pushed to the block.", pending_tx_hash);
+                    debug!(target: LOG_TARGET, "[{pending_tx_hash:?}] Pushed to the block.");
                 }
                 Err(ApplyExtrinsicFailed(Validity(e))) if e.exhausted_resources() => {
                     pending_iterator.report_invalid(&pending_tx);
@@ -597,7 +594,7 @@ where
                     pending_iterator.report_invalid(&pending_tx);
                     debug!(
                         target: LOG_TARGET,
-                        "[{:?}] Invalid transaction: {}", pending_tx_hash, e
+                        "[{pending_tx_hash:?}] Invalid transaction: {e}"
                     );
                     unqueue_invalid.push(pending_tx_hash);
                 }
@@ -607,7 +604,7 @@ where
         if matches!(end_reason, EndProposingReason::HitBlockSizeLimit) && !transaction_pushed {
             warn!(
                 target: LOG_TARGET,
-                "Hit block size limit of `{}` without including any transaction!", block_size_limit,
+                "Hit block size limit of `{block_size_limit}` without including any transaction!",
             );
         }
 
@@ -705,8 +702,7 @@ where
                     }
                     Err(e) => {
                         error!(target: "gear::authorship",
-                            "❗️ Terminal extrinsic returned an error: {}. Dropping.",
-                            e
+                            "❗️ Terminal extrinsic returned an error: {e}. Dropping."
                         );
                     }
                 };

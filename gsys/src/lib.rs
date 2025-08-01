@@ -382,23 +382,22 @@ impl GasMultiplier {
         }
     }
 
-    /// Converts given gas amount into its value equivalent.
+    /// Converts given gas amount into its value equivalent, rounding to upper, if Gas > Value.
     pub fn gas_to_value(&self, gas: Gas) -> Value {
-        if self.value_per_gas == 0 {
-            // Consider option to return `(*cost*, *amount of gas to be bought*)`.
-            unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+        if self.value_per_gas != 0 {
+            (gas as Value).saturating_mul(self.value_per_gas)
+        } else {
+            gas.div_ceil(self.gas_per_value) as _
         }
-        (gas as u128).saturating_mul(self.value_per_gas)
     }
 
-    /// Converts given value amount into its gas equivalent, rounding to lower.
+    /// Converts given value amount into its gas equivalent, rounding to lower, if Gas > Value.
     pub fn value_to_gas(&self, value: Value) -> Gas {
-        if self.gas_per_value == 0 {
-            // Consider option to return `(*cost*, *amount of gas to be bought*)`.
-            unimplemented!("Currently unsupported that 1 Value > 1 Gas");
+        if self.gas_per_value != 0 {
+            (value as Gas).saturating_mul(self.gas_per_value)
+        } else {
+            (value / self.value_per_gas) as _
         }
-
-        value.saturating_mul(self.gas_per_value as u128) as Gas
     }
 }
 

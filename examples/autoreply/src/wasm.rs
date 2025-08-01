@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gstd::{debug, exec, msg, prelude::*, ActorId};
+use gstd::{ActorId, debug, exec, msg, prelude::*};
 
 static mut DESTINATION: ActorId = ActorId::zero();
 static mut RECEIVED_AUTO_REPLY: bool = false;
@@ -37,6 +37,7 @@ extern "C" fn handle() {
         // Send message to receive an auto-reply
         let msg_id = msg::send_bytes(destination, b"Hi", 0).expect("Failed to send message");
         debug!("Sent message with ID: {msg_id:?}");
+
         exec::reply_deposit(msg_id, 10_000_000_000).expect("Failed to deposit reply");
     }
 }

@@ -19,16 +19,15 @@
 //! sp-sandbox extensions for memory.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendSyscallError, RunFallibleError, TrapExplanation, UndefinedTerminationReason,
         UnrecoverableMemoryError,
     },
     runtime::CallerWrap,
     state::HostState,
-    BackendExternalities,
 };
 use alloc::{format, vec::Vec};
-use codec::{Decode, DecodeAll, MaxEncodedLen};
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
 use gear_core::{
     buffer::{RuntimeBuffer, RuntimeBufferSizeError},
@@ -38,6 +37,7 @@ use gear_core::{
 use gear_core_errors::MemoryError as FallibleMemoryError;
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_sandbox::{AsContextExt, SandboxMemory};
+use parity_scale_codec::{Decode, DecodeAll, MaxEncodedLen};
 
 pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
@@ -92,7 +92,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, derive_more::From)]
+#[derive(Debug, Copy, Clone, derive_more::From)]
 pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
@@ -398,36 +398,36 @@ where
 /// Read static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryReadAs<T> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Read decoded type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryRead {
-    ptr: u32,
-    size: u32,
+    pub ptr: u32,
+    pub size: u32,
 }
 
 /// Write static size type access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWriteAs<T> {
-    ptr: u32,
+    pub ptr: u32,
     _phantom: PhantomData<T>,
 }
 
 /// Write access wrapper.
 #[must_use]
 pub(crate) struct WasmMemoryWrite {
-    ptr: u32,
-    size: u32,
+    pub ptr: u32,
+    pub size: u32,
 }
 
 #[cfg(test)]
@@ -437,9 +437,9 @@ mod tests {
         mock::{MockExt, MockMemory},
         state::State,
     };
-    use codec::Encode;
     use gear_core::pages::WasmPage;
-    use gear_sandbox::{default_executor::Store, SandboxStore};
+    use gear_sandbox::{SandboxStore, default_executor::Store};
+    use parity_scale_codec::Encode;
 
     type MemoryAccessRegistry =
         crate::memory::MemoryAccessRegistry<Store<HostState<MockExt, MockMemory>>>;
@@ -447,7 +447,6 @@ mod tests {
         crate::memory::MemoryAccessIo<Store<HostState<MockExt, MockMemory>>, MockMemory>;
 
     #[derive(Encode, Decode, MaxEncodedLen)]
-    #[codec(crate = codec)]
     struct ZeroSizeStruct;
 
     fn new_store() -> Store<HostState<MockExt, MockMemory>> {
@@ -584,7 +583,6 @@ mod tests {
     #[test]
     fn test_read_decoded_with_valid_encoded_data() {
         #[derive(Encode, Decode, Debug, PartialEq)]
-        #[codec(crate = codec)]
         struct MockEncodeData {
             data: u64,
         }
@@ -609,13 +607,13 @@ mod tests {
         struct InvalidDecode {}
 
         impl Decode for InvalidDecode {
-            fn decode<T>(_input: &mut T) -> Result<Self, codec::Error> {
+            fn decode<T>(_input: &mut T) -> Result<Self, parity_scale_codec::Error> {
                 Err("Invalid decoding".into())
             }
         }
 
         impl Encode for InvalidDecode {
-            fn encode_to<T: codec::Output + ?Sized>(&self, _dest: &mut T) {}
+            fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, _dest: &mut T) {}
         }
 
         impl MaxEncodedLen for InvalidDecode {
@@ -880,7 +878,6 @@ mod tests {
     }
 
     #[derive(Debug, PartialEq, Eq, Encode, Decode, MaxEncodedLen)]
-    #[codec(crate = codec)]
     struct TestStruct {
         a: u32,
         b: u64,

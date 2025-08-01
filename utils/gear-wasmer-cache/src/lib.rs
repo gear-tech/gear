@@ -68,11 +68,11 @@ impl CachedModule {
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
-    #[display(fmt = "Compilation error: {_0}")]
+    #[display("Compilation error: {_0}")]
     Compile(CompileError),
-    #[display(fmt = "IO error: {_0}")]
+    #[display("IO error: {_0}")]
     Io(io::Error),
-    #[display(fmt = "Serialization error: {_0}")]
+    #[display("Serialization error: {_0}")]
     Serialize(SerializeError),
 }
 

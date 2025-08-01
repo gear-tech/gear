@@ -1,31 +1,40 @@
 use crate::{
-    state::{
-        ActiveProgram, Dispatch, Expiring, MailboxMessage, Program, Storage, MAILBOX_VALIDITY,
-    },
     TransitionController,
+    state::{
+        ActiveProgram, Dispatch, Expiring, MAILBOX_VALIDITY, MailboxMessage, Program, ProgramState,
+        Storage,
+    },
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use anyhow::bail;
 use core::{mem, num::NonZero};
-use core_processor::common::{DispatchOutcome, JournalHandler};
-use ethexe_common::{db::ScheduledTask, gear::Origin};
+use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
+use ethexe_common::{
+    ScheduledTask,
+    gear::{Message, Origin},
+};
 use gear_core::{
-    ids::ProgramId,
+    env::MessageWaitedType,
+    gas::GasAllowanceCounter,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, MessageWaitedType, StoredDispatch},
-    pages::{numerated::tree::IntervalsTree, GearPage, WasmPage},
+    message::{Dispatch as CoreDispatch, StoredDispatch},
+    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
-use gprimitives::{ActorId, CodeId, MessageId, ReservationId};
+use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 
-pub struct Handler<'a, S: Storage> {
-    pub program_id: ProgramId,
+// Handles unprocessed journal notes during chunk processing.
+pub struct NativeJournalHandler<'a, S: Storage> {
+    pub program_id: ActorId,
     pub dispatch_origin: Origin,
+    pub call_reply: bool,
     pub controller: TransitionController<'a, S>,
+    pub gas_allowance_counter: &'a GasAllowanceCounter,
+    pub chunk_gas_limit: u64,
+    pub out_of_gas_for_block: &'a mut bool,
 }
 
-impl<S: Storage> Handler<'_, S> {
+impl<S: Storage> NativeJournalHandler<'_, S> {
     fn send_dispatch_to_program(
         &mut self,
         _message_id: MessageId,
@@ -34,7 +43,7 @@ impl<S: Storage> Handler<'_, S> {
         delay: u32,
     ) {
         self.controller
-            .update_state(destination, |state, storage, transitions| {
+            .update_state(destination, |state, storage: &S, transitions| {
                 if let Ok(non_zero_delay) = delay.try_into() {
                     let expiry = transitions.schedule_task(
                         non_zero_delay,
@@ -42,11 +51,11 @@ impl<S: Storage> Handler<'_, S> {
                     );
 
                     state.stash_hash.modify_stash(storage, |stash| {
-                        stash.add_to_program(dispatch.id, dispatch, expiry);
+                        stash.add_to_program(dispatch, expiry);
                     })
                 } else {
                     state
-                        .queue_hash
+                        .queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
@@ -62,7 +71,11 @@ impl<S: Storage> Handler<'_, S> {
             self.controller
                 .transitions
                 .modify_transition(dispatch.source(), |transition| {
-                    transition.messages.push(dispatch.into_parts().1.into())
+                    let stored = dispatch.into_parts().1;
+
+                    transition
+                        .messages
+                        .push(Message::from_stored(stored, self.call_reply))
                 });
 
             return;
@@ -82,10 +95,11 @@ impl<S: Storage> Handler<'_, S> {
                     );
 
                     let user_id = dispatch.destination();
-                    let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
+                    let dispatch =
+                        Dispatch::from_core_stored(storage, dispatch, dispatch_origin, false);
 
                     state.stash_hash.modify_stash(storage, |stash| {
-                        stash.add_to_user(dispatch.id, dispatch, expiry, user_id);
+                        stash.add_to_user(dispatch, expiry, user_id);
                     });
                 } else {
                     let expiry = transitions.schedule_task(
@@ -114,93 +128,49 @@ impl<S: Storage> Handler<'_, S> {
                     });
 
                     transitions.modify_transition(dispatch.source(), |transition| {
-                        transition.messages.push(dispatch.into_parts().1.into())
+                        let stored = dispatch.into_parts().1;
+
+                        transition
+                            .messages
+                            .push(Message::from_stored(stored, false))
                     });
                 }
             });
     }
 }
 
-impl<S: Storage> JournalHandler for Handler<'_, S> {
+impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     fn message_dispatched(
         &mut self,
-        message_id: MessageId,
-        _source: ProgramId,
-        outcome: DispatchOutcome,
+        _message_id: MessageId,
+        _source: ActorId,
+        _outcome: DispatchOutcome,
     ) {
-        match outcome {
-            DispatchOutcome::Exit { program_id } => {
-                log::trace!("Dispatch outcome exit: {message_id} for program {program_id}")
-            }
-
-            DispatchOutcome::InitSuccess { program_id } => {
-                log::trace!("Dispatch {message_id} successfully initialized program {program_id}");
-
-                self.controller
-                    .update_state(program_id, |state, _, _| {
-                        match &mut state.program {
-                            Program::Active(ActiveProgram { initialized, .. }) if *initialized => {
-                                bail!("an attempt to initialize already initialized program")
-                            }
-                            &mut Program::Active(ActiveProgram {
-                                ref mut initialized,
-                                ..
-                            }) => *initialized = true,
-                            _ => bail!("an attempt to dispatch init message for inactive program"),
-                        };
-
-                        Ok(())
-                    })
-                    .expect("failed to update state");
-            }
-
-            DispatchOutcome::InitFailure {
-                program_id,
-                origin,
-                reason,
-            } => {
-                log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
-
-                self.controller.update_state(program_id, |state, _, _| {
-                    state.program = Program::Terminated(origin)
-                });
-            }
-
-            DispatchOutcome::MessageTrap { program_id, trap } => {
-                log::trace!("Dispatch {message_id} trapped");
-                log::debug!("🪤 Program {program_id} terminated with a trap: {trap}");
-            }
-
-            DispatchOutcome::Success => log::trace!("Dispatch {message_id} succeed"),
-
-            DispatchOutcome::NoExecution => log::trace!("Dispatch {message_id} wasn't executed"),
-        }
+        unreachable!("Handled inside runtime by `RuntimeJournalHandler`")
     }
 
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {
-        // TODO
-        // unreachable!("Must not be called here")
+        unreachable!("Handled inside runtime by `RuntimeJournalHandler`")
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, inheritor: ActorId) {
         // TODO (breathx): handle rest of value cases; exec balance into value_to_receive.
         let balance = self
             .controller
             .update_state(id_exited, |state, _, transitions| {
-                state.program = Program::Exited(value_destination);
+                state.program = Program::Exited(inheritor);
 
                 transitions.modify_transition(id_exited, |transition| {
-                    transition.inheritor = value_destination
+                    transition.inheritor = Some(inheritor);
                 });
 
                 mem::replace(&mut state.balance, 0)
             });
 
-        if self.controller.transitions.is_program(&value_destination) {
-            self.controller
-                .update_state(value_destination, |state, _, _| {
-                    state.balance += balance;
-                })
+        if self.controller.transitions.is_program(&inheritor) {
+            self.controller.update_state(inheritor, |state, _, _| {
+                state.balance += balance;
+            })
         }
     }
 
@@ -209,7 +179,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -237,8 +207,12 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         let dispatch = dispatch.into_stored();
 
         if self.controller.transitions.is_program(&destination) {
-            let dispatch =
-                Dispatch::from_core_stored(self.controller.storage, dispatch, self.dispatch_origin);
+            let dispatch = Dispatch::from_core_stored(
+                self.controller.storage,
+                dispatch,
+                self.dispatch_origin,
+                false,
+            );
 
             self.send_dispatch_to_program(message_id, destination, dispatch, delay);
         } else {
@@ -261,6 +235,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
         let program_id = self.program_id;
         let dispatch_origin = self.dispatch_origin;
+        let call_reply = self.call_reply;
 
         self.controller
             .update_state(program_id, |state, storage, transitions| {
@@ -269,9 +244,10 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                     ScheduledTask::WakeMessage(dispatch.destination(), dispatch.id()),
                 );
 
-                let dispatch = Dispatch::from_core_stored(storage, dispatch, dispatch_origin);
+                let dispatch =
+                    Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
 
-                state.queue_hash.modify_queue(storage, |queue| {
+                state.queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -283,7 +259,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 });
 
                 state.waitlist_hash.modify_waitlist(storage, |waitlist| {
-                    waitlist.wait(dispatch.id, dispatch, expiry);
+                    waitlist.wait(dispatch, expiry);
                 });
             });
     }
@@ -292,7 +268,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     ) {
@@ -315,7 +291,7 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
                 };
 
                 state
-                    .queue_hash
+                    .queue
                     .modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
@@ -329,100 +305,58 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
 
     fn update_pages_data(
         &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
+        _program_id: ActorId,
+        _pages_data: BTreeMap<GearPage, PageBuf>,
     ) {
-        if pages_data.is_empty() {
-            return;
-        }
-
-        self.controller
-            .update_state(program_id, |state, storage, _| {
-                let Program::Active(ActiveProgram {
-                    ref mut pages_hash, ..
-                }) = state.program
-                else {
-                    bail!("an attempt to update pages data of inactive program");
-                };
-
-                pages_hash.modify_pages(storage, |pages| {
-                    pages.update_and_store_regions(storage, storage.write_pages_data(pages_data));
-                });
-
-                Ok(())
-            })
-            .expect("failed to update state");
+        unreachable!("Handled inside runtime by `RuntimeJournalHandler`")
     }
 
     fn update_allocations(
         &mut self,
-        program_id: ProgramId,
-        new_allocations: IntervalsTree<WasmPage>,
+        _program_id: ActorId,
+        _new_allocations: IntervalsTree<WasmPage>,
     ) {
-        self.controller
-            .update_state(program_id, |state, storage, _| {
-                let Program::Active(ActiveProgram {
-                    allocations_hash,
-                    pages_hash,
-                    ..
-                }) = &mut state.program
-                else {
-                    bail!("an attempt to update allocations of inactive program");
-                };
-
-                allocations_hash.modify_allocations(storage, |allocations| {
-                    let removed_pages = allocations.update(new_allocations);
-
-                    if !removed_pages.is_empty() {
-                        pages_hash.modify_pages(storage, |pages| {
-                            pages.remove_and_store_regions(storage, &removed_pages);
-                        })
-                    }
-                });
-
-                Ok(())
-            })
-            .expect("failed to update state");
+        unreachable!("Handled inside runtime by `RuntimeJournalHandler`")
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, _locked: bool) {
         // TODO (breathx): implement rest of cases.
-        if let Some(to) = to {
-            if self.controller.transitions.state_of(&from).is_some() {
-                return;
-            }
-
-            self.controller.update_state(to, |state, _, transitions| {
-                state.balance += value;
-
-                transitions
-                    .modify_transition(to, |transition| transition.value_to_receive += value);
-            });
+        if self.controller.transitions.state_of(&from).is_some() {
+            return;
         }
+
+        self.controller.update_state(to, |state, _, transitions| {
+            state.balance += value;
+
+            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
+        });
     }
 
     fn store_new_programs(
         &mut self,
-        _program_id: ProgramId,
+        _program_id: ActorId,
         _code_id: CodeId,
-        _candidates: Vec<(MessageId, ProgramId)>,
+        _candidates: Vec<(MessageId, ActorId)>,
     ) {
         todo!()
     }
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
-        todo!()
+        // This means we are out of gas for block, not for chunk.
+        if self.gas_allowance_counter.left() < self.chunk_gas_limit {
+            *self.out_of_gas_for_block = true;
+        }
     }
 
-    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ProgramId, _: u64, _: u32) {
+    fn reserve_gas(&mut self, _: MessageId, _: ReservationId, _: ActorId, _: u64, _: u32) {
         unreachable!("deprecated");
     }
 
-    fn unreserve_gas(&mut self, _: ReservationId, _: ProgramId, _: u32) {
+    fn unreserve_gas(&mut self, _: ReservationId, _: ActorId, _: u32) {
         unreachable!("deprecated");
     }
 
-    fn update_gas_reservation(&mut self, _: ProgramId, _: GasReserver) {
+    fn update_gas_reservation(&mut self, _: ActorId, _: GasReserver) {
         unreachable!("deprecated");
     }
 
@@ -434,11 +368,190 @@ impl<S: Storage> JournalHandler for Handler<'_, S> {
         unreachable!("deprecated");
     }
 
-    fn send_signal(&mut self, _: MessageId, _: ProgramId, _: SignalCode) {
+    fn send_signal(&mut self, _: MessageId, _: ActorId, _: SignalCode) {
         unreachable!("deprecated");
     }
 
     fn reply_deposit(&mut self, _: MessageId, _: MessageId, _: u64) {
         unreachable!("deprecated");
+    }
+}
+
+// Handles unprocessed journal notes during message processing in the runtime.
+pub struct RuntimeJournalHandler<'s, S>
+where
+    S: Storage,
+{
+    pub storage: &'s S,
+    pub program_state: &'s mut ProgramState,
+    pub gas_allowance_counter: &'s mut GasAllowanceCounter,
+    pub stop_processing: bool,
+}
+
+impl<S> RuntimeJournalHandler<'_, S>
+where
+    S: Storage,
+{
+    // Returns unhandled journal notes and new program state hash
+    pub fn handle_journal(
+        &mut self,
+        journal: impl IntoIterator<Item = JournalNote>,
+    ) -> (Vec<JournalNote>, Option<H256>) {
+        let mut page_updates = BTreeMap::new();
+        let mut allocations_update = BTreeMap::new();
+        let mut notes_cnt = 0;
+
+        let filtered: Vec<_> = journal
+            .into_iter()
+            .filter_map(|note| {
+                notes_cnt += 1;
+
+                match note {
+                    JournalNote::MessageDispatched {
+                        message_id,
+                        source,
+                        outcome,
+                    } => self.message_dispatched(message_id, source, outcome),
+                    JournalNote::UpdatePage {
+                        program_id,
+                        page_number,
+                        data,
+                    } => {
+                        let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
+                        entry.insert(page_number, data);
+                    }
+                    JournalNote::UpdateAllocations {
+                        program_id,
+                        allocations,
+                    } => {
+                        allocations_update.insert(program_id, allocations);
+                    }
+                    JournalNote::GasBurned {
+                        message_id: _,
+                        amount,
+                    } => {
+                        // TODO(romanm): reduce exec balance
+                        self.gas_allowance_counter.charge(amount);
+                    }
+                    note @ JournalNote::StopProcessing {
+                        dispatch: _,
+                        gas_burned,
+                    } => {
+                        self.gas_allowance_counter.charge(gas_burned);
+                        self.stop_processing = true;
+                        return Some(note);
+                    }
+                    // TODO(romanm): handle the listed journal notes here:
+                    // * WakeMessage
+                    // * SendDispatch to self
+                    // * SendValue to self
+                    note => return Some(note),
+                }
+
+                None
+            })
+            .collect();
+
+        for pages_data in page_updates.into_values() {
+            self.update_pages_data(pages_data);
+        }
+
+        for allocations in allocations_update.into_values() {
+            self.update_allocations(allocations);
+        }
+
+        // Some notes were processed, thus state changed
+        let maybe_state_hash = (notes_cnt != filtered.len())
+            .then(|| self.storage.write_state(self.program_state.clone()));
+
+        (filtered, maybe_state_hash)
+    }
+
+    fn message_dispatched(
+        &mut self,
+        message_id: MessageId,
+        _source: ActorId,
+        outcome: DispatchOutcome,
+    ) {
+        match outcome {
+            DispatchOutcome::Exit { program_id } => {
+                log::trace!("Dispatch outcome exit: {message_id} for program {program_id}")
+            }
+
+            DispatchOutcome::InitSuccess { program_id } => {
+                log::trace!("Dispatch {message_id} successfully initialized program {program_id}");
+
+                match self.program_state.program {
+                    Program::Active(ActiveProgram {
+                        ref mut initialized,
+                        ..
+                    }) if *initialized => {
+                        panic!("an attempt to initialize already initialized program")
+                    }
+                    Program::Active(ActiveProgram {
+                        ref mut initialized,
+                        ..
+                    }) => *initialized = true,
+                    _ => panic!("an attempt to dispatch init message for inactive program"),
+                };
+            }
+
+            DispatchOutcome::InitFailure {
+                program_id,
+                origin,
+                reason,
+            } => {
+                log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
+
+                self.program_state.program = Program::Terminated(origin)
+            }
+
+            DispatchOutcome::MessageTrap { program_id, trap } => {
+                log::trace!("Dispatch {message_id} trapped");
+                log::debug!("🪤 Program {program_id} terminated with a trap: {trap}");
+            }
+
+            DispatchOutcome::Success => log::trace!("Dispatch {message_id} succeed"),
+
+            DispatchOutcome::NoExecution => log::trace!("Dispatch {message_id} wasn't executed"),
+        }
+    }
+
+    fn update_pages_data(&mut self, pages_data: BTreeMap<GearPage, PageBuf>) {
+        if pages_data.is_empty() {
+            return;
+        }
+
+        let Program::Active(ActiveProgram {
+            ref mut pages_hash, ..
+        }) = self.program_state.program
+        else {
+            panic!("an attempt to update pages data of inactive program");
+        };
+
+        pages_hash.modify_pages(self.storage, |pages| {
+            pages.update_and_store_regions(self.storage, self.storage.write_pages_data(pages_data));
+        });
+    }
+
+    fn update_allocations(&mut self, new_allocations: IntervalsTree<WasmPage>) {
+        let Program::Active(ActiveProgram {
+            allocations_hash,
+            pages_hash,
+            ..
+        }) = &mut self.program_state.program
+        else {
+            panic!("an attempt to update allocations of inactive program");
+        };
+
+        let removed_pages = allocations_hash.modify_allocations(self.storage, |allocations| {
+            allocations.update(new_allocations)
+        });
+
+        if !removed_pages.is_empty() {
+            pages_hash.modify_pages(self.storage, |pages| {
+                pages.remove_and_store_regions(self.storage, &removed_pages);
+            })
+        }
     }
 }

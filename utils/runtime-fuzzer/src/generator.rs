@@ -27,15 +27,15 @@ use crate::{
 };
 use gear_call_gen::GearCall;
 use gear_common::{
-    event::{CodeChangeKind, ProgramChangeKind},
     Origin,
+    event::{CodeChangeKind, ProgramChangeKind},
 };
-use gear_core::ids::{CodeId, MessageId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, MessageId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::wasm_gen_arbitrary::{Result, Unstructured};
 use pallet_gear::Event as GearEvent;
 use runtime_primitives::{AccountId, Balance};
-use vara_runtime::{RuntimeEvent, System, EXISTENTIAL_DEPOSIT};
+use vara_runtime::{EXISTENTIAL_DEPOSIT, RuntimeEvent, System};
 
 // Max code size - 25 KiB.
 const MAX_CODE_SIZE: usize = 25 * 1024;
@@ -44,7 +44,7 @@ const MAX_CODE_SIZE: usize = 25 * 1024;
 ///
 /// TODO: #3442
 const MAX_PAYLOAD_SIZE: usize = 1024;
-const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::buffer::MAX_PAYLOAD_SIZE);
 
 /// Maximum salt size for the fuzzer - 512 bytes.
 ///
@@ -52,9 +52,9 @@ const _: () = assert!(MAX_PAYLOAD_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
 /// for one run. Also small salt will make overall size of the
 /// corpus smaller.
 const MAX_SALT_SIZE: usize = 512;
-const _: () = assert!(MAX_SALT_SIZE <= gear_core::message::MAX_PAYLOAD_SIZE);
+const _: () = assert!(MAX_SALT_SIZE <= gear_core::buffer::MAX_PAYLOAD_SIZE);
 
-const ID_SIZE: usize = size_of::<ProgramId>();
+const ID_SIZE: usize = size_of::<ActorId>();
 const GAS_SIZE: usize = size_of::<u64>();
 const VALUE_SIZE: usize = size_of::<u128>();
 
@@ -149,7 +149,7 @@ impl GearCallsGenerator<'_> {
 pub(crate) struct RuntimeStateViewProducer {
     corpus_id: String,
     sender: AccountId,
-    programs: Option<NonEmpty<ProgramId>>,
+    programs: Option<NonEmpty<ActorId>>,
     codes: Option<NonEmpty<CodeId>>,
     // TODO #3703. Remove outdated message ids.
     mailbox: Option<NonEmpty<MessageId>>,
@@ -166,7 +166,10 @@ impl RuntimeStateViewProducer {
         }
     }
 
-    pub(crate) fn produce_state_view(&mut self, balance_state: BalanceState) -> RuntimeStateView {
+    pub(crate) fn produce_state_view(
+        &mut self,
+        balance_state: BalanceState,
+    ) -> RuntimeStateView<'_> {
         self.update_state_view();
 
         RuntimeStateView {
@@ -233,7 +236,7 @@ impl RuntimeStateViewProducer {
 pub(crate) struct RuntimeStateView<'a> {
     current_balance: Balance,
     corpus_id: &'a str,
-    programs: Option<&'a NonEmpty<ProgramId>>,
+    programs: Option<&'a NonEmpty<ActorId>>,
     codes: Option<&'a NonEmpty<CodeId>>,
     max_gas: u64,
     mailbox: Option<&'a NonEmpty<MessageId>>,

@@ -18,40 +18,43 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{BlobData, BlobReader, BlockSyncedData, RuntimeConfig};
+use crate::{
+    RuntimeConfig,
+    utils::{load_block_data, load_blocks_data_batched},
+};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{Result, anyhow};
 use ethexe_common::{
-    db::OnChainStorage,
+    self, BlockData, BlockHeader, CodeBlobInfo,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
-    BlockData,
+    gear_core::pages::num_traits::Zero,
 };
-use ethexe_db::{BlockHeader, CodeInfo, CodesStorage};
 use ethexe_ethereum::router::RouterQuery;
-use futures::{
-    future::{self},
-    stream::FuturesUnordered,
-    FutureExt,
-};
-use gprimitives::{CodeId, H256};
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use gprimitives::H256;
+use nonempty::NonEmpty;
+use std::collections::HashMap;
 
-// TODO #4552: make tests for ChainSync
-pub(crate) struct ChainSync<DB: OnChainStorage + CodesStorage> {
-    pub provider: RootProvider,
-    pub db: DB,
-    pub blobs_reader: Arc<dyn BlobReader>,
-    pub config: RuntimeConfig,
+pub(crate) trait SyncDB:
+    OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone
+{
+}
+impl<
+    T: OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone,
+> SyncDB for T
+{
 }
 
-impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
-    pub async fn sync(
-        self,
-        chain_head: Header,
-    ) -> Result<(BlockSyncedData, Vec<(CodeId, CodeInfo)>)> {
+// TODO #4552: make tests for ChainSync
+#[derive(Clone)]
+pub(crate) struct ChainSync<DB: SyncDB> {
+    pub db: DB,
+    pub config: RuntimeConfig,
+    pub provider: RootProvider,
+}
+
+impl<DB: SyncDB> ChainSync<DB> {
+    pub async fn sync(self, chain_head: Header) -> Result<H256> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -60,26 +63,67 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
+        let chain = self.load_chain(block, &header, blocks_data).await?;
 
-        let (chain, codes_to_load_now, codes_to_load_later) =
-            self.load_chain(block, header, blocks_data).await?;
-
-        self.load_codes(codes_to_load_now.into_iter()).await?;
-
-        // NOTE: reverse order is important here, because by default chain was loaded in order from head to past.
         self.mark_chain_as_synced(chain.into_iter().rev());
+        self.propagate_validators(block, &header).await?;
 
-        let validators =
-            RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
-                .validators_at(block)
-                .await?;
+        Ok(block)
+    }
 
-        let res = BlockSyncedData {
-            block_hash: block,
-            validators,
-        };
+    async fn load_chain(
+        &self,
+        block: H256,
+        header: &BlockHeader,
+        mut blocks_data: HashMap<H256, BlockData>,
+    ) -> Result<Vec<H256>> {
+        let mut chain = Vec::new();
 
-        Ok((res, codes_to_load_later))
+        let mut hash = block;
+        while !self.db.block_meta(hash).synced {
+            let block_data = match blocks_data.remove(&hash) {
+                Some(data) => data,
+                None => {
+                    load_block_data(
+                        self.provider.clone(),
+                        hash,
+                        self.config.router_address,
+                        self.config.wvara_address,
+                        (hash == block).then_some(header.clone()),
+                    )
+                    .await?
+                }
+            };
+
+            if hash != block_data.hash {
+                unreachable!(
+                    "Expected data for block hash {hash}, got for {}",
+                    block_data.hash
+                );
+            }
+
+            for event in block_data.events.iter() {
+                if let &BlockEvent::Router(RouterEvent::CodeValidationRequested {
+                    code_id,
+                    timestamp,
+                    tx_hash,
+                }) = event
+                {
+                    self.db
+                        .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
+                }
+            }
+
+            let parent_hash = block_data.header.parent_hash;
+
+            self.db.set_block_header(hash, block_data.header);
+            self.db.set_block_events(hash, &block_data.events);
+
+            chain.push(hash);
+            hash = parent_hash;
+        }
+
+        Ok(chain)
     }
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
@@ -102,11 +146,11 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
-                    "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
-                    header.height,
-                    latest_synced_block_height,
-                    self.config.max_sync_depth
-                ));
+                "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
+                header.height,
+                latest_synced_block_height,
+                self.config.max_sync_depth
+            ));
         }
 
         if header.height - latest_synced_block_height < self.config.batched_sync_depth {
@@ -114,7 +158,7 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        crate::load_blocks_data_batched(
+        load_blocks_data_batched(
             self.provider.clone(),
             latest_synced_block_height as u64,
             header.height as u64,
@@ -124,135 +168,24 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
         .await
     }
 
-    /// Sync level processing for blocks pre-loaded/received from the Ethereum.
-    ///
-    /// 1. Sets block header and events to the database.
-    /// 2. If there're any `CodeValidationRequested` events, it sets the code info to the database and
-    ///    adds the code id to the set of codes to load later.
-    /// 3. If there're any `CodeGotValidated` events, it adds the code id to the set of codes to load now.
-    ///
-    /// Returns the chain of unsynced blocks, the set of codes to load now, and the set of codes to load later.
-    async fn load_chain(
-        &self,
-        block: H256,
-        header: BlockHeader,
-        mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<(Vec<H256>, HashSet<CodeId>, Vec<(CodeId, CodeInfo)>)> {
-        let mut chain = Vec::new();
-        let mut codes_to_load_now = HashSet::new();
-        let mut codes_to_load_later = HashMap::new();
-
-        let mut hash = block;
-        while !self.db.block_is_synced(hash) {
-            let block_data = match blocks_data.remove(&hash) {
-                Some(data) => data,
-                None => {
-                    crate::load_block_data(
-                        self.provider.clone(),
-                        hash,
-                        self.config.router_address,
-                        self.config.wvara_address,
-                        (hash == block).then_some(header.clone()),
-                    )
-                    .await?
-                }
-            };
-
-            if hash != block_data.hash {
-                unreachable!(
-                    "Expected data for block hash {hash}, got for {}",
-                    block_data.hash
-                );
-            }
-
-            for event in &block_data.events {
-                match event {
-                    BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                        code_id,
-                        timestamp,
-                        tx_hash,
-                    }) => {
-                        let code_info = CodeInfo {
-                            timestamp: *timestamp,
-                            tx_hash: *tx_hash,
-                        };
-                        self.db.set_code_blob_info(*code_id, code_info.clone());
-
-                        if !self.db.original_code_exists(*code_id)
-                            && !codes_to_load_now.contains(code_id)
-                        {
-                            codes_to_load_later.insert(*code_id, code_info);
-                        }
-                    }
-                    BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
-                        if codes_to_load_later.contains_key(code_id) {
-                            return Err(anyhow!("Code {code_id} is validated before requested"));
-                        };
-
-                        if !self.db.original_code_exists(*code_id) {
-                            codes_to_load_now.insert(*code_id);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            let parent_hash = block_data.header.parent_hash;
-
-            self.db.set_block_header(hash, block_data.header);
-            self.db.set_block_events(hash, &block_data.events);
-
-            chain.push(hash);
-
-            hash = parent_hash;
-        }
-
-        Ok((
-            chain,
-            codes_to_load_now,
-            codes_to_load_later.into_iter().collect(),
-        ))
-    }
-
-    /// Loads codes from the Ethereum using own blobs reader.
-    ///
-    /// Blobs reader reads codes from the Ethereum transactions.
-    /// The function puts tasks into unordered futures queue and
-    /// waits for all of them to finish.
-    async fn load_codes(&self, codes: impl Iterator<Item = CodeId>) -> Result<()> {
-        // TODO #4564: consider to change this behaviour of loading already validated codes.
-        // Should be done with ObserverService::codes_futures together.
-        // May be we should use futures_bounded::FuturesMap for this.
-        let codes_futures = FuturesUnordered::new();
-        for code_id in codes {
-            let code_info = self
-                .db
-                .code_blob_info(code_id)
-                .ok_or_else(|| anyhow!("Code info for code {code_id} is missing"))?;
-
-            codes_futures.push(
-                crate::read_code_from_tx_hash(
-                    self.blobs_reader.clone(),
-                    code_id,
-                    code_info.timestamp,
-                    code_info.tx_hash,
-                    None,
+    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
+    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        let validators = match self.db.validators(header.parent_hash) {
+            Some(validators) if !self.should_fetch_validators(header)? => validators,
+            _ => {
+                let fetched_validators = RouterQuery::from_provider(
+                    self.config.router_address.0.into(),
+                    self.provider.clone(),
                 )
-                .boxed(),
-            );
-        }
+                .validators_at(block)
+                .await?;
 
-        for res in future::join_all(codes_futures).await {
-            let BlobData { code_id, code, .. } = res?;
-
-            let real_id = self.db.set_original_code(code.as_slice());
-            if real_id != code_id {
-                return Err(anyhow!(
-                    "Approved code {code_id} is not equal to real code id {real_id}"
-                ));
+                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
+                    "validator set is empty on router for block({block})"
+                ))?
             }
-        }
-
+        };
+        self.db.set_validators(block, validators.clone());
         Ok(())
     }
 
@@ -263,9 +196,31 @@ impl<DB: OnChainStorage + CodesStorage> ChainSync<DB> {
                 .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            self.db.set_block_is_synced(hash);
+            self.db.mutate_block_meta(hash, |meta| meta.synced = true);
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
+    }
+
+    /// NOTE: we don't need to fetch validators for block from zero era, because of
+    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
+    fn should_fetch_validators(&self, chain_head: &BlockHeader) -> Result<bool> {
+        let chain_head_era = self.block_era_index(chain_head.timestamp);
+
+        if chain_head_era.is_zero() {
+            return Ok(false);
+        }
+
+        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
+            "header not found for block({:?})",
+            chain_head.parent_hash
+        ))?;
+
+        let parent_era_index = self.block_era_index(parent.timestamp);
+        Ok(chain_head_era > parent_era_index)
+    }
+
+    fn block_era_index(&self, block_ts: u64) -> u64 {
+        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
     }
 }

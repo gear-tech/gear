@@ -22,9 +22,9 @@ use crate::keyring::*;
 use sp_keyring::{Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::{Perbill, Perquintill};
 use vara_runtime::{
-    constants::currency::*, AccountId, BabeConfig, BalancesConfig, GrandpaConfig,
-    RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig, StakingRewardsConfig,
-    SudoConfig, BABE_GENESIS_EPOCH_CONFIG,
+    AccountId, BABE_GENESIS_EPOCH_CONFIG, BabeConfig, BalancesConfig, GearBank, GearBankConfig,
+    GrandpaConfig, RuntimeGenesisConfig, SessionConfig, StakerStatus, StakingConfig,
+    StakingRewardsConfig, SudoConfig, constants::currency::*,
 };
 
 /// Create genesis runtime configuration for tests.
@@ -42,6 +42,7 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
         (dave(), 111 * ECONOMIC_UNITS),
         (eve(), 101 * ECONOMIC_UNITS),
         (ferdie(), 100 * ECONOMIC_UNITS),
+        (GearBank::bank_address(), UNITS),
     ];
 
     endowed.extend(
@@ -117,6 +118,9 @@ pub fn config_endowed(extra_endowed: Vec<AccountId>) -> RuntimeGenesisConfig {
             ideal_stake: Perquintill::from_percent(85), // 85%
             target_inflation: Perquintill::from_rational(578_u64, 10_000_u64), // 5.78%
             filtered_accounts: Default::default(),
+        },
+        gear_bank: GearBankConfig {
+            _config: Default::default(),
         },
     }
 }

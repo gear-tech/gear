@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cargo_gbuild::GBuild;
-use gtest::{constants::DEFAULT_USER_ALICE, Program, System};
-use std::{path::PathBuf, process::Command};
+use gtest::{Program, System, constants::DEFAULT_USER_ALICE};
+use std::{env, path::PathBuf, process::Command};
 
 fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
     // Get program from artifact
@@ -48,7 +48,8 @@ fn ping(sys: &System, prog: PathBuf) -> Program<'_> {
 // when this test grows.
 #[test]
 fn test_compile() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test-program/Cargo.toml");
+    let root = env::var("CARGO_MANIFEST_DIR").context("CARGO_MANIFEST_DIR not found")?;
+    let root = PathBuf::from(root).join("test-program/Cargo.toml");
     let system = System::new();
     system.init_logger();
 
@@ -72,31 +73,37 @@ fn test_program_tests() {
     // This is momently only for adapting the environment (nightly)
     // of our CI.
     {
-        let targets = Command::new("rustup")
-            .args(["target", "list", "--toolchain", "stable"])
-            .output()
-            .expect("Failed to list rust toolchains")
-            .stdout;
+        if option_env!("IN_NIX_SHELL").is_none() {
+            let targets = Command::new("rustup")
+                .args(["target", "list", "--toolchain", "stable"])
+                .output()
+                .expect("Failed to list rust toolchains")
+                .stdout;
 
-        if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
-            assert!(Command::new("rustup")
-                .args([
-                    "toolchain",
-                    "install",
-                    "stable",
-                    "--target",
-                    "wasm32v1-none",
-                ])
-                .status()
-                .expect("Failed to install stable toolchain")
-                .success());
+            if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
+                assert!(
+                    Command::new("rustup")
+                        .args([
+                            "toolchain",
+                            "install",
+                            "stable",
+                            "--target",
+                            "wasm32v1-none",
+                        ])
+                        .status()
+                        .expect("Failed to install stable toolchain")
+                        .success()
+                );
+            }
         }
     }
 
-    assert!(Command::new("cargo")
-        .current_dir("test-program")
-        .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
-        .status()
-        .expect("Failed to run the tests of cargo-gbuild/test-program")
-        .success());
+    assert!(
+        Command::new("cargo")
+            .current_dir("test-program")
+            .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
+            .status()
+            .expect("Failed to run the tests of cargo-gbuild/test-program")
+            .success()
+    );
 }

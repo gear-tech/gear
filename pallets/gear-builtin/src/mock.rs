@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, bls12_381, proxy, ActorWithId, BuiltinActor, BuiltinActorError,
-    BuiltinContext, GasAllowanceOf,
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+    BuiltinReply, GasAllowanceOf, bls12_381, proxy,
 };
-use common::{storage::Limiter, GasProvider, GasTree};
+use common::{GasProvider, GasTree, storage::Limiter};
 use core::cell::RefCell;
 use frame_support::{
-    construct_runtime,
+    PalletId, construct_runtime,
     pallet_prelude::{DispatchClass, Weight},
     parameter_types,
     traits::{
@@ -33,15 +33,12 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
-use gear_core::{
-    ids::ProgramId,
-    message::{Payload, StoredDispatch},
-};
+use gear_core::{ids::ActorId, message::StoredDispatch};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill, Permill, RuntimeDebug,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -70,7 +67,7 @@ pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
     pub destination: u64,
-    pub source: ProgramId,
+    pub source: ActorId,
     pub input: Vec<u8>,
     pub is_success: bool,
 }
@@ -215,8 +212,8 @@ parameter_types! {
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -236,7 +233,7 @@ impl BuiltinActor for SuccessBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -252,7 +249,10 @@ impl BuiltinActor for SuccessBuiltinActor {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_000_u64)?;
 
-        Ok(payload)
+        Ok(BuiltinReply {
+            payload,
+            value: dispatch.value(),
+        })
     }
 
     fn max_gas() -> u64 {
@@ -266,7 +266,7 @@ impl BuiltinActor for ErrorBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         if !in_transaction() {
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
@@ -292,7 +292,7 @@ impl BuiltinActor for HonestBuiltinActor {
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let is_error = context.to_gas_amount().left() < 500_000_u64;
 
         if !in_transaction() {
@@ -315,7 +315,10 @@ impl BuiltinActor for HonestBuiltinActor {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(500_000_u64)?;
 
-        Ok(payload)
+        Ok(BuiltinReply {
+            payload,
+            value: dispatch.value(),
+        })
     }
 
     fn max_gas() -> u64 {
@@ -334,7 +337,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
         ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
         ActorWithId<1, bls12_381::Actor<Self>>,
-        ActorWithId<3, proxy::Actor<Self>>,
+        ActorWithId<4, proxy::Actor<Self>>,
     );
     type BlockLimiter = GearGas;
     type WeightInfo = ();
@@ -516,10 +519,13 @@ pub(crate) fn gas_tree_empty() -> bool {
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+    let bank_address = GearBank::bank_address();
+
+    let mut endowed_accounts = vec![bank_address, SIGNER, BLOCK_AUTHOR];
+    endowed_accounts.extend(GearBuiltin::list_builtins());
 
     ExtBuilder::default()
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
+        .endowed_accounts(endowed_accounts)
         .build()
 }

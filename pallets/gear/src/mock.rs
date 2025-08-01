@@ -20,18 +20,17 @@ use crate as pallet_gear;
 use crate::*;
 use common::pallet_tests::MAX_BLOCK;
 use frame_support::{
-    construct_runtime,
+    PalletId, construct_runtime,
     pallet_prelude::*,
     parameter_types,
     traits::{ConstU64, FindAuthor, Get},
-    PalletId,
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, mocking, pallet_prelude::BlockNumberFor};
 use sp_core::{ConstU8, H256};
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::{
     cell::RefCell,
@@ -159,8 +158,8 @@ impl Drop for DynamicScheduleReset {
 }
 
 parameter_types! {
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(1);
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
     pub const MinVoucherDuration: BlockNumber = 5;
     pub const MaxVoucherDuration: BlockNumber = 100_000_000;
 }
@@ -195,7 +194,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (LOW_BALANCE_USER, 1_000_000_u128),
             (BLOCK_AUTHOR, 500_000_u128),
             (RENT_POOL, ExistentialDeposit::get()),
-            (BankAddress::get(), ExistentialDeposit::get()),
+            (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

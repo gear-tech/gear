@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use futures::{ready, FutureExt};
+use futures::{FutureExt, ready};
 use std::{
     fmt::Debug,
     future::Future,
@@ -27,10 +27,8 @@ use std::{
 use tokio::time::{self, Sleep};
 
 /// Asynchronous timer with inner data kept.
-pub struct Timer<T = ()>
-where
-    T: Debug,
-{
+#[derive(Debug)]
+pub struct Timer<T = ()> {
     /// Name of the timer.
     name: &'static str,
 
@@ -83,6 +81,19 @@ impl<T: Debug> Timer<T> {
         log::trace!("Stopped timer '{}'", self.name);
 
         self.inner.take().map(|(_, data)| data)
+    }
+}
+
+impl<T: Clone> Clone for Timer<T> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name,
+            duration: self.duration,
+            inner: self
+                .inner
+                .as_ref()
+                .map(|(sleep, data)| (Box::pin(time::sleep_until(sleep.deadline())), data.clone())),
+        }
     }
 }
 

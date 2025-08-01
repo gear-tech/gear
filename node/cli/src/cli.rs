@@ -22,9 +22,9 @@ use std::str::FromStr;
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Parser, derive_more::Display)]
 pub enum SandboxBackend {
-    #[display(fmt = "wasmer")]
+    #[display("wasmer")]
     Wasmer,
-    #[display(fmt = "wasmi")]
+    #[display("wasmi")]
     Wasmi,
 }
 
@@ -36,7 +36,7 @@ impl FromStr for SandboxBackend {
         match s.to_lowercase().as_str() {
             "wasmer" => Ok(SandboxBackend::Wasmer),
             "wasmi" => Ok(SandboxBackend::Wasmi),
-            _ => Err(format!("Unknown sandbox executor: {}", s)),
+            _ => Err(format!("Unknown sandbox executor: {s}")),
         }
     }
 }

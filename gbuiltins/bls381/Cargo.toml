@@ -11,7 +11,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
 ark-bls12-381 = { workspace = true, features = ["curve"] }
 ark-ec.workspace = true
 ark-ff.workspace = true

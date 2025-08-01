@@ -19,6 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
@@ -26,29 +27,29 @@ use crate::{
     funcs::FuncsHandler,
     memory::{BackendMemory, ExecutorMemory},
     state::{HostState, State},
-    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, format, string::String};
-use core::{any::Any, fmt::Debug, marker::Send};
+use core::{fmt::Debug, marker::Send};
 use gear_core::{
-    env::Externalities,
+    env::{Externalities, WasmEntryPoint},
     gas::GasAmount,
-    memory::HostPointer,
-    message::{DispatchKind, WasmEntryPoint},
+    message::DispatchKind,
     pages::WasmPagesAmount,
-    str::LimitedStr,
 };
-use gear_lazy_pages_common::{
-    GlobalsAccessConfig, GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor,
-};
+use gear_lazy_pages_common::{GlobalsAccessConfig, GlobalsAccessMod};
 use gear_sandbox::{
-    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
     AsContextExt, HostFuncType, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
     SandboxMemory, SandboxStore, TryFromValue, Value,
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
 };
 use gear_wasm_instrument::{
-    syscalls::SyscallName::{self, *},
     GLOBAL_NAME_GAS,
+    syscalls::SyscallName::{self, *},
+};
+#[cfg(feature = "std")]
+use {
+    gear_core::memory::HostPointer, gear_core::str::LimitedStr,
+    gear_lazy_pages_common::GlobalsAccessError, gear_lazy_pages_common::GlobalsAccessor,
 };
 
 // we have requirement to pass function pointer for `gear_sandbox`
@@ -77,17 +78,17 @@ pub type EnvironmentExecutionResult<Ext> = Result<BackendReport<Ext>, Environmen
 
 #[derive(Debug, derive_more::Display)]
 pub enum EnvironmentError {
-    #[display(fmt = "Actor backend error: {_1}")]
+    #[display("Actor backend error: {_1}")]
     Actor(GasAmount, String),
-    #[display(fmt = "System backend error: {_0}")]
+    #[display("System backend error: {_0}")]
     System(SystemEnvironmentError),
 }
 
 #[derive(Debug, derive_more::Display)]
 pub enum SystemEnvironmentError {
-    #[display(fmt = "Failed to create env memory: {_0:?}")]
+    #[display("Failed to create env memory: {_0:?}")]
     CreateEnvMemory(gear_sandbox::Error),
-    #[display(fmt = "Gas counter not found or has wrong type")]
+    #[display("Gas counter not found or has wrong type")]
     WrongInjectedGas,
 }
 
@@ -228,11 +229,13 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 struct GlobalsAccessProvider<Ext: Externalities> {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
 }
 
+#[cfg(feature = "std")]
 impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvider<Ext> {
     fn get_i64(&mut self, name: &LimitedStr) -> Result<i64, GlobalsAccessError> {
         let store = self.store.as_mut().ok_or(GlobalsAccessError)?;
@@ -249,7 +252,7 @@ impl<Ext: Externalities + Send + 'static> GlobalsAccessor for GlobalsAccessProvi
             .map_err(|_| GlobalsAccessError)
     }
 
-    fn as_any_mut(&mut self) -> &mut dyn Any {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 }

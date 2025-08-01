@@ -20,20 +20,17 @@
 
 #![cfg(test)]
 
-use crate::mock::*;
+use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, prelude::*};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
 use primitive_types::H256;
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 const SUCCESS_ACTOR_ID: [u8; 32] =
@@ -49,18 +46,18 @@ fn deploy_contract(init_payload: Vec<u8>) {
         WASM_BINARY.to_vec(),
         b"salt".to_vec(),
         init_payload,
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
         false,
     ));
 }
 
-fn send_message(contract_id: ProgramId, payload: Vec<u8>) {
+fn send_message(contract_id: ActorId, payload: Vec<u8>) {
     assert_ok!(Gear::send_message(
         RuntimeOrigin::signed(SIGNER),
         contract_id,
         payload,
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0,
         false,
     ));
@@ -71,7 +68,7 @@ fn user_message_to_builtin_actor_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let builtin_actor_id: ProgramId = H256::from(SUCCESS_ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(SUCCESS_ACTOR_ID).cast();
 
         assert_eq!(current_stack(), vec![]);
 
@@ -93,7 +90,7 @@ fn user_message_to_builtin_actor_works() {
         assert!(gas_tree_empty());
 
         // Asserting error
-        let builtin_actor_id: ProgramId = H256::from(ERROR_ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(ERROR_ACTOR_ID).cast();
         send_message(builtin_actor_id, Default::default());
         run_to_next_block();
 
@@ -112,7 +109,7 @@ fn invoking_builtin_from_program_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let contract_id = ProgramId::generate_from_user(CodeId::generate(WASM_BINARY), b"salt");
+        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"salt");
 
         assert_eq!(current_stack(), vec![]);
 
@@ -170,7 +167,7 @@ fn calculate_gas_info_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let builtin_actor_id: ProgramId = H256::from(SUCCESS_ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(SUCCESS_ACTOR_ID).cast();
 
         assert_eq!(current_stack(), vec![]);
 
@@ -218,7 +215,7 @@ fn calculate_gas_info_works() {
         assert!(gas_tree_empty());
 
         // Honest actor runs gas limit check and respects its outcome.
-        let builtin_actor_id: ProgramId = H256::from(HONEST_ACTOR_ID).cast();
+        let builtin_actor_id: ActorId = H256::from(HONEST_ACTOR_ID).cast();
         let gas_info = get_gas_info(builtin_actor_id, Default::default());
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),

@@ -16,76 +16,70 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Error as CodecError;
-use gear_core::{ids::ProgramId, pages::WasmPage};
+use gear_core::{ids::ActorId, pages::WasmPage};
 use gear_core_errors::ExtError;
+use parity_scale_codec::Error as CodecError;
 
 /// Type alias for the testing functions running result.
 pub type Result<T, E = TestError> = core::result::Result<T, E>;
 
 /// List of general errors.
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum TestError {
     /// Invalid return type after execution.
-    #[display(fmt = "Invalid return type after execution")]
+    #[error("Invalid return type after execution")]
     InvalidReturnType,
 
     /// Function not found in executor.
-    #[from(ignore)]
-    #[display(fmt = "Function not found in executor: `{_0}`")]
+    #[error("Function not found in executor: `{0}`")]
     FunctionNotFound(String),
 
     /// Actor not found.
-    #[from(ignore)]
-    #[display(fmt = "Actor not found: `{_0}`")]
-    ActorNotFound(ProgramId),
+    #[error("Actor not found: `{0}`")]
+    ActorNotFound(ActorId),
 
     /// Actor is not executable.
-    #[from(ignore)]
-    #[display(fmt = "Actor is not executable: `{_0}`")]
-    ActorIsNotExecutable(ProgramId),
+    #[error("Actor is not executable: `{0}`")]
+    ActorIsNotExecutable(ActorId),
 
     /// Meta WASM binary hasn't been provided.
-    #[display(fmt = "Meta WASM binary hasn't been provided")]
+    #[error("Meta WASM binary hasn't been provided")]
     MetaBinaryNotProvided,
 
     /// Insufficient memory.
-    #[display(fmt = "Insufficient memory: available {_0:?} < requested {_1:?}")]
+    #[error("Insufficient memory: available {0:?} < requested {1:?}")]
     InsufficientMemory(WasmPage, WasmPage),
 
     /// Invalid import module.
-    #[from(ignore)]
-    #[display(fmt = "Invalid import module: `{_0}` instead of `env`")]
+    #[error("Invalid import module: `{0}` instead of `env`")]
     InvalidImportModule(String),
 
     /// Failed to call unsupported function.
-    #[from(ignore)]
-    #[display(fmt = "Failed to call unsupported function: `{_0}`")]
+    #[error("Failed to call unsupported function: `{0}`")]
     UnsupportedFunction(String),
 
     /// Wrapper for [`ExtError`].
-    #[display(fmt = "{_0}")]
-    ExecutionError(ExtError),
+    #[error("Execution error: `{0}`")]
+    ExecutionError(#[from] ExtError),
 
     /// Wrapper for [`wasmi::Error`](https://paritytech.github.io/wasmi/wasmi/enum.Error.html).
-    #[display(fmt = "{_0}")]
-    MemoryError(gear_core_errors::MemoryError),
+    #[error("Memory error: `{0}`")]
+    MemoryError(#[from] gear_core_errors::MemoryError),
 
     /// Wrapper for [`parity_scale_codec::Error`](https://docs.rs/parity-scale-codec/latest/parity_scale_codec/struct.Error.html).
-    #[display(fmt = "{_0}")]
-    ScaleCodecError(CodecError),
+    #[error("Codec error: `{0}`")]
+    ScaleCodecError(#[from] CodecError),
 
     /// Instrumentation of binary code failed.
-    #[display(fmt = "Instrumentation of binary code failed.")]
+    #[error("Instrumentation of binary code failed.")]
     Instrumentation,
 
     /// Reading of program state failed.
-    #[display(fmt = "Reading of program state failed: `{_0}`")]
+    #[error("Reading of program state failed: `{0}`")]
     ReadStateError(String),
 
     /// Searching gbuild artifact failed.
-    #[from(ignore)]
-    #[display(fmt = "Reading of program state failed: `{_0}`")]
+    #[error("Reading of program state failed: `{0}`")]
     GbuildArtifactNotFound(String),
 }
 

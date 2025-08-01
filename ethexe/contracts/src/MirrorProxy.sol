@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+/// @dev This is custom implementation of ERC1167 that supports upgrades.
+///
+///      Unlike ERC1167, which stores `implementation` address in bytecode
+///      and then does `delegatecall` on it, we store `ROUTER` address
+///      in bytecode and call `IRouter(ROUTER.mirrorImpl())` to get
+///      last address of latest `Mirror` implementation.
+///
+///      Used for contracts that were written using Sails framework.
+///
+///      Here we also define methods and public `Mirror` fields such as
+///      `sendMessage`, `sendReply`, etc. to be displayed on "Write Contract"
+///      tab on Etherscan. Sails smart contract methods will be displayed on
+///      "Write As Proxy" tab on Etherscan.
 contract MirrorProxy {
     address internal constant ROUTER = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
@@ -13,7 +26,7 @@ contract MirrorProxy {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value) external /*returns (bytes32)*/ {
+    function sendMessage(bytes calldata payload, uint128 value, bool callReply) external /*returns (bytes32)*/ {
         _delegate();
     }
 

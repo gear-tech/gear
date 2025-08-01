@@ -18,7 +18,7 @@
 
 //! Test accounts available in runtime for testing.
 
-use codec::Encode;
+use parity_scale_codec::Encode;
 use runtime_primitives::{AccountId, Nonce};
 use sp_keyring::{AccountKeyring, Ed25519Keyring, Sr25519Keyring};
 use sp_runtime::generic::Era;

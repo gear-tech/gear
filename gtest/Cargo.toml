@@ -21,20 +21,22 @@ gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gsys.workspace = true
 
-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 colored.workspace = true
-derive_more = { workspace = true, features = ["add","add_assign","display","mul","mul_assign"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 path-clean.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 log.workspace = true
 cargo_toml.workspace = true
 etc.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
+sp-core.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true
 demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true
+gear-core = { workspace = true, features = ["mock"] }

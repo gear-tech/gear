@@ -16,22 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_eth_bridge;
+use crate::{self as pallet_gear_eth_bridge};
+use common::Origin as _;
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
-    PalletId,
 };
 use frame_support_test::TestRandomness;
-use frame_system::{self as system, pallet_prelude::BlockNumberFor, EnsureSignedBy};
+use frame_system::{self as system, EnsureSignedBy, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
 use pallet_gear_builtin::ActorWithId;
 use pallet_session::{SessionManager, ShouldEndSession};
-use sp_core::{ed25519::Public, H256};
+use sp_core::{H256, ed25519::Public};
 use sp_runtime::{
-    impl_opaque_keys,
+    BuildStorage, impl_opaque_keys,
     traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-    BuildStorage,
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -161,8 +160,9 @@ parameter_types! {
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
+    pub const MockTransportFee: Balance = UNITS;
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -176,7 +176,11 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub const BUILTIN_ID: u64 = 1;
+pub const BUILTIN_ID: u64 = 3;
+
+pub(crate) fn mock_builtin_id() -> ActorId {
+    GearBuiltin::generate_actor_id(BUILTIN_ID)
+}
 
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
@@ -219,7 +223,7 @@ pub struct TestSessionRotator;
 impl ShouldEndSession<BlockNumber> for TestSessionRotator {
     fn should_end_session(now: BlockNumber) -> bool {
         if now > 1 {
-            (now - 1) % EpochDuration::get() == 0
+            (now - 1).is_multiple_of(EpochDuration::get())
         } else {
             false
         }
@@ -271,7 +275,9 @@ pub struct TestSessionManager;
 
 impl SessionManager<AccountId> for TestSessionManager {
     fn new_session(session_idx: u32) -> Option<Vec<AccountId>> {
-        (session_idx % SessionsPerEra::get() == 0).then(|| era_validators(session_idx, true))
+        session_idx
+            .is_multiple_of(SessionsPerEra::get())
+            .then(|| era_validators(session_idx, true))
     }
     fn start_session(_: u32) {}
     fn end_session(_: u32) {}
@@ -291,6 +297,7 @@ impl pallet_session::Config for Test {
 
 parameter_types! {
     pub const GearEthBridgePalletId: PalletId = PalletId(*b"py/gethb");
+    pub MockBridgeBuiltinAddress: AccountId = mock_builtin_id().cast();
 
     pub MockBridgeAdminAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_admin");
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
@@ -308,9 +315,18 @@ impl SortedMembers<AccountId> for MockBridgeControlAccounts {
     }
 }
 
+pub struct MockBridgeAdminAccounts;
+impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
+    fn sorted_members() -> Vec<AccountId> {
+        vec![MockBridgeAdminAccount::get()]
+    }
+}
+
 impl pallet_gear_eth_bridge::Config for Test {
     type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
+    type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
+    type BuiltinAddress = MockBridgeBuiltinAddress;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
@@ -447,17 +463,17 @@ pub(crate) fn on_finalize_gear_block(bn: BlockNumberFor<Test>) {
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+    let bank_address = GearBank::bank_address();
+
+    let mut endowed_accounts = vec![bank_address, SIGNER, BLOCK_AUTHOR];
+    endowed_accounts.extend(GearBuiltin::list_builtins());
 
     ExtBuilder::default()
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
+        .endowed_accounts(endowed_accounts)
         .build()
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }

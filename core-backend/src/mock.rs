@@ -17,20 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendAllocSyscallError, BackendSyscallError, RunFallibleError, UndefinedTerminationReason,
     },
-    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use codec::{Decode, Encode};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
+    buffer::PayloadSlice,
     costs::CostToken,
-    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env::Externalities,
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
-    ids::{MessageId, ProgramId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId},
     memory::{Memory, MemoryInterval},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
@@ -38,10 +38,10 @@ use gear_core::{
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_wasm_instrument::syscalls::SyscallName;
+use parity_scale_codec::{Decode, Encode};
 
 /// Mock error
 #[derive(Debug, Clone, Encode, Decode)]
-#[codec(crate = codec)]
 pub struct Error;
 
 impl fmt::Display for Error {
@@ -131,7 +131,7 @@ impl Externalities for MockExt {
                 performance_multiplier: gsys::Percent::new(100),
                 existential_deposit: 10,
                 mailbox_threshold: 20,
-                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(30),
+                gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
             })),
             _ => unreachable!("Unexpected version of environment variables"),
         }
@@ -180,19 +180,19 @@ impl Externalities for MockExt {
     ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn source(&self) -> Result<ProgramId, Self::UnrecoverableError> {
-        Ok(ProgramId::from(0))
+    fn source(&self) -> Result<ActorId, Self::UnrecoverableError> {
+        Ok(ActorId::from(0))
     }
     fn reply_code(&self) -> Result<ReplyCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(ReplyCode::Unsupported)
     }
     fn signal_code(&self) -> Result<SignalCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(SignalCode::RemovedFromWaitlist)
     }
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())
     }
-    fn program_id(&self) -> Result<ProgramId, Self::UnrecoverableError> {
+    fn program_id(&self) -> Result<ActorId, Self::UnrecoverableError> {
         Ok(0.into())
     }
     fn debug(&self, _data: &str) -> Result<(), Self::UnrecoverableError> {
@@ -229,7 +229,7 @@ impl Externalities for MockExt {
         &mut self,
         _packet: InitPacket,
         _delay: u32,
-    ) -> Result<(MessageId, ProgramId), Self::UnrecoverableError> {
+    ) -> Result<(MessageId, ActorId), Self::UnrecoverableError> {
         Ok((Default::default(), Default::default()))
     }
     fn reply_deposit(
@@ -282,15 +282,7 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
-    fn lock_payload(
-        &mut self,
-        _at: u32,
-        _len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
-        unimplemented!()
-    }
-
-    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+    fn payload_slice(&mut self, _at: u32, _len: u32) -> Result<PayloadSlice, Self::FallibleError> {
         unimplemented!()
     }
 }

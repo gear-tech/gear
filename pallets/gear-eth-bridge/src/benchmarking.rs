@@ -18,11 +18,12 @@
 
 //! Benchmarks for Pallet Gear Eth Bridge.
 
-use crate::{Call, Config, Pallet};
-use common::{benchmarking, Origin};
+use crate::{Call, Config, CurrencyOf, Pallet};
+use common::{Origin, benchmarking};
 use frame_benchmarking::benchmarks;
+use frame_support::traits::Currency;
 use frame_system::RawOrigin;
-use sp_runtime::traits::Get;
+use sp_runtime::traits::{Get, UniqueSaturatedInto};
 use sp_std::vec;
 
 #[cfg(test)]
@@ -50,14 +51,24 @@ benchmarks! {
         assert!(!crate::Paused::<T>::get());
     }
 
+    set_fee {
+        let fee = 4242424242424242u128.unique_saturated_into();
+    } : _(RawOrigin::Root, fee)
+    verify {
+        assert_eq!(crate::TransportFee::<T>::get(), 4242424242424242u128.unique_saturated_into());
+    }
+
     send_eth_message {
         // Initially pallet is uninitialized so we hack it for benchmarks.
         crate::Initialized::<T>::put(true);
 
+        // Set fee to minimum balance for the benchmark.
+        assert!(Pallet::<T>::set_fee(RawOrigin::Root.into(), CurrencyOf::<T>::minimum_balance()).is_ok());
         // Initially pallet is paused so we need to unpause it first.
         assert!(Pallet::<T>::unpause(RawOrigin::Root.into()).is_ok());
 
         let origin = benchmarking::account::<T::AccountId>("origin", 0, 0);
+        let _ = crate::CurrencyOf::<T>::deposit_creating(&origin, CurrencyOf::<T>::minimum_balance());
 
         let destination = [42; 20].into();
 

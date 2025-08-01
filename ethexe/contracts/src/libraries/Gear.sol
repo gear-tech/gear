@@ -42,20 +42,19 @@ library Gear {
     struct AddressBook {
         address mirror;
         address wrappedVara;
+        address middleware;
     }
 
     struct CodeCommitment {
         bytes32 id;
-        uint48 timestamp;
         bool valid;
     }
 
-    struct BlockCommitment {
-        bytes32 hash;
-        uint48 timestamp;
-        bytes32 previousCommittedBlock;
-        bytes32 predecessorBlock;
+    struct ChainCommitment {
+        /// @dev Transitions of program states, value and messages.
         StateTransition[] transitions;
+        /// @dev Head of chain. Hash of the last block in chain.
+        bytes32 head;
     }
 
     struct ValidatorsCommitment {
@@ -66,8 +65,42 @@ library Gear {
     }
 
     struct BatchCommitment {
+        /// @dev Hash of ethereum block for which the batch was created.
+        bytes32 blockHash;
+        /// @dev Timestamp of ethereum block for which this batch was created.
+        uint48 blockTimestamp;
+        /// @dev Hash of previously committed batch hash.
+        bytes32 previousCommittedBatchHash;
+        /// @dev Chain commitment (contains one or zero commitments)
+        ChainCommitment[] chainCommitment;
+        /// @dev Code commitments
         CodeCommitment[] codeCommitments;
-        BlockCommitment[] blockCommitments;
+        /// @dev Rewards commitment (contains one or zero commitments)
+        RewardsCommitment[] rewardsCommitment;
+        /// @dev Validators commitment (contains one or zero commitments)
+        ValidatorsCommitment[] validatorsCommitment;
+    }
+
+    struct RewardsCommitment {
+        OperatorRewardsCommitment operators;
+        StakerRewardsCommitment stakers;
+        uint48 timestamp;
+    }
+
+    struct OperatorRewardsCommitment {
+        uint256 amount;
+        bytes32 root;
+    }
+
+    struct StakerRewardsCommitment {
+        StakerRewards[] distribution;
+        uint256 totalAmount;
+        address token;
+    }
+
+    struct StakerRewards {
+        address vault;
+        uint256 amount;
     }
 
     enum CodeState {
@@ -76,7 +109,7 @@ library Gear {
         Validated
     }
 
-    struct CommittedBlockInfo {
+    struct CommittedBatchInfo {
         bytes32 hash;
         uint48 timestamp;
     }
@@ -97,7 +130,9 @@ library Gear {
         address destination;
         bytes payload;
         uint128 value;
+        // TODO (breathx): use ReplyDetails[]
         ReplyDetails replyDetails;
+        bool call;
     }
 
     struct ProtocolData {
@@ -109,12 +144,15 @@ library Gear {
 
     struct ReplyDetails {
         bytes32 to;
+        // TODO (breathx): consider struct and methods to determine reason.
+        // TODO (breathx): consider avoid submitting auto replies.
         bytes4 code;
     }
 
     struct StateTransition {
         address actorId;
         bytes32 newStateHash;
+        bool exited;
         address inheritor;
         uint128 valueToReceive;
         ValueClaim[] valueClaims;
@@ -139,9 +177,46 @@ library Gear {
         uint128 value;
     }
 
+    struct SymbioticRegistries {
+        address vaultRegistry;
+        address operatorRegistry;
+        address networkRegistry;
+        address middlewareService;
+        address networkOptIn;
+        // address operatorRewards;
+        // address operatorRewardsFactory;
+        address stakerRewardsFactory;
+    }
+
     enum SignatureType {
         FROST,
         ECDSA
+    }
+
+    function batchCommitmentHash(
+        bytes32 _block,
+        uint48 _timestamp,
+        bytes32 _prevCommittedBlock,
+        bytes32 _chainCommitmentHash,
+        bytes32 _codeCommitmentsHash,
+        bytes32 _rewardsCommitmentHash,
+        bytes32 _validatorsCommitmentHash
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                _block,
+                _timestamp,
+                _prevCommittedBlock,
+                _chainCommitmentHash,
+                _codeCommitmentsHash,
+                _rewardsCommitmentHash,
+                _validatorsCommitmentHash
+            )
+        );
+    }
+
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_transitionsHash, _head));
     }
 
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
@@ -152,18 +227,6 @@ library Gear {
                 commitment.validators,
                 commitment.eraIndex
             )
-        );
-    }
-
-    function blockCommitmentHash(
-        bytes32 hash,
-        uint48 timestamp,
-        bytes32 previousCommittedBlock,
-        bytes32 predecessorBlock,
-        bytes32 transitionsHashesHash
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(hash, timestamp, previousCommittedBlock, predecessorBlock, transitionsHashesHash)
         );
     }
 
@@ -185,7 +248,7 @@ library Gear {
     }
 
     function codeCommitmentHash(CodeCommitment memory codeCommitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.timestamp, codeCommitment.valid));
+        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
@@ -200,7 +263,8 @@ library Gear {
                 message.payload,
                 message.value,
                 message.replyDetails.to,
-                message.replyDetails.code
+                message.replyDetails.code,
+                message.call
             )
         );
     }
@@ -212,13 +276,16 @@ library Gear {
     function stateTransitionHash(
         address actor,
         bytes32 newStateHash,
+        bool exited,
         address inheritor,
         uint128 valueToReceive,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(actor, newStateHash, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash)
+            abi.encodePacked(
+                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+            )
         );
     }
 

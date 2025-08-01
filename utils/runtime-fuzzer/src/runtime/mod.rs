@@ -25,10 +25,10 @@ use runtime_primitives::Balance;
 use sp_io::TestExternalities;
 use sp_runtime::BuildStorage;
 use vara_runtime::{
-    AccountId, Balances, BankAddress, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
+    AccountId, Balances, GearBank, Runtime, RuntimeOrigin, SessionConfig, SessionKeys,
 };
 
-pub use account::{acc_max_balance_gas, account, BalanceManager, BalanceState};
+pub use account::{BalanceManager, BalanceState, acc_max_balance_gas, account};
 pub use block::{default_gas_limit, run_to_next_block};
 
 mod account;
@@ -51,7 +51,7 @@ pub fn new_test_ext() -> TestExternalities {
             ))),
             account::gas_to_value(account::acc_max_balance_gas()),
         ),
-        (BankAddress::get(), Balances::minimum_balance()),
+        (GearBank::bank_address(), Balances::minimum_balance()),
     ];
 
     BalancesConfig::<Runtime> {

@@ -21,7 +21,7 @@
 use crate::{
     globals::GlobalsContext,
     mprotect::MprotectError,
-    pages::{GearPage, SizeManager, SizeNumber, WasmPage, WasmPagesAmount, SIZES_AMOUNT},
+    pages::{GearPage, SIZES_AMOUNT, SizeManager, SizeNumber, WasmPage, WasmPagesAmount},
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
@@ -30,37 +30,39 @@ use std::{fmt, num::NonZero};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum Error {
-    #[display(fmt = "Accessed memory interval is out of wasm memory")]
+    #[display("Accessed memory interval is out of wasm memory")]
     OutOfWasmMemoryAccess,
-    #[display(fmt = "Signals cannot come from WASM program virtual stack memory")]
+    #[display("Signals cannot come from WASM program virtual stack memory")]
     SignalFromStackMemory,
-    #[display(fmt = "Signals cannot come from write accessed page")]
+    #[display("Signals cannot come from write accessed page")]
     SignalFromWriteAccessedPage,
-    #[display(fmt = "Read access signal cannot come from already accessed page")]
+    #[display("Read access signal cannot come from already accessed page")]
     ReadAccessSignalFromAccessedPage,
-    #[display(fmt = "WASM memory begin address is not set")]
+    #[display("WASM memory begin address is not set")]
     WasmMemAddrIsNotSet,
-    #[display(fmt = "Page data in storage must contain {expected} bytes, actually has {actual}")]
-    InvalidPageDataSize { expected: u32, actual: u32 },
-    #[display(fmt = "Any page cannot be write accessed twice: {_0:?}")]
+    #[display("Page data in storage must contain {expected} bytes, actually has {actual}")]
+    InvalidPageDataSize {
+        expected: u32,
+        actual: u32,
+    },
+    #[from(skip)]
+    #[display("Any page cannot be write accessed twice: {_0:?}")]
     DoubleWriteAccess(GearPage),
-    #[display(fmt = "Any page cannot be read charged twice: {_0:?}")]
+    #[from(skip)]
+    #[display("Any page cannot be read charged twice: {_0:?}")]
     DoubleReadCharge(GearPage),
-    #[display(fmt = "Memory protection error: {_0}")]
-    #[from]
+    #[display("Memory protection error: {_0}")]
     MemoryProtection(MprotectError),
-    #[display(fmt = "Given instance host pointer is invalid")]
+    #[display("Given instance host pointer is invalid")]
     HostInstancePointerIsInvalid,
-    #[display(fmt = "Given pointer to globals access provider dyn object is invalid")]
+    #[display("Given pointer to globals access provider dyn object is invalid")]
     DynGlobalsAccessPointerIsInvalid,
-    #[display(fmt = "Something goes wrong when trying to access globals: {_0:?}")]
-    #[from]
+    #[display("Something goes wrong when trying to access globals: {_0:?}")]
     AccessGlobal(GlobalsAccessError),
-    #[display(fmt = "It's unknown whether memory access is read or write")]
+    #[display("It's unknown whether memory access is read or write")]
     ReadOrWriteIsUnknown,
-    #[display(fmt = "Cannot receive signal from wasm memory, when status is gas limit exceed")]
+    #[display("Cannot receive signal from wasm memory, when status is gas limit exceed")]
     SignalWhenStatusGasExceeded,
-    #[from]
     GlobalContext(ContextError),
 }
 

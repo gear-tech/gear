@@ -16,10 +16,10 @@
 
 //! A WASM executor utilizing the sandbox runtime interface of the host.
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 use crate::{
-    env, AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value,
+    AsContextExt, Error, GlobalsSetError, HostFuncType, ReturnValue, SandboxStore, Value, env,
 };
 use alloc::{format, string::String};
 use gear_sandbox_env::WasmReturnValue;
@@ -48,7 +48,7 @@ mod ffi {
         // We can't use `static_assertions` create because it makes compiler panic, fallback to
         // runtime assert. const_assert!(size_of::<HostFuncIndex>() == size_of::<HostFuncType<T>>());
         assert!(size_of::<HostFuncIndex>() == size_of::<HostFuncType<T>>());
-        mem::transmute::<HostFuncIndex, HostFuncType<T>>(idx)
+        unsafe { mem::transmute::<HostFuncIndex, HostFuncType<T>>(idx) }
     }
 }
 

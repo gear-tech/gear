@@ -48,7 +48,7 @@ impl From<TxStatus> for Error {
 }
 
 /// Errors
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, derive_more::Unwrap)]
 pub enum Error {
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
@@ -79,15 +79,15 @@ pub enum Error {
     #[error("The queried event not found.")]
     EventNotFound,
     #[error(transparent)]
-    Subxt(#[from] subxt::Error),
+    Subxt(#[from] Box<subxt::Error>),
     #[error(transparent)]
-    SubxtCore(#[from] subxt::ext::subxt_core::Error),
+    SubxtCore(#[from] Box<subxt::ext::subxt_core::Error>),
     #[error(transparent)]
     SubxtPublic(#[from] sp_core::crypto::PublicError),
     #[error(transparent)]
     SubxtMetadata(#[from] subxt::error::MetadataError),
     #[error(transparent)]
-    ScaleValueEncode(#[from] scale_value::scale::EncodeError),
+    ScaleValueEncode(#[from] Box<scale_value::scale::EncodeError>),
     #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]
@@ -100,6 +100,24 @@ pub enum Error {
     InvalidUrl,
     #[error("Page {0} of Program {1} is invalid.")]
     PageInvalid(u32, String),
+}
+
+impl From<subxt::Error> for Error {
+    fn from(value: subxt::Error) -> Self {
+        Self::Subxt(Box::new(value))
+    }
+}
+
+impl From<subxt::ext::subxt_core::Error> for Error {
+    fn from(value: subxt::ext::subxt_core::Error) -> Self {
+        Self::SubxtCore(Box::new(value))
+    }
+}
+
+impl From<scale_value::scale::EncodeError> for Error {
+    fn from(value: scale_value::scale::EncodeError) -> Self {
+        Self::ScaleValueEncode(Box::new(value))
+    }
 }
 
 /// Custom Result

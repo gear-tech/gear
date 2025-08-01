@@ -18,10 +18,10 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, node::NodeExec, Args, Result, TREASURY_SS58_ADDRESS};
+use crate::common::{self, Args, Result, TREASURY_SS58_ADDRESS, node::NodeExec};
 use gsdk::Api;
 
-const REWARD_PER_BLOCK: u128 = 18_000; // 3_000 gas * 6 value per gas
+const REWARD_PER_BLOCK: u128 = 300_000; // 3_000 gas * 100 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {

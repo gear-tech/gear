@@ -1,6 +1,9 @@
-use crate::{listener::Listener, result::Result};
+use crate::{
+    listener::Listener,
+    result::{Error, Result},
+};
 use clap::Parser;
-use env_logger::{Builder, Env};
+use tracing_subscriber::EnvFilter;
 
 /// Entrypoint of cli `validator-checks`
 #[derive(Debug, Parser)]
@@ -20,8 +23,18 @@ pub struct Opt {
 impl Opt {
     /// Run validator checks.
     pub async fn run(self) -> Result<()> {
-        Builder::from_env(Env::default().default_filter_or("gear_validator_checks=info"))
-            .try_init()?;
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(
+                        "gear_validator_checks=info"
+                            .parse()
+                            .map_err(Error::EnvFilter)?,
+                    )
+                    .from_env_lossy(),
+            )
+            .try_init()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
 
         Listener::new(self).await?.check().await?;
         Ok(())

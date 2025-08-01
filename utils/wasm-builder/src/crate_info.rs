@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use cargo_metadata::{CrateType, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 
@@ -49,6 +49,9 @@ impl CrateInfo {
         let mut meta_cmd = MetadataCommand::new();
         let metadata = meta_cmd
             .manifest_path(manifest_path)
+            // As we are being called inside a build-script, this env variable is set.
+            // However, this can lead to cross-compilation errors.
+            .env_remove("CARGO_ENCODED_RUSTFLAGS")
             .exec()
             .context("unable to invoke `cargo metadata`")?;
 
@@ -74,7 +77,7 @@ impl CrateInfo {
 
         multiple_crate_versions::check(&metadata, &root_package.id)?;
 
-        let name = root_package.name.clone();
+        let name = root_package.name.clone().into_inner();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
         let features = root_package.features.clone();
@@ -120,7 +123,7 @@ impl CrateInfo {
             .iter()
             .find(|target| {
                 if compatible {
-                    target.name.eq(&pkg.name) && target.crate_types.iter().any(validated_lib)
+                    target.name.eq(&*pkg.name) && target.crate_types.iter().any(validated_lib)
                 } else {
                     target.name.eq(&pkg_snake_case_name)
                         && target.crate_types.iter().any(validated_lib)

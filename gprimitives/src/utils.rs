@@ -83,11 +83,11 @@ impl fmt::Display for ByteSliceFormatter<'_> {
         let mut e1 = median;
         let mut s2 = median;
 
-        if let Some(precision) = f.precision() {
-            if precision < median {
-                e1 = precision;
-                s2 = len - precision;
-            }
+        if let Some(precision) = f.precision()
+            && precision < median
+        {
+            e1 = precision;
+            s2 = len - precision;
         }
 
         let out1_len = e1 * 2;
@@ -117,7 +117,7 @@ impl fmt::Display for ByteSliceFormatter<'_> {
 
         let p1 = unsafe { str::from_utf8_unchecked(&out1[..out1_len]) };
         let p2 = unsafe { str::from_utf8_unchecked(&out2[..out2_len]) };
-        let sep = e1.ne(&s2).then_some("..").unwrap_or_default();
+        let sep = if e1.ne(&s2) { ".." } else { Default::default() };
 
         write!(f, "0x{p1}{sep}{p2}")
     }

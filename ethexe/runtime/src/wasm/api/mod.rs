@@ -44,22 +44,35 @@ extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
 fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
-    let (program_id, original_code_id, state_root, maybe_instrumented_code) =
+    let (program_id, state_root, maybe_instrumented_code, maybe_code_metadata, gas_allowance) =
         Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
-    let (journal, origin) = run::run(
+    let (program_journals, gas_spent) = run::run(
         program_id,
-        original_code_id,
         state_root,
         maybe_instrumented_code,
+        maybe_code_metadata,
+        gas_allowance,
     );
 
-    let chunks = journal.encoded_size() / 32 * 1024 * 1024 + 1; // never zero
-    let chunk_size = (journal.len() / chunks).max(1); // never zero
+    // Split to chunks to prevent alloc limit (32MiB)
+    let res: Vec<_> = program_journals
+        .into_iter()
+        .flat_map(|(journal, origin, call_reply)| {
+            let chunks = journal.encoded_size().div_ceil(32 * 1024 * 1024);
+            let chunk_size = journal.len().div_ceil(chunks);
 
-    let chunked_journal: Vec<_> = journal.chunks(chunk_size).map(return_val).collect();
+            let chunked_journal: Vec<_> = journal
+                .chunks(chunk_size)
+                .map(|chunk| (chunk, origin, call_reply))
+                .map(return_val)
+                .collect();
 
-    return_val((chunked_journal, origin))
+            chunked_journal
+        })
+        .collect();
+
+    return_val((res, gas_spent))
 }
 
 fn get_vec(ptr: i32, len: i32) -> Vec<u8> {

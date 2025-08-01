@@ -23,6 +23,7 @@ use gear_wasm_builder::{
 };
 use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
+use tracing_subscriber::EnvFilter;
 
 const RT_ALLOWED_IMPORTS: [&str; 76] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
@@ -151,7 +152,7 @@ fn check_rt_is_dev(path_to_wasm: &str, expected_to_be_dev: bool) -> Result<(), S
     let module = Module::new(&wasm).map_err(|e| format!("Deserialization error: {e}"))?;
 
     let is_dev = module
-        .custom_section
+        .custom_sections
         .as_ref()
         .iter()
         .copied()
@@ -208,11 +209,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         insert_stack_end = false;
     }
 
-    let mut env = env_logger::Env::default();
+    let mut env_filter = EnvFilter::builder();
     if verbose {
-        env = env.default_filter_or("debug");
+        env_filter = env_filter.with_default_directive("debug".parse()?);
     }
-    env_logger::Builder::from_env(env).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter.from_env_lossy())
+        .init();
 
     let rt_allowed_imports: HashSet<&str> = RT_ALLOWED_IMPORTS.into();
 
@@ -266,7 +269,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut optimizer = Optimizer::new(&optimized_wasm_path)?;
         if insert_stack_end {
             optimizer.insert_stack_end_export().unwrap_or_else(|err| {
-                log::debug!("Failed to insert stack end: {}", err);
+                log::debug!("Failed to insert stack end: {err}");
             })
         }
 

@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::{prelude::CodeIdExt, CodeId, MessageId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, MessageId, prelude::CodeIdExt};
 use gsdk::{
-    metadata::runtime_types::pallet_gear_voucher::internal::VoucherId, Api, Event, Result,
-    TxInBlock,
+    Api, Event, Result, TxInBlock,
+    metadata::runtime_types::pallet_gear_voucher::internal::VoucherId,
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
@@ -242,7 +242,7 @@ async fn get_last_code_id(tx: TxInBlock) -> Result<CodeId> {
     panic!("code not uploaded");
 }
 
-async fn get_last_program_id(tx: TxInBlock) -> Result<ProgramId> {
+async fn get_last_program_id(tx: TxInBlock) -> Result<ActorId> {
     for event in tx.wait_for_success().await?.iter() {
         if let Event::Gear(
             gsdk::metadata::runtime_types::pallet_gear::pallet::Event::ProgramChanged {

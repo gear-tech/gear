@@ -31,7 +31,6 @@ sp-io.workspace = true
 sp-runtime.workspace = true
 
 [dev-dependencies]
-core-processor = { workspace = true, features = ["std"] }
 pallet-gear-bank = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 pallet-gear-messenger = { workspace = true, features = ["std"] }
@@ -43,7 +42,7 @@ frame-support-test = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-timestamp = { workspace = true, features = ["std"] }
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 common = { workspace = true, features = ["std"] }
 
 [features]

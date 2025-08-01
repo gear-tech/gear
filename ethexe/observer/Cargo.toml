@@ -8,12 +8,11 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-db.workspace = true
-gear-core.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 alloy = { workspace = true, features = [
@@ -29,11 +28,10 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
     "signer-local",
 ] }
-async-trait.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "fs", "sync"] }
 futures.workspace = true
-reqwest = { workspace = true, features = ["default-tls", "json"] }
 log.workspace = true
+nonempty.workspace = true
 
 [dev-dependencies]
 gear-utils.workspace = true

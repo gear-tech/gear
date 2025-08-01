@@ -11,7 +11,7 @@ repository.workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 
 # Gear
 runtime-primitives.workspace = true
@@ -31,16 +31,3 @@ sp-io.workspace = true
 # Substrate Other
 frame-system.workspace = true
 frame-metadata-hash-extension.workspace = true
-
-[features]
-default = ["std"]
-std = [
-    "runtime-primitives/std",
-    "gear-runtime-interface/std",
-    "sp-core/std",
-    "sp-crypto-ec-utils/std",
-    "sp-runtime/std",
-    "sp-io/std",
-    "frame-system/std",
-    "vara-runtime/std",
-]

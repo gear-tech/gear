@@ -28,9 +28,11 @@
 #![allow(clippy::useless_conversion)]
 
 pub use builtin::Actor;
-pub use internal::{EthMessage, Proof};
 pub use pallet::*;
+pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
 pub use weights::WeightInfo;
+
+use internal::EthMessageExt;
 
 pub mod weights;
 
@@ -51,9 +53,12 @@ pub mod pallet {
     use super::*;
     use common::Origin;
     use frame_support::{
-        pallet_prelude::*,
-        traits::{ConstBool, OneSessionHandler, StorageInstance, StorageVersion},
         PalletId, StorageHasher,
+        pallet_prelude::*,
+        traits::{
+            ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
+            StorageVersion,
+        },
     };
     use frame_system::{
         ensure_signed,
@@ -61,20 +66,23 @@ pub mod pallet {
     };
     use gprimitives::{ActorId, H160, H256, U256};
     use sp_runtime::{
-        traits::{Keccak256, One, Saturating, Zero},
         BoundToRuntimeAppPublic, RuntimeAppPublic,
+        traits::{Keccak256, One, Saturating, Zero},
     };
     use sp_std::vec::Vec;
 
     type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
+    type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
+    type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
+    pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -84,8 +92,15 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
+        /// Account ID of the bridge builtin.
+        #[pallet::constant]
+        type BuiltinAddress: Get<Self::AccountId>;
+
         /// Privileged origin for bridge management operations.
         type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+        /// Privileged origin for administrative operations.
+        type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// The AccountId of the bridge admin.
         #[pallet::constant]
@@ -167,7 +182,7 @@ pub mod pallet {
 
         /// The error happens when bridging thorough builtin and message value
         /// is inapplicable to operation or insufficient.
-        IncorrectValueApplied,
+        InsufficientValueApplied,
     }
 
     /// Lifecycle storage.
@@ -204,7 +219,8 @@ pub mod pallet {
     ///
     /// Keeps bridge's queued messages keccak hashes.
     #[pallet::storage]
-    pub(crate) type Queue<T> = StorageValue<_, BoundedVec<H256, QueueCapacityOf<T>>, ValueQuery>;
+    #[pallet::unbounded]
+    pub(crate) type Queue<T> = StorageValue<_, Vec<H256>, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -240,6 +256,12 @@ pub mod pallet {
     /// update queue merkle root by the end of the block.
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
+
+    /// Operational storage.
+    ///
+    /// Defines the amount of fee to be paid for the transport of messages.
+    #[pallet::storage]
+    pub type TransportFee<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
     /// Pallet Gear Eth Bridge's itself.
     #[pallet::pallet]
@@ -310,11 +332,41 @@ pub mod pallet {
             origin: OriginFor<T>,
             destination: H160,
             payload: Vec<u8>,
-        ) -> DispatchResultWithPostInfo {
-            let source = ensure_signed(origin)?.cast();
+        ) -> DispatchResultWithPostInfo
+        where
+            T::AccountId: Origin,
+        {
+            let source: ActorId = ensure_signed(origin.clone())?.cast();
+            let is_governance_origin = T::ControlOrigin::ensure_origin(origin).is_ok();
 
-            Self::queue_message(source, destination, payload)?;
+            // Transfer fee or skip it if it's zero or governance origin.
+            let fee = TransportFee::<T>::get();
+            if !(fee.is_zero() || is_governance_origin) {
+                let builtin_id = T::BuiltinAddress::get();
+                CurrencyOf::<T>::transfer(
+                    &source.cast(),
+                    &builtin_id,
+                    fee,
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
 
+            Self::queue_message(source, destination, payload, is_governance_origin)?;
+
+            Ok(().into())
+        }
+
+        /// Root extrinsic that sets fee for the transport of messages.
+        #[pallet::call_index(3)]
+        #[pallet::weight(<T as Config>::WeightInfo::set_fee())]
+        pub fn set_fee(origin: OriginFor<T>, fee: BalanceOf<T>) -> DispatchResultWithPostInfo {
+            // Ensuring called by `AdminOrigin` or root.
+            T::AdminOrigin::ensure_origin_or_root(origin)?;
+
+            // Setting the fee.
+            TransportFee::<T>::put(fee);
+
+            // Returning successful result without weight refund.
             Ok(().into())
         }
     }
@@ -324,6 +376,7 @@ pub mod pallet {
             source: ActorId,
             destination: H160,
             payload: Vec<u8>,
+            is_governance_origin: bool,
         ) -> Result<(U256, H256), Error<T>> {
             // Ensuring that pallet is initialized.
             ensure!(
@@ -340,17 +393,16 @@ pub mod pallet {
             // as well as checking payload size.
             let message = EthMessage::try_new(source, destination, payload)?;
 
-            // Appending hash of the message into the queue
-            // if it's capacity wasn't exceeded.
+            // Appending hash of the message into the queue,
+            // checks whether the queue capacity is exceeded,
+            // or skips the check when the origin is governance.
             let hash = Queue::<T>::mutate(|v| {
-                (v.len() < QueueCapacityOf::<T>::get() as usize)
+                (is_governance_origin || v.len() < QueueCapacityOf::<T>::get() as usize)
                     .then(|| {
                         let hash = message.hash();
-
-                        // Always `Ok`: check performed above as in inner implementation.
-                        v.try_push(hash).map(|()| hash).ok()
+                        v.push(hash);
+                        hash
                     })
-                    .flatten()
                     .ok_or(Error::<T>::QueueCapacityExceeded)
             })
             .inspect_err(|_| {

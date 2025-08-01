@@ -165,8 +165,8 @@ pub use async_runtime::{handle_reply_with_hook, message_loop};
 pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
-    debug, ext, static_mut, static_ref, ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas,
-    GasMultiplier, MessageId, Percent, Ss58Address, Value,
+    ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
+    Ss58Address, Value, debug, static_mut, static_ref,
 };
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
@@ -175,6 +175,53 @@ pub use prelude::*;
 pub use {
     async_runtime::handle_signal, common::primitives_ext::*, gcore::ReservationId, reservations::*,
 };
+
+/// Extensions for additional features.
+pub mod ext {
+    pub use gcore::ext::*;
+
+    use parity_scale_codec::Encode;
+
+    /// Panic
+    ///
+    /// Can be used to pass some data to error reply payload.
+    ///
+    /// Syscall this function uses is completely free in terms of gas usage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gstd::ext;
+    ///
+    /// #[unsafe(no_mangle)]
+    /// extern "C" fn handle() {
+    ///     ext::panic((1, "important data"));
+    /// }
+    /// ```
+    pub fn panic<T: Encode>(data: T) -> ! {
+        panic_bytes(data.encode())
+    }
+
+    /// Panic
+    ///
+    /// Can be used to pass some data to error reply payload.
+    ///
+    /// Syscall this function uses is completely free in terms of gas usage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use gstd::ext;
+    ///
+    /// #[unsafe(no_mangle)]
+    /// extern "C" fn handle() {
+    ///     ext::panic_bytes([0, 1, 2, 3]);
+    /// }
+    /// ```
+    pub fn panic_bytes<T: AsRef<[u8]>>(data: T) -> ! {
+        gcore::ext::panic(data.as_ref())
+    }
+}
 
 // This allows all casts from u32 into usize be safe.
 const _: () = assert!(size_of::<u32>() <= size_of::<usize>());

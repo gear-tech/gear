@@ -20,7 +20,7 @@
 
 use crate::{mock::*, *};
 use frame_support::{assert_noop, assert_ok, assert_storage_noop, traits::EstimateNextNewSession};
-use sp_runtime::{traits::Convert, DispatchError, PerThing, Perbill};
+use sp_runtime::{DispatchError, PerThing, Perbill, traits::Convert};
 
 macro_rules! assert_approx_eq {
     ($left:expr, $right:expr, $tol:expr) => {{
@@ -35,10 +35,7 @@ macro_rules! assert_approx_eq {
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 #[test]

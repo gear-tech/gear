@@ -23,7 +23,7 @@
 extern crate alloc;
 
 use alloc::string::String;
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use sp_debug_derive::RuntimeDebug;
 use sp_std::vec::Vec;
 use sp_wasm_interface_common::ReturnValue;
@@ -41,12 +41,10 @@ pub enum Instantiate {
 
 /// Error error that can be returned from host function.
 #[derive(Encode, Decode, RuntimeDebug)]
-#[codec(crate = codec)]
 pub struct HostError;
 
 /// Describes an entity to define or import into the environment.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-#[codec(crate = codec)]
 pub enum ExternEntity {
     /// Function that is specified by an index in a default table of
     /// a module that creates the sandbox.
@@ -64,7 +62,6 @@ pub enum ExternEntity {
 /// Each entry has a two-level name and description of an entity
 /// being defined.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-#[codec(crate = codec)]
 pub struct Entry {
     /// Module name of which corresponding entity being defined.
     pub module_name: String,
@@ -76,7 +73,6 @@ pub struct Entry {
 
 /// Definition of runtime that could be used by sandboxed code.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-#[codec(crate = codec)]
 pub struct EnvironmentDefinition {
     /// Vector of all entries in the environment definition.
     pub entries: Vec<Entry>,
@@ -126,7 +122,6 @@ pub const ERROR_GLOBALS_OTHER: u32 = u32::MAX - 1;
 /// through the dispatch thunk.
 /// Additionally contains globals values.
 #[derive(Clone, Copy, PartialEq, Encode, Decode, Debug)]
-#[codec(crate = codec)]
 pub struct WasmReturnValue {
     pub gas: i64,
     pub inner: ReturnValue,
@@ -142,7 +137,7 @@ pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codec::Codec;
+    use parity_scale_codec::Codec;
     use std::fmt;
 
     fn roundtrip<S: Codec + PartialEq + fmt::Debug>(s: S) {

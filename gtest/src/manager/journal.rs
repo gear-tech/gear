@@ -18,27 +18,25 @@
 
 //! Implementation of the `JournalHandler` trait for the `ExtManager`.
 
-use super::{ExtManager, Gas, GenuineProgram, Program, TestActor};
+use super::{ExtManager, Program};
 use crate::{
+    EXISTENTIAL_DEPOSIT, Value,
     manager::hold_bound::HoldBoundBuilder,
-    program::ProgramBuilder,
-    state::{accounts::Accounts, actors::Actors},
-    Value, EXISTENTIAL_DEPOSIT,
+    state::{accounts::Accounts, programs::ProgramsStorageManager},
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
+    ActiveProgram, Origin,
     event::{MessageWaitedRuntimeReason, RuntimeReason},
     scheduler::StorageType,
 };
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId, ReservationId},
+    env::MessageWaitedType,
+    ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::PageBuf,
-    message::{Dispatch, MessageWaitedType, SignalMessage, StoredDispatch},
-    pages::{
-        num_traits::Zero,
-        numerated::{iterators::IntervalIterator, tree::IntervalsTree},
-        GearPage, WasmPage,
-    },
+    message::{Dispatch, SignalMessage, StoredDispatch},
+    pages::{GearPage, WasmPage, num_traits::Zero, numerated::tree::IntervalsTree},
+    program::ProgramState,
     reservation::GasReserver,
     tasks::{ScheduledTask, TaskHandler},
 };
@@ -49,7 +47,7 @@ impl JournalHandler for ExtManager {
     fn message_dispatched(
         &mut self,
         message_id: MessageId,
-        _source: ProgramId,
+        _source: ActorId,
         outcome: DispatchOutcome,
     ) {
         match outcome {
@@ -77,44 +75,33 @@ impl JournalHandler for ExtManager {
     }
 
     fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
-        log::debug!("Burned: {:?} from: {:?}", amount, message_id);
+        log::debug!("Burned: {amount:?} from: {message_id:?}");
 
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(amount));
+        self.gas_allowance = self.gas_allowance.saturating_sub(amount);
         self.spend_burned(message_id, amount);
     }
 
-    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+    fn exit_dispatch(&mut self, id_exited: ActorId, value_destination: ActorId) {
         log::debug!(
             "Exit dispatch: id_exited = {id_exited}, value_destination = {value_destination}"
         );
 
-        self.waitlist.drain_key(id_exited).for_each(|entry| {
-            let message = self.wake_dispatch_requirements(entry);
+        self.clean_waitlist(id_exited);
+        self.remove_gas_reservation_map(id_exited);
 
-            self.dispatches.push_back(message);
-        });
+        ProgramsStorageManager::modify_program(id_exited, |program| {
+            let program =
+                program.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
 
-        Actors::modify(id_exited, |actor| {
-            let actor =
-                actor.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
-
-            if let TestActor::Initialized(Program::Genuine(program)) =
-                std::mem::replace(actor, TestActor::Dormant)
-            {
-                for (reservation_id, slot) in program.gas_reservation_map {
-                    let slot = self.remove_gas_reservation_slot(reservation_id, slot);
-
-                    let result = self.task_pool.delete(
-                        slot.finish,
-                        ScheduledTask::RemoveGasReservation(id_exited, reservation_id),
-                    );
-                    log::debug!(
-                        "remove_gas_reservation_map; program_id = {id_exited:?}, result = {result:?}"
-                    );
-                }
+            if !program.is_active() {
+                // Guaranteed to be called only on active program
+                unreachable!(
+                    "JournalHandler::exit_dispatch: failed to exit active program. \
+                Program - {id_exited}, actual program - {program:?}"
+                );
             }
 
-            *actor = TestActor::Dormant
+            *program = Program::Exited(value_destination);
         });
 
         let value = Accounts::balance(id_exited);
@@ -134,7 +121,8 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = Actors::is_user(dispatch.destination());
+        let to_user = ProgramsStorageManager::is_user(dispatch.destination())
+            && !self.no_code_program.contains(&dispatch.destination());
         if delay > 0 {
             log::debug!(
                 "[{message_id}] new delayed dispatch#{} with delay for {delay} blocks",
@@ -148,7 +136,8 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = Actors::is_program(dispatch.destination());
+        let is_program = ProgramsStorageManager::is_program(dispatch.destination())
+            || self.no_code_program.contains(&dispatch.destination());
 
         if is_program {
             let gas_limit = dispatch.gas_limit();
@@ -159,9 +148,15 @@ impl JournalHandler for ExtManager {
                 gas_limit,
             );
 
-            if dispatch.value() != 0 {
+            // It's necessary to deposit value so the source would have enough
+            // balance locked (in gear-bank) for future value processing.
+            //
+            // In case of error replies, we don't need to do it, since original
+            // message value is already on locked balance in gear-bank.
+            if dispatch.value() != 0 && !dispatch.is_error_reply() {
                 self.bank.deposit_value(source, dispatch.value(), false);
             }
+
             match (gas_limit, reservation) {
                 (Some(gas_limit), None) => self
                     .gas_tree
@@ -213,7 +208,7 @@ impl JournalHandler for ExtManager {
     fn wake_message(
         &mut self,
         message_id: MessageId,
-        program_id: ProgramId,
+        program_id: ActorId,
         awakening_id: MessageId,
         delay: u32,
     ) {
@@ -247,67 +242,61 @@ impl JournalHandler for ExtManager {
             return;
         }
 
-        log::debug!(
-            "Failed to wake unknown message {:?} from {:?}",
-            awakening_id,
-            message_id
-        );
+        log::debug!("Failed to wake unknown message {awakening_id:?} from {message_id:?}");
     }
 
-    fn update_pages_data(
-        &mut self,
-        program_id: ProgramId,
-        pages_data: BTreeMap<GearPage, PageBuf>,
-    ) {
-        self.update_storage_pages(&program_id, pages_data);
+    fn update_pages_data(&mut self, program_id: ActorId, pages_data: BTreeMap<GearPage, PageBuf>) {
+        self.update_storage_pages(program_id, pages_data);
     }
 
-    fn update_allocations(&mut self, program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
-        self.update_genuine_program(program_id, |program| {
-            program
-                .allocations
-                .difference(&allocations)
-                .flat_map(IntervalIterator::from)
-                .flat_map(|page| page.to_iter())
-                .for_each(|ref page| {
-                    program.pages_data.remove(page);
-                });
-            program.allocations = allocations;
-        })
-        .expect("no genuine program was found");
+    fn update_allocations(&mut self, program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
+        let old_allocations = ProgramsStorageManager::allocations(program_id).unwrap_or_default();
+        old_allocations
+            .difference(&allocations)
+            .flat_map(|page| page.iter())
+            .flat_map(|page| page.to_iter())
+            .for_each(|page| {
+                ProgramsStorageManager::remove_program_page(program_id, page);
+            });
+
+        ProgramsStorageManager::set_allocations(program_id, allocations);
     }
 
-    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: Value) {
+    fn send_value(&mut self, from: ActorId, to: ActorId, value: Value, locked: bool) {
         if value.is_zero() {
             // Nothing to do
             return;
         }
 
-        let to = to.unwrap_or(from);
-        self.bank.transfer_value(from, to, value);
+        if locked {
+            self.bank.transfer_locked_value(from, to, value);
+        } else {
+            self.bank.transfer_value(from, to, value);
+        }
     }
 
     fn store_new_programs(
         &mut self,
-        program_id: ProgramId,
+        program_id: ActorId,
         code_id: CodeId,
-        candidates: Vec<(MessageId, ProgramId)>,
+        candidates: Vec<(MessageId, ActorId)>,
     ) {
-        if let Some(code) = self.opt_binaries.get(&code_id).cloned() {
+        if self.instrumented_code(code_id).is_some() {
             for (init_message_id, candidate_id) in candidates {
-                if !Actors::contains_key(candidate_id) {
-                    let (instrumented, _) =
-                        ProgramBuilder::build_instrumented_code_and_id(code.clone());
+                if !ProgramsStorageManager::has_program(candidate_id) {
+                    let expiration_block = self.block_height();
                     self.store_new_actor(
                         candidate_id,
-                        Program::Genuine(GenuineProgram {
-                            code: instrumented,
-                            code_id,
-                            allocations: Default::default(),
-                            pages_data: Default::default(),
+                        Program::Active(ActiveProgram {
+                            allocations_tree_len: 0,
+                            code_id: code_id.cast(),
+                            state: ProgramState::Uninitialized {
+                                message_id: init_message_id,
+                            },
+                            expiration_block,
+                            memory_infix: Default::default(),
                             gas_reservation_map: Default::default(),
                         }),
-                        Some(init_message_id),
                     );
 
                     // Transfer the ED from the program-creator to the new program
@@ -319,7 +308,7 @@ impl JournalHandler for ExtManager {
         } else {
             log::debug!("No referencing code with code hash {code_id:?} for candidate programs");
             for (_, invalid_candidate_id) in candidates {
-                Actors::insert(invalid_candidate_id, TestActor::Dormant);
+                self.no_code_program.insert(invalid_candidate_id);
             }
         }
     }
@@ -331,7 +320,7 @@ impl JournalHandler for ExtManager {
             self.gas_allowance,
             gas_burned,
         );
-        self.gas_allowance = self.gas_allowance.saturating_sub(Gas(gas_burned));
+        self.gas_allowance = self.gas_allowance.saturating_sub(gas_burned);
         self.messages_processing_enabled = false;
         self.dispatches.push_front(dispatch);
     }
@@ -340,16 +329,12 @@ impl JournalHandler for ExtManager {
         &mut self,
         message_id: MessageId,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         amount: u64,
         duration: u32,
     ) {
         log::debug!(
-            "Reserved: {:?} from {:?} with {:?} for {} blocks",
-            amount,
-            message_id,
-            reservation_id,
-            duration
+            "Reserved: {amount:?} from {message_id:?} with {reservation_id:?} for {duration} blocks"
         );
 
         let hold = HoldBoundBuilder::new(StorageType::Reservation).duration(self, duration);
@@ -407,10 +392,10 @@ impl JournalHandler for ExtManager {
     fn unreserve_gas(
         &mut self,
         reservation_id: ReservationId,
-        program_id: ProgramId,
+        program_id: ActorId,
         expiration: u32,
     ) {
-        <Self as TaskHandler<ProgramId, MessageId, bool>>::remove_gas_reservation(
+        <Self as TaskHandler<ActorId, MessageId, bool>>::remove_gas_reservation(
             self,
             program_id,
             reservation_id,
@@ -427,9 +412,10 @@ impl JournalHandler for ExtManager {
             });
     }
 
-    fn update_gas_reservation(&mut self, program_id: ProgramId, reserver: GasReserver) {
+    fn update_gas_reservation(&mut self, program_id: ActorId, reserver: GasReserver) {
         let block_height = self.block_height();
-        self.update_genuine_program(program_id, |program| {
+        self.update_program(program_id, |program| {
+            // TODO #4758 use HoldBoundBuilder here and check all other places:
             program.gas_reservation_map =
                 reserver.into_map(block_height, |duration| block_height + duration);
         })
@@ -459,7 +445,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn send_signal(&mut self, message_id: MessageId, destination: ProgramId, code: SignalCode) {
+    fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode) {
         let reserved = self
             .gas_tree
             .system_unreserve(message_id)

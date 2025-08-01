@@ -17,29 +17,27 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ids::{MessageId, ProgramId},
+    buffer::Payload,
+    ids::{ActorId, MessageId},
     message::{
-        DispatchKind, GasLimit, Payload, StoredDelayedDispatch, StoredDispatch, StoredMessage,
-        Value,
+        DispatchKind, GasLimit, StoredDelayedDispatch, StoredDispatch, StoredMessage, Value,
     },
 };
 use core::ops::Deref;
 use gear_core_errors::{ReplyCode, SignalCode};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// An entity that is used for interaction between actors.
 /// Can transfer value and executes by programs in corresponding function: init, handle or handle_reply.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Message {
     /// Message id.
     id: MessageId,
     /// Message source.
-    source: ProgramId,
+    source: ActorId,
     /// Message destination.
-    destination: ProgramId,
+    destination: ActorId,
     /// Message payload.
     payload: Payload,
     /// Message optional gas limit.
@@ -67,8 +65,8 @@ impl Message {
     /// Create new message.
     pub fn new(
         id: MessageId,
-        source: ProgramId,
-        destination: ProgramId,
+        source: ActorId,
+        destination: ActorId,
         payload: Payload,
         gas_limit: Option<GasLimit>,
         value: Value,
@@ -90,8 +88,8 @@ impl Message {
         self,
     ) -> (
         MessageId,
-        ProgramId,
-        ProgramId,
+        ActorId,
+        ActorId,
         Payload,
         Option<GasLimit>,
         Value,
@@ -119,12 +117,12 @@ impl Message {
     }
 
     /// Message source.
-    pub fn source(&self) -> ProgramId {
+    pub fn source(&self) -> ActorId {
         self.source
     }
 
     /// Message destination.
-    pub fn destination(&self) -> ProgramId {
+    pub fn destination(&self) -> ActorId {
         self.destination
     }
 
@@ -165,20 +163,7 @@ impl Message {
 }
 
 /// Message details data.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    Decode,
-    Encode,
-    TypeInfo,
-    derive_more::From,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo, derive_more::From)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageDetails {
     /// Reply details.
@@ -226,9 +211,7 @@ impl MessageDetails {
 ///
 /// Part of [`ReplyMessage`](crate::message::ReplyMessage) logic, containing data about on which message id
 /// this replies and its status code.
-#[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyDetails {
     /// Message id, this message replies on.
@@ -260,9 +243,7 @@ impl ReplyDetails {
 }
 
 /// Signal details data.
-#[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct SignalDetails {
     /// Message id, which issues signal.
@@ -294,7 +275,7 @@ impl SignalDetails {
 }
 
 /// Message with entry point.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub struct Dispatch {
     /// Entry point for the message.
     kind: DispatchKind,

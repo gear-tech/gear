@@ -23,8 +23,8 @@ use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
 use gprimitives::ActorId;
 use roast_secp256k1_evm::frost::{
-    keys::{self, IdentifierList},
     Identifier,
+    keys::{self, IdentifierList},
 };
 use std::time::Duration;
 
@@ -48,9 +48,10 @@ async fn test_deployment() -> Result<()> {
 
     let ethereum_rpc = anvil.ws_endpoint();
 
-    let signer = Signer::tmp();
+    let signer = Signer::memory();
 
     let sender_public_key = signer
+        .storage_mut()
         .add_key("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
@@ -81,8 +82,6 @@ async fn test_deployment() -> Result<()> {
     )
     .await?;
 
-    let blobs_reader = Arc::new(MockBlobReader::new());
-
     let router_address = ethereum.router().address();
 
     let db = MemDb::default();
@@ -96,8 +95,7 @@ async fn test_deployment() -> Result<()> {
             beacon_rpc: Default::default(),
         },
         u32::MAX,
-        database,
-        Some(blobs_reader.clone()),
+        database.clone(),
     )
     .await
     .expect("failed to create observer");
@@ -109,22 +107,7 @@ async fn test_deployment() -> Result<()> {
             .await
             .expect("failed to request code validation");
 
-        let request_code_id = pending_builder.code_id();
-        let request_tx_hash = pending_builder.tx_hash();
-
-        blobs_reader
-            .add_blob_transaction(request_tx_hash, wasm)
-            .await;
-
-        request_code_id
-    };
-
-    let mut observer_next = async move || {
-        observer
-            .next()
-            .await
-            .expect("observer did not receive event")
-            .expect("received error instead of event")
+        pending_builder.code_id()
     };
 
     let wat = r#"
@@ -135,33 +118,45 @@ async fn test_deployment() -> Result<()> {
         )
     "#;
     let wasm = wat2wasm(wat);
-    let request_code_id = request_wasm_validation(wasm.clone()).await;
+    let _request_code_id = request_wasm_validation(wasm).await;
 
-    let event = observer_next().await;
+    let event = observer
+        .next()
+        .await
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
+
     assert!(matches!(event, ObserverEvent::Block(..)));
 
-    let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::BlockSynced(..)));
+    let event = observer
+        .next()
+        .await
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
 
-    let event = observer_next().await;
-    assert!(
-        matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
-    );
+    let ObserverEvent::BlockSynced(_) = event else {
+        panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
+    };
 
     let wat = "(module)";
     let wasm = wat2wasm(wat);
-    let request_code_id = request_wasm_validation(wasm.clone()).await;
+    let _request_code_id = request_wasm_validation(wasm).await;
 
-    let event = observer_next().await;
+    let event = observer
+        .next()
+        .await
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
     assert!(matches!(event, ObserverEvent::Block(..)));
 
-    let event = observer_next().await;
-    assert!(matches!(event, ObserverEvent::BlockSynced(..)));
-
-    let event = observer_next().await;
-    assert!(
-        matches!(event, ObserverEvent::Blob(d) if d.code_id == request_code_id && d.code == wasm)
-    );
+    let event = observer
+        .next()
+        .await
+        .expect("observer did not receive event")
+        .expect("received error instead of event");
+    let ObserverEvent::BlockSynced(_) = event else {
+        panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
+    };
 
     Ok(())
 }

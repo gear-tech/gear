@@ -26,13 +26,13 @@ use frame_support::{
     parameter_types,
     traits::{Currency, Imbalance, OnUnbalanced},
     weights::{
-        constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
         Weight,
+        constants::{BlockExecutionWeight, ExtrinsicBaseWeight},
     },
 };
 use frame_system::limits::BlockWeights;
 use runtime_primitives::{AccountId, BlockNumber};
-use sp_runtime::{traits::Get, Perbill};
+use sp_runtime::{Perbill, traits::Get};
 
 /// We assume that ~3% of the block weight is consumed by `on_initialize` handlers.
 /// This is used to limit the maximal weight of a single extrinsic.
@@ -78,7 +78,7 @@ parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
 }
 
-pub const VALUE_PER_GAS: u128 = 6;
+pub const VALUE_PER_GAS: u128 = 100;
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
     <T as frame_system::Config>::AccountId,

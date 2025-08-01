@@ -24,12 +24,12 @@ use frame_support::{
     sp_runtime::{FixedPointNumber, FixedU128 as Fixed},
     weights::Weight,
 };
-use gear_utils::codegen::{format_with_rustfmt, LICENSE};
+use gear_utils::codegen::{LICENSE, format_with_rustfmt};
 use heck::ToSnakeCase;
 use indexmap::IndexMap;
 use pallet_gear::Schedule;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -38,12 +38,12 @@ use std::{
     str::FromStr,
 };
 use syn::{
-    ext::IdentExt,
-    visit::{self, Visit},
     AngleBracketedGenericArguments, Fields, FnArg, GenericArgument, Generics, ImplItem, Item,
     ItemImpl, ItemStruct, Path, PathArguments, PathSegment, Type, TypePath,
+    ext::IdentExt,
+    visit::{self, Visit},
 };
-use tabled::{builder::Builder, Style};
+use tabled::{Style, builder::Builder};
 
 /// Utility for working with weights
 #[derive(Debug, Parser)]
@@ -127,6 +127,7 @@ struct DeserializableSchedule {
     db_weights: IndexMap<String, Value>,
     task_weights: IndexMap<String, Value>,
     instantiation_weights: IndexMap<String, Weight>,
+    instrumentation_weights: IndexMap<String, Weight>,
     #[serde(flatten)]
     other_fields: IndexMap<String, Weight>,
 }
@@ -186,7 +187,7 @@ fn format_weight(weight: u64) -> String {
             Fixed::saturating_from_rational(weight, 1_000).to_float(),
         )
     } else {
-        format!("{} ps", weight)
+        format!("{weight} ps")
     }
 }
 
@@ -232,6 +233,7 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
                 | "DbWeights"
                 | "TaskWeights"
                 | "InstantiationWeights"
+                | "InstrumentationWeights"
         ) {
             return;
         }
@@ -252,16 +254,15 @@ impl<'ast> Visit<'ast> for StructuresVisitor {
 
         structure.generics = Generics::default();
 
-        if let Fields::Named(ref mut fields) = structure.fields {
-            if fields
+        if let Fields::Named(ref mut fields) = structure.fields
+            && fields
                 .named
                 .last()
                 .and_then(|field| field.ident.as_ref())
                 .filter(|ident| *ident == "_phantom")
                 .is_some()
-            {
-                fields.named.pop();
-            }
+        {
+            fields.named.pop();
         }
 
         for field in structure.fields.iter_mut() {
@@ -308,7 +309,9 @@ const TYPE_LIST: &[&str] = &[
     "MemoryCosts",
     "RentCosts",
     "InstantiationCosts",
+    "InstrumentationCosts",
     "IoCosts",
+    "DbCosts",
     "PagesCosts",
     "LazyPagesCosts",
 ];
@@ -329,47 +332,44 @@ impl ImplementationVisitor {
 
         // first extract all the `*Costs` impls.
         if let Some((_, Path { segments, .. }, _)) = &mut implementation.trait_ {
-            if let Some(PathSegment { ident, arguments }) = segments.first_mut() {
-                if *ident == "From" {
-                    if let Type::Path(TypePath { path, .. }) = &mut *implementation.self_ty {
-                        let PathArguments::AngleBracketed(types) = arguments else {
-                            unreachable!("unexpected From impl detected")
-                        };
+            if let Some(PathSegment { ident, arguments }) = segments.first_mut()
+                && *ident == "From"
+                && let Type::Path(TypePath { path, .. }) = &mut *implementation.self_ty
+            {
+                let PathArguments::AngleBracketed(types) = arguments else {
+                    unreachable!("unexpected From impl detected")
+                };
 
-                        let Some(&mut GenericArgument::Type(ref mut ty)) = types.args.first_mut()
-                        else {
-                            unreachable!("unexpected From impl detected")
-                        };
+                let Some(&mut GenericArgument::Type(ref mut ty)) = types.args.first_mut() else {
+                    unreachable!("unexpected From impl detected")
+                };
 
-                        if let Type::Path(TypePath { path, .. }) = ty {
-                            if let Some(PathSegment { arguments, .. }) = path.segments.first_mut() {
-                                *arguments = PathArguments::None;
+                if let Type::Path(TypePath { path, .. }) = ty
+                    && let Some(PathSegment { arguments, .. }) = path.segments.first_mut()
+                {
+                    *arguments = PathArguments::None;
+                }
+
+                if let Some(PathSegment { ident, .. }) = path.segments.first_mut()
+                    && TYPE_LIST.contains(&ident.to_string().as_str())
+                {
+                    let Some(ImplItem::Fn(from_fn)) = implementation.items.first_mut() else {
+                        unreachable!("unexpected From impl detected")
+                    };
+
+                    let first_arg = from_fn.sig.inputs.first_mut().unwrap();
+                    match first_arg {
+                        FnArg::Typed(typed) => match &mut *typed.ty {
+                            Type::Path(path) => {
+                                path.path.segments.first_mut().unwrap().arguments =
+                                    PathArguments::None;
+
+                                self.impls.push(implementation);
                             }
-                        }
 
-                        if let Some(PathSegment { ident, .. }) = path.segments.first_mut() {
-                            if TYPE_LIST.contains(&ident.to_string().as_str()) {
-                                let Some(ImplItem::Fn(from_fn)) = implementation.items.first_mut()
-                                else {
-                                    unreachable!("unexpected From impl detected")
-                                };
-
-                                let first_arg = from_fn.sig.inputs.first_mut().unwrap();
-                                match first_arg {
-                                    FnArg::Typed(typed) => match &mut *typed.ty {
-                                        Type::Path(path) => {
-                                            path.path.segments.first_mut().unwrap().arguments =
-                                                PathArguments::None;
-
-                                            self.impls.push(implementation);
-                                        }
-
-                                        _ => unreachable!("unexpected From impl detected"),
-                                    },
-                                    _ => unreachable!("unexpected From impl detected"),
-                                }
-                            }
-                        }
+                            _ => unreachable!("unexpected From impl detected"),
+                        },
+                        _ => unreachable!("unexpected From impl detected"),
                     }
                 }
             }
@@ -393,18 +393,18 @@ impl ImplementationVisitor {
 
         implementation.generics = Generics::default();
 
-        if let Type::Path(TypePath { path, .. }) = &mut *implementation.self_ty {
-            if let Some(PathSegment { arguments, ident }) = path.segments.first_mut() {
-                *arguments = PathArguments::None;
-                if *ident == "Schedule" {
-                    // only leave process_costs method
-                    implementation.items.retain_mut(|item| match item {
-                        ImplItem::Fn(func) => func.sig.ident == "process_costs",
-                        _ => false,
-                    });
+        if let Type::Path(TypePath { path, .. }) = &mut *implementation.self_ty
+            && let Some(PathSegment { arguments, ident }) = path.segments.first_mut()
+        {
+            *arguments = PathArguments::None;
+            if *ident == "Schedule" {
+                // only leave process_costs method
+                implementation.items.retain_mut(|item| match item {
+                    ImplItem::Fn(func) => func.sig.ident == "process_costs",
+                    _ => false,
+                });
 
-                    self.impls.push(implementation);
-                }
+                self.impls.push(implementation);
             }
         }
     }
@@ -554,7 +554,8 @@ fn main() -> Result<()> {
                         | "RentWeights"
                         | "DbWeights"
                         | "TaskWeights"
-                        | "InstantiationWeights" => {
+                        | "InstantiationWeights"
+                        | "InstrumentationWeights" => {
                             &raw_schedule[structure_name_snake_case.as_str()][field_name]
                         }
                         _ => &raw_schedule,

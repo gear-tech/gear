@@ -21,10 +21,10 @@ use crate::queue::QueueStep;
 use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
-    code::TryNewCodeConfig,
-    message::ReplyInfo,
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
+    rpc::ReplyInfo,
 };
 use gear_wasm_instrument::syscalls::SyscallName;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
@@ -36,6 +36,7 @@ pub(crate) const ALLOWANCE_LIMIT_ERR: &str = "Calculation gas limit exceeded. Us
 
 pub(crate) struct CodeWithMemoryData {
     pub instrumented_code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
     pub allocations: IntervalsTree<WasmPage>,
     pub memory_infix: MemoryInfix,
 }
@@ -50,7 +51,7 @@ where
     // on calling `Gear::send_message(..)` with following arguments.
     pub(crate) fn calculate_reply_for_handle_impl(
         origin: H256,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -306,10 +307,9 @@ where
                             ref dispatch,
                             ..
                         } = note
+                            && from_main_chain(dispatch.id())?
                         {
-                            if from_main_chain(dispatch.id())? {
-                                gas_info.min_limit = initial_gas;
-                            }
+                            gas_info.min_limit = initial_gas;
                         }
                     }
                 }
@@ -380,7 +380,7 @@ where
     }
 
     pub(crate) fn read_state_using_wasm_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         payload: Vec<u8>,
         function: impl Into<String>,
         wasm: Vec<u8>,
@@ -402,14 +402,15 @@ where
         )
         .map_err(|e| format!("Failed to construct program: {e:?}"))?;
 
-        if u32::try_from(code.code().len()).unwrap_or(u32::MAX) > schedule.limits.code_len {
+        if u32::try_from(code.instrumented_code().bytes().len()).unwrap_or(u32::MAX)
+            > schedule.limits.code_len
+        {
             return Err("Wasm after instrumentation too big".into());
         }
 
         let code_and_id = CodeAndId::new(code);
-        let code_and_id = InstrumentedCodeAndId::from(code_and_id);
 
-        let instrumented_code = code_and_id.into_parts().0;
+        let (_, instrumented_code, code_metadata) = code_and_id.into_parts().0.into_parts();
 
         let payload_arg = payload;
         let mut payload = argument.unwrap_or_default();
@@ -433,6 +434,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             function.into(),
             instrumented_code,
+            code_metadata,
             None,
             None,
             payload,
@@ -442,7 +444,7 @@ where
     }
 
     pub(crate) fn read_state_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         payload: Vec<u8>,
         allowance_multiplier: Option<u64>,
     ) -> Result<Vec<u8>, String> {
@@ -452,6 +454,7 @@ where
 
         let CodeWithMemoryData {
             instrumented_code,
+            code_metadata,
             allocations,
             memory_infix,
         } = Self::code_with_memory(program_id)?;
@@ -470,6 +473,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("state"),
             instrumented_code,
+            code_metadata,
             Some(allocations),
             Some((program_id, memory_infix)),
             payload,
@@ -479,7 +483,7 @@ where
     }
 
     pub(crate) fn read_metahash_impl(
-        program_id: ProgramId,
+        program_id: ActorId,
         allowance_multiplier: Option<u64>,
     ) -> Result<H256, String> {
         Self::enable_lazy_pages();
@@ -488,6 +492,7 @@ where
 
         let CodeWithMemoryData {
             instrumented_code,
+            code_metadata,
             allocations,
             memory_infix,
         } = Self::code_with_memory(program_id)?;
@@ -506,6 +511,7 @@ where
         core_processor::informational::execute_for_reply::<Ext, String>(
             String::from("metahash"),
             instrumented_code,
+            code_metadata,
             Some(allocations),
             Some((program_id, memory_infix)),
             Default::default(),
@@ -518,32 +524,66 @@ where
     }
 
     // Returns code and allocations of the given program id.
-    fn code_with_memory(program_id: ProgramId) -> Result<CodeWithMemoryData, String> {
+    fn code_with_memory(program_id: ActorId) -> Result<CodeWithMemoryData, String> {
         // Load active program from storage.
         let program: ActiveProgram<_> = ProgramStorageOf::<T>::get_program(program_id)
             .ok_or(String::from("Program not found"))?
             .try_into()
             .map_err(|e| format!("Get active program error: {e:?}"))?;
 
-        let code_id = program.code_hash.cast();
+        let code_id = program.code_id.cast();
 
-        // Load instrumented binary code from storage.
-        let mut code = T::CodeStorage::get_code(code_id).ok_or_else(|| {
-            format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
-        })?;
+        let code_metadata = T::CodeStorage::get_code_metadata(code_id)
+            .ok_or_else(|| format!("Code '{code_id:?}' not found for program '{program_id:?}'"))?;
 
-        // Reinstrument the code if necessary.
         let schedule = T::Schedule::get();
 
-        if code.instruction_weights_version() != schedule.instruction_weights.version {
-            code = Pallet::<T>::reinstrument_code(code_id, &schedule)
-                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?;
-        }
+        // Check if the code needs to be reinstrumented.
+        let needs_reinstrumentation = match code_metadata.instrumentation_status() {
+            InstrumentationStatus::NotInstrumented => {
+                log::debug!(
+                    "Instrumented code doesn't exists for program '{program_id:?}' \
+                     we need to instrument it with instructions weights version {}",
+                    schedule.instruction_weights.version
+                );
+
+                true
+            }
+            InstrumentationStatus::Instrumented { version, .. } => {
+                version != schedule.instruction_weights.version
+            }
+            InstrumentationStatus::InstrumentationFailed { version } => {
+                if version == schedule.instruction_weights.version {
+                    return Err(format!(
+                        "Re-instrumentation already failed for program '{program_id:?}' \
+                        with instructions weights version {version}"
+                    ));
+                }
+
+                true
+            }
+        };
+
+        let instrumented_code_and_metadata = if needs_reinstrumentation {
+            Pallet::<T>::reinstrument_code(code_id, code_metadata, &schedule)
+                .map_err(|e| format!("Code {code_id:?} failed reinstrumentation: {e:?}"))?
+        } else {
+            let instrumented_code =
+                T::CodeStorage::get_instrumented_code(code_id).ok_or_else(|| {
+                    format!("Program '{program_id:?}' exists so must do code '{code_id:?}'")
+                })?;
+
+            InstrumentedCodeAndMetadata {
+                instrumented_code,
+                metadata: code_metadata,
+            }
+        };
 
         let allocations = ProgramStorageOf::<T>::allocations(program_id).unwrap_or_default();
 
         Ok(CodeWithMemoryData {
-            instrumented_code: code,
+            instrumented_code: instrumented_code_and_metadata.instrumented_code,
+            code_metadata: instrumented_code_and_metadata.metadata,
             allocations,
             memory_infix: program.memory_infix,
         })
@@ -683,7 +723,7 @@ where
     }
 
     // Queries first element of the queue and extracts its message id and destination.
-    fn queue_head() -> Result<(MessageId, ProgramId), String> {
+    fn queue_head() -> Result<(MessageId, ActorId), String> {
         QueueOf::<T>::iter()
             .next()
             .ok_or_else(|| Self::internal_err_string("Failed to get last message from the queue"))

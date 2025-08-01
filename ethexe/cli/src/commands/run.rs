@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::MergeParams;
-use crate::Params;
-use anyhow::{Context as _, Result};
+use crate::{Params, params::MergeParams};
+use anyhow::{Context as _, Result, anyhow};
 use clap::Args;
-use env_logger::Env;
 use ethexe_service::Service;
-use log::LevelFilter;
+use std::time::Duration;
+use tracing_subscriber::EnvFilter;
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -45,16 +44,19 @@ impl RunCommand {
     }
 
     /// Run the ethexe service (node).
-    pub async fn run(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
 
-        let env = Env::default().default_filter_or(default);
-
-        env_logger::Builder::from_env(env)
-            .filter_module("wasmtime_cranelift", LevelFilter::Off)
-            .filter_module("cranelift", LevelFilter::Off)
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(default.parse()?)
+                    .from_env_lossy()
+                    .add_directive("wasmtime_cranlift=off".parse()?)
+                    .add_directive("cranelift=off".parse()?),
+            )
             .try_init()
-            .with_context(|| "failed to initialize logger")?;
+            .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
 
         let config = self
             .params
@@ -63,16 +65,34 @@ impl RunCommand {
 
         config.log_info();
 
-        let service = Service::new(&config)
-            .await
-            .with_context(|| "failed to create ethexe primary service")?;
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
 
-        tokio::select! {
-            res = service.run() => res,
-            _ = tokio::signal::ctrl_c() => {
-                log::info!("Received SIGINT, shutting down");
-                Ok(())
-            }
+        if let Some(worker_threads) = config.node.worker_threads {
+            builder.worker_threads(worker_threads);
         }
+
+        if let Some(blocking_threads) = config.node.blocking_threads {
+            builder.max_blocking_threads(blocking_threads);
+        }
+
+        builder
+            // 30 seconds should be enough to keep blocking threads alive between block processing
+            .thread_keep_alive(Duration::from_secs(30))
+            .enable_all()
+            .build()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let service = Service::new(&config)
+                    .await
+                    .with_context(|| "failed to create ethexe primary service")?;
+
+                tokio::select! {
+                    res = service.run() => res,
+                    _ = tokio::signal::ctrl_c() => {
+                        log::info!("Received SIGINT, shutting down");
+                        Ok(())
+                    }
+                }
+            })
     }
 }

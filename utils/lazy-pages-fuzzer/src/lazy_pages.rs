@@ -24,13 +24,12 @@ use std::{
     ptr,
 };
 
+use crate::{OS_PAGE_SIZE, globals::InstanceAccessGlobal};
 use gear_lazy_pages::{
     ExceptionInfo, LazyPagesError as Error, LazyPagesVersion, UserSignalHandler,
 };
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gear_wasm_instrument::GLOBAL_NAME_GAS;
-
-use crate::{globals::InstanceAccessGlobal, OS_PAGE_SIZE};
 
 pub type HostPageAddr = usize;
 
@@ -120,7 +119,7 @@ struct FuzzerLazyPagesSignalHandler;
 
 impl UserSignalHandler for FuzzerLazyPagesSignalHandler {
     unsafe fn handle(info: ExceptionInfo) -> std::result::Result<(), Error> {
-        log::debug!("Interrupted, exception info = {:?}", info);
+        log::debug!("Interrupted, exception info = {info:?}");
         FUZZER_LP_CONTEXT.with(|ctx| {
             let mut borrow = ctx.borrow_mut();
             let ctx = borrow.as_mut().ok_or(Error::WasmMemAddrIsNotSet)?;
@@ -141,10 +140,7 @@ fn user_signal_handler_internal(
         return Err(Error::OutOfWasmMemoryAccess);
     }
 
-    log::trace!(
-        "SIG: Unprotect WASM memory at address: {:#x}, wr: {is_write}",
-        native_addr
-    );
+    log::trace!("SIG: Unprotect WASM memory at address: {native_addr:#x}, wr: {is_write}");
 
     // On read, simulate data load to memory page
     if !is_write {

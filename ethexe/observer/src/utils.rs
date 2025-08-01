@@ -18,81 +18,44 @@
 
 // TODO #4552: add tests for observer utils
 
-use crate::{BlobData, BlobReader};
 use alloy::{
     network::{Ethereum, Network},
     providers::{Provider as _, RootProvider},
     rpc::{
         client::BatchRequest,
         types::{
-            eth::{Filter, Topic},
             Block, Log,
+            eth::{Filter, Topic},
         },
     },
 };
-use anyhow::{anyhow, Result};
-use ethexe_common::{events::BlockEvent, BlockData};
-use ethexe_db::BlockHeader;
+use anyhow::{Result, anyhow};
+use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
 use ethexe_ethereum::{mirror, router, wvara};
-use ethexe_signer::Address;
-use futures::{future, stream::FuturesUnordered, FutureExt};
-use gear_core::ids::prelude::*;
-use gprimitives::{CodeId, H256};
-use std::{collections::HashMap, future::IntoFuture, sync::Arc};
+use futures::{FutureExt, future, stream::FuturesUnordered};
+use gprimitives::H256;
+use std::{collections::HashMap, future::IntoFuture};
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
-pub(crate) async fn read_code_from_tx_hash(
-    blob_reader: Arc<dyn BlobReader>,
-    expected_code_id: CodeId,
-    timestamp: u64,
-    tx_hash: H256,
-    attempts: Option<u8>,
-) -> Result<BlobData> {
-    let code = blob_reader
-        .read_blob_from_tx_hash(tx_hash, attempts)
-        .await
-        .map_err(|err| anyhow!("failed to read blob: {err}"))?;
-
-    (CodeId::generate(&code) == expected_code_id)
-        .then_some(())
-        .ok_or_else(|| anyhow!("unexpected code id"))?;
-
-    Ok(BlobData {
-        code_id: expected_code_id,
-        timestamp,
-        code,
-    })
-}
-
-pub(crate) fn router_and_wvara_filter(
-    filter: Filter,
-    router_address: Address,
-    wvara_address: Address,
-) -> Filter {
-    let router_and_wvara_topic = Topic::from_iter(
-        router::events::signatures::ALL
-            .iter()
-            .chain(wvara::events::signatures::ALL)
-            .cloned(),
+pub(crate) fn log_filter() -> Filter {
+    let topic = Topic::from_iter(
+        [
+            router::events::signatures::ALL,
+            wvara::events::signatures::ALL,
+            mirror::events::signatures::ALL,
+        ]
+        .into_iter()
+        .flatten()
+        .copied(),
     );
 
-    filter
-        .clone()
-        .address(vec![router_address.0.into(), wvara_address.0.into()])
-        .event_signature(router_and_wvara_topic)
-}
-
-pub(crate) fn mirrors_filter(filter: Filter) -> Filter {
-    filter.event_signature(Topic::from_iter(
-        mirror::events::signatures::ALL.iter().cloned(),
-    ))
+    Filter::new().event_signature(topic)
 }
 
 pub(crate) fn logs_to_events(
-    router_and_wvara_logs: Vec<Log>,
-    mirrors_logs: Vec<Log>,
+    logs: Vec<Log>,
     router_address: Address,
     wvara_address: Address,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
@@ -104,33 +67,26 @@ pub(crate) fn logs_to_events(
 
     let mut res: HashMap<_, Vec<_>> = HashMap::new();
 
-    for log in router_and_wvara_logs {
+    for log in logs {
         let block_hash = block_hash_of(&log)?;
+        let address = log.address();
 
-        match log.address() {
-            address if address.0 == router_address.0 => {
-                if let Some(event) = router::events::try_extract_event(&log)? {
-                    res.entry(block_hash).or_default().push(event.into());
-                }
+        if address.0 == router_address.0 {
+            if let Some(event) = router::events::try_extract_event(&log)? {
+                res.entry(block_hash).or_default().push(event.into());
             }
-            address if address.0 == wvara_address.0 => {
-                if let Some(event) = wvara::events::try_extract_event(&log)? {
-                    res.entry(block_hash).or_default().push(event.into());
-                }
+        } else if address.0 == wvara_address.0 {
+            if let Some(event) = wvara::events::try_extract_event(&log)? {
+                res.entry(block_hash).or_default().push(event.into());
             }
-            _ => unreachable!("Unexpected address in log"),
-        }
-    }
+        } else {
+            let address = (*address.into_word()).into();
 
-    for mirror_log in mirrors_logs {
-        let block_hash = block_hash_of(&mirror_log)?;
-
-        let address = (*mirror_log.address().into_word()).into();
-
-        if let Some(event) = mirror::events::try_extract_event(&mirror_log)? {
-            res.entry(block_hash)
-                .or_default()
-                .push(BlockEvent::mirror(address, event));
+            if let Some(event) = mirror::events::try_extract_event(&log)? {
+                res.entry(block_hash)
+                    .or_default()
+                    .push(BlockEvent::mirror(address, event));
+            }
         }
     }
 
@@ -159,24 +115,16 @@ pub(crate) async fn load_block_data(
 ) -> Result<BlockData> {
     log::trace!("Querying data for one block {block:?}");
 
-    let filter = Filter::new().at_block_hash(block.0);
-    let mirrors_filter = crate::mirrors_filter(filter.clone());
-    let router_and_wvara_filter =
-        crate::router_and_wvara_filter(filter, router_address, wvara_address);
+    let filter = log_filter().at_block_hash(block.0);
+    let logs_request = provider.get_logs(&filter);
 
-    let logs_request = future::try_join(
-        provider.get_logs(&router_and_wvara_filter),
-        provider.get_logs(&mirrors_filter),
-    );
-
-    let ((block_hash, header), (router_and_wvara_logs, mirrors_logs)) = if let Some(header) = header
-    {
+    let ((block_hash, header), logs) = if let Some(header) = header {
         ((block, header), logs_request.await?)
     } else {
         let block_request = provider.get_block_by_hash(block.0.into()).into_future();
 
         match future::try_join(block_request, logs_request).await {
-            Ok((response, logs)) => (crate::block_response_to_data(response)?, logs),
+            Ok((response, logs)) => (block_response_to_data(response)?, logs),
             Err(err) => Err(err)?,
         }
     };
@@ -185,12 +133,7 @@ pub(crate) async fn load_block_data(
         return Err(anyhow!("Expected block hash {block}, got {block_hash}"));
     }
 
-    let events = crate::logs_to_events(
-        router_and_wvara_logs,
-        mirrors_logs,
-        router_address,
-        wvara_address,
-    )?;
+    let events = logs_to_events(logs, router_address, wvara_address)?;
 
     if events.len() > 1 {
         return Err(anyhow!(
@@ -269,19 +212,11 @@ async fn load_blocks_batch_data(
 
     batch.send().await?;
 
-    let filter = Filter::new().from_block(from_block).to_block(to_block);
-
-    let mirrors_filter = crate::mirrors_filter(filter.clone());
-    let router_and_wvara_filter =
-        crate::router_and_wvara_filter(filter, router_address, wvara_address);
-
-    let logs_request = future::try_join(
-        provider.get_logs(&router_and_wvara_filter),
-        provider.get_logs(&mirrors_filter),
-    );
+    let filter = log_filter().from_block(from_block).to_block(to_block);
+    let logs_request = provider.get_logs(&filter);
 
     let (blocks, logs) = future::join(future::join_all(headers_request), logs_request).await;
-    let (router_and_wvara_logs, mirrors_logs) = logs?;
+    let logs = logs?;
 
     let mut blocks_data = Vec::new();
 
@@ -302,12 +237,7 @@ async fn load_blocks_batch_data(
         });
     }
 
-    let mut events = crate::logs_to_events(
-        router_and_wvara_logs,
-        mirrors_logs,
-        router_address,
-        wvara_address,
-    )?;
+    let mut events = logs_to_events(logs, router_address, wvara_address)?;
     for block_data in blocks_data.iter_mut() {
         block_data.events = events.remove(&block_data.hash).unwrap_or_default();
     }

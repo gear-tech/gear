@@ -19,12 +19,12 @@
 //! Proxy builtin tests.
 
 use super::basic::init_logger;
-use crate::mock::*;
+use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
 use common::Origin;
 use demo_proxy_broker::WASM_BINARY;
 use frame_support::{assert_err, assert_ok, dispatch::GetDispatchInfo};
 use gbuiltin_proxy::{ProxyType, Request};
-use gear_core::ids::{prelude::*, CodeId, ProgramId};
+use gear_core::ids::{ActorId, CodeId, prelude::*};
 use pallet_balances::Call as BalancesCall;
 use pallet_proxy::{Error as ProxyError, Event as ProxyEvent};
 use parity_scale_codec::Encode;
@@ -162,7 +162,7 @@ fn gas_allowance_respected() {
             RuntimeOrigin::signed(SIGNER),
             proxy_pid,
             remove_proxy_req.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -191,16 +191,16 @@ fn gas_allowance_respected() {
 mod utils {
     use super::*;
 
-    pub(super) fn upload_and_initialize_broker() -> ProgramId {
+    pub(super) fn upload_and_initialize_broker() -> ActorId {
         let code = WASM_BINARY;
         let salt = b"proxy_broker";
-        let pid = ProgramId::generate_from_user(CodeId::generate(code), salt);
+        let pid = ActorId::generate_from_user(CodeId::generate(code), salt);
         assert_ok!(Gear::upload_program(
             RuntimeOrigin::signed(SIGNER),
             code.to_vec(),
             salt.to_vec(),
             Default::default(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -217,12 +217,12 @@ mod utils {
         pid
     }
 
-    pub(super) fn send_proxy_request(proxy_pid: ProgramId, req: Request) {
+    pub(super) fn send_proxy_request(proxy_pid: ActorId, req: Request) {
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
             proxy_pid,
             req.encode(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));

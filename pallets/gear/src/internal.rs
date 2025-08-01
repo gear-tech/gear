@@ -19,12 +19,13 @@
 //! Internal details of Gear Pallet implementation.
 
 use crate::{
-    AccountIdOf, Config, CostsPerBlockOf, DispatchStashOf, Event, ExtManager, GasBalanceOf,
-    GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf, SchedulingCostOf, TaskPoolOf,
-    WaitlistOf,
+    AccountIdOf, BalanceOf, Config, CostsPerBlockOf, DispatchStashOf, Event, ExtManager,
+    GasBalanceOf, GasHandlerOf, GasNodeIdOf, GearBank, MailboxOf, Pallet, QueueOf,
+    SchedulingCostOf, TaskPoolOf, WaitlistOf,
 };
 use alloc::{collections::BTreeSet, format};
 use common::{
+    GasTree, LockId, LockableTree, Origin,
     event::{
         MessageWaitedReason, MessageWaitedRuntimeReason::*, MessageWokenReason, Reason::*,
         UserMessageReadReason,
@@ -32,7 +33,6 @@ use common::{
     gas_provider::{GasNodeId, Imbalance},
     scheduler::*,
     storage::*,
-    GasTree, LockId, LockableTree, Origin,
 };
 use core::{
     cmp::{Ord, Ordering},
@@ -40,7 +40,7 @@ use core::{
 };
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    ids::{prelude::*, MessageId, ProgramId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId, prelude::*},
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, StoredDispatch, UserMessage,
         UserStoredMessage,
@@ -202,7 +202,7 @@ where
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum InheritorForError {
-    Cyclic { holders: BTreeSet<ProgramId> },
+    Cyclic { holders: BTreeSet<ActorId> },
     NotFound,
 }
 
@@ -531,7 +531,7 @@ where
     /// Wakes dispatch from waitlist, permanently charged for hold with
     /// appropriate event depositing, if found.
     pub(crate) fn wake_dispatch(
-        program_id: ProgramId,
+        program_id: ActorId,
         message_id: MessageId,
         reason: MessageWokenReason,
     ) -> Result<StoredDispatch, WaitlistError<T>> {
@@ -862,6 +862,15 @@ where
             delay_hold.expected()
         };
 
+        if dispatch.is_error_reply() {
+            let err_msg = "send_delayed_dispatch: delayed sending of error reply appeared";
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        }
+
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
         if !dispatch.value().is_zero() {
             // Reserving value from source for future transfer or unreserve.
             GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
@@ -954,6 +963,7 @@ where
         let message_id = message.id();
         let from = message.source();
         let to = message.destination();
+        let is_error_reply = message.is_error_reply();
 
         // Converting message into stored one and user one.
         let message = message.into_stored();
@@ -971,18 +981,26 @@ where
         // Taking data for funds manipulations.
         let from = message.source().cast();
         let to = message.destination().cast::<T::AccountId>();
-        let value = message.value().unique_saturated_into();
+        let value: BalanceOf<T> = message.value().unique_saturated_into();
 
-        // Reserving value from source for future transfer or unreserve.
-        GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
-            let err_msg = format!(
-                "send_user_message: failed depositting value on gear bank. \
-                                From - {from:?}, value - {value:?}. Got error - {e:?}",
-            );
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
+        //
+        // In case of error replies, we don't need to do it, since original
+        // message value is already on locked balance in gear-bank.
+        if !value.is_zero() && !is_error_reply {
+            // Reserving value from source for future transfer or unreserve.
+            GearBank::<T>::deposit_value(&from, value, false).unwrap_or_else(|e| {
+                let err_msg = format!(
+                    "send_user_message: failed depositting value on gear bank. \
+                                    From - {from:?}, value - {value:?}. Got error - {e:?}",
+                );
 
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}");
-        });
+                log::error!("{err_msg}");
+                unreachable!("{err_msg}");
+            });
+        }
+
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
         let expiration = if message.details().is_none() && gas_limit >= threshold {
@@ -1270,7 +1288,7 @@ where
     }
 
     pub(crate) fn remove_gas_reservation_with_task(
-        program_id: ProgramId,
+        program_id: ActorId,
         reservation_id: ReservationId,
     ) {
         let slot = ExtManager::<T>::remove_gas_reservation_impl(program_id, reservation_id);
@@ -1282,9 +1300,9 @@ where
     }
 
     pub(crate) fn inheritor_for(
-        program_id: ProgramId,
+        program_id: ActorId,
         max_depth: NonZero<usize>,
-    ) -> Result<(ProgramId, BTreeSet<ProgramId>), InheritorForError> {
+    ) -> Result<(ActorId, BTreeSet<ActorId>), InheritorForError> {
         let max_depth = max_depth.get();
 
         let mut inheritor = program_id;

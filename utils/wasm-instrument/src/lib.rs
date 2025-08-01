@@ -24,8 +24,8 @@ extern crate alloc;
 
 pub use crate::{gas_metering::Rules, syscalls::SyscallName};
 pub use module::{
-    BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, Global, Import, Instruction,
-    MemArg, Module, ModuleBuilder, ModuleError, Name, Table, GEAR_SUPPORTED_FEATURES,
+    BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, GEAR_SUPPORTED_FEATURES,
+    Global, Import, Instruction, MemArg, Module, ModuleBuilder, ModuleError, Name, Table,
 };
 pub use wasmparser::{
     BlockType, ExternalKind, FuncType, GlobalType, MemoryType, RefType, TableType, TypeRef, ValType,
@@ -64,7 +64,7 @@ pub enum SystemBreakCode {
 /// The error type returned when a conversion from `i32` or `u32` to
 /// [`SystemBreakCode`] fails.
 #[derive(Clone, Debug, derive_more::Display)]
-#[display(fmt = "Unsupported system break code")]
+#[display("Unsupported system break code")]
 pub struct SystemBreakCodeTryFromError;
 
 impl TryFrom<i32> for SystemBreakCode {
@@ -91,27 +91,27 @@ impl TryFrom<u32> for SystemBreakCode {
 #[derive(Debug, PartialEq, Eq, derive_more::Display)]
 pub enum InstrumentationError {
     /// Error occurred during injecting `gr_system_break` import.
-    #[display(fmt = "The WASM module already has `gr_system_break` import")]
+    #[display("The WASM module already has `gr_system_break` import")]
     SystemBreakImportAlreadyExists,
     /// Error occurred during stack height instrumentation.
-    #[display(fmt = "Failed to inject stack height limits")]
+    #[display("Failed to inject stack height limits")]
     StackLimitInjection,
     /// Error occurred during injecting `gear_gas` global.
-    #[display(fmt = "The WASM module already has `gear_gas` global")]
+    #[display("The WASM module already has `gear_gas` global")]
     GasGlobalAlreadyExists,
     /// Error occurred during calculating the cost of the `gas_charge` function.
-    #[display(
-        fmt = "An overflow occurred while calculating the cost of the `gas_charge` function"
-    )]
+    #[display("An overflow occurred while calculating the cost of the `gas_charge` function")]
     CostCalculationOverflow,
     /// Error occurred while trying to get the instruction cost.
-    #[display(fmt = "Failed to get instruction cost")]
+    #[display("Failed to get instruction cost")]
     InstructionCostNotFound,
     /// Error occurred during injecting gas metering instructions.
     ///
     /// This might be due to program contained unsupported instructions (memory grow, etc.).
-    #[display(fmt = "Failed to inject instructions for gas metrics: may be in case \
-        program contains unsupported instructions (memory grow, etc.)")]
+    #[display(
+        "Failed to inject instructions for gas metrics: may be in case \
+        program contains unsupported instructions (memory grow, etc.)"
+    )]
     GasInjection,
 }
 

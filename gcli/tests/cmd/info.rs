@@ -18,9 +18,8 @@
 
 //! Integration tests for command `deploy`
 use crate::common::{
-    self,
+    self, Args, Result,
     node::{Convert, NodeExec},
-    Args, Result,
 };
 
 // ExtraFlags is hardcoded
@@ -39,10 +38,9 @@ async fn test_action_balance_works() -> Result<()> {
 
     let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
     let stdout = output.stdout.convert();
-    assert_eq!(
-        EXPECTED_BALANCE.trim(),
-        stdout.trim(),
-        "Wrong balance. Expected:\n{EXPECTED_BALANCE}\nGot:\n{stdout}",
+    assert!(
+        stdout.contains(EXPECTED_BALANCE),
+        "Wrong balance. Expected contains:\n{EXPECTED_BALANCE}\nGot:\n{stdout}",
     );
     Ok(())
 }
@@ -52,9 +50,11 @@ async fn test_action_mailbox_works() -> Result<()> {
     let node = common::create_messager().await?;
     let output = node.run(Args::new("info").address("//Alice").action("mailbox"))?;
 
-    let stdout = output.stdout.convert();
-    if !stdout.contains(EXPECTED_MAILBOX.trim()) {
-        panic!("Wrong mailbox response. Expected:\n{EXPECTED_MAILBOX}\nGot:\n{stdout}",);
+    if !output.stdout.convert().contains(EXPECTED_MAILBOX.trim()) {
+        panic!(
+            "Wrong mailbox response. Expected:\n{EXPECTED_MAILBOX}\nGot:\n{}",
+            output.stderr.convert()
+        );
     }
     Ok(())
 }

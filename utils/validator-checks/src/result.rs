@@ -16,9 +16,9 @@ pub enum Error {
     /// Subxt core error
     #[error(transparent)]
     SubxtCore(#[from] subxt::ext::subxt_core::Error),
-    /// Failed to setup logger.
+    /// Failed to parse env filter.
     #[error(transparent)]
-    EnvLogger(#[from] log::SetLoggerError),
+    EnvFilter(#[from] tracing_subscriber::filter::ParseError),
     /// Decoding ss58 address failed.
     #[error(transparent)]
     PublicKey(#[from] gsdk::ext::sp_core::crypto::PublicError),

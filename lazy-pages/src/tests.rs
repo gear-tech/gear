@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    LazyPagesStorage, LazyPagesVersion, UserSignalHandler,
     common::Error,
     init_with_handler, mprotect,
-    pages::{tests::PageSizeManager, GearPage},
+    pages::{GearPage, tests::PageSizeManager},
     signal::ExceptionInfo,
-    LazyPagesStorage, LazyPagesVersion, UserSignalHandler,
 };
 use gear_core::str::LimitedStr;
 use gear_lazy_pages_common::LazyPagesInitContext;
@@ -96,7 +96,7 @@ fn read_write_flag_works() {
 
     impl UserSignalHandler for TestHandler {
         unsafe fn handle(info: ExceptionInfo) -> Result<(), Error> {
-            let write_expected = unsafe { COUNTER } % 2 == 0;
+            let write_expected = unsafe { COUNTER }.is_multiple_of(2);
             assert_eq!(info.is_write, Some(write_expected));
 
             unsafe {
@@ -149,7 +149,7 @@ fn test_mprotect_pages() {
         }
     }
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     init_with_handler::<TestHandler, _>(LazyPagesVersion::Version1, init_ctx(), NoopStorage)
         .unwrap();

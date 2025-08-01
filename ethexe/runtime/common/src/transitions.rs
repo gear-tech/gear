@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
-    collections::{btree_map::Iter, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Iter},
     vec::Vec,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use core::num::NonZero;
 use ethexe_common::{
-    db::{BlockHeader, Schedule, ScheduledTask},
+    BlockHeader, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
 };
 use gprimitives::{ActorId, H256};
@@ -40,13 +40,13 @@ use gprimitives::{ActorId, H256};
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
-    states: BTreeMap<ActorId, H256>,
+    states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
 }
 
 impl InBlockTransitions {
-    pub fn new(header: BlockHeader, states: BTreeMap<ActorId, H256>, schedule: Schedule) -> Self {
+    pub fn new(header: BlockHeader, states: ProgramStates, schedule: Schedule) -> Self {
         Self {
             header,
             states,
@@ -63,7 +63,7 @@ impl InBlockTransitions {
         self.states.contains_key(actor_id)
     }
 
-    pub fn state_of(&self, actor_id: &ActorId) -> Option<H256> {
+    pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
         self.states.get(actor_id).copied()
     }
 
@@ -71,7 +71,7 @@ impl InBlockTransitions {
         self.states.len()
     }
 
-    pub fn states_iter(&self) -> Iter<ActorId, H256> {
+    pub fn states_iter(&self) -> Iter<'_, ActorId, StateHashWithQueueSize> {
         self.states.iter()
     }
 
@@ -122,13 +122,14 @@ impl InBlockTransitions {
     }
 
     pub fn register_new(&mut self, actor_id: ActorId) {
-        self.states.insert(actor_id, H256::zero());
+        self.states.insert(actor_id, StateHashWithQueueSize::zero());
         self.modifications.insert(actor_id, Default::default());
     }
 
-    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256) {
-        self.modify(actor_id, |state_hash, _transition| {
-            *state_hash = new_state_hash
+    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256, queue_size: u8) {
+        self.modify(actor_id, |state, _transition| {
+            state.hash = new_state_hash;
+            state.cached_queue_size = queue_size;
         })
     }
 
@@ -137,13 +138,13 @@ impl InBlockTransitions {
         actor_id: ActorId,
         f: impl FnOnce(&mut NonFinalTransition) -> T,
     ) -> T {
-        self.modify(actor_id, |_state_hash, transition| f(transition))
+        self.modify(actor_id, |_state, transition| f(transition))
     }
 
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,
-        f: impl FnOnce(&mut H256, &mut NonFinalTransition) -> T,
+        f: impl FnOnce(&mut StateHashWithQueueSize, &mut NonFinalTransition) -> T,
     ) -> T {
         let initial_state = self
             .states
@@ -154,14 +155,14 @@ impl InBlockTransitions {
             .modifications
             .entry(actor_id)
             .or_insert(NonFinalTransition {
-                initial_state: *initial_state,
+                initial_state: initial_state.hash,
                 ..Default::default()
             });
 
         f(initial_state, transition)
     }
 
-    pub fn finalize(self) -> (Vec<StateTransition>, BTreeMap<ActorId, H256>, Schedule) {
+    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule) {
         let Self {
             states,
             schedule,
@@ -172,16 +173,17 @@ impl InBlockTransitions {
         let mut res = Vec::with_capacity(modifications.len());
 
         for (actor_id, modification) in modifications {
-            let new_state_hash = states
+            let new_state = states
                 .get(&actor_id)
                 .cloned()
                 .expect("failed to find state record for modified state");
 
-            if !modification.is_noop(new_state_hash) {
+            if !modification.is_noop(new_state.hash) {
                 res.push(StateTransition {
                     actor_id,
-                    new_state_hash,
-                    inheritor: ActorId::zero(),
+                    new_state_hash: new_state.hash,
+                    exited: modification.inheritor.is_some(),
+                    inheritor: modification.inheritor.unwrap_or_default(),
                     value_to_receive: modification.value_to_receive,
                     value_claims: modification.claims,
                     messages: modification.messages,
@@ -196,7 +198,7 @@ impl InBlockTransitions {
 #[derive(Debug, Default)]
 pub struct NonFinalTransition {
     initial_state: H256,
-    pub inheritor: ActorId,
+    pub inheritor: Option<ActorId>,
     pub value_to_receive: u128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
@@ -209,6 +211,6 @@ impl NonFinalTransition {
             // check if state hash changed at final (always op)
             && current_state == self.initial_state
             // check if with unchanged state needs commitment (op)
-            && (self.inheritor.is_zero() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
+            && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
     }
 }

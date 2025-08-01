@@ -27,8 +27,8 @@
 mod validation;
 
 use crate::{
-    module::{Function, Import, Instruction, ModuleBuilder},
     Module,
+    module::{Function, Import, Instruction, ModuleBuilder},
 };
 use alloc::vec::Vec;
 use core::{cmp::min, mem, num::NonZeroU32};
@@ -36,7 +36,6 @@ use wasmparser::{FuncType, TypeRef, ValType};
 
 #[derive(Debug, derive_more::From)]
 pub enum GasMeteringError {
-    #[from]
     Counter(CounterError),
     LocalsInitCost,
     NoActiveControlBlock,

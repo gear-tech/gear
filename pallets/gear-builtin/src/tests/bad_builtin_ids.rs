@@ -18,21 +18,19 @@
 
 use crate::{
     self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+    BuiltinReply,
 };
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};
-use gear_core::{
-    ids::ProgramId,
-    message::{Payload, StoredDispatch},
-};
+use gear_core::{ids::ActorId, message::StoredDispatch};
 use sp_core::H256;
 use sp_runtime::{
-    traits::{BlakeTwo256, IdentityLookup},
     BuildStorage, Perbill, Permill,
+    traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_std::convert::{TryFrom, TryInto};
 
@@ -82,8 +80,8 @@ parameter_types! {
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
     pub const PerformanceMultiplier: u32 = 100;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 pallet_gear_bank::impl_config!(Test);
@@ -100,13 +98,16 @@ pallet_gear::impl_config!(
 pub struct SomeBuiltinActor {}
 impl BuiltinActor for SomeBuiltinActor {
     fn handle(
-        _dispatch: &StoredDispatch,
+        dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
         let payload = b"Success".to_vec().try_into().expect("Small vector");
         context.try_charge_gas(1_000_u64)?;
 
-        Ok(payload)
+        Ok(BuiltinReply {
+            payload,
+            value: dispatch.value(),
+        })
     }
 
     fn max_gas() -> u64 {
@@ -208,19 +209,19 @@ pub(crate) fn on_finalize(current_blk: BlockNumberFor<Test>) {
 }
 
 pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-    let bank_address = <Test as pallet_gear_bank::Config>::BankAddress::get();
+    let bank_address = GearBank::bank_address();
+
+    let mut endowed_accounts = vec![bank_address, SIGNER, BLOCK_AUTHOR];
+    endowed_accounts.extend(GearBuiltin::list_builtins());
 
     ExtBuilder::default()
         .endowment(ENDOWMENT)
-        .endowed_accounts(vec![bank_address, SIGNER, BLOCK_AUTHOR])
+        .endowed_accounts(endowed_accounts)
         .build()
 }
 
 pub(crate) fn init_logger() {
-    let _ = env_logger::Builder::from_default_env()
-        .format_module_path(false)
-        .format_level(true)
-        .try_init();
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 use crate::mock::{BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER};
@@ -236,7 +237,7 @@ fn queue_processing_panics_on_any_message() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let destination: ProgramId = H256::from(ARBITRARY_ADDRESS).cast();
+        let destination: ActorId = H256::from(ARBITRARY_ADDRESS).cast();
 
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),

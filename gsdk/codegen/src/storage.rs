@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{
-    parse_quote, punctuated::Punctuated, Expr, ExprLit, FnArg, Ident, ItemFn, Lit, LitStr, Meta,
-    MetaNameValue, PatType,
+    Expr, ExprLit, FnArg, Ident, ItemFn, Lit, LitStr, Meta, MetaNameValue, PatType, parse_quote,
+    punctuated::Punctuated,
 };
 
 const AT_DOC_SUFFIX: &str = " at specified block";
@@ -172,7 +172,7 @@ impl StorageQueryBuilder {
                     .to_string()
                     .ends_with(&(AT_DOC_SUFFIX.to_string() + ".\""))
         }) {
-            panic!("the docs must be end with `{}`", AT_DOC_SUFFIX);
+            panic!("the docs must be end with `{AT_DOC_SUFFIX}`");
         }
 
         // validate the function name.

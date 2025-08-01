@@ -20,7 +20,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
-pub use pallet_gear::{manager::HandleKind, GasInfo, ReplyInfo};
+pub use pallet_gear::{GasInfo, ReplyInfo, manager::HandleKind};
 use sp_core::H256;
 use sp_runtime::traits::Block as BlockT;
 use sp_std::vec::Vec;

@@ -54,7 +54,7 @@ pub fn run(generated_module: GeneratedModule) -> Result<()> {
             Ok(res) => res,
             Err(e) => {
                 // Print whole error chain with '#' formatter
-                panic!("{:#?}", e)
+                panic!("{e:#?}")
             }
         }
     };

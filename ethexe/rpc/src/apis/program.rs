@@ -17,16 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{common::block_header_at_or_latest, errors};
-use ethexe_db::{CodesStorage, Database};
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageRead};
+use ethexe_db::Database;
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
     DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
     Waitlist,
 };
-use gear_core::message::ReplyInfo;
+use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
 use parity_scale_codec::Encode;
@@ -139,14 +140,18 @@ impl ProgramServer for ProgramApi {
                 payload.0,
                 value,
             )
+            .await
             .map_err(errors::runtime)
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
+        let block_hash = block_header_at_or_latest(&self.db, None)?.0;
+
         Ok(self
             .db
-            .program_ids()
-            .into_iter()
+            .block_program_states(block_hash)
+            .ok_or_else(|| errors::db("Failed to get program states"))?
+            .into_keys()
             .map(|id| id.try_into().unwrap())
             .collect())
     }
@@ -187,7 +192,7 @@ impl ProgramServer for ProgramApi {
     async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState> {
         let Some(ProgramState {
             program,
-            queue_hash,
+            queue,
             waitlist_hash,
             stash_hash,
             mailbox_hash,
@@ -198,7 +203,7 @@ impl ProgramServer for ProgramApi {
             return Err(errors::db("Failed to read state by hash"));
         };
 
-        let queue = queue_hash.query(&self.db).ok();
+        let queue = queue.query(&self.db).ok();
         let waitlist = waitlist_hash.query(&self.db).ok();
         let stash = stash_hash.query(&self.db).ok();
         let mailbox = mailbox_hash.query(&self.db).ok();

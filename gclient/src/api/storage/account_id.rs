@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::ids::ProgramId;
+use gear_core::ids::ActorId;
 use gsdk::ext::sp_runtime::AccountId32;
 
 /// A trait for convenient conversion into Substrate's AccountId32.
@@ -36,13 +36,13 @@ impl IntoAccountId32 for &AccountId32 {
     }
 }
 
-impl IntoAccountId32 for ProgramId {
+impl IntoAccountId32 for ActorId {
     fn into_account_id(self) -> AccountId32 {
         AccountId32::new(self.into_bytes())
     }
 }
 
-impl IntoAccountId32 for &ProgramId {
+impl IntoAccountId32 for &ActorId {
     fn into_account_id(self) -> AccountId32 {
         AccountId32::new(self.into_bytes())
     }

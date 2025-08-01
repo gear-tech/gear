@@ -19,13 +19,12 @@
 use crate::{self as pallet_gear_payment, Config, DelegateFee};
 use common::storage::Messenger;
 use frame_support::{
-    construct_runtime, parameter_types,
+    PalletId, construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU32, ConstU8, Contains, Currency, FindAuthor, OnFinalize, OnInitialize,
+        ConstU8, ConstU32, ConstU128, Contains, Currency, FindAuthor, OnFinalize, OnInitialize,
         OnUnbalanced,
     },
-    weights::{constants::WEIGHT_REF_TIME_PER_SECOND, ConstantMultiplier, Weight},
-    PalletId,
+    weights::{ConstantMultiplier, Weight, constants::WEIGHT_REF_TIME_PER_SECOND},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, mocking, pallet_prelude::BlockNumberFor};
@@ -34,9 +33,9 @@ use pallet_gear_voucher::VoucherId;
 use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 use sp_runtime::{
+    BuildStorage,
     testing::TestXt,
     traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
-    BuildStorage,
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -119,8 +118,8 @@ parameter_types! {
     pub RentCostPerBlock: Balance = 11;
     pub ResumeMinimalPeriod: BlockNumber = 100;
     pub ResumeSessionDuration: BlockNumber = 1_000;
-    pub const BankAddress: AccountId = 15082001;
-    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(25);
+    pub const BankPalletId: PalletId = PalletId(*b"py/gbank");
+    pub const GasMultiplier: common::GasMultiplier<Balance, u64> = common::GasMultiplier::ValuePerGas(100);
 }
 
 type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
@@ -128,14 +127,13 @@ type NegativeImbalance = <Balances as Currency<u64>>::NegativeImbalance;
 pub struct DealWithFees;
 impl OnUnbalanced<NegativeImbalance> for DealWithFees {
     fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
-        if let Some(fees) = fees_then_tips.next() {
-            if let Some(author) = Authorship::author() {
-                Balances::resolve_creating(&author, fees);
-            }
+        if let Some(fees) = fees_then_tips.next()
+            && let Some(author) = Authorship::author()
+        {
+            Balances::resolve_creating(&author, fees);
+
             if let Some(tips) = fees_then_tips.next() {
-                if let Some(author) = Authorship::author() {
-                    Balances::resolve_creating(&author, tips);
-                }
+                Balances::resolve_creating(&author, tips);
             }
         }
     }
@@ -203,7 +201,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (BOB, 10_000u128),
             (BLOCK_AUTHOR, 1_000u128),
             (FEE_PAYER, 10_000_000u128),
-            (BankAddress::get(), ExistentialDeposit::get()),
+            (GearBank::bank_address(), ExistentialDeposit::get()),
         ],
     }
     .assimilate_storage(&mut t)

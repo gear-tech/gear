@@ -52,7 +52,7 @@ fn run_impl(fuzzer_input: FuzzerInput<'_>) -> Result<TestExternalities> {
         raw_data.len()
     );
     let corpus_id = get_sha1_string(raw_data);
-    log::trace!("Generating gear calls from corpus - {}", corpus_id);
+    log::trace!("Generating gear calls from corpus - {corpus_id}");
 
     let mut balance_manager = BalanceManager::new(
         AccountId::from(hex_literal::hex!(

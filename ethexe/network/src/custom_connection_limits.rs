@@ -16,54 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::utils::ConnectionMap;
 use libp2p::{
-    core::{transport::PortUse, ConnectedPoint, Endpoint},
-    swarm::{
-        dummy, ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour,
-        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
-    },
     Multiaddr, PeerId,
+    core::{ConnectedPoint, Endpoint, transport::PortUse},
+    swarm::{
+        ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler,
+        THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
+    },
 };
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    fmt,
+    convert::Infallible,
     task::{Context, Poll},
 };
-use void::Void;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum LimitExceededKind {
+    #[display("established incoming per peer")]
     EstablishedIncomingPerPeer,
+    #[display("established outbound per peer")]
     EstablishedOutboundPerPeer,
 }
 
-impl fmt::Display for LimitExceededKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LimitExceededKind::EstablishedIncomingPerPeer => {
-                f.write_str("established incoming per peer")
-            }
-            LimitExceededKind::EstablishedOutboundPerPeer => {
-                f.write_str("established outbound per peer")
-            }
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+#[display("custom connection limit exceeded: at most {limit} {kind} are allowed")]
 pub struct LimitExceeded {
     pub limit: u32,
     pub kind: LimitExceededKind,
-}
-
-impl fmt::Display for LimitExceeded {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "custom connection limit exceeded: at most {} {} are allowed",
-            self.limit, self.kind
-        )
-    }
 }
 
 impl std::error::Error for LimitExceeded {}
@@ -86,61 +65,6 @@ impl Limits {
     }
 }
 
-#[derive(Debug)]
-struct ConnectionMap {
-    inner: HashMap<PeerId, HashSet<ConnectionId>>,
-    limit: Option<u32>,
-    kind: LimitExceededKind,
-}
-
-impl ConnectionMap {
-    fn new(limit: Option<u32>, kind: LimitExceededKind) -> Self {
-        Self {
-            inner: Default::default(),
-            limit,
-            kind,
-        }
-    }
-
-    fn check_limit(&self, peer_id: PeerId) -> Result<(), ConnectionDenied> {
-        let current = self
-            .inner
-            .get(&peer_id)
-            .map(|connections| connections.len())
-            .unwrap_or(0) as u32;
-        let limit = self.limit.unwrap_or(u32::MAX);
-        if current < limit {
-            Ok(())
-        } else {
-            Err(ConnectionDenied::new(LimitExceeded {
-                limit,
-                kind: self.kind,
-            }))
-        }
-    }
-
-    fn add_connection(
-        &mut self,
-        peer_id: PeerId,
-        connection_id: ConnectionId,
-    ) -> Result<(), ConnectionDenied> {
-        self.check_limit(peer_id)?;
-        self.inner.entry(peer_id).or_default().insert(connection_id);
-        Ok(())
-    }
-
-    fn remove_connection(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
-        if let Entry::Occupied(mut entry) = self.inner.entry(peer_id) {
-            let connections = entry.get_mut();
-            connections.remove(&connection_id);
-
-            if connections.is_empty() {
-                entry.remove();
-            }
-        }
-    }
-}
-
 pub struct Behaviour {
     established_incoming_per_peer: ConnectionMap,
     established_outbound_per_peer: ConnectionMap,
@@ -151,11 +75,9 @@ impl Behaviour {
         Self {
             established_incoming_per_peer: ConnectionMap::new(
                 limits.max_established_incoming_per_peer,
-                LimitExceededKind::EstablishedIncomingPerPeer,
             ),
             established_outbound_per_peer: ConnectionMap::new(
                 limits.max_established_outbound_per_peer,
-                LimitExceededKind::EstablishedOutboundPerPeer,
             ),
         }
     }
@@ -163,7 +85,7 @@ impl Behaviour {
 
 impl NetworkBehaviour for Behaviour {
     type ConnectionHandler = dummy::ConnectionHandler;
-    type ToSwarm = Void;
+    type ToSwarm = Infallible;
 
     fn handle_established_inbound_connection(
         &mut self,
@@ -173,7 +95,13 @@ impl NetworkBehaviour for Behaviour {
         _remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
         self.established_incoming_per_peer
-            .add_connection(peer, connection_id)?;
+            .add_connection(peer, connection_id)
+            .map_err(|limit| {
+                ConnectionDenied::new(LimitExceeded {
+                    limit,
+                    kind: LimitExceededKind::EstablishedIncomingPerPeer,
+                })
+            })?;
 
         Ok(dummy::ConnectionHandler)
     }
@@ -187,7 +115,13 @@ impl NetworkBehaviour for Behaviour {
         _port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
         self.established_outbound_per_peer
-            .add_connection(peer, connection_id)?;
+            .add_connection(peer, connection_id)
+            .map_err(|limit| {
+                ConnectionDenied::new(LimitExceeded {
+                    limit,
+                    kind: LimitExceededKind::EstablishedOutboundPerPeer,
+                })
+            })?;
 
         Ok(dummy::ConnectionHandler)
     }
@@ -234,97 +168,27 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use libp2p::{
-        futures::{stream, StreamExt},
-        swarm::{
-            dial_opts::{DialOpts, PeerCondition},
-            DialError, ListenError, SwarmEvent,
-        },
         Swarm,
+        futures::{StreamExt, stream},
+        swarm::{
+            DialError, ListenError, SwarmEvent,
+            dial_opts::{DialOpts, PeerCondition},
+        },
     };
     use libp2p_swarm_test::SwarmExt;
 
     fn new_swarm(limits: Limits) -> Swarm<Behaviour> {
-        SwarmExt::new_ephemeral(|_keypair| Behaviour::new(limits))
+        SwarmExt::new_ephemeral_tokio(|_keypair| Behaviour::new(limits))
     }
 
     fn take_n_events<const NUM_EVENTS: usize>(
         swarm: &mut Swarm<Behaviour>,
-    ) -> impl stream::Stream<Item = SwarmEvent<Void>> + '_ {
+    ) -> impl stream::Stream<Item = SwarmEvent<Infallible>> + '_ {
         stream::unfold(swarm, |swarm| async move {
             let event = swarm.next_swarm_event().await;
             Some((event, swarm))
         })
         .take(NUM_EVENTS)
-    }
-
-    #[test]
-    fn connection_map_limit_works() {
-        const LIMIT: u32 = 5;
-
-        let mut map =
-            ConnectionMap::new(Some(LIMIT), LimitExceededKind::EstablishedIncomingPerPeer);
-
-        let main_peer = PeerId::random();
-
-        for i in 0..LIMIT {
-            map.add_connection(main_peer, ConnectionId::new_unchecked(i as usize))
-                .unwrap();
-        }
-
-        let err = map
-            .add_connection(main_peer, ConnectionId::new_unchecked(usize::MAX))
-            .unwrap_err();
-        assert_eq!(
-            *err.downcast_ref::<LimitExceeded>().unwrap(),
-            LimitExceeded {
-                limit: LIMIT,
-                kind: LimitExceededKind::EstablishedIncomingPerPeer
-            }
-        );
-
-        // new peer so no limit exceeded yet
-        map.add_connection(
-            PeerId::random(),
-            ConnectionId::new_unchecked(usize::MAX / 2),
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn connection_map_key_cleared() {
-        let mut map = ConnectionMap::new(None, LimitExceededKind::EstablishedIncomingPerPeer);
-
-        let peer_set: HashSet<PeerId> = [
-            PeerId::random(),
-            PeerId::random(),
-            PeerId::random(),
-            PeerId::random(),
-            PeerId::random(),
-        ]
-        .into();
-        let new_connection_id = |i, j| ConnectionId::new_unchecked(i * (j as usize + 10));
-
-        for (i, &peer) in peer_set.iter().enumerate() {
-            for j in 0..10 {
-                map.add_connection(peer, new_connection_id(i, j)).unwrap();
-            }
-        }
-
-        assert_eq!(
-            map.inner.clone().into_keys().collect::<HashSet<PeerId>>(),
-            peer_set
-        );
-
-        for (i, &peer) in peer_set.iter().enumerate() {
-            for j in 0..10 {
-                map.remove_connection(peer, new_connection_id(i, j));
-            }
-        }
-
-        assert_eq!(
-            map.inner.into_keys().collect::<HashSet<PeerId>>(),
-            HashSet::default()
-        );
     }
 
     #[tokio::test]

@@ -21,10 +21,10 @@
 use alloc::format;
 use core::cmp::Ordering;
 use num_traits::bounds::{LowerBounded, UpperBounded};
-use numerated::{interval::Interval, iterators::IntervalIterator, Bound, Numerated};
+use numerated::{Bound, Numerated, interval::Interval, iterators::IntervalIterator};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 pub use numerated::{self, num_traits};
@@ -38,7 +38,7 @@ const WASM_PAGE_SIZE: u32 = 64 * 1024;
 /// Currently equal to 16KiB to be bigger than most common host page sizes.
 const GEAR_PAGE_SIZE: u32 = 16 * 1024;
 
-const _: () = assert!(WASM_PAGE_SIZE % GEAR_PAGE_SIZE == 0);
+const _: () = assert!(WASM_PAGE_SIZE.is_multiple_of(GEAR_PAGE_SIZE));
 
 /// Struct represents memory pages amount with some constant size `SIZE` in bytes.
 /// - `SIZE` type is u32, so page size < 4GiB (wasm32 memory size limit).
@@ -138,7 +138,7 @@ impl<const SIZE: u32> Bound<Page<SIZE>> for PagesAmount<SIZE> {
 
 /// Try from u32 error for [PagesAmount].
 #[derive(Debug, Clone, derive_more::Display)]
-#[display(fmt = "Tries to make pages amount from {_0}, which must be less or equal to {_1}")]
+#[display("Tries to make pages amount from {_0}, which must be less or equal to {_1}")]
 pub struct PagesAmountError(u32, u32);
 
 impl<const SIZE: u32> TryFrom<u32> for PagesAmount<SIZE> {
@@ -255,7 +255,7 @@ impl<const SIZE: u32> Page<SIZE> {
 
 /// Try from u32 error for [Page].
 #[derive(Debug, Clone, derive_more::Display)]
-#[display(fmt = "Tries to make page from {_0}, which must be less or equal to {_1}")]
+#[display("Tries to make page from {_0}, which must be less or equal to {_1}")]
 pub struct PageError(u32, u32);
 
 impl<const SIZE: u32> TryFrom<u32> for Page<SIZE> {
@@ -436,7 +436,7 @@ mod property_tests {
     use super::*;
     use numerated::mock::{self, IntervalAction};
     use proptest::{
-        prelude::{any, Arbitrary},
+        prelude::{Arbitrary, any},
         proptest,
         strategy::{BoxedStrategy, Strategy},
         test_runner::Config as ProptestConfig,

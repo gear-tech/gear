@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::pages::{numerated::tree::IntervalsTree, WasmPage};
+use gear_core::pages::{WasmPage, numerated::tree::IntervalsTree};
 
 use super::*;
 use crate::storage::{MapStorage, TripleMapStorage};
@@ -51,14 +51,9 @@ pub trait ProgramStorage {
     type BlockNumber: Copy + Saturating;
     type AccountId: Eq + PartialEq;
 
-    type ProgramMap: MapStorage<Key = ProgramId, Value = Program<Self::BlockNumber>>;
-    type MemoryPageMap: TripleMapStorage<
-        Key1 = ProgramId,
-        Key2 = MemoryInfix,
-        Key3 = GearPage,
-        Value = PageBuf,
-    >;
-    type AllocationsMap: MapStorage<Key = ProgramId, Value = IntervalsTree<WasmPage>>;
+    type ProgramMap: MapStorage<Key = ActorId, Value = Program<Self::BlockNumber>>;
+    type MemoryPageMap: TripleMapStorage<Key1 = ActorId, Key2 = MemoryInfix, Key3 = GearPage, Value = PageBuf>;
+    type AllocationsMap: MapStorage<Key = ActorId, Value = IntervalsTree<WasmPage>>;
 
     /// Attempt to remove all items from all the associated maps.
     fn reset() {
@@ -69,7 +64,7 @@ pub trait ProgramStorage {
 
     /// Store a program to be associated with the given key `program_id` from the map.
     fn add_program(
-        program_id: ProgramId,
+        program_id: ActorId,
         program: ActiveProgram<Self::BlockNumber>,
     ) -> Result<(), Self::Error> {
         Self::ProgramMap::mutate(program_id, |maybe| {
@@ -83,18 +78,18 @@ pub trait ProgramStorage {
     }
 
     /// Load the program associated with the given key `program_id` from the map.
-    fn get_program(program_id: ProgramId) -> Option<Program<Self::BlockNumber>> {
+    fn get_program(program_id: ActorId) -> Option<Program<Self::BlockNumber>> {
         Self::ProgramMap::get(&program_id)
     }
 
     /// Does the program (explicitly) exist in storage?
-    fn program_exists(program_id: ProgramId) -> bool {
+    fn program_exists(program_id: ActorId) -> bool {
         Self::ProgramMap::contains_key(&program_id)
     }
 
     /// Update the active program under the given key `program_id`.
     fn update_active_program<F, ReturnType>(
-        program_id: ProgramId,
+        program_id: ActorId,
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
@@ -107,7 +102,7 @@ pub trait ProgramStorage {
     }
 
     fn remove_data_for_pages(
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: MemoryInfix,
         pages: impl Iterator<Item = GearPage>,
     ) {
@@ -116,11 +111,11 @@ pub trait ProgramStorage {
         }
     }
 
-    fn allocations(program_id: ProgramId) -> Option<IntervalsTree<WasmPage>> {
+    fn allocations(program_id: ActorId) -> Option<IntervalsTree<WasmPage>> {
         Self::AllocationsMap::get(&program_id)
     }
 
-    fn set_allocations(program_id: ProgramId, allocations: IntervalsTree<WasmPage>) {
+    fn set_allocations(program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
         Self::update_active_program(program_id, |program| {
             program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
                 .unwrap_or_else(|err| {
@@ -135,11 +130,11 @@ pub trait ProgramStorage {
         Self::AllocationsMap::insert(program_id, allocations);
     }
 
-    fn clear_allocations(program_id: ProgramId) {
+    fn clear_allocations(program_id: ActorId) {
         Self::AllocationsMap::remove(program_id);
     }
 
-    fn memory_infix(program_id: ProgramId) -> Option<MemoryInfix> {
+    fn memory_infix(program_id: ActorId) -> Option<MemoryInfix> {
         match Self::ProgramMap::get(&program_id) {
             Some(Program::Active(program)) => Some(program.memory_infix),
             _ => None,
@@ -149,7 +144,7 @@ pub trait ProgramStorage {
     /// Update the program under the given key `program_id` only if the
     /// stored program is an active one.
     fn update_program_if_active<F, ReturnType>(
-        program_id: ProgramId,
+        program_id: ActorId,
         update_action: F,
     ) -> Result<ReturnType, Self::Error>
     where
@@ -170,7 +165,7 @@ pub trait ProgramStorage {
 
     /// Return data buffer for each memory page, which has data.
     fn get_program_pages_data(
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: MemoryInfix,
     ) -> Result<MemoryMap, Self::Error> {
         Ok(Self::MemoryPageMap::iter_prefix(&program_id, &memory_infix).collect())
@@ -178,7 +173,7 @@ pub trait ProgramStorage {
 
     /// Store a memory page buffer to be associated with the given keys `program_id`, `memory_infix` and `page` from the map.
     fn set_program_page_data(
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: MemoryInfix,
         page: GearPage,
         page_buf: PageBuf,
@@ -188,7 +183,7 @@ pub trait ProgramStorage {
 
     /// Remove a memory page buffer under the given keys `program_id`, `memory_infix` and `page`.
     fn remove_program_page_data(
-        program_id: ProgramId,
+        program_id: ActorId,
         memory_infix: MemoryInfix,
         page_num: GearPage,
     ) {
@@ -196,7 +191,7 @@ pub trait ProgramStorage {
     }
 
     /// Remove all memory page buffers under the given keys `program_id` and `memory_infix`.
-    fn clear_program_memory(program_id: ProgramId, memory_infix: MemoryInfix) {
+    fn clear_program_memory(program_id: ActorId, memory_infix: MemoryInfix) {
         Self::MemoryPageMap::clear_prefix(program_id, memory_infix);
     }
 

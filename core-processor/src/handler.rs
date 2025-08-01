@@ -72,7 +72,12 @@ pub fn handle_journal(
             } => {
                 allocations_update.insert(program_id, allocations);
             }
-            JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
+            JournalNote::SendValue {
+                from,
+                to,
+                value,
+                locked,
+            } => handler.send_value(from, to, value, locked),
             JournalNote::StoreNewPrograms {
                 program_id,
                 code_id,

@@ -26,26 +26,23 @@ use crate::{
 };
 use alloc::{format, string::String, vec::Vec};
 use gear_core::{
-    code::InstrumentedCode,
-    env::Externalities,
+    code::{CodeMetadata, InstrumentedCode},
+    env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
-    ids::ProgramId,
+    ids::ActorId,
     memory::AllocationsContext,
-    message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
-        WasmEntryPoint,
-    },
-    pages::{numerated::tree::IntervalsTree, WasmPage},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
+    BackendExternalities,
     env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
     },
-    BackendExternalities,
 };
 
 /// Execute wasm with dispatch and return dispatch result.
@@ -77,20 +74,17 @@ where
     let kind = dispatch.kind();
 
     log::debug!("Executing program {}", program.id);
-    log::debug!("Executing dispatch {:?}", dispatch);
+    log::debug!("Executing dispatch {dispatch:?}");
 
     // Creating allocations context.
     let allocations_context = AllocationsContext::try_new(
         memory_size,
         program.allocations,
-        program.code.static_pages(),
-        program.code.stack_end(),
+        program.code_metadata.static_pages(),
+        program.code_metadata.stack_end(),
         settings.max_pages,
     )
     .map_err(SystemExecutionError::from)?;
-
-    // Creating message context.
-    let message_context = MessageContext::new(dispatch.clone(), program.id, msg_ctx_settings);
 
     // Creating value counter.
     //
@@ -99,14 +93,15 @@ where
     //
     // In case of second execution (between waits) - message value already
     // included in free balance or wasted.
-    let value_available = balance.saturating_add(
-        dispatch
-            .context()
-            .is_none()
-            .then(|| dispatch.value())
-            .unwrap_or_default(),
-    );
+    let value_available = balance.saturating_add(if dispatch.context().is_none() {
+        dispatch.value()
+    } else {
+        Default::default()
+    });
     let value_counter = ValueCounter::new(value_available);
+
+    // Creating message context.
+    let message_context = MessageContext::new(dispatch, program.id, msg_ctx_settings);
 
     let context = ProcessorContext {
         gas_counter,
@@ -136,9 +131,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code.code(),
+            program.instrumented_code.bytes(),
             kind,
-            program.code.exports().clone(),
+            program.code_metadata.exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -147,7 +142,7 @@ where
                 memory,
                 program.id,
                 program.memory_infix,
-                program.code.stack_end(),
+                program.code_metadata.stack_end(),
                 globals_config,
                 settings.lazy_pages_costs,
             )
@@ -191,7 +186,7 @@ where
         }
     };
 
-    log::debug!("Termination reason: {:?}", termination);
+    log::debug!("Termination reason: {termination:?}");
 
     let info = ext
         .into_ext_info(&mut store, &memory)
@@ -231,7 +226,6 @@ where
     // Output
     Ok(DispatchResult {
         kind,
-        dispatch,
         program_id: program.id,
         context_store: info.context_store,
         generated_dispatches: info.generated_dispatches,
@@ -252,8 +246,9 @@ where
 pub fn execute_for_reply<Ext, EP>(
     function: EP,
     instrumented_code: InstrumentedCode,
+    code_metadata: CodeMetadata,
     allocations: Option<IntervalsTree<WasmPage>>,
-    program_info: Option<(ProgramId, MemoryInfix)>,
+    program_info: Option<(ActorId, MemoryInfix)>,
     payload: Vec<u8>,
     gas_limit: u64,
     block_info: BlockInfo,
@@ -270,45 +265,46 @@ where
     let program = Program {
         id: program_id,
         memory_infix,
-        code: instrumented_code,
+        instrumented_code,
+        code_metadata,
         allocations: allocations.unwrap_or_default(),
     };
-    let static_pages = program.code.static_pages();
+    let static_pages = program.code_metadata.static_pages();
     let memory_size = program
         .allocations
         .end()
         .map(|p| p.inc())
         .unwrap_or(static_pages);
 
-    let message_context = MessageContext::new(
-        IncomingDispatch::new(
-            DispatchKind::Handle,
-            IncomingMessage::new(
-                Default::default(),
-                Default::default(),
-                payload
-                    .try_into()
-                    .map_err(|e| format!("Failed to create payload: {e:?}"))?,
-                gas_limit,
-                Default::default(),
-                Default::default(),
-            ),
-            None,
+    let incoming_dispatch = IncomingDispatch::new(
+        DispatchKind::Handle,
+        IncomingMessage::new(
+            Default::default(),
+            Default::default(),
+            payload
+                .try_into()
+                .map_err(|e| format!("Failed to create payload: {e:?}"))?,
+            gas_limit,
+            Default::default(),
+            Default::default(),
         ),
-        program.id,
-        Default::default(),
+        None,
     );
+
+    let gas_reserver = GasReserver::new(&incoming_dispatch, Default::default(), Default::default());
+
+    let message_context = MessageContext::new(incoming_dispatch, program.id, Default::default());
 
     let context = ProcessorContext {
         gas_counter: GasCounter::new(gas_limit),
         gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
-        gas_reserver: GasReserver::new(&Default::default(), Default::default(), Default::default()),
+        gas_reserver,
         value_counter: ValueCounter::new(Default::default()),
         allocations_context: AllocationsContext::try_new(
             memory_size,
             program.allocations,
             static_pages,
-            program.code.stack_end(),
+            program.code_metadata.stack_end(),
             512.into(),
         )
         .map_err(|e| format!("Failed to create alloc ctx: {e:?}"))?,
@@ -321,7 +317,7 @@ where
         reserve_for: Default::default(),
         random_data: Default::default(),
         system_reservation: Default::default(),
-        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(1),
+        gas_multiplier: gsys::GasMultiplier::from_value_per_gas(100),
         existential_deposit: Default::default(),
         mailbox_threshold: Default::default(),
         costs: Default::default(),
@@ -334,9 +330,9 @@ where
     let execute = || {
         let env = Environment::new(
             ext,
-            program.code.code(),
+            program.instrumented_code.bytes(),
             function,
-            program.code.exports().clone(),
+            program.code_metadata.exports().clone(),
             memory_size,
         )?;
         env.execute(|ctx, memory, globals_config| {
@@ -345,7 +341,7 @@ where
                 memory,
                 program_id,
                 program.memory_infix,
-                program.code.stack_end(),
+                program.code_metadata.stack_end(),
                 globals_config,
                 Default::default(),
             )

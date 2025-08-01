@@ -15,10 +15,6 @@ rust-version.workspace = true
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 log.workspace = true
-env_logger.workspace = true
+tracing-subscriber.workspace = true
 gear-wasm-builder.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
-
-[features]
-default = ["wasm-opt"]
-wasm-opt = ["gear-wasm-builder/wasm-opt"]

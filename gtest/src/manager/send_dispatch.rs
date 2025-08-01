@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use gear_core::message::UserMessage;
 
 impl ExtManager {
     /// Insert message into the delayed queue.
@@ -224,7 +225,12 @@ impl ExtManager {
             delay_hold.expected()
         };
 
-        if !dispatch.value().is_zero() {
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
+        //
+        // In case of error replies, we don't need to do it, since original
+        // message value is already on locked balance in gear-bank.
+        if !dispatch.value().is_zero() && !dispatch.is_error_reply() {
             self.bank.deposit_value(from, value, false);
         }
 
@@ -294,6 +300,7 @@ impl ExtManager {
         let from = message.source();
         let to = message.destination();
         let value = message.value();
+        let is_error_reply = message.is_error_reply();
 
         let stored_message = message.into_stored();
         let message: UserMessage = stored_message
@@ -301,9 +308,15 @@ impl ExtManager {
             .try_into()
             .expect("failed to convert stored message to user message");
 
-        if Accounts::balance(from) != 0 {
+        // It's necessary to deposit value so the source would have enough
+        // balance locked (in gear-bank) for future value processing.
+        //
+        // In case of error replies, we don't need to do it, since original
+        // message value is already on locked balance in gear-bank.
+        if value != 0 && !is_error_reply {
             self.bank.deposit_value(from, value, false);
         }
+
         let _ = if message.details().is_none() && gas_limit >= threshold {
             let hold = HoldBoundBuilder::new(StorageType::Mailbox).maximum_for(self, gas_limit);
 

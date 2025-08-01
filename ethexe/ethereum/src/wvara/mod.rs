@@ -17,21 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{self, IWrappedVara},
     AlloyProvider, TryGetReceipt,
+    abi::{self, IWrappedVara},
 };
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
 };
 use anyhow::Result;
-use ethexe_signer::Address as LocalAddress;
+use ethexe_common::Address as LocalAddress;
 use gprimitives::{H256, U256};
 
 pub mod events;
 
-type Instance = IWrappedVara::IWrappedVaraInstance<(), AlloyProvider>;
-type QueryInstance = IWrappedVara::IWrappedVaraInstance<(), RootProvider>;
+type Instance = IWrappedVara::IWrappedVaraInstance<AlloyProvider>;
+type QueryInstance = IWrappedVara::IWrappedVaraInstance<RootProvider>;
 
 pub struct WVara(Instance);
 
@@ -100,12 +100,7 @@ impl WVaraQuery {
     }
 
     pub async fn decimals(&self) -> Result<u8> {
-        self.0
-            .decimals()
-            .call()
-            .await
-            .map(|res| res._0)
-            .map_err(Into::into)
+        self.0.decimals().call().await.map_err(Into::into)
     }
 
     pub async fn total_supply(&self) -> Result<u128> {
@@ -113,7 +108,7 @@ impl WVaraQuery {
             .totalSupply()
             .call()
             .await
-            .map(|res| abi::utils::uint256_to_u128_lossy(res._0))
+            .map(abi::utils::uint256_to_u128_lossy)
             .map_err(Into::into)
     }
 
@@ -122,7 +117,7 @@ impl WVaraQuery {
             .balanceOf(address)
             .call()
             .await
-            .map(|res| abi::utils::uint256_to_u128_lossy(res._0))
+            .map(abi::utils::uint256_to_u128_lossy)
             .map_err(Into::into)
     }
 
@@ -131,7 +126,7 @@ impl WVaraQuery {
             .allowance(owner, spender)
             .call()
             .await
-            .map(|res| U256(res._0.into_limbs()))
+            .map(|res| U256(res.into_limbs()))
             .map_err(Into::into)
     }
 
@@ -140,7 +135,7 @@ impl WVaraQuery {
             .name()
             .call()
             .await
-            .map(|res| res._0.to_string())
+            .map(|res| res.to_string())
             .map_err(Into::into)
     }
 
@@ -149,7 +144,7 @@ impl WVaraQuery {
             .symbol()
             .call()
             .await
-            .map(|res| res._0.to_string())
+            .map(|res| res.to_string())
             .map_err(Into::into)
     }
 }

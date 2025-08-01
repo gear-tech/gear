@@ -51,13 +51,13 @@ impl From<generated_ids::MessageId> for ids::MessageId {
     }
 }
 
-impl From<ids::ProgramId> for generated_ids::ActorId {
-    fn from(other: ids::ProgramId) -> Self {
+impl From<ids::ActorId> for generated_ids::ActorId {
+    fn from(other: ids::ActorId) -> Self {
         Self(other.into())
     }
 }
 
-impl From<generated_ids::ActorId> for ids::ProgramId {
+impl From<generated_ids::ActorId> for ids::ActorId {
     fn from(other: generated_ids::ActorId) -> Self {
         other.0.into()
     }

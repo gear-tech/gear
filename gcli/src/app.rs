@@ -19,14 +19,15 @@
 //! Command line application abstraction
 
 use clap::Parser;
-use color_eyre::{eyre::eyre, Result};
-use env_logger::{Builder, Env};
+use color_eyre::{Result, eyre::eyre};
 use gclient::{
-    ext::sp_core::{self, crypto::Ss58Codec, sr25519::Pair, Pair as _},
     GearApi,
+    ext::sp_core::{self, Pair as _, crypto::Ss58Codec, sr25519::Pair},
 };
 use gring::Keyring;
 use gsdk::Api;
+use std::env;
+use tracing_subscriber::EnvFilter;
 
 /// Command line gear program application abstraction.
 ///
@@ -141,19 +142,22 @@ pub trait App: Parser + Sync {
         sp_core::crypto::set_default_ss58_version(runtime_primitives::VARA_SS58_PREFIX.into());
 
         let name = Self::command().get_name().to_string();
-        let filter = match self.verbose() {
-            0 => format!("{name}=info,gsdk=info"),
-            1 => format!("{name}=debug,gsdk=debug"),
-            2 => "debug".into(),
-            _ => "trace".into(),
+        let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
+            EnvFilter::from_default_env()
+        } else {
+            match self.verbose() {
+                0 => format!("{name}=info,gsdk=info").into(),
+                1 => format!("{name}=debug,gsdk=debug").into(),
+                2 => "debug".into(),
+                _ => "trace".into(),
+            }
         };
 
-        let mut builder = Builder::from_env(Env::default().default_filter_or(filter));
-        builder
-            .format_target(false)
-            .format_module_path(false)
-            .format_timestamp(None);
-        builder.try_init()?;
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .without_time()
+            .try_init()
+            .map_err(|e| eyre!("{e}"))?;
 
         self.exec()
             .await

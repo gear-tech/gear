@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 #![allow(clippy::too_many_arguments)]
 
-use crate::{api::Result, GearApi};
+use crate::{GearApi, api::Result};
 use gear_core::{
-    ids::{CodeId, MessageId, ProgramId},
-    message::ReplyInfo,
+    ids::{ActorId, CodeId, MessageId},
+    rpc::ReplyInfo,
 };
-use gsdk::{ext::sp_core::H256, GasInfo};
+use gsdk::{GasInfo, ext::sp_core::H256};
 use parity_scale_codec::Decode;
 
 impl GearApi {
@@ -132,7 +132,7 @@ impl GearApi {
     pub async fn calculate_handle_gas(
         &self,
         origin: Option<H256>,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -153,7 +153,7 @@ impl GearApi {
     pub async fn calculate_handle_gas_at(
         &self,
         origin: Option<H256>,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
@@ -213,11 +213,7 @@ impl GearApi {
     }
 
     /// Read the program's state as a byte vector.
-    pub async fn read_state_bytes(
-        &self,
-        program_id: ProgramId,
-        payload: Vec<u8>,
-    ) -> Result<Vec<u8>> {
+    pub async fn read_state_bytes(&self, program_id: ActorId, payload: Vec<u8>) -> Result<Vec<u8>> {
         self.read_state_bytes_at(program_id, payload, None).await
     }
 
@@ -225,7 +221,7 @@ impl GearApi {
     /// program's state at the block identified by its hash.
     pub async fn read_state_bytes_at(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         payload: Vec<u8>,
         at: Option<H256>,
     ) -> Result<Vec<u8>> {
@@ -238,11 +234,7 @@ impl GearApi {
     }
 
     /// Read the program's state as decoded data.
-    pub async fn read_state<D: Decode>(
-        &self,
-        program_id: ProgramId,
-        payload: Vec<u8>,
-    ) -> Result<D> {
+    pub async fn read_state<D: Decode>(&self, program_id: ActorId, payload: Vec<u8>) -> Result<D> {
         self.read_state_at(program_id, payload, None).await
     }
 
@@ -250,7 +242,7 @@ impl GearApi {
     /// at the block identified by its hash.
     pub async fn read_state_at<D: Decode>(
         &self,
-        program_id: ProgramId,
+        program_id: ActorId,
         payload: Vec<u8>,
         at: Option<H256>,
     ) -> Result<D> {
@@ -259,13 +251,13 @@ impl GearApi {
     }
 
     /// Read the program's metahash.
-    pub async fn read_metahash(&self, program_id: ProgramId) -> Result<H256> {
+    pub async fn read_metahash(&self, program_id: ActorId) -> Result<H256> {
         self.read_metahash_at(program_id, None).await
     }
 
     /// Same as [`read_metahash`](Self::read_metahash), but read the program's
     /// metahash at the block identified by its hash.
-    pub async fn read_metahash_at(&self, program_id: ProgramId, at: Option<H256>) -> Result<H256> {
+    pub async fn read_metahash_at(&self, program_id: ActorId, at: Option<H256>) -> Result<H256> {
         self.0
             .api()
             .read_meta_hash(H256(program_id.into()), at)
@@ -308,7 +300,7 @@ impl GearApi {
     pub async fn calculate_reply_for_handle(
         &self,
         origin: Option<H256>,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -322,7 +314,7 @@ impl GearApi {
     pub async fn calculate_reply_for_handle_at(
         &self,
         origin: Option<H256>,
-        destination: ProgramId,
+        destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,

@@ -25,9 +25,9 @@
 use gear_common::Origin;
 use gear_core_errors::*;
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
-    types::{error::ErrorObject, ErrorObjectOwned},
+    types::{ErrorObjectOwned, error::ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
@@ -39,7 +39,7 @@ use std::sync::Arc;
 
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> ErrorObjectOwned {
-    ErrorObject::owned(8000, "Runtime error", Some(format!("{:?}", err)))
+    ErrorObject::owned(8000, "Runtime error", Some(format!("{err:?}")))
 }
 
 #[rpc(server)]

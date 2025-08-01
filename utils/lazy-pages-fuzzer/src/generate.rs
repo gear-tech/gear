@@ -24,12 +24,12 @@ use gear_wasm_gen::generate_gear_program_module;
 use gear_wasm_instrument::{InstrumentationBuilder, Module};
 
 use crate::{
-    config::{DummyCostRules, FuzzerConfigBundle},
     MODULE_ENV,
+    config::{DummyCostRules, FuzzerConfigBundle},
 };
 
 use globals::InjectGlobals;
-pub use globals::{InjectGlobalsConfig, GLOBAL_NAME_PREFIX};
+pub use globals::{GLOBAL_NAME_PREFIX, InjectGlobalsConfig};
 mod globals;
 
 use mem_accesses::InjectMemoryAccesses;
@@ -90,6 +90,6 @@ impl fmt::Debug for GeneratedModule<'_> {
             wasmprinter::print_bytes(self.module.serialize().expect("failed to serialize"))
                 .expect("failed to print module");
 
-        write!(f, "{}", module_str)
+        write!(f, "{module_str}")
     }
 }

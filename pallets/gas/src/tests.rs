@@ -19,8 +19,8 @@
 use super::*;
 use crate::mock::*;
 use common::{
-    gas_provider::{GasNodeId, Imbalance, NegativeImbalance},
     GasMultiplier, GasTree as _, LockId, LockableTree as _, Origin,
+    gas_provider::{GasNodeId, Imbalance, NegativeImbalance},
 };
 use frame_support::{assert_noop, assert_ok};
 use gear_core::ids::MessageId;
@@ -34,7 +34,7 @@ fn random_node_id() -> MessageId {
     H256::random().cast()
 }
 
-const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(25);
+const MULTIPLIER: GasMultiplier<u128, u64> = GasMultiplier::ValuePerGas(100);
 
 #[test]
 fn simple_value_tree() {
@@ -163,7 +163,7 @@ fn can_cut_nodes() {
 
 #[test]
 fn value_tree_with_all_kinds_of_nodes() {
-    let _ = env_logger::try_init();
+    let _ = tracing_subscriber::fmt::try_init();
     new_test_ext().execute_with(|| {
         let total_supply = 1000;
         let cut_value = 300;
@@ -562,9 +562,11 @@ fn subtree_gas_limit_remains_intact() {
         // Consume node_2
         assert!(Gas::consume(node_2).unwrap().is_none());
         // Marked as consumed
-        assert!(GasTree::get(GasNodeId::Node(node_2))
-            .map(|node| node.is_consumed())
-            .unwrap());
+        assert!(
+            GasTree::get(GasNodeId::Node(node_2))
+                .map(|node| node.is_consumed())
+                .unwrap()
+        );
         // Expect gas limit of the node_4 to remain unchanged
         assert_ok!(Gas::get_limit(node_4), 250);
 

@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, Result};
-use clap::{builder::PossibleValue, Parser, ValueEnum};
+use anyhow::{Result, anyhow};
+use clap::{Parser, ValueEnum, builder::PossibleValue};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt, fs, path::PathBuf};
@@ -80,10 +80,11 @@ impl ConfigSettings {
     /// there are more options in the settings.
     pub fn write(&self, path: Option<PathBuf>) -> Result<()> {
         let conf = path.unwrap_or(Self::config()?);
-        if let Some(parent) = conf.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)?;
-            }
+
+        if let Some(parent) = conf.parent()
+            && !parent.exists()
+        {
+            fs::create_dir_all(parent)?;
         }
 
         fs::write(conf, toml::to_string_pretty(self)?).map_err(Into::into)
@@ -137,7 +138,7 @@ impl AsRef<str> for Network {
 
 impl fmt::Display for Network {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

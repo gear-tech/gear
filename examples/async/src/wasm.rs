@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Command;
-use gstd::{msg, prelude::*, sync::Mutex, ActorId};
+use gstd::{ActorId, msg, prelude::*, sync::Mutex};
 
 static mut DESTINATION: ActorId = ActorId::zero();
 static MUTEX: Mutex<u32> = Mutex::new(0);
@@ -29,12 +29,10 @@ extern "C" fn init() {
 }
 
 async fn ping() -> Vec<u8> {
-    let fut = match () {
-        #[cfg(not(feature = "ethexe"))]
-        () => msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0, 0),
-        #[cfg(feature = "ethexe")]
-        () => msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0),
-    };
+    #[cfg(not(feature = "ethexe"))]
+    let fut = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0, 0);
+    #[cfg(feature = "ethexe")]
+    let fut = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0);
 
     fut.expect("Failed to send message")
         .await

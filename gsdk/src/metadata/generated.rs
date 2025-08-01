@@ -678,12 +678,6 @@ pub mod runtime_types {
                 }
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-            pub struct CodeMetadata {
-                pub author: ::subxt::ext::subxt_core::utils::H256,
-                #[codec(compact)]
-                pub block_number: ::core::primitive::u32,
-            }
-            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum GasMultiplier<_0, _1> {
                 #[codec(index = 0)]
                 ValuePerGas(_0),
@@ -700,6 +694,8 @@ pub mod runtime_types {
                     pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
                     #[codec(skip)] pub ::core::marker::PhantomData<_1>,
                 );
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct PayloadSizeError;
             }
             pub mod code {
                 use super::runtime_types;
@@ -720,7 +716,17 @@ pub mod runtime_types {
                         Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
                     )]
                     pub struct InstrumentedCode {
-                        pub code: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        pub bytes: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                        pub instantiated_section_sizes:
+                            runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
+                    }
+                }
+                pub mod metadata {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct CodeMetadata {
                         pub original_code_len: ::core::primitive::u32,
                         pub exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
                             runtime_types::gear_core::message::DispatchKind,
@@ -728,9 +734,22 @@ pub mod runtime_types {
                         pub static_pages: runtime_types::gear_core::pages::PagesAmount,
                         pub stack_end:
                             ::core::option::Option<runtime_types::gear_core::pages::Page>,
-                        pub instantiated_section_sizes:
-                            runtime_types::gear_core::code::instrumented::InstantiatedSectionSizes,
-                        pub version: ::core::primitive::u32,
+                        pub instrumentation_status:
+                            runtime_types::gear_core::code::metadata::InstrumentationStatus,
+                    }
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub enum InstrumentationStatus {
+                        #[codec(index = 0)]
+                        NotInstrumented,
+                        #[codec(index = 1)]
+                        Instrumented {
+                            version: ::core::primitive::u32,
+                            code_len: ::core::primitive::u32,
+                        },
+                        #[codec(index = 2)]
+                        InstrumentationFailed { version: ::core::primitive::u32 },
                     }
                 }
             }
@@ -817,7 +836,7 @@ pub mod runtime_types {
                         pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
+                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -837,7 +856,7 @@ pub mod runtime_types {
                         pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
+                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -854,7 +873,7 @@ pub mod runtime_types {
                         pub destination: runtime_types::gprimitives::ActorId,
                         pub payload: runtime_types::gear_core::buffer::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::message::PayloadSizeError,
+                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -871,8 +890,6 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     Signal,
                 }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct PayloadSizeError;
             }
             pub mod pages {
                 use super::runtime_types;
@@ -914,11 +931,7 @@ pub mod runtime_types {
                         runtime_types::gprimitives::ReservationId,
                         runtime_types::gear_core::reservation::GasReservationSlot,
                     >,
-                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
-                    pub code_exports: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                        runtime_types::gear_core::message::DispatchKind,
-                    >,
-                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
+                    pub code_id: runtime_types::gprimitives::CodeId,
                     pub state: runtime_types::gear_core::program::ProgramState,
                     pub expiration_block: _0,
                 }
@@ -1013,16 +1026,12 @@ pub mod runtime_types {
                 pub enum ErrorReplyReason {
                     #[codec(index = 0)]
                     Execution(runtime_types::gear_core_errors::simple::SimpleExecutionError),
-                    #[codec(index = 1)]
-                    FailedToCreateProgram(
-                        runtime_types::gear_core_errors::simple::SimpleProgramCreationError,
-                    ),
                     #[codec(index = 2)]
-                    InactiveActor,
+                    UnavailableActor(
+                        runtime_types::gear_core_errors::simple::SimpleUnavailableActorError,
+                    ),
                     #[codec(index = 3)]
                     RemovedFromWaitlist,
-                    #[codec(index = 4)]
-                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }
@@ -1060,9 +1069,17 @@ pub mod runtime_types {
                     Unsupported,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum SimpleProgramCreationError {
+                pub enum SimpleUnavailableActorError {
                     #[codec(index = 0)]
-                    CodeNotExists,
+                    ProgramExited,
+                    #[codec(index = 1)]
+                    InitializationFailure,
+                    #[codec(index = 2)]
+                    Uninitialized,
+                    #[codec(index = 3)]
+                    ProgramNotCreated,
+                    #[codec(index = 4)]
+                    ReinstrumentationFailure,
                     #[codec(index = 255)]
                     Unsupported,
                 }
@@ -2721,8 +2738,8 @@ pub mod runtime_types {
                     #[doc = "could be more than remaining block gas limit. Therefore, the message processing will be postponed"]
                     #[doc = "until the next block."]
                     #[doc = ""]
-                    #[doc = "`ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)"]
-                    #[doc = "Such `ProgramId` must not exist in the Program Storage at the time of this call."]
+                    #[doc = "`ActorId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)"]
+                    #[doc = "Such `ActorId` must not exist in the Program Storage at the time of this call."]
                     #[doc = ""]
                     #[doc = "There is the same guarantee here as in `upload_code`. That is, future program's"]
                     #[doc = "`code` and metadata are stored before message was added to the queue and processed."]
@@ -2887,6 +2904,16 @@ pub mod runtime_types {
                     claim_value_to_inheritor {
                         program_id: runtime_types::gprimitives::ActorId,
                         depth: ::core::num::NonZeroU32,
+                    },
+                    #[codec(index = 255)]
+                    #[doc = "A dummy extrinsic with programmatically set weight."]
+                    #[doc = ""]
+                    #[doc = "Used in tests to exhaust block resources."]
+                    #[doc = ""]
+                    #[doc = "Parameters:"]
+                    #[doc = "- `fraction`: the fraction of the `max_extrinsic` the extrinsic will use."]
+                    exhaust_block_resources {
+                        fraction: runtime_types::sp_arithmetic::per_things::Percent,
                     },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3155,6 +3182,11 @@ pub mod runtime_types {
                     pub i32rotr: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub struct InstrumentationWeights {
+                    pub base: runtime_types::sp_weights::weight_v2::Weight,
+                    pub per_byte: runtime_types::sp_weights::weight_v2::Weight,
+                }
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct Limits {
                     pub stack_height: ::core::option::Option<::core::primitive::u32>,
                     pub globals: ::core::primitive::u32,
@@ -3205,9 +3237,8 @@ pub mod runtime_types {
                     pub task_weights: runtime_types::pallet_gear::schedule::TaskWeights,
                     pub instantiation_weights:
                         runtime_types::pallet_gear::schedule::InstantiationWeights,
-                    pub code_instrumentation_cost: runtime_types::sp_weights::weight_v2::Weight,
-                    pub code_instrumentation_byte_cost:
-                        runtime_types::sp_weights::weight_v2::Weight,
+                    pub instrumentation_weights:
+                        runtime_types::pallet_gear::schedule::InstrumentationWeights,
                     pub load_allocations_weight: runtime_types::sp_weights::weight_v2::Weight,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3336,93 +3367,8 @@ pub mod runtime_types {
                 }
             }
         }
-        pub mod pallet_gear_debug {
-            use super::runtime_types;
-            pub mod pallet {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "Contains a variant per dispatchable extrinsic that this pallet has."]
-                pub enum Call {
-                    #[codec(index = 0)]
-                    #[doc = "Turn the debug mode on and off."]
-                    #[doc = ""]
-                    #[doc = "The origin must be the root."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `debug_mode_on`: if true, debug mode will be turned on, turned off otherwise."]
-                    #[doc = ""]
-                    #[doc = "Emits the following events:"]
-                    #[doc = "- `DebugMode(debug_mode_on)."]
-                    enable_debug_mode {
-                        debug_mode_on: ::core::primitive::bool,
-                    },
-                    #[codec(index = 1)]
-                    #[doc = "A dummy extrinsic with programmatically set weight."]
-                    #[doc = ""]
-                    #[doc = "Used in tests to exhaust block resources."]
-                    #[doc = ""]
-                    #[doc = "Parameters:"]
-                    #[doc = "- `fraction`: the fraction of the `max_extrinsic` the extrinsic will use."]
-                    exhaust_block_resources {
-                        fraction: runtime_types::sp_arithmetic::per_things::Percent,
-                    },
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct DebugData {
-                    pub dispatch_queue: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                        runtime_types::gear_core::message::stored::StoredDispatch,
-                    >,
-                    pub programs: ::subxt::ext::subxt_core::alloc::vec::Vec<
-                        runtime_types::pallet_gear_debug::pallet::ProgramDetails,
-                    >,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "The `Error` enum of this pallet."]
-                pub enum Error {}
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                #[doc = "The `Event` enum of this pallet"]
-                pub enum Event {
-                    #[codec(index = 0)]
-                    DebugMode(::core::primitive::bool),
-                    #[codec(index = 1)]
-                    #[doc = "A snapshot of the debug data: programs and message queue ('debug mode' only)"]
-                    DebugDataSnapshot(runtime_types::pallet_gear_debug::pallet::DebugData),
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct ProgramDetails {
-                    pub id: runtime_types::gprimitives::ActorId,
-                    pub state: runtime_types::pallet_gear_debug::pallet::ProgramState,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct ProgramInfo {
-                    pub static_pages: runtime_types::gear_core::pages::PagesAmount,
-                    pub persistent_pages: ::subxt::ext::subxt_core::utils::KeyedVec<
-                        runtime_types::gear_core::pages::Page,
-                        runtime_types::gear_core::memory::PageBuf,
-                    >,
-                    pub code_hash: ::subxt::ext::subxt_core::utils::H256,
-                }
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub enum ProgramState {
-                    #[codec(index = 0)]
-                    Active(runtime_types::pallet_gear_debug::pallet::ProgramInfo),
-                    #[codec(index = 1)]
-                    Terminated,
-                }
-            }
-        }
         pub mod pallet_gear_eth_bridge {
             use super::runtime_types;
-            pub mod internal {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct EthMessage {
-                    pub nonce: runtime_types::primitive_types::U256,
-                    pub source: ::subxt::ext::subxt_core::utils::H256,
-                    pub destination: ::subxt::ext::subxt_core::utils::H160,
-                    pub payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
-                }
-            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3443,6 +3389,9 @@ pub mod runtime_types {
                         destination: ::subxt::ext::subxt_core::utils::H160,
                         payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
+                    #[codec(index = 3)]
+                    #[doc = "Root extrinsic that sets fee for the transport of messages."]
+                    set_fee { fee: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's error."]
@@ -3464,7 +3413,7 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
-                    IncorrectValueApplied,
+                    InsufficientValueApplied,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
@@ -3490,13 +3439,23 @@ pub mod runtime_types {
                     #[codec(index = 5)]
                     #[doc = "A new message was queued for bridging."]
                     MessageQueued {
-                        message: runtime_types::pallet_gear_eth_bridge::internal::EthMessage,
+                        message: runtime_types::pallet_gear_eth_bridge_primitives::EthMessage,
                         hash: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
                     QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
                 }
+            }
+        }
+        pub mod pallet_gear_eth_bridge_primitives {
+            use super::runtime_types;
+            #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+            pub struct EthMessage {
+                pub nonce: runtime_types::primitive_types::U256,
+                pub source: ::subxt::ext::subxt_core::utils::H256,
+                pub destination: ::subxt::ext::subxt_core::utils::H160,
+                pub payload: ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
             }
         }
         pub mod pallet_gear_gas {
@@ -10353,8 +10312,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Call),
                 #[codec(index = 110)]
                 GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Call),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Call),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum RuntimeError {
@@ -10430,8 +10387,6 @@ pub mod runtime_types {
                 GearBank(runtime_types::pallet_gear_bank::pallet::Error),
                 #[codec(index = 110)]
                 GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Error),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Error),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum RuntimeEvent {
@@ -10499,8 +10454,6 @@ pub mod runtime_types {
                 GearVoucher(runtime_types::pallet_gear_voucher::pallet::Event),
                 #[codec(index = 110)]
                 GearEthBridge(runtime_types::pallet_gear_eth_bridge::pallet::Event),
-                #[codec(index = 199)]
-                GearDebug(runtime_types::pallet_gear_debug::pallet::Event),
             }
             #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
             pub enum RuntimeFreezeReason {
@@ -10746,6 +10699,7 @@ pub mod calls {
         Run,
         SetExecuteInherent,
         ClaimValueToInheritor,
+        ExhaustBlockResources,
     }
     impl CallInfo for GearCall {
         const PALLET: &'static str = "Gear";
@@ -10760,19 +10714,6 @@ pub mod calls {
                 Self::Run => "run",
                 Self::SetExecuteInherent => "set_execute_inherent",
                 Self::ClaimValueToInheritor => "claim_value_to_inheritor",
-            }
-        }
-    }
-    #[doc = "Calls of pallet `GearDebug`."]
-    pub enum GearDebugCall {
-        EnableDebugMode,
-        ExhaustBlockResources,
-    }
-    impl CallInfo for GearDebugCall {
-        const PALLET: &'static str = "GearDebug";
-        fn call_name(&self) -> &'static str {
-            match self {
-                Self::EnableDebugMode => "enable_debug_mode",
                 Self::ExhaustBlockResources => "exhaust_block_resources",
             }
         }
@@ -10782,6 +10723,7 @@ pub mod calls {
         Pause,
         Unpause,
         SendEthMessage,
+        SetFee,
     }
     impl CallInfo for GearEthBridgeCall {
         const PALLET: &'static str = "GearEthBridge";
@@ -10790,6 +10732,7 @@ pub mod calls {
                 Self::Pause => "pause",
                 Self::Unpause => "unpause",
                 Self::SendEthMessage => "send_eth_message",
+                Self::SetFee => "set_fee",
             }
         }
     }
@@ -11596,6 +11539,7 @@ pub mod storage {
     #[doc = "Storage of pallet `GearBank`."]
     pub enum GearBankStorage {
         Bank,
+        BankAddress,
         UnusedValue,
         OnFinalizeTransfers,
         OnFinalizeValue,
@@ -11605,25 +11549,10 @@ pub mod storage {
         fn storage_name(&self) -> &'static str {
             match self {
                 Self::Bank => "Bank",
+                Self::BankAddress => "BankAddress",
                 Self::UnusedValue => "UnusedValue",
                 Self::OnFinalizeTransfers => "OnFinalizeTransfers",
                 Self::OnFinalizeValue => "OnFinalizeValue",
-            }
-        }
-    }
-    #[doc = "Storage of pallet `GearDebug`."]
-    pub enum GearDebugStorage {
-        DebugMode,
-        RemapId,
-        ProgramsMap,
-    }
-    impl StorageInfo for GearDebugStorage {
-        const PALLET: &'static str = "GearDebug";
-        fn storage_name(&self) -> &'static str {
-            match self {
-                Self::DebugMode => "DebugMode",
-                Self::RemapId => "RemapId",
-                Self::ProgramsMap => "ProgramsMap",
             }
         }
     }
@@ -11638,6 +11567,7 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
         const PALLET: &'static str = "GearEthBridge";
@@ -11652,6 +11582,7 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::TransportFee => "TransportFee",
             }
         }
     }
@@ -11703,10 +11634,9 @@ pub mod storage {
     }
     #[doc = "Storage of pallet `GearProgram`."]
     pub enum GearProgramStorage {
-        CodeStorage,
-        CodeLenStorage,
+        InstrumentedCodeStorage,
         OriginalCodeStorage,
-        MetadataStorage,
+        CodeMetadataStorage,
         AllocationsStorage,
         ProgramStorage,
         MemoryPages,
@@ -11715,10 +11645,9 @@ pub mod storage {
         const PALLET: &'static str = "GearProgram";
         fn storage_name(&self) -> &'static str {
             match self {
-                Self::CodeStorage => "CodeStorage",
-                Self::CodeLenStorage => "CodeLenStorage",
+                Self::InstrumentedCodeStorage => "InstrumentedCodeStorage",
                 Self::OriginalCodeStorage => "OriginalCodeStorage",
-                Self::MetadataStorage => "MetadataStorage",
+                Self::CodeMetadataStorage => "CodeMetadataStorage",
                 Self::AllocationsStorage => "AllocationsStorage",
                 Self::ProgramStorage => "ProgramStorage",
                 Self::MemoryPages => "MemoryPages",
@@ -12346,8 +12275,5 @@ pub mod exports {
     }
     pub mod gear_eth_bridge {
         pub use super::runtime_types::pallet_gear_eth_bridge::pallet::Event;
-    }
-    pub mod gear_debug {
-        pub use super::runtime_types::pallet_gear_debug::pallet::Event;
     }
 }

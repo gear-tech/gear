@@ -1,0 +1,28 @@
+[package]
+name = "demo-big-data-section"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+gstd = { workspace = true, features = ["debug"] }
+parity-scale-codec.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+proptest = { workspace = true }
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+debug = ["gstd/debug"]
+default = ["std"]
+std = []

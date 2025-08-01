@@ -20,13 +20,13 @@ use super::interface::database_ri;
 use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
 use ethexe_runtime_common::{
+    RuntimeInterface,
     state::{
         Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
         ProgramState, Storage, UserMailbox, Waitlist,
     },
-    RuntimeInterface,
 };
-use gear_core::{memory::PageBuf, message::Payload};
+use gear_core::{buffer::Payload, memory::PageBuf};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
@@ -156,5 +156,9 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
 
     fn storage(&self) -> &RuntimeInterfaceStorage {
         &self.storage
+    }
+
+    fn update_state_hash(&self, hash: &H256) {
+        database_ri::update_state_hash(hash);
     }
 }

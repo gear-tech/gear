@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Processor;
-use anyhow::{anyhow, Result};
-use ethexe_db::{BlockMetaStorage, CodesStorage, Database, OnChainStorage};
+use crate::{Processor, ProcessorError, Result};
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead};
+use ethexe_db::Database;
 use ethexe_runtime_common::{
-    state::ProgramState, InBlockTransitions, ScheduleHandler, TransitionController,
+    InBlockTransitions, ScheduleHandler, TransitionController, state::ProgramState,
 };
 use gprimitives::{ActorId, CodeId, H256};
 
@@ -66,18 +66,16 @@ impl Processor {
         let header = self
             .db
             .block_header(block_hash)
-            .ok_or_else(|| anyhow!("failed to get block header for under-processing block"))?;
+            .ok_or(ProcessorError::BlockHeaderNotFound(block_hash))?;
 
-        let states = self
+        let states = self.db.block_program_states(header.parent_hash).ok_or(
+            ProcessorError::BlockProgramStatesNotFound(header.parent_hash),
+        )?;
+
+        let schedule = self
             .db
-            .block_program_states(header.parent_hash)
-            .ok_or_else(|| {
-                anyhow!("failed to get block start program states for under-processing block")
-            })?;
-
-        let schedule = self.db.block_schedule(header.parent_hash).ok_or_else(|| {
-            anyhow!("failed to get block start schedule for under-processing block")
-        })?;
+            .block_schedule(header.parent_hash)
+            .ok_or(ProcessorError::BlockScheduleNotFound(header.parent_hash))?;
 
         let transitions = InBlockTransitions::new(header, states, schedule);
 
@@ -97,17 +95,20 @@ impl Processor {
 
         let original_code = original_code.as_ref();
 
-        let Some(instrumented_code) = executor.instrument(original_code)? else {
+        let Some((instrumented_code, code_metadata)) = executor.instrument(original_code)? else {
             return Ok(None);
         };
 
         let code_id = self.db.set_original_code(original_code);
 
-        self.db.set_instrumented_code(
-            instrumented_code.instruction_weights_version(),
-            code_id,
-            instrumented_code,
-        );
+        let Some(instructions_weight) = code_metadata.instruction_weights_version() else {
+            return Ok(None);
+        };
+
+        self.db
+            .set_instrumented_code(instructions_weight, code_id, instrumented_code);
+
+        self.db.set_code_metadata(code_id, code_metadata);
 
         Ok(Some(code_id))
     }

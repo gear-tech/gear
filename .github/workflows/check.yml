@@ -4,34 +4,58 @@ on:
   workflow_call:
 
 env:
-  CARGO_TERM_COLOR: always
+  TERM: xterm-256color
   RUST_BACKTRACE: short
   RUST_LIB_BACKTRACE: 1
-  TERM: xterm-256color
-  BINARYEN_VERSION: version_111
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  CARGO_INCREMENTAL: 0
+  NEXTEST_PROFILE: ci
+  __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
 
 jobs:
   unused-deps:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bnjbvr/cargo-machete@main
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall --no-confirm cargo-shear
+      - run: cargo shear
 
-  linux:
-    runs-on: [kuberunner, github-runner-01]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Check formatting: Gear"
+        run: ./scripts/gear.sh format gear --check
+
+      - name: "Check formatting: Doc"
+        run: ./scripts/gear.sh format doc --check
+
+  ethexe-contracts:
+    runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
-
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: rustup stable"
+        run: |
+          rustup show
+          rustup install stable
+
+      - name: "Install rust-script"
+        run: cargo install rust-script
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -42,9 +66,7 @@ jobs:
           node-version: 22.x
 
       - name: "Show: Versioning"
-        run: |
-          ./scripts/gear.sh show
-          forge --version
+        run: forge --version
 
       - name: "Check: ethexe contracts"
         run: |
@@ -52,37 +74,93 @@ jobs:
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
-          cd ethexe/contracts
           forge fmt --check
           forge build --sizes
           forge test -vvv
+        working-directory: ethexe/contracts
 
-      - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
+      - name: "Check: Clones.sol is updated"
+        run: |
+          ../scripts/update-clones-sol.rs \
+          --mirror-proxy out/MirrorProxy.sol/MirrorProxy.json \
+          --clones src/libraries/Clones.sol
+          forge fmt
+          git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
+        working-directory: ethexe/contracts
 
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
+  clippy:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-aarch64
+            target: aarch64-apple-darwin
+            runs-on: macos-latest
+          - name: macos-x86_64
+            target: x86_64-apple-darwin
+            runs-on: macos-latest
+          - name: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            runs-on: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    name: clippy (${{ matrix.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: "${{ matrix.target }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.name }}"
 
       - name: "Check clippy: Gear"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
-      - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples --all-targets --locked
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
 
-      - name: "Test: Doc tests"
-        run: ./scripts/gear.sh test docs
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
-      - name: "Test: Changes in gsdk generated code"
-        run: |
-          GENERATED_CODE="gsdk/src/metadata/generated.rs"
-          ./scripts/update-gsdk-metadata.sh
-          if [[ $(git diff --stat $GENERATED_CODE) != '' ]]; then
-            echo "Changes found in the gsdk generated code ($GENERATED_CODE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
-            git --no-pager diff $GENERATED_CODE
-            exit 1
-          fi
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
 
-      - name: "Test: Wasm-builder recommended toolchain matches rust-toolchain.toml"
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
           TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
           CARGO_TOOLCHAIN="utils/wasm-optimizer/src/cargo_toolchain.rs"
@@ -91,72 +169,127 @@ jobs:
             exit 1
           fi
 
-      - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32v1-none
+      - name: "Check clippy: Examples"
+        run: ./scripts/gear.sh clippy examples --all-targets --locked
 
-      - name: "Check: Compiling gstd on stable"
-        run: |
-          cargo +stable check -p gstd --target wasm32v1-none
-          cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-          cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+      - name: "Check clippy: no_std crates"
+        run: ./scripts/gear.sh clippy no_std --locked
 
-      - name: "Check: crates-io packages publishing"
-        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+      - run: cargo +stable check -p gstd --target wasm32v1-none
+      - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+      - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
-  fuzzer:
-    runs-on: [kuberunner, github-runner-01]
-    env:
-      RUSTUP_HOME: /tmp/rustup_home
-      RUSTFLAGS: "--cfg fuzz"
+  vara-runtime-imports:
+    runs-on: ubuntu-latest
+    needs: [clippy, wasm]
     steps:
-      - name: Cancel Previous Runs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: styfle/cancel-workflow-action@0.12.1
-        with:
-          access_token: ${{ github.token }}
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install deps"
-        run: |
-          sudo apt update
-          sudo apt install -y xxd
-
-      - name: "MOUNT: Logs path"
-        run: |
-          FUZZER_LOGS_PATH=/mnt/fuzzer_logs
-          sudo mkdir -p $FUZZER_LOGS_PATH
-          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/utils/runtime-fuzzer/fuzz/artifacts
-          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/utils/runtime-fuzzer/proptest-regressions
-
-      - name: "Install: Set cargo path"
-        run: echo "/tmp/cargo/bin" >> $GITHUB_PATH
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust toolchain"
-        uses: dsherret/rust-toolchain-file@v1
+        uses: ./.github/actions/install-rust
 
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Install: cargo-fuzz"
-        run: cargo install cargo-fuzz
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.name }}"
 
-      - name: "Run: runtime-fuzzer crate tests"
-        run: ./scripts/gear.sh test fuzzer-tests
+      - name: "Build: Vara runtime and wasm-proc"
+        run: cargo build -p vara-runtime -p wasm-proc --release
 
-      - name: "Check: fuzzer competence with mutation test"
-        run: ./scripts/check-fuzzer.sh
+      - name: "Check: Vara runtime imports"
+        run: >-
+          ./target/x86_64-unknown-linux-gnu/release/wasm-proc
+          --check-runtime-imports
+          target/x86_64-unknown-linux-gnu/release/wbuild/vara-runtime/vara_runtime.compact.wasm
 
-      - name: "Check: lazy pages fuzzer with smoke test"
-        run: ./scripts/check-lazy-pages-fuzzer.sh
+  stack-height:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-aarch64
+            target: aarch64-apple-darwin
+            runs-on: macos-latest
+          - name: macos-x86_64
+            target: x86_64-apple-darwin
+            runs-on: macos-13
+          - name: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-latest
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            runs-on: windows-latest
+    runs-on: ${{ matrix.runs-on }}
+    needs: [clippy, wasm]
+    name: stack-height (${{ matrix.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
 
-      - name: "Log: fuzzer run output"
-        if: '!cancelled()'
-        run: cat fuzz_run
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
 
-      - name: "Log: lazy pages fuzzer run output"
-        if: '!cancelled()'
-        run: cat lazy_pages_fuzz_run
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.name }}"
+
+      - run: cargo run -p calc-stack-height --release --locked
+
+  gsdk-metadata:
+    runs-on: ubuntu-latest
+    needs: [clippy, wasm]
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Check: Changes in gsdk generated code"
+        run: |
+          GENERATED_CODE="gsdk/src/metadata/generated.rs"
+          ./scripts/update-gsdk-metadata.sh
+          if [[ $(git diff --stat $GENERATED_CODE) != '' ]]; then
+            echo "Changes found in the gsdk generated code ($GENERATED_CODE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
+            git --no-pager diff $GENERATED_CODE
+            exit 1
+          fi

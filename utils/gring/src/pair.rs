@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Keypair;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use schnorrkel::{KEYPAIR_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 
 /// Key info wrapped in pkcs8 format.

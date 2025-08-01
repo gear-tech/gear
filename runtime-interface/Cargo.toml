@@ -18,7 +18,7 @@ gear-sandbox-interface.workspace = true
 sp-io.workspace = true
 sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
-codec = { workspace = true }
+parity-scale-codec.workspace = true
 log = { workspace = true, optional = true }
 
 ark-bls12-381 = { workspace = true, features = ["curve"] }
@@ -26,9 +26,6 @@ ark-ec = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
 ark-scale = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
-
-[target.'cfg(windows)'.dependencies]
-winapi = { workspace = true, features = ["memoryapi"] }
 
 [features]
 default = ["std"]
@@ -40,7 +37,7 @@ std = [
 	"sp-io/std",
 	"sp-std/std",
 	"sp-runtime-interface/std",
-	"codec/std",
+	"parity-scale-codec/std",
 	"log",
 
 	"ark-bls12-381/std",

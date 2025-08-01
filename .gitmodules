@@ -6,18 +6,22 @@
 	path = ethexe/contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 	branch = "release-v5.3"
-[submodule "ethexe/contracts/lib/openzeppelin-foundry-upgrades"]
-	path = ethexe/contracts/lib/openzeppelin-foundry-upgrades
-	url = https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
-	branch = "main"
 [submodule "ethexe/contracts/lib/openzeppelin-contracts-upgradeable"]
 	path = ethexe/contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
 	branch = "release-v5.3"
+[submodule "ethexe/contracts/lib/openzeppelin-foundry-upgrades"]
+	path = ethexe/contracts/lib/openzeppelin-foundry-upgrades
+	url = https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
+	branch = "main"
 [submodule "ethexe/contracts/lib/symbiotic-core"]
 	path = ethexe/contracts/lib/symbiotic-core
 	url = https://github.com/gear-tech/symbiotic-core
 	branch = "gear-main"
+[submodule "ethexe/contracts/lib/symbiotic-rewards"]
+	path = ethexe/contracts/lib/symbiotic-rewards
+	url = https://github.com/gear-tech/symbiotic-rewards
+	branch = gear-main
 [submodule "ethexe/contracts/lib/frost-secp256k1-evm"]
 	path = ethexe/contracts/lib/frost-secp256k1-evm
 	url = https://github.com/StackOverflowExcept1on/frost-secp256k1-evm
