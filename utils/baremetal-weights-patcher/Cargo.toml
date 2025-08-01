@@ -6,5 +6,4 @@ edition.workspace = true
 [dependencies]
 syn = { workspace = true, features = ["parsing", "full", "visit"] }
 clap = { workspace = true, features = ["derive"] }
-serde = { workspace = true,  features = ["derive"] }
 proc-macro2 = { workspace = true, features = ["span-locations"]}

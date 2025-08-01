@@ -4,6 +4,8 @@ use syn::{
     Expr, ExprCall, ExprMethodCall, File, ImplItem, ItemImpl, Stmt, spanned::Spanned, visit::Visit,
 };
 
+extern crate proc_macro2;
+
 // Adjust specific weights by 10 percent
 const WEIGHT_SLOPE_MULTI: (usize, usize) = (110, 100);
 // The pattern to match function names
