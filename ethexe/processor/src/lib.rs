@@ -20,7 +20,7 @@
 
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule,
-    db::CodesStorageWrite,
+    db::{BlockMetaStorageWrite, CodesStorageWrite},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
@@ -288,7 +288,8 @@ impl OverlaidProcessor {
             },
         )?;
 
-        todo!("Implement program execution for reply");
+        run::run_overlaid().await;
+
         // run::run_overlaid(self, &mut handler.transitions, program_id);
 
         // Getting message to users now, because later transitions are moved.

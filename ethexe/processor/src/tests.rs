@@ -25,8 +25,8 @@ use ethexe_common::{
     },
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
 };
-use ethexe_runtime_common::{ScheduleRestorer, MessageQueue, Expiring};
-use gear_core::ids::{prelude::CodeIdExt, ProgramId};
+use ethexe_runtime_common::ScheduleRestorer;
+use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use utils::*;
