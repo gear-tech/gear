@@ -67,16 +67,14 @@ fn find_patch_position(stmt: &Stmt) -> Option<PatchRule> {
         return None;
     };
 
-    let patch_rule = args.first().map(|arg| {
+    args.first().map(|arg| {
         let span = arg.span();
         let range = span.byte_range();
         PatchRule::WeightFile {
             range,
             add_parenthesis: !matches!(arg, Expr::Lit(_)),
         }
-    });
-
-    patch_rule
+    })
 }
 
 fn patch_entries(content: &str, patch_positions: Vec<PatchRule>) -> String {
