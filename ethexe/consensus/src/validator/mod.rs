@@ -43,6 +43,7 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
     SignedValidationRequest,
+    rewards::{RewardsConfig, RewardsManager},
     utils::MultisignedBatchCommitment,
     validator::{
         coordinator::Coordinator, participant::Participant, producer::Producer,
@@ -58,7 +59,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
-use gprimitives::H256;
+use gprimitives::{H256, U256};
 use initial::Initial;
 use std::{
     collections::VecDeque,
@@ -136,6 +137,17 @@ impl ValidatorService {
             .await?
             .ok_or(anyhow!("genesis block not found by rpc"))?;
 
+        let rewards_manager = RewardsManager::new(
+            db.clone(),
+            RewardsConfig {
+                genesis_timestamp: genesis_block.header.timestamp,
+                era_duration: router.query().timelines().await?.era,
+                slot_duration: config.slot_duration,
+                wvara_digests: U256::from(10),
+                wvara_address: router.wvara().address().0.into(),
+            },
+        );
+
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
             signatures_threshold: config.signatures_threshold,
@@ -143,8 +155,7 @@ impl ValidatorService {
             rewards_enabled: false,
 
             // TODO: use router.query().timelines() after merge PR
-            era_duration: 12 * 32 * 10,
-            genesis_timestamp: genesis_block.header.timestamp,
+            rewards_manager,
             pub_key: config.pub_key,
             signer,
             db,
@@ -439,8 +450,9 @@ struct ValidatorContext {
     slot_duration: Duration,
     signatures_threshold: u64,
     router_address: Address,
-    genesis_timestamp: u64,
-    era_duration: u64,
+    rewards_manager: RewardsManager<Database>,
+    // genesis_timestamp: u64,
+    // era_duration: u64,
     // TODO #<>: This is a temporal solution, need to remove in future
     rewards_enabled: bool,
 

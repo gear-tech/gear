@@ -34,7 +34,7 @@ use ethexe_common::{
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
-use gprimitives::{H256, U256};
+use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::task::Context;
 
@@ -211,15 +211,10 @@ impl Producer {
             return Ok(None);
         }
 
-        let config = crate::rewards::RewardsConfig {
-            genesis_timestamp: ctx.genesis_timestamp,
-            era_duration: ctx.era_duration,
-            wvara_digests: U256::from(10),
-            wvara_address: Address::default(),
-        };
-        Ok(crate::rewards::rewards_commitment(
-            &ctx.db, &config, block_hash,
-        )?)
+        Ok(ctx.rewards_manager.create_commitment(block_hash)?)
+        // Ok(crate::rewards::rewards_commitment(
+        //     &ctx.db, &config, block_hash,
+        // )?)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
@@ -374,8 +369,8 @@ mod tests {
         with_batch(|batch| {
             let batch = batch.expect("Expected that batch is committed");
             assert_eq!(batch.signatures().len(), 1);
-            assert!(batch.batch().chain_commitment.is_none());
-            assert_eq!(batch.batch().code_commitments.len(), 2);
+            assert!(batch.inner().chain_commitment.is_none());
+            assert_eq!(batch.inner().code_commitments.len(), 2);
         });
     }
 

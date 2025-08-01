@@ -26,7 +26,10 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, Address, BlockData, BlockHeader, CodeBlobInfo,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        RewardsState,
+    },
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
@@ -68,7 +71,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         self.mark_chain_as_synced(chain.into_iter().rev());
 
         let era_first_block = self.era_first_block(&header)?;
-        self.propagate_validators(block, &header, era_first_block)
+        self.propagate_onchain_data(block, &header, era_first_block)
             .await?;
 
         if era_first_block && self.config.fetch_staking_data {
@@ -220,12 +223,13 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(
+    async fn propagate_onchain_data(
         &self,
         block: H256,
         header: &BlockHeader,
         era_first_block: bool,
     ) -> Result<()> {
+        // propagate validators
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !era_first_block => validators,
             _ => {
@@ -242,6 +246,18 @@ impl<DB: SyncDB> ChainSync<DB> {
             }
         };
         self.db.set_validators(block, validators.clone());
+
+        // propagate information about rewarded era
+        let rewards_state = match self.db.rewards_state(header.parent_hash) {
+            Some(state) => state,
+            None => {
+                // fetch from router
+                let latest_era = 0;
+                RewardsState::LatestDistributed(latest_era)
+            }
+        };
+        self.db.set_rewards_state(block, rewards_state);
+
         Ok(())
     }
 

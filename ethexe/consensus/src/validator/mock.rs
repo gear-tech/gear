@@ -56,16 +56,16 @@ impl WaitForEvent for ValidatorState {
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
 
+    let db = Database::memory();
     let ctx = ValidatorContext {
         slot_duration: Duration::from_secs(1),
         signatures_threshold: 1,
         router_address: 12345.into(),
-        genesis_timestamp: 0,
-        era_duration: 12 * 32 * 10,
+        rewards_manager: RewardsManager::new(db.clone(), Default::default()),
         rewards_enabled: false,
         pub_key: keys.pop().unwrap(),
         signer,
-        db: Database::memory(),
+        db,
         committer: Box::new(DummyCommitter),
         pending_events: VecDeque::new(),
         output: VecDeque::new(),

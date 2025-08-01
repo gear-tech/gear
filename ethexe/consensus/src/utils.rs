@@ -169,7 +169,7 @@ impl MultisignedBatchCommitment {
     }
 
     /// Returns a reference to the underlying batch commitment
-    pub fn batch(&self) -> &BatchCommitment {
+    pub fn inner(&self) -> &BatchCommitment {
         &self.batch
     }
 

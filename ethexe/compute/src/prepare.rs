@@ -19,7 +19,10 @@
 use crate::{ComputeError, Result, utils};
 use ethexe_common::{
     SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
+        OnChainStorageWrite, RewardsState,
+    },
     events::{BlockEvent, RouterEvent},
 };
 use gprimitives::{CodeId, H256};
@@ -33,7 +36,12 @@ pub(crate) struct PrepareInfo {
 }
 
 pub(crate) fn prepare<
-    DB: OnChainStorageRead + BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
+    DB: OnChainStorageRead
+        + BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + CodesStorageRead
+        // THINK: remove from here (because of use in function next)
+        + OnChainStorageWrite,
 >(
     db: &DB,
     head: H256,
@@ -64,7 +72,12 @@ pub(crate) fn prepare<
 /// (all missing codes, missing codes that have been already validated)
 fn propagate_data_from_parent<
     'a,
-    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
+    DB: BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + CodesStorageRead
+        + OnChainStorageRead
+        // THINK: remove this from here
+        + OnChainStorageWrite,
 >(
     db: &DB,
     block: H256,
@@ -116,17 +129,17 @@ fn propagate_data_from_parent<
                 }
             }
             BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
-                let latest_rewarded_era = db.latest_rewarded_era(parent);
-
-                // check that era is greater than previous rewarded era
-                if let Some(latest_era) = latest_rewarded_era {
-                    debug_assert!(
-                        *era > latest_era,
-                        "Rewards distributed for the same or earlier era: {era} <= {latest_era}",
+                // THINK: maybe should remove these checks
+                // let latest_rewarded_era = db.rewards_state(parent);
+                if let Some(RewardsState::LatestDistributed(latest_era)) = db.rewards_state(parent)
+                    && *era < latest_era
+                {
+                    log::error!(
+                        "received rewarded era ({era}) from router is less than a local value: {latest_era:?}"
                     );
                 }
-                // Propagate latest rewarded era
-                db.set_latest_rewarded_era(block, *era);
+
+                db.set_rewards_state(block, RewardsState::LatestDistributed(*era));
             }
             _ => {}
         }

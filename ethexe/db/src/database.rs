@@ -27,7 +27,7 @@ use ethexe_common::{
     Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        OnChainStorageRead, OnChainStorageWrite, RewardsState,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -67,7 +67,7 @@ enum Key {
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
     ValidatorSet(H256) = 13,
-    LatestRewardedEra(H256) = 14,
+    RewardsState(H256) = 14,
 
     OperatorsRewardsDistributionAt(u64) = 15,
     OperatorStakeAt(H160, u64) = 16,
@@ -99,7 +99,7 @@ impl Key {
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
             | Self::SignedTransaction(hash)
-            | Self::LatestRewardedEra(hash)
+            | Self::RewardsState(hash)
             | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
@@ -353,12 +353,6 @@ impl BlockMetaStorageRead for Database {
                     .expect("Failed to decode data into `(H256, BlockHeader)`")
             })
     }
-
-    fn latest_rewarded_era(&self, block_hash: H256) -> Option<u64> {
-        self.kv
-            .get(&Key::LatestRewardedEra(block_hash).to_bytes())
-            .map(|data| u64::decode(&mut data.as_slice()).expect("Failed to decode data ino `u64`"))
-    }
 }
 
 impl BlockMetaStorageWrite for Database {
@@ -405,12 +399,6 @@ impl BlockMetaStorageWrite for Database {
             &Key::LatestComputedBlock.to_bytes(),
             (block_hash, header).encode(),
         );
-    }
-
-    fn set_latest_rewarded_era(&self, block_hash: H256, era: u64) {
-        log::trace!("Set latest rewarded era for block {block_hash}: {era}");
-        self.kv
-            .put(&Key::LatestRewardedEra(block_hash).to_bytes(), era.encode());
     }
 }
 
@@ -707,6 +695,15 @@ impl OnChainStorageRead for Database {
                     .expect("Failed to decode data into `Vec<(Address, U256)>`")
             })
     }
+
+    fn rewards_state(&self, block_hash: H256) -> Option<ethexe_common::db::RewardsState> {
+        self.kv
+            .get(&Key::RewardsState(block_hash).to_bytes())
+            .map(|data| {
+                RewardsState::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `RewardsState` enum")
+            })
+    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -754,6 +751,11 @@ impl OnChainStorageWrite for Database {
             &Key::OperatorStakeVaultsAt(operator, era).to_bytes(),
             vaults.encode(),
         );
+    }
+
+    fn set_rewards_state(&self, block_hash: H256, state: RewardsState) {
+        self.kv
+            .put(&Key::RewardsState(block_hash).to_bytes(), state.encode());
     }
 }
 
