@@ -204,10 +204,17 @@ impl Producer {
 
     // TODO #4742
     fn aggregate_rewards_commitment(
-        _ctx: &ValidatorContext,
-        _block_hash: H256,
+        ctx: &ValidatorContext,
+        block_hash: H256,
     ) -> Result<Option<RewardsCommitment>> {
-        Ok(None)
+        if !ctx.rewards_enabled {
+            return Ok(None);
+        }
+
+        Ok(ctx.rewards_manager.create_commitment(block_hash)?)
+        // Ok(crate::rewards::rewards_commitment(
+        //     &ctx.db, &config, block_hash,
+        // )?)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
@@ -362,8 +369,8 @@ mod tests {
         with_batch(|batch| {
             let batch = batch.expect("Expected that batch is committed");
             assert_eq!(batch.signatures().len(), 1);
-            assert!(batch.batch().chain_commitment.is_none());
-            assert_eq!(batch.batch().code_commitments.len(), 2);
+            assert!(batch.inner().chain_commitment.is_none());
+            assert_eq!(batch.inner().code_commitments.len(), 2);
         });
     }
 

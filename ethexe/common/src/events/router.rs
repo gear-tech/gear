@@ -47,6 +47,9 @@ pub enum Event {
     NextEraValidatorsCommitted {
         next_era_start: u64,
     },
+    RewardsDistributed {
+        era: u64,
+    },
 }
 
 impl Event {
@@ -76,8 +79,9 @@ impl Event {
                 RequestEvent::NextEraValidatorsCommitted { next_era_start }
             }
             Self::CodeGotValidated { .. }
+            | Self::BatchCommitted { .. }
             | Self::HeadCommitted(_)
-            | Self::BatchCommitted { .. } => return None,
+            | Self::RewardsDistributed { .. } => return None,
         })
     }
 }

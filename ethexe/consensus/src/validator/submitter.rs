@@ -21,6 +21,7 @@ use crate::{ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
+use ethexe_common::db::{OnChainStorageWrite, RewardsState};
 use ethexe_ethereum::router::Router;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
@@ -73,8 +74,23 @@ impl Submitter {
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
+        Self::fill_db_before_commit(&ctx, &batch);
         let future = ctx.committer.clone_boxed().commit_batch(batch);
         Ok(Self { ctx, future }.into())
+    }
+
+    // dirty solution for filling db data before sending new batch to ethereum
+    fn fill_db_before_commit(ctx: &ValidatorContext, batch: &MultisignedBatchCommitment) {
+        let commitment = batch.inner();
+        if commitment.rewards_commitment.is_some() {
+            ctx.db.set_rewards_state(
+                commitment.block_hash,
+                RewardsState::SentToEthereum {
+                    in_block: commitment.block_hash,
+                    previous_rewarded: 0,
+                },
+            );
+        }
     }
 }
 

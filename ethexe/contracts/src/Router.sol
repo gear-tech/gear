@@ -32,7 +32,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address _mirror,
         address _wrappedVara,
         address _middleware,
-        uint256 _eraDuration,
+        uint48 _eraDuration,
         uint256 _electionDuration,
         uint256 _validationDelay,
         Gear.AggregatedPublicKey calldata _aggregatedPublicKey,
@@ -127,6 +127,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
     function latestCommittedBatchTimestamp() public view returns (uint48) {
         return _router().latestCommittedBatch.timestamp;
+    }
+
+    function latestRewardedEraIndex() public view returns (uint256) {
+        return _router().protocolData.latestRewardedEraIndex;
     }
 
     function mirrorImpl() public view returns (address) {
