@@ -17,7 +17,7 @@
 <a href=#17 id=17 data-nosnippet>17</a>// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 <a href=#18 id=18 data-nosnippet>18</a>
 <a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span>core_processor::common::JournalNote;
+<a href=#20 id=20 data-nosnippet>20</a><span class="kw">use </span><a href="../../gear_core_processor/common/enum.JournalNote.html">core_processor::common::JournalNote</a>;
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>gear_core::{ids::ActorId, message::StoredDispatch};
 <a href=#22 id=22 data-nosnippet>22</a>
 <a href=#23 id=23 data-nosnippet>23</a><span class="doccomment">/// The result of a builtin actor `handle` call.
@@ -52,7 +52,7 @@
 <a href=#52 id=52 data-nosnippet>52</a>        context: <a href="#37-40">BuiltinInfo</a>&lt;<span class="self">Self</span>::Context, <span class="self">Self</span>::Error&gt;,
 <a href=#53 id=53 data-nosnippet>53</a>        dispatch: StoredDispatch,
 <a href=#54 id=54 data-nosnippet>54</a>        gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-<a href=#55 id=55 data-nosnippet>55</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;JournalNote&gt;;
+<a href=#55 id=55 data-nosnippet>55</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt;;
 <a href=#56 id=56 data-nosnippet>56</a>}
 <a href=#57 id=57 data-nosnippet>57</a>
 <a href=#58 id=58 data-nosnippet>58</a><span class="kw">impl </span><a href="#43-56">BuiltinDispatcher</a> <span class="kw">for </span>() {
@@ -68,7 +68,7 @@
 <a href=#68 id=68 data-nosnippet>68</a>        _context: <a href="#37-40">BuiltinInfo</a>&lt;<span class="self">Self</span>::Context, <span class="self">Self</span>::Error&gt;,
 <a href=#69 id=69 data-nosnippet>69</a>        _dispatch: StoredDispatch,
 <a href=#70 id=70 data-nosnippet>70</a>        _gas_limit: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
-<a href=#71 id=71 data-nosnippet>71</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;JournalNote&gt; {
+<a href=#71 id=71 data-nosnippet>71</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html">Vec</a>&lt;<a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>&gt; {
 <a href=#72 id=72 data-nosnippet>72</a>        <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
 <a href=#73 id=73 data-nosnippet>73</a>    }
 <a href=#74 id=74 data-nosnippet>74</a>}

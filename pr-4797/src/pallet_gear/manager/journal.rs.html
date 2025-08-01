@@ -28,7 +28,7 @@
 <a href=#28 id=28 data-nosnippet>28</a>    scheduler::{SchedulingCostsPerBlock, StorageType, TaskPool},
 <a href=#29 id=29 data-nosnippet>29</a>    storage::<span class="kw-2">*</span>,
 <a href=#30 id=30 data-nosnippet>30</a>};
-<a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span>core_processor::common::{DispatchOutcome <span class="kw">as </span>CoreDispatchOutcome, JournalHandler};
+<a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span>core_processor::common::{<a href="../../../gear_core_processor/common/enum.DispatchOutcome.html">DispatchOutcome</a> <span class="kw">as </span>CoreDispatchOutcome, <a href="../../../gear_core_processor/common/trait.JournalHandler.html">JournalHandler</a>};
 <a href=#32 id=32 data-nosnippet>32</a><span class="kw">use </span>frame_support::{
 <a href=#33 id=33 data-nosnippet>33</a>    sp_runtime::Saturating,
 <a href=#34 id=34 data-nosnippet>34</a>    traits::{Currency, ExistenceRequirement, LockableCurrency, WithdrawReasons},
@@ -48,7 +48,7 @@
 <a href=#48 id=48 data-nosnippet>48</a><span class="kw">use </span>sp_runtime::traits::{UniqueSaturatedInto, <a href="https://docs.rs/num-traits/0.2/num_traits/identities/trait.Zero.html">Zero</a>};
 <a href=#49 id=49 data-nosnippet>49</a><span class="kw">use </span>sp_std::{<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">collections::btree_map::BTreeMap</a>, prelude::<span class="kw-2">*</span>};
 <a href=#50 id=50 data-nosnippet>50</a>
-<a href=#51 id=51 data-nosnippet>51</a><span class="kw">impl</span>&lt;T&gt; JournalHandler <span class="kw">for </span><a href="mod.rs.html#110-123">ExtManager</a>&lt;T&gt;
+<a href=#51 id=51 data-nosnippet>51</a><span class="kw">impl</span>&lt;T&gt; <a href="../../../gear_core_processor/common/trait.JournalHandler.html">JournalHandler</a> <span class="kw">for </span><a href="mod.rs.html#110-123">ExtManager</a>&lt;T&gt;
 <a href=#52 id=52 data-nosnippet>52</a><span class="kw">where
 <a href=#53 id=53 data-nosnippet>53</a>    </span>T: <a href="../lib.rs.html#157-283">Config</a>,
 <a href=#54 id=54 data-nosnippet>54</a>    T::AccountId: Origin,
@@ -57,12 +57,12 @@
 <a href=#57 id=57 data-nosnippet>57</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#58 id=58 data-nosnippet>58</a>        message_id: MessageId,
 <a href=#59 id=59 data-nosnippet>59</a>        source: ActorId,
-<a href=#60 id=60 data-nosnippet>60</a>        outcome: CoreDispatchOutcome,
+<a href=#60 id=60 data-nosnippet>60</a>        outcome: <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html">CoreDispatchOutcome</a>,
 <a href=#61 id=61 data-nosnippet>61</a>    ) {
-<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">use </span>CoreDispatchOutcome::<span class="kw-2">*</span>;
+<a href=#62 id=62 data-nosnippet>62</a>        <span class="kw">use </span><a href="../../../gear_core_processor/common/enum.DispatchOutcome.html">CoreDispatchOutcome</a>::<span class="kw-2">*</span>;
 <a href=#63 id=63 data-nosnippet>63</a>
 <a href=#64 id=64 data-nosnippet>64</a>        <span class="kw">let </span>status = <span class="kw">match </span><a href="#60">outcome</a> {
-<a href=#65 id=65 data-nosnippet>65</a>            Exit { program_id } =&gt; {
+<a href=#65 id=65 data-nosnippet>65</a>            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.Exit">Exit</a> { program_id } =&gt; {
 <a href=#66 id=66 data-nosnippet>66</a>                <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch outcome exit: {message_id:?}"</span>);
 <a href=#67 id=67 data-nosnippet>67</a>
 <a href=#68 id=68 data-nosnippet>68</a>                <a href="../lib.rs.html#288">Pallet</a>::&lt;T&gt;::deposit_event(<a href="../lib.rs.html#390-397">Event::ProgramChanged</a> {
@@ -72,12 +72,12 @@
 <a href=#72 id=72 data-nosnippet>72</a>
 <a href=#73 id=73 data-nosnippet>73</a>                DispatchStatus::Success
 <a href=#74 id=74 data-nosnippet>74</a>            }
-<a href=#75 id=75 data-nosnippet>75</a>            Success =&gt; {
+<a href=#75 id=75 data-nosnippet>75</a>            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.Success">Success</a> =&gt; {
 <a href=#76 id=76 data-nosnippet>76</a>                <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch outcome success: {message_id:?}"</span>);
 <a href=#77 id=77 data-nosnippet>77</a>
 <a href=#78 id=78 data-nosnippet>78</a>                DispatchStatus::Success
 <a href=#79 id=79 data-nosnippet>79</a>            }
-<a href=#80 id=80 data-nosnippet>80</a>            MessageTrap { program_id, trap } =&gt; {
+<a href=#80 id=80 data-nosnippet>80</a>            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.MessageTrap">MessageTrap</a> { program_id, trap } =&gt; {
 <a href=#81 id=81 data-nosnippet>81</a>                <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch outcome trap: {message_id:?}"</span>);
 <a href=#82 id=82 data-nosnippet>82</a>                <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.debug.html">log::debug!</a>(
 <a href=#83 id=83 data-nosnippet>83</a>                    <span class="string">"🪤 Program {} terminated with a trap: {}"</span>,
@@ -87,7 +87,7 @@
 <a href=#87 id=87 data-nosnippet>87</a>
 <a href=#88 id=88 data-nosnippet>88</a>                DispatchStatus::Failed
 <a href=#89 id=89 data-nosnippet>89</a>            }
-<a href=#90 id=90 data-nosnippet>90</a>            InitSuccess { program_id, .. } =&gt; {
+<a href=#90 id=90 data-nosnippet>90</a>            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.InitSuccess">InitSuccess</a> { program_id, .. } =&gt; {
 <a href=#91 id=91 data-nosnippet>91</a>                <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch ({message_id:?}) init success for program {program_id:?}"</span>);
 <a href=#92 id=92 data-nosnippet>92</a>
 <a href=#93 id=93 data-nosnippet>93</a>                <span class="kw">let </span>expiration =
@@ -123,7 +123,7 @@
 <a href=#123 id=123 data-nosnippet>123</a>
 <a href=#124 id=124 data-nosnippet>124</a>                DispatchStatus::Success
 <a href=#125 id=125 data-nosnippet>125</a>            }
-<a href=#126 id=126 data-nosnippet>126</a>            InitFailure {
+<a href=#126 id=126 data-nosnippet>126</a>            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.InitFailure">InitFailure</a> {
 <a href=#127 id=127 data-nosnippet>127</a>                program_id,
 <a href=#128 id=128 data-nosnippet>128</a>                origin,
 <a href=#129 id=129 data-nosnippet>129</a>                reason,
@@ -136,7 +136,7 @@
 <a href=#136 id=136 data-nosnippet>136</a>
 <a href=#137 id=137 data-nosnippet>137</a>                DispatchStatus::Failed
 <a href=#138 id=138 data-nosnippet>138</a>            }
-<a href=#139 id=139 data-nosnippet>139</a>            NoExecution =&gt; {
+<a href=#139 id=139 data-nosnippet>139</a>            <a href="../../../gear_core_processor/common/enum.DispatchOutcome.html#variant.NoExecution">NoExecution</a> =&gt; {
 <a href=#140 id=140 data-nosnippet>140</a>                <a class="macro" href="https://docs.rs/log/0.4.22/log/macro.trace.html">log::trace!</a>(<span class="string">"Dispatch ({message_id:?}) for program wasn't executed"</span>);
 <a href=#141 id=141 data-nosnippet>141</a>
 <a href=#142 id=142 data-nosnippet>142</a>                DispatchStatus::NotExecuted
