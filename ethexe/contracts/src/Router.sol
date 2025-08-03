@@ -129,7 +129,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().latestCommittedBatch.timestamp;
     }
 
-    function latestRewardedEraIndex() public view returns (uint256) {
+    function latestRewardedEraIndex() public view returns (uint48) {
         return _router().protocolData.latestRewardedEraIndex;
     }
 
@@ -439,6 +439,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes32 _stakerRewardsHash =
             IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
+
+        uint48 era = (_commitment.timestamp - genesisTimestamp()) / timelines().era;
+        router.protocolData.latestRewardedEraIndex = era;
+        emit RewardsDistributed(era);
 
         return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp));
     }

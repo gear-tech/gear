@@ -1,10 +1,14 @@
+use alloy::{
+    primitives::{Address as AlloyAddress, Uint},
+    sol_types::SolType,
+};
 use ethexe_common::{
-    Address, ToDigest,
+    Address,
     db::{BlockMetaStorageRead, OnChainStorageRead, RewardsState},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewards, StakerRewardsCommitment},
 };
 use gprimitives::{H160, H256, U256};
-use sha3::Digest;
+use rs_merkle::{MerkleTree, algorithms::Keccak256};
 use std::{collections::BTreeMap, ops::Range, time::Duration};
 
 #[cfg(test)]
@@ -48,9 +52,9 @@ pub enum RewardsError {
     OperatorStakeVaults(H160),
     #[error("stake not found for operator({0:?}) in era {1}")]
     OperatorEraStake(H160, u64),
-    #[error("...")]
+    #[error("rewards distribution not found for era {0}")]
     RewardsDistribution(u64),
-    #[error("...")]
+    #[error("rewards state not found for block {0}")]
     RewardsStateNotFound(H256),
 }
 type Result<T> = std::result::Result<T, RewardsError>;
@@ -124,9 +128,13 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
             });
         }
 
+        let operator_rewards_tree = utils::operators_merkle_tree(cumulative_operator_rewards);
         let operators_commitment = OperatorRewardsCommitment {
             amount: total_operator_rewards,
-            root: utils::operators_merkle_tree(cumulative_operator_rewards),
+            root: operator_rewards_tree
+                .root()
+                .expect("Nonempty merkle tree should have a root")
+                .into(),
         };
 
         let stakers_commitment = StakerRewardsCommitment {
@@ -146,8 +154,6 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
     }
 
     fn eras_to_reward(&self, block_hash: H256, block_timestamp: u64) -> Result<Option<Range<u64>>> {
-        // THINK: maybe need to fetch from router, not use default value - 0
-        // let latest_rewarded_era = db.latest_rewarded_era(block_hash).unwrap_or_default();
         let latest_rewarded_era = match self
             .db
             .rewards_state(block_hash)
@@ -167,14 +173,17 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
         };
 
         let current_era = utils::era_index(&self.config, block_timestamp);
+        println!("current_era: {current_era}, latest_rewarded_era: {latest_rewarded_era}");
 
         if current_era == latest_rewarded_era {
             // rewards can not be distribute, because of in this era they were already
+            println!("current_era == latest_rewarded_era, no need to distribute rewards");
             return Ok(None);
         }
 
         if current_era == latest_rewarded_era + 1 {
             // rewards can't be distributed, because era is not finished yet
+            println!("current_era == latest_rewarded_era + 1, no need to distribute rewards");
             return Ok(None);
         }
 
@@ -214,7 +223,8 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
                 .ok_or(RewardsError::BlockHeader(current_block))?;
             let block_era = utils::era_index(&self.config, block_header.timestamp);
 
-            if era <= block_era {
+            if era < block_era {
+                current_block = block_header.parent_hash;
                 // We are in the future, no need to continue
                 continue;
             }
@@ -275,30 +285,27 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
 
 mod utils {
     use super::*;
+    use alloy::{primitives::keccak256, sol_types::sol_data};
+
+    type EncodeData = (sol_data::Address, sol_data::Uint<256>);
 
     pub fn era_index(config: &RewardsConfig, block_ts: u64) -> u64 {
         (block_ts - config.genesis_timestamp) / config.era_duration
     }
 
-    pub fn operators_merkle_tree(rewards: BTreeMap<Address, U256>) -> H256 {
-        let leaves = rewards
+    pub fn rewards_to_leaves(rewards: BTreeMap<Address, U256>) -> Vec<[u8; 32]> {
+        rewards
             .into_iter()
-            // Maybe need to sort vec here, because of the position of elements may be different
             .map(|(address, amount)| {
-                let mut hasher = sha3::Keccak256::new();
-                hasher.update(address.0);
-                hasher.update(<[u8; 32]>::from(amount));
-                hasher.finalize().to_digest().0
+                let amount = Uint::from_limbs(amount.0);
+                let h = EncodeData::abi_encode_sequence(&(AlloyAddress(address.0.into()), amount));
+                keccak256(keccak256(&h)).0
             })
-            .collect::<Vec<_>>();
+            .collect()
+    }
 
-        let tree = rs_merkle::MerkleTree::<rs_merkle::algorithms::Keccak256>::from_leaves(
-            leaves.as_slice(),
-        );
-
-        // Tree is nonempty, because of validator set is nonempty and at least one operator has rewards
-        tree.root()
-            .expect("Nonempty merkle tree should have a root")
-            .into()
+    pub fn operators_merkle_tree(rewards: BTreeMap<Address, U256>) -> MerkleTree<Keccak256> {
+        let leaves = rewards_to_leaves(rewards);
+        rs_merkle::MerkleTree::<rs_merkle::algorithms::Keccak256>::from_leaves(leaves.as_slice())
     }
 }

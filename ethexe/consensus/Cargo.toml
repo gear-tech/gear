@@ -22,10 +22,11 @@ anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true
 thiserror.workspace = true
-alloy.workspace = true
+alloy = { workspace = true, features = ["node-bindings"] }
 sha3.workspace = true
 nonempty.workspace = true
-rs_merkle.workspace= true
+rs_merkle.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+alloy-contract = {version = "1.0.23", default-features = false}

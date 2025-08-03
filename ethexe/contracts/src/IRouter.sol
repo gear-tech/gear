@@ -61,7 +61,7 @@ interface IRouter {
 
     /// @notice Emitted when rewards for the appropriate era was distributed.
     /// @param eraIndex is a index of era for which rewards was distributed.
-    event RewardsDistributed(uint256 eraIndex);
+    event RewardsDistributed(uint48 eraIndex);
 
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
@@ -84,7 +84,7 @@ interface IRouter {
     function genesisTimestamp() external view returns (uint48);
     function latestCommittedBatchHash() external view returns (bytes32);
     function latestCommittedBatchTimestamp() external view returns (uint48);
-    function latestRewardedEraIndex() external view returns (uint256);
+    function latestRewardedEraIndex() external view returns (uint48);
 
     function mirrorImpl() external view returns (address);
     function wrappedVara() external view returns (address);
