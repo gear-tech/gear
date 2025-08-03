@@ -40,7 +40,7 @@ jobs:
           name: gear-loader
 
       - name: Run playbook
-        uses: dawidd6/action-ansible-playbook@v3
+        uses: dawidd6/action-ansible-playbook@v4
         with:
           directory: ./ansible/
           playbook: gear-loader-update.yaml
