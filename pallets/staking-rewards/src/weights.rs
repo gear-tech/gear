@@ -31,7 +31,6 @@ pub trait WeightInfo {
 	fn refill() -> Weight;
 	fn force_refill() -> Weight;
 	fn withdraw() -> Weight;
-	fn align_supply() -> Weight;
 }
 
 /// Weights for pallet_treasury using the Substrate node and recommended hardware.
@@ -59,12 +58,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().reads(2_u64))
             .saturating_add(T::DbWeight::get().writes(3_u64))
 	}
-
-	fn align_supply() -> Weight {
-		Weight::from_parts(55_241_000_u64, 0)
-            .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(T::DbWeight::get().writes(2_u64))
-	}
 }
 
 // For backwards compatibility and tests
@@ -85,11 +78,5 @@ impl WeightInfo for () {
 		Weight::from_parts(54_529_000_u64, 0)
             .saturating_add(RocksDbWeight::get().reads(2_u64))
             .saturating_add(RocksDbWeight::get().writes(3_u64))
-	}
-
-	fn align_supply() -> Weight {
-		Weight::from_parts(55_241_000_u64, 0)
-            .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(RocksDbWeight::get().writes(2_u64))
 	}
 }

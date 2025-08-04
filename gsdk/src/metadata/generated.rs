@@ -3642,8 +3642,6 @@ pub mod runtime_types {
                         >,
                         value: ::core::primitive::u128,
                     },
-                    #[codec(index = 3)]
-                    align_supply { target: ::core::primitive::u128 },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error for the staking rewards pallet."]
@@ -11115,7 +11113,6 @@ pub mod calls {
         Refill,
         ForceRefill,
         Withdraw,
-        AlignSupply,
     }
     impl CallInfo for StakingRewardsCall {
         const PALLET: &'static str = "StakingRewards";
@@ -11124,7 +11121,6 @@ pub mod calls {
                 Self::Refill => "refill",
                 Self::ForceRefill => "force_refill",
                 Self::Withdraw => "withdraw",
-                Self::AlignSupply => "align_supply",
             }
         }
     }

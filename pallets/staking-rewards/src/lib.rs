@@ -98,7 +98,6 @@ pub struct InflationInfo {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use core::cmp::Ordering;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
@@ -322,26 +321,6 @@ pub mod pallet {
                 Error::<T>::FailureToWithdrawFromPool
             })?;
             Self::deposit_event(Event::Withdrawn { amount: value });
-
-            Ok(())
-        }
-
-        #[pallet::call_index(3)]
-        #[pallet::weight(<T as Config>::WeightInfo::align_supply())]
-        pub fn align_supply(origin: OriginFor<T>, target: BalanceOf<T>) -> DispatchResult {
-            ensure_root(origin)?;
-
-            let issuance = T::Currency::total_issuance();
-
-            match target.cmp(&issuance) {
-                Ordering::Greater => {
-                    OffsetPool::<T>::on_nonzero_unbalanced(T::Currency::issue(target - issuance));
-                }
-                Ordering::Less => {
-                    Self::on_nonzero_unbalanced(T::Currency::burn(issuance - target));
-                }
-                _ => {}
-            };
 
             Ok(())
         }
