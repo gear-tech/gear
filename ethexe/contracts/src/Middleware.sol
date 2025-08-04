@@ -399,14 +399,14 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         VaultWithStake[] memory vaultsWithStake = new VaultWithStake[]($.vaults.length());
         uint48 vaultsCount = 0;
-        for (uint256 i = 0; i < $.vaults.length(); ++i){
+        for (uint256 i = 0; i < $.vaults.length(); ++i) {
             (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = $.vaults.atWithTimes(i);
-            if (!_wasActiveAt(vaultEnabledTime, vaultDisabledTime, ts)){
+            if (!_wasActiveAt(vaultEnabledTime, vaultDisabledTime, ts)) {
                 continue;
             }
 
             uint256 stake = IBaseDelegator(IVault(vault).delegator()).stakeAt($.subnetwork, operator, ts, new bytes(0));
-            if (stake != 0){
+            if (stake != 0) {
                 vaultsWithStake[vaultsCount] = VaultWithStake(vault, stake);
                 vaultsCount++;
             }
@@ -414,7 +414,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         // Copy elements to new array
         VaultWithStake[] memory vaultsResized = new VaultWithStake[](vaultsCount);
-        for (uint256 i = 0; i < vaultsWithStake.length; ++i){
+        for (uint256 i = 0; i < vaultsWithStake.length; ++i) {
             vaultsResized[i] = vaultsWithStake[i];
         }
 
