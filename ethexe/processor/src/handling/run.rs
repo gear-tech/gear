@@ -104,6 +104,7 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
+use core_processor::common::JournalNote;
 use ethexe_common::{
     StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
 };
@@ -111,8 +112,8 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use gear_core::gas::GasAllowanceCounter;
-use gprimitives::{ActorId, H256};
+use gear_core::{gas::GasAllowanceCounter, message::ReplyDetails};
+use gprimitives::{ActorId, H256, MessageId};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
@@ -121,6 +122,7 @@ use crate::host::{InstanceCreator, InstanceWrapper};
 pub struct RunnerConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
+    pub gas_limit_multiplier: u64,
 }
 
 pub async fn run(
@@ -132,7 +134,11 @@ pub async fn run(
 ) {
     let mut join_set = JoinSet::new();
     let chunk_size = config.chunk_processing_threads;
-    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let mut allowance_counter = GasAllowanceCounter::new(
+        config
+            .block_gas_limit
+            .saturating_mul(config.gas_limit_multiplier),
+    );
     let mut is_out_of_gas_for_block = false;
 
     // Orchestrate programs message queues for overlaid execution only once before the run-loop.
@@ -140,7 +146,7 @@ pub async fn run(
         orchestrate_queues_for_overlaid_execution(in_block_transitions, &db, base_program);
     }
 
-    loop {
+    'main: loop {
         // todo [sab] try with one run orchestrate
         let states = in_block_transitions
             .states_iter()
@@ -208,7 +214,13 @@ pub async fn run(
                     unreachable!("Program journal is `None`, this should never happen");
                 };
 
+                // Flag signals that journals processing can be stopped early, as an expected reply was found.
+                let mut overlay_early_break = overlaid_execution.is_some().then_some(false);
                 for (journal, dispatch_origin, call_reply) in program_journals {
+                    if let Some(flag) = overlay_early_break.as_mut() {
+                        try_set_early_break(flag, &journal);
+                    }
+
                     let mut journal_handler = JournalHandler {
                         program_id,
                         dispatch_origin,
@@ -222,6 +234,10 @@ pub async fn run(
                         out_of_gas_for_block: &mut is_out_of_gas_for_block,
                     };
                     core_processor::handle_journal(journal, &mut journal_handler);
+
+                    if overlay_early_break == Some(true) {
+                        break 'main;
+                    }
                 }
             }
 
@@ -345,6 +361,24 @@ fn run_runtime(
             gas_allowance,
         )
         .expect("Some error occurs while running program in instance")
+}
+
+/// Checks that journal contains a reply message to the message with `MessageId::zero()`.
+/// By contract, a message with `MessageId::zero()` is the one sent in overlay execution
+/// to calculate the reply for the program's `handle` function.
+fn try_set_early_break(flag: &mut bool, journal: &Vec<JournalNote>) {
+    for note in journal {
+        let JournalNote::SendDispatch { dispatch, .. } = note else {
+            continue;
+        };
+
+        if let Some((mid, _)) = dispatch.reply_details().map(ReplyDetails::into_parts)
+            // Implicit invariant: `MessageId::zero()` is a message sent to the base program.
+            && mid == MessageId::zero()
+        {
+            *flag = true;
+        }
+    }
 }
 
 #[cfg(test)]

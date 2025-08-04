@@ -18,11 +18,11 @@
 
 //! Utilities for tests.
 
-use anyhow::{bail, Result as AnyhowResult};
+use anyhow::{Result as AnyhowResult, bail};
 use ethexe_common::tx_pool::OffchainTransaction;
 use jsonrpsee::types::ErrorObjectOwned;
 use reqwest::{Client, Response, Result};
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{Deserialize, de::DeserializeOwned};
 
 /// Client for the ethexe rpc server.
 pub struct RpcClient {

@@ -21,7 +21,10 @@ use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::gear::MAX_BLOCK_GAS_LIMIT;
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_CHUNK_PROCESSING_THREADS};
+use ethexe_processor::{
+    DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS,
+    MAX_BLOCK_GAS_LIMIT_MULTIPLIER,
+};
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -82,6 +85,11 @@ pub struct NodeParams {
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
 
+    /// Overlay execution block gas limit multiplier.
+    #[arg(long)]
+    #[serde(default)]
+    pub gas_limit_multiplier: Option<u64>,
+
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
@@ -117,6 +125,10 @@ impl NodeParams {
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
+            gas_limit_multiplier: self
+                .gas_limit_multiplier
+                .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER)
+                .min(MAX_BLOCK_GAS_LIMIT_MULTIPLIER),
             dev: self.dev,
             fast_sync: self.fast_sync,
         })

@@ -50,6 +50,12 @@ pub const DEFAULT_CHUNK_PROCESSING_THREADS: u8 = 16;
 // Default block gas limit for the node.
 pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 
+// Default multiplier for the block gas limit in overlay execution.
+pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
+
+// Maximum block gas limit multiplier.
+pub const MAX_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 100;
+
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
     // `OverlaidProcessor` errors
@@ -124,6 +130,7 @@ pub struct BlockProcessingResult {
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
+    pub gas_limit_multiplier: u64,
 }
 
 impl Default for ProcessorConfig {
@@ -131,6 +138,7 @@ impl Default for ProcessorConfig {
         Self {
             chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
+            gas_limit_multiplier: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
         }
     }
 }
@@ -236,6 +244,8 @@ impl Processor {
             RunnerConfig {
                 chunk_processing_threads: self.config().chunk_processing_threads,
                 block_gas_limit: self.config().block_gas_limit,
+                // No overlay execution is done, so no need for a multiplication.
+                gas_limit_multiplier: 1,
             },
             None,
         )
@@ -296,6 +306,7 @@ impl OverlaidProcessor {
             RunnerConfig {
                 chunk_processing_threads: self.0.config().chunk_processing_threads,
                 block_gas_limit: self.0.config().block_gas_limit,
+                gas_limit_multiplier: self.0.config().gas_limit_multiplier,
             },
             Some(program_id),
         )

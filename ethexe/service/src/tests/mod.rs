@@ -37,7 +37,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
 use gear_core::{
@@ -45,7 +45,7 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, H160, MessageId};
+use gprimitives::{ActorId, H160, H256, MessageId};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -72,6 +72,7 @@ async fn basics() {
         blocking_threads: None,
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
+        gas_limit_multiplier: 10,
         dev: true,
         fast_sync: false,
     };
@@ -1059,6 +1060,7 @@ async fn tx_pool_gossip() {
         env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
     };
 
+    let tx_hash = signed_ethexe_tx.tx_hash();
     let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
 
     // Send request
@@ -1069,21 +1071,18 @@ async fn tx_pool_gossip() {
         .await
         .expect("failed sending request");
     assert!(resp.status().is_success());
-
-    // This way the response from RPC server is checked to be `Ok`.
-    // In case of error RPC returns the `Ok` response with error message.
-    let resp = resp
-        .json::<serde_json::Value>()
+    let resp_tx_hash = JsonRpcResponse::new(resp)
         .await
-        .expect("failed to deserialize json response from rpc");
-    assert!(resp.get("result").is_some());
+        .expect("failed to deserialize json response from rpc")
+        .try_extract_res::<H256>()
+        .expect("failed to deserialize reply info");
+    assert_eq!(resp_tx_hash, tx_hash);
 
     // Tx executable validation takes time.
     // Sleep for a while so tx is processed by both nodes.
     tokio::time::sleep(Duration::from_secs(12)).await;
 
     // Check that node-1 received the message
-    let tx_hash = signed_ethexe_tx.tx_hash();
     let node1_db_tx = node1
         .db
         .get_offchain_transaction(tx_hash)

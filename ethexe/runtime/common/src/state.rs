@@ -773,7 +773,9 @@ impl MessageQueue {
     }
 }
 
-#[derive(Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef)]
+#[derive(
+    Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Waitlist {
     #[as_ref]
