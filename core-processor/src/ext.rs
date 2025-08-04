@@ -316,17 +316,23 @@ impl<LP: LazyPagesInterface> MemoryStorer for MemoryDumper<LP> {
         ctx: &Context,
         memory: &impl Memory<Context>,
     ) -> Result<MemoryDump, MemoryError> {
-        LP::get_write_accessed_pages()
+        let pages = LP::get_write_accessed_pages();
+        let capacity = pages.len();
+
+        pages
             .into_iter()
             .map(|page| {
                 let mut data = PageBuf::new_zeroed();
                 memory.read(ctx, page.offset(), &mut data)?;
                 Ok(PageDump { page, data })
             })
-            .try_fold(MemoryDump::new(), |mut dump, page_dump| {
-                dump.try_push(page_dump?)?;
-                Ok(dump)
-            })
+            .try_fold(
+                MemoryDump::with_capacity(capacity)?,
+                |mut dump, page_dump| {
+                    dump.try_push(page_dump?)?;
+                    Ok(dump)
+                },
+            )
     }
 
     fn revert_memory<Context>(

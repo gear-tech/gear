@@ -109,6 +109,13 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         Self(Vec::new(), PhantomData)
     }
 
+    /// Tries to create new limited vector with specified `capacity`.
+    /// Returns error if `capacity` is bigger than `MAX_LEN`.
+    pub fn with_capacity(capacity: usize) -> Result<Self, E> {
+        (capacity <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(Vec::with_capacity(capacity), PhantomData))
+    }
+
     /// Tries to create new limited vector of length `len`
     /// with default initialized elements.
     pub fn try_new_default(len: usize) -> Result<Self, E> {

@@ -30,7 +30,6 @@ use crate::{
 };
 use alloc::{collections::BTreeSet, format, string::String};
 use core::{
-    any::Any,
     fmt::Debug,
     marker::{PhantomData, Send},
 };
@@ -53,12 +52,10 @@ use gear_wasm_instrument::{
 };
 #[cfg(feature = "std")]
 use {
-    gear_core::memory::HostPointer, gear_core::str::LimitedStr,
+    core::any::Any, gear_core::memory::HostPointer, gear_core::str::LimitedStr,
     gear_lazy_pages_common::GlobalsAccessError, gear_lazy_pages_common::GlobalsAccessor,
+    std::pin::Pin,
 };
-
-#[cfg(feature = "std")]
-use std::pin::Pin;
 
 // we have requirement to pass function pointer for `gear_sandbox`
 // so the only reason this macro exists is const function pointers are not stabilized yet
