@@ -608,8 +608,10 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        if let Some(memory_storer) = memory_storer {
-            // If we have a memory storer, we dump the memory after execution.
+        if let Some(memory_storer) = memory_storer
+            && let Ok(_) = res
+        {
+            // If we have a memory storer and result we dump the memory after execution.
             memory_storer
                 .dump_memory(&store, &memory)
                 .map_err(|e| System(DumpMemoryError(e)))?;
