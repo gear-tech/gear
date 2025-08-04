@@ -4946,7 +4946,6 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "roast-secp256k1-evm",
- "serde_json",
  "tempfile",
  "tokio",
  "tracing",
