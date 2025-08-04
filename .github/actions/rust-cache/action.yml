@@ -66,10 +66,11 @@ runs:
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
 
-    - uses: cargo-bins/cargo-binstall@main
-
-    - run: cargo binstall --no-confirm cargo-clean-all
+    - run: cargo install cargo-sweep
       shell: bash
 
-    - run: cargo clean-all -y --keep-days 14
+    - run: cargo sweep --installed --recursive
+      shell: bash
+
+    - run: cargo sweep --time 14 --recursive
       shell: bash
