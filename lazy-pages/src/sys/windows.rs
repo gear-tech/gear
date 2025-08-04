@@ -105,7 +105,7 @@ where
     }
 }
 
-#[cfg(all(target_os = "windows", debug_assertions))]
+#[cfg(debug_assertion)]
 #[inline(never)]
 fn check_windows_stack() {
     use std::arch::asm;
@@ -132,5 +132,5 @@ fn check_windows_stack() {
     }
 }
 
-#[cfg(not(all(target_os = "windows", debug_assertions)))]
+#[cfg(not(debug_assertion))]
 fn check_windows_stack() {}

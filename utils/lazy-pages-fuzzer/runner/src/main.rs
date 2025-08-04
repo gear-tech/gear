@@ -23,13 +23,13 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use lazy_pages_fuzzer::GeneratedModule;
 use seeds::{derivate_seed, generate_seed};
-use uitls::{cast_slice, hex_to_string, string_to_hex};
+use utils::{cast_slice, hex_to_string, string_to_hex};
 
 use crate::cli::RunArgs;
 
 mod cli;
 mod seeds;
-mod uitls;
+mod utils;
 mod worker;
 
 const SEED_SIZE_IN_U32: usize = 8192;
@@ -156,7 +156,6 @@ fn reproduce(instance_seed: [u8; 32]) {
     let m = GeneratedModule::arbitrary(&mut u).expect("Failed to generate module");
     // Instrument the module
     let m = m.enhance().unwrap();
-    //log::info!("Generated module: {m:#?}");
 
     if lazy_pages_fuzzer::run(m).is_err() {
         panic!("failed to fuzz")

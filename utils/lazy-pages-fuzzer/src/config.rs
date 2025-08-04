@@ -51,10 +51,10 @@ impl ConfigsBundle for FuzzerConfigBundle {
             SelectableParams {
                 // NOTE: for lazy-pages-fuzzer we don't rly need generate any instruction,
                 // memory/global access are injected manually.
-                allowed_instructions: Vec::new(),
+                allowed_instructions: vec![],
                 max_instructions: 500,
-                min_funcs: NonZero::<usize>::new(5).expect("non zero value"),
-                max_funcs: NonZero::<usize>::new(20).expect("non zero value"),
+                min_funcs: NonZero::new(5).expect("non zero value"),
+                max_funcs: NonZero::new(20).expect("non zero value"),
             },
         )
     }
