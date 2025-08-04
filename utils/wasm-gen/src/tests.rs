@@ -1091,9 +1091,7 @@ fn execute_wasm_with_custom_configs(
         .execute(DispatchKind::Init, None::<&mut DummyStorer>)
         .expect("Failed to execute WASM module");
 
-    execution_result
-        .expect("Failed to execute WASM module")
-        .report()
+    execution_result.report()
 }
 
 fn message_sender() -> ActorId {
