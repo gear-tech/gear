@@ -35,7 +35,7 @@ pub enum Commands {
         /// 64-char hex string representing [u8; 32]
         instance_seed: String,
     },
-    // Intended for internal use only, not a public command
+    /// DO NOT USE, intended for internal use only, not a public command
     Worker {
         // Token to identify the worker
         #[arg(long)]

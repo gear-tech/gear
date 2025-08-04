@@ -138,7 +138,7 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
     });
 
     if let Some(report) = report {
-        println!("{report:#?}");
+        eprintln!("{report:#?}");
         process::exit(report.exit_code);
     }
 }
