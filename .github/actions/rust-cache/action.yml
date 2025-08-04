@@ -69,8 +69,5 @@ runs:
     - run: cargo install cargo-sweep
       shell: bash
 
-    - run: cargo sweep --installed --recursive
-      shell: bash
-
     - run: cargo sweep --time 14 --recursive
       shell: bash
