@@ -17,16 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    BackendExternalities,
     error::{
         BackendAllocSyscallError, BackendSyscallError, RunFallibleError, UndefinedTerminationReason,
     },
-    BackendExternalities,
 };
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{fmt, fmt::Debug, mem};
 use gear_core::{
+    buffer::PayloadSlice,
     costs::CostToken,
-    env::{Externalities, PayloadSliceLock, UnlockPayloadBound},
+    env::Externalities,
     env_vars::{EnvVars, EnvVarsV1},
     gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasCounter, GasLeft},
     ids::{ActorId, MessageId, ReservationId},
@@ -183,10 +184,10 @@ impl Externalities for MockExt {
         Ok(ActorId::from(0))
     }
     fn reply_code(&self) -> Result<ReplyCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(ReplyCode::Unsupported)
     }
     fn signal_code(&self) -> Result<SignalCode, Self::UnrecoverableError> {
-        Ok(Default::default())
+        Ok(SignalCode::RemovedFromWaitlist)
     }
     fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(0.into())
@@ -281,15 +282,7 @@ impl Externalities for MockExt {
         Ok(MessageId::default())
     }
 
-    fn lock_payload(
-        &mut self,
-        _at: u32,
-        _len: u32,
-    ) -> Result<PayloadSliceLock, Self::UnrecoverableError> {
-        unimplemented!()
-    }
-
-    fn unlock_payload(&mut self, _payload_holder: &mut PayloadSliceLock) -> UnlockPayloadBound {
+    fn payload_slice(&mut self, _at: u32, _len: u32) -> Result<PayloadSlice, Self::FallibleError> {
         unimplemented!()
     }
 }

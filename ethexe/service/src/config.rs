@@ -19,7 +19,7 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_common::{ecdsa::PublicKey, Address};
+use ethexe_common::{Address, ecdsa::PublicKey};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
@@ -60,6 +60,7 @@ pub struct NodeConfig {
     pub worker_threads: Option<usize>,
     pub blocking_threads: Option<usize>,
     pub chunk_processing_threads: usize,
+    pub block_gas_limit: u64,
     pub dev: bool,
     pub fast_sync: bool,
 }

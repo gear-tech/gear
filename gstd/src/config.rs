@@ -21,13 +21,13 @@
 
 //! This module is for configuring `gstd` inside gear programs.
 use crate::{
-    errors::{Error, Result, UsageError},
     BlockCount,
+    errors::{Error, Result, UsageError},
 };
 
 /// Constant declaring default `Config::system_reserve()` in case of not
 /// "ethexe" feature.
-pub const SYSTEM_RESERVE: u64 = 1_000_000_000;
+pub const SYSTEM_RESERVE: u64 = 10_000_000_000;
 
 /// Wait types.
 #[derive(Clone, Copy, Default)]

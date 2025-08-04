@@ -19,17 +19,67 @@
 //! sp-sandbox runtime (here it's program execution state) realization.
 
 use crate::{
+    BackendExternalities,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, RunFallibleError, TrapExplanation,
         UndefinedTerminationReason,
     },
-    memory::{BackendMemory, ExecutorMemory, MemoryAccessRegistry},
+    memory::{
+        BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessIo, MemoryAccessRegistry,
+    },
     state::{HostState, State},
-    BackendExternalities,
 };
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};
 use gear_wasm_instrument::SyscallName;
+
+pub(crate) type MemoryAccessIoOption<Caller> =
+    Option<Result<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError>>;
+pub(crate) struct MemoryCallerContext<'a, Caller> {
+    pub caller_wrap: CallerWrap<'a, Caller>,
+    pub memory_wrap: MemoryAccessIoWrap<Caller>,
+}
+
+impl<'a, Caller, Mem, Ext> MemoryCallerContext<'a, Caller>
+where
+    Caller: AsContextExt<State = HostState<Ext, Mem>>,
+    Mem: 'static,
+{
+    pub fn new(caller: &'a mut Caller) -> Self {
+        Self {
+            caller_wrap: CallerWrap::new(caller),
+            memory_wrap: MemoryAccessIoWrap::new(),
+        }
+    }
+}
+
+pub(crate) struct MemoryAccessIoWrap<Caller> {
+    memory_io: MemoryAccessIoOption<Caller>,
+}
+
+impl<Caller> MemoryAccessIoWrap<Caller> {
+    pub fn new() -> Self {
+        Self { memory_io: None }
+    }
+    pub fn set_io(
+        &mut self,
+        io: Result<MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError>,
+    ) {
+        self.memory_io = Some(io);
+    }
+
+    pub fn io_mut_ref(
+        &mut self,
+    ) -> Result<&mut MemoryAccessIo<Caller, BackendMemory<ExecutorMemory>>, MemoryAccessError> {
+        self.memory_io
+            .as_mut()
+            .unwrap_or_else(|| {
+                unreachable!("MemoryAccessIoWrap::io_ref: memory_io must be set before execution")
+            })
+            .as_mut()
+            .map_err(|e| *e)
+    }
+}
 
 pub(crate) struct CallerWrap<'a, Caller> {
     pub caller: &'a mut Caller,
@@ -73,35 +123,35 @@ where
     }
 }
 
-impl<Caller, Ext> CallerWrap<'_, Caller>
+impl<Caller, Ext> MemoryCallerContext<'_, Caller>
 where
     Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
     Ext: BackendExternalities + 'static,
 {
     #[track_caller]
-    pub fn run_any<U, F>(&mut self, gas: u64, token: CostToken, f: F) -> Result<(u64, U), HostError>
+    pub fn run_any<U, F>(&mut self, token: CostToken, f: F) -> Result<(u64, U), HostError>
     where
         F: FnOnce(&mut Self) -> Result<U, UndefinedTerminationReason>,
     {
-        self.state_mut().ext.decrease_current_counter_to(gas);
-
         let run = || {
-            self.state_mut().ext.charge_gas_for_token(token)?;
+            self.caller_wrap
+                .state_mut()
+                .ext
+                .charge_gas_for_token(token)?;
             f(self)
         };
 
         run()
             .map_err(|err| {
-                self.set_termination_reason(err);
+                self.caller_wrap.set_termination_reason(err);
                 HostError
             })
-            .map(|r| (self.state_mut().ext.define_current_counter(), r))
+            .map(|r| (self.caller_wrap.state_mut().ext.define_current_counter(), r))
     }
 
     #[track_caller]
     pub fn run_fallible<U: Sized, F, R>(
         &mut self,
-        gas: u64,
         res_ptr: u32,
         token: CostToken,
         f: F,
@@ -111,36 +161,32 @@ where
         R: From<Result<U, u32>> + Sized,
     {
         self.run_any(
-            gas,
             token,
             |ctx: &mut Self| -> Result<_, UndefinedTerminationReason> {
                 let res = f(ctx);
-                let res = ctx.process_fallible_func_result(res)?;
-
-                // TODO: move above or make normal process memory access.
-                let mut registry = MemoryAccessRegistry::default();
-                let write_res = registry.register_write_as::<R>(res_ptr);
-                let mut io = registry.pre_process(ctx)?;
-                io.write_as(ctx, write_res, R::from(res))
-                    .map_err(Into::into)
+                ctx.process_fallible_func_result::<_, R>(res_ptr, res)
             },
         )
     }
 
     pub fn alloc(&mut self, pages: u32) -> Result<WasmPage, <Ext>::AllocError> {
-        let mut state = self.take_state();
+        let mut state = self.caller_wrap.take_state();
         let mut memory = state.memory.clone();
-        let res = state.ext.alloc(self.caller, &mut memory, pages);
-        self.caller.data_mut().replace(state);
+        let res = state.ext.alloc(self.caller_wrap.caller, &mut memory, pages);
+        self.caller_wrap.caller.data_mut().replace(state);
         res
     }
 
     /// Process fallible syscall function result
-    pub fn process_fallible_func_result<U: Sized>(
+    pub fn process_fallible_func_result<U: Sized, R>(
         &mut self,
+        res_ptr: u32,
         res: Result<U, RunFallibleError>,
-    ) -> Result<Result<U, u32>, UndefinedTerminationReason> {
-        match res {
+    ) -> Result<(), UndefinedTerminationReason>
+    where
+        R: From<Result<U, u32>> + Sized,
+    {
+        let res = match res {
             Err(RunFallibleError::FallibleExt(ext_err)) => {
                 let code = ext_err.to_u32();
                 log::trace!(target: "syscalls", "fallible syscall error: {ext_err}");
@@ -148,7 +194,13 @@ where
             }
             Err(RunFallibleError::UndefinedTerminationReason(reason)) => Err(reason),
             Ok(res) => Ok(Ok(res)),
-        }
+        }?;
+
+        let mut registry = MemoryAccessRegistry::default();
+        let write_res = registry.register_write_as::<R>(res_ptr);
+        let mut io = registry.pre_process(&mut self.caller_wrap)?;
+        io.write_as(&mut self.caller_wrap, write_res, R::from(res))
+            .map_err(Into::into)
     }
 
     /// Process alloc function result
@@ -166,15 +218,25 @@ where
     }
 
     pub fn check_func_forbiddenness(&mut self, syscall_name: SyscallName) -> Result<(), HostError> {
-        if self.ext_mut().forbidden_funcs().contains(&syscall_name)
-            || self.ext_mut().msg_ctx().kind().forbids(syscall_name)
+        if self
+            .caller_wrap
+            .ext_mut()
+            .forbidden_funcs()
+            .contains(&syscall_name)
+            || self
+                .caller_wrap
+                .ext_mut()
+                .msg_ctx()
+                .kind()
+                .forbids(syscall_name)
         {
-            self.set_termination_reason(
+            self.caller_wrap.set_termination_reason(
                 ActorTerminationReason::Trap(TrapExplanation::ForbiddenFunction).into(),
             );
-            return Err(HostError);
-        }
 
-        Ok(())
+            Err(HostError)
+        } else {
+            Ok(())
+        }
     }
 }

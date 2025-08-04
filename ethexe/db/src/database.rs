@@ -19,11 +19,12 @@
 //! Database for ethexe.
 
 use crate::{
-    overlay::{CASOverlay, KVOverlay},
     CASDatabase, KVDatabase, MemDb,
+    overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ethexe_common::{
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
@@ -31,7 +32,6 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-    BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -39,13 +39,14 @@ use ethexe_runtime_common::state::{
 };
 use gear_core::{
     buffer::Payload,
-    code::InstrumentedCode,
+    code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
     memory::PageBuf,
 };
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[repr(u64)]
 enum Key {
@@ -57,13 +58,15 @@ enum Key {
 
     ProgramToCodeId(ActorId) = 5,
     InstrumentedCode(u32, CodeId) = 6,
-    CodeUploadInfo(CodeId) = 7,
-    CodeValid(CodeId) = 8,
+    CodeMetadata(CodeId) = 7,
+    CodeUploadInfo(CodeId) = 8,
+    CodeValid(CodeId) = 9,
 
-    SignedTransaction(H256) = 9,
+    SignedTransaction(H256) = 10,
 
-    LatestComputedBlock = 10,
-    LatestSyncedBlockHeight = 11,
+    LatestComputedBlock = 11,
+    LatestSyncedBlockHeight = 12,
+    ValidatorSet(H256) = 13,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -90,13 +93,14 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash)
+            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
-            Self::CodeUploadInfo(code_id) | Self::CodeValid(code_id) => {
-                [prefix.as_ref(), code_id.as_ref()].concat()
-            }
+            Self::CodeMetadata(code_id)
+            | Self::CodeUploadInfo(code_id)
+            | Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
 
             Self::InstrumentedCode(runtime_id, code_id) => [
                 prefix.as_ref(),
@@ -104,6 +108,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
         }
     }
@@ -192,7 +197,9 @@ impl Database {
             .height
             .checked_sub(reference_block_header.height)
         else {
-            bail!("Can't calculate actual window: reference block hash doesn't suit actual blocks state");
+            bail!(
+                "Can't calculate actual window: reference block hash doesn't suit actual blocks state"
+            );
         };
 
         if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
@@ -269,35 +276,21 @@ impl Database {
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
-    block_synced: bool,
-    block_pre_computed: bool,
-    block_computed: bool,
+    meta: BlockMeta,
     prev_not_empty_block: Option<H256>,
+    last_committed_batch: Option<Digest>,
     commitment_queue: Option<VecDeque<H256>>,
     codes_queue: Option<VecDeque<CodeId>>,
 }
 
 impl BlockMetaStorageRead for Database {
-    fn block_prepared(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_pre_computed)
-            .unwrap_or(false)
-    }
-
-    fn block_computed(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_computed)
-            .unwrap_or(false)
-    }
-
-    fn block_commitment_queue(&self, block_hash: H256) -> Option<VecDeque<H256>> {
-        self.with_small_data(block_hash, |data| data.commitment_queue)?
+    fn block_meta(&self, block_hash: H256) -> BlockMeta {
+        self.with_small_data(block_hash, |data| data.meta)
+            .unwrap_or_default()
     }
 
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>> {
         self.with_small_data(block_hash, |data| data.codes_queue)?
-    }
-
-    fn previous_not_empty_block(&self, block_hash: H256) -> Option<H256> {
-        self.with_small_data(block_hash, |data| data.prev_not_empty_block)?
     }
 
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
@@ -347,31 +340,19 @@ impl BlockMetaStorageRead for Database {
 }
 
 impl BlockMetaStorageWrite for Database {
-    fn set_block_prepared(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set pre-computed");
-        self.mutate_small_data(block_hash, |data| data.block_pre_computed = true);
-    }
-
-    fn set_block_computed(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set block computed");
-        self.mutate_small_data(block_hash, |data| data.block_computed = true);
-    }
-
-    fn set_block_commitment_queue(&self, block_hash: H256, queue: VecDeque<H256>) {
-        log::trace!("For block {block_hash} set commitment queue: {queue:?}");
-        self.mutate_small_data(block_hash, |data| data.commitment_queue = Some(queue));
+    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
+    where
+        F: FnOnce(&mut BlockMeta),
+    {
+        log::trace!("For block {block_hash} mutate meta");
+        self.mutate_small_data(block_hash, |data| {
+            f(&mut data.meta);
+        });
     }
 
     fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
         log::trace!("For block {block_hash} set codes queue: {queue:?}");
         self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
-    }
-
-    fn set_previous_not_empty_block(&self, block_hash: H256, prev_not_empty_block_hash: H256) {
-        log::trace!("For block {block_hash} set prev commitment: {prev_not_empty_block_hash}");
-        self.mutate_small_data(block_hash, |data| {
-            data.prev_not_empty_block = Some(prev_not_empty_block_hash)
-        });
     }
 
     fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {
@@ -431,8 +412,17 @@ impl CodesStorageRead for Database {
         self.kv
             .get(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
             .map(|data| {
-                InstrumentedCode::decode(&mut data.as_slice())
+                Decode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
+            })
+    }
+
+    fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata> {
+        self.kv
+            .get(&Key::CodeMetadata(code_id).to_bytes())
+            .map(|data| {
+                CodeMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeMetadata`")
             })
     }
 
@@ -464,9 +454,35 @@ impl CodesStorageWrite for Database {
         );
     }
 
+    fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        self.kv.put(
+            &Key::CodeMetadata(code_id).to_bytes(),
+            code_metadata.encode(),
+        );
+    }
+
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
+    }
+
+    fn valid_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValid(Default::default()).prefix();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, valid)| {
+                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
+                let code_id =
+                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
+
+                let valid =
+                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+
+                (code_id, valid)
+            })
+            .filter_map(|(code_id, valid)| valid.then_some(code_id))
+            .collect()
     }
 }
 
@@ -620,17 +636,23 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn block_is_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_synced)
-            .unwrap_or(false)
-    }
-
     fn latest_synced_block_height(&self) -> Option<u32> {
         self.kv
             .get(&Key::LatestSyncedBlockHeight.to_bytes())
             .map(|data| {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
+    }
+
+    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+        self.kv
+            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .map(|data| {
+                NonEmpty::from_vec(
+                    Vec::<Address>::decode(&mut data.as_slice())
+                        .expect("Failed to decode data into `Vec<Address>`"),
+                )
+            })?
     }
 }
 
@@ -649,13 +671,16 @@ impl OnChainStorageWrite for Database {
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
-    fn set_block_is_synced(&self, block_hash: H256) {
-        self.mutate_small_data(block_hash, |data| data.block_synced = true);
-    }
-
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    }
+
+    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+        self.kv.put(
+            &Key::ValidatorSet(block_hash).to_bytes(),
+            Into::<Vec<Address>>::into(validator_set).encode(),
+        );
     }
 }
 
@@ -665,7 +690,7 @@ mod tests {
     use ethexe_common::{
         ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
     };
-    use gear_core::code::InstantiatedSectionSizes;
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_offchain_transaction() {
@@ -677,7 +702,7 @@ mod tests {
             OffchainTransaction {
                 raw: SendMessage {
                     program_id: H256::random().into(),
-                    payload: H256::random().as_bytes().to_vec(),
+                    payload: H256::random().0.to_vec(),
                 },
                 reference_block: H256::random(),
             },
@@ -739,16 +764,18 @@ mod tests {
 
             // Check block near the end of the window
             let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_mid)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_mid)
+                    .unwrap()
+            );
 
             // Check block at the edge of the window
             // Block at BASE_HEIGHT
             let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
-            assert!(db
-                .check_within_recent_blocks(reference_block_hash_edge)
-                .unwrap());
+            assert!(
+                db.check_within_recent_blocks(reference_block_hash_edge)
+                    .unwrap()
+            );
         }
 
         // --- Fail: Outside Window ---
@@ -839,10 +866,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No latest valid block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No latest valid block found")
+            );
         }
 
         // --- Error: No Reference Block ---
@@ -862,10 +891,12 @@ mod tests {
             let reference_block_hash = H256::random();
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("No reference block found"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("No reference block found")
+            );
         }
 
         // --- Error: Missing History ---
@@ -896,10 +927,12 @@ mod tests {
 
             let result = db.check_within_recent_blocks(reference_block_hash);
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .to_string()
-                .contains("not found in the window"));
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("not found in the window")
+            );
         }
     }
 
@@ -968,8 +1001,8 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        db.set_block_is_synced(block_hash);
-        assert!(db.block_is_synced(block_hash));
+        db.mutate_block_meta(block_hash, |meta| meta.synced = true);
+        assert!(db.block_meta(block_hash).synced);
     }
 
     #[test]
@@ -1006,23 +1039,56 @@ mod tests {
 
         let runtime_id = 1;
         let code_id = CodeId::default();
-        let instrumented_code = unsafe {
-            InstrumentedCode::new_unchecked(
-                vec![1, 2, 3, 4],
-                2,
-                Default::default(),
-                0.into(),
-                None,
-                InstantiatedSectionSizes::EMPTY,
-                1,
-            )
-        };
+        let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
+        let instrumented_code = InstrumentedCode::new(vec![1, 2, 3, 4], section_sizes);
         db.set_instrumented_code(runtime_id, code_id, instrumented_code.clone());
         assert_eq!(
             db.instrumented_code(runtime_id, code_id)
                 .as_ref()
-                .map(|c| c.code()),
-            Some(instrumented_code.code())
+                .map(|c| c.bytes()),
+            Some(instrumented_code.bytes())
+        );
+    }
+
+    #[test]
+    fn test_code_metadata() {
+        let db = Database::memory();
+
+        let code_id = CodeId::default();
+        let code_metadata = CodeMetadata::new(
+            1,
+            Default::default(),
+            0.into(),
+            None,
+            InstrumentationStatus::Instrumented {
+                version: 3,
+                code_len: 2,
+            },
+        );
+        db.set_code_metadata(code_id, code_metadata.clone());
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.original_code_len()),
+            Some(code_metadata.original_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumented_code_len()),
+            Some(code_metadata.instrumented_code_len())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instrumentation_status()),
+            Some(code_metadata.instrumentation_status())
+        );
+        assert_eq!(
+            db.code_metadata(code_id)
+                .as_ref()
+                .map(|m| m.instruction_weights_version()),
+            Some(code_metadata.instruction_weights_version())
         );
     }
 

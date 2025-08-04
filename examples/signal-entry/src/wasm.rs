@@ -19,13 +19,12 @@
 use crate::{HandleAction, WAIT_AND_RESERVE_WITH_PANIC_GAS};
 use gear_core::ids::prelude::*;
 use gstd::{
-    debug,
+    ActorId, MessageId, debug,
     errors::{ExtError, ReservationError, SignalCode, SimpleExecutionError},
     exec,
     ext::oom_panic,
     msg,
     prelude::*,
-    ActorId, MessageId,
 };
 
 static mut INITIATOR: ActorId = ActorId::zero();
@@ -102,7 +101,7 @@ extern "C" fn handle() {
             exec::wait();
         }
         HandleAction::Panic => {
-            exec::system_reserve_gas(10_000_000_000).unwrap();
+            exec::system_reserve_gas(12_000_000_000).unwrap();
             panic!();
         }
         HandleAction::WaitWithReserveAmountAndPanic(gas_amount) => {

@@ -55,9 +55,9 @@ pub enum InitMessage {
 #[cfg(not(feature = "std"))]
 mod wasm {
     use super::{
-        backend_error::wasm as backend_error, btree::wasm as btree, capacitor::wasm as capacitor,
-        reserver::wasm as reserver, simple_waiter::wasm as simple_waiter,
-        wake_after_exit::wasm as wake_after_exit, InitMessage,
+        InitMessage, backend_error::wasm as backend_error, btree::wasm as btree,
+        capacitor::wasm as capacitor, reserver::wasm as reserver,
+        simple_waiter::wasm as simple_waiter, wake_after_exit::wasm as wake_after_exit,
     };
     use gstd::{msg, prelude::*};
 

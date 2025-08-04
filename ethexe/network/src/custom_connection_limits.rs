@@ -18,15 +18,17 @@
 
 use crate::utils::ConnectionMap;
 use libp2p::{
-    core::{transport::PortUse, ConnectedPoint, Endpoint},
-    swarm::{
-        dummy, ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour,
-        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
-    },
     Multiaddr, PeerId,
+    core::{ConnectedPoint, Endpoint, transport::PortUse},
+    swarm::{
+        ConnectionClosed, ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler,
+        THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
+    },
 };
-use std::task::{Context, Poll};
-use void::Void;
+use std::{
+    convert::Infallible,
+    task::{Context, Poll},
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum LimitExceededKind {
@@ -83,7 +85,7 @@ impl Behaviour {
 
 impl NetworkBehaviour for Behaviour {
     type ConnectionHandler = dummy::ConnectionHandler;
-    type ToSwarm = Void;
+    type ToSwarm = Infallible;
 
     fn handle_established_inbound_connection(
         &mut self,
@@ -166,22 +168,22 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use libp2p::{
-        futures::{stream, StreamExt},
-        swarm::{
-            dial_opts::{DialOpts, PeerCondition},
-            DialError, ListenError, SwarmEvent,
-        },
         Swarm,
+        futures::{StreamExt, stream},
+        swarm::{
+            DialError, ListenError, SwarmEvent,
+            dial_opts::{DialOpts, PeerCondition},
+        },
     };
     use libp2p_swarm_test::SwarmExt;
 
     fn new_swarm(limits: Limits) -> Swarm<Behaviour> {
-        SwarmExt::new_ephemeral(|_keypair| Behaviour::new(limits))
+        SwarmExt::new_ephemeral_tokio(|_keypair| Behaviour::new(limits))
     }
 
     fn take_n_events<const NUM_EVENTS: usize>(
         swarm: &mut Swarm<Behaviour>,
-    ) -> impl stream::Stream<Item = SwarmEvent<Void>> + '_ {
+    ) -> impl stream::Stream<Item = SwarmEvent<Infallible>> + '_ {
         stream::unfold(swarm, |swarm| async move {
             let event = swarm.next_swarm_event().await;
             Some((event, swarm))

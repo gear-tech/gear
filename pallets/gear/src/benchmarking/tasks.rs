@@ -16,6 +16,8 @@
 use super::*;
 use gear_core::ids::ReservationId;
 
+const DEFAULT_GAS_LIMIT: u64 = 15_000_000_000;
+
 #[track_caller]
 fn send_user_message_prepare<T>(delay: u32)
 where
@@ -36,7 +38,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         delay.encode(),
-        100_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -67,7 +69,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         InitAction::Normal(vec![(50_000, 100)]).encode(),
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -136,7 +138,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         Scheme::empty().encode(),
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -154,7 +156,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         calls.encode(),
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -179,7 +181,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     let caller = benchmarking::account("caller", 0, 0);
     let _ =
@@ -194,7 +196,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         vec![],
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -205,7 +207,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         Command::Wait(WaitSubcommand::WaitFor(delay)).encode(),
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -231,7 +233,7 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    use demo_waiter::{Command, WaitSubcommand, WASM_BINARY};
+    use demo_waiter::{Command, WASM_BINARY, WaitSubcommand};
 
     let caller = benchmarking::account("caller", 0, 0);
     let _ =
@@ -246,7 +248,7 @@ where
         WASM_BINARY.to_vec(),
         salt,
         vec![],
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )
@@ -256,7 +258,7 @@ where
         RawOrigin::Signed(caller).into(),
         program_id,
         Command::Wait(WaitSubcommand::Wait).encode(),
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0u32.into(),
         false,
     )

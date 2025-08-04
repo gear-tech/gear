@@ -20,12 +20,12 @@ use gear_wasm_gen::{
     ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
 };
-use gear_wasm_instrument::{gas_metering::MemoryGrowCost, Instruction, Rules};
+use gear_wasm_instrument::{Instruction, Rules, gas_metering::MemoryGrowCost};
 use std::num::NonZero;
 
 use crate::{
-    generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
     INITIAL_PAGES,
+    generate::{InjectGlobalsConfig, InjectMemoryAccessesConfig},
 };
 
 #[derive(Debug, Default, Clone)]

@@ -22,7 +22,7 @@ use gear_core::{
     code::Code,
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
-    ids::{prelude::*, ActorId, CodeId},
+    ids::{ActorId, CodeId, prelude::*},
     memory::Memory,
     message::{
         ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
@@ -40,7 +40,7 @@ use gear_lazy_pages_native_interface::LazyPagesNative;
 use gear_utils::NonEmpty;
 use nonempty::nonempty;
 use proptest::prelude::*;
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::num::NonZero;
 
 const UNSTRUCTURED_SIZE: usize = 1_000_000;
@@ -780,11 +780,13 @@ fn test_code_id_with_value_ptr() {
             backend_report.ext.context.value_counter.left(),
             INITIAL_BALANCE - REPLY_VALUE
         );
-        assert!(backend_report
-            .ext
-            .context
-            .program_candidates_data
-            .contains_key(&some_code_id));
+        assert!(
+            backend_report
+                .ext
+                .context
+                .program_candidates_data
+                .contains_key(&some_code_id)
+        );
         assert_eq!(
             backend_report.termination_reason,
             TerminationReason::Actor(ActorTerminationReason::Success)
@@ -1056,7 +1058,7 @@ fn execute_wasm_with_custom_configs(
     let ext = Ext::new(processor_context);
     let env = Environment::new(
         ext,
-        code.code(),
+        code.instrumented_code().bytes(),
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),

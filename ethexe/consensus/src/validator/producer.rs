@@ -17,19 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{
-    coordinator::Coordinator, initial::Initial, StateHandler, ValidatorContext, ValidatorState,
+    StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::ConsensusEvent;
-use anyhow::{anyhow, Result};
+use crate::{
+    ConsensusEvent, utils,
+    validator::{CHAIN_DEEPNESS_THRESHOLD, MAX_CHAIN_DEEPNESS},
+};
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
-    gear::{BatchCommitment, BlockCommitment, CodeCommitment},
-    Address, CodeBlobInfo, ProducerBlock, SimpleBlockData,
+    Address, ProducerBlock, SimpleBlockData,
+    db::BlockMetaStorageRead,
+    gear::{
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+    },
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -40,7 +46,7 @@ use std::task::Context;
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
-    validators: Vec<Address>,
+    validators: NonEmpty<Address>,
     state: State,
 }
 
@@ -50,7 +56,7 @@ enum State {
         #[debug(skip)]
         timer: Timer,
     },
-    WaitingBlockComputed(H256),
+    WaitingBlockComputed,
 }
 
 impl StateHandler for Producer {
@@ -67,23 +73,16 @@ impl StateHandler for Producer {
     }
 
     fn process_computed_block(mut self, computed_block: H256) -> Result<ValidatorState> {
-        if !matches!(&self.state, State::WaitingBlockComputed(hash) if *hash == computed_block) {
+        if !matches!(&self.state, State::WaitingBlockComputed if self.block.hash == computed_block)
+        {
             self.warning(format!("unexpected computed block {computed_block}"));
 
             return Ok(self.into());
         }
 
-        let batch = match Self::aggregate_commitments_for_block(&self.ctx, computed_block) {
-            Err(AggregationError::SomeBlocksInQueueAreNotComputed(block)) => {
-                self.warning(format!(
-                    "block {block} in queue for block {computed_block} is not computed"
-                ));
-
-                return Initial::create(self.ctx);
-            }
-            Err(AggregationError::Any(err)) => return Err(err),
-            Ok(Some(batch)) => batch,
-            Ok(None) => return Initial::create(self.ctx),
+        let batch = match Self::aggregate_batch_commitment(&self.ctx, &self.block)? {
+            Some(batch) => batch,
+            None => return Initial::create(self.ctx),
         };
 
         Coordinator::create(self.ctx, self.validators, batch)
@@ -96,7 +95,7 @@ impl StateHandler for Producer {
                     self.create_producer_block()?
                 }
             }
-            State::WaitingBlockComputed(_) => {}
+            State::WaitingBlockComputed => {}
         }
 
         Ok(self.into())
@@ -107,7 +106,7 @@ impl Producer {
     pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: Vec<Address>,
+        validators: NonEmpty<Address>,
     ) -> Result<ValidatorState> {
         assert!(
             validators.contains(&ctx.pub_key.to_address()),
@@ -128,99 +127,87 @@ impl Producer {
         .into())
     }
 
-    fn aggregate_commitments_for_block(
+    fn aggregate_batch_commitment(
         ctx: &ValidatorContext,
-        block_hash: H256,
-    ) -> Result<Option<BatchCommitment>, AggregationError> {
-        let block_commitments = Self::aggregate_block_commitments_for_block(ctx, block_hash)?;
-        let code_commitments = Self::aggregate_code_commitments_for_block(ctx, block_hash)?;
+        block: &SimpleBlockData,
+    ) -> Result<Option<BatchCommitment>> {
+        let chain_commitment = Self::aggregate_chain_commitment(ctx, block.hash)?;
+        let code_commitments = Self::aggregate_code_commitments(ctx, block.hash)?;
+        let validators_commitment = Self::aggregate_validators_commitment(ctx, block.hash)?;
+        let rewards_commitment = Self::aggregate_rewards_commitment(ctx, block.hash)?;
 
-        // TODO: add the appropriate functionality
-        let rewards_commitments = vec![];
-
-        Ok(
-            (!block_commitments.is_empty() || !code_commitments.is_empty()).then_some(
-                BatchCommitment {
-                    block_commitments,
-                    code_commitments,
-                    rewards_commitments,
-                },
-            ),
-        )
-    }
-
-    fn aggregate_block_commitments_for_block(
-        ctx: &ValidatorContext,
-        block_hash: H256,
-    ) -> Result<Vec<BlockCommitment>, AggregationError> {
-        let commitments_queue = ctx
-            .db
-            .block_commitment_queue(block_hash)
-            .ok_or_else(|| anyhow!("Block {block_hash} commitment queue is not in storage"))?;
-
-        let mut commitments = Vec::new();
-
-        let predecessor_block = block_hash;
-
-        for block in commitments_queue {
-            if !ctx.db.block_computed(block) {
-                // This can happen when validator syncs from p2p network and skips some old blocks.
-                return Err(AggregationError::SomeBlocksInQueueAreNotComputed(block));
-            }
-
-            let outcomes = ctx
-                .db
-                .block_outcome(block)
-                .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block}"))?;
-
-            let previous_committed_block =
-                ctx.db.previous_not_empty_block(block).ok_or_else(|| {
-                    anyhow!(
-                        "Cannot get from db previous committed block for computed block {block}"
-                    )
-                })?;
-
-            let header = ctx
-                .db
-                .block_header(block)
-                .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block}"))?;
-
-            commitments.push(BlockCommitment {
-                hash: block,
-                timestamp: header.timestamp,
-                previous_committed_block,
-                predecessor_block,
-                transitions: outcomes,
-            });
+        if chain_commitment.is_none()
+            && code_commitments.is_empty()
+            && validators_commitment.is_none()
+            && rewards_commitment.is_none()
+        {
+            log::debug!(
+                "No commitments for block {} - skip batch commitment",
+                block.hash
+            );
+            return Ok(None);
         }
 
-        Ok(commitments)
+        assert!(
+            validators_commitment.is_none(),
+            "TODO #4741: validators commitment is not supported yet"
+        );
+        assert!(
+            rewards_commitment.is_none(),
+            "TODO #4742: rewards commitment is not supported yet"
+        );
+
+        utils::create_batch_commitment(&ctx.db, block, chain_commitment, code_commitments)
     }
 
-    fn aggregate_code_commitments_for_block(
+    fn aggregate_chain_commitment(
         ctx: &ValidatorContext,
         block_hash: H256,
-    ) -> Result<Vec<CodeCommitment>, AggregationError> {
-        let codes_queue = ctx
+    ) -> Result<Option<ChainCommitment>> {
+        let Some((commitment, deepness)) = utils::aggregate_chain_commitment(
+            &ctx.db,
+            block_hash,
+            false,
+            Some(MAX_CHAIN_DEEPNESS),
+        )?
+        else {
+            return Ok(None);
+        };
+
+        if commitment.transitions.is_empty() && deepness <= CHAIN_DEEPNESS_THRESHOLD {
+            // No transitions and chain is not deep enough, skip chain commitment
+            Ok(None)
+        } else {
+            Ok(Some(commitment))
+        }
+    }
+
+    fn aggregate_code_commitments(
+        ctx: &ValidatorContext,
+        block_hash: H256,
+    ) -> Result<Vec<CodeCommitment>> {
+        let queue = ctx
             .db
             .block_codes_queue(block_hash)
             .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
 
-        codes_queue
-            .into_iter()
-            .filter_map(|id| Some((id, ctx.db.code_valid(id)?)))
-            .map(|(id, valid)| {
-                ctx.db
-                    .code_blob_info(id)
-                    .ok_or_else(|| anyhow!("Validated code {id} blob info is not in storage"))
-                    .map(|CodeBlobInfo { timestamp, .. }| CodeCommitment {
-                        id,
-                        timestamp,
-                        valid,
-                    })
-            })
-            .collect::<Result<Vec<CodeCommitment>>>()
-            .map_err(Into::into)
+        utils::aggregate_code_commitments(&ctx.db, queue, false)
+    }
+
+    // TODO #4741
+    fn aggregate_validators_commitment(
+        _ctx: &ValidatorContext,
+        _block_hash: H256,
+    ) -> Result<Option<ValidatorsCommitment>> {
+        Ok(None)
+    }
+
+    // TODO #4742
+    fn aggregate_rewards_commitment(
+        _ctx: &ValidatorContext,
+        _block_hash: H256,
+    ) -> Result<Option<RewardsCommitment>> {
+        Ok(None)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {
@@ -234,7 +221,7 @@ impl Producer {
 
         let signed_pb = self.ctx.signer.signed_data(self.ctx.pub_key, pb.clone())?;
 
-        self.state = State::WaitingBlockComputed(self.block.hash);
+        self.state = State::WaitingBlockComputed;
         self.output(ConsensusEvent::PublishProducerBlock(signed_pb));
         self.output(ConsensusEvent::ComputeProducerBlock(pb));
 
@@ -242,27 +229,24 @@ impl Producer {
     }
 }
 
-#[derive(Debug, derive_more::From)]
-enum AggregationError {
-    SomeBlocksInQueueAreNotComputed(H256),
-    #[from]
-    Any(anyhow::Error),
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*};
-    use ethexe_common::db::BlockMetaStorageWrite;
-    use std::vec;
+    use crate::{SignedValidationRequest, mock::*, validator::mock::*};
+    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
+    use nonempty::{NonEmpty, nonempty};
 
     #[tokio::test]
     async fn create() {
         let (mut ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = mock_simple_block_data();
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let block = SimpleBlockData::mock(H256::random());
 
-        ctx.pending(mock_validation_request(&ctx.signer, keys[0]).1);
+        ctx.pending(SignedValidationRequest::mock((
+            ctx.signer.clone(),
+            keys[0],
+            (),
+        )));
 
         let producer = Producer::create(ctx, block, validators.clone()).unwrap();
 
@@ -277,9 +261,8 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = mock_simple_block_data();
-        prepare_mock_empty_block(&ctx.db, &block, H256::random());
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -296,60 +279,51 @@ mod tests {
     #[tokio::test]
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-
-        // [block2] <- ... <- [block1]
-        let (block1_hash, block2_hash) = (H256::random(), H256::random());
-        let (block1, block1_commitment) = prepare_block_commitment(
-            &ctx.db,
-            mock_block_commitment(block1_hash, block1_hash, block2_hash),
-        );
-        let (block2, block2_commitment) = prepare_block_commitment(
-            &ctx.db,
-            mock_block_commitment(block2_hash, block1_hash, H256::random()),
-        );
-
-        let code1 = prepare_code_commitment(&ctx.db, mock_code_commitment());
-        let code2 = prepare_code_commitment(&ctx.db, mock_code_commitment());
-
-        ctx.db
-            .set_block_codes_queue(block1.hash, [code1.id, code2.id].into_iter().collect());
-        ctx.db.set_block_commitment_queue(
-            block1.hash,
-            [block2.hash, block1.hash].into_iter().collect(),
-        );
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let block = simple_block_data(&ctx.db, batch.block_hash);
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
-        let submitter = create_producer_skip_timer(ctx, block1.clone(), validators.clone())
+        let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
-            .process_computed_block(block1.hash)
+            .process_computed_block(block.hash)
             .unwrap();
         assert!(submitter.is_submitter());
         assert_eq!(submitter.context().output.len(), 0);
 
-        // Check that we have a batch with code commitments after submitting
         let initial = submitter.wait_for_event().await.unwrap().0;
         assert!(initial.is_initial());
-        with_batch(|batch| {
-            let batch = batch.expect("Expected that batch is committed");
-            assert_eq!(batch.signatures().len(), 1);
+
+        // Check that we have a batch with commitments after submitting
+        let mut ctx = initial.into_context();
+        with_batch(|multisigned_batch| {
+            let (committed_batch, signatures) = multisigned_batch
+                .cloned()
+                .expect("Expected that batch is committed")
+                .into_parts();
+
+            assert_eq!(committed_batch, batch);
+            assert_eq!(signatures.len(), 1);
+
+            let (address, signature) = signatures.into_iter().next().unwrap();
             assert_eq!(
-                batch.batch().block_commitments,
-                vec![block2_commitment, block1_commitment]
+                signature
+                    .validate(ctx.router_address, batch.to_digest())
+                    .unwrap()
+                    .to_address(),
+                address
             );
-            assert_eq!(batch.batch().code_commitments, vec![code1, code2]);
         });
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
-        let mut ctx = initial.into_context();
         ctx.signatures_threshold = 2;
-        let (coordinator, request) = create_producer_skip_timer(ctx, block1.clone(), validators)
+        let (coordinator, request) = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
             .unwrap()
             .0
-            .process_computed_block(block1.hash)
+            .process_computed_block(block.hash)
             .unwrap()
             .wait_for_event()
             .await
@@ -364,14 +338,17 @@ mod tests {
     #[tokio::test]
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
-        let validators = vec![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = mock_simple_block_data();
-        prepare_mock_empty_block(&ctx.db, &block, H256::random());
+        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
 
-        let code1 = prepare_code_commitment(&ctx.db, mock_code_commitment());
-        let code2 = prepare_code_commitment(&ctx.db, mock_code_commitment());
+        let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
+        let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         ctx.db
             .set_block_codes_queue(block.hash, [code1.id, code2.id].into_iter().collect());
+        ctx.db.mutate_block_meta(block.hash, |meta| {
+            meta.last_committed_batch = Some(Digest::random());
+            meta.last_committed_head = Some(H256::random());
+        });
 
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
@@ -385,7 +362,7 @@ mod tests {
         with_batch(|batch| {
             let batch = batch.expect("Expected that batch is committed");
             assert_eq!(batch.signatures().len(), 1);
-            assert_eq!(batch.batch().block_commitments.len(), 0);
+            assert!(batch.batch().chain_commitment.is_none());
             assert_eq!(batch.batch().code_commitments.len(), 2);
         });
     }
@@ -393,7 +370,7 @@ mod tests {
     async fn create_producer_skip_timer(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: Vec<Address>,
+        validators: NonEmpty<Address>,
     ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert!(producer.is_producer());

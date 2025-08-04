@@ -580,10 +580,10 @@ where
             return Err(InternalError::consumed_with_lock().into());
         }
 
-        if let Some(system_reserve) = node.system_reserve() {
-            if !system_reserve.is_zero() {
-                return Err(InternalError::consumed_with_system_reservation().into());
-            }
+        if let Some(system_reserve) = node.system_reserve()
+            && !system_reserve.is_zero()
+        {
+            return Err(InternalError::consumed_with_system_reservation().into());
         }
 
         node.mark_consumed();
@@ -674,7 +674,7 @@ where
         }
 
         *node_value = node_value.saturating_sub(amount);
-        log::debug!("Spent {:?} of gas", amount);
+        log::debug!("Spent {amount:?} of gas");
 
         // Save node that delivers limit
         StorageMap::insert(node_id.unwrap_or(key), node);

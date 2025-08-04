@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{api::MemoryWrap, threads};
-use anyhow::Result;
+use crate::{
+    Result,
+    host::{api::MemoryWrap, threads},
+};
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};

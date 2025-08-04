@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::mock::*;
+use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::{
+    Group, ScalarMul, VariableBaseMSM,
     bls12::Bls12Config,
-    hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+    hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
     pairing::Pairing,
     short_weierstrass::{Projective as SWProjective, SWCurveConfig},
-    Group, ScalarMul, VariableBaseMSM,
 };
 use ark_ff::{biginteger::BigInt, fields::field_hashers::DefaultFieldHasher};
 use ark_scale::hazmat::ArkScaleProjective;
-use ark_std::{ops::Mul, UniformRand};
+use ark_std::{UniformRand, ops::Mul};
 use common::Origin;
 use frame_support::assert_ok;
 use gbuiltin_bls381::*;
@@ -125,7 +125,7 @@ fn multi_miller_loop() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -336,7 +336,7 @@ fn msm_g1() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));
@@ -454,7 +454,7 @@ fn msm_g2() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            10_000_000_000,
+            DEFAULT_GAS_LIMIT,
             0,
             false,
         ));

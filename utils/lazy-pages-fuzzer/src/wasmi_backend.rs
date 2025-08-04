@@ -17,19 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    globals::{get_globals, globals_list, InstanceAccessGlobal},
+    INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS, RunResult, Runner,
+    globals::{InstanceAccessGlobal, get_globals, globals_list},
     lazy_pages::{self, FuzzerLazyPagesContext},
-    RunResult, Runner, INITIAL_PAGES, MODULE_ENV, PROGRAM_GAS,
 };
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use error::CustomHostError;
 use gear_wasm_gen::SyscallName;
-use gear_wasm_instrument::{Module, GLOBAL_NAME_GAS};
+use gear_wasm_instrument::{GLOBAL_NAME_GAS, Module};
 use region::{Allocation, Protection};
 use std::slice;
 use wasmi::{
-    core::UntypedVal, Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType,
-    Module as WasmiModule, StackLimits, Store, Val,
+    Caller, Config, Engine, Error, Instance, Linker, Memory, MemoryType, Module as WasmiModule,
+    StackLimits, Store, Val, core::UntypedVal,
 };
 
 mod error;

@@ -27,38 +27,40 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, Bytes, ChainId, Signature, SignatureError, B256, U256},
+    primitives::{Address, B256, Bytes, ChainId, Signature, SignatureError, U256},
     providers::{
+        Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
+        RootProvider,
         fillers::{
             BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
             SimpleNonceManager, WalletFiller,
         },
-        Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
-        RootProvider,
     },
     rpc::types::eth::Log,
     signers::{
-        self as alloy_signer, sign_transaction_with_chain_id, Error as SignerError,
-        Result as SignerResult, Signer, SignerSync,
+        self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
+        sign_transaction_with_chain_id,
     },
     sol_types::{SolCall, SolEvent},
     transports::RpcError,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{ecdsa::PublicKey, gear::AggregatedPublicKey, Address as LocalAddress, Digest};
+use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey, gear::AggregatedPublicKey};
 use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
 use roast_secp256k1_evm::frost::{
-    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
     Identifier,
+    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
 mod abi;
 mod eip1167;
+
+pub mod middleware;
 pub mod mirror;
 pub mod router;
 pub mod wvara;
@@ -303,7 +305,7 @@ impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
         let (s, r) = self
             .signer
-            .sign(self.sender, Digest::from(hash.0))
+            .sign(self.sender, Digest(hash.0))
             .map_err(|err| SignerError::Other(err.into()))
             .map(|s| s.into_parts())?;
         let v = r.to_byte() as u64;

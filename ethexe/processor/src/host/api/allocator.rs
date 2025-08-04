@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::context::HostContext;
-use anyhow::Result;
+use crate::{Result, host::context::HostContext};
 use sp_wasm_interface::{FunctionContext, IntoValue, Pointer, StoreData};
 use wasmtime::{Caller, Linker};
 

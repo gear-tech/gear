@@ -36,6 +36,10 @@ mod value;
 pub use callback::{Callback, EmptyCallback, FallibleCallback, GetCallback, TransposeCallback};
 pub use counted::{Counted, CountedByKey};
 pub use double_map::DoubleMapStorage;
+
+#[cfg(feature = "std")]
+pub use double_map::auxiliary_double_map::*;
+
 pub use iterable::{
     GetFirstPos, GetSecondPos, GetThirdPos, IterableByKeyMap, IterableMap, IteratorWrap,
     KeyIterableByKeyMap,

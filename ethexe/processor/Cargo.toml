@@ -8,18 +8,18 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-db.workspace = true
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 ethexe-runtime = { workspace = true, features = ["std"] }
 gear-core.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 gear-lazy-pages.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 core-processor.workspace = true
 
-anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
 wasmtime.workspace = true
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }

@@ -37,13 +37,16 @@ pub(crate) fn copy_if_newer(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Res
 
 pub(crate) fn check_if_newer(left: impl AsRef<Path>, right: impl AsRef<Path>) -> Result<bool> {
     let right_metadata = fs::metadata(right);
-    if let Err(io_error) = right_metadata.as_ref() {
-        if io_error.kind() == ErrorKind::NotFound {
-            return Ok(true);
-        }
+
+    if let Err(io_error) = right_metadata.as_ref()
+        && io_error.kind() == ErrorKind::NotFound
+    {
+        return Ok(true);
     }
+
     let right_metadata = right_metadata.unwrap();
     let left_metadata = fs::metadata(left)?;
+
     Ok(left_metadata.modified()? > right_metadata.modified()?)
 }
 

@@ -20,11 +20,11 @@
 
 #![cfg(test)]
 
-use crate::mock::*;
+use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
-use gear_core::ids::{prelude::*, ActorId, CodeId};
+use gear_core::ids::{ActorId, CodeId, prelude::*};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
 use primitive_types::H256;
@@ -46,7 +46,7 @@ fn deploy_contract(init_payload: Vec<u8>) {
         WASM_BINARY.to_vec(),
         b"salt".to_vec(),
         init_payload,
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         EXISTENTIAL_DEPOSIT, // keep the contract's account "providing"
         false,
     ));
@@ -57,7 +57,7 @@ fn send_message(contract_id: ActorId, payload: Vec<u8>) {
         RuntimeOrigin::signed(SIGNER),
         contract_id,
         payload,
-        10_000_000_000,
+        DEFAULT_GAS_LIMIT,
         0,
         false,
     ));

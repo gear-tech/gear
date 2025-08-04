@@ -19,9 +19,9 @@
 //! Implementation of the `TaskHandler` trait for the `ExtManager`.
 
 use super::ExtManager;
-use crate::{state::actors::Actors, Gas};
+use crate::{Gas, state::programs::ProgramsStorageManager};
 use core_processor::common::JournalHandler;
-use gear_common::{scheduler::StorageType, Gas as GearCommonGas};
+use gear_common::{Gas as GearCommonGas, scheduler::StorageType};
 use gear_core::{
     gas_metering::TaskWeights,
     ids::{ActorId, CodeId, MessageId, ReservationId},
@@ -34,24 +34,24 @@ pub(crate) fn get_maximum_task_gas(task: &VaraScheduledTask<ActorId>) -> Gas {
     use ScheduledTask::*;
     let weights = TaskWeights::default();
     match task {
-        PauseProgram(_) => Gas(0),
+        PauseProgram(_) => 0,
         #[allow(deprecated)]
-        RemoveResumeSession(_) => Gas(0),
+        RemoveResumeSession(_) => 0,
 
-        RemoveFromMailbox(_, _) => Gas(weights.remove_from_mailbox.ref_time),
-        RemoveFromWaitlist(_, _) => Gas(weights.remove_from_waitlist.ref_time),
+        RemoveFromMailbox(_, _) => weights.remove_from_mailbox.ref_time,
+        RemoveFromWaitlist(_, _) => weights.remove_from_waitlist.ref_time,
         RemovePausedProgram(_) => todo!("#646"),
         RemoveCode(_) => todo!("#646"),
-        WakeMessage(_, _) => Gas(weights
+        WakeMessage(_, _) => weights
             .wake_message
             .ref_time
-            .max(weights.wake_message_no_wake.ref_time)),
-        SendDispatch(_) => Gas(weights.send_dispatch.ref_time),
-        SendUserMessage { .. } => Gas(weights
+            .max(weights.wake_message_no_wake.ref_time),
+        SendDispatch(_) => weights.send_dispatch.ref_time,
+        SendUserMessage { .. } => weights
             .send_user_message_to_mailbox
             .ref_time
-            .max(weights.send_user_message.ref_time)),
-        RemoveGasReservation(_, _) => Gas(weights.remove_gas_reservation.ref_time),
+            .max(weights.send_user_message.ref_time),
+        RemoveGasReservation(_, _) => weights.remove_gas_reservation.ref_time,
     }
 }
 
@@ -122,7 +122,7 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
 
             let trap_reply = ReplyMessage::system(message_id, err_payload, 0, err);
 
-            if Actors::is_program(waitlisted.source()) {
+            if ProgramsStorageManager::is_program(waitlisted.source()) {
                 let trap_dispatch =
                     trap_reply.into_stored_dispatch(program_id, waitlisted.source(), message_id);
 

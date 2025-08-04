@@ -19,8 +19,8 @@
 use crate::storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
 use anyhow::Result;
 use ethexe_common::{
-    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
     Address, Digest,
+    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
 };
 use std::{
     fs,
@@ -126,7 +126,7 @@ impl Signer {
 mod tests {
     use super::*;
 
-    use alloy::primitives::{keccak256, Signature};
+    use alloy::primitives::{Signature, keccak256};
     use std::str::FromStr;
 
     #[test]
@@ -149,7 +149,7 @@ mod tests {
 
         // Sign the message
         let signature = signer
-            .sign(public_key, message.as_slice())
+            .sign(public_key, message)
             .expect("Failed to sign message");
 
         // Hash the message using Keccak256
@@ -184,13 +184,11 @@ mod tests {
             .expect("Failed to add key");
 
         let signature = signer
-            .sign(public_key, message.as_slice())
+            .sign(public_key, message)
             .expect("Failed to sign message");
 
-        let hash = keccak256(message).0;
-
         let recovered_public_key = signature
-            .recover(Digest::from(hash))
+            .recover(Digest(keccak256(message).0))
             .expect("Failed to recover public key");
 
         assert_eq!(recovered_public_key, public_key);
@@ -203,10 +201,10 @@ mod tests {
         let public_key = signer.generate_key().unwrap();
 
         let signed_data = signer
-            .signed_data(public_key, b"hello world".as_slice())
+            .signed_data(public_key, b"hello world")
             .expect("Failed to create signed data");
 
-        assert_eq!(signed_data.data(), b"hello world");
+        assert_eq!(signed_data.data(), &b"hello world");
         assert_eq!(signed_data.public_key(), public_key);
     }
 }

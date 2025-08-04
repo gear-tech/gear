@@ -21,18 +21,18 @@
 pub(crate) mod utils;
 
 use crate::{
+    Service,
     config::{self, Config},
     tests::utils::{
-        init_logger, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig,
+        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
     },
-    Service,
 };
-use alloy::providers::{ext::AnvilApi, Provider as _};
+use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
+    ScheduledTask,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
-    ScheduledTask,
 };
 use ethexe_db::Database;
 use ethexe_observer::EthereumConfig;
@@ -45,7 +45,7 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, MessageId, H160};
+use gprimitives::{ActorId, H160, MessageId};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -71,6 +71,7 @@ async fn basics() {
         worker_threads: None,
         blocking_threads: None,
         chunk_processing_threads: 16,
+        block_gas_limit: 4_000_000_000_000,
         dev: true,
         fast_sync: false,
     };
@@ -633,7 +634,7 @@ async fn incoming_transfers() {
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BlockCommitted { .. })).then_some(()))
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
         })
         .await
         .unwrap();
@@ -1112,18 +1113,13 @@ async fn fast_sync() {
             log::trace!("assert block {block}");
 
             assert_eq!(
-                alice.db.block_commitment_queue(block),
-                bob.db.block_commitment_queue(block)
-            );
-            assert_eq!(
                 alice.db.block_codes_queue(block),
                 bob.db.block_codes_queue(block)
             );
 
-            assert_eq!(alice.db.block_computed(block), bob.db.block_computed(block));
             assert_eq!(
-                alice.db.previous_not_empty_block(block),
-                bob.db.previous_not_empty_block(block)
+                alice.db.block_meta(block).computed,
+                bob.db.block_meta(block).computed
             );
             assert_eq!(
                 alice.db.block_program_states(block),
@@ -1135,8 +1131,8 @@ async fn fast_sync() {
             assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
             assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
             assert_eq!(
-                alice.db.block_is_synced(block),
-                bob.db.block_is_synced(block)
+                alice.db.block_meta(block).synced,
+                bob.db.block_meta(block).synced,
             );
 
             let header = alice.db.block_header(block).unwrap();

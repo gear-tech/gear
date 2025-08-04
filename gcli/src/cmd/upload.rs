@@ -17,25 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `upload_program`
-use crate::{result::Result, utils::Hex, App};
-use anyhow::anyhow;
+use crate::{App, result::Result, utils::Hex};
+use anyhow::{Context, anyhow};
 use clap::Parser;
 use gsdk::{
+    Event,
     metadata::{gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry},
     signer::Signer,
-    Event,
 };
 use std::{fs, path::PathBuf};
+use tokio::{io, io::AsyncReadExt};
 
 /// Deploy program to gear node or save program `code` in storage.
 #[derive(Clone, Debug, Parser)]
 pub struct Upload {
-    /// Gear program code <*.wasm>.
-    #[cfg_attr(feature = "embed", clap(skip))]
+    /// Gear program code (WASM or stdin).
     code: PathBuf,
-    /// Overridden code if feature embed is enabled.
-    #[clap(skip)]
-    code_override: Vec<u8>,
     /// Save program `code` in storage only.
     #[arg(short, long)]
     code_only: bool,
@@ -56,21 +53,20 @@ pub struct Upload {
 }
 
 impl Upload {
-    /// Clone self with code overridden.
-    pub fn clone_with_code_overridden(&self, code: Vec<u8>) -> Self {
-        let mut overridden = self.clone();
-        overridden.code_override = code;
-        overridden
-    }
-
     /// Exec command submit
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let signer: Signer = app.signer().await?.into();
 
-        let code = if self.code_override.is_empty() {
-            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
+        let code = if self.code == PathBuf::from("-") {
+            let mut stdin = io::stdin();
+            let mut code = Vec::new();
+            stdin
+                .read_to_end(&mut code)
+                .await
+                .context("failed to read from stdin")?;
+            code
         } else {
-            self.code_override.clone()
+            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
         };
 
         if self.code_only {

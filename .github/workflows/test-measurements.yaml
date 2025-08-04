@@ -10,6 +10,7 @@ env:
   CARGO_TERM_COLOR: always
   TERM: xterm-256color
   COUNT: 100
+  NEXTEST_PROFILE: ci
 
 jobs:
   build:
@@ -37,7 +38,7 @@ jobs:
           mkdir -p ./target/analysis/tests/
           mkdir -p ./target/analysis/output/
           cargo build --release --package regression-analysis
-          for i in `seq 1 $COUNT`; do echo $i; cargo nextest run --package pallet-* --profile ci --no-fail-fast --release -j1 > ./target/analysis/output/$i 2>&1 || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./target/analysis/output/$i; fi; exit $exit_code; }; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
+          for i in `seq 1 $COUNT`; do echo $i; cargo nextest run --package pallet-* --release -j1 > ./target/analysis/output/$i 2>&1 || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./target/analysis/output/$i; fi; exit $exit_code; }; mv ./target/nextest/ci/junit.xml ./target/analysis/tests/$i; done
           ./target/release/regression-analysis collect-data --data-folder-path ./target/analysis/tests/ --output-path ./target/pallet-tests.json
 
       - name: "Generate report: Gear workspace tests"

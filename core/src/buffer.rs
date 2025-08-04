@@ -24,11 +24,11 @@ use core::{
     marker::PhantomData,
 };
 
-use alloc::{vec, vec::Vec};
+use alloc::{sync::Arc, vec, vec::Vec};
 use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_info::{
-    scale::{Decode, Encode},
     TypeInfo,
+    scale::{Decode, Encode},
 };
 
 use crate::str::LimitedStr;
@@ -218,6 +218,37 @@ impl Display for RuntimeBufferSizeError {
     }
 }
 
+/// Wrapper for payload slice.
+pub struct PayloadSlice {
+    /// Start of the slice.
+    start: usize,
+    /// End of the slice.
+    end: usize,
+    /// Payload
+    payload: Arc<Payload>,
+}
+
+impl PayloadSlice {
+    /// Try to create a new PayloadSlice.
+    pub fn try_new(start: u32, end: u32, payload: Arc<Payload>) -> Option<Self> {
+        // Check if start and end are within the bounds of the payload
+        if start > end || end > payload.len_u32() {
+            return None;
+        }
+
+        Some(Self {
+            start: start as usize,
+            end: end as usize,
+            payload,
+        })
+    }
+
+    /// Get slice of the payload.
+    pub fn slice(&self) -> &[u8] {
+        &self.payload.inner()[self.start..self.end]
+    }
+}
+
 /// Buffer which size cannot be bigger then max allowed allocation size in runtime.
 pub type RuntimeBuffer = LimitedVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
 
@@ -287,7 +318,7 @@ impl PanicBuffer {
         &self.0
     }
 
-    fn to_limited_str(&self) -> Option<LimitedStr> {
+    fn to_limited_str(&self) -> Option<LimitedStr<'_>> {
         let s = core::str::from_utf8(self.0.inner()).ok()?;
         LimitedStr::try_from(s).ok()
     }

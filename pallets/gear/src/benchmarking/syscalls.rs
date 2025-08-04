@@ -19,31 +19,30 @@
 //! Benchmarks for gear syscalls.
 
 use super::{
+    API_BENCHMARK_BATCHES, Exec, Program,
     code::{
-        body::{self, unreachable_condition_i32, DynInstr::*},
         DataSegment, ImportedMemory, ModuleDefinition, WasmModule,
+        body::{self, DynInstr::*, unreachable_condition_i32},
     },
     utils::{self, PrepareConfig},
-    Exec, Program, API_BENCHMARK_BATCHES,
 };
 use crate::{
-    benchmarking::MAX_PAYLOAD_LEN, manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE, Config,
-    MailboxOf, Pallet as Gear, ProgramStorageOf,
+    Config, MailboxOf, Pallet as Gear, ProgramStorageOf, benchmarking::MAX_PAYLOAD_LEN,
+    manager::HandleKind, schedule::API_BENCHMARK_BATCH_SIZE,
 };
 use alloc::{vec, vec::Vec};
-use common::{benchmarking, storage::*, Origin, ProgramStorage};
+use common::{Origin, ProgramStorage, storage::*};
 use core::marker::PhantomData;
-use frame_system::RawOrigin;
 use gear_core::{
     ids::{ActorId, CodeId, MessageId, ReservationId},
     memory::{PageBuf, PageBufInner},
     message::{Message, Value},
-    pages::{numerated::iterators::IntervalIterator, GearPage, WasmPage, WasmPagesAmount},
+    pages::{GearPage, WasmPage, WasmPagesAmount, numerated::iterators::IntervalIterator},
     reservation::GasReservationSlot,
 };
 use gear_core_errors::*;
 use gear_wasm_instrument::{Instruction, SyscallName};
-use rand::{seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, seq::SliceRandom};
 use rand_pcg::Pcg64;
 use sp_core::Get;
 use sp_runtime::{codec::Encode, traits::UniqueSaturatedInto};
@@ -1458,10 +1457,7 @@ where
         let repetitions = batches * API_BENCHMARK_BATCH_SIZE;
 
         let module = WasmModule::<T>::dummy();
-        let _ = Gear::<T>::upload_code_raw(
-            RawOrigin::Signed(benchmarking::account("instantiator", 0, 0)).into(),
-            module.code,
-        );
+        let _ = Gear::<T>::upload_code_raw(module.code);
 
         let mut cid_value = [0; CID_VALUE_SIZE as usize];
         cid_value[0..CID_SIZE as usize].copy_from_slice(module.hash.as_ref());

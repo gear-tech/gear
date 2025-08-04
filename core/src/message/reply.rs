@@ -19,20 +19,16 @@
 use super::common::ReplyDetails;
 use crate::{
     buffer::Payload,
-    ids::{prelude::*, ActorId, MessageId},
+    ids::{ActorId, MessageId, prelude::*},
     message::{
         Dispatch, DispatchKind, GasLimit, Message, Packet, StoredDispatch, StoredMessage, Value,
     },
 };
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SuccessReplyReason};
-use scale_info::{
-    scale::{Decode, Encode},
-    TypeInfo,
-};
 
 /// Message for Reply entry point.
 /// [`ReplyMessage`] is unique because of storing [`MessageId`] from message on what it replies, and can be the only one per some message execution.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReplyMessage {
     /// Message id.
     id: MessageId,
@@ -161,7 +157,7 @@ impl ReplyMessage {
 /// Reply message packet.
 ///
 /// This structure is preparation for future reply message sending. Has no message id.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReplyPacket {
     /// Message payload.
     payload: Payload,
@@ -171,6 +167,13 @@ pub struct ReplyPacket {
     value: Value,
     /// Reply status code.
     code: ReplyCode,
+}
+
+#[cfg(test)]
+impl Default for ReplyPacket {
+    fn default() -> Self {
+        Self::auto()
+    }
 }
 
 impl ReplyPacket {
@@ -208,18 +211,19 @@ impl ReplyPacket {
     pub fn system(payload: Payload, value: Value, err: impl Into<ErrorReplyReason>) -> Self {
         Self {
             payload,
+            gas_limit: None,
             value,
             code: ReplyCode::error(err),
-            ..Default::default()
         }
     }
 
     /// Auto-generated reply after success execution.
     pub fn auto() -> Self {
         Self {
+            payload: Default::default(),
             gas_limit: Some(0),
+            value: 0,
             code: ReplyCode::Success(SuccessReplyReason::Auto),
-            ..Default::default()
         }
     }
 

@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::ProcessingHandler;
-use anyhow::{ensure, Result};
+use crate::{ProcessorError, Result};
 use ethexe_common::{
+    ScheduledTask,
     db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
-    ScheduledTask,
 };
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
@@ -31,15 +31,13 @@ impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
-                ensure!(
-                    self.db.original_code(code_id).is_some(),
-                    "db corrupted: missing code [OR] code existence wasn't checked on Eth"
-                );
+                if self.db.original_code(code_id).is_none() {
+                    return Err(ProcessorError::MissingCode(code_id));
+                }
 
-                ensure!(
-                    self.db.program_code_id(actor_id).is_none(),
-                    "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth"
-                );
+                if self.db.program_code_id(actor_id).is_some() {
+                    return Err(ProcessorError::DuplicatedProgram(actor_id));
+                }
 
                 self.db.set_program_code_id(actor_id, code_id);
 

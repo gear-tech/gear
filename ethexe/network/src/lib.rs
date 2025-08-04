@@ -22,28 +22,28 @@ pub mod peer_score;
 mod utils;
 
 pub mod export {
-    pub use libp2p::{multiaddr::Protocol, Multiaddr, PeerId};
+    pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use ethexe_common::ecdsa::PublicKey;
 use ethexe_db::Database;
 use ethexe_signer::Signer;
-use futures::{future::Either, ready, stream::FusedStream, Stream};
+use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
-    connection_limits,
+    Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
+        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
         behaviour::toggle::Toggle,
         dial_opts::{DialOpts, PeerCondition},
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
     },
-    yamux, Multiaddr, PeerId, Swarm, Transport,
+    yamux,
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
@@ -67,11 +67,11 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, (db_sync::OngoingRequest, db_sync::RequestFailure)>,
+        result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
     },
     Message {
         data: Vec<u8>,
@@ -187,6 +187,7 @@ impl NetworkService {
     pub fn new(
         config: NetworkConfig,
         signer: &Signer,
+        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Database,
     ) -> anyhow::Result<NetworkService> {
         fs::create_dir_all(&config.config_dir)
@@ -194,7 +195,12 @@ impl NetworkService {
 
         let keypair =
             NetworkService::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkService::create_swarm(keypair, db, config.transport_type)?;
+        let mut swarm = NetworkService::create_swarm(
+            keypair,
+            external_data_provider,
+            db,
+            config.transport_type,
+        )?;
 
         for multiaddr in config.external_addresses {
             swarm.add_external_address(multiaddr);
@@ -257,6 +263,7 @@ impl NetworkService {
 
     fn create_swarm(
         keypair: identity::Keypair,
+        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Database,
         transport_type: TransportType,
     ) -> anyhow::Result<Swarm<Behaviour>> {
@@ -292,7 +299,7 @@ impl NetworkService {
             TransportType::Test => false,
         };
 
-        let behaviour = Behaviour::new(&keypair, db, enable_mdns)?;
+        let behaviour = Behaviour::new(&keypair, external_data_provider, db, enable_mdns)?;
         let local_peer_id = keypair.public().to_peer_id();
         let mut config = SwarmConfig::with_tokio_executor();
 
@@ -317,9 +324,9 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(void) => void::unreachable(void),
+            BehaviourEvent::CustomConnectionLimits(infallible) => match infallible {},
             //
-            BehaviourEvent::ConnectionLimits(void) => void::unreachable(void),
+            BehaviourEvent::ConnectionLimits(infallible) => match infallible {},
             //
             BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
                 peer_id,
@@ -388,13 +395,13 @@ impl NetworkService {
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
-                if let Some(mdns4) = behaviour.mdns4.as_ref() {
-                    if mdns4.discovered_nodes().any(|&p| p == peer) {
-                        // we don't want local peers to appear in KadDHT.
-                        // event can be emitted few times in a row for
-                        // the same peer, so we just ignore `None`
-                        let _res = behaviour.kad.remove_peer(&peer);
-                    }
+                if let Some(mdns4) = behaviour.mdns4.as_ref()
+                    && mdns4.discovered_nodes().any(|&p| p == peer)
+                {
+                    // we don't want local peers to appear in KadDHT.
+                    // event can be emitted few times in a row for
+                    // the same peer, so we just ignore `None`
+                    let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
             BehaviourEvent::Kad(_) => {}
@@ -430,13 +437,10 @@ impl NetworkService {
                     result: Ok(response),
                 });
             }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed {
-                ongoing_request,
-                error,
-            }) => {
+            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request, error }) => {
                 return Some(NetworkEvent::DbResponse {
-                    request_id: ongoing_request.id(),
-                    result: Err((ongoing_request, error)),
+                    request_id: request.id(),
+                    result: Err((request, error)),
                 });
             }
             BehaviourEvent::DbSync(_) => {}
@@ -527,7 +531,12 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    fn new(keypair: &identity::Keypair, db: Database, enable_mdns: bool) -> anyhow::Result<Self> {
+    fn new(
+        keypair: &identity::Keypair,
+        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+        db: Database,
+        enable_mdns: bool,
+    ) -> anyhow::Result<Self> {
         let peer_id = keypair.public().to_peer_id();
 
         // we use custom behaviour because
@@ -591,7 +600,12 @@ impl Behaviour {
         gossipsub.subscribe(&commitments_topic())?;
         gossipsub.subscribe(&offchain_tx_topic())?;
 
-        let db_sync = db_sync::Behaviour::new(db_sync::Config::default(), peer_score_handle, db);
+        let db_sync = db_sync::Behaviour::new(
+            db_sync::Config::default(),
+            peer_score_handle,
+            external_data_provider,
+            db,
+        );
 
         Ok(Self {
             custom_connection_limits,
@@ -619,20 +633,96 @@ fn offchain_tx_topic() -> gossipsub::IdentTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::init_logger;
+    use crate::{
+        db_sync::{ExternalDataProvider, tests::fill_data_provider},
+        utils::tests::init_logger,
+    };
+    use async_trait::async_trait;
+    use ethexe_common::gear::CodeState;
     use ethexe_db::MemDb;
     use ethexe_signer::{FSKeyStorage, Signer};
-    use tokio::time::{timeout, Duration};
+    use gprimitives::{ActorId, CodeId, H256};
+    use std::{
+        collections::{BTreeSet, HashMap},
+        sync::Arc,
+    };
+    use tokio::{
+        sync::RwLock,
+        time::{Duration, timeout},
+    };
 
-    fn new_service_with_db(db: Database) -> NetworkService {
+    #[derive(Default)]
+    struct DataProviderInner {
+        programs_code_ids_at: HashMap<(BTreeSet<ActorId>, H256), Vec<CodeId>>,
+        code_states_at: HashMap<(BTreeSet<CodeId>, H256), Vec<CodeState>>,
+    }
+
+    #[derive(Default, Clone)]
+    pub struct DataProvider(Arc<RwLock<DataProviderInner>>);
+
+    impl DataProvider {
+        pub async fn set_programs_code_ids_at(
+            &self,
+            program_ids: BTreeSet<ActorId>,
+            at: H256,
+            code_ids: Vec<CodeId>,
+        ) {
+            self.0
+                .write()
+                .await
+                .programs_code_ids_at
+                .insert((program_ids, at), code_ids);
+        }
+    }
+
+    #[async_trait]
+    impl ExternalDataProvider for DataProvider {
+        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+            Box::new(self.clone())
+        }
+
+        async fn programs_code_ids_at(
+            self: Box<Self>,
+            program_ids: BTreeSet<ActorId>,
+            block: H256,
+        ) -> anyhow::Result<Vec<CodeId>> {
+            assert!(!program_ids.is_empty());
+            Ok(self
+                .0
+                .read()
+                .await
+                .programs_code_ids_at
+                .get(&(program_ids, block))
+                .cloned()
+                .unwrap_or_default())
+        }
+
+        async fn codes_states_at(
+            self: Box<Self>,
+            code_ids: BTreeSet<CodeId>,
+            block: H256,
+        ) -> anyhow::Result<Vec<CodeState>> {
+            assert!(!code_ids.is_empty());
+            Ok(self
+                .0
+                .read()
+                .await
+                .code_states_at
+                .get(&(code_ids, block))
+                .cloned()
+                .unwrap_or_default())
+        }
+    }
+
+    fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
         let key_storage = FSKeyStorage::tmp();
         let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
         let signer = Signer::new(key_storage);
-        NetworkService::new(config.clone(), &signer, db).unwrap()
+        NetworkService::new(config.clone(), &signer, Box::new(data_provider), db).unwrap()
     }
 
     fn new_service() -> NetworkService {
-        new_service_with_db(Database::from_one(&MemDb::default()))
+        new_service_with(Database::memory(), DataProvider::default())
     }
 
     #[tokio::test]
@@ -657,14 +747,14 @@ mod tests {
         let hello = db.write_hash(b"hello");
         let world = db.write_hash(b"world");
 
-        let mut service2 = new_service_with_db(db);
+        let mut service2 = new_service_with(db, Default::default());
 
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
         let request_id = service1
             .db_sync()
-            .request(db_sync::Request([hello, world].into()));
+            .request(db_sync::Request::hashes([hello, world]));
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
@@ -674,7 +764,7 @@ mod tests {
             event,
             NetworkEvent::DbResponse {
                 request_id,
-                result: Ok(db_sync::Response(
+                result: Ok(db_sync::Response::Hashes(
                     [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
                 ))
             }
@@ -702,5 +792,36 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
+    }
+
+    #[tokio::test]
+    async fn external_data_provider() {
+        init_logger();
+
+        let alice_data_provider = DataProvider::default();
+        let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
+        let bob_db = Database::memory();
+        let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
+
+        let request_id = alice
+            .db_sync()
+            .request(db_sync::Request::program_ids(H256::zero(), 2));
+
+        let event = timeout(Duration::from_secs(5), alice.next())
+            .await
+            .expect("time has elapsed")
+            .unwrap();
+        assert_eq!(
+            event,
+            NetworkEvent::DbResponse {
+                request_id,
+                result: Ok(expected_response)
+            }
+        );
     }
 }

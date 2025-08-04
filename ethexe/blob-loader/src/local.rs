@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BlobData, BlobLoaderEvent, BlobLoaderService, Database};
-use anyhow::{anyhow, Ok, Result};
-use ethexe_common::CodeBlobInfo;
+use crate::{BlobLoaderError, BlobLoaderEvent, BlobLoaderService, Result};
+use ethexe_common::{CodeAndId, CodeAndIdUnchecked};
 use futures::{
+    FutureExt, Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
-    FutureExt, Stream, StreamExt,
 };
 use gprimitives::CodeId;
 use std::{
@@ -38,39 +37,43 @@ pub struct LocalBlobStorage {
 }
 
 impl LocalBlobStorage {
-    pub async fn add_code(&self, code_id: CodeId, code: Vec<u8>) {
-        let mut storage = self.inner.write().await;
-        if storage.contains_key(&code_id) {
-            return;
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
         }
-
-        storage.insert(code_id, code);
+    }
+    pub async fn add_code(&self, code_and_id: CodeAndId) {
+        let CodeAndIdUnchecked { code, code_id } = code_and_id.into_unchecked();
+        self.inner.write().await.insert(code_id, code);
     }
 
-    pub async fn get_code(self, code_id: CodeId) -> Result<Vec<u8>> {
+    pub async fn get_code(self, code_id: CodeId) -> Result<CodeAndId> {
         let storage = self.inner.read().await;
 
-        let Some(code) = storage.get(&code_id).cloned() else {
-            return Err(anyhow!("code {code_id} not found in db"));
-        };
+        let code = storage
+            .get(&code_id)
+            .cloned()
+            .ok_or(BlobLoaderError::LocalCodeNotFound(code_id))?;
 
-        Ok(code)
+        Ok(CodeAndId::from_unchecked(CodeAndIdUnchecked {
+            code,
+            code_id,
+        }))
     }
 }
 
-pub struct LocalBlobLoader<DB: Database> {
-    db: DB,
+pub struct LocalBlobLoader {
     storage: LocalBlobStorage,
-    futures: FuturesUnordered<BoxFuture<'static, Result<BlobData>>>,
+    futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,
 }
 
-impl<DB: Database> FusedStream for LocalBlobLoader<DB> {
+impl FusedStream for LocalBlobLoader {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl<DB: Database> BlobLoaderService for LocalBlobLoader<DB> {
+impl BlobLoaderService for LocalBlobLoader {
     fn into_box(self) -> Box<dyn BlobLoaderService> {
         Box::new(self)
     }
@@ -81,18 +84,13 @@ impl<DB: Database> BlobLoaderService for LocalBlobLoader<DB> {
 
     fn load_codes(&mut self, codes: HashSet<CodeId>, _attempts: Option<u8>) -> Result<()> {
         codes.into_iter().try_for_each(|code_id| {
-            let CodeBlobInfo { timestamp, .. } = self
-                .db
-                .code_blob_info(code_id)
-                .ok_or_else(|| anyhow!("Failed to get code blob info for requested code"))?;
             let storage = self.storage.clone();
             self.futures.push(
                 async move {
-                    storage.get_code(code_id).await.map(|code| BlobData {
-                        code_id,
-                        timestamp,
-                        code,
-                    })
+                    storage
+                        .get_code(code_id)
+                        .await
+                        .map(|code_and_id| code_and_id.into_unchecked())
                 }
                 .boxed(),
             );
@@ -101,7 +99,7 @@ impl<DB: Database> BlobLoaderService for LocalBlobLoader<DB> {
     }
 }
 
-impl<DB: Database> Stream for LocalBlobLoader<DB> {
+impl Stream for LocalBlobLoader {
     type Item = Result<BlobLoaderEvent>;
 
     fn poll_next(
@@ -115,10 +113,9 @@ impl<DB: Database> Stream for LocalBlobLoader<DB> {
     }
 }
 
-impl<DB: Database> LocalBlobLoader<DB> {
-    pub fn new(db: DB, storage: LocalBlobStorage) -> Self {
+impl LocalBlobLoader {
+    pub fn new(storage: LocalBlobStorage) -> Self {
         Self {
-            db,
             storage,
             futures: Default::default(),
         }

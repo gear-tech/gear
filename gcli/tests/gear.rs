@@ -17,22 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use common::env;
-use std::path::PathBuf;
 
 mod cmd;
 mod common;
 
 #[test]
 fn paths() {
-    [
-        env::node_bin(),
-        env::bin("gcli"),
-        env::wasm_bin("demo_fungible_token.opt.wasm"),
-    ]
-    .into_iter()
-    .for_each(|path| {
-        if !PathBuf::from(&path).exists() {
-            panic!("{path} not found.")
-        }
-    })
+    [env::node_bin(), env::gcli_bin()]
+        .into_iter()
+        .for_each(|path| {
+            if !path.exists() {
+                panic!("{} not found.", path.display())
+            }
+        })
 }

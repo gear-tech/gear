@@ -16,9 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{ensure, Context};
-use gear_core::code::{Code, TryNewCodeConfig};
-use gear_wasm_instrument::{SystemBreakCode, STACK_HEIGHT_EXPORT_NAME};
+use anyhow::{Context, ensure};
+use gear_core::{
+    code::{Code, TryNewCodeConfig},
+    gas_metering::Schedule,
+};
+use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use tracing_subscriber::EnvFilter;
 use wasmer::{
@@ -36,7 +39,7 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let schedule = vara_runtime::Schedule::get();
+    let schedule = Schedule::default();
     let inf_recursion = fs::read_to_string("examples/wat/spec/inf_recursion.wat")
         .context("Failed to read `inf_recursion.wat`")?;
     let inf_recursion = wat::parse_str(inf_recursion).context("Failed to convert WAT to WASM")?;
@@ -55,7 +58,8 @@ fn main() -> anyhow::Result<()> {
 
     let compiler = Singlepass::default();
     let mut store = Store::new(compiler);
-    let module = Module::new(&store, code.code()).context("Failed to create initial module")?;
+    let module = Module::new(&store, code.instrumented_code().bytes())
+        .context("Failed to create initial module")?;
 
     let mut imports = Imports::new();
     let mut exports = Exports::new();
@@ -125,7 +129,8 @@ fn main() -> anyhow::Result<()> {
         )
         .context("Code error")?;
 
-        let module = Module::new(&store, code.code()).context("Failed to create module")?;
+        let module = Module::new(&store, code.instrumented_code().bytes())
+            .context("Failed to create module")?;
         let instance =
             Instance::new(&mut store, &module, &imports).context("Failed to instantiate module")?;
         let init = instance
@@ -140,12 +145,12 @@ fn main() -> anyhow::Result<()> {
 
                 stack_height = mid;
 
-                log::info!("Unreachable at {} height", mid);
+                log::info!("Unreachable at {mid} height");
             }
             Some(TrapCode::StackOverflow) => {
                 high = mid - 1;
 
-                log::info!("Overflow at {} height", mid);
+                log::info!("Overflow at {mid} height");
             }
             code => panic!("unexpected trap code: {code:?}"),
         }

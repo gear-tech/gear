@@ -25,18 +25,18 @@ use alloc::string::String;
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
 use std::{
-    collections::btree_map::BTreeMap, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
+    collections::btree_map::BTreeMap, env, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
     sync::OnceLock,
 };
 use wasmer::{
+    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
+    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
+    Value as RuntimeValue,
     sys::{BaseTunables, VMConfig},
     vm::{
         LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
         VMTableDefinition,
     },
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
-    Value as RuntimeValue,
 };
 use wasmer_types::ExternType;
 
@@ -47,7 +47,34 @@ fn cache_base_path() -> PathBuf {
     static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
     CACHE_DIR
         .get_or_init(|| {
+            // We acquire workspace root dir during runtime and compile-time.
+            //
+            // During development, runtime workspace dir equals to compile-time one,
+            // so all compiled WASMs are cached in the usual ` OUT_DIR `
+            // like we don't rewrite it.
+            //
+            // During cross-compilation, the runtime workspace dir differs from the compile-time one,
+            // and accordingly, `OUT_DIR` beginning differs too,
+            // so we change its beginning to successfully run tests.
+            //
+            // `OUT_DIR` is used for caching instead of some platform-specific project folder to
+            // not maintain the ever-growing number of cached WASMs
+
             let out_dir = PathBuf::from(env!("OUT_DIR"));
+
+            let runtime_workspace_dir = env::var_os("GEAR_WORKSPACE_DIR").map(PathBuf::from);
+            let compiled_workspace_dir = option_env!("GEAR_WORKSPACE_DIR").map(PathBuf::from);
+            let (Some(runtime_workspace_dir), Some(compiled_workspace_dir)) =
+                (runtime_workspace_dir, compiled_workspace_dir)
+            else {
+                // `GEAR_WORKSPACE_DIR` is not present in user code,
+                // so we return `OUT_DIR` without any changes
+                return out_dir;
+            };
+
+            let out_dir = pathdiff::diff_paths(out_dir, compiled_workspace_dir).unwrap();
+            let out_dir = runtime_workspace_dir.join(out_dir);
+
             let cache = out_dir.join("wasmer-cache");
             fs::create_dir_all(&cache).unwrap();
             cache
@@ -549,7 +576,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         }
 
         let instance = wasmer::Instance::new(store, &module, &imports).map_err(|e| {
-            log::trace!(target: TARGET, "Error instantiating module: {:?}", e);
+            log::trace!(target: TARGET, "Error instantiating module: {e:?}");
             Error::Module
         })?;
 
@@ -661,11 +688,11 @@ fn to_interface(value: RuntimeValue) -> Option<Value> {
 mod tests {
     use super::{Caller, EnvironmentDefinitionBuilder, Instance};
     use crate::{
-        default_executor::Store, AsContextExt, Error, HostError, ReturnValue,
-        SandboxEnvironmentBuilder, SandboxInstance, SandboxStore, Value,
+        AsContextExt, Error, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxInstance,
+        SandboxStore, Value, default_executor::Store,
     };
     use assert_matches::assert_matches;
-    use gear_sandbox_env::{WasmReturnValue, GLOBAL_NAME_GAS};
+    use gear_sandbox_env::{GLOBAL_NAME_GAS, WasmReturnValue};
 
     fn execute_sandboxed(code: &[u8], args: &[Value]) -> Result<ReturnValue, Error> {
         struct State {

@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    error::usage_panic,
-    program::{Gas, ProgramIdWrapper},
-    Value, GAS_MULTIPLIER,
-};
+use crate::{GAS_MULTIPLIER, Gas, Value, error::usage_panic, program::ProgramIdWrapper};
 use core_processor::configs::BlockInfo;
 use gear_core::{
     buffer::Payload,
@@ -37,7 +33,7 @@ use std::{
 
 /// A log that emitted by a program, for user defined logs,
 /// see [`Log`].
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreLog {
     id: MessageId,
     source: ActorId,
@@ -183,7 +179,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 ///     Log::from((1, v, "payload"))
 /// );
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Log {
     pub(crate) source: Option<ActorId>,
     pub(crate) destination: Option<ActorId>,
@@ -366,22 +362,22 @@ impl PartialEq<CoreLog> for Log {
             return false;
         }
 
-        if let Some(source) = self.source {
-            if source != other.source {
-                return false;
-            }
+        if let Some(source) = self.source
+            && source != other.source
+        {
+            return false;
         }
 
-        if let Some(destination) = self.destination {
-            if destination != other.destination {
-                return false;
-            }
+        if let Some(destination) = self.destination
+            && destination != other.destination
+        {
+            return false;
         }
 
-        if let Some(payload) = &self.payload {
-            if payload.inner() != other.payload.inner() {
-                return false;
-            }
+        if let Some(payload) = &self.payload
+            && payload.inner() != other.payload.inner()
+        {
+            return false;
         }
 
         true
@@ -462,14 +458,14 @@ impl BlockRunResult {
         );
     }
 
-    /// Calculate the total spent value.
+    /// Calculate the total spent value for the gas consumption.
     pub fn spent_value(&self) -> Value {
         let spent_gas = self
             .gas_burned
             .values()
-            .fold(Gas::zero(), |acc, &x| acc.saturating_add(x));
+            .fold(0u64, |acc, &x| acc.saturating_add(x));
 
-        GAS_MULTIPLIER.gas_to_value(spent_gas.0)
+        GAS_MULTIPLIER.gas_to_value(spent_gas)
     }
 
     /// Trying to get the panic log.

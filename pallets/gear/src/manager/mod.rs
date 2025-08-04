@@ -53,29 +53,27 @@ use gear_core_errors::{ReplyCode, SignalCode};
 pub use task::*;
 
 use crate::{
-    fungible, BuiltinDispatcherFactory, Config, CurrencyOf, Event, Fortitude, GasHandlerOf, Pallet,
-    Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf, EXISTENTIAL_DEPOSIT_LOCK_ID,
+    BuiltinDispatcherFactory, Config, CurrencyOf, EXISTENTIAL_DEPOSIT_LOCK_ID, Event, Fortitude,
+    GasHandlerOf, Pallet, Preservation, ProgramStorageOf, QueueOf, TaskPoolOf, WaitlistOf,
+    fungible,
 };
 use alloc::format;
 use common::{
+    CodeStorage, Origin, ProgramStorage, ReservableTree,
     event::*,
     scheduler::{StorageType, TaskPool},
     storage::{Interval, IterableByKeyMap, Queue},
-    CodeStorage, Origin, ProgramStorage, ReservableTree,
 };
 use core::{fmt, mem};
 use frame_support::traits::{Currency, ExistenceRequirement, LockableCurrency};
 use frame_system::pallet_prelude::BlockNumberFor;
 use gear_core::{
-    code::{CodeAndId, InstrumentedCode},
     ids::{ActorId, CodeId, MessageId, ReservationId},
-    message::{DispatchKind, SignalMessage},
-    pages::WasmPagesAmount,
+    message::SignalMessage,
     program::{ActiveProgram, Program, ProgramState},
     reservation::GasReservationSlot,
     tasks::ScheduledTask,
 };
-use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime::{
     codec::{Decode, Encode},
@@ -104,31 +102,6 @@ impl fmt::Debug for HandleKind {
             HandleKind::Handle(id) => f.debug_tuple("Handle").field(id).finish(),
             HandleKind::Reply(id, code) => f.debug_tuple("Reply").field(id).field(code).finish(),
             HandleKind::Signal(id, code) => f.debug_tuple("Signal").field(id).field(code).finish(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct CodeInfo {
-    id: H256,
-    exports: BTreeSet<DispatchKind>,
-    static_pages: WasmPagesAmount,
-}
-
-impl CodeInfo {
-    pub fn from_code_and_id(code: &CodeAndId) -> Self {
-        Self {
-            id: code.code_id().into_origin(),
-            exports: code.code().exports().clone(),
-            static_pages: code.code().static_pages(),
-        }
-    }
-
-    pub fn from_code(id: &CodeId, code: &InstrumentedCode) -> Self {
-        Self {
-            id: id.into_origin(),
-            exports: code.exports().clone(),
-            static_pages: code.static_pages(),
         }
     }
 }
@@ -211,7 +184,7 @@ where
     pub fn set_program(
         &self,
         program_id: ActorId,
-        code_info: &CodeInfo,
+        code_id: CodeId,
         message_id: MessageId,
         expiration_block: BlockNumberFor<T>,
     ) {
@@ -220,16 +193,14 @@ where
         //
         // Code can exist without program, but the latter can't exist without code.
         debug_assert!(
-            T::CodeStorage::exists(code_info.id.cast()),
+            T::CodeStorage::original_code_exists(code_id),
             "Program set must be called only when code exists",
         );
 
         // An empty program has been just constructed: it contains no mem allocations.
         let program = ActiveProgram {
             allocations_tree_len: 0,
-            code_hash: code_info.id,
-            code_exports: code_info.exports.clone(),
-            static_pages: code_info.static_pages,
+            code_id,
             state: ProgramState::Uninitialized { message_id },
             gas_reservation_map: Default::default(),
             expiration_block,
@@ -317,10 +288,7 @@ where
         });
         if reserved != 0 {
             log::debug!(
-                "Send signal issued by {} to {} with {} supply",
-                message_id,
-                destination,
-                reserved
+                "Send signal issued by {message_id} to {destination} with {reserved} supply"
             );
 
             // Creating signal message.
@@ -404,11 +372,10 @@ where
     }
 
     fn process_failed_init(program_id: ActorId, origin: ActorId) {
-        // Some messages addressed to the program could be processed
-        // in the queue before init message. For example, that could
-        // happen when init message had more gas limit then rest block
-        // gas allowance, but a dispatch message to the program was
-        // dequeued. The other case is async init.
+        // Waitlist can have messages only in one case of failed init:
+        // that's when program initialization message went to waitlist (say, because of async call),
+        // then the program receives reply (which queue allows to process for uninitialized program),
+        // which itself ends up being in waitlist (a wait syscall is invoked in `handle_reply`).
         Self::clean_waitlist(program_id);
 
         let _ = ProgramStorageOf::<T>::update_program_if_active(program_id, |p, bn| {

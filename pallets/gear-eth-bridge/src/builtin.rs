@@ -19,6 +19,8 @@
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
+use frame_support::traits::EnsureOrigin;
+use frame_system::RawOrigin;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
@@ -26,7 +28,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext};
+use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext, BuiltinReply};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;
@@ -43,14 +45,26 @@ where
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
-    ) -> Result<Payload, BuiltinActorError> {
+    ) -> Result<BuiltinReply, BuiltinActorError> {
+        let source = dispatch.source();
+
+        let is_governance_origin = <T as Config>::ControlOrigin::ensure_origin(
+            RawOrigin::from(Some(source.cast())).into(),
+        )
+        .is_ok();
+
         let fee: Value = TransportFee::<T>::get().unique_saturated_into();
 
-        if dispatch.value() != fee {
-            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                error_to_str(&Error::<T>::IncorrectValueApplied),
-            )));
+        if !is_governance_origin && dispatch.value() < fee {
+            return Err(BuiltinActorError::InsufficientValue);
         }
+
+        // If the origin is governance, we do not charge a fee and return the full value.
+        let value_refund = if is_governance_origin {
+            dispatch.value()
+        } else {
+            dispatch.value().saturating_sub(fee)
+        };
 
         let request = Request::decode(&mut dispatch.payload_bytes())
             .map_err(|_| BuiltinActorError::DecodingError)?;
@@ -59,7 +73,16 @@ where
             Request::SendEthMessage {
                 destination,
                 payload,
-            } => send_message_request::<T>(dispatch.source(), destination, payload, context),
+            } => Ok(BuiltinReply {
+                payload: send_message_request::<T>(
+                    source,
+                    destination,
+                    payload,
+                    context,
+                    is_governance_origin,
+                )?,
+                value: value_refund,
+            }),
         }
     }
 
@@ -73,15 +96,13 @@ fn send_message_request<T: Config>(
     destination: H160,
     payload: Vec<u8>,
     context: &mut BuiltinContext,
-) -> Result<Payload, BuiltinActorError>
-where
-    T::AccountId: Origin,
-{
+    is_governance_origin: bool,
+) -> Result<Payload, BuiltinActorError> {
     let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
 
     context.try_charge_gas(gas_cost)?;
 
-    Pallet::<T>::queue_message(source, destination, payload)
+    Pallet::<T>::queue_message(source, destination, payload, is_governance_origin)
         .map(|(nonce, hash)| {
             Response::EthMessageQueued { nonce, hash }
                 .encode()
@@ -97,7 +118,6 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
-        Error::IncorrectValueApplied => "Send message: incorrect value applied",
         _ => unimplemented!(),
     }
 }

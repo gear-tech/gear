@@ -143,6 +143,8 @@ contract Base is POCBaseTest {
         assertEq(router.validators(), _validators);
         assertEq(router.signingThresholdPercentage(), 6666);
         assertTrue(router.areValidators(_validators));
+        assertEq(router.latestCommittedBatchHash(), bytes32(0));
+        assertEq(router.latestCommittedBatchTimestamp(), uint48(0));
 
         vm.startPrank(admin);
         {
@@ -181,64 +183,128 @@ contract Base is POCBaseTest {
         vm.stopPrank();
     }
 
-    function commitValidators(uint256[] memory _privateKeys, Gear.ValidatorsCommitment memory commitment) internal {
-        bytes memory message = bytes.concat(Gear.validatorsCommitmentHash(commitment));
-        router.commitValidators(commitment, Gear.SignatureType.FROST, signBytes(_privateKeys, message));
+    function commitBatch(uint256[] memory _privateKeys, Gear.BatchCommitment memory _batch, bool revertExpected)
+        internal
+    {
+        if (revertExpected) {
+            vm.expectRevert();
+        }
+        router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
+    }
+
+    function commitBlock(uint256[] memory _privateKeys, Gear.StateTransition[] memory _transactions) internal {
+        bytes32 _blockHash = blockHash(vm.getBlockNumber());
+        uint48 _timestamp = uint48(vm.getBlockTimestamp());
+
+        rollBlocks(1);
+
+        commitBlock(_privateKeys, _transactions, _blockHash, _timestamp, false);
+    }
+
+    function commitBlock(
+        uint256[] memory _privateKeys,
+        Gear.StateTransition[] memory _transactions,
+        bytes32 _blockHash,
+        uint48 _timestamp,
+        bool revertExpected
+    ) internal {
+        Gear.ChainCommitment memory _chainCommitment =
+            Gear.ChainCommitment({transitions: _transactions, head: keccak256("head")});
+
+        Gear.ChainCommitment[] memory _chainCommitments = new Gear.ChainCommitment[](1);
+        _chainCommitments[0] = _chainCommitment;
+
+        Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
+            blockHash: _blockHash,
+            blockTimestamp: _timestamp,
+            previousCommittedBatchHash: router.latestCommittedBatchHash(),
+            chainCommitment: _chainCommitments,
+            codeCommitments: new Gear.CodeCommitment[](0),
+            rewardsCommitment: new Gear.RewardsCommitment[](0),
+            validatorsCommitment: new Gear.ValidatorsCommitment[](0)
+        });
+
+        commitBatch(_privateKeys, _batch, revertExpected);
     }
 
     function commitCode(uint256[] memory _privateKeys, Gear.CodeCommitment memory _commitment) internal {
-        Gear.CodeCommitment[] memory _commitments = new Gear.CodeCommitment[](1);
-        _commitments[0] = _commitment;
-        commitCodes(_privateKeys, _commitments);
+        Gear.CodeCommitment[] memory _codeCommitments = new Gear.CodeCommitment[](1);
+        _codeCommitments[0] = _commitment;
+
+        Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
+            blockHash: blockHash(vm.getBlockNumber()),
+            blockTimestamp: uint48(vm.getBlockTimestamp()),
+            previousCommittedBatchHash: router.latestCommittedBatchHash(),
+            chainCommitment: new Gear.ChainCommitment[](0),
+            codeCommitments: _codeCommitments,
+            rewardsCommitment: new Gear.RewardsCommitment[](0),
+            validatorsCommitment: new Gear.ValidatorsCommitment[](0)
+        });
+
+        rollBlocks(1);
+
+        commitBatch(_privateKeys, _batch, false);
     }
 
-    function commitCodes(uint256[] memory _privateKeys, Gear.CodeCommitment[] memory _commitments) internal {
-        bytes memory _codesBytes;
+    function commitValidators(
+        uint256[] memory _privateKeys,
+        Gear.ValidatorsCommitment memory _commitment,
+        bool revertExpected
+    ) internal {
+        Gear.ValidatorsCommitment[] memory _validatorsCommitments = new Gear.ValidatorsCommitment[](1);
+        _validatorsCommitments[0] = _commitment;
 
-        for (uint256 i = 0; i < _commitments.length; i++) {
-            Gear.CodeCommitment memory _commitment = _commitments[i];
-            _codesBytes = bytes.concat(_codesBytes, Gear.codeCommitmentHash(_commitment));
+        Gear.BatchCommitment memory _batch = Gear.BatchCommitment({
+            blockHash: blockHash(vm.getBlockNumber()),
+            blockTimestamp: uint48(vm.getBlockTimestamp()),
+            previousCommittedBatchHash: router.latestCommittedBatchHash(),
+            chainCommitment: new Gear.ChainCommitment[](0),
+            codeCommitments: new Gear.CodeCommitment[](0),
+            rewardsCommitment: new Gear.RewardsCommitment[](0),
+            validatorsCommitment: _validatorsCommitments
+        });
+
+        rollBlocks(1);
+
+        commitBatch(_privateKeys, _batch, revertExpected);
+    }
+
+    function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {
+        require(_batch.rewardsCommitment.length == 0, "Base: rewardsCommitment is not supported yet");
+        require(_batch.validatorsCommitment.length <= 1, "Base: validatorsCommitment length must be 0 or 1");
+        require(_batch.chainCommitment.length <= 1, "Base: chainCommitment length must be 0 or 1");
+
+        bytes32 _chainCommitmentHash;
+        if (_batch.chainCommitment.length == 1) {
+            _chainCommitmentHash = chainCommitmentHash(_batch.chainCommitment[0]);
+        } else {
+            _chainCommitmentHash = keccak256("");
         }
 
-        router.commitBatch(
-            Gear.BatchCommitment({
-                codeCommitments: _commitments,
-                blockCommitments: new Gear.BlockCommitment[](0),
-                rewardCommitments: new Gear.RewardsCommitment[](0)
-            }),
-            Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(""), keccak256(_codesBytes), keccak256("")))
+        bytes32 _codeCommitmentsHash = codeCommitmentsHash(_batch.codeCommitments);
+
+        bytes32 _validatorsCommitmentHash;
+        if (_batch.validatorsCommitment.length == 1) {
+            _validatorsCommitmentHash = Gear.validatorsCommitmentHash(_batch.validatorsCommitment[0]);
+        } else {
+            _validatorsCommitmentHash = keccak256("");
+        }
+
+        bytes32 _rewardsCommitmentHash = keccak256("");
+
+        return Gear.batchCommitmentHash(
+            _batch.blockHash,
+            _batch.blockTimestamp,
+            _batch.previousCommittedBatchHash,
+            _chainCommitmentHash,
+            _codeCommitmentsHash,
+            _rewardsCommitmentHash,
+            _validatorsCommitmentHash
         );
     }
 
-    function commitBlock(uint256[] memory _privateKeys, Gear.BlockCommitment memory _commitment) internal {
-        Gear.BlockCommitment[] memory _commitments = new Gear.BlockCommitment[](1);
-        _commitments[0] = _commitment;
-        commitBlocks(_privateKeys, _commitments);
-    }
-
-    function commitBlocks(uint256[] memory _privateKeys, Gear.BlockCommitment[] memory _commitments) internal {
-        bytes memory _message;
-
-        for (uint256 i = 0; i < _commitments.length; i++) {
-            Gear.BlockCommitment memory _commitment = _commitments[i];
-            _message = bytes.concat(_message, blockCommitmentHash(_commitment));
-        }
-
-        router.commitBatch(
-            Gear.BatchCommitment({
-                codeCommitments: new Gear.CodeCommitment[](0),
-                blockCommitments: _commitments,
-                rewardCommitments: new Gear.RewardsCommitment[](0)
-            }),
-            Gear.SignatureType.FROST,
-            signBytes(_privateKeys, abi.encodePacked(keccak256(_message), keccak256(""), keccak256("")))
-        );
-    }
-
-    function blockCommitmentHash(Gear.BlockCommitment memory _commitment) internal pure returns (bytes32) {
-        bytes memory _transitionsHashesBytes;
-
+    function chainCommitmentHash(Gear.ChainCommitment memory _commitment) internal pure returns (bytes32) {
+        bytes32[] memory _transitionsHashes = new bytes32[](_commitment.transitions.length);
         for (uint256 i = 0; i < _commitment.transitions.length; i++) {
             Gear.StateTransition memory _transition = _commitment.transitions[i];
 
@@ -252,36 +318,33 @@ contract Base is POCBaseTest {
                 _messagesHashesBytes = bytes.concat(_messagesHashesBytes, Gear.messageHash(_transition.messages[j]));
             }
 
-            _transitionsHashesBytes = bytes.concat(
-                _transitionsHashesBytes,
-                Gear.stateTransitionHash(
-                    _transition.actorId,
-                    _transition.newStateHash,
-                    _transition.exited,
-                    _transition.inheritor,
-                    _transition.valueToReceive,
-                    keccak256(_valueClaimsBytes),
-                    keccak256(_messagesHashesBytes)
-                )
+            _transitionsHashes[i] = Gear.stateTransitionHash(
+                _transition.actorId,
+                _transition.newStateHash,
+                _transition.exited,
+                _transition.inheritor,
+                _transition.valueToReceive,
+                keccak256(_valueClaimsBytes),
+                keccak256(_messagesHashesBytes)
             );
         }
 
-        return Gear.blockCommitmentHash(
-            _commitment.hash,
-            _commitment.timestamp,
-            _commitment.previousCommittedBlock,
-            _commitment.predecessorBlock,
-            keccak256(_transitionsHashesBytes)
-        );
+        return Gear.chainCommitmentHash(keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head);
+    }
+
+    function codeCommitmentsHash(Gear.CodeCommitment[] memory _commitments) internal pure returns (bytes32) {
+        bytes32[] memory _codeCommitmentHashes = new bytes32[](_commitments.length);
+        for (uint256 i = 0; i < _commitments.length; i++) {
+            _codeCommitmentHashes[i] = Gear.codeCommitmentHash(_commitments[i]);
+        }
+
+        return keccak256(abi.encodePacked(_codeCommitmentHashes));
     }
 
     // TODO: add SignatureType as param here
-    function signBytes(uint256[] memory _privateKeys, bytes memory _message)
-        internal
-        returns (bytes[] memory signatures)
-    {
+    function signHash(uint256[] memory _privateKeys, bytes32 _hash) internal returns (bytes[] memory signatures) {
         signatures = new bytes[](1);
-        bytes32 _messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(keccak256(_message)));
+        bytes32 _messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(_hash));
         SigningKey signingKey = FROSTOffchain.signingKeyFromScalar(_privateKeys[0]);
         (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) = signingKey.createSignature(_messageHash);
         signatures[0] = abi.encodePacked(signatureRX, signatureRY, signatureZ);
@@ -355,6 +418,14 @@ contract Base is POCBaseTest {
             setBlockhash(_blockNumber);
             vm.warp(_blockTimestamp);
         }
+    }
+
+    function rollOneBlockAndWarp(uint256 _timestamp) internal {
+        require(_timestamp > vm.getBlockTimestamp(), "Base: timestamp must be greater than current block timestamp");
+        uint256 _blockNumber = vm.getBlockNumber() + 1;
+        vm.warp(_timestamp);
+        vm.roll(_blockNumber);
+        setBlockhash(_blockNumber);
     }
 
     function setBlockhash(uint256 _blockNumber) internal {

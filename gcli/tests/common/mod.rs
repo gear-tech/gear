@@ -22,12 +22,11 @@ use anyhow::Context;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
-    iter::IntoIterator,
-    process::{Command, Output},
+    io::Write,
+    process::{Command, Output, Stdio},
 };
 use tracing_subscriber::EnvFilter;
 
-mod app;
 mod args;
 pub mod env;
 pub mod node;
@@ -39,19 +38,38 @@ pub const TREASURY_SS58_ADDRESS: &str = "kGi1Ui7VXBFmPmaoMD5xgWd2VHNixZ5BbLNhHFY
 impl NodeExec for NodeInstance {
     /// Run binary `gcli`
     fn run(&self, args: Args) -> Result<Output> {
-        gcli(Vec::<String>::from(args.endpoint(self.ws())))
+        gcli(args.endpoint(self.ws()))
     }
 }
 
 /// Run binary `gcli`
-pub fn gcli<T: ToString>(args: impl IntoIterator<Item = T>) -> Result<Output> {
-    Command::new(env::bin("gcli"))
-        .args(
-            args.into_iter()
-                .map(|v| v.to_string())
-                .collect::<Vec<String>>(),
-        )
-        .output()
+pub fn gcli(args: impl Into<Args>) -> Result<Output> {
+    let args = args.into();
+
+    let mut args_vec = Vec::new();
+    if let Some(endpoint) = args.endpoint {
+        args_vec.extend(["--endpoint".to_string(), endpoint]);
+    }
+    args_vec.push(args.command);
+    args_vec.extend(args.args);
+    args_vec.extend(args.with);
+
+    let mut cmd = Command::new(env::gcli_bin())
+        .args(args_vec)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("failed to spawn gcli")?;
+    if !args.stdin.is_empty() {
+        cmd.stdin
+            .as_mut()
+            .unwrap()
+            .write_all(&args.stdin)
+            .context("failed to write stdin")?;
+    }
+    cmd.wait_with_output()
+        .context("failed to run gcli")
         .map_err(Into::into)
 }
 
@@ -89,7 +107,7 @@ pub fn alice_account_id() -> AccountId32 {
 pub async fn create_messager() -> Result<NodeInstance> {
     let node = dev()?;
 
-    let args = Args::new("upload").program(env::wasm_bin("demo_messenger.opt.wasm"));
+    let args = Args::new("upload").program_stdin(demo_messenger::WASM_BINARY);
     let _ = node.run(args)?;
 
     Ok(node)

@@ -18,26 +18,22 @@
 
 use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::{
+    BlockHeader,
     db::{BlockMetaStorageRead, OnChainStorageRead},
     events::BlockRequestEvent,
     gear::StateTransition,
-    BlockHeader,
 };
 use ethexe_db::Database;
 use gprimitives::H256;
 use jsonrpsee::{
-    core::{async_trait, RpcResult},
+    core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
-use std::collections::VecDeque;
 
 #[rpc(server)]
 pub trait Block {
     #[method(name = "block_header")]
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
-
-    #[method(name = "block_commitmentQueue")]
-    async fn block_commitment_queue(&self, hash: Option<H256>) -> RpcResult<VecDeque<H256>>;
 
     #[method(name = "block_events")]
     async fn block_events(&self, block_hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>>;
@@ -61,14 +57,6 @@ impl BlockApi {
 impl BlockServer for BlockApi {
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
         block_header_at_or_latest(&self.db, hash)
-    }
-
-    async fn block_commitment_queue(&self, hash: Option<H256>) -> RpcResult<VecDeque<H256>> {
-        let block_hash = block_header_at_or_latest(&self.db, hash)?.0;
-
-        self.db
-            .block_commitment_queue(block_hash)
-            .ok_or_else(|| errors::db("Block commitment queue wasn't found"))
     }
 
     async fn block_events(&self, hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>> {

@@ -17,9 +17,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_wasm_instrument::{gas_metering, stack_limiter, Module};
+use gear_wasm_instrument::{Module, gas_metering, stack_limiter};
 use std::{
-    fs,
+    env, fs,
     io::{self, Read, Write},
     path::{Path, PathBuf},
 };
@@ -39,13 +39,15 @@ fn dump<P: AsRef<Path>>(path: P, buf: &[u8]) -> io::Result<()> {
 }
 
 fn run_diff_test<F: FnOnce(&[u8]) -> Vec<u8>>(test_dir: &str, name: &str, test: F) {
-    let mut fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+
+    let mut fixture_path = manifest_dir.clone();
     fixture_path.push("tests");
     fixture_path.push("fixtures");
     fixture_path.push(test_dir);
     fixture_path.push(name);
 
-    let mut expected_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut expected_path = manifest_dir;
     expected_path.push("tests");
     expected_path.push("expectations");
     expected_path.push(test_dir);

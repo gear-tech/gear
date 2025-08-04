@@ -21,13 +21,12 @@
 //! Simple "connect-node" consensus service implementation.
 
 use crate::{
-    utils::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ConsensusEvent, ConsensusService,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    SignedValidationRequest,
 };
 use anyhow::Result;
-use ethexe_common::{ecdsa::SignedData, ProducerBlock, SimpleBlockData};
-use ethexe_observer::BlockSyncedData;
-use futures::{stream::FusedStream, Stream};
+use ethexe_common::SimpleBlockData;
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -61,27 +60,26 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_synced_block(&mut self, data: BlockSyncedData) -> Result<()> {
-        let Some(block) = self.chain_head.as_ref() else {
+    fn receive_synced_block(&mut self, block: H256) -> Result<()> {
+        let Some(block_data) = self.chain_head.as_ref() else {
             self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {}, but no chain-head was received yet",
-                data.block_hash
+                "Received synced block {block}, but no chain-head was received yet",
             )));
 
             return Ok(());
         };
 
-        if block.hash != data.block_hash {
+        if block_data.hash != block {
             self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {} is different from the expected block hash {}",
-                data.block_hash, block.hash
+                "Received synced block {block} is different from the expected block hash {}",
+                block_data.hash
             )));
 
             return Ok(());
         }
 
         self.output
-            .push_back(ConsensusEvent::ComputeBlock(block.hash));
+            .push_back(ConsensusEvent::ComputeBlock(block_data.hash));
 
         Ok(())
     }
@@ -90,17 +88,11 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_block_from_producer(
-        &mut self,
-        _block_hash: SignedData<ProducerBlock>,
-    ) -> Result<()> {
+    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
         Ok(())
     }
 
-    fn receive_validation_request(
-        &mut self,
-        _signed_batch: SignedData<BatchCommitmentValidationRequest>,
-    ) -> Result<()> {
+    fn receive_validation_request(&mut self, _signed_batch: SignedValidationRequest) -> Result<()> {
         Ok(())
     }
 

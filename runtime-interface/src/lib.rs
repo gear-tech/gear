@@ -40,7 +40,7 @@ use {
     ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
     ark_ec::{
         bls12::Bls12Config,
-        hashing::{curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher, HashToCurve},
+        hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
     },
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
@@ -52,7 +52,7 @@ use {
 pub use gear_sandbox_interface::sandbox;
 #[cfg(feature = "std")]
 pub use gear_sandbox_interface::{
-    detail as sandbox_detail, init as sandbox_init, Instantiate, SandboxBackend,
+    Instantiate, SandboxBackend, detail as sandbox_detail, init as sandbox_init,
 };
 
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
@@ -256,7 +256,7 @@ pub mod lazy_pages_detail {
         use gear_lazy_pages::LazyPagesVersion;
 
         gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), SpIoProgramStorage)
-            .map_err(|err| log::error!("Cannot initialize lazy-pages: {}", err))
+            .map_err(|err| log::error!("Cannot initialize lazy-pages: {err}"))
             .is_ok()
     }
 

@@ -17,17 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{GearApi, Result};
-use crate::{api::storage::account_id::IntoAccountId32, utils, Error};
+use crate::{Error, api::storage::account_id::IntoAccountId32, utils};
 use anyhow::anyhow;
 use gear_core::{gas::LockId, ids::*, memory::PageBuf, pages::GearPage};
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
+    Error as GsdkError, GearGasNode, GearGasNodeId,
     config::GearConfig,
     ext::{
         sp_core::H256,
         sp_runtime::{AccountId32, MultiAddress},
     },
     metadata::{
+        Convert, Event,
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
         runtime_types::{
@@ -43,9 +45,7 @@ use gsdk::{
         system::Event as SystemEvent,
         utility::Event as UtilityEvent,
         vara_runtime::RuntimeCall,
-        Convert, Event,
     },
-    Error as GsdkError, GearGasNode, GearGasNodeId,
 };
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
@@ -422,18 +422,18 @@ impl GearApi {
             }
         }
 
-        let src_code_id = src_program.code_hash.0.into();
+        let src_code_id = src_program.code_id.0.into();
 
-        let src_code_len = self
+        let src_instrumented_code = self
             .0
             .api()
-            .code_len_storage_at(src_code_id, src_block_hash)
+            .instrumented_code_storage_at(src_code_id, src_block_hash)
             .await?;
 
-        let src_code = self
+        let src_code_metadata = self
             .0
             .api()
-            .code_storage_at(src_code_id, src_block_hash)
+            .code_metadata_storage_at(src_code_id, src_block_hash)
             .await?;
 
         // Apply data to the target program
@@ -460,13 +460,13 @@ impl GearApi {
         dest_node_api
             .0
             .storage
-            .set_code_storage(src_code_id, &src_code)
+            .set_instrumented_code_storage(src_code_id, &src_instrumented_code)
             .await?;
 
         dest_node_api
             .0
             .storage
-            .set_code_len_storage(src_code_id, src_code_len)
+            .set_code_metadata_storage(src_code_id, &src_code_metadata)
             .await?;
 
         dest_node_api
