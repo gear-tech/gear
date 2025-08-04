@@ -65,3 +65,10 @@ runs:
         cache-all-crates: ${{ inputs.cache-all-crates }}
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
+
+    - uses: brndnmtthws/rust-action-cargo-binstall@v1
+      with:
+        packages: cargo-clean-all
+
+    - run: cargo clean-all -y --keep-days 14
+      shell: bash
