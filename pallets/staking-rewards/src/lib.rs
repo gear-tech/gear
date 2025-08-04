@@ -231,6 +231,10 @@ pub mod pallet {
         Burned { amount: BalanceOf<T> },
         /// Minted to the pool.
         Minted { amount: BalanceOf<T> },
+        /// Target inflation changed.
+        TargetInflationChanged { value: Perquintill },
+        /// Ideal staking ratio changed.
+        IdealStakingRatioChanged { value: Perquintill },
     }
 
     /// Error for the staking rewards pallet.
@@ -321,6 +325,38 @@ pub mod pallet {
                 Error::<T>::FailureToWithdrawFromPool
             })?;
             Self::deposit_event(Event::Withdrawn { amount: value });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(3)]
+        #[pallet::weight(<T as frame_system::Config>::DbWeight::get().reads_writes(1, 2))]
+        pub fn set_target_inflation(origin: OriginFor<T>, p: u64, n: u64) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let value = Perquintill::from_rational(p, n);
+
+            if value != TargetInflation::<T>::get() {
+                TargetInflation::<T>::set(value);
+
+                Self::deposit_event(Event::TargetInflationChanged { value });
+            }
+
+            Ok(())
+        }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(<T as frame_system::Config>::DbWeight::get().reads_writes(1, 2))]
+        pub fn set_ideal_staking_ratio(origin: OriginFor<T>, p: u64, n: u64) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let value = Perquintill::from_rational(p, n);
+
+            if value != IdealStakingRatio::<T>::get() {
+                IdealStakingRatio::<T>::set(value);
+
+                Self::deposit_event(Event::IdealStakingRatioChanged { value });
+            }
 
             Ok(())
         }
