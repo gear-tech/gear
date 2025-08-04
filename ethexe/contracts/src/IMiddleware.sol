@@ -71,7 +71,7 @@ interface IMiddleware {
 
     struct InitParams {
         address owner;
-        // uint48 eraDuration;
+        uint48 eraDuration;
         uint48 minVaultEpochDuration;
         uint48 operatorGracePeriod;
         uint48 vaultGracePeriod;

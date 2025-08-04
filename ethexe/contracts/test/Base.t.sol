@@ -475,6 +475,7 @@ contract Base is POCBaseTest {
         });
 
         params = IMiddleware.InitParams({
+            eraDuration: eraDuration,
             owner: admin,
             minVaultEpochDuration: eraDuration * 2,
             operatorGracePeriod: eraDuration * 2,

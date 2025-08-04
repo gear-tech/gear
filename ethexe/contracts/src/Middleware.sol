@@ -66,7 +66,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();
 
-        $.eraDuration = IRouter(_params.router).timelines().era;
+        $.eraDuration = _params.eraDuration;
         $.minVaultEpochDuration = _params.minVaultEpochDuration;
         $.operatorGracePeriod = _params.operatorGracePeriod;
         $.vaultGracePeriod = _params.vaultGracePeriod;
