@@ -4813,6 +4813,7 @@ dependencies = [
 name = "ethexe-processor"
 version = "1.9.0"
 dependencies = [
+ "anyhow",
  "demo-async",
  "demo-ping",
  "ethexe-common",

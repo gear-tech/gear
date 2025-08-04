@@ -141,6 +141,7 @@ pub async fn run(
     }
 
     loop {
+        // todo [sab] try with one run orchestrate
         let states = in_block_transitions
             .states_iter()
             .filter_map(|(&actor_id, &state)| {
@@ -247,10 +248,13 @@ fn orchestrate_queues_for_overlaid_execution(
     db: &Database,
     base_program: ActorId,
 ) {
-    // todo [sab] use log trace
-    let known_programs = in_block_transitions.known_programs();
-    for program in known_programs {
-        log::warn!("Nullifying queue for program {program}");
+    let non_empty_queues_programs = in_block_transitions
+        .states_iter()
+        .filter_map(|(&actor_id, state)| (state.cached_queue_size != 0).then_some(actor_id))
+        .collect::<Vec<_>>();
+
+    for program in non_empty_queues_programs {
+        log::trace!("Nullifying queue for program {program}");
         let mut transition_controller = TransitionController {
             transitions: in_block_transitions,
             storage: db,
@@ -258,8 +262,8 @@ fn orchestrate_queues_for_overlaid_execution(
         transition_controller.update_state(program, |state, _, _| {
             state.queue.modify_queue(db, |queue| {
                 if program == base_program {
-                    log::warn!("Base program queue will be nullified");
-                    log::warn!("Queue state - {:#?}", queue);
+                    log::trace!("Base program queue will be nullified");
+                    log::trace!("Queue state - {:#?}", queue);
                     // Last dispatch is the one for which overlaid executor was created.
                     // Implicit invariant!
                     let dispatch = queue
@@ -267,11 +271,11 @@ fn orchestrate_queues_for_overlaid_execution(
                         .expect("last dispatch must be added before");
                     queue.clear();
                     queue.queue(dispatch);
-                    log::warn!("Queue state after - {:#?}", queue);
+                    log::trace!("Queue state after - {:#?}", queue);
                 } else {
-                    log::warn!("Queue state before nullification - {:#?}", queue);
+                    log::trace!("Queue state before nullification - {:#?}", queue);
                     queue.clear();
-                    log::warn!("Queue state after nullification - {:#?}", queue);
+                    log::trace!("Queue state after nullification - {:#?}", queue);
                 }
             });
         });
