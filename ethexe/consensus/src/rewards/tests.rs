@@ -56,7 +56,7 @@ sol!(
 );
 
 // This function is used to send a transaction call builder and wait for the receipt.
-// It usefull for testing purposes, because of reduced boilerplate code in tests. 
+// It usefull for testing purposes, because of reduced boilerplate code in tests.
 async fn send<P, D, N>(builder: CallBuilder<P, D, N>) -> Result<N::ReceiptResponse>
 where
     P: Provider<N>,
