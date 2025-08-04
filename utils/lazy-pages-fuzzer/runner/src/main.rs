@@ -129,11 +129,11 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
             stats_ts = Instant::now();
         }
 
-        if let Some(duration_seconds) = duration_seconds {
-            if start_ts.elapsed().as_secs() >= duration_seconds {
-                log::info!("Fuzzer run completed after {} seconds", duration_seconds);
-                process::exit(0);
-            }
+        if let Some(duration_seconds) = duration_seconds
+            && start_ts.elapsed().as_secs() >= duration_seconds
+        {
+            log::info!("Fuzzer run completed after {} seconds", duration_seconds);
+            process::exit(0);
         }
     });
 
