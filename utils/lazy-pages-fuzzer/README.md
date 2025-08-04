@@ -7,7 +7,7 @@ A lightweight, parallel, deterministic fuzzer for exercising `lazy-pages` functi
 Run the fuzzer:
 
 ```bash
-cargo run -p lazy-pages-fuzzer-runner -- run
+RUST_LOG=info cargo run --release -p lazy-pages-fuzzer-runner -- run
 ```
 
 On the first run, a `seed.bin` file is created in the **current working directory** and used as the base seed for fuzzing.  
@@ -30,5 +30,5 @@ Steps:
 2. Run the fuzzer with the `reproduce` command, passing the instance seed:
 
 ```bash
-cargo run -p lazy-pages-fuzzer-runner -- reproduce 8b7f0e0b3a1b4c2d5e6f7a8b9c0d1e2f11223344556677889900aabbccddeeff
+RUST_LOG=debug cargo run --release -p lazy-pages-fuzzer-runner -- reproduce 8b7f0e0b3a1b4c2d5e6f7a8b9c0d1e2f11223344556677889900aabbccddeeff
 ```
