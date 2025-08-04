@@ -289,7 +289,7 @@ impl OverlaidProcessor {
             },
         )?;
 
-        run::run_overlaid(
+        run::run(
             self.0.db.clone(),
             self.0.creator.clone(),
             &mut handler.transitions,
@@ -297,11 +297,9 @@ impl OverlaidProcessor {
                 chunk_processing_threads: self.0.config().chunk_processing_threads,
                 block_gas_limit: self.0.config().block_gas_limit,
             },
-            program_id,
+            Some(program_id),
         )
         .await;
-
-        // run::run_overlaid(self, &mut handler.transitions, program_id);
 
         // Getting message to users now, because later transitions are moved.
         let current_messages = handler.transitions.current_messages();
