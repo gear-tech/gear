@@ -66,10 +66,10 @@ runs:
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
 
-    - run: CARGO_BUILD_TARGET="" cargo install cargo-sweep
-      shell: bash
-
     - run: |
         unset CARGO_BUILD_TARGET
-        cargo sweep --time 14 --recursive
+        cargo install cargo-sweep
+      shell: bash
+
+    - run: cargo sweep --time 14 --recursive
       shell: bash
