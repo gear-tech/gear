@@ -59,7 +59,6 @@ alloy = { workspace = true, features = [
 ntest = "0.9.3"
 gear-core.workspace = true
 gear-core-errors.workspace = true
-serde_json.workspace = true
 ethexe-network.workspace = true
 roast-secp256k1-evm.workspace = true
 ethexe-rpc = { workspace = true, features = ["test-utils"] }

@@ -761,6 +761,18 @@ impl MessageQueue {
     }
 }
 
+/// Methods introduced due to solution to #4513.
+/// Remove when becomes unnecessary.
+impl MessageQueue {
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    pub fn pop_back(&mut self) -> Option<Dispatch> {
+        self.0.pop_back()
+    }
+}
+
 #[derive(
     Clone, Default, Debug, Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
 )]

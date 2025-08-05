@@ -104,6 +104,7 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
+use core_processor::common::JournalNote;
 use ethexe_common::{
     StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
 };
@@ -111,8 +112,8 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use gear_core::gas::GasAllowanceCounter;
-use gprimitives::{ActorId, H256};
+use gear_core::{gas::GasAllowanceCounter, message::ReplyDetails};
+use gprimitives::{ActorId, H256, MessageId};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
@@ -121,6 +122,7 @@ use crate::host::{InstanceCreator, InstanceWrapper};
 pub struct RunnerConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
+    pub gas_limit_multiplier: u64,
 }
 
 pub async fn run(
@@ -128,14 +130,25 @@ pub async fn run(
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
     config: RunnerConfig,
+    overlaid_execution: Option<ActorId>,
 ) {
     let mut join_set = JoinSet::new();
     let chunk_size = config.chunk_processing_threads;
-    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let mut allowance_counter = GasAllowanceCounter::new(
+        config
+            .block_gas_limit
+            .saturating_mul(config.gas_limit_multiplier),
+    );
     let mut is_out_of_gas_for_block = false;
 
-    loop {
-        let states: Vec<_> = in_block_transitions
+    // Orchestrate programs message queues for overlaid execution only once before the run-loop.
+    if let Some(base_program) = overlaid_execution {
+        orchestrate_queues_for_overlaid_execution(in_block_transitions, &db, base_program);
+    }
+
+    'main: loop {
+        // todo [sab] try with one run orchestrate
+        let states = in_block_transitions
             .states_iter()
             .filter_map(|(&actor_id, &state)| {
                 if state.cached_queue_size == 0 {
@@ -201,7 +214,13 @@ pub async fn run(
                     unreachable!("Program journal is `None`, this should never happen");
                 };
 
+                // Flag signals that journals processing can be stopped early, as an expected reply was found.
+                let mut overlay_early_break = overlaid_execution.is_some().then_some(false);
                 for (journal, dispatch_origin, call_reply) in program_journals {
+                    if let Some(flag) = overlay_early_break.as_mut() {
+                        try_set_early_break(flag, &journal);
+                    }
+
                     let mut journal_handler = JournalHandler {
                         program_id,
                         dispatch_origin,
@@ -215,6 +234,10 @@ pub async fn run(
                         out_of_gas_for_block: &mut is_out_of_gas_for_block,
                     };
                     core_processor::handle_journal(journal, &mut journal_handler);
+
+                    if overlay_early_break == Some(true) {
+                        break 'main;
+                    }
                 }
             }
 
@@ -225,6 +248,53 @@ pub async fn run(
                 break;
             }
         }
+    }
+}
+
+/// Cleans-up queues for all programs except for the base one.
+///
+/// The base program will have the first message in its queue remaining intact.
+///
+/// Orchestration serves as a preparation step for overlaid execution, which itself is
+/// used to calculate reply for calling `handle` function of the program without actually
+/// executing it. Nullifying queues makes the calculation faster by cleaning up possibly
+/// long queues of unrelated programs (or short queues of numerous unrelated programs).
+fn orchestrate_queues_for_overlaid_execution(
+    in_block_transitions: &mut InBlockTransitions,
+    db: &Database,
+    base_program: ActorId,
+) {
+    let non_empty_queues_programs = in_block_transitions
+        .states_iter()
+        .filter_map(|(&actor_id, state)| (state.cached_queue_size != 0).then_some(actor_id))
+        .collect::<Vec<_>>();
+
+    for program in non_empty_queues_programs {
+        log::trace!("Nullifying queue for program {program}");
+        let mut transition_controller = TransitionController {
+            transitions: in_block_transitions,
+            storage: db,
+        };
+        transition_controller.update_state(program, |state, _, _| {
+            state.queue.modify_queue(db, |queue| {
+                if program == base_program {
+                    log::trace!("Base program queue will be nullified");
+                    log::trace!("Queue state - {:#?}", queue);
+                    // Last dispatch is the one for which overlaid executor was created.
+                    // Implicit invariant!
+                    let dispatch = queue
+                        .pop_back()
+                        .expect("last dispatch must be added before");
+                    queue.clear();
+                    queue.queue(dispatch);
+                    log::trace!("Queue state after - {:#?}", queue);
+                } else {
+                    log::trace!("Queue state before nullification - {:#?}", queue);
+                    queue.clear();
+                    log::trace!("Queue state after nullification - {:#?}", queue);
+                }
+            });
+        });
     }
 }
 
@@ -293,13 +363,30 @@ fn run_runtime(
         .expect("Some error occurs while running program in instance")
 }
 
+/// Checks that journal contains a reply message to the message with `MessageId::zero()`.
+/// By contract, a message with `MessageId::zero()` is the one sent in overlay execution
+/// to calculate the reply for the program's `handle` function.
+fn try_set_early_break(flag: &mut bool, journal: &Vec<JournalNote>) {
+    for note in journal {
+        if let JournalNote::SendDispatch { dispatch, .. } = note
+            && let Some((mid, _)) = dispatch.reply_details().map(ReplyDetails::into_parts)
+            && mid == MessageId::zero()
+        {
+            *flag = true;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use gprimitives::ActorId;
-
     use super::*;
+    use ethexe_common::{BlockHeader, StateHashWithQueueSize, gear::Origin};
+    use ethexe_runtime_common::state::{
+        ActiveProgram, Dispatch, MaybeHashOf, MessageQueueHashWithSize, Program, ProgramState,
+        Storage,
+    };
+    use gprimitives::{ActorId, MessageId};
+    use std::collections::{BTreeMap, HashMap};
 
     #[test]
     fn chunk_partitioning() {
@@ -351,5 +438,140 @@ mod tests {
                 "Chunks are not sorted"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn nullification() {
+        let mem_db = ethexe_db::MemDb::default();
+        let db = Database::from_one(&mem_db);
+
+        let source = ActorId::from(H256::random());
+        let pid1 = ActorId::from(H256::random());
+        let pid2 = ActorId::from(H256::random());
+
+        let create_pid_state = |messages: Vec<MessageId>| {
+            let mut pid_state = ProgramState {
+                program: Program::Active(ActiveProgram {
+                    allocations_hash: MaybeHashOf::empty(),
+                    pages_hash: MaybeHashOf::empty(),
+                    memory_infix: Default::default(),
+                    initialized: true,
+                }),
+                queue: MessageQueueHashWithSize {
+                    hash: MaybeHashOf::empty(),
+                    cached_queue_size: 0,
+                },
+                waitlist_hash: MaybeHashOf::empty(),
+                stash_hash: MaybeHashOf::empty(),
+                mailbox_hash: MaybeHashOf::empty(),
+                balance: 1_000_000_000_000,
+                executable_balance: 100_000_000_000_000,
+            };
+
+            pid_state.queue.modify_queue(&db, |queue| {
+                for id in messages {
+                    let dispatch =
+                        Dispatch::new(&db, id, source, vec![], 0, false, Origin::Ethereum, false)
+                            .expect("Failed to create dispatch");
+                    queue.queue(dispatch);
+                }
+            });
+
+            pid_state
+        };
+
+        fn access_state<F>(
+            pid: ActorId,
+            in_block_transitions: &mut InBlockTransitions,
+            db: &Database,
+            mut f: F,
+        ) where
+            F: FnMut(&mut ProgramState, &Database, &mut InBlockTransitions),
+        {
+            let mut tc = TransitionController {
+                storage: db,
+                transitions: in_block_transitions,
+            };
+
+            tc.update_state(pid, |state, storage, transitions| {
+                f(state, storage, transitions)
+            });
+        }
+
+        // Create a proper state for pid1
+        let pid1_state = create_pid_state(vec![
+            MessageId::from(H256::random()),
+            MessageId::from(H256::random()),
+            MessageId::from(H256::random()),
+        ]);
+        let pid1_state_hash = db.write_state(pid1_state);
+        let pid1_state_hash_with_queue_size = StateHashWithQueueSize {
+            hash: pid1_state_hash,
+            cached_queue_size: 0,
+        };
+
+        // Create a proper state for pid2
+        let pid2_overlay_mid2 = MessageId::from(H256::random());
+        let pid2_state = create_pid_state(vec![MessageId::from(H256::random()), pid2_overlay_mid2]);
+        let pid2_state_hash = db.write_state(pid2_state);
+        let pid2_state_hash_with_queue_size = StateHashWithQueueSize {
+            hash: pid2_state_hash,
+            cached_queue_size: 0,
+        };
+
+        // Create in block transitions
+        let states = BTreeMap::from([
+            (pid1, pid1_state_hash_with_queue_size),
+            (pid2, pid2_state_hash_with_queue_size),
+        ]);
+        let block_header = BlockHeader {
+            height: 3,
+            timestamp: 10000,
+            parent_hash: H256::random(),
+        };
+        let mut in_block_transitions =
+            InBlockTransitions::new(block_header, states, Default::default());
+
+        let base_program = pid2;
+
+        access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
+            let mut queue = state
+                .queue
+                .query(storage)
+                .expect("Failed to read queue for pid2");
+            assert_eq!(queue.len(), 2);
+
+            let dispatch = queue
+                .pop_back()
+                .expect("pid2 queue has at least 2 dispatches");
+            assert_eq!(dispatch.id, pid2_overlay_mid2);
+        });
+        access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
+            let queue = state
+                .queue
+                .query(storage)
+                .expect("Failed to read queue for pid1");
+            assert_eq!(queue.len(), 3);
+        });
+
+        orchestrate_queues_for_overlaid_execution(&mut in_block_transitions, &db, base_program);
+
+        access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
+            let mut queue = state
+                .queue
+                .query(storage)
+                .expect("Failed to read queue for pid2");
+            assert_eq!(queue.len(), 1);
+
+            let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
+            assert_eq!(dispatch.id, pid2_overlay_mid2);
+        });
+        access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
+            let queue = state
+                .queue
+                .query(storage)
+                .expect("Failed to read queue for pid1");
+            assert_eq!(queue.len(), 0);
+        });
     }
 }
