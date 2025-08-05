@@ -176,7 +176,7 @@ impl Prepare for SimpleBlockData {
     type Args = H256;
 
     fn prepare(self, db: &Database, last_committed_head: H256) -> Self {
-        db.set_block_header(self.hash, self.header.clone());
+        db.set_block_header(self.hash, self.header);
         db.mutate_block_meta(self.hash, |meta| {
             meta.computed = true;
             meta.last_committed_batch = Some(Digest::random());

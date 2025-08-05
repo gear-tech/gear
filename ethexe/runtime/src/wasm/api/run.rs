@@ -44,7 +44,7 @@ pub fn run(
         storage: RuntimeInterfaceStorage,
     };
 
-    let program_state = ri.storage().read_state(state_root).unwrap();
+    let program_state = ri.storage().program_state(state_root).unwrap();
 
     let (journals, gas_spent) = process_queue(
         program_id,

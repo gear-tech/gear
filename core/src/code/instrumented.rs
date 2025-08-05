@@ -28,7 +28,7 @@ use scale_info::{
 /// Instantiated section sizes for charging during module instantiation.
 /// By "instantiated sections sizes" we mean the size of the section representation in the executor
 /// during module instantiation.
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct InstantiatedSectionSizes {
     /// Code section size in bytes.
     code_section: u32,
@@ -97,7 +97,7 @@ impl InstantiatedSectionSizes {
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
-#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct InstrumentedCode {
     /// Code instrumented with the latest schedule.
     bytes: Vec<u8>,

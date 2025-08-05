@@ -53,7 +53,10 @@ mod journal;
 mod schedule;
 mod transitions;
 
-pub const RUNTIME_ID: u32 = 0;
+// TODO: consider format.
+/// Version of the runtime.
+pub const VERSION: u32 = 1;
+pub const RUNTIME_ID: u32 = 1;
 
 pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin, bool)>;
 
@@ -86,13 +89,13 @@ impl<S: Storage> TransitionController<'_, S> {
 
         let mut state = self
             .storage
-            .read_state(state_hash)
+            .program_state(state_hash)
             .expect("failed to read state from storage");
 
         let res = f(&mut state, self.storage, self.transitions);
 
         let queue_size = state.queue.cached_queue_size;
-        let new_state_hash = self.storage.write_state(state);
+        let new_state_hash = self.storage.write_program_state(state);
 
         self.transitions
             .modify_state(program_id, new_state_hash, queue_size);
@@ -128,7 +131,7 @@ where
         .hash
         .map(|hash| {
             ri.storage()
-                .read_queue(hash)
+                .message_queue(hash)
                 .expect("Cannot get message queue")
         })
         .expect("Queue cannot be empty at this point");
@@ -318,7 +321,7 @@ where
     // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.map_or_default(|hash| {
         ri.storage()
-            .read_allocations(hash)
+            .allocations(hash)
             .expect("Cannot get allocations")
     });
 

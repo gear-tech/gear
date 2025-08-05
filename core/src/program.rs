@@ -116,7 +116,7 @@ pub enum ProgramState {
 }
 
 /// Struct defines infix of memory pages storage.
-#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, Hash, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryInfix(u32);
 
