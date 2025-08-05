@@ -559,7 +559,6 @@ impl OnChainStorageWrite for Database {
     fn set_block_synced(&self, block_hash: H256) {
         log::trace!("For block {block_hash} set synced");
         self.mutate_small_data(block_hash, |data| {
-            data.meta.prepared = true;
             data.block_is_synced = true;
         });
     }

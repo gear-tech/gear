@@ -21,9 +21,7 @@ use crate::{
     compute::{self, ComputationStatus},
     prepare::{self, MissingData},
 };
-use ethexe_common::{
-    Announce, AnnounceHash, BlockMetaStorageRead, CodeAndIdUnchecked, CodesStorageRead,
-};
+use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, CodesStorageRead};
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
@@ -47,7 +45,7 @@ enum BlockAction {
     Compute(Announce),
 }
 
-#[derive(Default)]
+#[derive(Default, derive_more::Debug)]
 enum State {
     #[default]
     WaitForBlock,
@@ -57,10 +55,12 @@ enum State {
     },
     Preparation {
         block_hash: H256,
+        #[debug(skip)]
         future: BoxFuture<'static, Result<()>>,
     },
     Computation {
         announce_hash: AnnounceHash,
+        #[debug(skip)]
         future: BoxFuture<'static, Result<ComputationStatus>>,
     },
 }
@@ -154,6 +154,8 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        log::trace!("ComputeService::poll_next: state={:?}", self.blocks_state);
+
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
@@ -194,12 +196,6 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
                     }
                 }
                 Some(BlockAction::Compute(announce)) => {
-                    if !self.db.block_meta(announce.block_hash).prepared {
-                        return Poll::Ready(Some(Err(ComputeError::BlockNotPrepared(
-                            announce.block_hash,
-                        ))));
-                    }
-
                     self.blocks_state = State::Computation {
                         announce_hash: announce.hash(),
                         future: compute::compute(self.db.clone(), self.processor.clone(), announce)
@@ -258,8 +254,7 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        Address, AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, CodeAndIdUnchecked,
-        db::{BlockMeta, BlockMetaStorageWrite, OnChainStorageWrite},
+        Address, AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, CodeAndIdUnchecked, db::*,
     };
     use ethexe_db::Database as DB;
     use futures::StreamExt;
