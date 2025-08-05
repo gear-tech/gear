@@ -6268,12 +6268,15 @@ name = "gear-core-processor"
 version = "1.9.0"
 dependencies = [
  "actor-system-error",
+ "demo-fungible-token",
  "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core",
  "gear-core-backend",
  "gear-core-errors",
+ "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-native-interface",
  "gear-wasm-instrument",
  "gsys",
  "log",

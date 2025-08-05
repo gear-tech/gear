@@ -109,6 +109,13 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
         Self(Vec::new(), PhantomData)
     }
 
+    /// Tries to create new limited vector with specified `capacity`.
+    /// Returns error if `capacity` is bigger than `MAX_LEN`.
+    pub fn with_capacity(capacity: usize) -> Result<Self, E> {
+        (capacity <= N).then_some(()).ok_or_else(E::default)?;
+        Ok(Self(Vec::with_capacity(capacity), PhantomData))
+    }
+
     /// Tries to create new limited vector of length `len`
     /// with default initialized elements.
     pub fn try_new_default(len: usize) -> Result<Self, E> {
@@ -161,6 +168,13 @@ impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
 
         self.0.splice(0..0, values.0);
 
+        Ok(())
+    }
+
+    /// Replace internal data with new one.
+    pub fn try_replace(&mut self, values: Self) -> Result<(), E> {
+        (values.0.len() <= N).then_some(()).ok_or_else(E::default)?;
+        self.0 = values.0;
         Ok(())
     }
 
@@ -403,6 +417,15 @@ mod test {
         buf.try_prepend(prepend_buf).unwrap();
 
         assert_eq!(buf.inner(), &[6, 7, 8, 1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_try_replace_works() {
+        let mut buf = TestBuffer::try_from(vec![1, 2, 3, 4, 5]).unwrap();
+        let replace_buf = TestBuffer::try_from(vec![6, 7, 8]).unwrap();
+        buf.try_replace(replace_buf).unwrap();
+
+        assert_eq!(buf.inner(), &[6, 7, 8]);
     }
 
     #[test]
