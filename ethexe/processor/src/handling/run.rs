@@ -368,12 +368,8 @@ fn run_runtime(
 /// to calculate the reply for the program's `handle` function.
 fn try_set_early_break(flag: &mut bool, journal: &Vec<JournalNote>) {
     for note in journal {
-        let JournalNote::SendDispatch { dispatch, .. } = note else {
-            continue;
-        };
-
-        if let Some((mid, _)) = dispatch.reply_details().map(ReplyDetails::into_parts)
-            // Implicit invariant: `MessageId::zero()` is a message sent to the base program.
+        if let JournalNote::SendDispatch { dispatch, .. } = note
+            && let Some((mid, _)) = dispatch.reply_details().map(ReplyDetails::into_parts)
             && mid == MessageId::zero()
         {
             *flag = true;
