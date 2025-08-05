@@ -54,7 +54,7 @@ macro_rules! node {
         pub enum Node {
             Error(DatabaseIteratorError),
             $(
-                $variant:ident $([ $wrap:ident $lt:tt $_node:ident $gt:tt ])? (
+                $variant:ident $([ $wrap:ident $lt:tt $gt:tt ])? (
                     $(#[$($node_meta:meta)*])?
                     pub struct $node:ident {
                         $(
@@ -253,7 +253,7 @@ node! {
                 pub allocations: Allocations,
             }
         ),
-        MemoryPages[Box<MemoryPagesNode>](
+        MemoryPages[Box<>](
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MemoryPagesNode {
                 pub memory_pages: MemoryPages,
