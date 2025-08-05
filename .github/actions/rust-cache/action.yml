@@ -69,5 +69,7 @@ runs:
     - run: CARGO_BUILD_TARGET="" cargo install cargo-sweep
       shell: bash
 
-    - run: cargo sweep --time 14 --recursive
+    - run: |
+        unset CARGO_BUILD_TARGET
+        cargo sweep --time 14 --recursive
       shell: bash
