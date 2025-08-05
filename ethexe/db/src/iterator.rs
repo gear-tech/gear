@@ -36,7 +36,6 @@ use gprimitives::{ActorId, CodeId, H256};
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
     hash::{DefaultHasher, Hash, Hasher},
-    marker::PhantomData,
 };
 
 pub trait DatabaseIteratorStorage:
@@ -370,44 +369,10 @@ pub enum DatabaseIteratorError {
     NoProgramCodeId(ActorId),
 }
 
-pub struct NewMarker;
-
-pub struct ReadyMarker;
-
-pub struct DatabaseIterator<S, M = ReadyMarker> {
+pub struct DatabaseIterator<S> {
     storage: S,
     stack: VecDeque<Node>,
     visited_nodes: HashSet<u64>,
-    _marker: PhantomData<M>,
-}
-
-impl<S> DatabaseIterator<S, NewMarker>
-where
-    S: DatabaseIteratorStorage,
-{
-    pub fn new(storage: S) -> Self {
-        Self {
-            storage,
-            stack: Default::default(),
-            visited_nodes: HashSet::new(),
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn start(self, node: impl Into<Node>) -> DatabaseIterator<S, ReadyMarker> {
-        let mut this = DatabaseIterator {
-            storage: self.storage,
-            stack: self.stack,
-            visited_nodes: self.visited_nodes,
-            _marker: PhantomData,
-        };
-        this.push_node(node);
-        this
-    }
-
-    pub fn start_with_chain(self, head: H256, bottom: H256) -> DatabaseIterator<S, ReadyMarker> {
-        self.start(ChainNode { head, bottom })
-    }
 }
 
 macro_rules! try_push_node {
@@ -439,6 +404,16 @@ impl<S> DatabaseIterator<S>
 where
     S: DatabaseIteratorStorage,
 {
+    pub fn new(storage: S, node: impl Into<Node>) -> Self {
+        let mut this = Self {
+            storage,
+            stack: Default::default(),
+            visited_nodes: HashSet::new(),
+        };
+        this.push_node(node);
+        this
+    }
+
     fn push_node(&mut self, node: impl Into<Node>) {
         self.stack.push_back(node.into());
     }
@@ -858,8 +833,7 @@ mod tests {
 
         // This will fail because we don't have the block header in the database
         assert!(
-            DatabaseIterator::new(Database::memory())
-                .start(ChainNode { head, bottom })
+            DatabaseIterator::new(Database::memory(), ChainNode { head, bottom })
                 .filter_map(Node::into_error)
                 .any(|error| error.is_no_block_header())
         );
@@ -869,8 +843,7 @@ mod tests {
     fn walk_block_with_missing_data() {
         let block = H256::from_low_u64_be(42);
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(BlockNode { block })
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory(), BlockNode { block })
             .filter_map(Node::into_error)
             .collect();
 
@@ -901,14 +874,16 @@ mod tests {
         queue.push_back(code_id1);
         queue.push_back(code_id2);
 
-        let visited_codes: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(BlockCodesQueueNode {
+        let visited_codes: Vec<_> = DatabaseIterator::new(
+            Database::memory(),
+            BlockCodesQueueNode {
                 block,
                 block_codes_queue: queue,
-            })
-            .filter_map(Node::into_code_id)
-            .map(|node| node.code_id)
-            .collect();
+            },
+        )
+        .filter_map(Node::into_code_id)
+        .map(|node| node.code_id)
+        .collect();
 
         assert_eq!(visited_codes.len(), 2);
         assert!(visited_codes.contains(&code_id1));
@@ -930,13 +905,15 @@ mod tests {
             },
         );
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(BlockProgramStatesNode {
+        let errors: Vec<_> = DatabaseIterator::new(
+            Database::memory(),
+            BlockProgramStatesNode {
                 block,
                 block_program_states,
-            })
-            .filter_map(Node::into_error)
-            .collect();
+            },
+        )
+        .filter_map(Node::into_error)
+        .collect();
 
         assert!(errors.contains(&DatabaseIteratorError::NoProgramState(state_hash)));
     }
@@ -945,10 +922,10 @@ mod tests {
     fn walk_program_id_missing_code() {
         let program_id = ActorId::from([5u8; 32]);
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(ProgramIdNode { program_id })
-            .filter_map(Node::into_error)
-            .collect();
+        let errors: Vec<_> =
+            DatabaseIterator::new(Database::memory(), ProgramIdNode { program_id })
+                .filter_map(Node::into_error)
+                .collect();
 
         assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(program_id)));
     }
@@ -957,8 +934,7 @@ mod tests {
     fn walk_code_id_missing_data() {
         let code_id = CodeId::from(1);
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(CodeIdNode { code_id })
+        let errors: Vec<_> = DatabaseIterator::new(Database::memory(), CodeIdNode { code_id })
             .filter_map(Node::into_error)
             .collect();
 
@@ -979,11 +955,11 @@ mod tests {
         let program_id = ActorId::from([6u8; 32]);
         let task = ScheduledTask::PauseProgram(program_id);
 
-        let visited_programs: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(ScheduledTaskNode { task })
-            .filter_map(Node::into_program_id)
-            .map(|node| node.program_id)
-            .collect();
+        let visited_programs: Vec<_> =
+            DatabaseIterator::new(Database::memory(), ScheduledTaskNode { task })
+                .filter_map(Node::into_program_id)
+                .map(|node| node.program_id)
+                .collect();
 
         assert!(visited_programs.contains(&program_id));
     }
@@ -993,11 +969,11 @@ mod tests {
         let code_id = CodeId::from([7u8; 32]);
         let task = ScheduledTask::RemoveCode(code_id);
 
-        let visited_codes: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(ScheduledTaskNode { task })
-            .filter_map(Node::into_code_id)
-            .map(|node| node.code_id)
-            .collect();
+        let visited_codes: Vec<_> =
+            DatabaseIterator::new(Database::memory(), ScheduledTaskNode { task })
+                .filter_map(Node::into_code_id)
+                .map(|node| node.code_id)
+                .collect();
 
         assert!(visited_codes.contains(&code_id));
     }
@@ -1014,13 +990,15 @@ mod tests {
         tasks.insert(ScheduledTask::RemoveCode(code_id));
         tasks.insert(ScheduledTask::WakeMessage(program_id2, MessageId::zero()));
 
-        let visited: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(BlockScheduleTasksNode {
+        let visited: Vec<_> = DatabaseIterator::new(
+            Database::memory(),
+            BlockScheduleTasksNode {
                 block,
                 height: 123,
                 tasks,
-            })
-            .collect();
+            },
+        )
+        .collect();
 
         let visited_programs: Vec<ActorId> = visited
             .iter()
@@ -1051,14 +1029,16 @@ mod tests {
         tasks.insert(ScheduledTask::PauseProgram(program_id));
         block_schedule.insert(1000u32, tasks);
 
-        let visited_programs: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(BlockScheduleNode {
+        let visited_programs: Vec<_> = DatabaseIterator::new(
+            Database::memory(),
+            BlockScheduleNode {
                 block,
                 block_schedule,
-            })
-            .filter_map(Node::into_program_id)
-            .map(|node| node.program_id)
-            .collect();
+            },
+        )
+        .filter_map(Node::into_program_id)
+        .map(|node| node.program_id)
+        .collect();
 
         assert!(visited_programs.contains(&program_id));
     }
@@ -1069,8 +1049,9 @@ mod tests {
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(BlockOutcomeNode {
+        let errors: Vec<_> = DatabaseIterator::new(
+            Database::memory(),
+            BlockOutcomeNode {
                 block,
                 block_outcome: BlockOutcome::Transitions(vec![StateTransition {
                     actor_id,
@@ -1081,9 +1062,10 @@ mod tests {
                     value_claims: vec![],
                     messages: vec![],
                 }]),
-            })
-            .filter_map(Node::into_error)
-            .collect();
+            },
+        )
+        .filter_map(Node::into_error)
+        .collect();
 
         assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(actor_id)));
         assert!(errors.contains(&DatabaseIteratorError::NoProgramState(new_state_hash)));
@@ -1104,9 +1086,9 @@ mod tests {
             messages: Vec::new(),
         };
 
-        let nodes: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(StateTransitionNode { state_transition })
-            .collect();
+        let nodes: Vec<_> =
+            DatabaseIterator::new(Database::memory(), StateTransitionNode { state_transition })
+                .collect();
 
         let visited_programs: Vec<_> = nodes
             .iter()
@@ -1135,11 +1117,11 @@ mod tests {
             messages: Vec::new(),
         };
 
-        let visited_states: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(StateTransitionNode { state_transition })
-            .filter_map(Node::into_program_state)
-            .map(|node| node.program_state)
-            .collect();
+        let visited_states: Vec<_> =
+            DatabaseIterator::new(Database::memory(), StateTransitionNode { state_transition })
+                .filter_map(Node::into_program_state)
+                .map(|node| node.program_state)
+                .collect();
         assert_eq!(visited_states, []);
     }
 
@@ -1149,11 +1131,11 @@ mod tests {
         let payload = Payload::try_from(payload_data.clone()).unwrap();
         let payload_lookup = PayloadLookup::Direct(payload.clone());
 
-        let visited_payloads: Vec<_> = DatabaseIterator::new(Database::memory())
-            .start(PayloadLookupNode { payload_lookup })
-            .filter_map(Node::into_payload)
-            .map(|node| node.payload)
-            .collect();
+        let visited_payloads: Vec<_> =
+            DatabaseIterator::new(Database::memory(), PayloadLookupNode { payload_lookup })
+                .filter_map(Node::into_payload)
+                .map(|node| node.payload)
+                .collect();
 
         assert!(visited_payloads.contains(&payload));
     }
@@ -1164,13 +1146,15 @@ mod tests {
         let payload = Payload::filled_with(0xfe);
         let payload_hash = db.write_payload(payload.clone());
 
-        let visited_payloads: Vec<_> = DatabaseIterator::new(db)
-            .start(PayloadLookupNode {
+        let visited_payloads: Vec<_> = DatabaseIterator::new(
+            db,
+            PayloadLookupNode {
                 payload_lookup: PayloadLookup::Stored(payload_hash),
-            })
-            .filter_map(Node::into_payload)
-            .map(|node| node.payload)
-            .collect();
+            },
+        )
+        .filter_map(Node::into_payload)
+        .map(|node| node.payload)
+        .collect();
 
         assert_eq!(visited_payloads, [payload]);
     }

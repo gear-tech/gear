@@ -80,7 +80,6 @@ macro_rules! define_visit_node {
 crate::iterator::for_each_node!(define_visit_node);
 
 pub fn walk(visitor: &mut impl DatabaseVisitor, node: impl Into<Node>) {
-    DatabaseIterator::new(visitor.clone_boxed_db())
-        .start(node.into())
+    DatabaseIterator::new(visitor.clone_boxed_db(), node.into())
         .for_each(|node| visit_node(visitor, node));
 }

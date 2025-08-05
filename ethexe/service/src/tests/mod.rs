@@ -1099,19 +1099,6 @@ async fn fast_sync() {
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
 
-        ethexe_db::iterator::DatabaseIterator::new(Box::new(alice.db.clone()))
-            .start_with_chain(latest_block, fast_synced_block)
-            .filter(|node| {
-                !(node.is_memory_pages()
-                    || node.is_memory_pages_region()
-                    || node.is_page_data()
-                    || node.is_original_code()
-                    || node.is_instrumented_code())
-            })
-            .for_each(|node| {
-                log::error!("{node:?}");
-            });
-
         IntegrityVerifier::new(alice.db.clone())
             .verify_chain(latest_block, fast_synced_block)
             .expect("failed to verify Alice database");
