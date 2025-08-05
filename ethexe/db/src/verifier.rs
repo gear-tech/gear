@@ -136,7 +136,7 @@ impl DatabaseVisitor for IntegrityVerifier {
             .push(IntegrityVerifierError::DatabaseIterator(error));
     }
 
-    fn visit_block_meta(&mut self, _block: H256, meta: &BlockMeta) {
+    fn visit_block_meta(&mut self, _block: H256, meta: BlockMeta) {
         if !meta.synced {
             self.errors.push(IntegrityVerifierError::BlockIsNotSynced);
         }
@@ -195,11 +195,11 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_original_code(&mut self, original_code: &[u8]) {
+    fn visit_original_code(&mut self, original_code: Vec<u8>) {
         self.original_code = Some(original_code.to_vec());
     }
 
-    fn visit_code_metadata(&mut self, code_id: CodeId, metadata: &CodeMetadata) {
+    fn visit_code_metadata(&mut self, code_id: CodeId, metadata: CodeMetadata) {
         let original_code = self.original_code.take();
         if let Some(original_code) = original_code
             && metadata.original_code_len() != original_code.len() as u32
@@ -217,7 +217,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         &mut self,
         block: H256,
         height: u32,
-        tasks: &BTreeSet<ScheduledTask>,
+        tasks: BTreeSet<ScheduledTask>,
     ) {
         let header = self
             .block_header
@@ -242,7 +242,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_message_queue(&mut self, queue: &MessageQueue) {
+    fn visit_message_queue(&mut self, queue: MessageQueue) {
         let encoded_queue = queue.encode();
         let hash = crate::hash(&encoded_queue);
         let hash = unsafe { HashOf::new(hash) };

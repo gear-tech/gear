@@ -49,471 +49,291 @@ impl<T: OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage>
 {
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct ChainNode {
-    pub head: H256,
-    pub bottom: H256,
+macro_rules! node {
+    (
+        $(#[$($meta:meta)*])?
+        pub enum Node {
+            Error(DatabaseIteratorError),
+            $(
+                $variant:ident $([ $wrap:ident $lt:tt $_node:ident $gt:tt ])? (
+                    $(#[$($node_meta:meta)*])?
+                    pub struct $node:ident {
+                        $(
+                            pub $field:ident: $ty:ty,
+                        )*
+                    }
+                ),
+            )*
+        }
+    ) => {
+        $(#[$($meta)*])?
+        pub enum Node {
+            Error(DatabaseIteratorError),
+            $(
+                $variant($( $wrap $lt )? $node $( $gt )?),
+            )*
+        }
+
+        impl Node {
+            $(
+                paste::paste! {
+                    pub fn [< into_ $variant:snake >] (self) -> Option<$( $wrap $lt )? $node $( $gt )?> {
+                        match self {
+                            Node::$variant(node) => Some(node),
+                            _ => None,
+                        }
+                    }
+
+                    pub fn [< as_ $variant:snake >] (&self) -> Option<&$( $wrap $lt )? $node $( $gt )?> {
+                        match self {
+                            Node::$variant(node) => Some(node),
+                            _ => None,
+                        }
+                    }
+                }
+            )*
+        }
+
+        $(
+            $(#[$($node_meta)*])?
+            pub struct $node {
+                $(
+                    pub $field: $ty,
+                )*
+            }
+        )*
+
+        #[macro_export]
+        macro_rules! for_each_node {
+            ($mac:ident) => {
+                $mac! {
+                    $( $variant($node { $( $field: $ty, )* }) )*
+                }
+            };
+        }
+
+        pub(crate) use for_each_node;
+    };
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct BlockNode {
-    pub block: H256,
+node! {
+    #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::From, derive_more::IsVariant)]
+    pub enum Node {
+        Error(DatabaseIteratorError),
+        Chain(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct ChainNode {
+                pub head: H256,
+                pub bottom: H256,
+            }
+        ),
+        Block(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockNode {
+                pub block: H256,
+            }
+        ),
+        BlockMeta(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockMetaNode {
+                pub block: H256,
+                pub meta: BlockMeta,
+            }
+        ),
+        BlockHeader(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockHeaderNode {
+                pub block: H256,
+                pub block_header: BlockHeader,
+            }
+        ),
+        BlockEvents(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockEventsNode {
+                pub block: H256,
+                pub block_events: Vec<BlockEvent>,
+            }
+        ),
+        BlockCodesQueue(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockCodesQueueNode {
+                pub block: H256,
+                pub block_codes_queue: VecDeque<CodeId>,
+            }
+        ),
+        CodeId(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct CodeIdNode {
+                pub code_id: CodeId,
+            }
+        ),
+        CodeValid(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct CodeValidNode {
+                pub code_id: CodeId,
+                pub code_valid: bool,
+            }
+        ),
+        OriginalCode(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct OriginalCodeNode {
+                pub original_code: Vec<u8>,
+            }
+        ),
+        InstrumentedCode(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct InstrumentedCodeNode {
+                pub code_id: CodeId,
+                pub instrumented_code: InstrumentedCode,
+            }
+        ),
+        CodeMetadata(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct CodeMetadataNode {
+                pub code_id: CodeId,
+                pub code_metadata: CodeMetadata,
+            }
+        ),
+        ProgramId(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct ProgramIdNode {
+                pub program_id: ActorId,
+            }
+        ),
+        BlockProgramStates(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockProgramStatesNode {
+                pub block: H256,
+                pub block_program_states: ProgramStates,
+            }
+        ),
+        ProgramState(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct ProgramStateNode {
+                pub program_state: ProgramState,
+            }
+        ),
+        BlockSchedule(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockScheduleNode {
+                pub block: H256,
+                pub block_schedule: Schedule,
+            }
+        ),
+        BlockScheduleTasks(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockScheduleTasksNode {
+                pub block: H256,
+                pub height: u32,
+                pub tasks: BTreeSet<ScheduledTask>,
+            }
+        ),
+        ScheduledTask(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct ScheduledTaskNode {
+                pub task: ScheduledTask,
+            }
+        ),
+        BlockOutcome(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct BlockOutcomeNode {
+                pub block: H256,
+                pub block_outcome: BlockOutcome,
+            }
+        ),
+        StateTransition(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct StateTransitionNode {
+                pub state_transition: StateTransition,
+            }
+        ),
+        Allocations(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct AllocationsNode {
+                pub allocations: Allocations,
+            }
+        ),
+        MemoryPages[Box<MemoryPagesNode>](
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MemoryPagesNode {
+                pub memory_pages: MemoryPages,
+            }
+        ),
+        MemoryPagesRegion(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MemoryPagesRegionNode {
+                pub memory_pages_region: MemoryPagesRegion,
+            }
+        ),
+        PageData(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct PageDataNode {
+                pub page_data: PageBuf,
+            }
+        ),
+        PayloadLookup(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct PayloadLookupNode {
+                pub payload_lookup: PayloadLookup,
+            }
+        ),
+        Payload(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct PayloadNode {
+                pub payload: Payload,
+            }
+        ),
+        MessageQueueHashWithSize(
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct MessageQueueHashWithSizeNode {
+                pub queue_hash_with_size: MessageQueueHashWithSize,
+            }
+        ),
+        MessageQueue(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MessageQueueNode {
+                pub message_queue: MessageQueue,
+            }
+        ),
+        Waitlist(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct WaitlistNode {
+                pub waitlist: Waitlist,
+            }
+        ),
+        Mailbox(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MailboxNode {
+                pub mailbox: Mailbox,
+            }
+        ),
+        UserMailbox(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct UserMailboxNode {
+                pub user_mailbox: UserMailbox,
+            }
+        ),
+        DispatchStash(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct DispatchStashNode {
+                pub dispatch_stash: DispatchStash,
+            }
+        ),
+    }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct BlockMetaNode {
-    pub block: H256,
-    pub meta: BlockMeta,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct BlockHeaderNode {
-    pub block: H256,
-    pub block_header: BlockHeader,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockEventsNode {
-    pub block: H256,
-    pub block_events: Vec<BlockEvent>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockCodesQueueNode {
-    pub block: H256,
-    pub block_codes_queue: VecDeque<CodeId>,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct CodeIdNode {
-    pub code_id: CodeId,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct CodeValidNode {
-    pub code_id: CodeId,
-    pub code_valid: bool,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct OriginalCodeNode {
-    pub original_code: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct InstrumentedCodeNode {
-    pub code_id: CodeId,
-    pub instrumented_code: InstrumentedCode,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct CodeMetadataNode {
-    pub code_id: CodeId,
-    pub code_metadata: CodeMetadata,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct ProgramIdNode {
-    pub program_id: ActorId,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockProgramStatesNode {
-    pub block: H256,
-    pub block_program_states: ProgramStates,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct ProgramStateNode {
-    pub program_state: ProgramState,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockScheduleNode {
-    pub block: H256,
-    pub block_schedule: Schedule,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockScheduleTasksNode {
-    pub block: H256,
-    pub height: u32,
-    pub tasks: BTreeSet<ScheduledTask>,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct ScheduledTaskNode {
-    pub task: ScheduledTask,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct BlockOutcomeNode {
-    pub block: H256,
-    pub block_outcome: BlockOutcome,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct StateTransitionNode {
-    pub state_transition: StateTransition,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct AllocationsNode {
-    pub allocations: Allocations,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct MemoryPagesNode {
-    pub memory_pages: MemoryPages,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct MemoryPagesRegionNode {
-    pub memory_pages_region: MemoryPagesRegion,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct PageDataNode {
-    pub page_data: PageBuf,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct PayloadLookupNode {
-    pub payload_lookup: PayloadLookup,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct PayloadNode {
-    pub payload: Payload,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct MessageQueueHashWithSizeNode {
-    pub queue_hash_with_size: MessageQueueHashWithSize,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct MessageQueueNode {
-    pub message_queue: MessageQueue,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct WaitlistNode {
-    pub waitlist: Waitlist,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct MailboxNode {
-    pub mailbox: Mailbox,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct UserMailboxNode {
-    pub user_mailbox: UserMailbox,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct DispatchStashNode {
-    pub dispatch_stash: DispatchStash,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::From, derive_more::IsVariant)]
-pub enum Node {
-    Chain(ChainNode),
-    Block(BlockNode),
-    BlockMeta(BlockMetaNode),
-    BlockHeader(BlockHeaderNode),
-    BlockEvents(BlockEventsNode),
-    BlockCodesQueue(BlockCodesQueueNode),
-    CodeId(CodeIdNode),
-    CodeValid(CodeValidNode),
-    OriginalCode(OriginalCodeNode),
-    InstrumentedCode(InstrumentedCodeNode),
-    CodeMetadata(CodeMetadataNode),
-    ProgramId(ProgramIdNode),
-    BlockProgramStates(BlockProgramStatesNode),
-    ProgramState(ProgramStateNode),
-    BlockSchedule(BlockScheduleNode),
-    BlockScheduleTAsks(BlockScheduleTasksNode),
-    ScheduledTask(ScheduledTaskNode),
-    BlockOutcome(BlockOutcomeNode),
-    StateTransition(StateTransitionNode),
-    Allocations(AllocationsNode),
-    MemoryPages(Box<MemoryPagesNode>),
-    MemoryPagesRegion(MemoryPagesRegionNode),
-    PageData(PageDataNode),
-    PayloadLookup(PayloadLookupNode),
-    Payload(PayloadNode),
-    MessageQueueHashWithSize(MessageQueueHashWithSizeNode),
-    MessageQueue(MessageQueueNode),
-    Waitlist(WaitlistNode),
-    Mailbox(MailboxNode),
-    UserMailbox(UserMailboxNode),
-    DispatchStash(DispatchStashNode),
-    Error(DatabaseIteratorError),
+impl Node {
+    pub fn into_error(self) -> Option<DatabaseIteratorError> {
+        match self {
+            Node::Error(error) => Some(error),
+            _ => None,
+        }
+    }
 }
 
 impl From<MemoryPagesNode> for Node {
     fn from(value: MemoryPagesNode) -> Self {
         Self::MemoryPages(Box::new(value))
-    }
-}
-
-impl Node {
-    pub fn into_chain(self) -> Option<ChainNode> {
-        if let Node::Chain(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block(self) -> Option<BlockNode> {
-        if let Node::Block(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_meta(self) -> Option<BlockMetaNode> {
-        if let Node::BlockMeta(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_header(self) -> Option<BlockHeaderNode> {
-        if let Node::BlockHeader(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_events(self) -> Option<BlockEventsNode> {
-        if let Node::BlockEvents(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_codes_queue(self) -> Option<BlockCodesQueueNode> {
-        if let Node::BlockCodesQueue(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_code_id(self) -> Option<CodeIdNode> {
-        if let Node::CodeId(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_code_valid(self) -> Option<CodeValidNode> {
-        if let Node::CodeValid(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_original_code(self) -> Option<OriginalCodeNode> {
-        if let Node::OriginalCode(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_instrumented_code(self) -> Option<InstrumentedCodeNode> {
-        if let Node::InstrumentedCode(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_code_metadata(self) -> Option<CodeMetadataNode> {
-        if let Node::CodeMetadata(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_program_id(self) -> Option<ProgramIdNode> {
-        if let Node::ProgramId(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_program_states(self) -> Option<BlockProgramStatesNode> {
-        if let Node::BlockProgramStates(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_program_state(self) -> Option<ProgramStateNode> {
-        if let Node::ProgramState(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_schedule(self) -> Option<BlockScheduleNode> {
-        if let Node::BlockSchedule(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_schedule_tasks(self) -> Option<BlockScheduleTasksNode> {
-        if let Node::BlockScheduleTAsks(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_scheduled_task(self) -> Option<ScheduledTaskNode> {
-        if let Node::ScheduledTask(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_block_outcome(self) -> Option<BlockOutcomeNode> {
-        if let Node::BlockOutcome(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_state_transition(self) -> Option<StateTransitionNode> {
-        if let Node::StateTransition(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_allocations(self) -> Option<AllocationsNode> {
-        if let Node::Allocations(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_memory_pages(self) -> Option<Box<MemoryPagesNode>> {
-        if let Node::MemoryPages(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_memory_pages_region(self) -> Option<MemoryPagesRegionNode> {
-        if let Node::MemoryPagesRegion(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_page_data(self) -> Option<PageDataNode> {
-        if let Node::PageData(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_payload_lookup(self) -> Option<PayloadLookupNode> {
-        if let Node::PayloadLookup(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_payload(self) -> Option<PayloadNode> {
-        if let Node::Payload(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_message_queue_hash_with_size(self) -> Option<MessageQueueHashWithSizeNode> {
-        if let Node::MessageQueueHashWithSize(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_message_queue(self) -> Option<MessageQueueNode> {
-        if let Node::MessageQueue(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_waitlist(self) -> Option<WaitlistNode> {
-        if let Node::Waitlist(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_mailbox(self) -> Option<MailboxNode> {
-        if let Node::Mailbox(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_user_mailbox(self) -> Option<UserMailboxNode> {
-        if let Node::UserMailbox(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_dispatch_stash(self) -> Option<DispatchStashNode> {
-        if let Node::DispatchStash(node) = self {
-            Some(node)
-        } else {
-            None
-        }
-    }
-
-    pub fn into_error(self) -> Option<DatabaseIteratorError> {
-        if let Node::Error(error) = self {
-            Some(error)
-        } else {
-            None
-        }
     }
 }
 
@@ -640,7 +460,7 @@ where
             Node::BlockProgramStates(node) => self.iter_block_program_states(node),
             Node::ProgramState(node) => self.iter_program_state(*node),
             Node::BlockSchedule(node) => self.iter_block_schedule(node),
-            Node::BlockScheduleTAsks(node) => self.iter_block_schedule_tasks(node),
+            Node::BlockScheduleTasks(node) => self.iter_block_schedule_tasks(node),
             Node::ScheduledTask(node) => self.iter_scheduled_task(*node),
             Node::BlockOutcome(node) => self.iter_block_outcome(node),
             Node::StateTransition(node) => self.iter_state_transition(node),
