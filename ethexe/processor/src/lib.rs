@@ -220,6 +220,10 @@ impl Processor {
         announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
+        if !announce.off_chain_transactions.is_empty() {
+            todo!("#4639 off-chain transactions and gas allowance are not supported yet");
+        }
+
         log::debug!(
             "Processing events for {:?}: {events:#?}",
             announce.block_hash
@@ -241,9 +245,7 @@ impl Processor {
             }
         }
 
-        if handler.announce.gas_allowance.is_some() {
-            self.process_queue(&mut handler).await;
-        }
+        self.process_queue(&mut handler).await;
 
         handler.run_schedule();
 

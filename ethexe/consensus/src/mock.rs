@@ -198,7 +198,7 @@ impl Prepare for SimpleBlockData {
                 announces: Some(vec![announce_hash]),
                 codes_queue: Some(Default::default()),
                 last_committed_batch: None,
-                last_committed_announce: Some(AnnounceHash::from(last_committed_announce)),
+                last_committed_announce: Some(last_committed_announce),
             }
         });
 

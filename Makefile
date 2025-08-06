@@ -304,6 +304,6 @@ install:
 typos:
 	@ ./scripts/gear.sh test typos
 
-.PHONY: solidity-remappings
-typos:
-    @ cd ethexe/contracts && forge remappings > remappings.txt && cd -
+.PHONY: ethexe-remappings
+ethexe-remappings:
+	@ cd ethexe/contracts && forge remappings > remappings.txt && cd ../..

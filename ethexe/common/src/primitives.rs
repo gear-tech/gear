@@ -48,7 +48,7 @@ pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 pub struct AnnounceHash(pub H256);
 
 impl AnnounceHash {
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Self(H256::zero())
     }
 

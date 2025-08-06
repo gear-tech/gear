@@ -24,7 +24,7 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
-use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
@@ -186,7 +186,6 @@ impl Service {
         let processor = Processor::with_config(
             ProcessorConfig {
                 chunk_processing_threads: config.node.chunk_processing_threads,
-                block_gas_limit: config.node.block_gas_limit,
             },
             db.clone(),
         )
@@ -414,8 +413,12 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes, None)?;
                     }
-                    ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        consensus.receive_computed_announce(block_hash)?
+                    ComputeEvent::AnnounceComputed(announce_hash) => {
+                        consensus.receive_computed_announce(announce_hash)?
+                    }
+                    ComputeEvent::AnnounceRejected(announce_hash) => {
+                        // TODO +_+_+: we should handle this case properly inside consensus service
+                        log::warn!("Announce {announce_hash:?} was rejected");
                     }
                     ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
                         // Nothing
@@ -525,18 +528,7 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.compute_announce(block),
-                    ConsensusEvent::ComputeAnnounce(producer_block) => {
-                        if !producer_block.off_chain_transactions.is_empty()
-                            || producer_block.gas_allowance.is_some()
-                        {
-                            todo!(
-                                "#4638 #4639 off-chain transactions and gas allowance are not supported yet"
-                            );
-                        }
-
-                        compute.compute_announce(producer_block.block_hash);
-                    }
+                    ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
                     ConsensusEvent::PublishAnnounce(block) => {
                         let Some(n) = network.as_mut() else {
                             continue;

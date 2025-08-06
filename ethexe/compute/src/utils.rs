@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    BlockMeta, SimpleBlockData,
+    AnnounceHash, AnnounceStorageRead, BlockMeta, SimpleBlockData,
     db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use gprimitives::H256;
@@ -51,6 +51,25 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
     }
 
     Ok(chain)
+}
+
+// Returns true if the announce is computed and included in the block `block_hash`.
+// TODO +_+_+
+pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStorageRead>(
+    db: &DB,
+    announce_hash: AnnounceHash,
+    block_hash: H256,
+) -> Result<bool> {
+    if !db.announce_meta(announce_hash).computed {
+        return Ok(false);
+    }
+
+    let meta = db.block_meta(block_hash);
+    Ok(meta.prepared
+        && meta
+            .announces
+            .ok_or(ComputeError::AnnouncesNotFound(block_hash))?
+            .contains(&announce_hash))
 }
 
 #[cfg(test)]

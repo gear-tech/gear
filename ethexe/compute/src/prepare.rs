@@ -19,7 +19,10 @@
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce, AnnounceHash, AnnounceStorageRead, AnnounceStorageWrite, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, LatestDataStorage,
+        OnChainStorageRead,
+    },
     events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
 use ethexe_db::Database;
@@ -146,7 +149,7 @@ async fn prepare_one_block(
     assert_eq!(
         parent_announces.len(),
         1,
-        "Parent block must have exactly one announce"
+        "Currently supporting exactly one announce per block only"
     );
     let parent_announce_hash = parent_announces[0];
 
@@ -176,12 +179,17 @@ async fn prepare_one_block(
         meta.prepared = true;
     });
 
+    db.mutate_latest_data(|data| {
+        data.prepared_block_hash = Some(block.hash);
+        data.computed_announce_hash = Some(new_base_announce_hash);
+    });
+
     Ok(())
 }
 
 /// Create a new base announce from provided parent announce hash.
 /// Compute the announce and store related data in the database.
-async fn propagate_from_parent_announce<'a>(
+async fn propagate_from_parent_announce(
     db: &Database,
     processor: &mut impl ProcessorExt,
     block_hash: H256,
@@ -214,6 +222,20 @@ async fn propagate_from_parent_announce<'a>(
 
     let new_base_announce = Announce::base(block_hash, parent_announce_hash);
     let new_base_announce_hash = new_base_announce.hash();
+
+    if db.announce_meta(new_base_announce_hash).computed {
+        // One possible case is:
+        // node execution was dropped before block was marked as prepared,
+        // but announce was already marked as computed.
+        // see also `announce_is_computed_and_included`
+        log::warn!(
+            "Announce {new_base_announce_hash:?} was already computed,
+             means it was lost by some reasons, skip computation,
+             but setting it as announce in block {block_hash:?}"
+        );
+
+        return Ok(new_base_announce_hash);
+    }
 
     let events = db
         .block_events(block_hash)
@@ -303,7 +325,7 @@ mod tests {
             header: BlockHeader {
                 height: 1,
                 timestamp: 1000,
-                parent_hash: parent_hash,
+                parent_hash,
             },
         };
         let last_committed_announce = AnnounceHash::random();
@@ -383,5 +405,6 @@ mod tests {
             db.announce_program_states(announce_hash),
             Some(Default::default())
         );
+        assert_eq!(db.latest_data().prepared_block_hash, Some(block.hash));
     }
 }

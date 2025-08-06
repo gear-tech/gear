@@ -128,7 +128,7 @@ fn generate_chain(db: &Database, chain_len: u32) -> VecDeque<H256> {
         let block = SimpleBlockData {
             hash: H256::from_low_u64_be(
                 // Use block number as low 32 bits of the hash, avoiding zero hash
-                (block_num != 0).then_some(block_num).unwrap_or(u32::MAX) as u64,
+                if block_num != 0 { block_num } else { u32::MAX } as u64,
             ),
             header: BlockHeader {
                 height: block_num,

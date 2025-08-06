@@ -19,7 +19,7 @@
 //! Transactions validation.
 
 use crate::SignedOffchainTransaction;
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use ethexe_db::Database;
 
 // TODO #4424

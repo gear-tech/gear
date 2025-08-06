@@ -270,14 +270,8 @@ mod tests {
 
         let ctx = initial.into_context();
         assert_eq!(ctx.pending_events.len(), 3);
-        assert!(matches!(
-            ctx.pending_events[0],
-            PendingEvent::Announce(_)
-        ));
-        assert!(matches!(
-            ctx.pending_events[1],
-            PendingEvent::Announce(_)
-        ));
+        assert!(matches!(ctx.pending_events[0], PendingEvent::Announce(_)));
+        assert!(matches!(ctx.pending_events[1], PendingEvent::Announce(_)));
         assert!(matches!(
             ctx.pending_events[2],
             PendingEvent::ValidationRequest(_)

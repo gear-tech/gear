@@ -926,6 +926,7 @@ impl Node {
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
+            db: self.db.clone(),
         }
     }
 

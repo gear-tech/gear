@@ -27,7 +27,7 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::{AnnounceHash, gear::CodeState};
+use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -166,7 +166,7 @@ pub trait ExternalDataProvider: Send + Sync {
     async fn programs_code_ids_at(
         self: Box<Self>,
         program_ids: BTreeSet<ActorId>,
-        announce_hash: AnnounceHash,
+        block: H256,
     ) -> anyhow::Result<Vec<CodeId>>;
 
     async fn codes_states_at(
@@ -189,7 +189,7 @@ pub struct HashesRequest(
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ProgramIdsRequest {
-    pub at: AnnounceHash,
+    pub at: H256,
     pub expected_count: u64,
 }
 
@@ -199,11 +199,20 @@ pub struct ValidCodesRequest {
     pub validated_count: u64,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AnnouncesRequest {
+    /// The hash of head announce
+    pub head: AnnounceHash,
+    /// Max chain length to return
+    pub max_chain_len: u64,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
     ValidCodes(ValidCodesRequest),
+    Announces(AnnouncesRequest),
 }
 
 impl Request {
@@ -211,7 +220,7 @@ impl Request {
         Self::Hashes(HashesRequest(request.into()))
     }
 
-    pub fn program_ids(at: AnnounceHash, expected_count: u64) -> Self {
+    pub fn program_ids(at: H256, expected_count: u64) -> Self {
         Self::ProgramIds(ProgramIdsRequest { at, expected_count })
     }
 
@@ -230,11 +239,20 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+    Announces(Vec<Announce>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsRequest {
-    at: AnnounceHash,
+    at: H256,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct InnerAnnouncesRequest {
+    /// The hash of head announce
+    pub head: AnnounceHash,
+    /// Max chain length to return
+    pub max_chain_len: u64,
 }
 
 /// Network-only type to be encoded-decoded and sent over the network
@@ -243,6 +261,7 @@ pub enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
+    Announces(InnerAnnouncesRequest),
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
@@ -257,6 +276,7 @@ pub enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
+    Announces(Vec<Announce>),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
@@ -1172,7 +1192,7 @@ pub(crate) mod tests {
 
         let request_id = alice
             .behaviour_mut()
-            .request(Request::program_ids(AnnounceHash::zero(), 2));
+            .request(Request::program_ids(H256::zero(), 2));
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -1211,7 +1231,7 @@ pub(crate) mod tests {
         let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
         let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
         left_data_provider
-            .set_programs_code_ids_at(program_ids.clone(), AnnounceHash::zero(), code_ids.clone())
+            .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
 
         let mut announce_hash = AnnounceHash::zero();

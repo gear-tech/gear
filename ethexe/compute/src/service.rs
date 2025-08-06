@@ -228,15 +228,14 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             announce_hash,
             future,
         } = &mut self.blocks_state
+            && let Poll::Ready(res) = future.poll_unpin(cx)
         {
-            if let Poll::Ready(res) = future.poll_unpin(cx) {
-                let announce_hash = *announce_hash;
-                self.blocks_state = State::WaitForBlock;
-                return Poll::Ready(Some(res.map(|status| match status {
-                    ComputationStatus::Computed => ComputeEvent::AnnounceComputed(announce_hash),
-                    ComputationStatus::Rejected => ComputeEvent::AnnounceRejected(announce_hash),
-                })));
-            }
+            let announce_hash = *announce_hash;
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(res.map(|status| match status {
+                ComputationStatus::Computed => ComputeEvent::AnnounceComputed(announce_hash),
+                ComputationStatus::Rejected => ComputeEvent::AnnounceRejected(announce_hash),
+            })));
         }
 
         Poll::Pending

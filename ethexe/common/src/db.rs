@@ -22,7 +22,7 @@
 
 use crate::{
     Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
-    events::BlockEvent, gear::StateTransition,
+    SimpleBlockData, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -93,6 +93,13 @@ pub trait OnChainStorageRead {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
     fn block_synced(&self, block_hash: H256) -> bool;
+
+    fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
+        self.block_header(block_hash).map(|header| SimpleBlockData {
+            hash: block_hash,
+            header,
+        })
+    }
 }
 
 pub trait OnChainStorageWrite {

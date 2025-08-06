@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ProcessorExt, Result};
+use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce, BlockMetaStorageRead, BlockMetaStorageWrite,
-    db::{AnnounceStorageRead, AnnounceStorageWrite, OnChainStorageRead},
+    db::{AnnounceStorageWrite, LatestDataStorage, OnChainStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
@@ -38,21 +38,26 @@ pub(crate) async fn compute<P: ProcessorExt>(
     let announce_hash = announce.hash();
     let block_hash = announce.block_hash;
 
-    if db.announce_meta(announce_hash).computed {
+    if !db.block_meta(block_hash).prepared {
+        log::error!("Block {block_hash} is not prepared before announce is coming");
+        return Err(ComputeError::BlockNotPrepared(block_hash));
+    }
+
+    if utils::announce_is_computed_and_included(&db, announce_hash, announce.block_hash)? {
         log::warn!("{announce:?} is already computed");
         return Ok(ComputationStatus::Computed);
     }
 
-    if !db.announce_meta(announce.parent).computed {
+    let parent_block_hash = db
+        .block_header(block_hash)
+        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?
+        .parent_hash;
+    if !utils::announce_is_computed_and_included(&db, announce.parent, parent_block_hash)? {
         log::warn!(
-            "{announce:?} is from unknown branch: parent {} not computed",
+            "{announce:?} is from unknown branch: parent {}",
             announce.parent
         );
         return Ok(ComputationStatus::Rejected);
-    }
-
-    if !db.block_meta(block_hash).prepared {
-        return Err(ComputeError::BlockNotPrepared(block_hash));
     }
 
     debug_assert!(
@@ -79,32 +84,21 @@ pub(crate) async fn compute<P: ProcessorExt>(
         schedule,
     } = processing_result;
 
-    // replace previous announce from corresponding block
-    let old_announce = db
-        .block_meta(block_hash)
-        .announces
-        .ok_or_else(|| ComputeError::AnnouncesNotFound(block_hash))?
-        .pop()
-        .expect("TODO: temporary panic - number of announces in prepared block must be always 1");
-
-    // TODO +_+_+: bug here - announce marked as not computed before block meta is updated,
-    // this should be fixed by using database transactions, which are not yet implemented
-    db.mutate_announce_meta(old_announce, |meta| meta.computed = false);
-
     db.set_announce(announce);
     db.set_announce_outcome(announce_hash, transitions);
     db.set_announce_program_states(announce_hash, states);
     db.set_announce_schedule(announce_hash, schedule);
 
-    // TODO +_+_+: bug here - announce marked as computed before block meta is updated,
-    // this should be fixed by using database transactions, which are not yet implemented
     db.mutate_announce_meta(announce_hash, |meta| {
         meta.computed = true;
     });
 
     db.mutate_block_meta(block_hash, |meta| {
+        // Currently we replace announces, but we would append in future as separate branch
         meta.announces = Some(vec![announce_hash]);
     });
+
+    db.mutate_latest_data(|data| data.computed_announce_hash = Some(announce_hash));
 
     Ok(ComputationStatus::Computed)
 }
@@ -114,9 +108,7 @@ mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
     use ethexe_common::{
-        AnnounceHash, BlockHeader, BlockMeta, SimpleBlockData,
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
-        gear::StateTransition,
+        AnnounceHash, BlockHeader, BlockMeta, SimpleBlockData, db::*, gear::StateTransition,
     };
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
@@ -150,9 +142,17 @@ mod tests {
             }
         });
         db.set_block_events(block_hash, &[]);
+        db.set_block_header(
+            block_hash,
+            BlockHeader {
+                height: 1,
+                timestamp: 2000,
+                parent_hash: genesis_hash,
+            },
+        );
 
         let announce = Announce {
-            block_hash: block_hash,
+            block_hash,
             parent: AnnounceHash::zero(),
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
@@ -184,9 +184,12 @@ mod tests {
         assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
+        // Verify latest announce
+        assert_eq!(db.latest_data().computed_announce_hash, Some(announce_hash));
+
         // Try with unknown parent
         let announce = Announce {
-            block_hash: block_hash,
+            block_hash,
             parent: AnnounceHash::random(),
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
