@@ -307,7 +307,7 @@ case "$COMMAND" in
 
       lazy-pages-fuzz)
         header "Running lazy pages fuzzer smoke test"
-        run_lazy_pages_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
+        run_lazy_pages_fuzzer "$@"; ;;
 
       fuzzer-tests)
         header "Running runtime-fuzzer crate tests"

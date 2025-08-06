@@ -19,7 +19,6 @@ env:
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
   CARGO_INCREMENTAL: 0
   NEXTEST_PROFILE: ci
-  __GEAR_WASM_BUILDER_NO_FEATURES_TRACKING: 1
 
 jobs:
   docs:
@@ -29,11 +28,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Free disk space
-        uses: insightsengineering/disk-space-reclaimer@v1
-        with:
-          large-packages: false
 
       - name: Setup linker
         uses: ./.github/actions/setup-linker
