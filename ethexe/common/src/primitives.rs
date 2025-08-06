@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ToDigest, events::BlockEvent};
+use crate::{DEFAULT_BLOCK_GAS_LIMIT, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -119,6 +119,15 @@ impl Announce {
             block_hash,
             parent,
             gas_allowance: None,
+            off_chain_transactions: Vec::new(),
+        }
+    }
+
+    pub fn new_default_gas(block_hash: H256, parent: AnnounceHash) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
             off_chain_transactions: Vec::new(),
         }
     }
