@@ -8645,7 +8645,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "tempfile",
- "uuid",
+ "uuid 1.4.1",
  "windows 0.58.0",
 ]
 
