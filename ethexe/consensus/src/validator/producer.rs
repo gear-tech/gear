@@ -212,9 +212,6 @@ impl Producer {
         }
 
         Ok(ctx.rewards_manager.create_commitment(block_hash)?)
-        // Ok(crate::rewards::rewards_commitment(
-        //     &ctx.db, &config, block_hash,
-        // )?)
     }
 
     fn create_producer_block(&mut self) -> Result<()> {

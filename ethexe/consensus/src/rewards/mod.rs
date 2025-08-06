@@ -1,19 +1,16 @@
-use alloy::{
-    primitives::{Address as AlloyAddress, Uint},
-    sol_types::SolType,
-};
+use alloy::providers::Provider;
 use ethexe_common::{
     Address,
     db::{BlockMetaStorageRead, OnChainStorageRead, RewardsState},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewards, StakerRewardsCommitment},
 };
+use ethexe_ethereum::router::RouterQuery;
 use gprimitives::{H160, H256, U256};
-use rs_merkle::{MerkleTree, algorithms::Keccak256};
-use std::{collections::BTreeMap, ops::Range, time::Duration};
+use oz_merkle_rs::MerkleTree as OzMerkleTree;
+use std::{collections::BTreeMap, ops::Range};
 
 #[cfg(test)]
 mod tests;
-
 /*
 TODO: wait for 3 eth eras to calculate rewards
 * Rewards proporsal*
@@ -56,31 +53,171 @@ pub enum RewardsError {
     RewardsDistribution(u64),
     #[error("rewards state not found for block {0}")]
     RewardsStateNotFound(H256),
+    #[error(transparent)]
+    Transport(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    #[error("anyhow error: {0}")]
+    Any(#[from] anyhow::Error),
 }
 type Result<T> = std::result::Result<T, RewardsError>;
 
+#[derive(Clone, derive_more::Debug)]
+struct TotalEraRewards<DB> {
+    pub inner: BTreeMap<Address, U256>,
+    pub era: u64,
+
+    #[debug(skip)]
+    db: DB,
+}
+
+impl<DB: OnChainStorageRead + BlockMetaStorageRead> TotalEraRewards<DB> {
+    pub fn split_into_rewards(self) -> Result<Rewards> {
+        let mut operators = self.inner;
+        let mut stakers = BTreeMap::new();
+        let total_operator_rewards = U256::zero();
+        let total_staker_rewards = U256::zero();
+
+        for (operator, amount) in operators.iter_mut() {
+            let staker_amount = *amount * U256::from(STAKER_REWARDS_RATIO) / U256::from(100);
+            *amount -= staker_amount;
+
+            let operator_total_stake = self
+                .db
+                .operator_stake_at(H160(operator.0), self.era)
+                .ok_or(RewardsError::OperatorEraStake(H160(operator.0), self.era))?;
+
+            let stake_vaults = self
+                .db
+                .operator_stake_vaults_at(H160(operator.0), self.era)
+                .ok_or(RewardsError::OperatorStakeVaults(H160(operator.0)))?;
+
+            for (vault, stake_in_vault) in stake_vaults {
+                let vault_rewards = stakers.entry(vault).or_insert(U256::zero());
+                *vault_rewards += (staker_amount * stake_in_vault) / operator_total_stake;
+            }
+        }
+
+        Ok(Rewards {
+            operators,
+            stakers,
+            total_operator_rewards,
+            total_staker_rewards,
+        })
+    }
+}
+
+#[derive(Clone, derive_more::Debug)]
+struct Rewards {
+    pub operators: BTreeMap<Address, U256>,
+    pub stakers: BTreeMap<Address, U256>,
+    pub total_operator_rewards: U256,
+    pub total_staker_rewards: U256,
+}
+
+impl Rewards {
+    pub fn into_commitment(self) -> RewardsCommitment {
+        let merkle_tree = utils::build_merkle_tree(self.operators);
+        let operators_commitment = OperatorRewardsCommitment {
+            amount: self.total_operator_rewards,
+            root: merkle_tree
+                .get_root()
+                .expect("Nonempty merkle tree should have a root"),
+        };
+
+        let stakers_commitment = StakerRewardsCommitment {
+            distribution: self
+                .stakers
+                .into_iter()
+                .map(|(vault, amount)| StakerRewards { vault, amount })
+                .collect(),
+            total_amount: self.total_staker_rewards,
+            // token: self.config.wvara_address,
+            token: Address::default(),
+        };
+
+        RewardsCommitment {
+            operators: operators_commitment,
+            stakers: stakers_commitment,
+
+            // TODO: add timestamp
+            timestamp: 0,
+        }
+    }
+
+    pub fn extend(&mut self, other: Self) {
+        let Rewards {
+            operators: other_operators,
+            stakers: other_stakers,
+            total_operator_rewards: other_total_operator_rewards,
+            total_staker_rewards: other_total_staker_rewards,
+        } = other;
+
+        for (operator, amount) in other_operators {
+            self.operators
+                .entry(operator)
+                .and_modify(|a| *a += amount)
+                .or_insert(amount);
+        }
+
+        for (vault, amount) in other_stakers {
+            self.stakers
+                .entry(vault)
+                .and_modify(|a| *a += amount)
+                .or_insert(amount);
+        }
+
+        self.total_operator_rewards += other_total_operator_rewards;
+        self.total_staker_rewards += other_total_staker_rewards;
+    }
+}
+
 #[cfg_attr(test, derive(Default))]
-#[derive(Debug, Clone)]
-pub(crate) struct RewardsConfig {
+#[derive(Clone, Debug)]
+struct Config {
     pub genesis_timestamp: u64,
     pub era_duration: u64,
-    pub slot_duration: Duration,
-    pub wvara_digests: U256,
+    pub slot_duration_secs: u64,
+    pub wvara_decimals: U256,
+
+    #[allow(unused)]
     pub wvara_address: Address,
 }
 
 #[derive(Clone, derive_more::Debug)]
-pub(crate) struct RewardsManager<DB>
-where
-    DB: OnChainStorageRead + BlockMetaStorageRead,
-{
+pub(crate) struct RewardsManager<DB> {
+    config: Config,
+
     #[debug(skip)]
     db: DB,
-    config: RewardsConfig,
 }
 
-impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
-    pub fn new(db: DB, config: RewardsConfig) -> Self {
+impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
+    pub async fn new(db: DB, router_query: RouterQuery) -> Result<Self> {
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
+        let genesis_timestamp = router_query
+            .provider()
+            .get_block_by_hash(genesis_block_hash.0.into())
+            .await?
+            .unwrap()
+            .header
+            .timestamp;
+        let era_duration = router_query.timelines().await?.era;
+        let wvara_address = router_query.wvara_address().await?.0.0.into();
+
+        Ok(Self {
+            db,
+            config: Config {
+                genesis_timestamp,
+                era_duration,
+                slot_duration_secs: 12u64,
+                wvara_decimals: U256::from(18),
+                wvara_address,
+            },
+        })
+    }
+
+    #[cfg(test)]
+    pub fn mock(db: DB) -> Self {
+        let config = Default::default();
         Self { db, config }
     }
 
@@ -94,63 +231,22 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
             return Ok(None);
         };
 
-        // Cumulative rewards are initialize by default with
-        let mut cumulative_operator_rewards = self
-            .db
-            .operators_rewards_distribution_at(0)
-            .ok_or(RewardsError::RewardsDistribution(0))?;
-        let mut total_operator_rewards = U256::zero();
-
-        let mut cumulative_vault_rewards = BTreeMap::new();
-        let mut total_staker_rewards = U256::zero();
-
+        let mut cumulative_rewards = Rewards {
+            // TODO: remove 0 to eras_to_reward.start - 1
+            operators: self
+                .db
+                .operators_rewards_distribution_at(0)
+                .ok_or(RewardsError::RewardsDistribution(0))?,
+            stakers: Default::default(),
+            total_operator_rewards: U256::zero(),
+            total_staker_rewards: U256::zero(),
+        };
         for era in eras_to_reward {
-            let (mut operators_rewards, era_total_amount) =
-                self.collect_era_rewards(era, block_hash)?;
-
-            let vault_rewards = self.extract_vault_rewards(era, &mut operators_rewards)?;
-
-            total_operator_rewards += era_total_amount;
-            operators_rewards.into_iter().for_each(|(address, amount)| {
-                cumulative_operator_rewards
-                    .entry(address)
-                    .and_modify(|e| *e += amount)
-                    .or_insert(amount);
-            });
-
-            vault_rewards.into_iter().for_each(|(address, amount)| {
-                total_staker_rewards += amount;
-
-                cumulative_vault_rewards
-                    .entry(address)
-                    .and_modify(|e| *e += amount)
-                    .or_insert(amount);
-            });
+            let total_era_rewards = self.era_total_rewards(era, block_hash)?;
+            let rewards = total_era_rewards.split_into_rewards()?;
+            cumulative_rewards.extend(rewards);
         }
-
-        let operator_rewards_tree = utils::operators_merkle_tree(cumulative_operator_rewards);
-        let operators_commitment = OperatorRewardsCommitment {
-            amount: total_operator_rewards,
-            root: operator_rewards_tree
-                .root()
-                .expect("Nonempty merkle tree should have a root")
-                .into(),
-        };
-
-        let stakers_commitment = StakerRewardsCommitment {
-            distribution: cumulative_vault_rewards
-                .into_iter()
-                .map(|(vault, amount)| StakerRewards { vault, amount })
-                .collect(),
-            total_amount: total_staker_rewards,
-            token: self.config.wvara_address,
-        };
-
-        Ok(Some(RewardsCommitment {
-            operators: operators_commitment,
-            stakers: stakers_commitment,
-            timestamp: header.timestamp,
-        }))
+        Ok(Some(cumulative_rewards.into_commitment()))
     }
 
     fn eras_to_reward(&self, block_hash: H256, block_timestamp: u64) -> Result<Option<Range<u64>>> {
@@ -164,7 +260,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
                 in_block,
                 previous_rewarded,
             } => {
-                if self.should_wait_for_rewards_confirmation_in(in_block, block_timestamp)? {
+                if self.should_wait_for_rewards_confirmation(in_block, block_timestamp)? {
                     return Ok(None);
                 }
 
@@ -172,18 +268,15 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
             }
         };
 
-        let current_era = utils::era_index(&self.config, block_timestamp);
-        println!("current_era: {current_era}, latest_rewarded_era: {latest_rewarded_era}");
+        let current_era = self.era_index(block_timestamp);
 
         if current_era == latest_rewarded_era {
             // rewards can not be distribute, because of in this era they were already
-            println!("current_era == latest_rewarded_era, no need to distribute rewards");
             return Ok(None);
         }
 
         if current_era == latest_rewarded_era + 1 {
             // rewards can't be distributed, because era is not finished yet
-            println!("current_era == latest_rewarded_era + 1, no need to distribute rewards");
             return Ok(None);
         }
 
@@ -191,27 +284,21 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
         Ok(Some(latest_rewarded_era..current_era))
     }
 
-    fn should_wait_for_rewards_confirmation_in(
+    fn should_wait_for_rewards_confirmation(
         &self,
-        block: H256,
-        current_block_timestamp: u64,
+        in_block: H256,
+        current_block_ts: u64,
     ) -> Result<bool> {
         let header = self
             .db
-            .block_header(block)
-            .ok_or(RewardsError::BlockHeader(block))?;
+            .block_header(in_block)
+            .ok_or(RewardsError::BlockHeader(in_block))?;
 
-        let blocks_came =
-            (current_block_timestamp - header.timestamp) / self.config.slot_duration.as_secs();
-
+        let blocks_came = (current_block_ts - header.timestamp) / self.config.slot_duration_secs;
         Ok(blocks_came < REWARDS_CONFIRMATION_BLOCKS_WINDOW)
     }
 
-    fn collect_era_rewards(
-        &self,
-        era: u64,
-        chain_head: H256,
-    ) -> Result<(BTreeMap<Address, U256>, U256)> {
+    fn era_total_rewards(&self, era: u64, chain_head: H256) -> Result<TotalEraRewards<DB>> {
         let mut current_block = chain_head;
         let mut rewards_statistics = BTreeMap::new();
         let mut total_rewards = U256::zero();
@@ -221,7 +308,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
                 .db
                 .block_header(current_block)
                 .ok_or(RewardsError::BlockHeader(current_block))?;
-            let block_era = utils::era_index(&self.config, block_header.timestamp);
+            let block_era = self.era_index(block_header.timestamp);
 
             if era < block_era {
                 current_block = block_header.parent_hash;
@@ -242,7 +329,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
             for validator in block_validators.iter() {
                 let operator_rewards = rewards_statistics.entry(*validator).or_insert(U256::zero());
 
-                let value = U256::from(100) * U256::from(10).pow(self.config.wvara_digests);
+                let value = U256::from(100) * U256::from(10).pow(self.config.wvara_decimals);
 
                 *operator_rewards += value;
                 total_rewards += value;
@@ -250,62 +337,26 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> RewardsManager<DB> {
             current_block = block_header.parent_hash;
         }
 
-        Ok((rewards_statistics, total_rewards))
+        Ok(TotalEraRewards {
+            inner: rewards_statistics,
+            era,
+            db: self.db.clone(),
+        })
     }
 
-    /// Split rewards on validators rewards and stakers rewards
-    fn extract_vault_rewards(
-        &self,
-        era: u64,
-        operators_rewards: &mut BTreeMap<Address, U256>,
-    ) -> Result<BTreeMap<Address, U256>> {
-        let mut vault_rewards = BTreeMap::new();
-        for (address, amount) in operators_rewards.iter_mut() {
-            let staker_amount = *amount * U256::from(STAKER_REWARDS_RATIO) / U256::from(100);
-            *amount -= staker_amount;
-
-            let operator_total_stake = self
-                .db
-                .operator_stake_at(H160(address.0), era)
-                .ok_or(RewardsError::OperatorEraStake(H160(address.0), era))?;
-
-            let stake_vaults = self
-                .db
-                .operator_stake_vaults_at(H160(address.0), era)
-                .ok_or(RewardsError::OperatorStakeVaults(H160(address.0)))?;
-
-            for (vault, stake_in_vault) in stake_vaults {
-                let vault_rewards = vault_rewards.entry(vault).or_insert(U256::zero());
-                *vault_rewards += (staker_amount * stake_in_vault) / operator_total_stake;
-            }
-        }
-        Ok(vault_rewards)
+    pub fn era_index(&self, block_ts: u64) -> u64 {
+        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
     }
 }
 
 mod utils {
     use super::*;
-    use alloy::{primitives::keccak256, sol_types::sol_data};
 
-    type EncodeData = (sol_data::Address, sol_data::Uint<256>);
-
-    pub fn era_index(config: &RewardsConfig, block_ts: u64) -> u64 {
-        (block_ts - config.genesis_timestamp) / config.era_duration
-    }
-
-    pub fn rewards_to_leaves(rewards: BTreeMap<Address, U256>) -> Vec<[u8; 32]> {
-        rewards
+    pub fn build_merkle_tree(rewards: BTreeMap<Address, U256>) -> OzMerkleTree {
+        let values = rewards
             .into_iter()
-            .map(|(address, amount)| {
-                let amount = Uint::from_limbs(amount.0);
-                let h = EncodeData::abi_encode_sequence(&(AlloyAddress(address.0.into()), amount));
-                keccak256(keccak256(&h)).0
-            })
-            .collect()
-    }
-
-    pub fn operators_merkle_tree(rewards: BTreeMap<Address, U256>) -> MerkleTree<Keccak256> {
-        let leaves = rewards_to_leaves(rewards);
-        rs_merkle::MerkleTree::<rs_merkle::algorithms::Keccak256>::from_leaves(leaves.as_slice())
+            .map(|(address, amount)| (H160(address.0), amount))
+            .collect::<Vec<_>>();
+        OzMerkleTree::new(values)
     }
 }

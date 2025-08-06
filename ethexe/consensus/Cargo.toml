@@ -25,8 +25,8 @@ thiserror.workspace = true
 alloy = { workspace = true, features = ["node-bindings"] }
 sha3.workspace = true
 nonempty.workspace = true
-rs_merkle.workspace = true
+oz_merkle_rs.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-alloy-contract = {version = "1.0.23", default-features = false}
+alloy-contract = { version = "1.0.23", default-features = false }

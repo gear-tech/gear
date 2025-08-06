@@ -234,6 +234,10 @@ impl RouterQuery {
         }
     }
 
+    pub fn provider(&self) -> RootProvider {
+        self.instance.provider().clone()
+    }
+
     pub async fn genesis_block_hash(&self) -> Result<H256> {
         self.instance
             .genesisBlockHash()

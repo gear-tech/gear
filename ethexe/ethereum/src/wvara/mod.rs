@@ -99,6 +99,10 @@ impl WVaraQuery {
         )))
     }
 
+    pub async fn from_provider(router_address: LocalAddress, provider: RootProvider) -> Self {
+        Self(QueryInstance::new(Address::new(router_address.0), provider))
+    }
+
     pub async fn decimals(&self) -> Result<u8> {
         self.0.decimals().call().await.map_err(Into::into)
     }

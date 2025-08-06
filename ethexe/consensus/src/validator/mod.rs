@@ -43,15 +43,14 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
     SignedValidationRequest,
-    rewards::{RewardsConfig, RewardsManager},
+    rewards::RewardsManager,
     utils::MultisignedBatchCommitment,
     validator::{
         coordinator::Coordinator, participant::Participant, producer::Producer,
         submitter::Submitter, subordinate::Subordinate,
     },
 };
-use alloy::providers::Provider;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
@@ -59,7 +58,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
-use gprimitives::{H256, U256};
+use gprimitives::H256;
 use initial::Initial;
 use std::{
     collections::VecDeque,
@@ -130,23 +129,7 @@ impl ValidatorService {
         .await?;
 
         let router = ethereum.router();
-        let genesis_block_hash = router.query().genesis_block_hash().await?;
-        let genesis_block = ethereum
-            .provider()
-            .get_block_by_hash(genesis_block_hash.0.into())
-            .await?
-            .ok_or(anyhow!("genesis block not found by rpc"))?;
-
-        let rewards_manager = RewardsManager::new(
-            db.clone(),
-            RewardsConfig {
-                genesis_timestamp: genesis_block.header.timestamp,
-                era_duration: router.query().timelines().await?.era,
-                slot_duration: config.slot_duration,
-                wvara_digests: U256::from(10),
-                wvara_address: router.wvara().address().0.into(),
-            },
-        );
+        let rewards_manager = RewardsManager::new(db.clone(), ethereum.router().query()).await?;
 
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
