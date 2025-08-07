@@ -85,7 +85,7 @@ impl Default for Backend {
 
 impl Backend {
     pub fn new() -> Self {
-        let compiler = wasmer::Singlepass::default();
+        let compiler = wasmer::sys::Singlepass::default();
         Backend {
             store: Rc::new(StoreRefCell::new(wasmer::Store::new(compiler))),
         }
@@ -190,7 +190,9 @@ pub fn instantiate(
     for import in module.imports() {
         match import.ty() {
             // Nothing to do here
-            wasmer::ExternType::Global(_) | wasmer::ExternType::Table(_) => (),
+            wasmer::ExternType::Global(_)
+            | wasmer::ExternType::Table(_)
+            | wasmer::ExternType::Tag(_) => (),
 
             wasmer::ExternType::Memory(_) => {
                 let memory = guest_env
