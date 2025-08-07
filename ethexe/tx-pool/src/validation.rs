@@ -82,20 +82,43 @@ impl TxValidator {
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
     fn check_mortality(&self) -> Result<bool> {
-        let block_hash = self.transaction.reference_block();
+        let transaction_block_hash = self.transaction.reference_block();
         let transaction_height = self
             .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
+            .block_header(transaction_block_hash)
+            .ok_or_else(|| {
+                anyhow!("Block header not found for reference block {transaction_block_hash}")
+            })?
             .height;
 
-        let latest_height = self
+        let latest_block = self
             .db
             .latest_data()
-            .synced_block_height
-            .ok_or_else(|| anyhow!("Latest synced block height not found in the database"))?;
+            .prepared_block_hash
+            .ok_or_else(|| anyhow!("Latest prepared block hash not found"))?;
+        let latest_block_height = self
+            .db
+            .block_header(latest_block)
+            .ok_or_else(|| anyhow!("Block header not found for hash: {latest_block}"))?
+            .height;
+        if transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE <= latest_block_height
+        {
+            return Ok(false);
+        }
 
-        Ok(transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE > latest_height)
+        // Check inclusion of the block in the recent branch
+        let mut block_hash = latest_block;
+        let mut counter = OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE;
+        while counter > 0 && block_hash != transaction_block_hash {
+            block_hash = self
+                .db
+                .block_header(block_hash)
+                .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
+                .parent_hash;
+            counter -= 1;
+        }
+
+        Ok(block_hash == transaction_block_hash)
     }
 
     /// Validates transaction uniqueness.

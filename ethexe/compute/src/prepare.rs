@@ -145,12 +145,12 @@ async fn prepare_one_block(
         }
     }
 
-    let parent_announces = parent_meta.announces.expect("+_+_+");
-    assert_eq!(
-        parent_announces.len(),
-        1,
-        "Currently supporting exactly one announce per block only"
-    );
+    let parent_announces = parent_meta
+        .announces
+        .ok_or_else(|| ComputeError::AnnouncesNotFound(parent))?;
+    if parent_announces.len() != 1 {
+        todo!("TODO +_+_+: Currently supporting exactly one announce per block only");
+    }
     let parent_announce_hash = parent_announces[0];
 
     let new_base_announce_hash = propagate_from_parent_announce(
@@ -208,6 +208,7 @@ async fn propagate_from_parent_announce(
         );
 
         // TODO +_+_+: 1000 - temporary limit to determine last committed announce hash is from known chain
+        // after we append announces mortality, we can remove this limit
         let mut announce_hash = parent_announce_hash;
         for _ in 0..1000 {
             if announce_hash == AnnounceHash::zero()
