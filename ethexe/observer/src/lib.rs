@@ -52,7 +52,6 @@ mod tests;
 
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
-
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,
@@ -82,9 +81,11 @@ impl fmt::Debug for ObserverEvent {
 struct RuntimeConfig {
     router_address: Address,
     wvara_address: Address,
+    middleware_address: Address,
     max_sync_depth: u32,
+    fetch_staking_data: bool,
     batched_sync_depth: u32,
-    block_time: Duration,
+    // block_time: Duration,
     genesis_timestamp: u64,
     era_duration: u64,
 }
@@ -177,7 +178,7 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
-            block_time,
+            // block_time,
             ..
         } = eth_cfg;
 
@@ -203,11 +204,13 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             router_address: *router_address,
+            middleware_address: Address::default(),
+            fetch_staking_data: false,
             wvara_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            block_time: *block_time,
+            // block_time: *block_time,
             genesis_timestamp: genesis_header.timestamp,
             era_duration: timelines.era,
         };
@@ -294,10 +297,6 @@ impl ObserverService {
 
     pub fn last_block_number(&self) -> u32 {
         self.last_block_number
-    }
-
-    pub fn block_time_secs(&self) -> u64 {
-        self.config.block_time.as_secs()
     }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {

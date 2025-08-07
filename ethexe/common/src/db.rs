@@ -25,15 +25,16 @@ use crate::{
     gear::StateTransition,
 };
 use alloc::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
 };
-use gprimitives::H256;
+use gprimitives::{H160, H256, U256};
 use nonempty::NonEmpty;
+use parity_scale_codec::{Decode, Encode};
 
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -80,12 +81,29 @@ pub trait CodesStorageWrite {
     fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
+// THINK: where is the best place for this?
+#[derive(Clone, Copy, Debug, Encode, Decode)]
+pub enum RewardsState {
+    SentToEthereum {
+        in_block: H256,
+        previous_rewarded: u64,
+    },
+    LatestDistributed(u64),
+}
+
 pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
+    fn rewards_state(&self, block_hash: H256) -> Option<RewardsState>;
+
+    // 1. Add to network sharing the tree of operators rewards for the era.
+    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>>;
+    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256>;
+    // Temporary solution: returns all operator vaults with stake in it.
+    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>>;
 }
 
 pub trait OnChainStorageWrite {
@@ -94,4 +112,10 @@ pub trait OnChainStorageWrite {
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
     fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
+    fn set_rewards_state(&self, block_hash: H256, state: RewardsState);
+
+    // maybe extract these methods into separate trait
+    fn set_operators_rewards_distribution_at(&self, era: u64, tree: BTreeMap<Address, U256>);
+    fn set_operator_stake_at(&self, operator: H160, era: u64, stake: U256);
+    fn set_operator_stake_vaults_at(&self, operator: H160, era: u64, vaults: Vec<(Address, U256)>);
 }

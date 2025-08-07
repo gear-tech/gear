@@ -234,6 +234,10 @@ impl RouterQuery {
         }
     }
 
+    pub fn provider(&self) -> RootProvider {
+        self.instance.provider().clone()
+    }
+
     pub async fn genesis_block_hash(&self) -> Result<H256> {
         self.instance
             .genesisBlockHash()
@@ -249,6 +253,15 @@ impl RouterQuery {
             .call()
             .await
             .map(|res| Digest(res.0))
+            .map_err(Into::into)
+    }
+
+    pub async fn latest_rewarded_era_index(&self) -> Result<u64> {
+        self.instance
+            .latestRewardedEraIndex()
+            .call()
+            .await
+            .map(|res| res.to::<u64>())
             .map_err(Into::into)
     }
 
