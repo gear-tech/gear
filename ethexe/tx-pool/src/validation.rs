@@ -20,6 +20,10 @@
 
 use crate::SignedOffchainTransaction;
 use anyhow::{Result, anyhow, bail};
+use ethexe_common::{
+    db::{LatestDataStorage, OnChainStorageRead},
+    tx_pool::OffchainTransaction,
+};
 use ethexe_db::Database;
 
 // TODO #4424
@@ -78,13 +82,23 @@ impl TxValidator {
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
     fn check_mortality(&self) -> Result<bool> {
-        // +_+_ fix
-        Ok(true)
-        // let block_hash = self.transaction.reference_block();
+        let block_hash = self.transaction.reference_block();
+        let transaction_height = self
+            .db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
+            .height;
 
-        // self.db
-        //     .check_within_recent_blocks(block_hash)
-        //     .context("Failed to perform mortality check")
+        let latest_height = self
+            .db
+            .latest_data()
+            .synced_block_height
+            .ok_or_else(|| anyhow!("Latest synced block height not found in the database"))?;
+
+        return Ok(
+            transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u32
+                > latest_height,
+        );
     }
 
     /// Validates transaction uniqueness.
@@ -134,8 +148,10 @@ mod tests {
 
         bm.add_block();
 
-        let tx_validator = TxValidator::new(signed_tx, db).with_mortality_check();
-        assert_ok!(tx_validator.validate());
+        TxValidator::new(signed_tx, db)
+            .with_mortality_check()
+            .validate()
+            .expect("internal error: transaction validation failed");
     }
 
     #[test]
