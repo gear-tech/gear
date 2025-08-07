@@ -659,45 +659,53 @@ mod tests {
         assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
     }
 
-    // #[test]
-    // fn test_block_program_states() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_announce() {
+        let db = Database::memory();
 
-    //     let block_hash = H256::random();
-    //     let program_states = BTreeMap::new();
-    //     db.set_block_program_states(block_hash, program_states.clone());
-    //     assert_eq!(db.block_program_states(block_hash), Some(program_states));
-    // }
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: AnnounceHash::random(),
+            gas_allowance: Some(1000),
+            off_chain_transactions: vec![],
+        };
+        let announce_hash = db.set_announce(announce.clone());
+        assert_eq!(announce_hash, announce.hash());
+        assert_eq!(db.announce(announce_hash), Some(announce));
+    }
 
-    // #[test]
-    // fn test_block_outcome() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_announce_program_states() {
+        let db = Database::memory();
 
-    //     let block_hash = H256::random();
-    //     let block_outcome = vec![StateTransition::default()];
-    //     db.set_block_outcome(block_hash, block_outcome.clone());
-    //     assert_eq!(db.block_outcome(block_hash), Some(block_outcome));
-    // }
+        let announce_hash = AnnounceHash::random();
+        let program_states = ProgramStates::default();
+        db.set_announce_program_states(announce_hash, program_states.clone());
+        assert_eq!(
+            db.announce_program_states(announce_hash),
+            Some(program_states)
+        );
+    }
 
-    // #[test]
-    // fn test_block_schedule() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_announce_outcome() {
+        let db = Database::memory();
 
-    //     let block_hash = H256::random();
-    //     let schedule = Schedule::default();
-    //     db.set_block_schedule(block_hash, schedule.clone());
-    //     assert_eq!(db.block_schedule(block_hash), Some(schedule));
-    // }
+        let announce_hash = AnnounceHash::random();
+        let block_outcome = vec![StateTransition::default()];
+        db.set_announce_outcome(announce_hash, block_outcome.clone());
+        assert_eq!(db.announce_outcome(announce_hash), Some(block_outcome));
+    }
 
-    // #[test]
-    // fn test_latest_computed_block() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_announce_schedule() {
+        let db = Database::memory();
 
-    //     let block_hash = H256::random();
-    //     let block_header = BlockHeader::default();
-    //     db.set_latest_computed_block(block_hash, block_header.clone());
-    //     assert_eq!(db.latest_computed_block(), Some((block_hash, block_header)));
-    // }
+        let announce_hash = AnnounceHash::random();
+        let schedule = Schedule::default();
+        db.set_announce_schedule(announce_hash, schedule.clone());
+        assert_eq!(db.announce_schedule(announce_hash), Some(schedule));
+    }
 
     #[test]
     fn test_block_events() {
@@ -719,23 +727,30 @@ mod tests {
         assert_eq!(db.code_blob_info(code_id), Some(code_info));
     }
 
-    // #[test]
-    // fn test_block_is_synced() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_block_is_synced() {
+        let db = Database::memory();
 
-    //     let block_hash = H256::random();
-    //     db.mutate_block_meta(block_hash, |meta| meta.synced = true);
-    //     assert!(db.block_meta(block_hash).synced);
-    // }
+        let block_hash = H256::random();
+        assert!(!db.block_synced(block_hash));
+        db.set_block_synced(block_hash);
+        assert!(db.block_synced(block_hash));
+    }
 
-    // #[test]
-    // fn test_latest_synced_block_height() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_latest_data() {
+        let db = Database::memory();
 
-    //     let height = 42;
-    //     db.set_latest_synced_block_height(height);
-    //     assert_eq!(db.latest_synced_block_height(), Some(height));
-    // }
+        assert!(db.latest_data() == LatestData::default());
+
+        let latest_data = LatestData {
+            synced_block_height: Some(42),
+            prepared_block_hash: Some(H256::random()),
+            computed_announce_hash: Some(AnnounceHash::random()),
+        };
+        db.mutate_latest_data(|data| *data = latest_data.clone());
+        assert_eq!(db.latest_data(), latest_data);
+    }
 
     #[test]
     fn test_original_code() {

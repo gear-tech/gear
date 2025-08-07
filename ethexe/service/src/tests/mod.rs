@@ -687,7 +687,6 @@ async fn incoming_transfers() {
     assert_eq!(local_balance, 2 * VALUE_SENT);
 }
 
-// #[ignore = "TODO +_+_+: need to support logic of reincluding of lost announces"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn ping_reorg() {
@@ -860,7 +859,6 @@ async fn ping_deep_sync() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 }
 
-// #[ignore = "TODO +_+_+: need to support logic of reincluding of lost announces"]
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn multiple_validators() {
