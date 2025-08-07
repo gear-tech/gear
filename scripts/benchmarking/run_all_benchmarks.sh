@@ -104,26 +104,36 @@ RUNTIME=$PATH_BASE/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm
 PRESET=development
 
 # Manually exclude some pallets.
-EXCLUDED_PALLETS=(
-)
+EXCLUDED_PALLETS=()
 
-# Load all pallet names in an array.
-ALL_PALLETS=($(
-  $GEAR benchmark pallet \
-    --list \
-    --runtime=$RUNTIME \
-    --genesis-builder=runtime \
-    --genesis-builder-preset=$PRESET | \
-    tail -n+2 |\
-    cut -d',' -f1 |\
-    sort |\
-    uniq
-))
+if [ -n "$SELECTED_PALLET" ] && [ "$SELECTED_PALLET" != '*' ]; then
+  # If SELECTED_PALLET is set, use it as the only pallet to benchmark.
+  PALLETS=("$SELECTED_PALLET")
 
-# Filter out the excluded pallets by concatenating the arrays and discarding duplicates.
-PALLETS=($({ printf '%s\n' "${ALL_PALLETS[@]}" "${EXCLUDED_PALLETS[@]}"; } | sort | uniq -u))
+  if [ -n "$SELECTED_EXTRINSICS" ]; then
+    echo "[+] Benchmarking selected pallet: $SELECTED_PALLET with extrinsics: $SELECTED_EXTRINSICS"
+  else
+    echo "[+] Benchmarking selected pallet: $SELECTED_PALLET with all extrinsics"
+  fi
+else
+  # Normal flow, SELECTED_PALLET is not set.
+  # Load all pallet names in an array.
+  ALL_PALLETS=($(
+    $GEAR benchmark pallet \
+      --list \
+      --runtime=$RUNTIME \
+      --genesis-builder=runtime \
+      --genesis-builder-preset=$PRESET | \
+      tail -n+2 |\
+      cut -d',' -f1 |\
+      sort |\
+      uniq
+  ))
 
-echo "[+] Benchmarking ${#PALLETS[@]} Gear pallets by excluding ${#EXCLUDED_PALLETS[@]} from ${#ALL_PALLETS[@]}."
+  # Filter out the excluded pallets by concatenating the arrays and discarding duplicates.
+  PALLETS=($({ printf '%s\n' "${ALL_PALLETS[@]}" "${EXCLUDED_PALLETS[@]}"; } | sort | uniq -u))
+  echo "[+] Benchmarking ${#PALLETS[@]} Gear pallets by excluding ${#EXCLUDED_PALLETS[@]} from ${#ALL_PALLETS[@]}."
+fi
 
 # Populate TASKSET_CMD with taskset command if isolated core is set.
 if [ -n "$ISOLATED_CORE" ]; then
@@ -168,20 +178,35 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   # Get all the extrinsics for the pallet if the pallet is "pallet_gear".
-  if [ "$PALLET" == "pallet_gear" ]
-  then
-    IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet \
-      --list \
-      --runtime=$RUNTIME \
-      --genesis-builder=runtime \
-      --genesis-builder-preset=$PRESET \
-      --pallet="$PALLET" | \
-      tail -n+2 |\
-      cut -d',' -f2 |\
-      sort |\
-      uniq |\
-      awk '{$1=$1}1' ORS=','
-    )"
+  if [ "$PALLET" == "pallet_gear" ]; then
+    if [ -n "$SELECTED_EXTRINSICS" ] && [ "$SELECTED_EXTRINSICS" != '*' ]; then
+      # If SELECTED_EXTRINSICS is non-empty and not equal to '*',
+      # use it as the list extrinsics to benchmark.
+      IFS=',' read -r -a ALL_EXTRINSICS <<< "$SELECTED_EXTRINSICS"
+
+      # Update ONE_TIME_EXTRINSICS to include only those one-time extrinsics 
+      # that are contained in SELECTED_EXTRINSICS.
+      TMP_ONE_TIME_EXTRINSICS=()
+      for item in "${ONE_TIME_EXTRINSICS[@]}"; do
+        if [[ " ${ALL_EXTRINSICS[*]} " =~ " ${item} " ]] ; then
+            TMP_ONE_TIME_EXTRINSICS+=("$item")
+        fi
+      done
+      ONE_TIME_EXTRINSICS=("${TMP_ONE_TIME_EXTRINSICS[@]}")
+    else
+      IFS=',' read -r -a ALL_EXTRINSICS <<< "$(IFS=',' $GEAR benchmark pallet \
+        --list \
+        --runtime=$RUNTIME \
+        --genesis-builder=runtime \
+        --genesis-builder-preset=$PRESET \
+        --pallet="$PALLET" | \
+        tail -n+2 |\
+        cut -d',' -f2 |\
+        sort |\
+        uniq |\
+        awk '{$1=$1}1' ORS=','
+      )"
+    fi
 
     # Remove the one-time extrinsics from the extrinsics array, so that they can be benchmarked separately.
     EXTRINSICS=()
@@ -192,13 +217,18 @@ for PALLET in "${PALLETS[@]}"; do
             EXTRINSICS+=("$item")
         fi
     done
-  else
-    EXTRINSICS=("*")
+  else # if the pallet is not "pallet_gear"
+    if [ -n "$SELECTED_EXTRINSICS" ]; then
+      EXTRINSICS=("$SELECTED_EXTRINSICS")
+    else
+      EXTRINSICS=("*")
+    fi
   fi
 
   WEIGHT_FILE="./${WEIGHTS_OUTPUT}/${PALLET}.rs"
   touch "$WEIGHT_FILE"
   echo "[+] Benchmarking $PALLET with weight file $WEIGHT_FILE";
+  echo "[+] Running extrinsics: $(IFS=', ' ; echo "${EXTRINSICS[*]}")"
 
   OUTPUT=$(
     $TASKSET_CMD $GEAR benchmark pallet \
@@ -220,9 +250,10 @@ for PALLET in "${PALLETS[@]}"; do
   fi
 
   # If the pallet is pallet_gear, benchmark the one-time extrinsics.
-  if [ "$PALLET" == "pallet_gear" ]
+  if [ "$PALLET" == "pallet_gear" ] && [ -n "$ONE_TIME_EXTRINSICS" ]
   then
     echo "[+] Benchmarking $PALLET one-time syscalls with weight file ./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs";
+    echo "[+] Running one-time extrinsics: $(IFS=', ' ; echo "${ONE_TIME_EXTRINSICS[*]}")"
     touch "./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs"
     OUTPUT=$(
         $TASKSET_CMD $GEAR benchmark pallet \
