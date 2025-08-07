@@ -222,7 +222,10 @@ impl Service {
                 .await?,
             )
         } else {
-            Box::pin(SimpleConnectService::new())
+            Box::pin(SimpleConnectService::new(
+                db.clone(),
+                config.ethereum.block_time,
+            ))
         };
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
@@ -420,7 +423,10 @@ impl Service {
                         // TODO +_+_+: we should handle this case properly inside consensus service
                         log::warn!("Announce {announce_hash:?} was rejected");
                     }
-                    ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
+                    ComputeEvent::BlockPrepared(block_hash) => {
+                        consensus.receive_prepared_block(block_hash)?
+                    }
+                    ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
                 },

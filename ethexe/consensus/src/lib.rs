@@ -45,7 +45,7 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 pub use utils::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
-    SignedValidationRequest,
+    SignedValidationRequest, block_producer_for, block_producer_index,
 };
 pub use validator::{ValidatorConfig, ValidatorService};
 
@@ -93,18 +93,4 @@ pub enum ConsensusEvent {
     /// Informational event: during service processing, a warning situation was detected
     #[from(skip)]
     Warning(String),
-}
-
-// TODO #4553: temporary implementation, should be improved
-/// Returns block producer for time slot. Next slot is the next validator in the list.
-pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
-    (slot % validators_amount as u64) as usize
-}
-
-#[test]
-fn block_producer_index_calculates_correct_index() {
-    let validators_amount = 5;
-    let slot = 7;
-    let index = crate::block_producer_index(validators_amount, slot);
-    assert_eq!(index, 2);
 }

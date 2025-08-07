@@ -154,8 +154,6 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        log::trace!("ComputeService::poll_next: state={:?}", self.blocks_state);
-
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {

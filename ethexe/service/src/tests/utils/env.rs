@@ -830,7 +830,7 @@ impl Node {
                     .unwrap(),
                 )
             } else {
-                Box::pin(SimpleConnectService::new())
+                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
             };
 
         let (sender, receiver) = broadcast::channel(2048);
@@ -870,7 +870,7 @@ impl Node {
                 .run()
                 .instrument(tracing::info_span!("node", name))
                 .await
-                .unwrap()
+                .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
 

@@ -197,9 +197,17 @@ async fn propagate_from_parent_announce(
     last_committed_announce_hash: Option<AnnounceHash>,
 ) -> Result<AnnounceHash> {
     if let Some(last_committed_announce_hash) = last_committed_announce_hash {
-        assert_ne!(last_committed_announce_hash, AnnounceHash::zero());
+        assert_ne!(
+            last_committed_announce_hash,
+            AnnounceHash::zero(),
+            "committed announce hash cannot be zero, checked above"
+        );
 
-        // 1000 - temporary limit to determine last committed announce hash is from known chain
+        log::trace!(
+            "Searching for last committed announce hash {last_committed_announce_hash} in known announces chain",
+        );
+
+        // TODO +_+_+: 1000 - temporary limit to determine last committed announce hash is from known chain
         let mut announce_hash = parent_announce_hash;
         for _ in 0..1000 {
             if announce_hash == AnnounceHash::zero()
@@ -220,7 +228,9 @@ async fn propagate_from_parent_announce(
         );
     }
 
-    let new_base_announce = Announce::base(block_hash, parent_announce_hash);
+    // TODO +_+_+: hack - use here base with gas to avoid unknown announces in tests,
+    // this can be fixed by unknown announces handling later
+    let new_base_announce = Announce::new_default_gas(block_hash, parent_announce_hash);
     let new_base_announce_hash = new_base_announce.hash();
 
     if db.announce_meta(new_base_announce_hash).computed {
@@ -296,12 +306,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             db.announce(announce_hash).unwrap(),
-            Announce {
-                block_hash,
-                parent: parent_announce_hash,
-                gas_allowance: None,
-                off_chain_transactions: vec![]
-            },
+            Announce::new_default_gas(block_hash, parent_announce_hash),
             "incorrect announce was stored"
         );
         assert_eq!(db.announce_outcome(announce_hash), Some(Default::default()));
@@ -388,12 +393,7 @@ mod tests {
         let announce = db.announce(announce_hash).unwrap();
         assert_eq!(
             announce,
-            Announce {
-                block_hash: block.hash,
-                parent: parent_announce.hash(),
-                gas_allowance: None,
-                off_chain_transactions: vec![],
-            }
+            Announce::new_default_gas(block.hash, parent_announce.hash())
         );
         assert!(db.announce_meta(announce_hash).computed);
         assert_eq!(db.announce_outcome(announce_hash), Some(Default::default()));

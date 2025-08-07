@@ -26,7 +26,8 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, AnnounceStorageRead, BlockMetaStorageRead, SimpleBlockData,
+    Address, Announce, AnnounceHash, AnnounceStorageRead, BlockMetaStorageRead,
+    DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -47,17 +48,15 @@ pub struct Producer {
     block: SimpleBlockData,
     validators: NonEmpty<Address>,
     state: State,
-
-    block_prepared: bool,
 }
 
 #[derive(Debug)]
 enum State {
-    CollectCodes {
+    WaitingBlockPreparedAndCollectCodes {
         #[debug(skip)]
-        timer: Timer,
+        timer: Option<Timer>,
+        block_prepared: bool,
     },
-    WaitingBlockPrepared,
     WaitingAnnounceComputed,
 }
 
@@ -75,23 +74,30 @@ impl StateHandler for Producer {
     }
 
     fn process_prepared_block(mut self, block: H256) -> Result<ValidatorState> {
+        log::trace!("{self} process_prepared_block {block}");
+
         if self.block.hash != block {
             return DefaultProcessing::prepared_block(self, block);
         }
 
-        if self.block_prepared {
-            self.warning(format!("Block {block} is already prepared, ignoring"));
-            return Ok(self.into());
-        }
+        match &mut self.state {
+            State::WaitingBlockPreparedAndCollectCodes {
+                timer,
+                block_prepared,
+            } => {
+                if *block_prepared {
+                    self.ctx
+                        .warning(format!("Block {block} is already prepared, ignoring"));
+                }
 
-        match self.state {
-            State::CollectCodes { .. } => {
-                self.block_prepared = true;
-                Ok(self.into())
-            }
-            State::WaitingBlockPrepared => {
-                self.block_prepared = true;
-                self.create_announce()?;
+                if timer.is_none() {
+                    // Timer is already expired, we can create announce immediately
+                    self.create_announce()?;
+                } else {
+                    // Timer is still running, we will create announce later
+                    *block_prepared = true;
+                }
+
                 Ok(self.into())
             }
             State::WaitingAnnounceComputed => {
@@ -124,14 +130,17 @@ impl StateHandler for Producer {
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
-        if let State::CollectCodes { timer } = &mut self.state
+        if let State::WaitingBlockPreparedAndCollectCodes {
+            timer: maybe_timer,
+            block_prepared,
+        } = &mut self.state
+            && let Some(timer) = maybe_timer
             && timer.poll_unpin(cx).is_ready()
         {
             // Timer is ready, we can create announce
-            if self.block_prepared {
+            *maybe_timer = None;
+            if *block_prepared {
                 self.create_announce()?;
-            } else {
-                self.state = State::WaitingBlockPrepared;
             }
         }
 
@@ -159,8 +168,10 @@ impl Producer {
             ctx,
             block,
             validators,
-            state: State::CollectCodes { timer },
-            block_prepared: false,
+            state: State::WaitingBlockPreparedAndCollectCodes {
+                timer: Some(timer),
+                block_prepared: false,
+            },
         }
         .into())
     }
@@ -259,24 +270,24 @@ impl Producer {
 
     fn create_announce(&mut self) -> Result<()> {
         if !self.ctx.db.block_meta(self.block.hash).prepared {
-            unreachable!("Impossible, block must be prepared before creating producer block");
+            unreachable!("Impossible, block must be prepared before creating announce");
         }
 
         let parent_announce = self
             .ctx
             .db
-            .block_meta(self.block.hash)
+            .block_meta(self.block.header.parent_hash)
             .announces
-            .ok_or_else(|| anyhow!("No announces found for block"))?
             .into_iter()
+            .flat_map(|meta| meta.into_iter())
             .next()
-            .ok_or_else(|| anyhow!("No announces found for block in block meta storage"))?;
+            .ok_or_else(|| anyhow!("No announces found for prepared block"))?;
 
         let pb = Announce {
             block_hash: self.block.hash,
             parent: parent_announce,
-            // TODO #4638: set gas allowance here
-            gas_allowance: None,
+            // +_+_+ must be on config
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
             // TODO #4639: append off-chain transactions
             off_chain_transactions: Vec::new(),
         };
@@ -324,8 +335,15 @@ mod tests {
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
+        let parent = H256::random();
+        let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
         let announce_hash = ctx.db.announce_hash(block.hash);
+
+        // Set parent announce
+        ctx.db.mutate_block_meta(parent, |meta| {
+            meta.prepared = true;
+            meta.announces = Some(vec![AnnounceHash::random()]);
+        });
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -403,8 +421,14 @@ mod tests {
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
+        let parent = H256::random();
+        let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
         let announce_hash = ctx.db.announce_hash(block.hash);
+
+        ctx.db.mutate_block_meta(parent, |meta| {
+            meta.prepared = true;
+            meta.announces = Some(vec![AnnounceHash::random()]);
+        });
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
