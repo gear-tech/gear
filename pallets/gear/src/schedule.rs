@@ -1507,7 +1507,7 @@ impl<T: Config> Rules for ScheduleRules<'_, T> {
                     .copied()
                     .unwrap_or(max_params);
                 w.call_indirect
-                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
+                    .saturating_add(w.call_indirect_per_param.saturating_mul(params))
             }
             BrTable(targets) => w
                 .br_table
