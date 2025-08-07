@@ -95,10 +95,7 @@ impl TxValidator {
             .synced_block_height
             .ok_or_else(|| anyhow!("Latest synced block height not found in the database"))?;
 
-        return Ok(
-            transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u32
-                > latest_height,
-        );
+        Ok(transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE > latest_height)
     }
 
     /// Validates transaction uniqueness.
