@@ -4,9 +4,9 @@ use ethexe_common::{
     db::{BlockMetaStorageRead, OnChainStorageRead, RewardsState},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewards, StakerRewardsCommitment},
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{router::RouterQuery, wvara::WVaraQuery};
 use gprimitives::{H160, H256, U256};
-use oz_merkle_rs::MerkleTree as OzMerkleTree;
+use oz_merkle_rs::MerkleTree;
 use std::{collections::BTreeMap, ops::Range};
 
 #[cfg(test)]
@@ -35,9 +35,10 @@ Validators count in db:
 - 2: iter through all parent blocks and find one of the blocks from parent blocks
 */
 
-const STAKER_REWARDS_RATIO: u32 = 90; // 90% of rewards goes to stakers
-
-const REWARDS_CONFIRMATION_BLOCKS_WINDOW: u64 = 5;
+// Number of blocks to wait for commitment confirmation in Ethereum
+const REWARDS_CONFIRMATION_SLOTS_WINDOW: u64 = 5;
+const STAKER_REWARDS_RATIO: u32 = 90;
+const PERCENTAGE_DENOMINATOR: u32 = 100;
 
 #[derive(thiserror::Error, Debug)]
 pub enum RewardsError {
@@ -60,6 +61,12 @@ pub enum RewardsError {
 }
 type Result<T> = std::result::Result<T, RewardsError>;
 
+#[derive(Clone, Debug)]
+struct Context {
+    token: Address,
+    timestamp: u64,
+}
+
 #[derive(Clone, derive_more::Debug)]
 struct TotalEraRewards<DB> {
     pub inner: BTreeMap<Address, U256>,
@@ -70,15 +77,20 @@ struct TotalEraRewards<DB> {
 }
 
 impl<DB: OnChainStorageRead + BlockMetaStorageRead> TotalEraRewards<DB> {
-    pub fn split_into_rewards(self) -> Result<Rewards> {
+    // Splits the total rewards into operator and staker rewards.
+    pub fn split(self) -> Result<Rewards> {
         let mut operators = self.inner;
         let mut stakers = BTreeMap::new();
-        let total_operator_rewards = U256::zero();
-        let total_staker_rewards = U256::zero();
+        let mut total_operator_rewards = U256::zero();
+        let mut total_staker_rewards = U256::zero();
 
         for (operator, amount) in operators.iter_mut() {
-            let staker_amount = *amount * U256::from(STAKER_REWARDS_RATIO) / U256::from(100);
+            let staker_amount =
+                *amount * U256::from(STAKER_REWARDS_RATIO) / U256::from(PERCENTAGE_DENOMINATOR);
             *amount -= staker_amount;
+
+            total_operator_rewards += *amount;
+            total_staker_rewards += staker_amount;
 
             let operator_total_stake = self
                 .db
@@ -114,7 +126,7 @@ struct Rewards {
 }
 
 impl Rewards {
-    pub fn into_commitment(self) -> RewardsCommitment {
+    pub fn into_commitment(self, ctx: Context) -> RewardsCommitment {
         let merkle_tree = utils::build_merkle_tree(self.operators);
         let operators_commitment = OperatorRewardsCommitment {
             amount: self.total_operator_rewards,
@@ -130,16 +142,13 @@ impl Rewards {
                 .map(|(vault, amount)| StakerRewards { vault, amount })
                 .collect(),
             total_amount: self.total_staker_rewards,
-            // token: self.config.wvara_address,
-            token: Address::default(),
+            token: ctx.token,
         };
 
         RewardsCommitment {
             operators: operators_commitment,
             stakers: stakers_commitment,
-
-            // TODO: add timestamp
-            timestamp: 0,
+            timestamp: ctx.timestamp,
         }
     }
 
@@ -149,6 +158,7 @@ impl Rewards {
             stakers: other_stakers,
             total_operator_rewards: other_total_operator_rewards,
             total_staker_rewards: other_total_staker_rewards,
+            ..
         } = other;
 
         for (operator, amount) in other_operators {
@@ -176,9 +186,7 @@ struct Config {
     pub genesis_timestamp: u64,
     pub era_duration: u64,
     pub slot_duration_secs: u64,
-    pub wvara_decimals: U256,
-
-    #[allow(unused)]
+    pub wvara_decimals: u8,
     pub wvara_address: Address,
 }
 
@@ -201,15 +209,19 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             .header
             .timestamp;
         let era_duration = router_query.timelines().await?.era;
+
         let wvara_address = router_query.wvara_address().await?.0.0.into();
+        let wvara_decimals = WVaraQuery::from_provider(wvara_address, router_query.provider())
+            .decimals()
+            .await?;
 
         Ok(Self {
             db,
             config: Config {
                 genesis_timestamp,
                 era_duration,
-                slot_duration_secs: 12u64,
-                wvara_decimals: U256::from(18),
+                slot_duration_secs: alloy::eips::merge::SLOT_DURATION_SECS,
+                wvara_decimals,
                 wvara_address,
             },
         })
@@ -241,12 +253,18 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             total_operator_rewards: U256::zero(),
             total_staker_rewards: U256::zero(),
         };
+
         for era in eras_to_reward {
             let total_era_rewards = self.era_total_rewards(era, block_hash)?;
-            let rewards = total_era_rewards.split_into_rewards()?;
+            let rewards = total_era_rewards.split()?;
             cumulative_rewards.extend(rewards);
         }
-        Ok(Some(cumulative_rewards.into_commitment()))
+
+        let context = Context {
+            token: self.config.wvara_address,
+            timestamp: header.timestamp,
+        };
+        Ok(Some(cumulative_rewards.into_commitment(context)))
     }
 
     fn eras_to_reward(&self, block_hash: H256, block_timestamp: u64) -> Result<Option<Range<u64>>> {
@@ -294,25 +312,24 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             .block_header(in_block)
             .ok_or(RewardsError::BlockHeader(in_block))?;
 
-        let blocks_came = (current_block_ts - header.timestamp) / self.config.slot_duration_secs;
-        Ok(blocks_came < REWARDS_CONFIRMATION_BLOCKS_WINDOW)
+        let slots_came = (current_block_ts - header.timestamp) / self.config.slot_duration_secs;
+        Ok(slots_came < REWARDS_CONFIRMATION_SLOTS_WINDOW)
     }
 
-    fn era_total_rewards(&self, era: u64, chain_head: H256) -> Result<TotalEraRewards<DB>> {
-        let mut current_block = chain_head;
+    fn era_total_rewards(&self, era: u64, mut block: H256) -> Result<TotalEraRewards<DB>> {
         let mut rewards_statistics = BTreeMap::new();
         let mut total_rewards = U256::zero();
 
         loop {
             let block_header = self
                 .db
-                .block_header(current_block)
-                .ok_or(RewardsError::BlockHeader(current_block))?;
+                .block_header(block)
+                .ok_or(RewardsError::BlockHeader(block))?;
             let block_era = self.era_index(block_header.timestamp);
 
             if era < block_era {
-                current_block = block_header.parent_hash;
-                // We are in the future, no need to continue
+                block = block_header.parent_hash;
+                // We are in the future, skip this block
                 continue;
             }
 
@@ -323,18 +340,21 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
 
             let block_validators = self
                 .db
-                .validators(current_block)
-                .ok_or(RewardsError::BlockValidators(current_block))?;
+                .validators(block)
+                .ok_or(RewardsError::BlockValidators(block))?;
 
             for validator in block_validators.iter() {
-                let operator_rewards = rewards_statistics.entry(*validator).or_insert(U256::zero());
+                let base_unit = U256::from(10u64.pow(self.config.wvara_decimals as u32));
+                let value = U256::from(100) * base_unit;
 
-                let value = U256::from(100) * U256::from(10).pow(self.config.wvara_decimals);
-
-                *operator_rewards += value;
+                rewards_statistics
+                    .entry(*validator)
+                    .and_modify(|v| *v += value)
+                    .or_insert(value);
                 total_rewards += value;
             }
-            current_block = block_header.parent_hash;
+
+            block = block_header.parent_hash;
         }
 
         Ok(TotalEraRewards {
@@ -344,6 +364,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
         })
     }
 
+    #[inline(always)]
     pub fn era_index(&self, block_ts: u64) -> u64 {
         (block_ts - self.config.genesis_timestamp) / self.config.era_duration
     }
@@ -352,11 +373,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
 mod utils {
     use super::*;
 
-    pub fn build_merkle_tree(rewards: BTreeMap<Address, U256>) -> OzMerkleTree {
+    pub fn build_merkle_tree(rewards: BTreeMap<Address, U256>) -> MerkleTree {
         let values = rewards
             .into_iter()
             .map(|(address, amount)| (H160(address.0), amount))
             .collect::<Vec<_>>();
-        OzMerkleTree::new(values)
+        MerkleTree::new(values)
     }
 }

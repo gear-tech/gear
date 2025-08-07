@@ -90,17 +90,17 @@ impl WVara {
 pub struct WVaraQuery(QueryInstance);
 
 impl WVaraQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
+    pub async fn new(rpc_url: &str, wvara_address: LocalAddress) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self(QueryInstance::new(
-            Address::new(router_address.0),
+            Address::new(wvara_address.0),
             provider,
         )))
     }
 
-    pub async fn from_provider(router_address: LocalAddress, provider: RootProvider) -> Self {
-        Self(QueryInstance::new(Address::new(router_address.0), provider))
+    pub fn from_provider(wvara_address: LocalAddress, provider: RootProvider) -> Self {
+        Self(QueryInstance::new(Address::new(wvara_address.0), provider))
     }
 
     pub async fn decimals(&self) -> Result<u8> {
