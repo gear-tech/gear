@@ -330,6 +330,22 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
             self.profile
         ));
 
+        let code = fs::read(&original_wasm_path).with_context(|| {
+            format!(
+                "Failed to read original wasm file: {}",
+                original_wasm_path.display()
+            )
+        })?;
+        let fixed_code = gear_wasm_instrument::Module::fix_unsupported_features(&code)
+            .with_context(|| {
+                format!(
+                    "Failed to parse original wasm file: {}",
+                    original_wasm_path.display()
+                )
+            })?;
+        smart_fs::write(&original_wasm_path, &fixed_code)
+            .context("Failed to write wasm file to target directory")?;
+
         fs::create_dir_all(&self.target_dir).context("Failed to create target directory")?;
 
         self.generate_bin_path(file_base_name)?;

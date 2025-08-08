@@ -1554,6 +1554,75 @@ impl Module {
         Ok(module.finish())
     }
 
+    pub fn fix_unsupported_features(code: &[u8]) -> Result<Vec<u8>> {
+        let mut import_section = None;
+        let mut start_section = None;
+        let mut code_section = None;
+
+        let mut parser = wasmparser::Parser::new(0);
+        parser.set_features(WasmFeatures::WASM2);
+
+        for payload in parser.parse_all(code) {
+            match payload? {
+                Payload::ImportSection(section) => {
+                    debug_assert!(import_section.is_none());
+                    import_section = Some(section.into_iter().collect::<Result<Vec<_>, _>>()?);
+                }
+                Payload::StartSection { func, range: _ } => {
+                    start_section = Some(func);
+                }
+                Payload::CodeSectionStart {
+                    count,
+                    range: _,
+                    size: _,
+                } => {
+                    code_section = Some(Vec::with_capacity(count as usize));
+                }
+                Payload::CodeSectionEntry(entry) => {
+                    code_section
+                        .as_mut()
+                        .expect("code section start missing")
+                        .push(entry);
+                }
+                _ => {}
+            }
+        }
+
+        let import_count = import_section
+            .as_ref()
+            .map(|imports| {
+                imports
+                    .iter()
+                    .filter(|import| matches!(import.ty, TypeRef::Func(_)))
+                    .count()
+            })
+            .unwrap_or(0) as u32;
+
+        if let Some(func) = start_section
+            && let Some(func) = func.checked_sub(import_count)
+            && let Some(code_section) = code_section
+            && let Some(entry) = code_section.get(func as usize)
+        {
+            let mut instructions = Vec::new();
+            let mut reader = entry.get_operators_reader()?;
+            let start = reader.original_position();
+            while !reader.eof() {
+                instructions.push(reader.read()?);
+            }
+            let end = reader.original_position() - 1;
+
+            let mut code_copy = code.to_vec();
+            code_copy[start..end].fill(0x01); // NOP opcode
+
+            let mut module = Self::new(&code_copy)?;
+            module.start_section.take();
+
+            Ok(module.serialize()?)
+        } else {
+            Ok(code.to_vec())
+        }
+    }
+
     pub fn import_count(&self, pred: impl Fn(&TypeRef) -> bool) -> usize {
         self.import_section
             .as_ref()
