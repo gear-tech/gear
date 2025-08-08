@@ -128,6 +128,10 @@ pub struct Limits {
     pub code_len: u32,
     #[doc = " The maximum number of wasm data segments allowed for a program."]
     pub data_segments_amount: u32,
+    #[doc = " The maximum length of a type section in bytes."]
+    pub type_section_len: u32,
+    #[doc = " Maximum number of parameters per type in the type section."]
+    pub type_section_params_per_type: u32,
 }
 
 impl Default for Limits {
@@ -145,6 +149,8 @@ impl Default for Limits {
             payload_len: 8388608,
             code_len: 524288,
             data_segments_amount: 1024,
+            type_section_len: 20480,
+            type_section_params_per_type: 256,
         }
     }
 }
