@@ -132,9 +132,6 @@ async fn prepare_one_block(
             BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
                 last_committed_batch = digest;
             }
-            BlockEvent::Router(RouterEvent::HeadCommitted(head)) => {
-                last_committed_head = *head;
-            }
             BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
                 requested_codes.insert(code_id);
             }
