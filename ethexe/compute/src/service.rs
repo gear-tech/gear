@@ -268,8 +268,10 @@ mod tests {
             meta.computed = true;
         });
         db.mutate_block_meta(parent_hash, |meta| {
-            *meta = BlockMeta::default_prepared();
-            meta.announces = Some(vec![parent_announce.hash()])
+            *meta = BlockMeta {
+                announces: Some(vec![parent_announce.hash()]),
+                ..BlockMeta::default_prepared()
+            };
         });
 
         // Setup on chain data for not prepared

@@ -37,6 +37,7 @@ where
     H: UserSignalHandler,
 {
     let exception_record = unsafe { (*exception_info).ExceptionRecord };
+    check_windows_stack();
 
     let is_access_violation =
         unsafe { (*exception_record).ExceptionCode == EXCEPTION_ACCESS_VIOLATION };
@@ -72,12 +73,15 @@ where
     };
 
     if let Err(err) = unsafe { H::handle(info) } {
+        check_windows_stack();
         if let Error::OutOfWasmMemoryAccess | Error::WasmMemAddrIsNotSet = err {
             return EXCEPTION_CONTINUE_SEARCH;
         } else {
             panic!("Signal handler failed: {err}");
         }
     }
+
+    check_windows_stack();
 
     EXCEPTION_CONTINUE_EXECUTION
 }
@@ -100,3 +104,33 @@ where
         Ok(())
     }
 }
+
+#[cfg(debug_assertions)]
+#[inline(never)]
+fn check_windows_stack() {
+    use std::arch::asm;
+
+    // Simple sanity check for the stack limit on Windows.
+    // This is a debug assertion to ensure that
+    // the stack pointer (rsp) is not below the stack limit.
+
+    let stack_limit: u64;
+    let rsp: u64;
+
+    unsafe {
+        asm!(
+            "mov {}, gs:[0x10]",   // stack limit
+            "mov {}, rsp",
+            out(reg) stack_limit,
+            out(reg) rsp,
+        );
+    }
+
+    if rsp < stack_limit {
+        eprintln!("***********rsp {rsp:#X} < stack_limit!!! {stack_limit:#X}");
+        std::process::exit(13);
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn check_windows_stack() {}

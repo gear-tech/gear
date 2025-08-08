@@ -33,6 +33,8 @@ use gear_wasm_instrument::GLOBAL_NAME_GAS;
 
 pub type HostPageAddr = usize;
 
+const OS_PAGE_MASK: usize = !(OS_PAGE_SIZE - 1);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TouchedPage {
     pub write: bool,
@@ -149,6 +151,9 @@ fn user_signal_handler_internal(
         }
     }
 
+    // Simulate TLS accesses
+    simulate_tls_access();
+
     unsafe {
         // In case of write access, unprotect page for write and protect for read (and vice versa)
         mprotect_interval(native_addr, OS_PAGE_SIZE, !is_write, is_write, false)
@@ -161,7 +166,7 @@ fn user_signal_handler_internal(
         read: !is_write,
     };
     ctx.pages
-        .entry(native_addr)
+        .entry(native_addr & OS_PAGE_MASK)
         .and_modify(|prev_access| {
             prev_access.update(&page);
         })
@@ -201,13 +206,17 @@ unsafe fn mprotect_interval(
         mask |= region::Protection::READ;
     }
     if allow_write {
-        mask |= region::Protection::WRITE;
+        mask |= region::Protection::READ_WRITE;
     }
     if allow_exec {
         mask |= region::Protection::EXECUTE;
     }
-    unsafe { region::protect(addr as *mut (), size, mask)? };
-    log::trace!("mprotect interval: {addr:#x}, size: {size:#x}, mask: {mask}");
+
+    let aligned_addr = addr & OS_PAGE_MASK;
+    unsafe { region::protect(aligned_addr as *mut (), size, mask)? };
+    log::trace!(
+        "mprotect interval: {addr:#x}, aligned {aligned_addr:#x}, size: {size:#x}, mask: {mask}"
+    );
     Ok(())
 }
 
@@ -219,6 +228,17 @@ unsafe fn simulate_data_load(addr: usize) {
         mprotect_interval(addr, OS_PAGE_SIZE, true, true, false).expect("mprotect succeeded");
         memset(addr as *mut u8, DUMMY_BYTE, OS_PAGE_SIZE);
     }
+}
+
+thread_local! {
+    static TLS_SIM_READ: RefCell<u32> = const { RefCell::new(0) };
+    static TLS_SIM_WRITE: RefCell<u32> = const { RefCell::new(0) };
+}
+
+fn simulate_tls_access() {
+    let mut v = TLS_SIM_READ.with_borrow(|v| *v);
+    v = v.wrapping_add(1);
+    TLS_SIM_WRITE.with_borrow_mut(|vv| *vv = v);
 }
 
 // Set memory region to specific value.
