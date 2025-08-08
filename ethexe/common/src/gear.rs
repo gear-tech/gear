@@ -18,7 +18,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Digest, ToDigest};
+use crate::{Address, AnnounceHash, Digest, ToDigest};
 use alloc::vec::Vec;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
@@ -61,18 +61,22 @@ pub struct AddressBook {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head: H256,
+    pub head_announce: AnnounceHash,
 }
 
 impl ToDigest for Option<ChainCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment { transitions, head }) = self else {
+        let Some(ChainCommitment {
+            transitions,
+            head_announce,
+        }) = self
+        else {
             return;
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head);
+        hasher.update(head_announce.0);
     }
 }
 

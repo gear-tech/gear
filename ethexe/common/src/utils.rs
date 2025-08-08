@@ -16,6 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    Address, AnnounceHash, AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, Digest,
+    LatestDataStorage, OnChainStorageWrite, SimpleBlockData,
+};
+use alloc::vec;
+use nonempty::NonEmpty;
+
 /// Decodes hexed string to a byte array.
 pub fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N], hex::FromHexError> {
     // Strip the "0x" prefix if it exists.
@@ -33,4 +40,42 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     let [_, _, b1, b2, b3, b4, b5, b6] = val.to_be_bytes();
 
     [b1, b2, b3, b4, b5, b6]
+}
+
+pub fn set_genesis_in_db<
+    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorage,
+>(
+    db: &DB,
+    genesis_block: SimpleBlockData,
+    validators: NonEmpty<Address>,
+) {
+    db.set_block_header(genesis_block.hash, genesis_block.header.clone());
+    db.set_block_events(genesis_block.hash, &[]);
+    db.set_block_synced(genesis_block.hash);
+
+    // Genesis block is the only one block where announce is committed in the same block.
+    let genesis_announce_hash = AnnounceHash::zero();
+    db.mutate_block_meta(genesis_block.hash, |meta| {
+        *meta = BlockMeta {
+            prepared: true,
+            announces: Some(vec![genesis_announce_hash]),
+            codes_queue: Some(Default::default()),
+            last_committed_batch: Some(Digest::zero()),
+            last_committed_announce: Some(genesis_announce_hash),
+        }
+    });
+    db.set_validators(genesis_block.hash, validators);
+
+    db.set_announce_outcome(genesis_announce_hash, vec![]);
+    db.set_announce_program_states(genesis_announce_hash, Default::default());
+    db.set_announce_schedule(genesis_announce_hash, Default::default());
+    db.mutate_announce_meta(genesis_announce_hash, |meta| meta.computed = true);
+
+    db.mutate_latest_data(|data| {
+        data.computed_announce_hash
+            .get_or_insert(genesis_announce_hash);
+        data.prepared_block_hash.get_or_insert(genesis_block.hash);
+        data.synced_block_height
+            .get_or_insert(genesis_block.header.height);
+    });
 }

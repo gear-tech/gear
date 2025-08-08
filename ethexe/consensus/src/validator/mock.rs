@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
+
 use super::*;
 use std::cell::RefCell;
 
@@ -61,6 +63,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         signatures_threshold: 1,
         router_address: 12345.into(),
         pub_key: keys.pop().unwrap(),
+        block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
         signer,
         db: Database::memory(),
         committer: Box::new(DummyCommitter),

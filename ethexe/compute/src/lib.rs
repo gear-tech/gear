@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{CodeAndIdUnchecked, events::BlockRequestEvent};
+use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, events::BlockRequestEvent};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
@@ -40,7 +40,8 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    BlockProcessed(BlockProcessed),
+    AnnounceComputed(AnnounceHash),
+    AnnounceRejected(AnnounceHash),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -79,6 +80,10 @@ pub enum ComputeError {
     },
     #[error("validator set not found for block({0})")]
     ValidatorSetNotFound(H256),
+    #[error("Announce {0:?} not found in db")]
+    AnnounceNotFound(AnnounceHash),
+    #[error("Announces for block {0:?} not found in db")]
+    AnnouncesNotFound(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -88,23 +93,28 @@ type Result<T> = std::result::Result<T, ComputeError>;
 
 pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     /// Process block events and return the result.
-    fn process_block_events(
+    fn process_announce(
         &mut self,
-        block: H256,
+        announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> impl Future<Output = Result<BlockProcessingResult>> + Send;
+    fn process_base_announce(&mut self, announce: Announce) -> Result<BlockProcessingResult>;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
 }
 
 impl ProcessorExt for Processor {
-    async fn process_block_events(
+    async fn process_announce(
         &mut self,
-        block: H256,
+        announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        self.process_block_events(block, events)
+        self.process_announce(announce, events)
             .await
             .map_err(Into::into)
+    }
+
+    fn process_base_announce(&mut self, announce: Announce) -> Result<BlockProcessingResult> {
+        self.process_base_announce(announce).map_err(Into::into)
     }
 
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {

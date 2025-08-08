@@ -18,12 +18,15 @@
 
 use crate::{
     db_sync::{
-        Config, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse, InnerRequest,
-        InnerResponse, ResponseId,
+        Config, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
-use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite};
+use ethexe_common::{
+    AnnounceHash,
+    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite},
+};
 use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};
@@ -70,12 +73,39 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
-                db.block_program_states(request.at)
-                    .map(|states| states.into_keys().collect())
+                db.block_meta(request.at)
+                    .announces
+                    .and_then(|mut a| a.pop())
+                    .and_then(|announce_hash| {
+                        db.announce_program_states(announce_hash)
+                            .map(|states| states.into_keys().collect())
+                    })
                     .unwrap_or_default(), // FIXME: Option might be more suitable
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
+            InnerRequest::Announces(InnerAnnouncesRequest {
+                head,
+                max_chain_len,
+            }) => {
+                let mut announces = vec![];
+                let mut announce_hash = head;
+                let mut counter = max_chain_len.min(10_000); // Limit to prevent abuse
+                while counter > 0 && announce_hash != AnnounceHash::zero() {
+                    let Some(announce) = db.announce(announce_hash) else {
+                        log::warn!(
+                            "Cannot complete request: announce {announce_hash} not found in database"
+                        );
+                        announces = vec![];
+                        break;
+                    };
+
+                    announce_hash = announce.parent;
+                    announces.push(announce);
+                    counter -= 1;
+                }
+                InnerResponse::Announces(announces)
+            }
         }
     }
 
