@@ -20,10 +20,7 @@
 
 use crate::SignedOffchainTransaction;
 use anyhow::{Result, anyhow, bail};
-use ethexe_common::{
-    db::{LatestDataStorage, OnChainStorageRead},
-    tx_pool::OffchainTransaction,
-};
+use ethexe_common::{db::LatestDataStorage, tx_pool};
 use ethexe_db::Database;
 
 // TODO #4424
@@ -82,43 +79,14 @@ impl TxValidator {
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
     fn check_mortality(&self) -> Result<bool> {
-        let transaction_block_hash = self.transaction.reference_block();
-        let transaction_height = self
-            .db
-            .block_header(transaction_block_hash)
-            .ok_or_else(|| {
-                anyhow!("Block header not found for reference block {transaction_block_hash}")
-            })?
-            .height;
-
-        let latest_block = self
+        // TODO +_+_+: check mortality for latest block, which is not fully correct approach,
+        // but can be applied presently.
+        let latest_block_hash = self
             .db
             .latest_data()
             .prepared_block_hash
             .ok_or_else(|| anyhow!("Latest prepared block hash not found"))?;
-        let latest_block_height = self
-            .db
-            .block_header(latest_block)
-            .ok_or_else(|| anyhow!("Block header not found for hash: {latest_block}"))?
-            .height;
-        if transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE <= latest_block_height
-        {
-            return Ok(false);
-        }
-
-        // Check inclusion of the block in the recent branch
-        let mut block_hash = latest_block;
-        let mut counter = OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE;
-        while counter > 0 && block_hash != transaction_block_hash {
-            block_hash = self
-                .db
-                .block_header(block_hash)
-                .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
-                .parent_hash;
-            counter -= 1;
-        }
-
-        Ok(block_hash == transaction_block_hash)
+        tx_pool::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
     }
 
     /// Validates transaction uniqueness.
