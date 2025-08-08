@@ -660,7 +660,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let announce = collect_announce(network, db, announce_hash).await?;
     if db.block_meta(announce.block_hash).prepared {
         todo!(
-            "+_+_+ support case when committed announce block is prepared: block successors could be prepared too"
+            "#4810 support case when committed announce block is prepared: block successors could be prepared too"
         );
     }
 
@@ -701,7 +701,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             announces: Some(vec![announce.hash()]),
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Some(Default::default()),
-            // TODO +_+_+: using `latest_committed_batch` here is not correct
+            // TODO #4812: using `latest_committed_batch` here is not correct
             last_committed_batch: Some(latest_committed_batch),
             last_committed_announce: Some(announce_hash),
         }

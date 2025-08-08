@@ -37,7 +37,7 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, CodeAndId,
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -824,6 +824,7 @@ impl Node {
                             router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
+                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                         },
                     )
                     .await

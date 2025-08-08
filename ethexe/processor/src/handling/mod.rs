@@ -60,15 +60,14 @@ impl Processor {
             .block_header(announce.block_hash)
             .ok_or(ProcessorError::BlockHeaderNotFound(announce.block_hash))?;
 
-        let parent_final_states = self
-            .db
-            .announce_program_states(announce.parent)
-            .ok_or(ProcessorError::BlockProgramStatesNotFound(announce.parent))?;
+        let parent_final_states = self.db.announce_program_states(announce.parent).ok_or(
+            ProcessorError::AnnounceProgramStatesNotFound(announce.parent),
+        )?;
 
         let parent_final_schedule = self
             .db
             .announce_schedule(announce.parent)
-            .ok_or(ProcessorError::BlockScheduleNotFound(announce.parent))?;
+            .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
 
         let transitions = InBlockTransitions::new(
             corresponding_block_header,

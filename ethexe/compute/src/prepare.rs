@@ -149,7 +149,7 @@ async fn prepare_one_block(
         .announces
         .ok_or_else(|| ComputeError::AnnouncesNotFound(parent))?;
     if parent_announces.len() != 1 {
-        todo!("TODO +_+_+: Currently supporting exactly one announce per block only");
+        todo!("TODO #4813: Currently supporting exactly one announce per block only");
     }
     let parent_announce_hash = parent_announces[0];
 
@@ -207,7 +207,7 @@ async fn propagate_from_parent_announce(
             "Searching for last committed announce hash {last_committed_announce_hash} in known announces chain",
         );
 
-        // TODO +_+_+: 1000 - temporary limit to determine last committed announce hash is from known chain
+        // TODO #4813: 1000 - temporary limit to determine last committed announce hash is from known chain
         // after we append announces mortality, we can remove this limit
         let mut announce_hash = parent_announce_hash;
         for _ in 0..1000 {
@@ -229,7 +229,7 @@ async fn propagate_from_parent_announce(
         );
     }
 
-    // TODO +_+_+: hack - use here base with gas to avoid unknown announces in tests,
+    // TODO #4814: hack - use here base with gas to avoid unknown announces in tests,
     // this can be fixed by unknown announces handling later
     let new_base_announce = Announce::new_default_gas(block_hash, parent_announce_hash);
     let new_base_announce_hash = new_base_announce.hash();

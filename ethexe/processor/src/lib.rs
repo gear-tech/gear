@@ -66,9 +66,13 @@ pub enum ProcessorError {
     #[error("not found events for processing block ({0})")]
     BlockEventsNotFound(H256),
     #[error("not found program states for processing block ({0})")]
-    BlockProgramStatesNotFound(AnnounceHash),
+    AnnounceProgramStatesNotFound(AnnounceHash),
     #[error("not found block start schedule for processing block ({0})")]
-    BlockScheduleNotFound(AnnounceHash),
+    AnnounceScheduleNotFound(AnnounceHash),
+    #[error("not found announces for processing block ({0})")]
+    AnnouncesNotFound(H256),
+    #[error("not found announce by hash ({0})")]
+    AnnounceNotFound(AnnounceHash),
 
     // `InstanceWrapper` errors
     #[error("couldn't find 'memory' export")]
@@ -292,22 +296,21 @@ impl OverlaidProcessor {
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
-        // +_+_+ change errors
-        let hash = self
+        let announce_hash = self
             .0
             .db
             .block_meta(block_hash)
             .announces
-            .ok_or(ProcessorError::BlockEventsNotFound(block_hash))?
             .into_iter()
+            .flat_map(IntoIterator::into_iter)
             .next()
-            .ok_or(ProcessorError::BlockEventsNotFound(block_hash))?;
+            .ok_or(ProcessorError::AnnouncesNotFound(block_hash))?;
 
         let announce = self
             .0
             .db
-            .announce(hash)
-            .ok_or(ProcessorError::BlockHeaderNotFound(block_hash))?;
+            .announce(announce_hash)
+            .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?;
 
         let mut handler = self.0.handler(announce)?;
 

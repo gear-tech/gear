@@ -217,6 +217,7 @@ impl Service {
                         pub_key,
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
+                        block_gas_limit: config.node.block_gas_limit,
                     },
                 )
                 .await?,
@@ -420,7 +421,7 @@ impl Service {
                         consensus.receive_computed_announce(announce_hash)?
                     }
                     ComputeEvent::AnnounceRejected(announce_hash) => {
-                        // TODO +_+_+: we should handle this case properly inside consensus service
+                        // TODO: #4811 we should handle this case properly inside consensus service
                         log::warn!("Announce {announce_hash:?} was rejected");
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {

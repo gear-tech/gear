@@ -96,9 +96,13 @@ impl RawOffchainTransaction {
     }
 }
 
-// TODO +_+_+: reorg check must be until genesis block
+// TODO #4808: branch check must be until genesis block
 /// Checks if the transaction is still valid at the given block.
-/// Checking windows is in [transaction_height, transaction_height + BLOCK_HASHES_WINDOW_SIZE - 1]
+/// Checking windows is in `transaction_height..transaction_height + BLOCK_HASHES_WINDOW_SIZE`
+///
+/// # Returns
+/// - `true` if the transaction is still valid at the given block
+/// - `false` otherwise
 pub fn check_mortality_at(
     db: &impl OnChainStorageRead,
     tx: &SignedOffchainTransaction,

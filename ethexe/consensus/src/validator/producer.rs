@@ -26,8 +26,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, AnnounceStorageRead, BlockMetaStorageRead,
-    DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData,
+    Address, Announce, AnnounceHash, AnnounceStorageRead, BlockMetaStorageRead, SimpleBlockData,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -286,8 +285,7 @@ impl Producer {
         let pb = Announce {
             block_hash: self.block.hash,
             parent: parent_announce,
-            // +_+_+ must be on config
-            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            gas_allowance: Some(self.ctx.block_gas_limit),
             // TODO #4639: append off-chain transactions
             off_chain_transactions: Vec::new(),
         };

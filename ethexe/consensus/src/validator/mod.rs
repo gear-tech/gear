@@ -106,6 +106,8 @@ pub struct ValidatorConfig {
     pub signatures_threshold: u64,
     /// Duration of ethexe slot (only to identify producer for the incoming blocks)
     pub slot_duration: Duration,
+    /// Block gas limit for producer to create announces
+    pub block_gas_limit: u64,
 }
 
 impl ValidatorService {
@@ -134,6 +136,7 @@ impl ValidatorService {
             signatures_threshold: config.signatures_threshold,
             router_address: config.router_address,
             pub_key: config.pub_key,
+            block_gas_limit: config.block_gas_limit,
             signer,
             db,
             committer: Box::new(EthereumCommitter { router }),
@@ -446,6 +449,7 @@ struct ValidatorContext {
     signatures_threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
+    block_gas_limit: u64,
 
     #[debug(skip)]
     signer: Signer,

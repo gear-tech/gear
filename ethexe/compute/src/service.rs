@@ -125,14 +125,6 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.blocks_queue.push_front(BlockAction::Compute(announce));
     }
 
-    pub fn receive_requested_announces(
-        &mut self,
-        _block: H256,
-        _announces_request: (AnnounceHash, u32),
-    ) -> Result<()> {
-        todo!("TODO +_+_+: implement receive_requested_announces");
-    }
-
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
         let waiting_codes_count =

@@ -53,8 +53,12 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
     Ok(chain)
 }
 
-// Returns true if the announce is computed and included in the block `block_hash`.
-// TODO +_+_+
+/// Returns true if the announce is computed and included in the block `block_hash`.
+/// We cannot just use announce compute flag in some cases,
+/// because it's possible for an announce to be computed but not included in a block.
+/// For example, if node accidentally drops a block
+/// after computing an announce, the announce will be marked as computed, but not included
+/// in the block.
 pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStorageRead>(
     db: &DB,
     announce_hash: AnnounceHash,

@@ -79,7 +79,7 @@ impl TxValidator {
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
     fn check_mortality(&self) -> Result<bool> {
-        // TODO +_+_+: check mortality for latest block, which is not fully correct approach,
+        // TODO #4809: checking mortality for latest block is not fully correct approach,
         // but can be applied presently.
         let latest_block_hash = self
             .db
