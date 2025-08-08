@@ -280,7 +280,7 @@ impl CodeErrorWithContext {
         use CodeError::*;
         match error {
             Validation(_) | Module(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
-            | Instrumentation(_) => Ok(Self::Code(error)),
+            | TypeSection(_) | Instrumentation(_) => Ok(Self::Code(error)),
             Export(error) => {
                 let error_with_context: ExportErrorWithContext = (module, error).try_into()?;
                 Ok(Self::Export(error_with_context))
@@ -304,6 +304,8 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
+        schedule.limits.type_section_len.into(),
+        schedule.limits.type_section_params_per_type.into(),
     ) {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,

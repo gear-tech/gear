@@ -126,6 +126,8 @@ fn main() -> anyhow::Result<()> {
             |module| schedule.rules(module),
             Some(mid),
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.type_section_params_per_type.into(),
         )
         .context("Code error")?;
 
