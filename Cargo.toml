@@ -208,11 +208,7 @@ tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
 nonempty = { version = "0.12.0", default-features = false }
-
-# Published deps
-#
-# https://github.com/gear-tech/gear-dlmalloc/tree/0.2.0
-dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
+dlmalloc = { version = "0.2.10", features = ["global"] }
 
 # Internal deps
 numerated = { path = "common/numerated" }

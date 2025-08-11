@@ -12,6 +12,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+gsys.workspace = true
 # add "checks" feature to enable hard checks in allocator
 dlmalloc.workspace = true
 

@@ -435,6 +435,13 @@ macro_rules! syscalls {
     };
 }
 
+#[cfg(target_arch = "wasm32")]
+unsafe extern "C" {
+    pub fn alloc(pages: u32) -> u32;
+    pub fn free(page_no: u32) -> i32;
+    pub fn free_range(start: u32, end: u32) -> i32;
+}
+
 syscalls! {
     /// Infallible `gr_env_vars` get syscall.
     /// It leaves backend with unrecoverable error if incorrect version is passed.
