@@ -34,11 +34,12 @@ pub mod prelude;
 mod wasm {
     use core::{
         alloc::{GlobalAlloc, Layout},
+        cell::Cell,
         ptr,
     };
     use dlmalloc::{Allocator as _, Dlmalloc};
 
-    static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::new_with_allocator(GearAlloc);
+    static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::new_with_allocator(GearAlloc::new());
 
     pub struct GlobalGearAlloc;
 
@@ -58,10 +59,7 @@ mod wasm {
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
             debug("GlobalGearAlloc::dealloc");
             let alloc = ptr::addr_of_mut!(ALLOC);
-            unsafe {
-                (*alloc).free(ptr, layout.size(), layout.align());
-                (*alloc).trim(0);
-            }
+            unsafe { (*alloc).free(ptr, layout.size(), layout.align()) }
         }
 
         #[inline]
@@ -79,13 +77,23 @@ mod wasm {
         }
     }
 
-    struct GearAlloc;
+    struct GearAlloc {
+        preinstalled_memory: Cell<bool>,
+    }
 
     impl GearAlloc {
+        const fn new() -> Self {
+            Self {
+                preinstalled_memory: Cell::new(false),
+            }
+        }
+
+        #[inline]
         fn page_to_ptr(&self, page: u32) -> *mut u8 {
             (page as usize * self.page_size()) as *mut u8
         }
 
+        #[inline]
         fn ptr_to_page(&self, ptr: *mut u8) -> u32 {
             (ptr as usize / self.page_size()) as u32
         }
@@ -98,6 +106,23 @@ mod wasm {
     unsafe impl dlmalloc::Allocator for GearAlloc {
         fn alloc(&self, size: usize) -> (*mut u8, usize, u32) {
             debug("GearAlloc::alloc");
+
+            if !self.preinstalled_memory.get() {
+                self.preinstalled_memory.set(true);
+
+                unsafe extern "C" {
+                    static __heap_base: i32;
+                }
+
+                let heap_base = unsafe { &__heap_base as *const i32 as *mut u8 };
+                let page_begin = self.ptr_to_page(heap_base);
+                let page_begin = self.page_to_ptr(page_begin);
+
+                if page_begin != heap_base {
+                    let size = page_begin as usize + self.page_size() - heap_base as usize;
+                    return (heap_base, size, 0);
+                }
+            }
 
             let pages = size.div_ceil(self.page_size());
             let size = pages * self.page_size();
@@ -127,8 +152,13 @@ mod wasm {
 
             unsafe {
                 let start = self.ptr_to_page(ptr.add(newsize));
-                let end = self.ptr_to_page(ptr.add(newsize).add(oldsize - newsize)) - 1;
-                gsys::free_range(start, end) == 0
+                let end = self.ptr_to_page(ptr.add(oldsize)) - 1;
+
+                if start <= end {
+                    gsys::free_range(start, end) == 0
+                } else {
+                    false
+                }
             }
         }
 
@@ -136,7 +166,6 @@ mod wasm {
             debug("GearAlloc::free");
             let start = self.ptr_to_page(ptr);
             let end = unsafe { self.ptr_to_page(ptr.add(size)) };
-            panic!("GearAlloc::free({ptr:?}, {size}): start={start}, end={end}");
             unsafe { gsys::free_range(start, end) == 0 }
         }
 

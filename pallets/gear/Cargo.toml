@@ -76,7 +76,7 @@ wasmparser.workspace = true
 blake2.workspace = true
 gstd.workspace = true
 demo-async.workspace = true
-demo-async-init.workspace = true
+demo-async-init = { workspace = true, features = ["debug"] }
 demo-async-recursion.workspace = true
 demo-async-tester = { workspace = true, features = ["debug"] }
 demo-delayed-sender.workspace = true
