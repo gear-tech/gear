@@ -1,3 +1,21 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use alloy::providers::Provider;
 use ethexe_common::{
     Address,
@@ -11,29 +29,12 @@ use std::{collections::BTreeMap, ops::Range};
 
 #[cfg(test)]
 mod tests;
-/*
-TODO: wait for 3 eth eras to calculate rewards
-* Rewards proporsal*
-1. watch finalized blocks (starting from 2 eras ago)
-2. iterate through all finalized blocks and
-   - collect all block producers and validators
-   - collect all stakers
-3. calculate vaults staking rewards at the beginning of the election era
-4.
- - producer: propose rewards commitment if its not already proposed
- - participant: check the correctness of the rewards commitment
 
+mod weights {
+    use super::U256;
 
-NOTES:
-- create the criteria for need to send rewards commitment
-- key for blockHash `era:blockHash` - can use rocksdb method for iterate over all prefix keys `era:...`
-- consensus doesn't load anything from the eth rpc
-
-Validators count in db:
-- 0: iter through all previous eras and find latest set validators
-- 1: best case
-- 2: iter through all parent blocks and find one of the blocks from parent blocks
-*/
+    pub const VALIDATED_BLOCK: U256 = U256([100u64, 0, 0, 0]); // 100 base units
+}
 
 // Number of blocks to wait for commitment confirmation in Ethereum
 const REWARDS_CONFIRMATION_SLOTS_WINDOW: u64 = 5;
@@ -60,12 +61,6 @@ pub enum RewardsError {
     Any(#[from] anyhow::Error),
 }
 type Result<T> = std::result::Result<T, RewardsError>;
-
-#[derive(Clone, Debug)]
-struct Context {
-    token: Address,
-    timestamp: u64,
-}
 
 #[derive(Clone, derive_more::Debug)]
 struct TotalEraRewards<DB> {
@@ -117,6 +112,12 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> TotalEraRewards<DB> {
     }
 }
 
+#[derive(Clone, Debug)]
+struct Context {
+    token: Address,
+    timestamp: u64,
+}
+
 #[derive(Clone, derive_more::Debug)]
 struct Rewards {
     pub operators: BTreeMap<Address, U256>,
@@ -128,11 +129,13 @@ struct Rewards {
 impl Rewards {
     pub fn into_commitment(self, ctx: Context) -> RewardsCommitment {
         let merkle_tree = utils::build_merkle_tree(self.operators);
+        let root = merkle_tree
+            .get_root()
+            .expect("Nonempty merkle tree should have a root");
+
         let operators_commitment = OperatorRewardsCommitment {
             amount: self.total_operator_rewards,
-            root: merkle_tree
-                .get_root()
-                .expect("Nonempty merkle tree should have a root"),
+            root,
         };
 
         let stakers_commitment = StakerRewardsCommitment {
@@ -243,11 +246,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             return Ok(None);
         };
 
+        let prev_distrbution_era = eras_to_reward.start.saturating_sub(1);
         let mut cumulative_rewards = Rewards {
-            // TODO: remove 0 to eras_to_reward.start - 1
             operators: self
                 .db
-                .operators_rewards_distribution_at(0)
+                .operators_rewards_distribution_at(prev_distrbution_era)
                 .ok_or(RewardsError::RewardsDistribution(0))?,
             stakers: Default::default(),
             total_operator_rewards: U256::zero(),
@@ -267,12 +270,14 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
         Ok(Some(cumulative_rewards.into_commitment(context)))
     }
 
+    // Returns the range of eras for which rewards can be distributed.
     fn eras_to_reward(&self, block_hash: H256, block_timestamp: u64) -> Result<Option<Range<u64>>> {
-        let latest_rewarded_era = match self
+        let rewards_state = self
             .db
             .rewards_state(block_hash)
-            .ok_or(RewardsError::RewardsStateNotFound(block_hash))?
-        {
+            .ok_or(RewardsError::RewardsStateNotFound(block_hash))?;
+
+        let latest_rewarded_era = match rewards_state {
             RewardsState::LatestDistributed(era) => era,
             RewardsState::SentToEthereum {
                 in_block,
@@ -302,6 +307,8 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
         Ok(Some(latest_rewarded_era..current_era))
     }
 
+    // Returns whether we should wait for rewards confirmation in the next `REWARDS_CONFIRMATION_SLOTS_WINDOW` slots.
+    // If true, it means that the rewards commitment is not yet confirmed and we should not create another commitment.
     fn should_wait_for_rewards_confirmation(
         &self,
         in_block: H256,
@@ -345,7 +352,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
 
             for validator in block_validators.iter() {
                 let base_unit = U256::from(10u64.pow(self.config.wvara_decimals as u32));
-                let value = U256::from(100) * base_unit;
+                let value = weights::VALIDATED_BLOCK * base_unit;
 
                 rewards_statistics
                     .entry(*validator)
