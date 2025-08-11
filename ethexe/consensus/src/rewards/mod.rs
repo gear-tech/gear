@@ -246,11 +246,11 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             return Ok(None);
         };
 
-        let prev_distrbution_era = eras_to_reward.start.saturating_sub(1);
+        let prev_distribution_era = eras_to_reward.start.saturating_sub(1);
         let mut cumulative_rewards = Rewards {
             operators: self
                 .db
-                .operators_rewards_distribution_at(prev_distrbution_era)
+                .operators_rewards_distribution_at(prev_distribution_era)
                 .ok_or(RewardsError::RewardsDistribution(0))?,
             stakers: Default::default(),
             total_operator_rewards: U256::zero(),
