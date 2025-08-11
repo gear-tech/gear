@@ -20,9 +20,14 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
+    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
+    StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage, OnChainStorageRead, OnChainStorageWrite
-    }, events::{BlockEvent, RouterEvent}, Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage,
+        OnChainStorageRead, OnChainStorageWrite,
+    },
+    events::{BlockEvent, RouterEvent},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::Database;
@@ -92,7 +97,7 @@ impl EventData {
                     {
                         latest_committed = Some((digest, None));
                     }
-                    BlockEvent::Router(RouterEvent::HeadCommitted(head)) => {
+                    BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                         let Some((_, latest_committed_head)) = latest_committed.as_mut() else {
                             anyhow::bail!(
                                 "Inconsistent block events: head commitment before batch commitment"

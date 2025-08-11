@@ -25,7 +25,7 @@ pub enum Event {
     BatchCommitted {
         digest: Digest,
     },
-    HeadCommitted(AnnounceHash),
+    AnnouncesCommitted(AnnounceHash),
     CodeGotValidated {
         code_id: CodeId,
         valid: bool,
@@ -76,7 +76,7 @@ impl Event {
                 RequestEvent::NextEraValidatorsCommitted { next_era_start }
             }
             Self::CodeGotValidated { .. }
-            | Self::HeadCommitted(_)
+            | Self::AnnouncesCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

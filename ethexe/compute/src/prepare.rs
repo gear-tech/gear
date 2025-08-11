@@ -138,8 +138,8 @@ async fn prepare_one_block(
             BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
                 validated_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::HeadCommitted(announce)) => {
-                last_committed_announce_hash = Some(announce);
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
+                last_committed_announce_hash = Some(head);
             }
             _ => {}
         }
@@ -362,11 +362,13 @@ mod tests {
 
         db.set_block_header(block.hash, block.header.clone());
 
+        db.mutate_latest_data(|data| *data = Some(Default::default()));
+
         let events = vec![
             BlockEvent::Router(RouterEvent::BatchCommitted {
                 digest: batch_committed,
             }),
-            BlockEvent::Router(RouterEvent::HeadCommitted(parent_announce.hash())),
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(parent_announce.hash())),
             BlockEvent::Router(RouterEvent::CodeGotValidated {
                 code_id: code1_id,
                 valid: true,

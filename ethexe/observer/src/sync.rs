@@ -193,7 +193,8 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_block_synced(hash);
 
-            let _ = self.db
+            let _ = self
+                .db
                 .mutate_latest_data_if_some(|data| data.synced_block_height = block_header.height)
                 .ok_or_else(|| {
                     log::error!("Failed to update latest data for synced block {hash}");

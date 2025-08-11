@@ -27,9 +27,9 @@ impl From<IRouter::BatchCommitted> for RouterEvent {
     }
 }
 
-impl From<IRouter::HeadCommitted> for RouterEvent {
-    fn from(value: IRouter::HeadCommitted) -> Self {
-        Self::HeadCommitted(AnnounceHash(value.head.0.into()))
+impl From<IRouter::AnnouncesCommitted> for RouterEvent {
+    fn from(value: IRouter::AnnouncesCommitted) -> Self {
+        Self::AnnouncesCommitted(AnnounceHash(value.head.0.into()))
     }
 }
 

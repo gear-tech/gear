@@ -620,8 +620,13 @@ impl LatestDataStorage for Database {
 
     fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>)) {
         let mut data = self.latest_data();
+        let was_some = data.is_some();
         f(&mut data);
-        self.kv.put(&Key::LatestData.to_bytes(), data.encode());
+        if let Some(data) = data {
+            self.kv.put(&Key::LatestData.to_bytes(), data.encode());
+        } else if was_some {
+            todo!("Implement removals from db");
+        }
     }
 }
 
