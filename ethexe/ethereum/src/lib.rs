@@ -27,7 +27,7 @@ use abi::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, B256, Bytes, ChainId, Signature, SignatureError, U256},
+    primitives::{Address, B256, Bytes, ChainId, Signature, SignatureError, U256, Uint},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -169,7 +169,7 @@ impl Ethereum {
                     _mirror: mirror_address,
                     _wrappedVara: wvara_address,
                     _middleware: Address::ZERO,
-                    _eraDuration: U256::from(24 * 60 * 60),
+                    _eraDuration: Uint::from(24 * 60 * 60),
                     _electionDuration: U256::from(2 * 60 * 60),
                     _validationDelay: U256::from(60),
                     _aggregatedPublicKey: (AggregatedPublicKey {
