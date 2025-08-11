@@ -154,9 +154,8 @@ impl ServiceEventsListener<'_> {
             id = AnnounceID::AnnounceHash(
                 self.db
                     .latest_data()
-                    .computed_announce_hash
-                    .ok_or_else(|| anyhow!("Latest computed announce not found"))
-                    .unwrap(),
+                    .expect("Latest data not found")
+                    .computed_announce_hash,
             );
         }
 

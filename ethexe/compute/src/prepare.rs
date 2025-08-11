@@ -179,10 +179,17 @@ async fn prepare_one_block(
         meta.prepared = true;
     });
 
-    db.mutate_latest_data(|data| {
-        data.prepared_block_hash = Some(block.hash);
-        data.computed_announce_hash = Some(new_base_announce_hash);
-    });
+    let _ = db
+        .mutate_latest_data_if_some(|data| {
+            data.prepared_block_hash = block.hash;
+            data.computed_announce_hash = new_base_announce_hash;
+        })
+        .ok_or_else(|| {
+            log::error!(
+                "Failed to update latest data with prepared block {}",
+                block.hash
+            );
+        });
 
     Ok(())
 }
@@ -402,6 +409,6 @@ mod tests {
             db.announce_program_states(announce_hash),
             Some(Default::default())
         );
-        assert_eq!(db.latest_data().prepared_block_hash, Some(block.hash));
+        assert_eq!(db.latest_data().unwrap().prepared_block_hash, block.hash);
     }
 }

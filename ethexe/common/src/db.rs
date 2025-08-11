@@ -130,12 +130,22 @@ pub trait AnnounceStorageWrite {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
-    pub synced_block_height: Option<u32>,
-    pub prepared_block_hash: Option<H256>,
-    pub computed_announce_hash: Option<AnnounceHash>,
+    pub synced_block_height: u32,
+    pub prepared_block_hash: H256,
+    pub computed_announce_hash: AnnounceHash,
 }
 
 pub trait LatestDataStorage {
-    fn latest_data(&self) -> LatestData;
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData));
+    fn latest_data(&self) -> Option<LatestData>;
+    fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>));
+    fn mutate_latest_data_if_some(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
+        let mut return_value = None;
+        self.mutate_latest_data(|data| {
+            if let Some(data) = data.as_mut() {
+                f(data);
+                return_value = Some(());
+            }
+        });
+        return_value
+    }
 }

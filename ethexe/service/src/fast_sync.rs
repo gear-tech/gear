@@ -20,14 +20,9 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
-    StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestDataStorage,
-        OnChainStorageRead, OnChainStorageWrite,
-    },
-    events::{BlockEvent, RouterEvent},
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage, OnChainStorageRead, OnChainStorageWrite
+    }, events::{BlockEvent, RouterEvent}, Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::Database;
@@ -718,9 +713,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     });
 
     db.mutate_latest_data(|latest| {
-        latest.synced_block_height = Some(header.height);
-        latest.computed_announce_hash = Some(announce_hash);
-        latest.prepared_block_hash = Some(block_hash);
+        *latest = Some(LatestData {
+            synced_block_height: header.height,
+            computed_announce_hash: announce_hash,
+            prepared_block_hash: block_hash,
+        });
     });
 
     log::info!(

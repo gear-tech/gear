@@ -123,39 +123,39 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest_synced_block_height) = self.db.latest_data().synced_block_height else {
-            log::warn!("latest_synced_block_height is not set in the database");
+        let Some(latest) = self.db.latest_data() else {
+            log::warn!("latest data is not set in the database");
             return Ok(Default::default());
         };
 
-        if header.height <= latest_synced_block_height {
+        if header.height <= latest.synced_block_height {
             log::warn!(
                 "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest_synced_block_height
+                latest.synced_block_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest.synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                 header.height,
-                latest_synced_block_height,
+                latest.synced_block_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest.synced_block_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 
         load_blocks_data_batched(
             self.provider.clone(),
-            latest_synced_block_height as u64,
+            latest.synced_block_height as u64,
             header.height as u64,
             self.config.router_address,
             self.config.wvara_address,
@@ -193,8 +193,11 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_block_synced(hash);
 
-            self.db
-                .mutate_latest_data(|data| data.synced_block_height = Some(block_header.height));
+            let _ = self.db
+                .mutate_latest_data_if_some(|data| data.synced_block_height = block_header.height)
+                .ok_or_else(|| {
+                    log::error!("Failed to update latest data for synced block {hash}");
+                });
         }
     }
 

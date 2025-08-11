@@ -1053,8 +1053,8 @@ async fn tx_pool_gossip() {
     let reference_block = node0
         .db
         .latest_data()
-        .prepared_block_hash
-        .expect("at least genesis block is latest valid");
+        .expect("latest data not found")
+        .prepared_block_hash;
 
     // Prepare tx data
     let signed_ethexe_tx = {

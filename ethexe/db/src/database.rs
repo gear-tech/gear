@@ -611,17 +611,14 @@ impl AnnounceStorageWrite for Database {
 }
 
 impl LatestDataStorage for Database {
-    fn latest_data(&self) -> LatestData {
-        self.kv
-            .get(&Key::LatestData.to_bytes())
-            .map(|data| {
-                LatestData::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `LatestData`")
-            })
-            .unwrap_or_default()
+    fn latest_data(&self) -> Option<LatestData> {
+        self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
+            LatestData::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `LatestData`")
+        })
     }
 
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) {
+    fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>)) {
         let mut data = self.latest_data();
         f(&mut data);
         self.kv.put(&Key::LatestData.to_bytes(), data.encode());
@@ -741,15 +738,15 @@ mod tests {
     fn test_latest_data() {
         let db = Database::memory();
 
-        assert!(db.latest_data() == LatestData::default());
+        assert!(db.latest_data().is_none());
 
         let latest_data = LatestData {
-            synced_block_height: Some(42),
-            prepared_block_hash: Some(H256::random()),
-            computed_announce_hash: Some(AnnounceHash::random()),
+            synced_block_height: 42,
+            prepared_block_hash: H256::random(),
+            computed_announce_hash: AnnounceHash::random(),
         };
-        db.mutate_latest_data(|data| *data = latest_data.clone());
-        assert_eq!(db.latest_data(), latest_data);
+        db.mutate_latest_data(|data| *data = Some(latest_data.clone()));
+        assert_eq!(db.latest_data(), Some(latest_data));
     }
 
     #[test]

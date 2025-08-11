@@ -19,7 +19,7 @@
 use crate::{
     Address, AnnounceHash, Digest, SimpleBlockData,
     db::{
-        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, LatestDataStorage,
+        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, LatestData, LatestDataStorage,
         OnChainStorageWrite,
     },
 };
@@ -75,10 +75,10 @@ pub fn set_genesis_in_db<
     db.mutate_announce_meta(genesis_announce_hash, |meta| meta.computed = true);
 
     db.mutate_latest_data(|data| {
-        data.computed_announce_hash
-            .get_or_insert(genesis_announce_hash);
-        data.prepared_block_hash.get_or_insert(genesis_block.hash);
-        data.synced_block_height
-            .get_or_insert(genesis_block.header.height);
+        data.get_or_insert(LatestData {
+            synced_block_height: genesis_block.header.height,
+            prepared_block_hash: genesis_block.hash,
+            computed_announce_hash: genesis_announce_hash,
+        });
     });
 }

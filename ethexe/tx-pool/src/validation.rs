@@ -84,8 +84,8 @@ impl TxValidator {
         let latest_block_hash = self
             .db
             .latest_data()
-            .prepared_block_hash
-            .ok_or_else(|| anyhow!("Latest prepared block hash not found"))?;
+            .ok_or_else(|| anyhow!("Latest data not found"))?
+            .prepared_block_hash;
         tx_pool::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
     }
 

@@ -101,7 +101,13 @@ pub(crate) async fn compute<P: ProcessorExt>(
         meta.announces = Some(vec![announce_hash]);
     });
 
-    db.mutate_latest_data(|data| data.computed_announce_hash = Some(announce_hash));
+    let _ = db
+        .mutate_latest_data_if_some(|data| {
+            data.computed_announce_hash = announce_hash;
+        })
+        .ok_or_else(|| {
+            log::error!("Failed to update latest data with computed announce {announce_hash}");
+        });
 
     Ok(ComputationStatus::Computed)
 }
@@ -186,7 +192,10 @@ mod tests {
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
         // Verify latest announce
-        assert_eq!(db.latest_data().computed_announce_hash, Some(announce_hash));
+        assert_eq!(
+            db.latest_data().unwrap().computed_announce_hash,
+            announce_hash
+        );
 
         // Try with unknown parent
         let announce = Announce {

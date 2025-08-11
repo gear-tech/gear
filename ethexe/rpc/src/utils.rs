@@ -55,8 +55,8 @@ pub fn block_header_at_or_latest<
         hash
     } else {
         db.latest_data()
+            .ok_or_else(|| errors::db("Latest data wasn't found"))?
             .prepared_block_hash
-            .ok_or_else(|| errors::db("Latest block header wasn't found"))?
     };
 
     db.block_header(hash)

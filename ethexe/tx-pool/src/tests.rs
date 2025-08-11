@@ -24,7 +24,7 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_common::{BlockHeader, db::*};
+use ethexe_common::{AnnounceHash, BlockHeader, db::*};
 use ethexe_db::Database;
 use gprimitives::{H160, H256};
 
@@ -52,13 +52,11 @@ impl BlocksManager {
     pub(crate) fn add_block(&self) -> (H256, BlockHeader) {
         let block_hash = H256::random();
 
-        match self
-            .db
-            .latest_data()
-            .prepared_block_hash
-            .and_then(|h| self.db.block_header(h).map(|header| (h, header)))
-        {
-            Some((parent_hash, parent_header)) => {
+        match self.db.latest_data() {
+            Some(latest) => {
+                let parent_hash = latest.prepared_block_hash;
+                let parent_header = self.db.block_header(latest.prepared_block_hash).unwrap();
+
                 let header = BlockHeader {
                     height: parent_header.height + 1,
                     timestamp: now(),
@@ -66,10 +64,12 @@ impl BlocksManager {
                 };
 
                 self.db.set_block_header(block_hash, header.clone());
-                self.db.mutate_latest_data(|data| {
-                    data.synced_block_height = Some(header.height);
-                    data.prepared_block_hash = Some(block_hash);
-                });
+                self.db
+                    .mutate_latest_data_if_some(|data| {
+                        data.synced_block_height = header.height;
+                        data.prepared_block_hash = block_hash;
+                    })
+                    .unwrap();
 
                 (block_hash, header)
             }
@@ -82,8 +82,11 @@ impl BlocksManager {
 
                 self.db.set_block_header(block_hash, header.clone());
                 self.db.mutate_latest_data(|data| {
-                    data.prepared_block_hash = Some(block_hash);
-                    data.synced_block_height = Some(header.height);
+                    *data = Some(LatestData {
+                        prepared_block_hash: block_hash,
+                        synced_block_height: header.height,
+                        computed_announce_hash: AnnounceHash::zero(),
+                    });
                 });
 
                 (block_hash, header)
