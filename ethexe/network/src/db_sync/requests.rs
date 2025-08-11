@@ -326,7 +326,7 @@ pub enum AnnouncesResponseError {
         expected: AnnounceHash,
         received: AnnounceHash,
     },
-    #[display("expected length overflow, expected len {expected}, received {received}")]
+    #[display("announces len maximum {expected}, received {received}")]
     LenOverflow { expected: usize, received: usize },
     #[display("response is empty")]
     Empty,

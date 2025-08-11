@@ -684,7 +684,7 @@ mod tests {
         async fn programs_code_ids_at(
             self: Box<Self>,
             program_ids: BTreeSet<ActorId>,
-            block_hash: H256,
+            block: H256,
         ) -> anyhow::Result<Vec<CodeId>> {
             assert!(!program_ids.is_empty());
             Ok(self
@@ -692,7 +692,7 @@ mod tests {
                 .read()
                 .await
                 .programs_code_ids_at
-                .get(&(program_ids, block_hash))
+                .get(&(program_ids, block))
                 .cloned()
                 .unwrap_or_default())
         }

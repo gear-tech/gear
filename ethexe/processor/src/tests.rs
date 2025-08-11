@@ -85,7 +85,6 @@ async fn process_observer_event() {
         .expect("failed to upload code");
     assert!(valid);
 
-    // Block1 base announce
     let block1_announce = Announce::new_default_gas(block1, AnnounceHash::zero());
     let block1_announce_hash = block1_announce.hash();
 
@@ -127,7 +126,6 @@ async fn process_observer_event() {
         ),
     ];
 
-    // block2 base announce
     let block2_announce = Announce::new_default_gas(block2, block1_announce_hash);
     let block2_announce_hash = block2_announce.hash();
 
@@ -158,7 +156,6 @@ async fn process_observer_event() {
         },
     );
 
-    // block3 base announce
     let block3_announce = Announce::new_default_gas(block3, block2_announce_hash);
 
     // Process block3 announce

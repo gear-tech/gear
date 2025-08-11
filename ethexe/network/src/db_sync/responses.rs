@@ -32,6 +32,10 @@ use libp2p::request_response;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
 
+/// Maximum length of the chain for announces responses to prevent abuse
+const MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: u64 = 10_000;
+const _: () = assert!(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE > 0, "cannot be zero");
+
 struct OngoingResponse {
     response_id: ResponseId,
     peer_id: PeerId,
@@ -88,9 +92,16 @@ impl OngoingResponses {
                 head,
                 max_chain_len,
             }) => {
+                if max_chain_len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE {
+                    log::warn!(
+                        "Request for announces with too large max_chain_len: {max_chain_len}, \
+                         max is {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE} instead"
+                    );
+                    return InnerResponse::Announces(vec![]);
+                }
                 let mut announces = vec![];
                 let mut announce_hash = head;
-                let mut counter = max_chain_len.min(10_000); // Limit to prevent abuse
+                let mut counter = max_chain_len;
                 while counter > 0 && announce_hash != AnnounceHash::zero() {
                     let Some(announce) = db.announce(announce_hash) else {
                         log::warn!(

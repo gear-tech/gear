@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
-
 use super::*;
+use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 use std::cell::RefCell;
 
 thread_local! {

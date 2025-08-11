@@ -116,8 +116,10 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_prepared_block(&mut self, _block: H256) -> Result<()> {
-        if let State::WaitingForPreparedBlock { block, producer } = &self.state {
+    fn receive_prepared_block(&mut self, prepared_block_hash: H256) -> Result<()> {
+        if let State::WaitingForPreparedBlock { block, producer } = &self.state
+            && block.hash == prepared_block_hash
+        {
             if let Some(index) = self.pending_announces.iter().position(|announce| {
                 announce.address() == *producer && announce.data().block_hash == block.hash
             }) {

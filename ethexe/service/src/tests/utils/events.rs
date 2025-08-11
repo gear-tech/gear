@@ -132,9 +132,12 @@ pub struct ServiceEventsListener<'a> {
 
 #[derive(Debug, Default, Clone, Copy, derive_more::From)]
 pub enum AnnounceID {
+    /// Wait for any next computed announce
     #[default]
-    Latest,
+    Any,
+    /// Wait for announce computed with a specific hash
     AnnounceHash(AnnounceHash),
+    /// Wait for announce computed with a specific block hash
     BlockHash(H256),
 }
 
@@ -149,16 +152,7 @@ impl ServiceEventsListener<'_> {
     }
 
     pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceID>) {
-        let mut id = id.into();
-        if let AnnounceID::Latest = id {
-            id = AnnounceID::AnnounceHash(
-                self.db
-                    .latest_data()
-                    .expect("Latest data not found")
-                    .computed_announce_hash,
-            );
-        }
-
+        let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
             let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event else {
@@ -166,6 +160,9 @@ impl ServiceEventsListener<'_> {
             };
 
             match id {
+                AnnounceID::Any => {
+                    return;
+                }
                 AnnounceID::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
@@ -182,9 +179,6 @@ impl ServiceEventsListener<'_> {
                     {
                         return;
                     }
-                }
-                AnnounceID::Latest => {
-                    unreachable!("Impossible because Latest is handled above")
                 }
                 _ => continue,
             }

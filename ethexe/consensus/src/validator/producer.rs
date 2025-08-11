@@ -74,8 +74,6 @@ impl StateHandler for Producer {
     }
 
     fn process_prepared_block(mut self, block: H256) -> Result<ValidatorState> {
-        log::trace!("{self} process_prepared_block {block}");
-
         if self.block.hash != block {
             return DefaultProcessing::prepared_block(self, block);
         }
@@ -101,8 +99,9 @@ impl StateHandler for Producer {
                 Ok(self.into())
             }
             State::WaitingAnnounceComputed => {
-                // Impossible, because "self.block" must be already prepared then
-                unreachable!("Impossible, receive prepared block in WaitingAnnounceComputed state");
+                self.warning(format!("Receiving {block} prepared twice or more"));
+
+                Ok(self.into())
             }
         }
     }
@@ -137,9 +136,9 @@ impl StateHandler for Producer {
             && let Some(timer) = maybe_timer
             && timer.poll_unpin(cx).is_ready()
         {
-            // Timer is ready, we can create announce
             *maybe_timer = None;
             if *block_prepared {
+                // Timer is ready and block is prepared - we can create announce
                 self.create_announce()?;
             }
         }
@@ -217,8 +216,8 @@ impl Producer {
             .db
             .block_meta(block_hash)
             .announces
-            .ok_or_else(|| anyhow!("No announces found for {block_hash}"))?
             .into_iter()
+            .flat_map(|a| a.into_iter())
             .next()
             .ok_or_else(|| anyhow!("No announces found for {block_hash} in block meta storage"))?;
 

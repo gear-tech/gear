@@ -50,17 +50,9 @@ pub(crate) struct MockProcessor;
 impl ProcessorExt for MockProcessor {
     async fn process_announce(
         &mut self,
-        announce: Announce,
+        _announce: Announce,
         _events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        self.process_base_announce(announce)
-    }
-
-    fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
-        Ok(true)
-    }
-
-    fn process_base_announce(&mut self, _announce: Announce) -> Result<BlockProcessingResult> {
         let result = PROCESSOR_RESULT.with(|r| r.borrow().clone());
         PROCESSOR_RESULT.with(|r| {
             *r.borrow_mut() = BlockProcessingResult {
@@ -71,6 +63,10 @@ impl ProcessorExt for MockProcessor {
         });
 
         Ok(result)
+    }
+
+    fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
+        Ok(true)
     }
 }
 

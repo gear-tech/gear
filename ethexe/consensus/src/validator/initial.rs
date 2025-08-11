@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils;
-
 use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
+use crate::utils;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{SimpleBlockData, db::OnChainStorageRead};

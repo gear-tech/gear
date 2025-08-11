@@ -38,11 +38,6 @@ pub(crate) struct MissingData {
 
 pub(crate) fn missing_data(db: &Database, block_hash: H256) -> Result<MissingData> {
     let chain = utils::collect_chain(db, block_hash, |meta| !meta.prepared)?;
-    log::trace!(
-        "Collecting missing data for block {}: chain length {}",
-        block_hash,
-        chain.len()
-    );
 
     let mut missing_codes = HashSet::new();
     let mut missing_validated_codes = HashSet::new();
@@ -53,7 +48,6 @@ pub(crate) fn missing_data(db: &Database, block_hash: H256) -> Result<MissingDat
             .ok_or(ComputeError::BlockEventsNotFound(block.hash))?;
 
         for event in events {
-            log::trace!("Processing event for block {}: {:?}", block.hash, event);
             match event {
                 BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. })
                     if db.code_valid(code_id).is_none() =>
@@ -71,13 +65,6 @@ pub(crate) fn missing_data(db: &Database, block_hash: H256) -> Result<MissingDat
         }
     }
 
-    log::trace!(
-        "Missing data for block {}: codes: {:?}, validated_codes: {:?}",
-        block_hash,
-        missing_codes,
-        missing_validated_codes
-    );
-
     Ok(MissingData {
         codes: missing_codes,
         validated_codes: missing_validated_codes,
@@ -94,7 +81,7 @@ pub(crate) async fn prepare(
             .expect("Cannot collect missing data")
             .validated_codes
             .is_empty(),
-        "Missing validated codes should loaded before prepare"
+        "Missing validated codes have to be loaded before prepare"
     );
 
     let chain = utils::collect_chain(&db, block_hash, |meta| !meta.prepared)?;
@@ -117,7 +104,7 @@ async fn prepare_one_block(
     let parent_meta = db.block_meta(parent);
     let mut last_committed_batch = parent_meta
         .last_committed_batch
-        .ok_or_else(|| ComputeError::LastCommittedBatchNotFound(parent))?;
+        .ok_or(ComputeError::LastCommittedBatchNotFound(parent))?;
     let mut codes_queue = parent_meta
         .codes_queue
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
@@ -139,6 +126,9 @@ async fn prepare_one_block(
                 validated_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
+                if head == AnnounceHash::zero() {
+                    return Err(ComputeError::CommittedHeadAnnounceHashIsZero(block.hash));
+                }
                 last_committed_announce_hash = Some(head);
             }
             _ => {}
@@ -147,7 +137,7 @@ async fn prepare_one_block(
 
     let parent_announces = parent_meta
         .announces
-        .ok_or_else(|| ComputeError::AnnouncesNotFound(parent))?;
+        .ok_or(ComputeError::AnnouncesNotFound(parent))?;
     if parent_announces.len() != 1 {
         todo!("TODO #4813: Currently supporting exactly one announce per block only");
     }
@@ -165,17 +155,19 @@ async fn prepare_one_block(
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
+    let last_committed_announce_hash = if let Some(hash) = last_committed_announce_hash {
+        hash
+    } else {
+        parent_meta
+            .last_committed_announce
+            .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
+    };
+
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
         meta.announces = Some(vec![new_base_announce_hash]);
-        meta.last_committed_announce = Some(
-            last_committed_announce_hash.unwrap_or(
-                parent_meta
-                    .last_committed_announce
-                    .expect("Parent last committed announce must be set"),
-            ),
-        );
+        meta.last_committed_announce = Some(last_committed_announce_hash);
         meta.prepared = true;
     });
 
@@ -185,10 +177,7 @@ async fn prepare_one_block(
             data.computed_announce_hash = new_base_announce_hash;
         })
         .ok_or_else(|| {
-            log::error!(
-                "Failed to update latest data with prepared block {}",
-                block.hash
-            );
+            log::error!("Failed to update latest data");
         });
 
     Ok(())
@@ -226,10 +215,11 @@ async fn propagate_from_parent_announce(
 
             announce_hash = db
                 .announce(announce_hash)
-                .ok_or_else(|| ComputeError::AnnounceNotFound(announce_hash))?
+                .ok_or(ComputeError::AnnounceNotFound(announce_hash))?
                 .parent;
         }
 
+        // TODO #4813: temporary check, remove after announces mortality is implemented
         assert_eq!(
             announce_hash, last_committed_announce_hash,
             "Cannot find last committed announce hash in known announces chain"

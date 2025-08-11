@@ -231,15 +231,3 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DataRequest {
-    Codes(BTreeSet<CodeId>),
-    Announces(AnnouncesRequest),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnnouncesRequest {
-    pub head: AnnounceHash,
-    pub deepness: u32,
-}

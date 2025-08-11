@@ -84,6 +84,10 @@ pub enum ComputeError {
     AnnounceNotFound(AnnounceHash),
     #[error("Announces for block {0:?} not found in db")]
     AnnouncesNotFound(H256),
+    #[error("last committed announce not found for block({0})")]
+    LastCommittedAnnounceNotFound(H256),
+    #[error("committed head announce hash is zero in events for block({0})")]
+    CommittedHeadAnnounceHashIsZero(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -98,7 +102,6 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> impl Future<Output = Result<BlockProcessingResult>> + Send;
-    fn process_base_announce(&mut self, announce: Announce) -> Result<BlockProcessingResult>;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
 }
 
@@ -111,10 +114,6 @@ impl ProcessorExt for Processor {
         self.process_announce(announce, events)
             .await
             .map_err(Into::into)
-    }
-
-    fn process_base_announce(&mut self, announce: Announce) -> Result<BlockProcessingResult> {
-        self.process_base_announce(announce).map_err(Into::into)
     }
 
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {

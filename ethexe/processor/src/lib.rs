@@ -20,7 +20,7 @@
 
 use ethexe_common::{
     Announce, AnnounceHash, CodeAndIdUnchecked, ProgramStates, Schedule,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead},
+    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
@@ -180,43 +180,6 @@ impl Processor {
         self.db.set_code_valid(code_id, valid);
 
         Ok(valid)
-    }
-
-    pub fn process_base_announce(&mut self, announce: Announce) -> Result<BlockProcessingResult> {
-        assert!(announce.is_base(), "Base announce expected");
-
-        let block_hash = announce.block_hash;
-
-        let mut handler = self.handler(announce)?;
-
-        self.db
-            .block_events(block_hash)
-            .ok_or(ProcessorError::BlockEventsNotFound(block_hash))?
-            .into_iter()
-            .filter_map(|event| event.to_request())
-            .try_for_each(|event| -> Result<()> {
-                match event {
-                    BlockRequestEvent::Router(event) => {
-                        handler.handle_router_event(event)?;
-                    }
-                    BlockRequestEvent::Mirror { actor_id, event } => {
-                        handler.handle_mirror_event(actor_id, event)?;
-                    }
-                    BlockRequestEvent::WVara(event) => {
-                        handler.handle_wvara_event(event);
-                    }
-                }
-                Ok(())
-            })?;
-
-        handler.run_schedule();
-
-        let (transitions, states, schedule) = handler.transitions.finalize();
-        Ok(BlockProcessingResult {
-            transitions,
-            states,
-            schedule,
-        })
     }
 
     pub async fn process_announce(
