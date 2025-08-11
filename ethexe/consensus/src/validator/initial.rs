@@ -124,7 +124,7 @@ impl Initial {
 mod tests {
     use super::*;
     use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::db::OnChainStorageWrite;
+    use ethexe_common::db::*;
     use gprimitives::H256;
     use nonempty::nonempty;
 

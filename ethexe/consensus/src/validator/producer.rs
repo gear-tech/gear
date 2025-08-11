@@ -26,7 +26,8 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, AnnounceStorageRead, BlockMetaStorageRead, SimpleBlockData,
+    Address, Announce, AnnounceHash, SimpleBlockData,
+    db::{AnnounceStorageRead, BlockMetaStorageRead},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -304,7 +305,7 @@ impl Producer {
 mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
-    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::BlockMetaStorageWrite};
+    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*};
     use nonempty::{NonEmpty, nonempty};
 
     #[tokio::test]

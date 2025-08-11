@@ -18,8 +18,8 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    AnnounceHash, AnnounceStorageRead, BlockMeta, SimpleBlockData,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
+    AnnounceHash, SimpleBlockData,
+    db::{AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
 };
 use gprimitives::H256;
 use std::collections::VecDeque;
@@ -79,10 +79,7 @@ pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStor
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        BlockHeader,
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
-    };
+    use ethexe_common::{BlockHeader, db::*};
     use ethexe_db::Database as DB;
     use gprimitives::H256;
 

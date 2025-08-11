@@ -18,7 +18,7 @@
 
 //! ethexe tx pool types
 
-use crate::{OnChainStorageRead, ToDigest, ecdsa::SignedData};
+use crate::{ToDigest, db::OnChainStorageRead, ecdsa::SignedData};
 use alloc::vec::Vec;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};

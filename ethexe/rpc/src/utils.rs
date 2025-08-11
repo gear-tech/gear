@@ -19,7 +19,8 @@
 use crate::errors;
 use anyhow::Result;
 use ethexe_common::{
-    AnnounceHash, BlockMetaStorageRead, LatestDataStorage, OnChainStorageRead, SimpleBlockData,
+    AnnounceHash, SimpleBlockData,
+    db::{BlockMetaStorageRead, LatestDataStorage, OnChainStorageRead},
 };
 use hyper::header::HeaderValue;
 use jsonrpsee::core::RpcResult;

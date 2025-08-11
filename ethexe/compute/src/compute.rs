@@ -18,8 +18,11 @@
 
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
-    Announce, BlockMetaStorageRead, BlockMetaStorageWrite,
-    db::{AnnounceStorageWrite, LatestDataStorage, OnChainStorageRead},
+    Announce,
+    db::{
+        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorage,
+        OnChainStorageRead,
+    },
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
@@ -107,9 +110,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{
-        AnnounceHash, BlockHeader, BlockMeta, SimpleBlockData, db::*, gear::StateTransition,
-    };
+    use ethexe_common::{AnnounceHash, BlockHeader, SimpleBlockData, db::*, gear::StateTransition};
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
     use nonempty::NonEmpty;

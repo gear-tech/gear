@@ -20,8 +20,7 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    AnnounceHash, AnnounceStorageRead, SimpleBlockData, db::*, events::BlockEvent,
-    tx_pool::SignedOffchainTransaction,
+    AnnounceHash, SimpleBlockData, db::*, events::BlockEvent, tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;

@@ -31,7 +31,6 @@ pub mod tx_pool;
 mod utils;
 
 pub use crypto::*;
-pub use db::*;
 pub use gear_core;
 pub use gprimitives;
 pub use k256;

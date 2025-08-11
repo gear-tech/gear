@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, AnnounceHash, AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, Digest,
-    LatestDataStorage, OnChainStorageWrite, SimpleBlockData,
+    Address, AnnounceHash, Digest, SimpleBlockData,
+    db::{
+        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, LatestDataStorage,
+        OnChainStorageWrite,
+    },
 };
 use alloc::vec;
 use nonempty::NonEmpty;

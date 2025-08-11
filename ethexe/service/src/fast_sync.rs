@@ -20,12 +20,12 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, BlockMeta, CodeAndIdUnchecked, Digest,
-    ProgramStates, StateHashWithQueueSize,
+    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
+    StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
-        CodesStorageRead, CodesStorageWrite, LatestDataStorage, OnChainStorageRead,
-        OnChainStorageWrite,
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestDataStorage,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };

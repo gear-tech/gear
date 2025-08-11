@@ -24,7 +24,7 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_common::{BlockHeader, LatestDataStorage, OnChainStorageRead, OnChainStorageWrite};
+use ethexe_common::{BlockHeader, db::*};
 use ethexe_db::Database;
 use gprimitives::{H160, H256};
 

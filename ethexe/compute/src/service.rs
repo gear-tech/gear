@@ -21,7 +21,7 @@ use crate::{
     compute::{self, ComputationStatus},
     prepare::{self, MissingData},
 };
-use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, CodesStorageRead};
+use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, db::CodesStorageRead};
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
@@ -242,9 +242,7 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::{
-        Address, AnnounceStorageRead, AnnounceStorageWrite, BlockHeader, CodeAndIdUnchecked, db::*,
-    };
+    use ethexe_common::{Address, BlockHeader, CodeAndIdUnchecked, db::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;

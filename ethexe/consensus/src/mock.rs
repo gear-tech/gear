@@ -18,9 +18,8 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, AnnounceMeta, AnnounceStorageWrite, BlockHeader, BlockMeta,
-    BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageWrite, Digest, OnChainStorageRead,
-    OnChainStorageWrite, SimpleBlockData, ToDigest,
+    Address, Announce, AnnounceHash, BlockHeader, Digest, SimpleBlockData, ToDigest,
+    db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
 };

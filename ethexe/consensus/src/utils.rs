@@ -23,9 +23,8 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, AnnounceStorageRead, Digest, OnChainStorageRead,
-    SimpleBlockData, ToDigest,
-    db::{BlockMetaStorageRead, CodesStorageRead},
+    Address, Announce, AnnounceHash, Digest, SimpleBlockData, ToDigest,
+    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment},
     sha3::{self, digest::Digest as _},
@@ -334,7 +333,7 @@ pub fn block_producer_for(
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::db::{AnnounceStorageWrite, CodesStorageWrite};
+    use ethexe_common::db::*;
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);

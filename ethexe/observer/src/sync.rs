@@ -25,8 +25,8 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo, LatestDataStorage, OnChainStorageRead,
-    OnChainStorageWrite,
+    self, BlockData, BlockHeader, CodeBlobInfo,
+    db::{LatestDataStorage, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };

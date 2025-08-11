@@ -23,9 +23,9 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule,
+    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
     db::{
-        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead,
+        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
         BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage,
         OnChainStorageRead, OnChainStorageWrite,
     },
