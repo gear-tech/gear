@@ -38,5 +38,5 @@ pub use primitives::*;
 pub use sha3;
 pub use utils::*;
 
-// Default block gas limit for the node.
+/// Default block gas limit for the node.
 pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
