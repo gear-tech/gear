@@ -35,9 +35,48 @@ mod wasm {
     use core::{
         alloc::{GlobalAlloc, Layout},
         cell::Cell,
+        fmt,
+        fmt::Write,
+        mem::MaybeUninit,
         ptr,
     };
     use dlmalloc::{Allocator as _, Dlmalloc};
+
+    pub fn stack_debug(args: fmt::Arguments<'_>) {
+        const MAX_BUFFER_SIZE: usize = 128;
+
+        struct StackFmtWriter<'a> {
+            buf: &'a mut [MaybeUninit<u8>],
+            pos: usize,
+        }
+
+        impl fmt::Write for StackFmtWriter<'_> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                let upper_bound = (self.pos + s.len()).min(MAX_BUFFER_SIZE);
+                if let Some(buf) = self.buf.get_mut(self.pos..upper_bound) {
+                    let buf = buf as *mut [MaybeUninit<u8>] as *mut [u8];
+                    let s = &s.as_bytes()[..buf.len()];
+
+                    // SAFETY: we only write to uninitialized memory
+                    unsafe {
+                        (*buf).copy_from_slice(s);
+                    }
+
+                    self.pos += buf.len();
+                }
+
+                Ok(())
+            }
+        }
+
+        gear_stack_buffer::with_byte_buffer(MAX_BUFFER_SIZE, |buf| {
+            let mut writer = StackFmtWriter { buf, pos: 0 };
+            writer.write_fmt(args).expect("fmt failed");
+
+            // SAFETY: buffer was initialized via `write_fmt` and limited by `pos`
+            unsafe { gsys::gr_debug(writer.buf.as_ptr().cast(), writer.pos as u32) }
+        });
+    }
 
     static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::new_with_allocator(GearAlloc::new());
 
@@ -105,11 +144,12 @@ mod wasm {
 
     unsafe impl dlmalloc::Allocator for GearAlloc {
         fn alloc(&self, size: usize) -> (*mut u8, usize, u32) {
-            debug("GearAlloc::alloc");
+            stack_debug(format_args!("GearAlloc::alloc({size})"));
+
+            let pages = size.div_ceil(self.page_size());
+            let size = pages * self.page_size();
 
             if !self.preinstalled_memory.get() {
-                self.preinstalled_memory.set(true);
-
                 unsafe extern "C" {
                     static __heap_base: i32;
                 }
@@ -117,15 +157,16 @@ mod wasm {
                 let heap_base = unsafe { &__heap_base as *const i32 as *mut u8 };
                 let page_begin = self.ptr_to_page(heap_base);
                 let page_begin = self.page_to_ptr(page_begin);
+                let remaining_space = page_begin as usize + self.page_size() - heap_base as usize;
 
-                if page_begin != heap_base {
-                    let size = page_begin as usize + self.page_size() - heap_base as usize;
-                    return (heap_base, size, 0);
+                if page_begin == heap_base {
+                    // no additional memory is available
+                    self.preinstalled_memory.set(true);
+                } else if pages == 1 {
+                    self.preinstalled_memory.set(true);
+                    return (heap_base, remaining_space, 0);
                 }
             }
-
-            let pages = size.div_ceil(self.page_size());
-            let size = pages * self.page_size();
 
             let page_no = unsafe { gsys::alloc(pages as u32) };
             if page_no == u32::MAX {
