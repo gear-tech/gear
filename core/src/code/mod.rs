@@ -872,7 +872,7 @@ mod tests {
 
     #[test]
     fn type_section_limits() {
-        const TYPE_SECITON_LEN_LIMIT: u32 = 16;
+        const TYPE_SECTION_LEN_LIMIT: u32 = 16;
         const PARAMS_PER_TYPE_LIMIT: u32 = 10;
 
         fn try_new_with_type_limits(
@@ -902,9 +902,9 @@ mod tests {
             )"#;
 
         assert_code_err!(
-            try_new_with_type_limits(wat, TYPE_SECITON_LEN_LIMIT.into(), None,),
+            try_new_with_type_limits(wat, TYPE_SECTION_LEN_LIMIT.into(), None,),
             CodeError::TypeSection(TypeSectionError::LengthLimitExceeded {
-                limit: TYPE_SECITON_LEN_LIMIT,
+                limit: TYPE_SECTION_LEN_LIMIT,
                 actual: 26,
             })
         );

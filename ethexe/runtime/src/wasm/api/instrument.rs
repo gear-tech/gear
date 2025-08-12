@@ -41,7 +41,7 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<(InstrumentedCode, Code
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
         schedule.limits.type_section_len.into(),
-        schedule.limits.type_section_params_per_type.into(),
+        schedule.limits.parameters.into(),
     )
     .map_err(|e: CodeError| {
         log::debug!("Failed to validate or instrument code: {e:?}");

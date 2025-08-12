@@ -107,6 +107,8 @@ pub struct Limits {
     #[doc = " of parameters of this function. Because the stack height instrumentation itself is"]
     #[doc = " is not weight metered its costs must be static (via this limit) and included in"]
     #[doc = " the costs of the instructions that cause them (call, call_indirect)."]
+    #[doc = ""]
+    #[doc = " NOTE: Also the limit checked against type in type section during a code validation."]
     pub parameters: u32,
     #[doc = " Maximum number of memory pages allowed for a program."]
     pub memory_pages: u16,
@@ -130,8 +132,6 @@ pub struct Limits {
     pub data_segments_amount: u32,
     #[doc = " The maximum length of a type section in bytes."]
     pub type_section_len: u32,
-    #[doc = " Maximum number of parameters per type in the type section."]
-    pub type_section_params_per_type: u32,
 }
 
 impl Default for Limits {
@@ -140,7 +140,7 @@ impl Default for Limits {
             stack_height: Some(36743),
             globals: 256,
             locals: 1024,
-            parameters: 128,
+            parameters: 256,
             memory_pages: 32768,
             table_size: 4096,
             br_table_size: 256,
@@ -150,7 +150,6 @@ impl Default for Limits {
             code_len: 524288,
             data_segments_amount: 1024,
             type_section_len: 20480,
-            type_section_params_per_type: 256,
         }
     }
 }

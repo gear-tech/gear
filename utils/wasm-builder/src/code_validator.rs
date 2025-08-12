@@ -305,7 +305,7 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
         schedule.limits.type_section_len.into(),
-        schedule.limits.type_section_params_per_type.into(),
+        schedule.limits.parameters.into(),
     ) {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
