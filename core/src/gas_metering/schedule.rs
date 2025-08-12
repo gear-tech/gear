@@ -140,7 +140,7 @@ impl Default for Limits {
             stack_height: Some(36743),
             globals: 256,
             locals: 1024,
-            parameters: 256,
+            parameters: 128,
             memory_pages: 32768,
             table_size: 4096,
             br_table_size: 256,
