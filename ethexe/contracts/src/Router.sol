@@ -224,6 +224,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().protocolData.validatedCodesCount;
     }
 
+    function timelines() public view returns (Gear.Timelines memory) {
+        return _router().timelines;
+    }
+
     // Owner calls.
     function setMirror(address newMirror) external onlyOwner {
         _router().implAddresses.mirror = newMirror;
@@ -372,14 +376,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
-        bytes32[] memory _gearBlockHashes = new bytes32[](_commitment.blocks.length);
-        for (uint256 i = 0; i < _commitment.blocks.length; i++) {
-            Gear.GearBlock calldata _gearBlock = _commitment.blocks[i];
-            emit GearBlockCommitted(_gearBlock);
-            _gearBlockHashes[i] = Gear.gearBlockHash(_gearBlock);
-        }
+        emit HeadCommitted(_commitment.head);
 
-        return Gear.chainCommitmentHash(_transitionsHash, Gear.gearBlocksHash(_gearBlockHashes));
+        return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
@@ -455,6 +454,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         }
 
         Gear.ValidatorsCommitment calldata _commitment = _batch.validatorsCommitment[0];
+
+        require(_commitment.validators.length > 0, "new validators list must not be empty");
 
         uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 

@@ -39,9 +39,9 @@ interface IRouter {
     event BatchCommitted(bytes32 hash);
 
     /// @notice Emitted when all necessary state transitions have been applied and states have changed.
-    /// @dev This is an *informational* event, signaling that the block outcome has been committed.
-    /// @param block Info for block that was "finalized" in relation to the necessary transitions.
-    event GearBlockCommitted(Gear.GearBlock block);
+    /// @dev This is an *informational* event, signaling that the all transitions until head were committed.
+    /// @param head The hash of the block that was "finalized" in relation to the necessary transitions.
+    event HeadCommitted(bytes32 head);
 
     /// @notice Emitted when a code, previously requested for validation, receives validation results, so its CodeStatus changed.
     /// @dev This is an *informational* event, signaling the results of code validation.
@@ -102,6 +102,8 @@ interface IRouter {
     function programsCodeIds(address[] calldata programsIds) external view returns (bytes32[] memory);
     function programsCount() external view returns (uint256);
     function validatedCodesCount() external view returns (uint256);
+
+    function timelines() external view returns (Gear.Timelines memory);
 
     // # Owner calls.
     function setMirror(address newMirror) external;

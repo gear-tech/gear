@@ -59,6 +59,8 @@ use std::time::Duration;
 
 mod abi;
 mod eip1167;
+
+pub mod middleware;
 pub mod mirror;
 pub mod router;
 pub mod wvara;

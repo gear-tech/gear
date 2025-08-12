@@ -38,27 +38,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            blocks: value.gear_blocks.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<GearBlock> for Gear::GearBlock {
-    fn from(value: GearBlock) -> Self {
-        Self {
-            hash: value.hash.0.into(),
-            gasAllowance: value.gas_allowance,
-            offchainTransactionsHash: value.off_chain_transactions_hash.0.into(),
-        }
-    }
-}
-
-impl From<Gear::GearBlock> for GearBlock {
-    fn from(value: Gear::GearBlock) -> Self {
-        Self {
-            hash: value.hash.0.into(),
-            gas_allowance: value.gasAllowance,
-            off_chain_transactions_hash: value.offchainTransactionsHash.0.into(),
+            head: value.head.0.into(),
         }
     }
 }
@@ -162,6 +142,16 @@ impl From<Message> for Gear::Message {
             value: value.value,
             replyDetails: value.reply_details.into(),
             call: value.call,
+        }
+    }
+}
+
+impl From<Gear::Timelines> for Timelines {
+    fn from(value: Gear::Timelines) -> Self {
+        Self {
+            era: value.era.to::<u64>(),
+            election: value.election.to::<u64>(),
+            validation_delay: value.validationDelay.to::<u64>(),
         }
     }
 }

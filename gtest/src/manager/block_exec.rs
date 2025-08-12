@@ -228,7 +228,7 @@ impl ExtManager {
 
                 self.gas_allowance = self.gas_allowance.saturating_add(db_weights.write.ref_time);
 
-                self.task_pool.add(bn, task.clone()).unwrap_or_else(|e| {
+                self.task_pool.add(bn, task).unwrap_or_else(|e| {
                     let err_msg = format!(
                         "process_tasks: failed adding not processed last task to task pool. \
                         Bn - {bn:?}, task - {task:?}. Got error - {e:?}"
@@ -410,7 +410,7 @@ impl ExtManager {
 
             let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
                 let err_msg = format!(
-                    "Сode metadata for the existing program does not contain \
+                    "Code metadata for the existing program does not contain \
                     instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
                 );
 

@@ -8,13 +8,12 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-observer.workspace = true
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
-gprimitives = { workspace = true, features = ["codec"] }
+gprimitives = { workspace = true, features = ["codec", "std"] }
 
 async-trait.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
@@ -22,6 +21,7 @@ log.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true
+nonempty.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

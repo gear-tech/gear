@@ -15,6 +15,8 @@ hex.workspace = true
 serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
 derive_more.workspace = true
+nonempty.workspace = true
+auto_impl.workspace = true
 
 sha3 = { version = "0.10", default-features = false }
 k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
@@ -22,6 +24,7 @@ k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 [features]
 default = ["std"]
 std = [
+    "nonempty/std",
     "gear-core/std",
     "gprimitives/serde",
     "serde",

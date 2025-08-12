@@ -18,6 +18,8 @@
 
 //! Builtin actor pallet tests.
 
+pub const DEFAULT_GAS_LIMIT: u64 = 20_000_000_000;
+
 mod bad_builtin_ids;
 mod basic;
 mod bls381;
