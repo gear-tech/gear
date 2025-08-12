@@ -436,7 +436,7 @@ pub mod pallet {
             let idx = queue.iter().position(|&v| v == hash)?;
 
             // Generating proof.
-            let proof = binary_merkle_tree::merkle_proof::<Keccak256, _, _>(queue, idx);
+            let proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(queue, idx);
 
             // Returning appropriate type.
             Some(proof.into())
@@ -505,7 +505,7 @@ pub mod pallet {
             debug_assert!(!queue.is_empty());
 
             // Calculating new queue merkle root.
-            let root = binary_merkle_tree::merkle_root::<Keccak256, _>(queue);
+            let root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(queue);
 
             // Updating queue merkle root in storage.
             QueueMerkleRoot::<T>::put(root);
