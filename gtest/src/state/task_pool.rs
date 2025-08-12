@@ -165,11 +165,11 @@ mod tests {
 
         block_1_tasks
             .iter()
-            .for_each(|task| manager.add(1, task.clone()).unwrap());
+            .for_each(|task| manager.add(1, *task).unwrap());
 
         block_2_tasks
             .iter()
-            .for_each(|task| manager.add(2, task.clone()).unwrap());
+            .for_each(|task| manager.add(2, *task).unwrap());
 
         for task in block_1_tasks.iter() {
             assert!(manager.contains(&1, task));
@@ -202,9 +202,9 @@ mod tests {
         }
 
         let task = VaraScheduledTask::<ActorId>::RemoveFromMailbox(422.into(), 16.into());
-        manager.add(3, task.clone()).unwrap();
-        manager.add(4, task.clone()).unwrap();
-        manager.delete(4, task.clone()).unwrap();
+        manager.add(3, task).unwrap();
+        manager.add(4, task).unwrap();
+        manager.delete(4, task).unwrap();
         manager.clear();
 
         assert!(!manager.contains(&3, &task));
