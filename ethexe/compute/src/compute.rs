@@ -251,7 +251,7 @@ mod tests {
         assert!(meta.computed);
 
         // Verify transitions were stored in DB
-        let stored_transitions = db.block_outcome(block_hash).unwrap();
+        let stored_transitions = db.block_outcome(block_hash).unwrap().unwrap_transitions();
         assert_eq!(stored_transitions.len(), 1);
         assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
