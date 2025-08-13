@@ -15,6 +15,8 @@ rust-version.workspace = true
 gsys.workspace = true
 # add "checks" feature to enable hard checks in allocator
 dlmalloc.workspace = true
+talc.workspace = true
+gear-stack-buffer.workspace = true
 
 [features]
 debug = ["dlmalloc/debug"]
