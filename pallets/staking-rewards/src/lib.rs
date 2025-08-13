@@ -98,7 +98,6 @@ pub struct InflationInfo {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use core::cmp::Ordering;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
@@ -232,6 +231,10 @@ pub mod pallet {
         Burned { amount: BalanceOf<T> },
         /// Minted to the pool.
         Minted { amount: BalanceOf<T> },
+        /// Target inflation changed.
+        TargetInflationChanged { value: Perquintill },
+        /// Ideal staking ratio changed.
+        IdealStakingRatioChanged { value: Perquintill },
     }
 
     /// Error for the staking rewards pallet.
@@ -330,21 +333,33 @@ pub mod pallet {
         }
 
         #[pallet::call_index(3)]
-        #[pallet::weight(<T as Config>::WeightInfo::align_supply())]
-        pub fn align_supply(origin: OriginFor<T>, target: BalanceOf<T>) -> DispatchResult {
+        #[pallet::weight(<T as frame_system::Config>::DbWeight::get().reads_writes(1, 2))]
+        pub fn set_target_inflation(origin: OriginFor<T>, p: u64, n: u64) -> DispatchResult {
             ensure_root(origin)?;
 
-            let issuance = T::Currency::total_issuance();
+            let value = Perquintill::from_rational(p, n);
 
-            match target.cmp(&issuance) {
-                Ordering::Greater => {
-                    OffsetPool::<T>::on_nonzero_unbalanced(T::Currency::issue(target - issuance));
-                }
-                Ordering::Less => {
-                    Self::on_nonzero_unbalanced(T::Currency::burn(issuance - target));
-                }
-                _ => {}
-            };
+            if value != TargetInflation::<T>::get() {
+                TargetInflation::<T>::set(value);
+
+                Self::deposit_event(Event::TargetInflationChanged { value });
+            }
+
+            Ok(())
+        }
+
+        #[pallet::call_index(4)]
+        #[pallet::weight(<T as frame_system::Config>::DbWeight::get().reads_writes(1, 2))]
+        pub fn set_ideal_staking_ratio(origin: OriginFor<T>, p: u64, n: u64) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let value = Perquintill::from_rational(p, n);
+
+            if value != IdealStakingRatio::<T>::get() {
+                IdealStakingRatio::<T>::set(value);
+
+                Self::deposit_event(Event::IdealStakingRatioChanged { value });
+            }
 
             Ok(())
         }
