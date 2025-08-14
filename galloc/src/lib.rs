@@ -42,6 +42,15 @@ mod wasm {
     };
     use dlmalloc::{Allocator as _, Dlmalloc};
 
+    const PAGE_SIZE: usize = 64 * 1024;
+    const HEAP_BASE: *mut u8 = {
+        unsafe extern "C" {
+            static __heap_base: i32;
+        }
+
+        unsafe { &__heap_base as *const i32 as *mut u8 }
+    };
+
     pub fn stack_debug(args: fmt::Arguments<'_>) {
         const MAX_BUFFER_SIZE: usize = 128;
 
@@ -76,6 +85,40 @@ mod wasm {
             // SAFETY: buffer was initialized via `write_fmt` and limited by `pos`
             unsafe { gsys::gr_debug(writer.buf.as_ptr().cast(), writer.pos as u32) }
         });
+    }
+
+    #[inline]
+    fn page_to_ptr(page: u16) -> *mut u8 {
+        (page as usize * PAGE_SIZE) as *mut u8
+    }
+
+    #[inline]
+    fn ptr_to_page(ptr: *mut u8) -> u16 {
+        (ptr as usize / PAGE_SIZE) as u16
+    }
+
+    #[inline]
+    fn align_down(ptr: *mut u8) -> *mut u8 {
+        (ptr as usize / PAGE_SIZE * PAGE_SIZE) as *mut u8
+    }
+
+    fn gr_alloc(size: usize) -> (*mut u8, usize) {
+        let pages = size.div_ceil(PAGE_SIZE);
+        let size = pages * PAGE_SIZE;
+
+        let page_no = unsafe { gsys::alloc(pages as u32) };
+        if page_no == u32::MAX {
+            return (ptr::null_mut(), 0);
+        }
+
+        let ptr = page_to_ptr(page_no as u16);
+        (ptr, size)
+    }
+
+    fn gr_free(ptr: *mut u8, size: usize) -> bool {
+        let start = ptr_to_page(ptr);
+        let end = unsafe { ptr_to_page(ptr.add(size)) - 1 };
+        unsafe { gsys::free_range(start as u32, end as u32) == 0 }
     }
 
     static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::new_with_allocator(GearAlloc::new());
@@ -127,14 +170,31 @@ mod wasm {
             }
         }
 
-        #[inline]
-        fn page_to_ptr(&self, page: u32) -> *mut u8 {
-            (page as usize * self.page_size()) as *mut u8
-        }
+        fn init_preinstalled_memory(&self, size: usize) -> Option<(*mut u8, usize)> {
+            if self.preinstalled_memory.get() {
+                return None;
+            }
 
-        #[inline]
-        fn ptr_to_page(&self, ptr: *mut u8) -> u32 {
-            (ptr as usize / self.page_size()) as u32
+            self.preinstalled_memory.set(true);
+
+            let remaining_space = align_down(HEAP_BASE) as usize + PAGE_SIZE - HEAP_BASE as usize;
+            if remaining_space == 0 {
+                // no preinstalled memory is available
+                None
+            } else if size <= remaining_space {
+                // no additional allocation is needed
+                Some((HEAP_BASE, remaining_space))
+            } else {
+                // proceed to additional allocation
+                let (ptr, size) = gr_alloc(size - remaining_space);
+
+                unsafe {
+                    debug_assert_eq!(ptr.sub(remaining_space), HEAP_BASE);
+                }
+
+                let size = size + remaining_space;
+                Some((HEAP_BASE, size))
+            }
         }
     }
 
@@ -146,34 +206,12 @@ mod wasm {
         fn alloc(&self, size: usize) -> (*mut u8, usize, u32) {
             stack_debug(format_args!("GearAlloc::alloc({size})"));
 
-            let pages = size.div_ceil(self.page_size());
-            let size = pages * self.page_size();
-
-            if !self.preinstalled_memory.get() {
-                unsafe extern "C" {
-                    static __heap_base: i32;
-                }
-
-                let heap_base = unsafe { &__heap_base as *const i32 as *mut u8 };
-                let page_begin = self.ptr_to_page(heap_base);
-                let page_begin = self.page_to_ptr(page_begin);
-                let remaining_space = page_begin as usize + self.page_size() - heap_base as usize;
-
-                if page_begin == heap_base {
-                    // no additional memory is available
-                    self.preinstalled_memory.set(true);
-                } else if pages == 1 {
-                    self.preinstalled_memory.set(true);
-                    return (heap_base, remaining_space, 0);
-                }
+            if let Some((ptr, size)) = self.init_preinstalled_memory(size) {
+                debug("GearAlloc::init_preinstalled_memory()");
+                return (ptr, size, 0);
             }
 
-            let page_no = unsafe { gsys::alloc(pages as u32) };
-            if page_no == u32::MAX {
-                return (ptr::null_mut(), 0, 0);
-            }
-            let ptr = self.page_to_ptr(page_no);
-
+            let (ptr, size) = gr_alloc(size);
             (ptr, size, 0)
         }
 
@@ -189,25 +227,20 @@ mod wasm {
         }
 
         fn free_part(&self, ptr: *mut u8, oldsize: usize, newsize: usize) -> bool {
-            debug("GearAlloc::free_part");
+            stack_debug(format_args!(
+                "GearAlloc::free_part({ptr:?}, {oldsize}, {newsize})"
+            ));
 
-            unsafe {
-                let start = self.ptr_to_page(ptr.add(newsize));
-                let end = self.ptr_to_page(ptr.add(oldsize)) - 1;
-
-                if start <= end {
-                    gsys::free_range(start, end) == 0
-                } else {
-                    false
-                }
+            if oldsize == newsize {
+                return true;
             }
+
+            unsafe { gr_free(ptr.add(newsize), oldsize - newsize) }
         }
 
         fn free(&self, ptr: *mut u8, size: usize) -> bool {
             debug("GearAlloc::free");
-            let start = self.ptr_to_page(ptr);
-            let end = unsafe { self.ptr_to_page(ptr.add(size)) };
-            unsafe { gsys::free_range(start, end) == 0 }
+            gr_free(ptr, size)
         }
 
         fn can_release_part(&self, _flags: u32) -> bool {
@@ -219,7 +252,7 @@ mod wasm {
         }
 
         fn page_size(&self) -> usize {
-            64 * 1024
+            PAGE_SIZE
         }
     }
 }
