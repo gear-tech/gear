@@ -1,0 +1,363 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `pallets/payment/src/lib.rs`."><title>lib.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="pallet_gear_payment" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">pallet_gear_payment/</div>lib.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// This file is part of Gear.
+<a href=#2 id=2 data-nosnippet>2</a>
+<a href=#3 id=3 data-nosnippet>3</a>// Copyright (C) 2021-2025 Gear Technologies Inc.
+<a href=#4 id=4 data-nosnippet>4</a>// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+<a href=#5 id=5 data-nosnippet>5</a>
+<a href=#6 id=6 data-nosnippet>6</a>// This program is free software: you can redistribute it and/or modify
+<a href=#7 id=7 data-nosnippet>7</a>// it under the terms of the GNU General Public License as published by
+<a href=#8 id=8 data-nosnippet>8</a>// the Free Software Foundation, either version 3 of the License, or
+<a href=#9 id=9 data-nosnippet>9</a>// (at your option) any later version.
+<a href=#10 id=10 data-nosnippet>10</a>
+<a href=#11 id=11 data-nosnippet>11</a>// This program is distributed in the hope that it will be useful,
+<a href=#12 id=12 data-nosnippet>12</a>// but WITHOUT ANY WARRANTY; without even the implied warranty of
+<a href=#13 id=13 data-nosnippet>13</a>// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+<a href=#14 id=14 data-nosnippet>14</a>// GNU General Public License for more details.
+<a href=#15 id=15 data-nosnippet>15</a>
+<a href=#16 id=16 data-nosnippet>16</a>// You should have received a copy of the GNU General Public License
+<a href=#17 id=17 data-nosnippet>17</a>// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="attr">#![cfg_attr(not(feature = <span class="string">"std"</span>), no_std)]
+<a href=#20 id=20 data-nosnippet>20</a>#![doc(html_logo_url = <span class="string">"https://docs.gear.rs/logo.svg"</span>)]
+<a href=#21 id=21 data-nosnippet>21</a>#![doc(html_favicon_url = <span class="string">"https://gear-tech.io/favicons/favicon.ico"</span>)]
+<a href=#22 id=22 data-nosnippet>22</a>#![allow(clippy::manual_inspect)]
+<a href=#23 id=23 data-nosnippet>23</a>
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span>common::{DelegateFee, ExtractCall, storage::<span class="kw-2">*</span>};
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>frame_support::{
+<a href=#26 id=26 data-nosnippet>26</a>    dispatch::{DispatchInfo, GetDispatchInfo, PostDispatchInfo},
+<a href=#27 id=27 data-nosnippet>27</a>    pallet_prelude::<span class="kw-2">*</span>,
+<a href=#28 id=28 data-nosnippet>28</a>    traits::Contains,
+<a href=#29 id=29 data-nosnippet>29</a>};
+<a href=#30 id=30 data-nosnippet>30</a><span class="kw">use </span>pallet_transaction_payment::{
+<a href=#31 id=31 data-nosnippet>31</a>    ChargeTransactionPayment, FeeDetails, Multiplier, MultiplierUpdate, OnChargeTransaction,
+<a href=#32 id=32 data-nosnippet>32</a>    RuntimeDispatchInfo,
+<a href=#33 id=33 data-nosnippet>33</a>};
+<a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>sp_runtime::{
+<a href=#35 id=35 data-nosnippet>35</a>    FixedPointNumber, FixedPointOperand, Perquintill, SaturatedConversion,
+<a href=#36 id=36 data-nosnippet>36</a>    traits::{<a href="https://docs.rs/num-traits/0.2/num_traits/bounds/trait.Bounded.html">Bounded</a>, Convert, DispatchInfoOf, Dispatchable, PostDispatchInfoOf, SignedExtension},
+<a href=#37 id=37 data-nosnippet>37</a>    transaction_validity::TransactionValidityError,
+<a href=#38 id=38 data-nosnippet>38</a>};
+<a href=#39 id=39 data-nosnippet>39</a><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html">sp_std::borrow::Cow</a>;
+<a href=#40 id=40 data-nosnippet>40</a>
+<a href=#41 id=41 data-nosnippet>41</a><span class="kw">pub use </span><a href="#345-363">pallet</a>::<span class="kw-2">*</span>;
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a><span class="kw">type </span>AccountIdOf&lt;T&gt; = &lt;T <span class="kw">as </span>frame_system::Config&gt;::AccountId;
+<a href=#44 id=44 data-nosnippet>44</a><span class="kw">type </span>BalanceOf&lt;T&gt; =
+<a href=#45 id=45 data-nosnippet>45</a>    &lt;&lt;T <span class="kw">as </span>pallet_transaction_payment::Config&gt;::OnChargeTransaction <span class="kw">as </span>OnChargeTransaction&lt;T&gt;&gt;::Balance;
+<a href=#46 id=46 data-nosnippet>46</a><span class="kw">type </span>CallOf&lt;T&gt; = &lt;T <span class="kw">as </span>frame_system::Config&gt;::RuntimeCall;
+<a href=#47 id=47 data-nosnippet>47</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>QueueOf&lt;T&gt; = &lt;&lt;T <span class="kw">as </span>Config&gt;::Messenger <span class="kw">as </span>Messenger&gt;::Queue;
+<a href=#48 id=48 data-nosnippet>48</a><span class="kw">pub type </span><a href="../../pallet_gear_payment/type.TransactionPayment.html">TransactionPayment</a>&lt;T&gt; = pallet_transaction_payment::Pallet&lt;T&gt;;
+<a href=#49 id=49 data-nosnippet>49</a>
+<a href=#50 id=50 data-nosnippet>50</a><span class="attr">#[cfg(test)]
+<a href=#51 id=51 data-nosnippet>51</a></span><span class="kw">mod </span>mock;
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a><span class="attr">#[cfg(test)]
+<a href=#54 id=54 data-nosnippet>54</a></span><span class="kw">mod </span>tests;
+<a href=#55 id=55 data-nosnippet>55</a>
+<a href=#56 id=56 data-nosnippet>56</a><span class="doccomment">/// A wrapper around the `pallet_transaction_payment::ChargeTransactionPayment`.
+<a href=#57 id=57 data-nosnippet>57</a>/// Adjusts `DispatchInfo` to reflect custom fee add-ons.
+<a href=#58 id=58 data-nosnippet>58</a></span><span class="attr">#[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
+<a href=#59 id=59 data-nosnippet>59</a></span><span class="kw">pub struct </span><a href="../../pallet_gear_payment/struct.CustomChargeTransactionPayment.html">CustomChargeTransactionPayment</a>&lt;T: <a href="#349-358">Config</a>&gt;(ChargeTransactionPayment&lt;T&gt;);
+<a href=#60 id=60 data-nosnippet>60</a>
+<a href=#61 id=61 data-nosnippet>61</a><span class="kw">impl</span>&lt;T: <a href="#349-358">Config</a>&gt; <a href="#59">CustomChargeTransactionPayment</a>&lt;T&gt;
+<a href=#62 id=62 data-nosnippet>62</a><span class="kw">where
+<a href=#63 id=63 data-nosnippet>63</a>    </span><a href="#44-45">BalanceOf</a>&lt;T&gt;: <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html">Send</a> + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html">Sync</a> + FixedPointOperand,
+<a href=#64 id=64 data-nosnippet>64</a>    <a href="#46">CallOf</a>&lt;T&gt;: Dispatchable&lt;Info = DispatchInfo, PostInfo = PostDispatchInfo&gt;,
+<a href=#65 id=65 data-nosnippet>65</a>{
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">pub fn </span>from(tip: <a href="#44-45">BalanceOf</a>&lt;T&gt;) -&gt; <span class="self">Self </span>{
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="self">Self</span>(ChargeTransactionPayment::&lt;T&gt;::from(<a href="#66">tip</a>))
+<a href=#68 id=68 data-nosnippet>68</a>    }
+<a href=#69 id=69 data-nosnippet>69</a>}
+<a href=#70 id=70 data-nosnippet>70</a>
+<a href=#71 id=71 data-nosnippet>71</a><span class="kw">impl</span>&lt;T: <a href="#349-358">Config</a>&gt; <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html">sp_std::fmt::Debug</a> <span class="kw">for </span><a href="#59">CustomChargeTransactionPayment</a>&lt;T&gt; {
+<a href=#72 id=72 data-nosnippet>72</a>    <span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
+<a href=#73 id=73 data-nosnippet>73</a>    </span><span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html">sp_std::fmt::Formatter</a>) -&gt; <a href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html">sp_std::fmt::Result</a> {
+<a href=#74 id=74 data-nosnippet>74</a>        <a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.write.html">write!</a>(<a href="#73">f</a>, <span class="string">"CustomChargeTransactionPayment({:?})"</span>, <span class="self">self</span>.<span class="number">0</span>)
+<a href=#75 id=75 data-nosnippet>75</a>    }
+<a href=#76 id=76 data-nosnippet>76</a>    <span class="attr">#[cfg(not(feature = <span class="string">"std"</span>))]
+<a href=#77 id=77 data-nosnippet>77</a>    </span><span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>sp_std::fmt::Formatter) -&gt; sp_std::fmt::Result {
+<a href=#78 id=78 data-nosnippet>78</a>        <span class="prelude-val">Ok</span>(())
+<a href=#79 id=79 data-nosnippet>79</a>    }
+<a href=#80 id=80 data-nosnippet>80</a>}
+<a href=#81 id=81 data-nosnippet>81</a>
+<a href=#82 id=82 data-nosnippet>82</a><span class="comment">// Follow pallet-transaction-payment implementation
+<a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">impl</span>&lt;T: <a href="#349-358">Config</a>&gt; SignedExtension <span class="kw">for </span><a href="#59">CustomChargeTransactionPayment</a>&lt;T&gt;
+<a href=#84 id=84 data-nosnippet>84</a><span class="kw">where
+<a href=#85 id=85 data-nosnippet>85</a>    </span>T: TypeInfo,
+<a href=#86 id=86 data-nosnippet>86</a>    <a href="#44-45">BalanceOf</a>&lt;T&gt;: <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html">Send</a> + <a href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html">Sync</a> + <a href="https://doc.rust-lang.org/nightly/core/convert/trait.From.html">From</a>&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt; + FixedPointOperand,
+<a href=#87 id=87 data-nosnippet>87</a>    <a href="#46">CallOf</a>&lt;T&gt;: Dispatchable&lt;Info = DispatchInfo, PostInfo = PostDispatchInfo&gt;,
+<a href=#88 id=88 data-nosnippet>88</a>{
+<a href=#89 id=89 data-nosnippet>89</a>    <span class="kw">const </span>IDENTIFIER: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><a href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a> = &lt;ChargeTransactionPayment&lt;T&gt; <span class="kw">as </span>SignedExtension&gt;::IDENTIFIER;
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">type </span>AccountId = &lt;ChargeTransactionPayment&lt;T&gt; <span class="kw">as </span>SignedExtension&gt;::AccountId;
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">type </span>Call = <a href="#46">CallOf</a>&lt;T&gt;;
+<a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">type </span>AdditionalSigned = &lt;ChargeTransactionPayment&lt;T&gt; <span class="kw">as </span>SignedExtension&gt;::AdditionalSigned;
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">type </span>Pre = &lt;ChargeTransactionPayment&lt;T&gt; <span class="kw">as </span>SignedExtension&gt;::Pre;
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">fn </span>additional_signed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="self">Self</span>::AdditionalSigned, TransactionValidityError&gt; {
+<a href=#95 id=95 data-nosnippet>95</a>        <a class="self" href="#94">self</a>.<span class="number">0</span>.additional_signed()
+<a href=#96 id=96 data-nosnippet>96</a>    }
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">fn </span>validate(
+<a href=#99 id=99 data-nosnippet>99</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#100 id=100 data-nosnippet>100</a>        who: <span class="kw-2">&amp;</span><span class="self">Self</span>::AccountId,
+<a href=#101 id=101 data-nosnippet>101</a>        call: <span class="kw-2">&amp;</span><span class="self">Self</span>::Call,
+<a href=#102 id=102 data-nosnippet>102</a>        info: <span class="kw-2">&amp;</span>DispatchInfoOf&lt;<span class="self">Self</span>::Call&gt;,
+<a href=#103 id=103 data-nosnippet>103</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
+<a href=#104 id=104 data-nosnippet>104</a>    ) -&gt; TransactionValidity {
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="comment">// Override DispatchInfo struct for call variants exempted from weight fee multiplication
+<a href=#106 id=106 data-nosnippet>106</a>        </span><span class="kw">let </span>info = <a href="#152-185"><span class="self">Self</span>::pre_dispatch_info</a>(<a href="#101">call</a>, <a href="#102">info</a>);
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">let </span>payer = <a href="#187-198"><span class="self">Self</span>::fee_payer_account</a>(<a href="#101">call</a>, <a href="#100">who</a>);
+<a href=#108 id=108 data-nosnippet>108</a>        <a class="self" href="#99">self</a>.<span class="number">0</span>.validate(<span class="kw-2">&amp;</span><a href="#107">payer</a>, <a href="#101">call</a>, <span class="kw-2">&amp;</span><a href="#106">info</a>, <a href="#103">len</a>)
+<a href=#109 id=109 data-nosnippet>109</a>    }
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">fn </span>pre_dispatch(
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="self">self</span>,
+<a href=#113 id=113 data-nosnippet>113</a>        who: <span class="kw-2">&amp;</span><span class="self">Self</span>::AccountId,
+<a href=#114 id=114 data-nosnippet>114</a>        call: <span class="kw-2">&amp;</span><span class="self">Self</span>::Call,
+<a href=#115 id=115 data-nosnippet>115</a>        info: <span class="kw-2">&amp;</span>DispatchInfoOf&lt;<span class="self">Self</span>::Call&gt;,
+<a href=#116 id=116 data-nosnippet>116</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
+<a href=#117 id=117 data-nosnippet>117</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="self">Self</span>::Pre, TransactionValidityError&gt; {
+<a href=#118 id=118 data-nosnippet>118</a>        <span class="comment">// Override DispatchInfo struct for call variants exempted from weight fee multiplication
+<a href=#119 id=119 data-nosnippet>119</a>        </span><span class="kw">let </span>info = <a href="#152-185"><span class="self">Self</span>::pre_dispatch_info</a>(<a href="#114">call</a>, <a href="#115">info</a>);
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="comment">// Replace payer if delegated
+<a href=#121 id=121 data-nosnippet>121</a>        </span><span class="kw">let </span>payer = <a href="#187-198"><span class="self">Self</span>::fee_payer_account</a>(<a href="#114">call</a>, <a href="#113">who</a>);
+<a href=#122 id=122 data-nosnippet>122</a>        <a class="self" href="#112">self</a>.<span class="number">0</span>.pre_dispatch(<span class="kw-2">&amp;</span><a href="#121">payer</a>, <a href="#114">call</a>, <span class="kw-2">&amp;</span><a href="#119">info</a>, <a href="#116">len</a>)
+<a href=#123 id=123 data-nosnippet>123</a>    }
+<a href=#124 id=124 data-nosnippet>124</a>
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">fn </span>post_dispatch(
+<a href=#126 id=126 data-nosnippet>126</a>        maybe_pre: <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<span class="self">Self</span>::Pre&gt;,
+<a href=#127 id=127 data-nosnippet>127</a>        info: <span class="kw-2">&amp;</span>DispatchInfoOf&lt;<span class="self">Self</span>::Call&gt;,
+<a href=#128 id=128 data-nosnippet>128</a>        post_info: <span class="kw-2">&amp;</span>PostDispatchInfoOf&lt;<span class="self">Self</span>::Call&gt;,
+<a href=#129 id=129 data-nosnippet>129</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
+<a href=#130 id=130 data-nosnippet>130</a>        result: <span class="kw-2">&amp;</span>sp_runtime::DispatchResult,
+<a href=#131 id=131 data-nosnippet>131</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), TransactionValidityError&gt; {
+<a href=#132 id=132 data-nosnippet>132</a>        <span class="comment">// There is no easy way to modify the original `DispatchInfo` struct similarly
+<a href=#133 id=133 data-nosnippet>133</a>        // it's done in `pre_dispatch()` because a call is not supplied.
+<a href=#134 id=134 data-nosnippet>134</a>        // However, we can just leave it as is and yet get the correct fee refund if any:
+<a href=#135 id=135 data-nosnippet>135</a>        //   - if `None` is returned as the actual weight (i.e. worst case) nothing is supposed
+<a href=#136 id=136 data-nosnippet>136</a>        //   to be refunded anyway and saturating subtraction guarantees we don't have overflow;
+<a href=#137 id=137 data-nosnippet>137</a>        //   - if `post_info` has `Some(actual_weight)`, the minimum of it and `info.weight` will
+<a href=#138 id=138 data-nosnippet>138</a>        //   be used to calculate the correct fee so it is just our responsibility to do
+<a href=#139 id=139 data-nosnippet>139</a>        //   weight normalization before returning it from the extrinsic.
+<a href=#140 id=140 data-nosnippet>140</a>        //
+<a href=#141 id=141 data-nosnippet>141</a>        // TODO: still think of a more robust way to deal with fee refunds
+<a href=#142 id=142 data-nosnippet>142</a>        </span>&lt;ChargeTransactionPayment&lt;T&gt; <span class="kw">as </span>SignedExtension&gt;::post_dispatch(
+<a href=#143 id=143 data-nosnippet>143</a>            <a href="#126">maybe_pre</a>, <a href="#127">info</a>, <a href="#128">post_info</a>, <a href="#129">len</a>, <a href="#130">result</a>,
+<a href=#144 id=144 data-nosnippet>144</a>        )
+<a href=#145 id=145 data-nosnippet>145</a>    }
+<a href=#146 id=146 data-nosnippet>146</a>}
+<a href=#147 id=147 data-nosnippet>147</a>
+<a href=#148 id=148 data-nosnippet>148</a><span class="kw">impl</span>&lt;T: <a href="#349-358">Config</a>&gt; <a href="#59">CustomChargeTransactionPayment</a>&lt;T&gt;
+<a href=#149 id=149 data-nosnippet>149</a><span class="kw">where
+<a href=#150 id=150 data-nosnippet>150</a>    </span><a href="#46">CallOf</a>&lt;T&gt;: Dispatchable&lt;Info = DispatchInfo, PostInfo = PostDispatchInfo&gt;,
+<a href=#151 id=151 data-nosnippet>151</a>{
+<a href=#152 id=152 data-nosnippet>152</a>    <span class="kw">fn </span>pre_dispatch_info&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#153 id=153 data-nosnippet>153</a>        call: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>&lt;T <span class="kw">as </span>frame_system::Config&gt;::RuntimeCall,
+<a href=#154 id=154 data-nosnippet>154</a>        info: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>DispatchInfoOf&lt;&lt;T <span class="kw">as </span>frame_system::Config&gt;::RuntimeCall&gt;,
+<a href=#155 id=155 data-nosnippet>155</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html">Cow</a>&lt;<span class="lifetime">'a</span>, DispatchInfoOf&lt;&lt;T <span class="kw">as </span>frame_system::Config&gt;::RuntimeCall&gt;&gt; {
+<a href=#156 id=156 data-nosnippet>156</a>        <span class="comment">// If the call is not subject to fee multiplication, divide weight by fee multiplier.
+<a href=#157 id=157 data-nosnippet>157</a>        // This action will effectively be cancelled out at the time the fee is calculated.
+<a href=#158 id=158 data-nosnippet>158</a>        //
+<a href=#159 id=159 data-nosnippet>159</a>        // TODO: consider reimplementing.
+<a href=#160 id=160 data-nosnippet>160</a>        // This procedure does introduce a rounding error 𝞮 =  w - ⎣w / m⎦⋅m
+<a href=#161 id=161 data-nosnippet>161</a>        // However, we argue that such error is negligible:
+<a href=#162 id=162 data-nosnippet>162</a>        // - the rounding error can never exceed `m` (multiplier). Order of `w` (weight) is
+<a href=#163 id=163 data-nosnippet>163</a>        // usually not less than 10^8 while the fee multiplier should not be greater than 10^3.
+<a href=#164 id=164 data-nosnippet>164</a>        // Therefore the rounding error shouln't exceed 0.001% in the worst case.
+<a href=#165 id=165 data-nosnippet>165</a>        // Note: this only applies to calls that do not affect message queue, that is are
+<a href=#166 id=166 data-nosnippet>166</a>        // relatively rare. Still, a better solution can be found.
+<a href=#167 id=167 data-nosnippet>167</a>        </span><span class="kw">if </span>!T::ExtraFeeCallFilter::contains(call) {
+<a href=#168 id=168 data-nosnippet>168</a>            <span class="kw">let </span>multiplier = <a href="#48">TransactionPayment</a>::&lt;T&gt;::next_fee_multiplier();
+<a href=#169 id=169 data-nosnippet>169</a>            <span class="kw">if </span>multiplier &gt; Multiplier::saturating_from_integer(<span class="number">1</span>) {
+<a href=#170 id=170 data-nosnippet>170</a>                <span class="kw">let </span><span class="kw-2">mut </span>info: DispatchInfo = <span class="kw-2">*</span><a href="#154">info</a>;
+<a href=#171 id=171 data-nosnippet>171</a>                <a href="#170">info</a>.weight = Weight::from_parts(
+<a href=#172 id=172 data-nosnippet>172</a>                    <a href="#168">multiplier</a>
+<a href=#173 id=173 data-nosnippet>173</a>                        .reciprocal() <span class="comment">// take inverse
+<a href=#174 id=174 data-nosnippet>174</a>                        </span>.<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(Multiplier::max_value)
+<a href=#175 id=175 data-nosnippet>175</a>                        .saturating_mul_int(<a href="#170">info</a>.weight.ref_time()),
+<a href=#176 id=176 data-nosnippet>176</a>                    <span class="number">0</span>,
+<a href=#177 id=177 data-nosnippet>177</a>                );
+<a href=#178 id=178 data-nosnippet>178</a>                <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Owned">Cow::Owned</a>(<a href="#170">info</a>)
+<a href=#179 id=179 data-nosnippet>179</a>            } <span class="kw">else </span>{
+<a href=#180 id=180 data-nosnippet>180</a>                <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Borrowed">Cow::Borrowed</a>(<a href="#154">info</a>)
+<a href=#181 id=181 data-nosnippet>181</a>            }
+<a href=#182 id=182 data-nosnippet>182</a>        } <span class="kw">else </span>{
+<a href=#183 id=183 data-nosnippet>183</a>            <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Borrowed">Cow::Borrowed</a>(<a href="#154">info</a>)
+<a href=#184 id=184 data-nosnippet>184</a>        }
+<a href=#185 id=185 data-nosnippet>185</a>    }
+<a href=#186 id=186 data-nosnippet>186</a>
+<a href=#187 id=187 data-nosnippet>187</a>    <span class="kw">fn </span>fee_payer_account&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#188 id=188 data-nosnippet>188</a>        call: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>&lt;T <span class="kw">as </span>frame_system::Config&gt;::RuntimeCall,
+<a href=#189 id=189 data-nosnippet>189</a>        who: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>&lt;T <span class="kw">as </span>frame_system::Config&gt;::AccountId,
+<a href=#190 id=190 data-nosnippet>190</a>    ) -&gt; <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html">Cow</a>&lt;<span class="lifetime">'a</span>, &lt;T <span class="kw">as </span>frame_system::Config&gt;::AccountId&gt; {
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="comment">// Check if the extrinsic being called allows to charge fee payment to another account.
+<a href=#192 id=192 data-nosnippet>192</a>        // The only such call at the moment is `GearVoucher::call`.
+<a href=#193 id=193 data-nosnippet>193</a>        </span><span class="kw">if let </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(acc) = T::DelegateFee::delegate_fee(<a href="#188">call</a>, <a href="#189">who</a>) {
+<a href=#194 id=194 data-nosnippet>194</a>            <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Owned">Cow::Owned</a>(<a href="#193">acc</a>)
+<a href=#195 id=195 data-nosnippet>195</a>        } <span class="kw">else </span>{
+<a href=#196 id=196 data-nosnippet>196</a>            <a href="https://doc.rust-lang.org/nightly/alloc/borrow/enum.Cow.html#variant.Borrowed">Cow::Borrowed</a>(<a href="#189">who</a>)
+<a href=#197 id=197 data-nosnippet>197</a>        }
+<a href=#198 id=198 data-nosnippet>198</a>    }
+<a href=#199 id=199 data-nosnippet>199</a>}
+<a href=#200 id=200 data-nosnippet>200</a>
+<a href=#201 id=201 data-nosnippet>201</a><span class="doccomment">/// Custom fee multiplier which looks at the message queue size to increase weight fee
+<a href=#202 id=202 data-nosnippet>202</a></span><span class="kw">pub struct </span><a href="../../pallet_gear_payment/struct.GearFeeMultiplier.html">GearFeeMultiplier</a>&lt;T, S&gt;(<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">sp_std::marker::PhantomData</a>&lt;(T, S)&gt;);
+<a href=#203 id=203 data-nosnippet>203</a>
+<a href=#204 id=204 data-nosnippet>204</a><span class="kw">impl</span>&lt;T, S&gt; Convert&lt;Multiplier, Multiplier&gt; <span class="kw">for </span><a href="#202">GearFeeMultiplier</a>&lt;T, S&gt;
+<a href=#205 id=205 data-nosnippet>205</a><span class="kw">where
+<a href=#206 id=206 data-nosnippet>206</a>    </span>T: <a href="#349-358">Config</a>,
+<a href=#207 id=207 data-nosnippet>207</a>    S: Get&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;,
+<a href=#208 id=208 data-nosnippet>208</a>{
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">fn </span>convert(_previous: Multiplier) -&gt; Multiplier {
+<a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">let </span>len_step = S::get().<a href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html#tymethod.max">max</a>(<span class="number">1</span>); <span class="comment">// Avoiding division by 0.
+<a href=#211 id=211 data-nosnippet>211</a>
+<a href=#212 id=212 data-nosnippet>212</a>        </span><span class="kw">let </span>queue_len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a> = <a href="#47">QueueOf</a>::&lt;T&gt;::len().saturated_into();
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">let </span>multiplier = <a href="#212">queue_len</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_div">saturating_div</a>(<a href="#210">len_step</a>).<a href="https://doc.rust-lang.org/nightly/core/foreigntype.num.html#method.saturating_add">saturating_add</a>(<span class="number">1</span>);
+<a href=#214 id=214 data-nosnippet>214</a>        Multiplier::saturating_from_integer(<a href="#213">multiplier</a>)
+<a href=#215 id=215 data-nosnippet>215</a>    }
+<a href=#216 id=216 data-nosnippet>216</a>}
+<a href=#217 id=217 data-nosnippet>217</a>
+<a href=#218 id=218 data-nosnippet>218</a><span class="kw">impl</span>&lt;T, S&gt; MultiplierUpdate <span class="kw">for </span><a href="#202">GearFeeMultiplier</a>&lt;T, S&gt;
+<a href=#219 id=219 data-nosnippet>219</a><span class="kw">where
+<a href=#220 id=220 data-nosnippet>220</a>    </span>T: <a href="#349-358">Config</a>,
+<a href=#221 id=221 data-nosnippet>221</a>    S: Get&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u128.html">u128</a>&gt;,
+<a href=#222 id=222 data-nosnippet>222</a>{
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">fn </span>max() -&gt; Multiplier {
+<a href=#224 id=224 data-nosnippet>224</a>        <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
+<a href=#225 id=225 data-nosnippet>225</a>    }
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">fn </span>min() -&gt; Multiplier {
+<a href=#227 id=227 data-nosnippet>227</a>        <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
+<a href=#228 id=228 data-nosnippet>228</a>    }
+<a href=#229 id=229 data-nosnippet>229</a>    <span class="kw">fn </span>target() -&gt; Perquintill {
+<a href=#230 id=230 data-nosnippet>230</a>        <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
+<a href=#231 id=231 data-nosnippet>231</a>    }
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">fn </span>variability() -&gt; Multiplier {
+<a href=#233 id=233 data-nosnippet>233</a>        <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>()
+<a href=#234 id=234 data-nosnippet>234</a>    }
+<a href=#235 id=235 data-nosnippet>235</a>}
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a><span class="kw">impl</span>&lt;T: <a href="#349-358">Config</a>&gt; <a href="#362">Pallet</a>&lt;T&gt; {
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="doccomment">/// Modification of the `pallet_transaction_payment::Pallet&lt;T&gt;::query_info()`
+<a href=#239 id=239 data-nosnippet>239</a>    /// that is aware of the transaction fee customization based on a specific call
+<a href=#240 id=240 data-nosnippet>240</a>    </span><span class="kw">pub fn </span>query_info&lt;
+<a href=#241 id=241 data-nosnippet>241</a>        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;,
+<a href=#242 id=242 data-nosnippet>242</a>    &gt;(
+<a href=#243 id=243 data-nosnippet>243</a>        unchecked_extrinsic: Extrinsic,
+<a href=#244 id=244 data-nosnippet>244</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+<a href=#245 id=245 data-nosnippet>245</a>    ) -&gt; RuntimeDispatchInfo&lt;<a href="#44-45">BalanceOf</a>&lt;T&gt;&gt;
+<a href=#246 id=246 data-nosnippet>246</a>    <span class="kw">where
+<a href=#247 id=247 data-nosnippet>247</a>        </span><a href="#46">CallOf</a>&lt;T&gt;: Dispatchable&lt;Info = DispatchInfo&gt;,
+<a href=#248 id=248 data-nosnippet>248</a>        <a href="#44-45">BalanceOf</a>&lt;T&gt;: FixedPointOperand,
+<a href=#249 id=249 data-nosnippet>249</a>    {
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="kw">let </span>DispatchInfo {
+<a href=#251 id=251 data-nosnippet>251</a>            weight,
+<a href=#252 id=252 data-nosnippet>252</a>            class,
+<a href=#253 id=253 data-nosnippet>253</a>            pays_fee,
+<a href=#254 id=254 data-nosnippet>254</a>        } = &lt;Extrinsic <span class="kw">as </span>GetDispatchInfo&gt;::get_dispatch_info(<span class="kw-2">&amp;</span><a href="#243">unchecked_extrinsic</a>);
+<a href=#255 id=255 data-nosnippet>255</a>
+<a href=#256 id=256 data-nosnippet>256</a>        <span class="kw">let </span>partial_fee = <span class="kw">if </span>unchecked_extrinsic.is_signed().unwrap_or(<span class="bool-val">false</span>) {
+<a href=#257 id=257 data-nosnippet>257</a>            <span class="kw">let </span>call: <a href="#46">CallOf</a>&lt;T&gt; =
+<a href=#258 id=258 data-nosnippet>258</a>                &lt;Extrinsic <span class="kw">as </span>ExtractCall&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;&gt;::extract_call(<span class="kw-2">&amp;</span><a href="#243">unchecked_extrinsic</a>);
+<a href=#259 id=259 data-nosnippet>259</a>            <span class="comment">// If call is exempted from weight multiplication pre-divide it with the fee multiplier
+<a href=#260 id=260 data-nosnippet>260</a>            </span><span class="kw">let </span>adjusted_weight = <span class="kw">if </span>!T::ExtraFeeCallFilter::contains(<span class="kw-2">&amp;</span>call) {
+<a href=#261 id=261 data-nosnippet>261</a>                Weight::from_parts(
+<a href=#262 id=262 data-nosnippet>262</a>                    <a href="#48">TransactionPayment</a>::&lt;T&gt;::next_fee_multiplier()
+<a href=#263 id=263 data-nosnippet>263</a>                        .reciprocal()
+<a href=#264 id=264 data-nosnippet>264</a>                        .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(Multiplier::max_value)
+<a href=#265 id=265 data-nosnippet>265</a>                        .saturating_mul_int(<a href="#251">weight</a>.ref_time()),
+<a href=#266 id=266 data-nosnippet>266</a>                    <span class="number">0</span>,
+<a href=#267 id=267 data-nosnippet>267</a>                )
+<a href=#268 id=268 data-nosnippet>268</a>            } <span class="kw">else </span>{
+<a href=#269 id=269 data-nosnippet>269</a>                <a href="#251">weight</a>
+<a href=#270 id=270 data-nosnippet>270</a>            };
+<a href=#271 id=271 data-nosnippet>271</a>            <a href="#48">TransactionPayment</a>::&lt;T&gt;::compute_fee(
+<a href=#272 id=272 data-nosnippet>272</a>                <a href="#244">len</a>,
+<a href=#273 id=273 data-nosnippet>273</a>                <span class="kw-2">&amp;</span>DispatchInfo {
+<a href=#274 id=274 data-nosnippet>274</a>                    weight: <a href="#260">adjusted_weight</a>,
+<a href=#275 id=275 data-nosnippet>275</a>                    <a href="#252">class</a>,
+<a href=#276 id=276 data-nosnippet>276</a>                    <a href="#253">pays_fee</a>,
+<a href=#277 id=277 data-nosnippet>277</a>                },
+<a href=#278 id=278 data-nosnippet>278</a>                <span class="number">0u32</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
+<a href=#279 id=279 data-nosnippet>279</a>            )
+<a href=#280 id=280 data-nosnippet>280</a>        } <span class="kw">else </span>{
+<a href=#281 id=281 data-nosnippet>281</a>            <span class="comment">// Unsigned extrinsics have no partial fee.
+<a href=#282 id=282 data-nosnippet>282</a>            </span><span class="number">0u32</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>()
+<a href=#283 id=283 data-nosnippet>283</a>        };
+<a href=#284 id=284 data-nosnippet>284</a>
+<a href=#285 id=285 data-nosnippet>285</a>        RuntimeDispatchInfo {
+<a href=#286 id=286 data-nosnippet>286</a>            <a href="#251">weight</a>,
+<a href=#287 id=287 data-nosnippet>287</a>            <a href="#252">class</a>,
+<a href=#288 id=288 data-nosnippet>288</a>            <a href="#256">partial_fee</a>,
+<a href=#289 id=289 data-nosnippet>289</a>        }
+<a href=#290 id=290 data-nosnippet>290</a>    }
+<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="doccomment">/// Modification of the `pallet_transaction_payment::Pallet&lt;T&gt;::query_fee_details()`
+<a href=#293 id=293 data-nosnippet>293</a>    </span><span class="kw">pub fn </span>query_fee_details&lt;
+<a href=#294 id=294 data-nosnippet>294</a>        Extrinsic: sp_runtime::traits::Extrinsic + GetDispatchInfo + ExtractCall&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;,
+<a href=#295 id=295 data-nosnippet>295</a>    &gt;(
+<a href=#296 id=296 data-nosnippet>296</a>        unchecked_extrinsic: Extrinsic,
+<a href=#297 id=297 data-nosnippet>297</a>        len: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
+<a href=#298 id=298 data-nosnippet>298</a>    ) -&gt; FeeDetails&lt;<a href="#44-45">BalanceOf</a>&lt;T&gt;&gt;
+<a href=#299 id=299 data-nosnippet>299</a>    <span class="kw">where
+<a href=#300 id=300 data-nosnippet>300</a>        </span><a href="#46">CallOf</a>&lt;T&gt;: Dispatchable&lt;Info = DispatchInfo&gt;,
+<a href=#301 id=301 data-nosnippet>301</a>        <a href="#44-45">BalanceOf</a>&lt;T&gt;: FixedPointOperand,
+<a href=#302 id=302 data-nosnippet>302</a>    {
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span>DispatchInfo {
+<a href=#304 id=304 data-nosnippet>304</a>            weight,
+<a href=#305 id=305 data-nosnippet>305</a>            class,
+<a href=#306 id=306 data-nosnippet>306</a>            pays_fee,
+<a href=#307 id=307 data-nosnippet>307</a>        } = &lt;Extrinsic <span class="kw">as </span>GetDispatchInfo&gt;::get_dispatch_info(<span class="kw-2">&amp;</span><a href="#296">unchecked_extrinsic</a>);
+<a href=#308 id=308 data-nosnippet>308</a>
+<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">let </span>tip = <span class="number">0u32</span>.<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>();
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">if </span>unchecked_extrinsic.is_signed().unwrap_or(<span class="bool-val">false</span>) {
+<a href=#312 id=312 data-nosnippet>312</a>            <span class="kw">let </span>call: <a href="#46">CallOf</a>&lt;T&gt; =
+<a href=#313 id=313 data-nosnippet>313</a>                &lt;Extrinsic <span class="kw">as </span>ExtractCall&lt;<a href="#46">CallOf</a>&lt;T&gt;&gt;&gt;::extract_call(<span class="kw-2">&amp;</span><a href="#296">unchecked_extrinsic</a>);
+<a href=#314 id=314 data-nosnippet>314</a>            <span class="kw">let </span>adjusted_weight = <span class="kw">if </span>!T::ExtraFeeCallFilter::contains(<span class="kw-2">&amp;</span>call) {
+<a href=#315 id=315 data-nosnippet>315</a>                Weight::from_parts(
+<a href=#316 id=316 data-nosnippet>316</a>                    <a href="#48">TransactionPayment</a>::&lt;T&gt;::next_fee_multiplier()
+<a href=#317 id=317 data-nosnippet>317</a>                        .reciprocal()
+<a href=#318 id=318 data-nosnippet>318</a>                        .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap_or_else">unwrap_or_else</a>(Multiplier::max_value)
+<a href=#319 id=319 data-nosnippet>319</a>                        .saturating_mul_int(<a href="#304">weight</a>.ref_time()),
+<a href=#320 id=320 data-nosnippet>320</a>                    <span class="number">0</span>,
+<a href=#321 id=321 data-nosnippet>321</a>                )
+<a href=#322 id=322 data-nosnippet>322</a>            } <span class="kw">else </span>{
+<a href=#323 id=323 data-nosnippet>323</a>                <a href="#304">weight</a>
+<a href=#324 id=324 data-nosnippet>324</a>            };
+<a href=#325 id=325 data-nosnippet>325</a>            <a href="#48">TransactionPayment</a>::&lt;T&gt;::compute_fee_details(
+<a href=#326 id=326 data-nosnippet>326</a>                <a href="#297">len</a>,
+<a href=#327 id=327 data-nosnippet>327</a>                <span class="kw-2">&amp;</span>DispatchInfo {
+<a href=#328 id=328 data-nosnippet>328</a>                    weight: <a href="#314">adjusted_weight</a>,
+<a href=#329 id=329 data-nosnippet>329</a>                    <a href="#305">class</a>,
+<a href=#330 id=330 data-nosnippet>330</a>                    <a href="#306">pays_fee</a>,
+<a href=#331 id=331 data-nosnippet>331</a>                },
+<a href=#332 id=332 data-nosnippet>332</a>                <a href="#309">tip</a>,
+<a href=#333 id=333 data-nosnippet>333</a>            )
+<a href=#334 id=334 data-nosnippet>334</a>        } <span class="kw">else </span>{
+<a href=#335 id=335 data-nosnippet>335</a>            <span class="comment">// Unsigned extrinsics have no inclusion fee.
+<a href=#336 id=336 data-nosnippet>336</a>            </span>FeeDetails {
+<a href=#337 id=337 data-nosnippet>337</a>                inclusion_fee: <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.None">None</a>,
+<a href=#338 id=338 data-nosnippet>338</a>                <a href="#309">tip</a>,
+<a href=#339 id=339 data-nosnippet>339</a>            }
+<a href=#340 id=340 data-nosnippet>340</a>        }
+<a href=#341 id=341 data-nosnippet>341</a>    }
+<a href=#342 id=342 data-nosnippet>342</a>}
+<a href=#343 id=343 data-nosnippet>343</a>
+<a href=#344 id=344 data-nosnippet>344</a><span class="attr">#[frame_support::pallet]
+<a href=#345 id=345 data-nosnippet>345</a></span><span class="kw">pub mod </span><a href="../../pallet_gear_payment/pallet/index.html">pallet</a> {
+<a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#347 id=347 data-nosnippet>347</a>
+<a href=#348 id=348 data-nosnippet>348</a>    <span class="attr">#[pallet::config]
+<a href=#349 id=349 data-nosnippet>349</a>    </span><span class="kw">pub trait </span><a href="../../pallet_gear_payment/pallet/trait.Config.html">Config</a>: frame_system::Config + pallet_transaction_payment::Config {
+<a href=#350 id=350 data-nosnippet>350</a>        <span class="doccomment">/// Filter for calls subbject for extra fees
+<a href=#351 id=351 data-nosnippet>351</a>        </span><span class="kw">type </span>ExtraFeeCallFilter: Contains&lt;<a href="#46">CallOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>        <span class="doccomment">/// Filter for a call that delegates fee payment to another account
+<a href=#354 id=354 data-nosnippet>354</a>        </span><span class="kw">type </span>DelegateFee: DelegateFee&lt;<a href="#46">CallOf</a>&lt;<span class="self">Self</span>&gt;, <a href="#43">AccountIdOf</a>&lt;<span class="self">Self</span>&gt;&gt;;
+<a href=#355 id=355 data-nosnippet>355</a>
+<a href=#356 id=356 data-nosnippet>356</a>        <span class="doccomment">/// Type representing message queue
+<a href=#357 id=357 data-nosnippet>357</a>        </span><span class="kw">type </span>Messenger: Messenger&lt;Capacity = <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;;
+<a href=#358 id=358 data-nosnippet>358</a>    }
+<a href=#359 id=359 data-nosnippet>359</a>
+<a href=#360 id=360 data-nosnippet>360</a>    <span class="attr">#[pallet::pallet]
+<a href=#361 id=361 data-nosnippet>361</a>    #[pallet::without_storage_info]
+<a href=#362 id=362 data-nosnippet>362</a>    </span><span class="kw">pub struct </span><a href="#362">Pallet</a>&lt;T&gt;(<span class="kw">_</span>);
+<a href=#363 id=363 data-nosnippet>363</a>}</code></pre></div></section></main></body></html>
