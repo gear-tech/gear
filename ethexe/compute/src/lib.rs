@@ -46,48 +46,28 @@ pub enum ComputeEvent {
 
 #[derive(thiserror::Error, Debug)]
 pub enum ComputeError {
-    #[error("block({0}) requested to process, but it's not prepared")]
-    BlockNotPrepared(H256),
-    #[error("block({0}) not synced")]
+    #[error("block({0}) is not synced")]
     BlockNotSynced(H256),
+    #[error("block({0}) is not prepared")]
+    BlockNotPrepared(H256),
     #[error("not found events for block({0})")]
     BlockEventsNotFound(H256),
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
-    #[error("block outcome not set for computed block({0})")]
-    ParentNotFound(H256),
-    #[error("code({0}) marked as validated, but not found in db")]
-    ValidatedCodeNotFound(CodeId),
-    #[error("codes queue nоt found for computed block({0})")]
+    #[error("codes queue not found for computed block({0})")]
     CodesQueueNotFound(H256),
-    #[error("commitment queue not found for computed block({0})")]
-    CommitmentQueueNotFound(H256),
-    #[error("previous commitment not found for computed block({0})")]
-    PreviousCommitmentNotFound(H256),
     #[error("last committed batch not found for computed block({0})")]
     LastCommittedBatchNotFound(H256),
     #[error("last committed head not found for computed block({0})")]
     LastCommittedHeadNotFound(H256),
-    #[error(
-        "code validation mismatch for code({code_id:?}), local status: {local_status}, remote status: {remote_status}"
-    )]
-    CodeValidationStatusMismatch {
-        code_id: CodeId,
-        local_status: bool,
-        remote_status: bool,
-    },
-    #[error("validator set not found for block({0})")]
-    ValidatorSetNotFound(H256),
     #[error("Announce {0:?} not found in db")]
     AnnounceNotFound(AnnounceHash),
     #[error("Announces for block {0:?} not found in db")]
     AnnouncesNotFound(H256),
-    #[error("last committed announce not found for block({0})")]
-    LastCommittedAnnounceNotFound(H256),
-    #[error("committed head announce hash is zero in events for block({0})")]
-    CommittedHeadAnnounceHashIsZero(H256),
+    #[error("Latest data not found")]
+    LatestDataNotFound,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

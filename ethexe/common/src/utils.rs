@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, AnnounceHash, Digest, SimpleBlockData,
+    Address, Announce, AnnounceHash, Digest, SimpleBlockData,
     db::{
-        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, LatestData, LatestDataStorage,
+        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, LatestData, LatestDataStorageWrite,
         OnChainStorageWrite,
     },
 };
@@ -45,19 +45,26 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
-pub fn set_genesis_in_db<
-    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorage,
+pub fn setup_genesis_in_db<
+    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
     validators: NonEmpty<Address>,
 ) {
-    db.set_block_header(genesis_block.hash, genesis_block.header.clone());
+    db.set_block_header(genesis_block.hash, genesis_block.header);
     db.set_block_events(genesis_block.hash, &[]);
+    db.set_validators(genesis_block.hash, validators);
     db.set_block_synced(genesis_block.hash);
 
+    let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
+    let genesis_announce_hash = db.set_announce(genesis_announce);
+    db.set_announce_outcome(genesis_announce_hash, vec![]);
+    db.set_announce_program_states(genesis_announce_hash, Default::default());
+    db.set_announce_schedule(genesis_announce_hash, Default::default());
+    db.mutate_announce_meta(genesis_announce_hash, |meta| meta.computed = true);
+
     // Genesis block is the only one block where announce is committed in the same block.
-    let genesis_announce_hash = AnnounceHash::zero();
     db.mutate_block_meta(genesis_block.hash, |meta| {
         *meta = BlockMeta {
             prepared: true,
@@ -67,18 +74,16 @@ pub fn set_genesis_in_db<
             last_committed_announce: Some(genesis_announce_hash),
         }
     });
-    db.set_validators(genesis_block.hash, validators);
-
-    db.set_announce_outcome(genesis_announce_hash, vec![]);
-    db.set_announce_program_states(genesis_announce_hash, Default::default());
-    db.set_announce_schedule(genesis_announce_hash, Default::default());
-    db.mutate_announce_meta(genesis_announce_hash, |meta| meta.computed = true);
 
     db.mutate_latest_data(|data| {
         data.get_or_insert(LatestData {
             synced_block_height: genesis_block.header.height,
             prepared_block_hash: genesis_block.hash,
             computed_announce_hash: genesis_announce_hash,
+            genesis_block_hash: genesis_block.hash,
+            genesis_announce_hash,
+            start_block_hash: genesis_block.hash,
+            start_announce_hash: genesis_announce_hash,
         });
     });
 }

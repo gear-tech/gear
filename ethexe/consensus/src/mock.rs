@@ -177,7 +177,7 @@ impl Prepare for SimpleBlockData {
     type Args = AnnounceHash;
 
     fn prepare(self, db: &Database, last_committed_announce: AnnounceHash) -> Self {
-        db.set_block_header(self.hash, self.header.clone());
+        db.set_block_header(self.hash, self.header);
 
         let parent_announce = db
             .block_meta(self.header.parent_hash)

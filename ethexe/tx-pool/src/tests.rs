@@ -63,7 +63,7 @@ impl BlocksManager {
                     parent_hash,
                 };
 
-                self.db.set_block_header(block_hash, header.clone());
+                self.db.set_block_header(block_hash, header);
                 self.db
                     .mutate_latest_data_if_some(|data| {
                         data.prepared_block_hash = block_hash;
@@ -79,12 +79,16 @@ impl BlocksManager {
                     parent_hash: H256::zero(),
                 };
 
-                self.db.set_block_header(block_hash, header.clone());
+                self.db.set_block_header(block_hash, header);
                 self.db.mutate_latest_data(|data| {
                     *data = Some(LatestData {
                         prepared_block_hash: block_hash,
                         synced_block_height: header.height,
                         computed_announce_hash: AnnounceHash::zero(),
+                        genesis_block_hash: block_hash,
+                        genesis_announce_hash: AnnounceHash::zero(),
+                        start_block_hash: block_hash,
+                        start_announce_hash: AnnounceHash::zero(),
                     });
                 });
 

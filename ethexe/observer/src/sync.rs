@@ -26,7 +26,7 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{LatestDataStorage, OnChainStorageRead, OnChainStorageWrite},
+    db::{LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
@@ -36,10 +36,18 @@ use nonempty::NonEmpty;
 use std::collections::HashMap;
 
 pub(crate) trait SyncDB:
-    OnChainStorageRead + OnChainStorageWrite + LatestDataStorage + Clone
+    OnChainStorageRead + OnChainStorageWrite + LatestDataStorageRead + LatestDataStorageWrite + Clone
 {
 }
-impl<T: OnChainStorageRead + OnChainStorageWrite + LatestDataStorage + Clone> SyncDB for T {}
+impl<
+    T: OnChainStorageRead
+        + OnChainStorageWrite
+        + LatestDataStorageRead
+        + LatestDataStorageWrite
+        + Clone,
+> SyncDB for T
+{
+}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]

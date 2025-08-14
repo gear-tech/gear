@@ -23,9 +23,8 @@ use crate::{
     },
     export::PeerId,
 };
-use ethexe_common::{
-    AnnounceHash,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite},
+use ethexe_common::db::{
+    AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, LatestDataStorageRead,
 };
 use ethexe_db::Database;
 use libp2p::request_response;
@@ -99,10 +98,16 @@ impl OngoingResponses {
                     );
                     return InnerResponse::Announces(vec![]);
                 }
+
+                let Some(start_announce_hash) = db.latest_data().map(|d| d.start_announce_hash)
+                else {
+                    log::warn!("Cannot complete request: latest data not found in database");
+                    return InnerResponse::Announces(vec![]);
+                };
                 let mut announces = vec![];
                 let mut announce_hash = head;
                 let mut counter = max_chain_len;
-                while counter > 0 && announce_hash != AnnounceHash::zero() {
+                while counter > 0 && announce_hash != start_announce_hash {
                     let Some(announce) = db.announce(announce_hash) else {
                         log::warn!(
                             "Cannot complete request: announce {announce_hash} not found in database"

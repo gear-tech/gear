@@ -242,7 +242,7 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::{Address, BlockHeader, CodeAndIdUnchecked, db::*};
+    use ethexe_common::{Address, BlockHeader, CodeAndIdUnchecked, SimpleBlockData, db::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
@@ -259,18 +259,14 @@ mod tests {
         let parent_hash = H256::from([1; 32]);
         let block_hash = H256::from([2; 32]);
 
-        // Setup parent block as prepared and with computed announce
-        let parent_announce = Announce::base(parent_hash, Default::default());
-        db.set_announce(parent_announce.clone());
-        db.mutate_announce_meta(parent_announce.hash(), |meta| {
-            meta.computed = true;
-        });
-        db.mutate_block_meta(parent_hash, |meta| {
-            *meta = BlockMeta {
-                announces: Some(vec![parent_announce.hash()]),
-                ..BlockMeta::default_prepared()
-            };
-        });
+        ethexe_common::setup_genesis_in_db(
+            &db,
+            SimpleBlockData {
+                hash: parent_hash,
+                header: BlockHeader::default(),
+            },
+            nonempty![Default::default()],
+        );
 
         // Setup on chain data for not prepared
         let header = BlockHeader {
@@ -307,13 +303,16 @@ mod tests {
 
         // Setup parent block and one computed announce inside
         let parent_announce = Announce::base(parent_hash, Default::default());
-        db.set_announce(parent_announce.clone());
-        db.mutate_announce_meta(parent_announce.hash(), |meta| {
+        let parent_announce_hash = db.set_announce(parent_announce.clone());
+        db.mutate_announce_meta(parent_announce_hash, |meta| {
             meta.computed = true;
         });
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta::default_prepared();
-            meta.announces = Some(vec![parent_announce.hash()])
+            meta.announces = Some(vec![parent_announce_hash])
+        });
+        db.mutate_latest_data(|data| {
+            *data = Some(LatestData::default());
         });
 
         // Setup and prepare block

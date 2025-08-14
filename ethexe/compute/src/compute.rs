@@ -20,7 +20,7 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce,
     db::{
-        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorage,
+        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
         OnChainStorageRead,
     },
 };
@@ -101,13 +101,10 @@ pub(crate) async fn compute<P: ProcessorExt>(
         meta.announces = Some(vec![announce_hash]);
     });
 
-    let _ = db
-        .mutate_latest_data_if_some(|data| {
-            data.computed_announce_hash = announce_hash;
-        })
-        .ok_or_else(|| {
-            log::error!("Failed to update latest data with computed announce {announce_hash}");
-        });
+    db.mutate_latest_data_if_some(|data| {
+        data.computed_announce_hash = announce_hash;
+    })
+    .ok_or(ComputeError::LatestDataNotFound)?;
 
     Ok(ComputationStatus::Computed)
 }
@@ -160,7 +157,7 @@ mod tests {
 
         let announce = Announce {
             block_hash,
-            parent: AnnounceHash::zero(),
+            parent: db.latest_data().unwrap().genesis_announce_hash,
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };

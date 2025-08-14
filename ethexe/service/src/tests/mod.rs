@@ -29,7 +29,10 @@ use crate::{
 };
 use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
-    db::*, events::{BlockEvent, MirrorEvent, RouterEvent}, gear::Origin, AnnounceHash, ScheduledTask
+    ScheduledTask,
+    db::*,
+    events::{BlockEvent, MirrorEvent, RouterEvent},
+    gear::Origin,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
@@ -1116,7 +1119,28 @@ async fn fast_sync() {
             .verify_chain(latest_block, fast_synced_block)
             .expect("failed to verify Bob database");
 
-        assert_eq!(alice.db.latest_data(), bob.db.latest_data());
+        let alice_latest_data = alice.db.latest_data().expect("latest data not found");
+        let bob_latest_data = bob.db.latest_data().expect("latest data not found");
+        assert_eq!(
+            alice_latest_data.computed_announce_hash,
+            bob_latest_data.computed_announce_hash
+        );
+        assert_eq!(
+            alice_latest_data.synced_block_height,
+            bob_latest_data.synced_block_height
+        );
+        assert_eq!(
+            alice_latest_data.prepared_block_hash,
+            bob_latest_data.prepared_block_hash
+        );
+        assert_eq!(
+            alice_latest_data.genesis_block_hash,
+            bob_latest_data.genesis_block_hash
+        );
+        assert_eq!(
+            alice_latest_data.genesis_announce_hash,
+            bob_latest_data.genesis_announce_hash
+        );
 
         let mut block = latest_block;
         loop {
@@ -1237,23 +1261,23 @@ async fn fast_sync() {
     log::info!("Stopping Bob");
     bob.stop_service().await;
 
-    // +_+_+
-    log::info!("Alice's announce chain:");
-    {
-        let mut announce_hash = alice.db.latest_data().unwrap().computed_announce_hash;
-        while announce_hash != AnnounceHash::zero() {
-            log::trace!("Announce hash: {}", announce_hash);
-            announce_hash = alice.db.announce(announce_hash).unwrap().parent;
-        }
-    }
-    log::info!("Bob's announce chain:");
-    {
-        let mut announce_hash = bob.db.latest_data().unwrap().computed_announce_hash;
-        while announce_hash != AnnounceHash::zero() {
-            log::trace!("Announce hash: {}", announce_hash);
-            announce_hash = bob.db.announce(announce_hash).unwrap().parent;
-        }
-    }
+    // // +_+_+
+    // log::info!("Alice's announce chain:");
+    // {
+    //     let mut announce_hash = alice.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = alice.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
+    // log::info!("Bob's announce chain:");
+    // {
+    //     let mut announce_hash = bob.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = bob.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
 
     assert_chain(
         latest_block,

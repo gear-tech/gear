@@ -21,7 +21,7 @@ use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
     db::*,
     events::{BlockEvent, RouterEvent},
-    set_genesis_in_db,
+    setup_genesis_in_db,
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
@@ -134,7 +134,7 @@ fn generate_chain(db: &Database, chain_len: u32) -> VecDeque<H256> {
         };
 
         if block_num == 0 {
-            set_genesis_in_db(db, block.clone(), nonempty![Address::from([1; 20])]);
+            setup_genesis_in_db(db, block.clone(), nonempty![Address::from([1; 20])]);
         }
 
         db.set_block_header(block.hash, block.header);

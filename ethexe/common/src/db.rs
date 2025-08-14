@@ -148,14 +148,19 @@ pub struct LatestData {
     pub genesis_block_hash: H256,
     /// Genesis announce hash
     pub genesis_announce_hash: AnnounceHash,
-    /// Beginning block hash: genesis or defined by fast-sync
-    pub begin_block_hash: H256,
-    /// Beginning announce hash: genesis or defined by fast-sync
-    pub begin_announce_hash: AnnounceHash,
+    /// Start block hash: genesis or defined by fast-sync
+    pub start_block_hash: H256,
+    /// Start announce hash: genesis or defined by fast-sync
+    pub start_announce_hash: AnnounceHash,
 }
 
-pub trait LatestDataStorage {
+#[auto_impl::auto_impl(&, Box)]
+pub trait LatestDataStorageRead {
     fn latest_data(&self) -> Option<LatestData>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait LatestDataStorageWrite {
     fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>));
     fn mutate_latest_data_if_some(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
         let mut return_value = None;

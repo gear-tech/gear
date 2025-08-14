@@ -26,8 +26,8 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage,
-        OnChainStorageRead, OnChainStorageWrite,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData,
+        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -615,14 +615,16 @@ impl AnnounceStorageWrite for Database {
     }
 }
 
-impl LatestDataStorage for Database {
+impl LatestDataStorageRead for Database {
     fn latest_data(&self) -> Option<LatestData> {
         self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
             LatestData::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `LatestData`")
         })
     }
+}
 
+impl LatestDataStorageWrite for Database {
     fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>)) {
         let mut data = self.latest_data();
         let was_some = data.is_some();
@@ -754,6 +756,10 @@ mod tests {
             synced_block_height: 42,
             prepared_block_hash: H256::random(),
             computed_announce_hash: AnnounceHash::random(),
+            genesis_block_hash: H256::random(),
+            genesis_announce_hash: AnnounceHash::random(),
+            start_block_hash: H256::random(),
+            start_announce_hash: AnnounceHash::random(),
         };
         db.mutate_latest_data(|data| *data = Some(latest_data.clone()));
         assert_eq!(db.latest_data(), Some(latest_data));

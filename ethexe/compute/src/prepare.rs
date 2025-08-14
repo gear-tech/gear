@@ -21,7 +21,7 @@ use ethexe_common::{
     Announce, AnnounceHash, SimpleBlockData,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
-        CodesStorageRead, LatestDataStorage, OnChainStorageRead,
+        CodesStorageRead, LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead,
     },
     events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
@@ -37,6 +37,10 @@ pub(crate) struct MissingData {
 }
 
 pub(crate) fn missing_data(db: &Database, block_hash: H256) -> Result<MissingData> {
+    if !db.block_synced(block_hash) {
+        return Err(ComputeError::BlockNotSynced(block_hash));
+    }
+
     let chain = utils::collect_chain(db, block_hash, |meta| !meta.prepared)?;
 
     let mut missing_codes = HashSet::new();
@@ -76,6 +80,10 @@ pub(crate) async fn prepare(
     mut processor: impl ProcessorExt,
     block_hash: H256,
 ) -> Result<()> {
+    debug_assert!(
+        db.block_synced(block_hash),
+        "Block {block_hash} must be synced, checked in missing data"
+    );
     debug_assert!(
         missing_data(&db, block_hash)
             .expect("Cannot collect missing data")
@@ -126,9 +134,6 @@ async fn prepare_one_block(
                 validated_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
-                if head == AnnounceHash::zero() {
-                    return Err(ComputeError::CommittedHeadAnnounceHashIsZero(block.hash));
-                }
                 last_committed_announce_hash = Some(head);
             }
             _ => {}
@@ -171,14 +176,11 @@ async fn prepare_one_block(
         meta.prepared = true;
     });
 
-    let _ = db
-        .mutate_latest_data_if_some(|data| {
-            data.prepared_block_hash = block.hash;
-            data.computed_announce_hash = new_base_announce_hash;
-        })
-        .ok_or_else(|| {
-            log::error!("Failed to update latest data");
-        });
+    db.mutate_latest_data_if_some(|data| {
+        data.prepared_block_hash = block.hash;
+        data.computed_announce_hash = new_base_announce_hash;
+    })
+    .ok_or(ComputeError::LatestDataNotFound)?;
 
     Ok(())
 }
@@ -193,22 +195,20 @@ async fn propagate_from_parent_announce(
     last_committed_announce_hash: Option<AnnounceHash>,
 ) -> Result<AnnounceHash> {
     if let Some(last_committed_announce_hash) = last_committed_announce_hash {
-        assert_ne!(
-            last_committed_announce_hash,
-            AnnounceHash::zero(),
-            "committed announce hash cannot be zero, checked above"
-        );
-
         log::trace!(
             "Searching for last committed announce hash {last_committed_announce_hash} in known announces chain",
         );
+
+        let begin_announce_hash = db
+            .latest_data()
+            .ok_or(ComputeError::LatestDataNotFound)?
+            .start_announce_hash;
 
         // TODO #4813: 1000 - temporary limit to determine last committed announce hash is from known chain
         // after we append announces mortality, we can remove this limit
         let mut announce_hash = parent_announce_hash;
         for _ in 0..1000 {
-            if announce_hash == AnnounceHash::zero()
-                || announce_hash == last_committed_announce_hash
+            if announce_hash == begin_announce_hash || announce_hash == last_committed_announce_hash
             {
                 break;
             }
@@ -350,7 +350,7 @@ mod tests {
         });
         db.set_validators(parent_hash, validators.clone());
 
-        db.set_block_header(block.hash, block.header.clone());
+        db.set_block_header(block.hash, block.header);
 
         db.mutate_latest_data(|data| *data = Some(Default::default()));
 

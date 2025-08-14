@@ -24,7 +24,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData, LatestDataStorage,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestDataStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
@@ -694,7 +694,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let validators = NonEmpty::from_vec(observer.router_query().validators_at(block_hash).await?)
         .ok_or(anyhow!("validator set is empty"))?;
 
-    db.set_block_header(block_hash, header.clone());
+    db.set_block_header(block_hash, header);
     db.set_block_events(block_hash, &events);
     db.set_validators(block_hash, validators);
     db.set_block_synced(block_hash);
@@ -721,13 +721,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         meta.computed = true;
     });
 
-    db.mutate_latest_data(|latest| {
-        *latest = Some(LatestData {
-            synced_block_height: header.height,
-            computed_announce_hash: announce_hash,
-            prepared_block_hash: block_hash,
-        });
-    });
+    db.mutate_latest_data_if_some(|latest| {
+        latest.synced_block_height = header.height;
+        latest.prepared_block_hash = block_hash;
+        latest.computed_announce_hash = announce_hash;
+        latest.start_block_hash = block_hash;
+        latest.start_announce_hash = announce_hash;
+    })
+    .ok_or_else(|| anyhow!("Latest data must be already set, at least for genesis block"))?;
 
     log::info!(
         "Fast synchronization done: synced to {block_hash:?}, height {:?}",
