@@ -36,7 +36,7 @@ use gprimitives::H256;
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     pub prepared: bool,
     pub announces: Option<Vec<AnnounceHash>>,
@@ -57,17 +57,20 @@ impl BlockMeta {
     }
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait BlockMetaStorageWrite {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait CodesStorageRead {
     fn original_code_exists(&self, code_id: CodeId) -> bool;
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
@@ -78,6 +81,7 @@ pub trait CodesStorageRead {
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait CodesStorageWrite {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
@@ -87,6 +91,7 @@ pub trait CodesStorageWrite {
     fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
@@ -95,6 +100,7 @@ pub trait OnChainStorageRead {
     fn block_synced(&self, block_hash: H256) -> bool;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait OnChainStorageWrite {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
@@ -103,11 +109,12 @@ pub trait OnChainStorageWrite {
     fn set_block_synced(&self, block_hash: H256);
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {
     pub computed: bool,
 }
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait AnnounceStorageRead {
     fn announce(&self, hash: AnnounceHash) -> Option<Announce>;
     fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates>;
@@ -116,6 +123,7 @@ pub trait AnnounceStorageRead {
     fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta;
 }
 
+#[auto_impl::auto_impl(&)]
 pub trait AnnounceStorageWrite {
     fn set_announce(&self, announce: Announce) -> AnnounceHash;
     fn set_announce_program_states(
@@ -130,9 +138,20 @@ pub trait AnnounceStorageWrite {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
+    /// Latest synced block height
     pub synced_block_height: u32,
+    /// Latest prepared block hash
     pub prepared_block_hash: H256,
+    /// Latest computed announce hash
     pub computed_announce_hash: AnnounceHash,
+    /// Genesis block hash
+    pub genesis_block_hash: H256,
+    /// Genesis announce hash
+    pub genesis_announce_hash: AnnounceHash,
+    /// Beginning block hash: genesis or defined by fast-sync
+    pub begin_block_hash: H256,
+    /// Beginning announce hash: genesis or defined by fast-sync
+    pub begin_announce_hash: AnnounceHash,
 }
 
 pub trait LatestDataStorage {

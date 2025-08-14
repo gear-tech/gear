@@ -29,12 +29,9 @@ use crate::{
 };
 use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
-    ScheduledTask,
-    db::*,
-    events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::Origin,
+    db::*, events::{BlockEvent, MirrorEvent, RouterEvent}, gear::Origin, AnnounceHash, ScheduledTask
 };
-use ethexe_db::Database;
+use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -502,11 +499,11 @@ async fn mailbox() {
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
 
-    let state = node.db.read_state(state_hash).unwrap();
+    let state = node.db.program_state(state_hash).unwrap();
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.mailbox(hash).unwrap());
 
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
@@ -525,11 +522,11 @@ async fn mailbox() {
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
-    let state = node.db.read_state(state_hash).unwrap();
+    let state = node.db.program_state(state_hash).unwrap();
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.mailbox(hash).unwrap());
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
@@ -567,7 +564,7 @@ async fn mailbox() {
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
-    let state = node.db.read_state(state_hash).unwrap();
+    let state = node.db.program_state(state_hash).unwrap();
     assert!(state.mailbox_hash.is_empty());
 
     let announce_hash = node
@@ -634,7 +631,7 @@ async fn incoming_transfers() {
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, 0);
 
     // 1_000 tokens
@@ -659,7 +656,7 @@ async fn incoming_transfers() {
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
     env.approve_wvara(ping_id).await;
@@ -683,7 +680,7 @@ async fn incoming_transfers() {
     assert_eq!(on_eth_balance, 2 * VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, 2 * VALUE_SENT);
 }
 
@@ -1111,6 +1108,14 @@ async fn fast_sync() {
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
 
+        IntegrityVerifier::new(alice.db.clone())
+            .verify_chain(latest_block, fast_synced_block)
+            .expect("failed to verify Alice database");
+
+        IntegrityVerifier::new(bob.db.clone())
+            .verify_chain(latest_block, fast_synced_block)
+            .expect("failed to verify Bob database");
+
         assert_eq!(alice.db.latest_data(), bob.db.latest_data());
 
         let mut block = latest_block;
@@ -1231,6 +1236,24 @@ async fn fast_sync() {
 
     log::info!("Stopping Bob");
     bob.stop_service().await;
+
+    // +_+_+
+    log::info!("Alice's announce chain:");
+    {
+        let mut announce_hash = alice.db.latest_data().unwrap().computed_announce_hash;
+        while announce_hash != AnnounceHash::zero() {
+            log::trace!("Announce hash: {}", announce_hash);
+            announce_hash = alice.db.announce(announce_hash).unwrap().parent;
+        }
+    }
+    log::info!("Bob's announce chain:");
+    {
+        let mut announce_hash = bob.db.latest_data().unwrap().computed_announce_hash;
+        while announce_hash != AnnounceHash::zero() {
+            log::trace!("Announce hash: {}", announce_hash);
+            announce_hash = bob.db.announce(announce_hash).unwrap().parent;
+        }
+    }
 
     assert_chain(
         latest_block,

@@ -29,7 +29,7 @@ use scale_info::{
 };
 
 /// Status of the instrumentation.
-#[derive(Clone, Copy, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, TypeInfo, PartialEq, Eq, Hash)]
 pub enum InstrumentationStatus {
     /// Code is not instrumented yet.
     NotInstrumented,
@@ -48,7 +48,7 @@ pub enum InstrumentationStatus {
 }
 
 /// Metadata for the code.
-#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct CodeMetadata {
     /// Original code length.
     original_code_len: u32,

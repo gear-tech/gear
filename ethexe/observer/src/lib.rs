@@ -265,11 +265,11 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
-        ethexe_common::set_genesis_in_db(
+        ethexe_common::setup_genesis_in_db(
             db,
             SimpleBlockData {
                 hash: genesis_block_hash,
-                header: genesis_header.clone(),
+                header: genesis_header,
             },
             genesis_validators,
         );

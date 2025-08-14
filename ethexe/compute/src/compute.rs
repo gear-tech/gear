@@ -128,7 +128,7 @@ mod tests {
         let genesis_hash = H256::random();
         let block_hash = H256::random();
 
-        ethexe_common::set_genesis_in_db(
+        ethexe_common::setup_genesis_in_db(
             &db,
             SimpleBlockData {
                 hash: genesis_hash,

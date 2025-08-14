@@ -66,7 +66,6 @@ impl BlocksManager {
                 self.db.set_block_header(block_hash, header.clone());
                 self.db
                     .mutate_latest_data_if_some(|data| {
-                        data.synced_block_height = header.height;
                         data.prepared_block_hash = block_hash;
                     })
                     .unwrap();
