@@ -35,12 +35,10 @@ mod wasm {
     use core::{
         alloc::{GlobalAlloc, Layout},
         cell::Cell,
-        fmt,
-        fmt::Write,
-        mem::MaybeUninit,
         ptr,
     };
-    use dlmalloc::{Allocator as _, Dlmalloc};
+    use dlmalloc::Dlmalloc;
+    use gcore::debug;
 
     const PAGE_SIZE: usize = 64 * 1024;
     const HEAP_BASE: *mut u8 = {
@@ -50,42 +48,6 @@ mod wasm {
 
         unsafe { &__heap_base as *const i32 as *mut u8 }
     };
-
-    pub fn stack_debug(args: fmt::Arguments<'_>) {
-        const MAX_BUFFER_SIZE: usize = 128;
-
-        struct StackFmtWriter<'a> {
-            buf: &'a mut [MaybeUninit<u8>],
-            pos: usize,
-        }
-
-        impl fmt::Write for StackFmtWriter<'_> {
-            fn write_str(&mut self, s: &str) -> fmt::Result {
-                let upper_bound = (self.pos + s.len()).min(MAX_BUFFER_SIZE);
-                if let Some(buf) = self.buf.get_mut(self.pos..upper_bound) {
-                    let buf = buf as *mut [MaybeUninit<u8>] as *mut [u8];
-                    let s = &s.as_bytes()[..buf.len()];
-
-                    // SAFETY: we only write to uninitialized memory
-                    unsafe {
-                        (*buf).copy_from_slice(s);
-                    }
-
-                    self.pos += buf.len();
-                }
-
-                Ok(())
-            }
-        }
-
-        gear_stack_buffer::with_byte_buffer(MAX_BUFFER_SIZE, |buf| {
-            let mut writer = StackFmtWriter { buf, pos: 0 };
-            writer.write_fmt(args).expect("fmt failed");
-
-            // SAFETY: buffer was initialized via `write_fmt` and limited by `pos`
-            unsafe { gsys::gr_debug(writer.buf.as_ptr().cast(), writer.pos as u32) }
-        });
-    }
 
     #[inline]
     fn page_to_ptr(page: u16) -> *mut u8 {
@@ -128,7 +90,7 @@ mod wasm {
     unsafe impl GlobalAlloc for GlobalGearAlloc {
         #[inline]
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            debug("GlobalGearAlloc::alloc");
+            debug!("GlobalGearAlloc::alloc({layout:?})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe {
                 let ptr = (*alloc).malloc(layout.size(), layout.align());
@@ -139,21 +101,21 @@ mod wasm {
 
         #[inline]
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            debug("GlobalGearAlloc::dealloc");
+            debug!("GlobalGearAlloc::dealloc({ptr:?}, {layout:?})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe { (*alloc).free(ptr, layout.size(), layout.align()) }
         }
 
         #[inline]
         unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-            debug("GlobalGearAlloc::alloc_zeroed");
+            debug!("GlobalGearAlloc::alloc_zeroed({layout:?})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe { (*alloc).calloc(layout.size(), layout.align()) }
         }
 
         #[inline]
         unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-            debug("GlobalGearAlloc::realloc");
+            debug!("GlobalGearAlloc::realloc({ptr:?}, {layout:?}, {new_size})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe { (*alloc).realloc(ptr, layout.size(), layout.align(), new_size) }
         }
@@ -198,16 +160,12 @@ mod wasm {
         }
     }
 
-    fn debug(data: &str) {
-        unsafe { gsys::gr_debug(data.as_ptr(), data.len() as u32) }
-    }
-
     unsafe impl dlmalloc::Allocator for GearAlloc {
         fn alloc(&self, size: usize) -> (*mut u8, usize, u32) {
-            stack_debug(format_args!("GearAlloc::alloc({size})"));
+            debug!("GearAlloc::alloc({size})");
 
             if let Some((ptr, size)) = self.init_preinstalled_memory(size) {
-                debug("GearAlloc::init_preinstalled_memory()");
+                debug!("GearAlloc::init_preinstalled_memory({ptr:?}, {size})");
                 return (ptr, size, 0);
             }
 
@@ -222,14 +180,12 @@ mod wasm {
             _newsize: usize,
             _can_move: bool,
         ) -> *mut u8 {
-            debug("GearAlloc::remap");
+            debug!("GearAlloc::remap");
             ptr::null_mut()
         }
 
         fn free_part(&self, ptr: *mut u8, oldsize: usize, newsize: usize) -> bool {
-            stack_debug(format_args!(
-                "GearAlloc::free_part({ptr:?}, {oldsize}, {newsize})"
-            ));
+            debug!("GearAlloc::free_part({ptr:?}, {oldsize}, {newsize})");
 
             if oldsize == newsize {
                 return true;
@@ -239,7 +195,7 @@ mod wasm {
         }
 
         fn free(&self, ptr: *mut u8, size: usize) -> bool {
-            debug("GearAlloc::free");
+            debug!("GearAlloc::free");
             gr_free(ptr, size)
         }
 

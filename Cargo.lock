@@ -5962,7 +5962,7 @@ name = "galloc"
 version = "1.9.0"
 dependencies = [
  "dlmalloc",
- "gear-stack-buffer",
+ "gcore",
  "gsys",
 ]
 
