@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["GasTreeError"],"struct":["AuxiliaryGasProvider","ExternalOrigin","GasNodesWrap","PlainNodeId","ReservationNodeId","TotalIssuanceWrap"],"trait":["GasNodesProvider","GasNodesStorage","TotalIssuanceProvider","TotalIssuanceStorage"],"type":["Node","NodeId"]};
