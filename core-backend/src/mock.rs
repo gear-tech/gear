@@ -148,7 +148,12 @@ impl Externalities for MockExt {
     fn send_push(&mut self, _handle: u32, _buffer: &[u8]) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::UnrecoverableError> {
+    fn send_commit(
+        &mut self,
+        _handle: u32,
+        _msg: HandlePacket,
+        _delay: u32,
+    ) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }
     fn send_push_input(
@@ -159,19 +164,33 @@ impl Externalities for MockExt {
     ) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
-    fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::UnrecoverableError> {
-        Ok(())
-    }
-    fn send_commit(
+    fn reservation_send_commit(
         &mut self,
+        _id: ReservationId,
         _handle: u32,
         _msg: HandlePacket,
         _delay: u32,
     ) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(MessageId::default())
     }
+    fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), Self::UnrecoverableError> {
+        Ok(())
+    }
+    fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, Self::UnrecoverableError> {
+        Ok(MessageId::default())
+    }
+    fn reservation_reply_commit(
+        &mut self,
+        _id: ReservationId,
+        _msg: ReplyPacket,
+    ) -> Result<MessageId, Self::UnrecoverableError> {
+        Ok(MessageId::default())
+    }
     fn reply_to(&self) -> Result<MessageId, Self::UnrecoverableError> {
         Ok(Default::default())
+    }
+    fn signal_from(&self) -> Result<MessageId, Self::UnrecoverableError> {
+        Ok(MessageId::default())
     }
     fn reply_push_input(
         &mut self,
@@ -198,52 +217,14 @@ impl Externalities for MockExt {
     fn debug(&self, _data: &str) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
+    fn payload_slice(&mut self, _at: u32, _len: u32) -> Result<PayloadSlice, Self::FallibleError> {
+        unimplemented!()
+    }
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         Ok(0)
     }
-    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
-        Ok(1_000_000)
-    }
-    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
-        Ok(0)
-    }
-    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
-        Ok(1_000_000)
-    }
     fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
         Ok(([0u8; 32].as_ref(), 0))
-    }
-    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
-        Ok(())
-    }
-    fn wait_for(&mut self, _duration: u32) -> Result<(), Self::UnrecoverableError> {
-        Ok(())
-    }
-    fn wait_up_to(&mut self, _duration: u32) -> Result<bool, Self::UnrecoverableError> {
-        Ok(false)
-    }
-    fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::UnrecoverableError> {
-        Ok(())
-    }
-    fn create_program(
-        &mut self,
-        _packet: InitPacket,
-        _delay: u32,
-    ) -> Result<(MessageId, ActorId), Self::UnrecoverableError> {
-        Ok((Default::default(), Default::default()))
-    }
-    fn reply_deposit(
-        &mut self,
-        _message_id: MessageId,
-        _amount: u64,
-    ) -> Result<(), Self::UnrecoverableError> {
-        Ok(())
-    }
-    fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
-        &self._forbidden_funcs
-    }
-    fn msg_ctx(&self) -> &MessageContext {
-        unimplemented!()
     }
     fn reserve_gas(
         &mut self,
@@ -255,34 +236,53 @@ impl Externalities for MockExt {
     fn unreserve_gas(&mut self, _id: ReservationId) -> Result<u64, Self::UnrecoverableError> {
         Ok(0)
     }
-
     fn system_reserve_gas(&mut self, _amount: u64) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
+    fn gas_available(&self) -> Result<u64, Self::UnrecoverableError> {
+        Ok(1_000_000)
+    }
+    fn value(&self) -> Result<u128, Self::UnrecoverableError> {
+        Ok(0)
+    }
+    fn value_available(&self) -> Result<u128, Self::UnrecoverableError> {
+        Ok(1_000_000)
+    }
+    fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
+        Ok(())
+    }
+    fn wait_for(&mut self, _duration: u32) -> Result<(), Self::UnrecoverableError> {
+        Ok(())
+    }
+    fn wait_up_to(&mut self, _duration: u32) -> Result<bool, Self::UnrecoverableError> {
+        Ok(false)
+    }
 
-    fn reservation_send_commit(
+    fn wake(&mut self, _waker_id: MessageId, _delay: u32) -> Result<(), Self::UnrecoverableError> {
+        Ok(())
+    }
+
+    fn create_program(
         &mut self,
-        _id: ReservationId,
-        _handle: u32,
-        _msg: HandlePacket,
+        _packet: InitPacket,
         _delay: u32,
-    ) -> Result<MessageId, Self::UnrecoverableError> {
-        Ok(MessageId::default())
+    ) -> Result<(MessageId, ActorId), Self::UnrecoverableError> {
+        Ok((Default::default(), Default::default()))
     }
 
-    fn reservation_reply_commit(
+    fn reply_deposit(
         &mut self,
-        _id: ReservationId,
-        _msg: ReplyPacket,
-    ) -> Result<MessageId, Self::UnrecoverableError> {
-        Ok(MessageId::default())
+        _message_id: MessageId,
+        _amount: u64,
+    ) -> Result<(), Self::UnrecoverableError> {
+        Ok(())
     }
 
-    fn signal_from(&self) -> Result<MessageId, Self::UnrecoverableError> {
-        Ok(MessageId::default())
+    fn forbidden_funcs(&self) -> &BTreeSet<SyscallName> {
+        &self._forbidden_funcs
     }
 
-    fn payload_slice(&mut self, _at: u32, _len: u32) -> Result<PayloadSlice, Self::FallibleError> {
+    fn msg_ctx(&self) -> &MessageContext {
         unimplemented!()
     }
 }

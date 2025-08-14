@@ -36,7 +36,7 @@ pub mod state;
 use gear_core::{
     env::Externalities,
     gas::{CountersOwner, GasAmount},
-    memory::MemoryInterval,
+    memory::{Memory, MemoryDump, MemoryError, MemoryInterval},
 };
 use gear_lazy_pages_common::ProcessAccessError;
 
@@ -53,9 +53,43 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
+pub trait MemoryStorer {
+    fn dump_memory<Context>(
+        &mut self,
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError>;
+
+    fn revert_memory<Context>(
+        &self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError>;
+}
+
+pub struct DummyStorer;
+impl MemoryStorer for DummyStorer {
+    fn dump_memory<Context>(
+        &mut self,
+        _ctx: &Context,
+        _memory: &impl Memory<Context>,
+    ) -> Result<MemoryDump, MemoryError> {
+        Err(Default::default())
+    }
+
+    fn revert_memory<Context>(
+        &self,
+        _ctx: &mut Context,
+        _memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError> {
+        Err(Default::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
+        DummyStorer,
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
         mock::MockExt,
@@ -94,13 +128,14 @@ mod tests {
 
         // Execute wasm and check success.
         let ext = MockExt::default();
-        let env =
-            Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-        let report = env.execute(|_, _, _| {}).unwrap();
+        let env = Environment::new(ext, &code, Default::default(), 0.into(), |_, _, _| {}).unwrap();
+        let execution_result = env
+            .execute(DispatchKind::Init, None::<&mut DummyStorer>)
+            .unwrap();
 
         let BackendReport {
             termination_reason, ..
-        } = report;
+        } = execution_result.expect("Expecting success run").report();
 
         assert_eq!(termination_reason, ActorTerminationReason::Success.into());
     }
