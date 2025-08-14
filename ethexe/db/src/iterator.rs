@@ -17,8 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    BlockHeader, BlockMeta, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
-    db::{BlockMetaStorageRead, BlockOutcome, CodesStorageRead, OnChainStorageRead},
+    Announce, AnnounceHash, BlockHeader, ProgramStates, Schedule, ScheduledTask,
+    StateHashWithQueueSize,
+    db::{
+        AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, CodesStorageRead,
+        LatestDataStorageRead, OnChainStorageRead,
+    },
     events::BlockEvent,
     gear::StateTransition,
 };
@@ -39,12 +43,23 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage
+    OnChainStorageRead
+    + BlockMetaStorageRead
+    + AnnounceStorageRead
+    + CodesStorageRead
+    + LatestDataStorageRead
+    + Storage
 {
 }
 
-impl<T: OnChainStorageRead + BlockMetaStorageRead + CodesStorageRead + Storage>
-    DatabaseIteratorStorage for T
+impl<
+    T: OnChainStorageRead
+        + BlockMetaStorageRead
+        + AnnounceStorageRead
+        + CodesStorageRead
+        + LatestDataStorageRead
+        + Storage,
+> DatabaseIteratorStorage for T
 {
 }
 
@@ -134,7 +149,7 @@ node! {
             }
         ),
         BlockMeta(
-            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct BlockMetaNode {
                 pub block: H256,
                 pub meta: BlockMeta,
@@ -154,11 +169,25 @@ node! {
                 pub block_events: Vec<BlockEvent>,
             }
         ),
-        BlockCodesQueue(
+        BlockSynced(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct BlockCodesQueueNode {
+            pub struct BlockSyncedNode {
                 pub block: H256,
-                pub block_codes_queue: VecDeque<CodeId>,
+                pub block_synced: bool,
+            }
+        ),
+        Announce(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct AnnounceNode {
+                pub announce_hash: AnnounceHash,
+                pub announce: Announce,
+            }
+        ),
+        AnnounceMeta(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct AnnounceMetaNode {
+                pub announce_hash: AnnounceHash,
+                pub announce_meta: AnnounceMeta,
             }
         ),
         CodeId(
@@ -200,11 +229,11 @@ node! {
                 pub program_id: ActorId,
             }
         ),
-        BlockProgramStates(
+        AnnounceProgramStates(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct BlockProgramStatesNode {
-                pub block: H256,
-                pub block_program_states: ProgramStates,
+            pub struct AnnounceProgramStatesNode {
+                pub announce_hash: AnnounceHash,
+                pub announce_program_states: ProgramStates,
             }
         ),
         ProgramState(
@@ -213,17 +242,17 @@ node! {
                 pub program_state: ProgramState,
             }
         ),
-        BlockSchedule(
+        AnnounceSchedule(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct BlockScheduleNode {
-                pub block: H256,
-                pub block_schedule: Schedule,
+            pub struct AnnounceScheduleNode {
+                pub announce_hash: AnnounceHash,
+                pub announce_schedule: Schedule,
             }
         ),
-        BlockScheduleTasks(
+        AnnounceScheduleTasks(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct BlockScheduleTasksNode {
-                pub block: H256,
+            pub struct AnnounceScheduleTasksNode {
+                pub announce_hash: AnnounceHash,
                 pub height: u32,
                 pub tasks: BTreeSet<ScheduledTask>,
             }
@@ -234,11 +263,11 @@ node! {
                 pub task: ScheduledTask,
             }
         ),
-        BlockOutcome(
+        AnnounceOutcome(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-            pub struct BlockOutcomeNode {
-                pub block: H256,
-                pub block_outcome: BlockOutcome,
+            pub struct AnnounceOutcomeNode {
+                pub announce_hash: AnnounceHash,
+                pub announce_outcome: Vec<StateTransition>,
             }
         ),
         StateTransition(
@@ -342,10 +371,13 @@ pub enum DatabaseIteratorError {
     /* block */
     NoBlockHeader(H256),
     NoBlockEvents(H256),
-    NoBlockProgramStates(H256),
-    NoBlockSchedule(H256),
-    NoBlockOutcome(H256),
+    NoBlockAnnounces(H256),
     NoBlockCodesQueue(H256),
+
+    NoAnnounce(AnnounceHash),
+    NoAnnounceSchedule(AnnounceHash),
+    NoAnnounceOutcome(AnnounceHash),
+    NoAnnounceProgramStates(AnnounceHash),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -423,22 +455,21 @@ where
         match node {
             Node::Chain(node) => self.iter_chain(*node),
             Node::Block(node) => self.iter_block(*node),
-            Node::BlockMeta(_) => {}
+            Node::BlockMeta(node) => self.iter_block_meta(node),
             Node::BlockHeader(_) => {}
             Node::BlockEvents(_) => {}
-            Node::BlockCodesQueue(node) => self.iter_block_codes_queue(node),
             Node::CodeId(node) => self.iter_code_id(*node),
             Node::CodeValid(_) => {}
             Node::OriginalCode(_) => {}
             Node::InstrumentedCode(_) => {}
             Node::CodeMetadata(_) => {}
             Node::ProgramId(node) => self.iter_program_id(*node),
-            Node::BlockProgramStates(node) => self.iter_block_program_states(node),
+            Node::AnnounceProgramStates(node) => self.iter_announce_program_states(node),
             Node::ProgramState(node) => self.iter_program_state(*node),
-            Node::BlockSchedule(node) => self.iter_block_schedule(node),
-            Node::BlockScheduleTasks(node) => self.iter_block_schedule_tasks(node),
+            Node::AnnounceSchedule(node) => self.iter_announce_schedule(node),
+            Node::AnnounceScheduleTasks(node) => self.iter_announce_schedule_tasks(node),
             Node::ScheduledTask(node) => self.iter_scheduled_task(*node),
-            Node::BlockOutcome(node) => self.iter_block_outcome(node),
+            Node::AnnounceOutcome(node) => self.iter_announce_outcome(node),
             Node::StateTransition(node) => self.iter_state_transition(node),
             Node::Allocations(_) => {}
             Node::MemoryPages(node) => self.iter_memory_pages(node),
@@ -453,6 +484,9 @@ where
             Node::UserMailbox(node) => self.iter_user_mailbox(node),
             Node::DispatchStash(node) => self.iter_dispatch_stash(node),
             Node::Error(_) => {}
+            Node::Announce(node) => self.iter_announce(node),
+            Node::AnnounceMeta(_) => {}
+            Node::BlockSynced(_) => {}
         }
     }
 
@@ -483,25 +517,60 @@ where
 
         try_push_node!(with_hash: self.block_events(block));
 
-        try_push_node!(with_hash: self.block_codes_queue(block));
-
-        try_push_node!(with_hash: self.block_program_states(block));
-
-        try_push_node!(with_hash: self.block_schedule(block));
-
-        try_push_node!(with_hash: self.block_outcome(block));
+        self.push_node(BlockSyncedNode {
+            block,
+            block_synced: self.storage.block_synced(block),
+        });
     }
 
-    fn iter_block_codes_queue(
-        &mut self,
-        BlockCodesQueueNode {
-            block: _,
-            block_codes_queue,
-        }: &BlockCodesQueueNode,
-    ) {
-        for &code_id in block_codes_queue {
-            self.push_node(CodeIdNode { code_id });
+    fn iter_block_meta(&mut self, BlockMetaNode { block, meta }: &BlockMetaNode) {
+        let BlockMeta {
+            prepared: _,
+            announces,
+            codes_queue,
+            last_committed_batch: _,
+            // TODO +_+_+: consider to implement iteration for last_committed_announce
+            last_committed_announce: _,
+        } = meta;
+
+        if let Some(announces) = announces {
+            for &announce_hash in announces {
+                try_push_node!(with_hash: self.announce(announce_hash));
+            }
+        } else {
+            self.push_node(DatabaseIteratorError::NoBlockAnnounces(*block));
         }
+
+        if let Some(codes_queue) = codes_queue {
+            for &code_id in codes_queue {
+                self.push_node(CodeIdNode { code_id });
+            }
+        } else {
+            self.push_node(Node::Error(DatabaseIteratorError::NoBlockCodesQueue(
+                *block,
+            )));
+        }
+    }
+
+    fn iter_announce(
+        &mut self,
+        AnnounceNode {
+            announce_hash,
+            announce: _,
+        }: &AnnounceNode,
+    ) {
+        let announce_hash = *announce_hash;
+        try_push_node!(with_hash: self.announce_schedule(announce_hash));
+        try_push_node!(with_hash: self.announce_outcome(announce_hash));
+        try_push_node!(with_hash: self.announce_program_states(announce_hash));
+
+        self.push_node(AnnounceMetaNode {
+            announce_hash,
+            announce_meta: self.storage.announce_meta(announce_hash),
+        });
+
+        // TODO +_+_+: offchain transactions
+        // TODO +_+_+: consider to iterate over parent announces
     }
 
     fn iter_program_id(&mut self, ProgramIdNode { program_id }: ProgramIdNode) {
@@ -532,17 +601,17 @@ where
         try_push_node!(with_hash: self.code_metadata(code_id));
     }
 
-    fn iter_block_program_states(
+    fn iter_announce_program_states(
         &mut self,
-        BlockProgramStatesNode {
-            block: _,
-            block_program_states,
-        }: &BlockProgramStatesNode,
+        AnnounceProgramStatesNode {
+            announce_hash: _,
+            announce_program_states,
+        }: &AnnounceProgramStatesNode,
     ) {
         for StateHashWithQueueSize {
             hash: program_state,
             cached_queue_size: _,
-        } in block_program_states.values().copied()
+        } in announce_program_states.values().copied()
         {
             try_push_node!(no_hash: self.program_state(program_state));
         }
@@ -598,29 +667,29 @@ where
         }
     }
 
-    fn iter_block_schedule(
+    fn iter_announce_schedule(
         &mut self,
-        BlockScheduleNode {
-            block,
-            block_schedule,
-        }: &BlockScheduleNode,
+        AnnounceScheduleNode {
+            announce_hash,
+            announce_schedule,
+        }: &AnnounceScheduleNode,
     ) {
-        for (&height, tasks) in block_schedule {
-            self.push_node(BlockScheduleTasksNode {
-                block: *block,
+        for (&height, tasks) in announce_schedule {
+            self.push_node(AnnounceScheduleTasksNode {
+                announce_hash: *announce_hash,
                 height,
                 tasks: tasks.clone(),
             });
         }
     }
 
-    fn iter_block_schedule_tasks(
+    fn iter_announce_schedule_tasks(
         &mut self,
-        BlockScheduleTasksNode {
-            block: _,
+        AnnounceScheduleTasksNode {
+            announce_hash: _,
             height: _,
             tasks,
-        }: &BlockScheduleTasksNode,
+        }: &AnnounceScheduleTasksNode,
     ) {
         for &task in tasks {
             self.push_node(ScheduledTaskNode { task });
@@ -650,22 +719,17 @@ where
         }
     }
 
-    fn iter_block_outcome(
+    fn iter_announce_outcome(
         &mut self,
-        BlockOutcomeNode {
-            block: _,
-            block_outcome,
-        }: &BlockOutcomeNode,
+        AnnounceOutcomeNode {
+            announce_hash: _,
+            announce_outcome,
+        }: &AnnounceOutcomeNode,
     ) {
-        match block_outcome {
-            BlockOutcome::Transitions(transitions) => {
-                for state_transition in transitions {
-                    self.push_node(StateTransitionNode {
-                        state_transition: state_transition.clone(),
-                    });
-                }
-            }
-            BlockOutcome::ForcedNonEmpty => {}
+        for state_transition in announce_outcome {
+            self.push_node(StateTransitionNode {
+                state_transition: state_transition.clone(),
+            });
         }
     }
 
@@ -820,12 +884,16 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{Database, iterator::DatabaseIteratorError};
     use ethexe_common::StateHashWithQueueSize;
     use gprimitives::MessageId;
     use std::collections::BTreeMap;
+
+    pub fn setup_db() -> Database {
+        Database::memory()
+    }
 
     #[test]
     fn walk_chain_basic() {
@@ -834,7 +902,7 @@ mod tests {
 
         // This will fail because we don't have the block header in the database
         assert!(
-            DatabaseIterator::new(Database::memory(), ChainNode { head, bottom })
+            DatabaseIterator::new(setup_db(), ChainNode { head, bottom })
                 .filter_map(Node::into_error)
                 .any(|error| error.is_no_block_header())
         );
@@ -844,7 +912,7 @@ mod tests {
     fn walk_block_with_missing_data() {
         let block = H256::from_low_u64_be(42);
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory(), BlockNode { block })
+        let errors: Vec<_> = DatabaseIterator::new(setup_db(), BlockNode { block })
             .filter_map(Node::into_error)
             .collect();
 
@@ -853,9 +921,7 @@ mod tests {
             DatabaseIteratorError::NoBlockHeader(block),
             DatabaseIteratorError::NoBlockEvents(block),
             DatabaseIteratorError::NoBlockCodesQueue(block),
-            DatabaseIteratorError::NoBlockProgramStates(block),
-            DatabaseIteratorError::NoBlockSchedule(block),
-            DatabaseIteratorError::NoBlockOutcome(block),
+            DatabaseIteratorError::NoBlockAnnounces(block),
         ];
 
         for expected_error in expected_errors {
@@ -867,38 +933,13 @@ mod tests {
     }
 
     #[test]
-    fn walk_block_codes_queue() {
-        let block = H256::random();
-        let code_id1 = CodeId::from([1u8; 32]);
-        let code_id2 = CodeId::from([2u8; 32]);
-        let mut queue = VecDeque::new();
-        queue.push_back(code_id1);
-        queue.push_back(code_id2);
-
-        let visited_codes: Vec<_> = DatabaseIterator::new(
-            Database::memory(),
-            BlockCodesQueueNode {
-                block,
-                block_codes_queue: queue,
-            },
-        )
-        .filter_map(Node::into_code_id)
-        .map(|node| node.code_id)
-        .collect();
-
-        assert_eq!(visited_codes.len(), 2);
-        assert!(visited_codes.contains(&code_id1));
-        assert!(visited_codes.contains(&code_id2));
-    }
-
-    #[test]
-    fn walk_block_program_states() {
-        let block = H256::random();
+    fn walk_announce_program_states() {
+        let announce_hash = AnnounceHash::random();
         let program_id = ActorId::from([3u8; 32]);
         let state_hash = H256::random();
 
-        let mut block_program_states = BTreeMap::new();
-        block_program_states.insert(
+        let mut announce_program_states = BTreeMap::new();
+        announce_program_states.insert(
             program_id,
             StateHashWithQueueSize {
                 hash: state_hash,
@@ -907,10 +948,10 @@ mod tests {
         );
 
         let errors: Vec<_> = DatabaseIterator::new(
-            Database::memory(),
-            BlockProgramStatesNode {
-                block,
-                block_program_states,
+            setup_db(),
+            AnnounceProgramStatesNode {
+                announce_hash,
+                announce_program_states,
             },
         )
         .filter_map(Node::into_error)
@@ -923,10 +964,9 @@ mod tests {
     fn walk_program_id_missing_code() {
         let program_id = ActorId::from([5u8; 32]);
 
-        let errors: Vec<_> =
-            DatabaseIterator::new(Database::memory(), ProgramIdNode { program_id })
-                .filter_map(Node::into_error)
-                .collect();
+        let errors: Vec<_> = DatabaseIterator::new(setup_db(), ProgramIdNode { program_id })
+            .filter_map(Node::into_error)
+            .collect();
 
         assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(program_id)));
     }
@@ -935,7 +975,7 @@ mod tests {
     fn walk_code_id_missing_data() {
         let code_id = CodeId::from(1);
 
-        let errors: Vec<_> = DatabaseIterator::new(Database::memory(), CodeIdNode { code_id })
+        let errors: Vec<_> = DatabaseIterator::new(setup_db(), CodeIdNode { code_id })
             .filter_map(Node::into_error)
             .collect();
 
@@ -957,7 +997,7 @@ mod tests {
         let task = ScheduledTask::PauseProgram(program_id);
 
         let visited_programs: Vec<_> =
-            DatabaseIterator::new(Database::memory(), ScheduledTaskNode { task })
+            DatabaseIterator::new(setup_db(), ScheduledTaskNode { task })
                 .filter_map(Node::into_program_id)
                 .map(|node| node.program_id)
                 .collect();
@@ -970,18 +1010,17 @@ mod tests {
         let code_id = CodeId::from([7u8; 32]);
         let task = ScheduledTask::RemoveCode(code_id);
 
-        let visited_codes: Vec<_> =
-            DatabaseIterator::new(Database::memory(), ScheduledTaskNode { task })
-                .filter_map(Node::into_code_id)
-                .map(|node| node.code_id)
-                .collect();
+        let visited_codes: Vec<_> = DatabaseIterator::new(setup_db(), ScheduledTaskNode { task })
+            .filter_map(Node::into_code_id)
+            .map(|node| node.code_id)
+            .collect();
 
         assert!(visited_codes.contains(&code_id));
     }
 
     #[test]
-    fn walk_block_schedule_tasks() {
-        let block = H256::random();
+    fn walk_announce_schedule_tasks() {
+        let announce_hash = AnnounceHash::random();
         let program_id1 = ActorId::from([10u8; 32]);
         let program_id2 = ActorId::from([11u8; 32]);
         let code_id = CodeId::from([12u8; 32]);
@@ -992,9 +1031,9 @@ mod tests {
         tasks.insert(ScheduledTask::WakeMessage(program_id2, MessageId::zero()));
 
         let visited: Vec<_> = DatabaseIterator::new(
-            Database::memory(),
-            BlockScheduleTasksNode {
-                block,
+            setup_db(),
+            AnnounceScheduleTasksNode {
+                announce_hash,
                 height: 123,
                 tasks,
             },
@@ -1021,20 +1060,20 @@ mod tests {
     }
 
     #[test]
-    fn walk_block_schedule() {
-        let block = H256::from([13u8; 32]);
+    fn walk_announce_schedule() {
+        let announce_hash = AnnounceHash::random();
         let program_id = ActorId::from([14u8; 32]);
 
-        let mut block_schedule = BTreeMap::new();
+        let mut announce_schedule = BTreeMap::new();
         let mut tasks = BTreeSet::new();
         tasks.insert(ScheduledTask::PauseProgram(program_id));
-        block_schedule.insert(1000u32, tasks);
+        announce_schedule.insert(1000u32, tasks);
 
         let visited_programs: Vec<_> = DatabaseIterator::new(
-            Database::memory(),
-            BlockScheduleNode {
-                block,
-                block_schedule,
+            setup_db(),
+            AnnounceScheduleNode {
+                announce_hash,
+                announce_schedule,
             },
         )
         .filter_map(Node::into_program_id)
@@ -1045,16 +1084,16 @@ mod tests {
     }
 
     #[test]
-    fn walk_block_outcome() {
-        let block = H256::from([16u8; 32]);
+    fn walk_announce_outcome() {
+        let announce_hash = AnnounceHash::random();
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 
         let errors: Vec<_> = DatabaseIterator::new(
-            Database::memory(),
-            BlockOutcomeNode {
-                block,
-                block_outcome: BlockOutcome::Transitions(vec![StateTransition {
+            setup_db(),
+            AnnounceOutcomeNode {
+                announce_hash,
+                announce_outcome: vec![StateTransition {
                     actor_id,
                     new_state_hash,
                     exited: false,
@@ -1062,7 +1101,7 @@ mod tests {
                     value_to_receive: 0,
                     value_claims: vec![],
                     messages: vec![],
-                }]),
+                }],
             },
         )
         .filter_map(Node::into_error)
@@ -1088,8 +1127,7 @@ mod tests {
         };
 
         let nodes: Vec<_> =
-            DatabaseIterator::new(Database::memory(), StateTransitionNode { state_transition })
-                .collect();
+            DatabaseIterator::new(setup_db(), StateTransitionNode { state_transition }).collect();
 
         let visited_programs: Vec<_> = nodes
             .iter()
@@ -1119,7 +1157,7 @@ mod tests {
         };
 
         let visited_states: Vec<_> =
-            DatabaseIterator::new(Database::memory(), StateTransitionNode { state_transition })
+            DatabaseIterator::new(setup_db(), StateTransitionNode { state_transition })
                 .filter_map(Node::into_program_state)
                 .map(|node| node.program_state)
                 .collect();
@@ -1133,7 +1171,7 @@ mod tests {
         let payload_lookup = PayloadLookup::Direct(payload.clone());
 
         let visited_payloads: Vec<_> =
-            DatabaseIterator::new(Database::memory(), PayloadLookupNode { payload_lookup })
+            DatabaseIterator::new(setup_db(), PayloadLookupNode { payload_lookup })
                 .filter_map(Node::into_payload)
                 .map(|node| node.payload)
                 .collect();
@@ -1143,7 +1181,7 @@ mod tests {
 
     #[test]
     fn walk_payload_lookup_stored() {
-        let db = Database::memory();
+        let db = setup_db();
         let payload = Payload::filled_with(0xfe);
         let payload_hash = db.write_payload(payload.clone());
 

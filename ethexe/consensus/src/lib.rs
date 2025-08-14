@@ -40,12 +40,12 @@ mod mock;
 
 use anyhow::Result;
 pub use connect::SimpleConnectService;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{Announce, AnnounceHash, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 pub use utils::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
-    SignedValidationRequest,
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
+    SignedValidationRequest, block_producer_for, block_producer_index,
 };
 pub use validator::{ValidatorConfig, ValidatorService};
 
@@ -61,11 +61,14 @@ pub trait ConsensusService:
     /// Process a synced block info
     fn receive_synced_block(&mut self, block: H256) -> Result<()>;
 
+    /// Process a prepared block received
+    fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
+
     /// Process a computed block received
-    fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
+    fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()>;
 
     /// Process a received producer block
-    fn receive_block_from_producer(&mut self, block: SignedProducerBlock) -> Result<()>;
+    fn receive_announce(&mut self, block: SignedAnnounce) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: SignedValidationRequest) -> Result<()>;
@@ -76,13 +79,10 @@ pub trait ConsensusService:
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub enum ConsensusEvent {
-    /// Outer service have to compute block
-    #[from(skip)]
-    ComputeBlock(H256),
-    /// Outer service have to compute producer block
-    ComputeProducerBlock(ProducerBlock),
-    /// Outer service have to publish signed producer block
-    PublishProducerBlock(SignedProducerBlock),
+    /// Outer service have to compute announce
+    ComputeAnnounce(Announce),
+    /// Outer service have to publish signed announce
+    PublishAnnounce(SignedAnnounce),
     /// Outer service have to publish signed validation request
     PublishValidationRequest(SignedValidationRequest),
     /// Outer service have to publish signed validation reply
@@ -93,18 +93,4 @@ pub enum ConsensusEvent {
     /// Informational event: during service processing, a warning situation was detected
     #[from(skip)]
     Warning(String),
-}
-
-// TODO #4553: temporary implementation, should be improved
-/// Returns block producer for time slot. Next slot is the next validator in the list.
-pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
-    (slot % validators_amount as u64) as usize
-}
-
-#[test]
-fn block_producer_index_calculates_correct_index() {
-    let validators_amount = 5;
-    let slot = 7;
-    let index = crate::block_producer_index(validators_amount, slot);
-    assert_eq!(index, 2);
 }

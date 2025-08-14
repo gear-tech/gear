@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IRouter, utils::*};
-use ethexe_common::{Digest, events::RouterEvent};
+use ethexe_common::{AnnounceHash, Digest, events::RouterEvent};
 
 impl From<IRouter::BatchCommitted> for RouterEvent {
     fn from(value: IRouter::BatchCommitted) -> Self {
@@ -27,9 +27,9 @@ impl From<IRouter::BatchCommitted> for RouterEvent {
     }
 }
 
-impl From<IRouter::HeadCommitted> for RouterEvent {
-    fn from(value: IRouter::HeadCommitted) -> Self {
-        Self::HeadCommitted(value.head.0.into())
+impl From<IRouter::AnnouncesCommitted> for RouterEvent {
+    fn from(value: IRouter::AnnouncesCommitted) -> Self {
+        Self::AnnouncesCommitted(AnnounceHash(value.head.0.into()))
     }
 }
 
