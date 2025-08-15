@@ -34,7 +34,7 @@ use gprimitives::H256;
 pub struct RuntimeInterfaceStorage;
 
 impl Storage for RuntimeInterfaceStorage {
-    fn read_state(&self, hash: H256) -> Option<ProgramState> {
+    fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             Some(ProgramState::zero())
         } else {
@@ -42,7 +42,7 @@ impl Storage for RuntimeInterfaceStorage {
         }
     }
 
-    fn write_state(&self, state: ProgramState) -> H256 {
+    fn write_program_state(&self, state: ProgramState) -> H256 {
         if state.is_zero() {
             return H256::zero();
         }
@@ -50,15 +50,15 @@ impl Storage for RuntimeInterfaceStorage {
         database_ri::write(state)
     }
 
-    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+    fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
-    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+    fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
         unsafe { HashOf::new(database_ri::write(queue)) }
     }
 
-    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+    fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
@@ -66,15 +66,15 @@ impl Storage for RuntimeInterfaceStorage {
         unsafe { HashOf::new(database_ri::write(waitlist)) }
     }
 
-    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+    fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
-    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+    fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
         unsafe { HashOf::new(database_ri::write(stash)) }
     }
 
-    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+    fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
@@ -82,7 +82,7 @@ impl Storage for RuntimeInterfaceStorage {
         unsafe { HashOf::new(database_ri::write(mailbox)) }
     }
 
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+    fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
@@ -90,23 +90,26 @@ impl Storage for RuntimeInterfaceStorage {
         unsafe { HashOf::new(database_ri::write(user_mailbox)) }
     }
 
-    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+    fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
-    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+    fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
-    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+    fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(database_ri::write(pages)) }
     }
 
-    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+    fn write_memory_pages_region(
+        &self,
+        pages_region: MemoryPagesRegion,
+    ) -> HashOf<MemoryPagesRegion> {
         unsafe { HashOf::new(database_ri::write(pages_region)) }
     }
 
-    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+    fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
         database_ri::read_unwrapping(&hash.hash())
     }
 
@@ -114,7 +117,7 @@ impl Storage for RuntimeInterfaceStorage {
         unsafe { HashOf::new(database_ri::write(allocations)) }
     }
 
-    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+    fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         // TODO: review this.
         database_ri::read_raw(&hash.hash()).map(|slice| slice.to_vec().try_into().unwrap())
     }
@@ -123,7 +126,7 @@ impl Storage for RuntimeInterfaceStorage {
         unsafe { HashOf::new(database_ri::write(payload)) }
     }
 
-    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+    fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
         database_ri::read_unwrapping(&hash.hash())
     }
 

@@ -283,7 +283,7 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
-        db.set_block_header(genesis_block_hash, genesis_header.clone());
+        db.set_block_header(genesis_block_hash, genesis_header);
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
         db.mutate_block_meta(genesis_block_hash, |meta| {
@@ -298,7 +298,7 @@ impl ObserverService {
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header.clone());
+        db.set_latest_computed_block(genesis_block_hash, genesis_header);
         db.set_validators(genesis_block_hash, genesis_validators);
 
         Ok(genesis_header)

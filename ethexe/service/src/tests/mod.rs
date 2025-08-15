@@ -34,7 +34,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
 };
-use ethexe_db::Database;
+use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
@@ -497,11 +497,11 @@ async fn mailbox() {
     let mirror = env.ethereum.mirror(pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
 
-    let state = node.db.read_state(state_hash).unwrap();
+    let state = node.db.program_state(state_hash).unwrap();
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.mailbox(hash).unwrap());
 
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
@@ -520,11 +520,11 @@ async fn mailbox() {
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
-    let state = node.db.read_state(state_hash).unwrap();
+    let state = node.db.program_state(state_hash).unwrap();
     assert!(!state.mailbox_hash.is_empty());
     let mailbox = state
         .mailbox_hash
-        .map_or_default(|hash| node.db.read_mailbox(hash).unwrap());
+        .map_or_default(|hash| node.db.mailbox(hash).unwrap());
 
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
@@ -562,7 +562,7 @@ async fn mailbox() {
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
-    let state = node.db.read_state(state_hash).unwrap();
+    let state = node.db.program_state(state_hash).unwrap();
     assert!(state.mailbox_hash.is_empty());
 
     let schedule = node
@@ -623,7 +623,7 @@ async fn incoming_transfers() {
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, 0);
 
     // 1_000 tokens
@@ -648,7 +648,7 @@ async fn incoming_transfers() {
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
     env.approve_wvara(ping_id).await;
@@ -672,7 +672,7 @@ async fn incoming_transfers() {
     assert_eq!(on_eth_balance, 2 * VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.read_state(state_hash).unwrap().balance;
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, 2 * VALUE_SENT);
 }
 
@@ -1097,6 +1097,14 @@ async fn fast_sync() {
 
     let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
         log::info!("Assert chain in range {latest_block}..{fast_synced_block}");
+
+        IntegrityVerifier::new(alice.db.clone())
+            .verify_chain(latest_block, fast_synced_block)
+            .expect("failed to verify Alice database");
+
+        IntegrityVerifier::new(bob.db.clone())
+            .verify_chain(latest_block, fast_synced_block)
+            .expect("failed to verify Bob database");
 
         assert_eq!(
             alice.db.latest_computed_block(),

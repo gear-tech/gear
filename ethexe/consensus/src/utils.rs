@@ -238,9 +238,12 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             }
         }
 
-        transitions.push(db.block_outcome(block_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db outcome for computed block {block_hash}")
-        })?);
+        let block_outcome = db
+            .block_outcome(block_hash)
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block_hash}"))?
+            .into_transitions()
+            .ok_or_else(|| anyhow!("`block_outcome` is called on forced non-empty outcome"))?;
+        transitions.push(block_outcome);
 
         block_hash = db
             .block_header(block_hash)

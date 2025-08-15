@@ -172,7 +172,7 @@ fn handle_new_code_valid() {
     assert!(
         processor
             .db
-            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
             .is_none()
     );
 
@@ -196,7 +196,7 @@ fn handle_new_code_valid() {
     assert!(
         processor
             .db
-            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
             .expect("failed to read instrumented code")
             .bytes()
             .len()
@@ -227,7 +227,7 @@ fn handle_new_code_invalid() {
     assert!(
         processor
             .db
-            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
             .is_none()
     );
 
@@ -244,7 +244,7 @@ fn handle_new_code_invalid() {
     assert!(
         processor
             .db
-            .instrumented_code(ethexe_runtime::VERSION, code_id)
+            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
             .is_none()
     );
 

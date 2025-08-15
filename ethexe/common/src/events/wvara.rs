@@ -19,7 +19,7 @@
 use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum Event {
     Transfer {
         from: ActorId,
