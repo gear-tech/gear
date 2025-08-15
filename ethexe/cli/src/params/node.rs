@@ -202,6 +202,7 @@ impl MergeParams for NodeParams {
                 .or(with.chunk_processing_threads),
 
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
+            gas_limit_multiplier: self.gas_limit_multiplier.or(with.gas_limit_multiplier),
 
             fast_sync: self.fast_sync || with.fast_sync,
         }
