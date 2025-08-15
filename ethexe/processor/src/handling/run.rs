@@ -127,7 +127,7 @@ pub struct RunnerConfig {
     pub gas_limit_multiplier: u64,
 }
 
-/// Programs queues execution mode.
+/// Program's queue execution mode.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ExecutionMode {
     Normal,
@@ -199,9 +199,9 @@ pub async fn run(
                 let gas_allowance_for_chunk =
                     allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
 
-                if let Some(overlaid_context) = overlaid_ctx.as_mut() {
+                if let Some(overlaid_ctx) = overlaid_ctx.as_mut() {
                     // If we are in overlaid execution mode, nullify queues for all programs except for the base one.
-                    if overlaid_context.nullify_queue(program_id, in_block_transitions) {
+                    if overlaid_ctx.nullify_queue(program_id, in_block_transitions) {
                         // If the queue was already nullified, skip job spawning.
                         continue 'exec_spawning;
                     }
