@@ -25,6 +25,7 @@ use ethexe_runtime_common::{
 use gprimitives::{ActorId, CodeId, H256};
 
 pub(crate) mod events;
+mod overlaid;
 pub(crate) mod run;
 
 /// A high-level interface for executing ops,

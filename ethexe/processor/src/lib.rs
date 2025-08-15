@@ -36,6 +36,8 @@ use host::InstanceCreator;
 
 pub use common::LocalOutcome;
 
+use crate::handling::run::ExecutionMode;
+
 pub mod host;
 
 mod common;
@@ -247,7 +249,7 @@ impl Processor {
                 // No overlay execution is done, so no need for a multiplication.
                 gas_limit_multiplier: 1,
             },
-            None,
+            ExecutionMode::Normal,
         )
         .await;
     }
@@ -308,7 +310,7 @@ impl OverlaidProcessor {
                 block_gas_limit: self.0.config().block_gas_limit,
                 gas_limit_multiplier: self.0.config().gas_limit_multiplier,
             },
-            Some(program_id),
+            ExecutionMode::Overlaid(program_id),
         )
         .await;
 

@@ -104,6 +104,10 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
+use crate::{
+    handling::overlaid::OverlaidContext,
+    host::{InstanceCreator, InstanceWrapper},
+};
 use core_processor::common::JournalNote;
 use ethexe_common::{
     StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
@@ -117,12 +121,30 @@ use gprimitives::{ActorId, H256, MessageId};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
-use crate::host::{InstanceCreator, InstanceWrapper};
-
 pub struct RunnerConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
     pub gas_limit_multiplier: u64,
+}
+
+/// Programs queues execution mode.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum ExecutionMode {
+    Normal,
+    Overlaid(ActorId),
+}
+
+impl ExecutionMode {
+    pub(crate) fn overlay_base_program(&self) -> Option<ActorId> {
+        match self {
+            ExecutionMode::Normal => None,
+            ExecutionMode::Overlaid(base_program) => Some(*base_program),
+        }
+    }
+
+    pub(crate) fn is_overlaid(&self) -> bool {
+        matches!(self, ExecutionMode::Overlaid(_))
+    }
 }
 
 pub async fn run(
@@ -130,7 +152,7 @@ pub async fn run(
     instance_creator: InstanceCreator,
     in_block_transitions: &mut InBlockTransitions,
     config: RunnerConfig,
-    overlaid_execution: Option<ActorId>,
+    execution_mode: ExecutionMode,
 ) {
     let mut join_set = JoinSet::new();
     let chunk_size = config.chunk_processing_threads;
@@ -141,13 +163,11 @@ pub async fn run(
     );
     let mut is_out_of_gas_for_block = false;
 
-    // Orchestrate programs message queues for overlaid execution only once before the run-loop.
-    if let Some(base_program) = overlaid_execution {
-        orchestrate_queues_for_overlaid_execution(in_block_transitions, &db, base_program);
-    }
+    let mut overlaid_ctx = execution_mode
+        .overlay_base_program()
+        .map(|base_program| OverlaidContext::new(base_program, db.clone(), in_block_transitions));
 
     'main: loop {
-        // todo [sab] try with one run orchestrate
         let states = in_block_transitions
             .states_iter()
             .filter_map(|(&actor_id, &state)| {
@@ -159,7 +179,7 @@ pub async fn run(
             })
             .collect();
 
-        let chunks = split_to_chunks(chunk_size, states);
+        let chunks = split_to_chunks(chunk_size, states, execution_mode);
 
         if chunks.is_empty() {
             // No more chunks to process. Stopping.
@@ -168,7 +188,9 @@ pub async fn run(
 
         for chunk in chunks {
             let chunk_len = chunk.len();
-            for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
+            'exec_spawning: for (chunk_pos, (program_id, state_hash)) in
+                chunk.into_iter().enumerate()
+            {
                 let db = db.clone();
                 let mut executor = instance_creator
                     .instantiate()
@@ -176,6 +198,14 @@ pub async fn run(
 
                 let gas_allowance_for_chunk =
                     allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+
+                if let Some(overlaid_context) = overlaid_ctx.as_mut() {
+                    // If we are in overlaid execution mode, nullify queues for all programs except for the base one.
+                    if overlaid_context.nullify_queue(program_id, in_block_transitions) {
+                        // If the queue was already nullified, skip job spawning.
+                        continue 'exec_spawning;
+                    }
+                }
 
                 let _ = join_set.spawn_blocking(move || {
                     let (jn, new_state_hash, gas_spent) = run_runtime(
@@ -209,16 +239,28 @@ pub async fn run(
                 max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
             }
 
-            for program_journals in chunk_journals {
+            'chunk_processing: for program_journals in chunk_journals {
                 let Some((program_id, program_journals)) = program_journals else {
-                    unreachable!("Program journal is `None`, this should never happen");
+                    if execution_mode.is_overlaid() {
+                        continue 'chunk_processing;
+                    }
+                    unreachable!(
+                        "Program journal is `None`, this should never happen in a common execution"
+                    );
                 };
 
                 // Flag signals that journals processing can be stopped early, as an expected reply was found.
-                let mut overlay_early_break = overlaid_execution.is_some().then_some(false);
+                let mut overlay_early_break = execution_mode.is_overlaid().then_some(false);
                 for (journal, dispatch_origin, call_reply) in program_journals {
                     if let Some(flag) = overlay_early_break.as_mut() {
                         try_set_early_break(flag, &journal);
+                    }
+
+                    // When it's `Some(true)`, no need to nullify queues anymore.
+                    if matches!(overlay_early_break, Some(false))
+                        && let Some(overlaid_ctx) = overlaid_ctx.as_mut()
+                    {
+                        overlaid_ctx.nullify_receivers_queues(&journal, in_block_transitions);
                     }
 
                     let mut journal_handler = JournalHandler {
@@ -251,58 +293,12 @@ pub async fn run(
     }
 }
 
-/// Cleans-up queues for all programs except for the base one.
-///
-/// The base program will have the first message in its queue remaining intact.
-///
-/// Orchestration serves as a preparation step for overlaid execution, which itself is
-/// used to calculate reply for calling `handle` function of the program without actually
-/// executing it. Nullifying queues makes the calculation faster by cleaning up possibly
-/// long queues of unrelated programs (or short queues of numerous unrelated programs).
-fn orchestrate_queues_for_overlaid_execution(
-    in_block_transitions: &mut InBlockTransitions,
-    db: &Database,
-    base_program: ActorId,
-) {
-    let non_empty_queues_programs = in_block_transitions
-        .states_iter()
-        .filter_map(|(&actor_id, state)| (state.cached_queue_size != 0).then_some(actor_id))
-        .collect::<Vec<_>>();
-
-    for program in non_empty_queues_programs {
-        log::trace!("Nullifying queue for program {program}");
-        let mut transition_controller = TransitionController {
-            transitions: in_block_transitions,
-            storage: db,
-        };
-        transition_controller.update_state(program, |state, _, _| {
-            state.queue.modify_queue(db, |queue| {
-                if program == base_program {
-                    log::trace!("Base program queue will be nullified");
-                    log::trace!("Queue state - {:#?}", queue);
-                    // Last dispatch is the one for which overlaid executor was created.
-                    // Implicit invariant!
-                    let dispatch = queue
-                        .pop_back()
-                        .expect("last dispatch must be added before");
-                    queue.clear();
-                    queue.queue(dispatch);
-                    log::trace!("Queue state after - {:#?}", queue);
-                } else {
-                    log::trace!("Queue state before nullification - {:#?}", queue);
-                    queue.clear();
-                    log::trace!("Queue state after nullification - {:#?}", queue);
-                }
-            });
-        });
-    }
-}
-
 // `split_to_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
 // but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
 fn split_to_chunks(
     chunk_size: usize,
     states: Vec<(ActorId, StateHashWithQueueSize)>,
+    execution_mode: ExecutionMode,
 ) -> Vec<Vec<(ActorId, H256)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
@@ -323,7 +319,20 @@ fn split_to_chunks(
     {
         let queue_size = cached_queue_size as usize;
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
-        chunks[chunk_idx].push((actor_id, hash));
+
+        if let Some(base_program) = execution_mode.overlay_base_program()
+            && base_program == actor_id
+        {
+            // Insert base program into heaviest chunk, which is going to be executed first.
+            // This is done to get faster reply from the target dispatch for which overlaid
+            // executor was created.
+            chunks
+                .last_mut()
+                .expect("chunks instantiated with `number_of_chunks` len")
+                .push((actor_id, hash));
+        } else {
+            chunks[chunk_idx].push((actor_id, hash));
+        }
     }
 
     chunks
@@ -415,7 +424,7 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        let chunks = split_to_chunks(CHUNK_PROCESSING_THREADS, states);
+        let chunks = split_to_chunks(CHUNK_PROCESSING_THREADS, states, ExecutionMode::Normal);
 
         // Checking chunks partitioning
         let accum_chunks = chunks
@@ -440,8 +449,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn nullification() {
+    #[test]
+    fn nullification() {
         let mem_db = ethexe_db::MemDb::default();
         let db = Database::from_one(&mem_db);
 
@@ -554,8 +563,8 @@ mod tests {
             assert_eq!(queue.len(), 3);
         });
 
-        orchestrate_queues_for_overlaid_execution(&mut in_block_transitions, &db, base_program);
-
+        let mut overlaid_ctx =
+            OverlaidContext::new(base_program, db.clone(), &mut in_block_transitions);
         access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
             let mut queue = state
                 .queue
@@ -566,6 +575,8 @@ mod tests {
             let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
             assert_eq!(dispatch.id, pid2_overlay_mid2);
         });
+
+        assert!(overlaid_ctx.nullify_queue(pid1, &mut in_block_transitions));
         access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
             let queue = state
                 .queue
