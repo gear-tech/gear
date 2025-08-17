@@ -183,6 +183,7 @@ library Gear {
         address networkRegistry;
         address middlewareService;
         address networkOptIn;
+        address vaultOptIn;
         // address operatorRewards;
         // address operatorRewardsFactory;
         address stakerRewardsFactory;

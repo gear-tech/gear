@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -39,11 +40,10 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
 contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
-
-    using EnumerableMap for EnumerableMap.AddressToAddressMap;
-    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
 
     using Subnetwork for address;
 
@@ -125,8 +125,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         newStorage.registries = oldStorage.registries;
 
         for (uint256 i = 0; i < oldStorage.operators.length(); i++) {
-            (address key, uint256 value) = oldStorage.operators.at(i);
-            newStorage.operators.set(key, value);
+            address operator = oldStorage.operators.at(i);
+            newStorage.operators.add(operator);
         }
 
         for (uint256 i = 0; i < oldStorage.vaults.length(); i++) {
@@ -223,37 +223,18 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     // TODO: Check that total stake is big enough
-    function registerOperator() external {
+    function registerOperator() external returns (bool registered) {
         Storage storage $ = _storage();
 
         if (!IRegistry($.registries.operatorRegistry).isEntity(msg.sender)) {
             revert OperatorDoesNotExist();
         }
-        if (!IOptInService($.registries.networkOptIn).isOptedIn(msg.sender, address(this))) {
-            revert OperatorDoesNotOptIn();
-        }
 
-        $.operators.append(msg.sender, 0);
+        registered = $.operators.add(msg.sender);
     }
 
-    function disableOperator() external {
-        _storage().operators.disable(msg.sender);
-    }
-
-    function enableOperator() external {
-        _storage().operators.enable(msg.sender);
-    }
-
-    function unregisterOperator(address operator) external {
-        Storage storage $ = _storage();
-
-        (, uint48 disabledTime) = $.operators.getTimes(operator);
-
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + $.operatorGracePeriod) {
-            revert OperatorGracePeriodNotPassed();
-        }
-
-        $.operators.remove(operator);
+    function unregisterOperator() external returns (bool unregistered) {
+        unregistered = _storage().operators.remove(msg.sender);
     }
 
     function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32) {
@@ -380,8 +361,11 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _validTimestamp(ts)
         returns (uint256 stake)
     {
-        (uint48 enabledTime, uint48 disabledTime) = _storage().operators.getTimes(operator);
-        if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
+        Storage storage $ = _storage();
+
+        // If not opted into network, then stake is zero.
+        // TODO: replace `address(this)` with $.router, because of in future must be router = network
+        if (!IOptInService($.registries.networkOptIn).isOptedInAt(operator, address(this), ts, bytes(""))) {
             return 0;
         }
 
@@ -402,9 +386,11 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         uint256 operatorIdx = 0;
 
         for (uint256 i; i < $.operators.length(); ++i) {
-            (address operator, uint48 enabled, uint48 disabled) = $.operators.atWithTimes(i);
+            address operator = $.operators.at(i);
 
-            if (!_wasActiveAt(enabled, disabled, ts)) {
+            // If not opted into network, then skip operator.
+            // TODO: replace `address(this)` with $.router, because of in future must be router = network
+            if (!IOptInService($.registries.networkOptIn).isOptedInAt(operator, address(this), ts, bytes(""))) {
                 continue;
             }
 
@@ -469,6 +455,11 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = $.vaults.atWithTimes(i);
 
             if (!_wasActiveAt(vaultEnabledTime, vaultDisabledTime, ts)) {
+                continue;
+            }
+
+            // If not opted into vault, then stake is zero.
+            if (!IOptInService($.registries.vaultOptIn).isOptedInAt(operator, vault, ts, bytes(""))) {
                 continue;
             }
 

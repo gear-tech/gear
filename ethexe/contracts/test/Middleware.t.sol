@@ -47,12 +47,6 @@ contract MiddlewareTest is Base {
         sym = POCBaseTest(address(this));
     }
 
-    // TODO: sync with the latest version of the middleware
-    function test_constructor() public view {
-        assertTrue(sym.networkRegistry().isEntity(address(middleware)));
-        assertEq(sym.networkMiddlewareService().middleware(address(middleware)), address(middleware));
-    }
-
     function test_election() public {
         address[] memory operators = new address[](5);
         address[] memory vaults = new address[](operators.length);
@@ -128,57 +122,37 @@ contract MiddlewareTest is Base {
         // Register operator
         vm.startPrank(address(0x1));
         {
-            sym.operatorRegistry().registerOperator();
-            sym.operatorNetworkOptInService().optIn(address(middleware));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotExist.selector));
             middleware.registerOperator();
 
-            // Try to register operator again
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyAdded.selector));
-            middleware.registerOperator();
+            sym.operatorRegistry().registerOperator();
+            assertTrue(middleware.registerOperator());
+
+            // Try to register operator again - false expected, because of already added to set
+            assertFalse(middleware.registerOperator());
+
+            assertTrue(middleware.unregisterOperator());
+
+            assertFalse(middleware.unregisterOperator());
         }
         vm.stopPrank();
 
         // Try to register another operator without registering it in symbiotic
-        vm.startPrank(address(0x2));
-        {
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotExist.selector));
-            middleware.registerOperator();
-
-            // Try to register operator without opting in network
-            sym.operatorRegistry().registerOperator();
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotOptIn.selector));
-            middleware.registerOperator();
-
-            // Now must be possible to register operator
-            sym.operatorNetworkOptInService().optIn(address(middleware));
-            middleware.registerOperator();
-
-            // Disable operator and then enable it
-            middleware.disableOperator();
-            middleware.enableOperator();
-
-            // Try to enable operator again
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyEnabled.selector));
-            middleware.enableOperator();
-
-            // Try to disable operator twice
-            middleware.disableOperator();
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.NotEnabled.selector));
-            middleware.disableOperator();
-
-            // Try to unregister operator - failed because operator is not disabled for enough time
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorGracePeriodNotPassed.selector));
-            middleware.unregisterOperator(address(0x2));
-        }
-        vm.stopPrank();
+        // vm.startPrank(address(0x2));
+        // {
+        // Try to unregister operator - failed because operator is not disabled for enough time
+        // vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorGracePeriodNotPassed.selector));
+        // middleware.unregisterOperator();
+        // }
+        // vm.stopPrank();
 
         // Wait for grace period and unregister operator from other address
-        vm.startPrank(address(0x3));
-        {
-            vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
-            middleware.unregisterOperator(address(0x2));
-        }
-        vm.stopPrank();
+        // vm.startPrank(address(0x3));
+        // {
+        //     vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
+        //     middleware.unregisterOperator();
+        // }
+        // vm.stopPrank();
     }
 
     // TODO: split to multiple tests
@@ -378,10 +352,11 @@ contract MiddlewareTest is Base {
     function test_stakeDisabledOperator() public {
         (address operator1, address operator2,,,, uint256 stake2) = prepareTwoOperators();
 
-        // Disable operator1 and check operator1 stake is 0
+        // Opt-out operator1 from network.
+        // Then he is not work with network, so stake should be zero in the next epochs.
         vm.startPrank(operator1);
         {
-            middleware.disableOperator();
+            sym.operatorNetworkOptInService().optOut(address(middleware));
         }
         vm.stopPrank();
 

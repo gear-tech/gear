@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Gear} from "./libraries/Gear.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title Gear.exe Middleware Interface
 /// @notice The Middleware contract is responsible for managing the interaction between the Router (Gear.exe) and the Symbiotic Ecosystem.
@@ -112,7 +113,7 @@ interface IMiddleware {
         /// @notice Stores the addresses for Symbiotic Ecosystem contracts.
         /// @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
         Gear.SymbioticRegistries registries;
-        EnumerableMap.AddressToUintMap operators;
+        EnumerableSet.AddressSet operators;
         EnumerableMap.AddressToUintMap vaults;
     }
 
@@ -170,16 +171,10 @@ interface IMiddleware {
 
     /// @notice This function can be called only be operator themselves.
     /// @dev Operator must be registered in operator registry.
-    function registerOperator() external;
+    function registerOperator() external returns (bool registered);
 
     /// @notice This function can be called only be operator themselves.
-    function disableOperator() external;
-
-    /// @notice This function can be called only be operator themselves.
-    function enableOperator() external;
-
-    /// @notice This function can be called only be operator themselves.
-    function unregisterOperator(address operator) external;
+    function unregisterOperator() external returns (bool unregistered);
 
     /* Vaults managing */
 
