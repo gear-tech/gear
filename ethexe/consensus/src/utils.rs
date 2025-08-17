@@ -26,7 +26,7 @@ use ethexe_common::{
     Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment},
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
@@ -262,6 +262,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
     code_commitments: Vec<CodeCommitment>,
+    rewards_commitment: Option<RewardsCommitment>,
 ) -> Result<Option<BatchCommitment>> {
     if chain_commitment.is_none() && code_commitments.is_empty() {
         return Ok(None);
@@ -284,7 +285,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
         chain_commitment,
         code_commitments,
         validators_commitment: None,
-        rewards_commitment: None,
+        rewards_commitment,
     }))
 }
 

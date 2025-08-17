@@ -24,10 +24,11 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, RewardsState, Schedule,
+    StakingEraMetadata,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite, RewardsState,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -43,7 +44,7 @@ use gear_core::{
     ids::{ActorId, CodeId},
     memory::PageBuf,
 };
-use gprimitives::{H160, H256, U256};
+use gprimitives::H256;
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -68,10 +69,7 @@ enum Key {
     LatestSyncedBlockHeight = 12,
     ValidatorSet(H256) = 13,
     RewardsState(H256) = 14,
-
-    OperatorsRewardsDistributionAt(u64) = 15,
-    OperatorStakeAt(H160, u64) = 16,
-    OperatorStakeVaultsAt(H160, u64) = 17,
+    StakingMetadata(u64) = 15,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -114,18 +112,9 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+            Self::StakingMetadata(era) => [prefix.as_ref(), era.to_le_bytes().as_ref()].concat(),
 
             Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
-
-            Self::OperatorsRewardsDistributionAt(era) => {
-                [prefix.as_ref(), era.to_le_bytes().as_ref()].concat()
-            }
-            Self::OperatorStakeAt(address, era) | Self::OperatorStakeVaultsAt(address, era) => [
-                prefix.as_ref(),
-                address.as_ref(),
-                era.to_le_bytes().as_ref(),
-            ]
-            .concat(),
         }
     }
 }
@@ -670,38 +659,22 @@ impl OnChainStorageRead for Database {
                 )
             })?
     }
-    fn operators_rewards_distribution_at(&self, era: u64) -> Option<BTreeMap<Address, U256>> {
-        self.kv
-            .get(&Key::OperatorsRewardsDistributionAt(era).to_bytes())
-            .map(|data| {
-                BTreeMap::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BTreeMap<Address, U256>`")
-            })
-    }
 
-    fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256> {
-        self.kv
-            .get(&Key::OperatorStakeAt(operator, era).to_bytes())
-            .map(|data| {
-                U256::decode(&mut data.as_slice()).expect("Failed to decode data into `U256`")
-            })
-    }
-
-    fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>> {
-        self.kv
-            .get(&Key::OperatorStakeVaultsAt(operator, era).to_bytes())
-            .map(|data| {
-                Vec::<(Address, U256)>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<(Address, U256)>`")
-            })
-    }
-
-    fn rewards_state(&self, block_hash: H256) -> Option<ethexe_common::db::RewardsState> {
+    fn rewards_state(&self, block_hash: H256) -> Option<RewardsState> {
         self.kv
             .get(&Key::RewardsState(block_hash).to_bytes())
             .map(|data| {
                 RewardsState::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `RewardsState` enum")
+            })
+    }
+
+    fn staking_metadata(&self, era: u64) -> Option<StakingEraMetadata> {
+        self.kv
+            .get(&Key::StakingMetadata(era).to_bytes())
+            .map(|data| {
+                StakingEraMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `StakingEraMetadata`")
             })
     }
 }
@@ -732,30 +705,23 @@ impl OnChainStorageWrite for Database {
             Into::<Vec<Address>>::into(validator_set).encode(),
         );
     }
-    fn set_operators_rewards_distribution_at(&self, era: u64, tree: BTreeMap<Address, U256>) {
-        self.kv.put(
-            &Key::OperatorsRewardsDistributionAt(era).to_bytes(),
-            tree.encode(),
-        );
-    }
-
-    fn set_operator_stake_at(&self, operator: H160, era: u64, stake: U256) {
-        self.kv.put(
-            &Key::OperatorStakeAt(operator, era).to_bytes(),
-            stake.encode(),
-        );
-    }
-
-    fn set_operator_stake_vaults_at(&self, operator: H160, era: u64, vaults: Vec<(Address, U256)>) {
-        self.kv.put(
-            &Key::OperatorStakeVaultsAt(operator, era).to_bytes(),
-            vaults.encode(),
-        );
-    }
 
     fn set_rewards_state(&self, block_hash: H256, state: RewardsState) {
         self.kv
             .put(&Key::RewardsState(block_hash).to_bytes(), state.encode());
+    }
+
+    fn mutate_staking_metadata(
+        &self,
+        era: u64,
+        f: impl FnOnce(&mut ethexe_common::StakingEraMetadata),
+    ) {
+        log::trace!("Mutate staking metadata for era {era}");
+        let mut metadata = self.staking_metadata(era).unwrap_or_default();
+        f(&mut metadata);
+
+        self.kv
+            .put(&Key::StakingMetadata(era).to_bytes(), metadata.encode());
     }
 }
 

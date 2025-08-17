@@ -23,7 +23,7 @@ use crate::{
     },
     export::PeerId,
 };
-use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead};
+use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite};
 use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};
@@ -76,10 +76,11 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
-            InnerRequest::RewardsDistribution(request) => InnerRewardsDistributionResponse(
+            InnerRequest::RewardsDistribution(_request) => InnerRewardsDistributionResponse(
                 // FIXME: Option might be more suitable
-                db.operators_rewards_distribution_at(request.0)
-                    .unwrap_or_default(),
+                // db.operators_rewards_distribution_at(request.0)
+                //     .unwrap_or_default(),
+                Default::default(),
             )
             .into(),
         }

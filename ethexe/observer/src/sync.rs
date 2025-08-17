@@ -22,21 +22,21 @@ use crate::{
     RuntimeConfig,
     utils::{load_block_data, load_blocks_data_batched},
 };
-use alloy::{providers::RootProvider, rpc::types::eth::Header};
+use alloy::{
+    providers::{Provider, RootProvider},
+    rpc::types::eth::Header,
+};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, Address, BlockData, BlockHeader, CodeBlobInfo,
-    db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
-        RewardsState,
-    },
+    self, Address, BlockData, BlockHeader, CodeBlobInfo, RewardsState,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
 use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
 use gprimitives::{H256, U256};
 use nonempty::NonEmpty;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub(crate) trait SyncDB:
     OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone
@@ -74,9 +74,17 @@ impl<DB: SyncDB> ChainSync<DB> {
         self.propagate_onchain_data(block, &header, era_first_block)
             .await?;
 
-        if era_first_block && self.config.fetch_staking_data {
+        #[cfg(feature = "staking-rewards")]
+        if era_first_block {
             self.load_staking_data(block, &header).await?;
         }
+
+        let last_finalized_block = self
+            .provider
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Finalized)
+            .await?
+            .expect("Last finalized block msut exists")
+            .header;
 
         Ok(block)
     }
@@ -177,6 +185,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
+    #[cfg(feature = "staking-rewards")]
     async fn load_staking_data(&self, block: H256, header: &BlockHeader) -> Result<()> {
         let middleware_query = MiddlewareQuery::from_provider(
             self.config.middleware_address.0.into(),
@@ -188,11 +197,16 @@ impl<DB: SyncDB> ChainSync<DB> {
             .validators(block)
             .expect("Must be propagate in `propagate_validators`");
 
+        let mut operators_stake = BTreeMap::new();
+        let mut operators_staked_vaults = BTreeMap::new();
+
         for validator in validators.iter() {
             // THINK: maybe timestamp not from header
             let validator_stake = middleware_query
                 .operator_stake_at(validator.0.into(), header.timestamp)
                 .await?;
+
+            operators_stake.insert(*validator, U256(validator_stake.into_limbs()));
 
             let validator_stake_vaults = middleware_query
                 .operator_stake_vaults_at(validator.0.into(), header.timestamp)
@@ -205,18 +219,18 @@ impl<DB: SyncDB> ChainSync<DB> {
                     )
                 })
                 .collect();
-            self.db.set_operator_stake_at(
-                validator.0.into(),
-                self.block_era_index(header.timestamp),
-                U256::from_little_endian(validator_stake.as_le_slice()),
-            );
 
-            self.db.set_operator_stake_vaults_at(
-                validator.0.into(),
-                self.block_era_index(header.timestamp),
-                validator_stake_vaults,
-            );
+            operators_staked_vaults.insert(*validator, validator_stake_vaults);
         }
+
+        let era = self.block_era_index(header.timestamp);
+
+        self.db.mutate_staking_metadata(era, |metadata| {
+            metadata.operators_stake.extend(operators_stake.into_iter());
+            metadata
+                .operators_staked_vaults
+                .extend(operators_staked_vaults.into_iter());
+        });
 
         self.db.set_validators(block, validators);
         Ok(())

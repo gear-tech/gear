@@ -21,7 +21,7 @@ use crate::{ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
-use ethexe_common::db::{OnChainStorageWrite, RewardsState};
+use ethexe_common::{RewardsState, db::OnChainStorageWrite};
 use ethexe_ethereum::router::Router;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
@@ -87,7 +87,11 @@ impl Submitter {
                 commitment.block_hash,
                 RewardsState::SentToEthereum {
                     in_block: commitment.block_hash,
-                    previous_rewarded: 0,
+
+                    // TODO: remove this with the actual data
+                    rewarded_era: 0,
+                    previous_rewarded_era: 0,
+                    operators_distribution: Default::default(),
                 },
             );
         }

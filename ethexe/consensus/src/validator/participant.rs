@@ -167,11 +167,24 @@ impl Participant {
         };
 
         let code_commitments = utils::aggregate_code_commitments(&self.ctx.db, codes, true)?;
+
+        #[cfg(feature = "staking-rewards")]
+        let rewards_commitment = request.head.and_then(|block_hash| {
+            self.ctx
+                .rewards_manager
+                .create_commitment(block_hash)
+                .ok()?
+        });
+
+        #[cfg(not(feature = "staking-rewards"))]
+        let rewards_commitment = None;
+
         let batch = utils::create_batch_commitment(
             &self.ctx.db,
             &self.block,
             chain_commitment,
             code_commitments,
+            rewards_commitment,
         )?
         .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
 

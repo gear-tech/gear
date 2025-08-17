@@ -83,7 +83,6 @@ struct RuntimeConfig {
     wvara_address: Address,
     middleware_address: Address,
     max_sync_depth: u32,
-    fetch_staking_data: bool,
     batched_sync_depth: u32,
     // block_time: Duration,
     genesis_timestamp: u64,
@@ -205,7 +204,6 @@ impl ObserverService {
         let config = RuntimeConfig {
             router_address: *router_address,
             middleware_address: Address::default(),
-            fetch_staking_data: false,
             wvara_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.

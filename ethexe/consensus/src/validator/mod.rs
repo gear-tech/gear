@@ -135,7 +135,6 @@ impl ValidatorService {
             slot_duration: config.slot_duration,
             signatures_threshold: config.signatures_threshold,
             router_address: config.router_address,
-            rewards_enabled: false,
 
             // TODO: use router.query().timelines() after merge PR
             rewards_manager,
@@ -434,11 +433,6 @@ struct ValidatorContext {
     signatures_threshold: u64,
     router_address: Address,
     rewards_manager: RewardsManager<Database>,
-    // genesis_timestamp: u64,
-    // era_duration: u64,
-    // TODO #<>: This is a temporal solution, need to remove in future
-    rewards_enabled: bool,
-
     pub_key: PublicKey,
 
     #[debug(skip)]

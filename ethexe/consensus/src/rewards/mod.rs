@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(clippy::all)]
+
 use alloy::providers::Provider;
 use ethexe_common::{
-    Address,
-    db::{BlockMetaStorageRead, OnChainStorageRead, RewardsState},
+    Address, RewardsState,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     gear::{OperatorRewardsCommitment, RewardsCommitment, StakerRewards, StakerRewardsCommitment},
 };
 use ethexe_ethereum::{router::RouterQuery, wvara::WVaraQuery};
@@ -30,9 +32,11 @@ use std::{collections::BTreeMap, ops::Range};
 #[cfg(test)]
 mod tests;
 
+/// Constants for rewards weights in network activity.
 mod weights {
     use super::U256;
 
+    /// The weight for a validated block in base units.
     pub const VALIDATED_BLOCK: U256 = U256([100u64, 0, 0, 0]); // 100 base units
 }
 
@@ -41,18 +45,21 @@ const REWARDS_CONFIRMATION_SLOTS_WINDOW: u64 = 5;
 const STAKER_REWARDS_RATIO: u32 = 90;
 const PERCENTAGE_DENOMINATOR: u32 = 100;
 
+/// Window to wait for previous era 
+const PREV_ERA_: u64 = alloy::eips::merge::SLOT_DURATION * 10;
+
 #[derive(thiserror::Error, Debug)]
 pub enum RewardsError {
     #[error("block header not found for: {0:?}")]
     BlockHeader(H256),
     #[error("validators not found for block({0:?})")]
     BlockValidators(H256),
-    #[error("operator stake vaults not found for block({0:?}")]
-    OperatorStakeVaults(H160),
-    #[error("stake not found for operator({0:?}) in era {1}")]
-    OperatorEraStake(H160, u64),
-    #[error("rewards distribution not found for era {0}")]
-    RewardsDistribution(u64),
+    // #[error("operator stake vaults not found for block({0:?}")]
+    // OperatorStakeVaults(H160),
+    // #[error("stake not found for operator({0:?}) in era {1}")]
+    // OperatorEraStake(H160, u64),
+    // #[error("rewards distribution not found for era {0}")]
+    // RewardsDistribution(u64),
     #[error("rewards state not found for block {0}")]
     RewardsStateNotFound(H256),
     #[error(transparent)]
@@ -73,12 +80,13 @@ struct TotalEraRewards<DB> {
 
 impl<DB: OnChainStorageRead + BlockMetaStorageRead> TotalEraRewards<DB> {
     // Splits the total rewards into operator and staker rewards.
-    pub fn split(self) -> Result<Rewards> {
+    pub fn split(self) -> Result<EraRewards> {
         let mut operators = self.inner;
         let mut stakers = BTreeMap::new();
         let mut total_operator_rewards = U256::zero();
         let mut total_staker_rewards = U256::zero();
 
+        let staking_metadata = self.db.staking_metadata(self.era).unwrap();
         for (operator, amount) in operators.iter_mut() {
             let staker_amount =
                 *amount * U256::from(STAKER_REWARDS_RATIO) / U256::from(PERCENTAGE_DENOMINATOR);
@@ -87,27 +95,21 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> TotalEraRewards<DB> {
             total_operator_rewards += *amount;
             total_staker_rewards += staker_amount;
 
-            let operator_total_stake = self
-                .db
-                .operator_stake_at(H160(operator.0), self.era)
-                .ok_or(RewardsError::OperatorEraStake(H160(operator.0), self.era))?;
+            let operator_stake_vaults = staking_metadata
+                .operators_staked_vaults
+                .get(operator)
+                .unwrap();
+            let operator_total_stake = staking_metadata.operators_stake.get(operator).unwrap();
 
-            let stake_vaults = self
-                .db
-                .operator_stake_vaults_at(H160(operator.0), self.era)
-                .ok_or(RewardsError::OperatorStakeVaults(H160(operator.0)))?;
-
-            for (vault, stake_in_vault) in stake_vaults {
-                let vault_rewards = stakers.entry(vault).or_insert(U256::zero());
-                *vault_rewards += (staker_amount * stake_in_vault) / operator_total_stake;
+            for (vault, stake_in_vault) in operator_stake_vaults {
+                let vault_rewards = stakers.entry(*vault).or_insert(U256::zero());
+                *vault_rewards += (staker_amount * stake_in_vault) / *operator_total_stake;
             }
         }
 
-        Ok(Rewards {
-            operators,
-            stakers,
-            total_operator_rewards,
-            total_staker_rewards,
+        Ok(EraRewards {
+            inner: RewardsDistribution { operators, stakers },
+            era: self.era,
         })
     }
 }
@@ -118,17 +120,58 @@ struct Context {
     timestamp: u64,
 }
 
-#[derive(Clone, derive_more::Debug)]
-struct Rewards {
+#[derive(Clone, Debug)]
+struct RewardsDistribution {
     pub operators: BTreeMap<Address, U256>,
     pub stakers: BTreeMap<Address, U256>,
+}
+
+// Rewards distributions for particular era.
+// This structure creates from `TotalEraRewards` by calling `split` method.
+#[derive(Clone, Debug)]
+struct EraRewards {
+    pub inner: RewardsDistribution,
+    #[allow(unused)]
+    pub era: u64,
+}
+
+/// [`CumulativeRewards`] represents the cumulative rewards from  all processed eras.
+#[derive(Clone, Debug)]
+struct CumulativeRewards {
+    inner: RewardsDistribution,
+
+    // Stores for concrete era total rewards for (stakers, operators).
     pub total_operator_rewards: U256,
     pub total_staker_rewards: U256,
 }
 
-impl Rewards {
+impl CumulativeRewards {
+    pub fn initialize_from_db<DB: OnChainStorageRead>(db: DB, block_hash: H256) -> Result<Self> {
+        // Inner field constructs from the previous rewarded era.
+        let last_rewarded_era = match db
+            .rewards_state(block_hash)
+            .ok_or(RewardsError::RewardsStateNotFound(block_hash))?
+        {
+            RewardsState::LatestDistributed(era) => era,
+            RewardsState::SentToEthereum {
+                previous_rewarded_era,
+                ..
+            } => previous_rewarded_era,
+        };
+
+        let staking_metadata = db.staking_metadata(last_rewarded_era).unwrap();
+        Ok(Self {
+            inner: RewardsDistribution {
+                operators: staking_metadata.operators_rewards_distribution,
+                stakers: BTreeMap::new(),
+            },
+            total_operator_rewards: U256::zero(),
+            total_staker_rewards: U256::zero(),
+        })
+    }
+
     pub fn into_commitment(self, ctx: Context) -> RewardsCommitment {
-        let merkle_tree = utils::build_merkle_tree(self.operators);
+        let merkle_tree = utils::build_merkle_tree(self.inner.operators);
         let root = merkle_tree
             .get_root()
             .expect("Nonempty merkle tree should have a root");
@@ -140,6 +183,7 @@ impl Rewards {
 
         let stakers_commitment = StakerRewardsCommitment {
             distribution: self
+                .inner
                 .stakers
                 .into_iter()
                 .map(|(vault, amount)| StakerRewards { vault, amount })
@@ -155,31 +199,35 @@ impl Rewards {
         }
     }
 
-    pub fn extend(&mut self, other: Self) {
-        let Rewards {
-            operators: other_operators,
-            stakers: other_stakers,
-            total_operator_rewards: other_total_operator_rewards,
-            total_staker_rewards: other_total_staker_rewards,
+    pub fn extend(&mut self, other: EraRewards) {
+        let EraRewards {
+            inner:
+                RewardsDistribution {
+                    operators: other_operators,
+                    stakers: other_stakers,
+                },
             ..
         } = other;
 
         for (operator, amount) in other_operators {
-            self.operators
+            self.total_operator_rewards += amount;
+
+            self.inner
+                .operators
                 .entry(operator)
                 .and_modify(|a| *a += amount)
                 .or_insert(amount);
         }
 
         for (vault, amount) in other_stakers {
-            self.stakers
+            self.total_staker_rewards += amount;
+
+            self.inner
+                .stakers
                 .entry(vault)
                 .and_modify(|a| *a += amount)
                 .or_insert(amount);
         }
-
-        self.total_operator_rewards += other_total_operator_rewards;
-        self.total_staker_rewards += other_total_staker_rewards;
     }
 }
 
@@ -193,12 +241,15 @@ struct Config {
     pub wvara_address: Address,
 }
 
+/// [`RewardsManager`] is responsible for managing rewards distribution in the Gear.exe network.
+/// TODO: redesign rewards manager in future when Symbiotic release contracts for staker rewards
+/// which will use merkle tree (same as for operator rewards).
+
 #[derive(Clone, derive_more::Debug)]
 pub(crate) struct RewardsManager<DB> {
-    config: Config,
-
     #[debug(skip)]
     db: DB,
+    config: Config,
 }
 
 impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
@@ -246,16 +297,8 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             return Ok(None);
         };
 
-        let prev_distribution_era = eras_to_reward.start.saturating_sub(1);
-        let mut cumulative_rewards = Rewards {
-            operators: self
-                .db
-                .operators_rewards_distribution_at(prev_distribution_era)
-                .ok_or(RewardsError::RewardsDistribution(0))?,
-            stakers: Default::default(),
-            total_operator_rewards: U256::zero(),
-            total_staker_rewards: U256::zero(),
-        };
+        let mut cumulative_rewards =
+            CumulativeRewards::initialize_from_db(self.db.clone(), block_hash)?;
 
         for era in eras_to_reward {
             let total_era_rewards = self.era_total_rewards(era, block_hash)?;
@@ -281,13 +324,14 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             RewardsState::LatestDistributed(era) => era,
             RewardsState::SentToEthereum {
                 in_block,
-                previous_rewarded,
+                previous_rewarded_era,
+                ..
             } => {
                 if self.should_wait_for_rewards_confirmation(in_block, block_timestamp)? {
                     return Ok(None);
                 }
 
-                previous_rewarded
+                previous_rewarded_era
             }
         };
 

@@ -157,7 +157,13 @@ impl Producer {
             "TODO #4742: rewards commitment is not supported yet"
         );
 
-        utils::create_batch_commitment(&ctx.db, block, chain_commitment, code_commitments)
+        utils::create_batch_commitment(
+            &ctx.db,
+            block,
+            chain_commitment,
+            code_commitments,
+            rewards_commitment,
+        )
     }
 
     fn aggregate_chain_commitment(
@@ -207,11 +213,11 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<RewardsCommitment>> {
-        if !ctx.rewards_enabled {
-            return Ok(None);
-        }
+        #[cfg(feature = "staking-rewards")]
+        return Ok(ctx.rewards_manager.create_commitment(block_hash)?);
 
-        Ok(ctx.rewards_manager.create_commitment(block_hash)?)
+        #[cfg(not(feature = "staking-rewards"))]
+        return Ok(None);
     }
 
     fn create_producer_block(&mut self) -> Result<()> {

@@ -18,10 +18,10 @@
 
 use crate::{ComputeError, Result, utils};
 use ethexe_common::{
-    SimpleBlockData,
+    RewardsState, SimpleBlockData,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
-        OnChainStorageWrite, RewardsState,
+        OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -129,17 +129,33 @@ fn propagate_data_from_parent<
                 }
             }
             BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
-                // THINK: maybe should remove these checks
-                // let latest_rewarded_era = db.rewards_state(parent);
-                if let Some(RewardsState::LatestDistributed(latest_era)) = db.rewards_state(parent)
-                    && *era < latest_era
-                {
-                    log::error!(
-                        "received rewarded era ({era}) from router is less than a local value: {latest_era:?}"
-                    );
-                }
+                match db.rewards_state(parent) {
+                    Some(RewardsState::SentToEthereum {
+                        in_block: _,
+                        rewarded_era,
+                        operators_distribution,
+                        ..
+                    }) => {
+                        debug_assert_eq!(
+                            rewarded_era, *era,
+                            "receive rewards event for unexpected era"
+                        );
 
-                db.set_rewards_state(block, RewardsState::LatestDistributed(*era));
+                        // db.set_operators_rewards_distribution_at(
+                        //     rewarded_era,
+                        //     operators_distribution,
+                        // );
+                        db.mutate_staking_metadata(rewarded_era, |metadata| {
+                            metadata.operators_rewards_distribution = operators_distribution;
+                        });
+
+                        db.set_rewards_state(block, RewardsState::LatestDistributed(*era));
+                    }
+
+                    _ => unreachable!(
+                        "Should be unreachable because of event should be received only after rewards sending"
+                    ),
+                }
             }
             _ => {}
         }

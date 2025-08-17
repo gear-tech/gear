@@ -7,6 +7,9 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[features]
+staking-rewards = []
+
 [dependencies]
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
@@ -29,4 +32,3 @@ oz_merkle_rs.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-alloy-contract = { version = "1.0.23", default-features = false }
