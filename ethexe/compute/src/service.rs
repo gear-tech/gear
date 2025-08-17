@@ -242,7 +242,7 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::{Address, BlockHeader, CodeAndIdUnchecked, SimpleBlockData, db::*};
+    use ethexe_common::{BlockHeader, CodeAndIdUnchecked, SimpleBlockData, db::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
@@ -276,7 +276,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
-        db.set_validators(block_hash, nonempty![Address::from([0u8; 20])]);
+        db.set_block_synced(block_hash);
 
         // Request block preparation
         service.prepare_block(block_hash);
@@ -323,6 +323,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
+        db.set_block_synced(block_hash);
         service.prepare_block(block_hash);
         let event = service.next().await.unwrap().unwrap();
         assert_eq!(event, ComputeEvent::BlockPrepared(block_hash));
