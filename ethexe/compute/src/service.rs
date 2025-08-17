@@ -23,6 +23,7 @@ use crate::{
 };
 use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, db::CodesStorageRead};
 use ethexe_db::Database;
+use ethexe_processor::Processor;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
@@ -65,7 +66,7 @@ enum State {
     },
 }
 
-pub struct ComputeService<P: ProcessorExt> {
+pub struct ComputeService<P: ProcessorExt = Processor> {
     db: Database,
     processor: P,
 

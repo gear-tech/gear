@@ -103,7 +103,7 @@ pub struct Service {
     db: Database,
     observer: ObserverService,
     blob_loader: Box<dyn BlobLoaderService>,
-    compute: ComputeService<Processor>,
+    compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
     tx_pool: TxPoolService,

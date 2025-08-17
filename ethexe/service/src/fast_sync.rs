@@ -42,7 +42,6 @@ use ethexe_db::{
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkEvent, NetworkService, db_sync};
 use ethexe_observer::ObserverService;
-use ethexe_processor::Processor;
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -591,7 +590,7 @@ async fn sync_from_network(
 
 /// Instruments a set of codes by delegating their processing to the `ComputeService`.
 async fn instrument_codes(
-    compute: &mut ComputeService<Processor>,
+    compute: &mut ComputeService,
     db: &Database,
     mut code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
