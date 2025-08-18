@@ -114,7 +114,8 @@ interface IMiddleware {
         /// @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
         Gear.SymbioticRegistries registries;
         EnumerableSet.AddressSet operators;
-        EnumerableMap.AddressToUintMap vaults;
+        // Mapping from vault address to its rewards contract.
+        EnumerableMap.AddressToAddressMap vaults;
     }
 
     struct VaultSlashData {
@@ -131,11 +132,6 @@ interface IMiddleware {
     struct SlashIdentifier {
         address vault;
         uint256 index;
-    }
-
-    struct OperatorWithStake {
-        address operator;
-        uint256 stake;
     }
 
     // # Views.
@@ -190,16 +186,10 @@ interface IMiddleware {
     /* Vaults managing */
 
     /// @notice This function can be called only by the vault owner.
-    function registerVault(address vault, address rewards) external;
+    function registerVault(address vault, address rewards) external returns (bool registered);
 
     /// @notice This function can be called only by the vault owner.
-    function unregisterVault(address vault) external;
-
-    /// @notice This function can be called only by the vault owner.
-    function disableVault(address vault) external;
-
-    /// @notice This function can be called only by the vault owner.
-    function enableVault(address vault) external;
+    function unregisterVault(address vault) external returns (bool unregistered);
 
     /* Rewards distribution */
 

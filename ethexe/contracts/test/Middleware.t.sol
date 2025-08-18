@@ -212,19 +212,6 @@ contract MiddlewareTest is Base {
         }
         vm.stopPrank();
 
-        vm.startPrank(_operator);
-        {
-            // Try to enable vault once more
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyEnabled.selector));
-            middleware.enableVault(vault);
-
-            // Try to disable vault twice
-            middleware.disableVault(vault);
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.NotEnabled.selector));
-            middleware.disableVault(vault);
-        }
-        vm.stopPrank();
-
         // Try to register vault with wrong parameters
         vm.startPrank(_operator);
         {
@@ -253,38 +240,6 @@ contract MiddlewareTest is Base {
 
         vm.startPrank(address(0xdead));
         {
-            // Try to enable vault not from vault owner
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
-            middleware.enableVault(vault);
-
-            // Try to disable vault not from vault owner
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
-            middleware.disableVault(vault);
-        }
-        vm.stopPrank();
-
-        // Try to unregister vault - failed because vault is not disabled for enough time
-        vm.startPrank(_operator);
-        {
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultGracePeriodNotPassed.selector));
-            middleware.unregisterVault(vault);
-
-            // Wait for grace period and unregister vault
-            vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
-            middleware.unregisterVault(vault);
-        }
-        vm.stopPrank();
-
-        // Register vault again, disable and unregister it not by vault owner
-        vm.startPrank(_operator);
-        {
-            middleware.registerVault(vault, _rewards);
-            middleware.disableVault(vault);
-        }
-        vm.stopPrank();
-
-        vm.startPrank(address(0xdead));
-        {
             vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
             vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
             middleware.unregisterVault(vault);
@@ -294,17 +249,8 @@ contract MiddlewareTest is Base {
         address unknownVault = newVault(_operator, _defaultVaultInitParams(_operator));
         vm.startPrank(_operator);
         {
-            // Try to enable unknown vault
-            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
-            middleware.enableVault(unknownVault);
-
-            // Try to disable unknown vault
-            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
-            middleware.disableVault(unknownVault);
-
             // Try to unregister unknown vault
-            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
-            middleware.unregisterVault(unknownVault);
+            assertFalse(middleware.unregisterVault(unknownVault));
         }
         vm.stopPrank();
 
@@ -371,10 +317,10 @@ contract MiddlewareTest is Base {
         vm.warp(vm.getBlockTimestamp() + 1);
         assertEq(middleware.getOperatorStakeAt(operator1, ts), stake1 + stake3);
 
-        // Disable vault1 and check operator1 stake
+        // Opt-out operator1 from vault1 and check its stake
         vm.startPrank(operator1);
         {
-            middleware.disableVault(vault1);
+            sym.operatorVaultOptInService().optOut(vault1);
         }
         vm.stopPrank();
 

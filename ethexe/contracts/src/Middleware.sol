@@ -40,11 +40,8 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
 contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+    using EnumerableMap for EnumerableMap.AddressToAddressMap;
     using EnumerableSet for EnumerableSet.AddressSet;
-
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
-    using MapWithTimeData for EnumerableMap.AddressToUintMap;
-
     using Subnetwork for address;
 
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
@@ -130,8 +127,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         }
 
         for (uint256 i = 0; i < oldStorage.vaults.length(); i++) {
-            (address key, uint256 value) = oldStorage.vaults.at(i);
-            newStorage.vaults.set(key, value);
+            (address vault, address rewards) = oldStorage.vaults.at(i);
+            newStorage.vaults.set(vault, rewards);
         }
     }
 
@@ -275,7 +272,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
                 revert NotRegisteredVault();
             }
 
-            address rewardsAddress = address($.vaults.getPinnedData(rewards.vault));
+            address rewardsAddress = $.vaults.get(rewards.vault);
 
             bytes memory data = abi.encode(timestamp, $.maxAdminFee, bytes(""), bytes(""));
             IDefaultStakerRewards(rewardsAddress).distributeRewards($.router, _commitment.token, rewards.amount, data);
@@ -286,30 +283,15 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return keccak256(bytes.concat(distributionBytes, abi.encodePacked(_commitment.totalAmount, _commitment.token)));
     }
 
-    function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {
+    function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) returns (bool registered) {
         _validateVault(_vault);
         _validateStakerRewards(_vault, _rewards);
 
-        _storage().vaults.append(_vault, uint160(_rewards));
+        registered = _storage().vaults.set(_vault, _rewards);
     }
 
-    function disableVault(address vault) external _vaultOwner(vault) {
-        _storage().vaults.disable(vault);
-    }
-
-    function enableVault(address vault) external _vaultOwner(vault) {
-        _storage().vaults.enable(vault);
-    }
-
-    function unregisterVault(address vault) external _vaultOwner(vault) {
-        Storage storage $ = _storage();
-        (, uint48 disabledTime) = $.vaults.getTimes(vault);
-
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + $.vaultGracePeriod) {
-            revert VaultGracePeriodNotPassed();
-        }
-
-        $.vaults.remove(vault);
+    function unregisterVault(address vault) external _vaultOwner(vault) returns (bool unregistered) {
+        unregistered = _storage().vaults.remove(vault);
     }
 
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
@@ -459,11 +441,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
         Storage storage $ = _storage();
         for (uint256 i; i < $.vaults.length(); ++i) {
-            (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = $.vaults.atWithTimes(i);
-
-            if (!_wasActiveAt(vaultEnabledTime, vaultDisabledTime, ts)) {
-                continue;
-            }
+            (address vault,) = $.vaults.at(i);
 
             // If not opted into vault, then stake is zero.
             if (!IOptInService($.registries.vaultOptIn).isOptedInAt(operator, vault, ts, bytes(""))) {
@@ -472,10 +450,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
             stake += IBaseDelegator(IVault(vault).delegator()).stakeAt($.subnetwork, operator, ts, new bytes(0));
         }
-    }
-
-    function _wasActiveAt(uint48 enabledTime, uint48 disabledTime, uint48 ts) private pure returns (bool) {
-        return enabledTime != 0 && enabledTime <= ts && (disabledTime == 0 || disabledTime >= ts);
     }
 
     // Supports only null hook for now
