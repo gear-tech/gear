@@ -609,7 +609,7 @@ async fn overlay_execution_noop() {
         |state_hash: H256, processor: &Processor| -> Result<MessageQueue> {
             let state = processor
                 .db
-                .read_state(state_hash)
+                .program_state(state_hash)
                 .ok_or(anyhow!("failed to read pid state"))?;
 
             state.queue.query(&processor.db)

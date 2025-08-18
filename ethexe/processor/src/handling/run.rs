@@ -513,7 +513,7 @@ mod tests {
             MessageId::from(H256::random()),
             MessageId::from(H256::random()),
         ]);
-        let pid1_state_hash = db.write_state(pid1_state);
+        let pid1_state_hash = db.write_program_state(pid1_state);
         let pid1_state_hash_with_queue_size = StateHashWithQueueSize {
             hash: pid1_state_hash,
             cached_queue_size: 0,
@@ -522,7 +522,7 @@ mod tests {
         // Create a proper state for pid2
         let pid2_overlay_mid2 = MessageId::from(H256::random());
         let pid2_state = create_pid_state(vec![MessageId::from(H256::random()), pid2_overlay_mid2]);
-        let pid2_state_hash = db.write_state(pid2_state);
+        let pid2_state_hash = db.write_program_state(pid2_state);
         let pid2_state_hash_with_queue_size = StateHashWithQueueSize {
             hash: pid2_state_hash,
             cached_queue_size: 0,
