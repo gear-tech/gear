@@ -355,6 +355,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return activeOperators;
     }
 
+    ///@inheritdoc IMiddleware
     function getOperatorStakeAt(address operator, uint48 ts)
         external
         view
@@ -372,7 +373,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
-    // TODO: change return signature
+    /// @inheritdoc IMiddleware
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
@@ -394,8 +395,14 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
                 continue;
             }
 
+            uint256 operatorStake = _collectOperatorStakeFromVaultsAt(operator, ts);
+            // skip operator if it has no stake
+            if (operatorStake == 0) {
+                continue;
+            }
+
             activeOperators[operatorIdx] = operator;
-            stakes[operatorIdx] = _collectOperatorStakeFromVaultsAt(operator, ts);
+            stakes[operatorIdx] = operatorStake;
             operatorIdx += 1;
         }
 

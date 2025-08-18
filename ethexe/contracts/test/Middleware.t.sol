@@ -115,6 +115,41 @@ contract MiddlewareTest is Base {
                 assertEq(res[i], operators[i]);
             }
         }
+
+        // Simple test case for election when operator opted-out from network
+        {
+            vm.startPrank(operators[3]);
+            {
+                sym.operatorNetworkOptInService().optOut(address(middleware));
+            }
+            vm.stopPrank();
+
+            // set new timestamp to make election where operator[3] should not be in the list
+            vm.warp(vm.getBlockTimestamp() + 1000);
+
+            // Choose operator with highest stake, which is operator[1]
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 1);
+            assertEq(res.length, 1);
+            assertEq(res[0], operators[1]);
+        }
+
+        // Simple test case for election when operator opted-out from vault
+        {
+            vm.startPrank(operators[3]);
+            {
+                sym.operatorVaultOptInService().optOut(vaults[3]);
+            }
+            vm.stopPrank();
+
+            // So operator[3] should not be in the list, because of opt-out from vault and its stake not highest now
+
+            vm.warp(vm.getBlockTimestamp() + 1000);
+
+            // Choose operator with highest stake, which is operator[1]
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 1);
+            assertEq(res.length, 1);
+            assertEq(res[0], operators[1]);
+        }
     }
 
     // TODO: split to multiple tests
