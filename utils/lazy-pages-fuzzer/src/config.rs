@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_wasm_gen::{
-    ConfigsBundle, GearWasmGeneratorConfig, InstructionKind, MemoryPagesConfig, SelectableParams,
+    ConfigsBundle, GearWasmGeneratorConfig, MemoryPagesConfig, SelectableParams,
     SyscallsConfigBuilder, SyscallsInjectionTypes,
 };
 use gear_wasm_instrument::{Instruction, Rules, gas_metering::MemoryGrowCost};
@@ -36,7 +36,6 @@ pub struct FuzzerConfigBundle {
 
 impl ConfigsBundle for FuzzerConfigBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
-        use InstructionKind::*;
         (
             GearWasmGeneratorConfig {
                 memory_config: MemoryPagesConfig {
@@ -50,12 +49,12 @@ impl ConfigsBundle for FuzzerConfigBundle {
                 ..Default::default()
             },
             SelectableParams {
-                allowed_instructions: vec![
-                    Numeric, Reference, Parametric, Variable, Table, Memory, Control,
-                ],
+                // NOTE: for lazy-pages-fuzzer we don't rly need generate any instruction,
+                // memory/global access are injected manually.
+                allowed_instructions: vec![],
                 max_instructions: 500,
-                min_funcs: NonZero::<usize>::new(3).expect("non zero value"),
-                max_funcs: NonZero::<usize>::new(5).expect("non zero value"),
+                min_funcs: NonZero::new(5).expect("non zero value"),
+                max_funcs: NonZero::new(20).expect("non zero value"),
             },
         )
     }

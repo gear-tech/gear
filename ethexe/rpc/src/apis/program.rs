@@ -98,19 +98,19 @@ impl ProgramApi {
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
-        self.db.read_queue(unsafe { HashOf::new(hash) })
+        self.db.message_queue(unsafe { HashOf::new(hash) })
     }
 
     fn read_waitlist(&self, hash: H256) -> Option<Waitlist> {
-        self.db.read_waitlist(unsafe { HashOf::new(hash) })
+        self.db.waitlist(unsafe { HashOf::new(hash) })
     }
 
     fn read_stash(&self, hash: H256) -> Option<DispatchStash> {
-        self.db.read_stash(unsafe { HashOf::new(hash) })
+        self.db.dispatch_stash(unsafe { HashOf::new(hash) })
     }
 
     fn read_mailbox(&self, hash: H256) -> Option<Mailbox> {
-        self.db.read_mailbox(unsafe { HashOf::new(hash) })
+        self.db.mailbox(unsafe { HashOf::new(hash) })
     }
 }
 
@@ -165,7 +165,7 @@ impl ProgramServer for ProgramApi {
 
     async fn read_state(&self, hash: H256) -> RpcResult<ProgramState> {
         self.db
-            .read_state(hash)
+            .program_state(hash)
             .ok_or_else(|| errors::db("Failed to read state by hash"))
     }
 
@@ -198,7 +198,7 @@ impl ProgramServer for ProgramApi {
             mailbox_hash,
             balance,
             executable_balance,
-        }) = self.db.read_state(hash)
+        }) = self.db.program_state(hash)
         else {
             return Err(errors::db("Failed to read state by hash"));
         };
@@ -221,13 +221,13 @@ impl ProgramServer for ProgramApi {
 
     async fn read_pages(&self, hash: H256) -> RpcResult<MemoryPages> {
         self.db
-            .read_pages(unsafe { HashOf::new(hash) })
+            .memory_pages(unsafe { HashOf::new(hash) })
             .ok_or_else(|| errors::db("Failed to read pages by hash"))
     }
 
     async fn read_page_data(&self, hash: H256) -> RpcResult<Bytes> {
         self.db
-            .read_page_data(unsafe { HashOf::new(hash) })
+            .page_data(unsafe { HashOf::new(hash) })
             .map(|buf| buf.encode().into())
             .ok_or_else(|| errors::db("Failed to read page data by hash"))
     }

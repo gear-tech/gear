@@ -10,7 +10,7 @@ rust-version.workspace = true
 
 [dependencies]
 ethexe-common.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 
 alloy = { workspace = true, features = ["rpc", "rpc-types", "rpc-types-beacon"] }
 thiserror.workspace = true

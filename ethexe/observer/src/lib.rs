@@ -27,7 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, SimpleBlockData,
+    Address, BlockData, BlockHeader, Digest, SimpleBlockData,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
 };
 use ethexe_db::Database;
@@ -267,23 +267,22 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
-        db.set_block_header(genesis_block_hash, genesis_header.clone());
+        db.set_block_header(genesis_block_hash, genesis_header);
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
         db.mutate_block_meta(genesis_block_hash, |meta| {
             meta.computed = true;
             meta.prepared = true;
             meta.synced = true;
+            meta.last_committed_batch = Some(Digest([0; 32]));
+            meta.last_committed_head = Some(genesis_block_hash);
         });
 
-        db.set_block_commitment_queue(genesis_block_hash, Default::default());
         db.set_block_codes_queue(genesis_block_hash, Default::default());
-        db.set_previous_not_empty_block(genesis_block_hash, H256::zero());
-        db.set_last_committed_batch(genesis_block_hash, Default::default());
         db.set_block_program_states(genesis_block_hash, Default::default());
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header.clone());
+        db.set_latest_computed_block(genesis_block_hash, genesis_header);
         db.set_validators(genesis_block_hash, genesis_validators);
 
         Ok(genesis_header)

@@ -57,47 +57,22 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GearBlock {
-    pub hash: H256,
-    pub off_chain_transactions_hash: H256,
-    pub gas_allowance: u64,
-}
-
-impl ToDigest for GearBlock {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self {
-            hash,
-            off_chain_transactions_hash,
-            gas_allowance,
-        } = &self;
-
-        hasher.update(hash);
-        hasher.update(off_chain_transactions_hash);
-        hasher.update(gas_allowance.to_be_bytes());
-    }
-}
-
 /// Squashed chain commitment that contains all state transitions and gear blocks.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub gear_blocks: Vec<GearBlock>,
+    pub head: H256,
 }
 
 impl ToDigest for Option<ChainCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment {
-            transitions,
-            gear_blocks,
-        }) = self
-        else {
+        let Some(ChainCommitment { transitions, head }) = self else {
             return;
         };
 
-        hasher.update(transitions.to_digest().as_ref());
-        hasher.update(gear_blocks.to_digest().as_ref());
+        hasher.update(transitions.to_digest());
+        hasher.update(head);
     }
 }
 
@@ -309,7 +284,7 @@ pub struct ComputationSettings {
     pub wvara_per_second: u128,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
@@ -370,7 +345,7 @@ pub struct ProtocolData {
     pub validated_codes_count: U256,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
@@ -412,7 +387,7 @@ pub struct ValidationSettings {
     // flatten mapping of validators ActorId => bool
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,
@@ -437,7 +412,7 @@ impl ToDigest for [ValueClaim] {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Origin {
     #[default]
