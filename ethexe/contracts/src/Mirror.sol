@@ -15,6 +15,7 @@ contract Mirror is IMirror {
     ///      https://github.com/gear-tech/sails/blob/master/rs/src/solidity.rs
     address internal constant ETH_EVENT_ADDR = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 
+    /// forge-lint: disable-next-item(screaming-snake-case-immutable)
     /// @dev Address of the router contract, which is the sole authority.
     address public immutable router;
 
@@ -46,44 +47,68 @@ contract Mirror is IMirror {
 
     /// @dev Functions marked with this modifier can only be called if the init message has been created before.
     modifier onlyAfterInitMessage() {
-        require(nonce > 0, "initializer hasn't created init message yet");
+        _onlyAfterInitMessage();
         _;
+    }
+
+    function _onlyAfterInitMessage() internal {
+        require(nonce > 0, "initializer hasn't created init message yet");
     }
 
     /// @dev Functions marked with this modifier can only be called if the init message has been created before or the caller is the initializer.
     modifier onlyAfterInitMessageOrInitializer() {
+        _onlyAfterInitMessageOrInitializer();
+        _;
+    }
+
+    function _onlyAfterInitMessageOrInitializer() internal {
         require(
             nonce > 0 || msg.sender == initializer,
             "initializer hasn't created init message yet; and caller is not the initializer"
         );
-        _;
     }
 
     /// @dev Functions marked with this modifier can only be called if program is active.
     modifier onlyIfActive() {
-        require(!exited, "program is exited");
+        _onlyIfActive();
         _;
+    }
+
+    function _onlyIfActive() internal {
+        require(!exited, "program is exited");
     }
 
     /// @dev Functions marked with this modifier can only be called if program is exited.
     modifier onlyIfExited() {
-        require(exited, "program is not exited");
+        _onlyIfExited();
         _;
+    }
+
+    function _onlyIfExited() internal {
+        require(exited, "program is not exited");
     }
 
     /// @dev Functions marked with this modifier can only be called by the router.
     modifier onlyRouter() {
-        require(msg.sender == router, "caller is not the router");
+        _onlyRouter();
         _;
+    }
+
+    function _onlyRouter() internal {
+        require(msg.sender == router, "caller is not the router");
     }
 
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
     modifier retrievingVara(uint128 value) {
+        _retrievingVara(value);
+        _;
+    }
+
+    function _retrievingVara(uint128 value) internal {
         if (value != 0) {
             bool success = _wvara(router).transferFrom(msg.sender, router, value);
             require(success, "failed to transfer non-zero amount of WVara from source to router");
         }
-        _;
     }
 
     /* Primary Gear logic */
@@ -122,6 +147,8 @@ contract Mirror is IMirror {
 
     function transferLockedValueToInheritor() public onlyIfExited {
         uint256 balance = _wvara(router).balanceOf(address(this));
+        // SAFETY: our `value` is always less than `type(uint128).max`
+        // forge-lint: disable-next-line(unsafe-typecast)
         _transferVara(inheritor, uint128(balance));
     }
 
@@ -417,6 +444,9 @@ contract Mirror is IMirror {
             callReply := calldataload(0x24)
         }
 
+        // TODO: maybe we should reject value > type(uint128).max?
+
+        // forge-lint: disable-next-line(unsafe-typecast)
         bytes32 messageId = sendMessage(msg.data, uint128(value), callReply != 0);
 
         assembly ("memory-safe") {
