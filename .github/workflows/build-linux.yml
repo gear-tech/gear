@@ -104,7 +104,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly-129bea58b6f141ee8d6c25bd62b9a4f6d0f4d011
+          version: v1.3.2
 
       - name: "Show: Versioning"
         run: |
@@ -145,7 +145,7 @@ jobs:
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88
         with:
           targets: wasm32v1-none
 
@@ -159,7 +159,7 @@ jobs:
           cache-all-crates: true
 
       - name: "Test: crates-io packages publishing"
-        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+        run: cargo +1.88 run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
