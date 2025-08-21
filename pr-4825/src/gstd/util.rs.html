@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `gstd/src/util.rs`."><title>util.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="gstd" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">gstd/</div>util.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// This file is part of Gear.
+<a href=#2 id=2 data-nosnippet>2</a>
+<a href=#3 id=3 data-nosnippet>3</a>// Copyright (C) 2021-2025 Gear Technologies Inc.
+<a href=#4 id=4 data-nosnippet>4</a>// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+<a href=#5 id=5 data-nosnippet>5</a>
+<a href=#6 id=6 data-nosnippet>6</a>// This program is free software: you can redistribute it and/or modify
+<a href=#7 id=7 data-nosnippet>7</a>// it under the terms of the GNU General Public License as published by
+<a href=#8 id=8 data-nosnippet>8</a>// the Free Software Foundation, either version 3 of the License, or
+<a href=#9 id=9 data-nosnippet>9</a>// (at your option) any later version.
+<a href=#10 id=10 data-nosnippet>10</a>
+<a href=#11 id=11 data-nosnippet>11</a>// This program is distributed in the hope that it will be useful,
+<a href=#12 id=12 data-nosnippet>12</a>// but WITHOUT ANY WARRANTY; without even the implied warranty of
+<a href=#13 id=13 data-nosnippet>13</a>// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+<a href=#14 id=14 data-nosnippet>14</a>// GNU General Public License for more details.
+<a href=#15 id=15 data-nosnippet>15</a>
+<a href=#16 id=16 data-nosnippet>16</a>// You should have received a copy of the GNU General Public License
+<a href=#17 id=17 data-nosnippet>17</a>// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="doccomment">//! Utility functions.
+<a href=#20 id=20 data-nosnippet>20</a>
+<a href=#21 id=21 data-nosnippet>21</a></span><span class="kw">pub use </span><a href="../../gstd/util/struct.MetaType.html">scale_info::MetaType</a>;
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>scale_info::{
+<a href=#23 id=23 data-nosnippet>23</a>    PortableRegistry, Registry,
+<a href=#24 id=24 data-nosnippet>24</a>    scale::{<a href="../../gstd/prelude/derive.Encode.html">Encode</a>, Output},
+<a href=#25 id=25 data-nosnippet>25</a>};
+<a href=#26 id=26 data-nosnippet>26</a>
+<a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span><span class="kw">crate</span>::prelude::{
+<a href=#28 id=28 data-nosnippet>28</a>    <a href="../../gstd/prelude/struct.Box.html">Box</a>, <a href="../../gstd/prelude/struct.String.html">String</a>, <a href="../../gstd/prelude/struct.Vec.html">Vec</a>,
+<a href=#29 id=29 data-nosnippet>29</a>    mem::{<a href="../../gstd/prelude/mem/union.MaybeUninit.html">MaybeUninit</a>, <a href="../../gstd/prelude/mem/fn.transmute.html">transmute</a>},
+<a href=#30 id=30 data-nosnippet>30</a>};
+<a href=#31 id=31 data-nosnippet>31</a>
+<a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// An auxiliary function that reduces gas consumption during payload encoding.
+<a href=#33 id=33 data-nosnippet>33</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_optimized_encode&lt;T, E: <a href="../../gstd/prelude/trait.Encode.html">Encode</a>&gt;(payload: E, f: <span class="kw">impl </span><a href="../../gstd/prelude/trait.FnOnce.html">FnOnce</a>(<span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>]) -&gt; T) -&gt; T {
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw">struct </span>ExternalBufferOutput&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#35 id=35 data-nosnippet>35</a>        buffer: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>[<a href="../../gstd/prelude/mem/union.MaybeUninit.html">MaybeUninit</a>&lt;<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>&gt;],
+<a href=#36 id=36 data-nosnippet>36</a>        offset: <a href="https://doc.rust-lang.org/nightly/core/primitive.usize.html">usize</a>,
+<a href=#37 id=37 data-nosnippet>37</a>    }
+<a href=#38 id=38 data-nosnippet>38</a>
+<a href=#39 id=39 data-nosnippet>39</a>    <span class="kw">impl </span>Output <span class="kw">for </span><a href="#34-37">ExternalBufferOutput</a>&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#40 id=40 data-nosnippet>40</a>        <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bytes: <span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>]) {
+<a href=#41 id=41 data-nosnippet>41</a>            <span class="comment">// SAFETY: same as
+<a href=#42 id=42 data-nosnippet>42</a>            // `MaybeUninit::write_slice(&amp;mut self.buffer[self.offset..end_offset], bytes)`.
+<a href=#43 id=43 data-nosnippet>43</a>            // This code transmutes `bytes: &amp;[T]` to `bytes: &amp;[MaybeUninit&lt;T&gt;]`. These types
+<a href=#44 id=44 data-nosnippet>44</a>            // can be safely transmuted since they have the same layout. Then `bytes:
+<a href=#45 id=45 data-nosnippet>45</a>            // &amp;[MaybeUninit&lt;T&gt;]` is written to uninitialized memory via `copy_from_slice`.
+<a href=#46 id=46 data-nosnippet>46</a>            </span><span class="kw">let </span>end_offset = <a class="self" href="#40">self</a>.offset + <a href="#40">bytes</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>();
+<a href=#47 id=47 data-nosnippet>47</a>            <span class="kw">let </span>this = <span class="kw">unsafe </span>{ <a class="self" href="#40">self</a>.buffer.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.get_unchecked_mut">get_unchecked_mut</a>(<a class="self" href="#40">self</a>.offset..<a href="#46">end_offset</a>) };
+<a href=#48 id=48 data-nosnippet>48</a>            <a href="#47">this</a>.<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.copy_from_slice">copy_from_slice</a>(<span class="kw">unsafe </span>{
+<a href=#49 id=49 data-nosnippet>49</a>                <a href="../../gstd/prelude/mem/fn.transmute.html">transmute</a>::&lt;<span class="kw-2">&amp;</span>[<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>], <span class="kw-2">&amp;</span>[<a href="../../gstd/prelude/mem/union.MaybeUninit.html">core::mem::MaybeUninit</a>&lt;<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>&gt;]&gt;(<a href="#40">bytes</a>)
+<a href=#50 id=50 data-nosnippet>50</a>            });
+<a href=#51 id=51 data-nosnippet>51</a>            <a class="self" href="#40">self</a>.offset = <a href="#46">end_offset</a>;
+<a href=#52 id=52 data-nosnippet>52</a>        }
+<a href=#53 id=53 data-nosnippet>53</a>    }
+<a href=#54 id=54 data-nosnippet>54</a>
+<a href=#55 id=55 data-nosnippet>55</a>    gcore::stack_buffer::with_byte_buffer(<a href="#33">payload</a>.<a href="../../gstd/prelude/trait.Encode.html">encoded_size</a>(), |buffer| {
+<a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">let </span><span class="kw-2">mut </span>output = <a href="#34-37">ExternalBufferOutput</a> { <a href="#55">buffer</a>, offset: <span class="number">0 </span>};
+<a href=#57 id=57 data-nosnippet>57</a>        <a href="#33">payload</a>.<a href="../../gstd/prelude/trait.Encode.html">encode_to</a>(<span class="kw-2">&amp;mut </span><a href="#56">output</a>);
+<a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">let </span><a href="#34-37">ExternalBufferOutput</a> { buffer, offset } = <a href="#56">output</a>;
+<a href=#59 id=59 data-nosnippet>59</a>        <span class="comment">// SAFETY: same as `MaybeUninit::slice_assume_init_ref(&amp;buffer[..offset])`.
+<a href=#60 id=60 data-nosnippet>60</a>        // `ExternalBufferOutput` writes data to uninitialized memory. So we can take
+<a href=#61 id=61 data-nosnippet>61</a>        // slice `&amp;buffer[..offset]` and say that it was initialized earlier
+<a href=#62 id=62 data-nosnippet>62</a>        // because the buffer from `0` to `offset` was initialized.
+<a href=#63 id=63 data-nosnippet>63</a>        </span><span class="kw">let </span>payload = <span class="kw">unsafe </span>{ <span class="kw-2">&amp;*</span>(<span class="kw-2">&amp;</span><a href="#58">buffer</a>[..<a href="#58">offset</a>] <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_ as </span><span class="kw-2">*const </span>[<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>]) };
+<a href=#64 id=64 data-nosnippet>64</a>        <a href="#33">f</a>(<a href="#63">payload</a>)
+<a href=#65 id=65 data-nosnippet>65</a>    })
+<a href=#66 id=66 data-nosnippet>66</a>}
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a><span class="doccomment">/// Generate a registry from given meta types and encode it to hex.
+<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">pub fn </span><a href="../../gstd/util/fn.to_hex_registry.html">to_hex_registry</a>(meta_types: <a href="../../gstd/prelude/struct.Vec.html">Vec</a>&lt;<a href="../../gstd/util/struct.MetaType.html">MetaType</a>&gt;) -&gt; <a href="../../gstd/prelude/struct.String.html">String</a> {
+<a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">let </span><span class="kw-2">mut </span>registry = Registry::new();
+<a href=#71 id=71 data-nosnippet>71</a>    <a href="#70">registry</a>.register_types(<a href="#69">meta_types</a>);
+<a href=#72 id=72 data-nosnippet>72</a>
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="kw">let </span>registry: PortableRegistry = <a href="#70">registry</a>.<a href="../../gstd/prelude/trait.Into.html">into</a>();
+<a href=#74 id=74 data-nosnippet>74</a>    <a href="https://docs.rs/hex/0.4.3/hex/fn.encode.html">hex::encode</a>(<a href="#73">registry</a>.<a href="../../gstd/prelude/trait.Encode.html">encode</a>())
+<a href=#75 id=75 data-nosnippet>75</a>}
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a><span class="doccomment">/// Convert a given reference to a raw pointer.
+<a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">pub fn </span><a href="../../gstd/util/fn.to_wasm_ptr.html">to_wasm_ptr</a>&lt;T: <a href="../../gstd/prelude/trait.AsRef.html">AsRef</a>&lt;[<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>]&gt;&gt;(bytes: T) -&gt; <span class="kw-2">*mut </span>[<a href="https://doc.rust-lang.org/nightly/core/primitive.i32.html">i32</a>; <span class="number">2</span>] {
+<a href=#79 id=79 data-nosnippet>79</a>    <a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html#method.into_raw">Box::into_raw</a>(<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html#method.new">Box::new</a>([
+<a href=#80 id=80 data-nosnippet>80</a>        <a href="#78">bytes</a>.<a href="../../gstd/prelude/trait.AsRef.html">as_ref</a>().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.as_ptr">as_ptr</a>() <span class="kw">as _</span>,
+<a href=#81 id=81 data-nosnippet>81</a>        <a href="#78">bytes</a>.<a href="../../gstd/prelude/trait.AsRef.html">as_ref</a>().<a href="https://doc.rust-lang.org/nightly/core/foreigntype.slice.html#method.len">len</a>() <span class="kw">as _</span>,
+<a href=#82 id=82 data-nosnippet>82</a>    ]))
+<a href=#83 id=83 data-nosnippet>83</a>}
+<a href=#84 id=84 data-nosnippet>84</a>
+<a href=#85 id=85 data-nosnippet>85</a><span class="doccomment">/// Convert a given vector to a raw pointer and prevent its deallocating.
+<a href=#86 id=86 data-nosnippet>86</a>///
+<a href=#87 id=87 data-nosnippet>87</a>/// It operates similarly to [`to_wasm_ptr`] except that it consumes the input
+<a href=#88 id=88 data-nosnippet>88</a>/// and make it leak by calling [`core::mem::forget`].
+<a href=#89 id=89 data-nosnippet>89</a></span><span class="kw">pub fn </span><a href="../../gstd/util/fn.to_leak_ptr.html">to_leak_ptr</a>(bytes: <span class="kw">impl </span><a href="../../gstd/prelude/trait.Into.html">Into</a>&lt;<a href="../../gstd/prelude/struct.Vec.html">Vec</a>&lt;<a href="https://doc.rust-lang.org/nightly/core/primitive.u8.html">u8</a>&gt;&gt;) -&gt; <span class="kw-2">*mut </span>[<a href="https://doc.rust-lang.org/nightly/core/primitive.i32.html">i32</a>; <span class="number">2</span>] {
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">let </span>bytes = <a href="#89">bytes</a>.<a href="../../gstd/prelude/trait.Into.html">into</a>();
+<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">let </span>ptr = <a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html#method.into_raw">Box::into_raw</a>(<a href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html#method.new">Box::new</a>([<a href="#90">bytes</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.as_ptr">as_ptr</a>() <span class="kw">as _</span>, <a href="#90">bytes</a>.<a href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html#method.len">len</a>() <span class="kw">as _</span>]));
+<a href=#92 id=92 data-nosnippet>92</a>    <a href="../../gstd/prelude/mem/fn.forget.html">core::mem::forget</a>(<a href="#90">bytes</a>);
+<a href=#93 id=93 data-nosnippet>93</a>    <a href="#91">ptr</a>
+<a href=#94 id=94 data-nosnippet>94</a>}</code></pre></div></section></main></body></html>
