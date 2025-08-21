@@ -153,8 +153,6 @@ jobs:
         with:
           targets: wasm32v1-none
 
-      - run: rustup toolchain list
-
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
@@ -178,7 +176,6 @@ jobs:
       - name: "Check clippy: no_std crates"
         run: ./scripts/gear.sh clippy no_std --locked
 
-      - run: rustup target add wasm32v1-none
       - run: cargo +1.88.0 check -p gstd --target wasm32v1-none
       - run: cargo +1.88.0 check --manifest-path utils/wasm-builder/test-program/Cargo.toml
       - run: cargo +1.88.0 check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none

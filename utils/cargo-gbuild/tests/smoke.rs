@@ -83,7 +83,13 @@ fn test_program_tests() {
             if !String::from_utf8_lossy(&targets).contains("wasm32v1-none (installed)") {
                 assert!(
                     Command::new("rustup")
-                        .args(["toolchain", "install", "1.88.0", "--target", "wasm32v1-none",])
+                        .args([
+                            "toolchain",
+                            "install",
+                            "1.88.0",
+                            "--target",
+                            "wasm32v1-none",
+                        ])
                         .status()
                         .expect("Failed to install stable toolchain")
                         .success()
