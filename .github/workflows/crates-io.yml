@@ -28,14 +28,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@1.88
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32v1-none
 
       - name: "Publish packages (simulate)"
         if: ${{ !inputs.publish }}
-        run: cargo +1.88 run --release -p crates-io publish -v ${{ inputs.version }} --simulate --registry-path /tmp/cargo-http-registry
+        run: cargo +1.88.0 run --release -p crates-io publish -v ${{ inputs.version }} --simulate --registry-path /tmp/cargo-http-registry
 
       - name: "Publish packages"
         if: ${{ inputs.publish }}
-        run: cargo +1.88 run --release -p crates-io publish -v ${{ inputs.version }}
+        run: cargo +1.88.0 run --release -p crates-io publish -v ${{ inputs.version }}

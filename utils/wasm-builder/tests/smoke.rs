@@ -29,7 +29,7 @@ impl CargoRunner {
 
     fn stable() -> Self {
         let mut cmd = Command::new("cargo");
-        cmd.arg("+1.88");
+        cmd.arg("+1.88.0");
 
         Self(cmd)
     }
@@ -57,7 +57,7 @@ fn install_stable_toolchain() {
         let status = Command::new("rustup")
             .arg("toolchain")
             .arg("install")
-            .arg("1.88")
+            .arg("1.88.0")
             .arg("--target")
             .arg("wasm32v1-none")
             .status()

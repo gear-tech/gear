@@ -51,7 +51,7 @@ jobs:
       - name: "Install: rustup stable"
         run: |
           rustup show
-          rustup install 1.88
+          rustup install 1.88.0
 
       - name: "Install rust-script"
         run: cargo install rust-script
@@ -149,7 +149,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@1.88
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32v1-none
 
@@ -179,9 +179,9 @@ jobs:
         run: ./scripts/gear.sh clippy no_std --locked
 
       - run: rustup target add wasm32v1-none
-      - run: cargo +1.88 check -p gstd --target wasm32v1-none
-      - run: cargo +1.88 check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-      - run: cargo +1.88 check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+      - run: cargo +1.88.0 check -p gstd --target wasm32v1-none
+      - run: cargo +1.88.0 check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+      - run: cargo +1.88.0 check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   vara-runtime-imports:
     runs-on: ubuntu-latest
