@@ -444,8 +444,7 @@ contract Mirror is IMirror {
             callReply := calldataload(0x24)
         }
 
-        // TODO: maybe we should reject value > type(uint128).max?
-
+        // SAFETY: unreachable case since total WVARA supply ever expected fits in `uint128`
         // forge-lint: disable-next-line(unsafe-typecast)
         bytes32 messageId = sendMessage(msg.data, uint128(value), callReply != 0);
 
