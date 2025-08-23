@@ -147,8 +147,6 @@ contract Mirror is IMirror {
 
     function transferLockedValueToInheritor() public onlyIfExited {
         uint256 balance = _wvara(router).balanceOf(address(this));
-        // SAFETY: our `value` is always less than `type(uint128).max`
-        // forge-lint: disable-next-line(unsafe-typecast)
         _transferVara(inheritor, uint128(balance));
     }
 
@@ -444,8 +442,6 @@ contract Mirror is IMirror {
             callReply := calldataload(0x24)
         }
 
-        // SAFETY: unreachable case since total WVARA supply ever expected fits in `uint128`
-        // forge-lint: disable-next-line(unsafe-typecast)
         bytes32 messageId = sendMessage(msg.data, uint128(value), callReply != 0);
 
         assembly ("memory-safe") {
