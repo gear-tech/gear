@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 fn main() {
-    #![cfg(not(any(windows, target_os = "cygwin")))]
-    #![cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+    #[cfg(not(any(windows, target_os = "cygwin")))]
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
     {
         use rustc_version::{Version, VersionMeta, version_meta};
 
