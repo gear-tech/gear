@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{env, fs, path::PathBuf};
-
 fn main() {
     #![cfg(not(any(windows, target_os = "cygwin")))]
     #![cfg(any(target_arch = "x86_64", target_arch = "x86"))]
@@ -36,10 +34,4 @@ fn main() {
             );
         }
     }
-
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let out_dir = PathBuf::from(out_dir);
-    // create placeholder in `OUT_DIR`
-    // so `env!("OUT_DIR")` can be used in embedded executor module caching
-    fs::write(out_dir.join("placeholder"), "placeholder file").unwrap();
 }
