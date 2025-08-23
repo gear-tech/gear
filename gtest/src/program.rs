@@ -19,8 +19,10 @@
 use crate::{
     BlockNumber, MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
-    manager::ExtManager,
-    state::programs::{PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
+    manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
+    state::programs::{
+        GtestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager,
+    },
     system::System,
 };
 use gear_common::Origin;
@@ -44,6 +46,42 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
+
+/// Trait for mocking gear programs.
+///
+/// See [`Program`] and [`Program::mock`] for the usages.
+pub trait WasmProgram: Debug {
+    /// Initialize wasm program with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic
+    /// with given `payload`.
+    ///
+    /// If error occurs, the program will be terminated which
+    /// means that `handle` and `handle_reply` will not be
+    /// called.
+    fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    /// Message handler with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic.
+    fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    /// Reply message handler with given `payload`.
+    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
+    // todo [sab] think how to redesign it, because system reservation is required here.
+    // /// Signal handler with given `payload`.
+    // fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
+    /// Clone the program and return it's boxed version.
+    fn clone_boxed(&self) -> Box<dyn WasmProgram>;
+    // /// State of wasm program.
+    // ///
+    // /// See [`Program::read_state`] for the usage.
+    // fn state(&mut self) -> Result<Vec<u8>, &'static str>;
+    // /// Emit debug message in program with given `data`.
+    // ///
+    /// Logging target `gwasm` is used in this method.
+    fn debug(&mut self, data: &str) {
+        log::debug!(target: "gwasm", "{data}");
+    }
+}
 
 /// Wrapper for program id.
 #[derive(Clone, Debug)]
@@ -222,7 +260,7 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Active(ActiveProgram {
+            GtestProgram::Default(InnerProgram::Active(ActiveProgram {
                 allocations_tree_len: 0,
                 code_id: code_id.cast(),
                 state: ProgramState::Uninitialized {
@@ -231,7 +269,7 @@ impl ProgramBuilder {
                 expiration_block,
                 memory_infix: Default::default(),
                 gas_reservation_map: Default::default(),
-            }),
+            })),
         )
     }
 
@@ -278,7 +316,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram<BlockNumber>,
+        program: GtestProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -292,7 +330,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .store_new_actor(program_id, program)
+            .store_new_program(program_id, program)
             .is_some()
         {
             usage_panic!(
@@ -350,6 +388,41 @@ impl<'a> Program<'a> {
         ProgramBuilder::from_binary(binary)
             .with_id(id)
             .build(system)
+    }
+
+    /// Mock a program with provided `system` and `mock`.
+    ///
+    /// See [`WasmProgram`] for more details.
+    pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
+        let nonce = system.0.borrow_mut().free_id_nonce();
+
+        Self::mock_with_id(system, nonce, mock)
+    }
+
+    /// Create a mock program with provided `system` and `mock`,
+    /// and initialize it with provided `id`.
+    ///
+    /// See also [`Program::mock`].
+    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
+    where
+        T: WasmProgram + 'static,
+        ID: Into<ProgramIdWrapper> + Clone + Debug,
+    {
+        // Create a default active program for the mock
+        let mock_program_data = InnerProgram::Active(ActiveProgram {
+            allocations_tree_len: 0,
+            memory_infix: Default::default(),
+            gas_reservation_map: Default::default(),
+            code_id: CUSTOM_WASM_PROGRAM_CODE_ID,
+            state: ProgramState::Uninitialized {
+                message_id: PLACEHOLDER_MESSAGE_ID,
+            },
+            expiration_block: system.0.borrow().block_height(),
+        });
+
+        let mock_program = MockWasmProgram::new(Box::new(mock), mock_program_data);
+
+        Self::program_with_id(system, id, GtestProgram::Mock(mock_program))
     }
 
     /// Send message to the program.
@@ -454,7 +527,7 @@ impl<'a> Program<'a> {
 
         let kind = ProgramsStorageManager::modify_program(self.id, |program| {
             let program = program.expect("Can't fail");
-            let InnerProgram::Active(active_program) = program else {
+            let InnerProgram::Active(active_program) = program.as_program_mut() else {
                 usage_panic!("Program with id {} is not active - {program:?}", self.id);
             };
             match active_program.state {

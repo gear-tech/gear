@@ -20,7 +20,7 @@
 
 use super::{ExtManager, Program};
 use crate::{
-    EXISTENTIAL_DEPOSIT, Value,
+    EXISTENTIAL_DEPOSIT, GtestProgram, Value,
     manager::hold_bound::HoldBoundBuilder,
     state::{accounts::Accounts, programs::ProgramsStorageManager},
 };
@@ -89,9 +89,10 @@ impl JournalHandler for ExtManager {
         self.clean_waitlist(id_exited);
         self.remove_gas_reservation_map(id_exited);
 
-        ProgramsStorageManager::modify_program(id_exited, |program| {
-            let program =
-                program.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
+        ProgramsStorageManager::modify_program(id_exited, |gtest_program| {
+            let program = gtest_program
+                .unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"))
+                .as_program_mut();
 
             if !program.is_active() {
                 // Guaranteed to be called only on active program
@@ -285,9 +286,9 @@ impl JournalHandler for ExtManager {
             for (init_message_id, candidate_id) in candidates {
                 if !ProgramsStorageManager::has_program(candidate_id) {
                     let expiration_block = self.block_height();
-                    self.store_new_actor(
+                    self.store_new_program(
                         candidate_id,
-                        Program::Active(ActiveProgram {
+                        GtestProgram::Default(Program::Active(ActiveProgram {
                             allocations_tree_len: 0,
                             code_id: code_id.cast(),
                             state: ProgramState::Uninitialized {
@@ -296,7 +297,7 @@ impl JournalHandler for ExtManager {
                             expiration_block,
                             memory_infix: Default::default(),
                             gas_reservation_map: Default::default(),
-                        }),
+                        })),
                     );
 
                     // Transfer the ED from the program-creator to the new program

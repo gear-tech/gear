@@ -18,6 +18,8 @@
 
 use super::*;
 
+// todo [sab] state reading for mock
+
 impl ExtManager {
     /// Call non-void meta function from actor stored in manager.
     /// Warning! This is a static call that doesn't change actors pages data.

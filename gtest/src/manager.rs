@@ -46,7 +46,7 @@ use gear_common::{
     storage::Interval,
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
+    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::PageBuf,
@@ -76,6 +76,9 @@ mod wait_wake;
 
 const OUTGOING_LIMIT: u32 = 1024;
 const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
+
+pub(crate) const CUSTOM_WASM_PROGRAM_CODE_ID: CodeId =
+    CodeId::new(*b"CUSTOM_WASM_PROGRAM_CODE_ID\0\0\0\0\0");
 
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
@@ -121,12 +124,12 @@ impl ExtManager {
         self.blocks_manager.get().height
     }
 
-    pub(crate) fn store_new_actor(
+    pub(crate) fn store_new_program(
         &mut self,
         program_id: ActorId,
-        program: Program<BlockNumber>,
+        gtest_program: crate::state::programs::GtestProgram,
     ) -> Option<Program<BlockNumber>> {
-        ProgramsStorageManager::insert_program(program_id, program)
+        ProgramsStorageManager::insert_program(program_id, gtest_program)
     }
 
     pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
@@ -203,8 +206,9 @@ impl ExtManager {
 
     fn init_success(&mut self, program_id: ActorId) {
         ProgramsStorageManager::modify_program(program_id, |program| {
-            let Program::Active(active_program) =
-                program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+            let Program::Active(active_program) = program
+                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+                .as_program_mut()
             else {
                 unreachable!(
                     "Before init finishes, program must always be active. But {program_id:?} program is not active."
@@ -218,8 +222,9 @@ impl ExtManager {
     fn init_failure(&mut self, program_id: ActorId, origin: ActorId) {
         self.clean_waitlist(program_id);
         self.remove_gas_reservation_map(program_id);
-        ProgramsStorageManager::modify_program(program_id, |program| {
-            if let Some(program) = program {
+        ProgramsStorageManager::modify_program(program_id, |gtest_program| {
+            if let Some(gtest_program) = gtest_program {
+                let program = gtest_program.as_program_mut();
                 if !program.is_active() {
                     // Guaranteed to be called only on active program
                     unreachable!(
@@ -248,9 +253,9 @@ impl ExtManager {
         id: ActorId,
         op: F,
     ) -> Option<R> {
-        ProgramsStorageManager::modify_program(id, |program| {
-            program.and_then(|actor| {
-                if let Program::Active(active_program) = actor {
+        ProgramsStorageManager::modify_program(id, |gtest_program| {
+            gtest_program.and_then(|gtest_program| {
+                if let Program::Active(active_program) = gtest_program.as_program_mut() {
                     Some(op(active_program))
                 } else {
                     None
