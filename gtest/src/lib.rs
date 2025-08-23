@@ -506,11 +506,16 @@ pub use program::{
     Program, ProgramBuilder, ProgramIdWrapper, WasmProgram, calculate_program_id,
     gbuild::ensure_gbuild,
 };
-pub use state::mailbox::ActorMailbox;
 pub use system::System;
 
 pub use constants::Value;
 pub(crate) use constants::*;
+
+// todo [sab] write docs about wasm program.
+// devs doc - it doesn't change global states, but only in few points
+// tests:
+// - user interaction
+// - cross program interaction
 
 /// Module containing constants of Gear protocol.
 pub mod constants {

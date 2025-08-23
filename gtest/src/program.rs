@@ -407,7 +407,6 @@ impl<'a> Program<'a> {
         });
 
         let mock_program = MockWasmProgram::new(Box::new(mock), primary_program);
-
         Self::program_with_id(system, id, GTestProgram::Mock(mock_program))
     }
 
