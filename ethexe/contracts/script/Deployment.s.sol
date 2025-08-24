@@ -112,7 +112,8 @@ contract DeploymentScript is Script {
 
         if (vm.envExists("SENDER_ADDRESS")) {
             address senderAddress = vm.envAddress("SENDER_ADDRESS");
-            wrappedVara.transfer(senderAddress, 500_000 * (10 ** wrappedVara.decimals()));
+            bool success = wrappedVara.transfer(senderAddress, 500_000 * (10 ** wrappedVara.decimals()));
+            vm.assertTrue(success);
         }
 
         vm.roll(vm.getBlockNumber() + 1);
