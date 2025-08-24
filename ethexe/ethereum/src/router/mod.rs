@@ -408,7 +408,7 @@ impl RouterQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Ethereum;
+    use crate::{Ethereum, deploy::EthereumDeployer};
     use alloy::node_bindings::Anvil;
     use ethexe_signer::Signer;
     use roast_secp256k1_evm::frost;
@@ -436,13 +436,13 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum = Ethereum::deploy(
+        let ethereum = EthereumDeployer::new(
             anvil.endpoint_url().as_str(),
-            vec![],
             signer,
             alice.to_address(),
             first_share.commitment().clone(),
         )
+        .deploy()
         .await
         .unwrap();
 
