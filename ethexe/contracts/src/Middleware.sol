@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Gear} from "./libraries/Gear.sol";
@@ -34,12 +35,8 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
 contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
-    using MapWithTimeData for EnumerableMap.AddressToUintMap;
-
     using EnumerableMap for EnumerableMap.AddressToAddressMap;
-    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
-
+    using EnumerableSet for EnumerableSet.AddressSet;
     using Subnetwork for address;
 
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
@@ -120,13 +117,13 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         newStorage.registries = oldStorage.registries;
 
         for (uint256 i = 0; i < oldStorage.operators.length(); i++) {
-            (address key, uint256 value) = oldStorage.operators.at(i);
-            newStorage.operators.set(key, value);
+            address operator = oldStorage.operators.at(i);
+            newStorage.operators.add(operator);
         }
 
         for (uint256 i = 0; i < oldStorage.vaults.length(); i++) {
-            (address key, uint256 value) = oldStorage.vaults.at(i);
-            newStorage.vaults.set(key, value);
+            (address vault, address rewards) = oldStorage.vaults.at(i);
+            newStorage.vaults.set(vault, rewards);
         }
     }
 
@@ -218,37 +215,18 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     // TODO: Check that total stake is big enough
-    function registerOperator() external {
+    function registerOperator() external returns (bool registered) {
         Storage storage $ = _storage();
 
         if (!IRegistry($.registries.operatorRegistry).isEntity(msg.sender)) {
             revert OperatorDoesNotExist();
         }
-        if (!IOptInService($.registries.networkOptIn).isOptedIn(msg.sender, address(this))) {
-            revert OperatorDoesNotOptIn();
-        }
 
-        $.operators.append(msg.sender, 0);
+        registered = $.operators.add(msg.sender);
     }
 
-    function disableOperator() external {
-        _storage().operators.disable(msg.sender);
-    }
-
-    function enableOperator() external {
-        _storage().operators.enable(msg.sender);
-    }
-
-    function unregisterOperator(address operator) external {
-        Storage storage $ = _storage();
-
-        (, uint48 disabledTime) = $.operators.getTimes(operator);
-
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + $.operatorGracePeriod) {
-            revert OperatorGracePeriodNotPassed();
-        }
-
-        $.operators.remove(operator);
+    function unregisterOperator() external returns (bool unregistered) {
+        unregistered = _storage().operators.remove(msg.sender);
     }
 
     function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32) {
@@ -289,7 +267,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
                 revert NotRegisteredVault();
             }
 
-            address rewardsAddress = address($.vaults.getPinnedData(rewards.vault));
+            address rewardsAddress = $.vaults.get(rewards.vault);
 
             bytes memory data = abi.encode(timestamp, $.maxAdminFee, bytes(""), bytes(""));
             IDefaultStakerRewards(rewardsAddress).distributeRewards($.router, _commitment.token, rewards.amount, data);
@@ -300,30 +278,15 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return keccak256(bytes.concat(distributionBytes, abi.encodePacked(_commitment.totalAmount, _commitment.token)));
     }
 
-    function registerVault(address _vault, address _rewards) external vaultOwner(_vault) {
+    function registerVault(address _vault, address _rewards) external vaultOwner(_vault) returns (bool registered) {
         _validateVault(_vault);
         _validateStakerRewards(_vault, _rewards);
 
-        _storage().vaults.append(_vault, uint160(_rewards));
+        registered = _storage().vaults.set(_vault, _rewards);
     }
 
-    function disableVault(address vault) external vaultOwner(vault) {
-        _storage().vaults.disable(vault);
-    }
-
-    function enableVault(address vault) external vaultOwner(vault) {
-        _storage().vaults.enable(vault);
-    }
-
-    function unregisterVault(address vault) external vaultOwner(vault) {
-        Storage storage $ = _storage();
-        (, uint48 disabledTime) = $.vaults.getTimes(vault);
-
-        if (disabledTime == 0 || Time.timestamp() < disabledTime + $.vaultGracePeriod) {
-            revert VaultGracePeriodNotPassed();
-        }
-
-        $.vaults.remove(vault);
+    function unregisterVault(address vault) external vaultOwner(vault) returns (bool unregistered) {
+        unregistered = _storage().vaults.remove(vault);
     }
 
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
@@ -369,16 +332,20 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return activeOperators;
     }
 
+    ///@inheritdoc IMiddleware
     function getOperatorStakeAt(address operator, uint48 ts) external view validTimestamp(ts) returns (uint256 stake) {
-        (uint48 enabledTime, uint48 disabledTime) = _storage().operators.getTimes(operator);
-        if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
+        Storage storage $ = _storage();
+
+        // If not opted into network, then stake is zero.
+        // TODO: replace `address(this)` with $.router, because of in future must be router = network
+        if (!IOptInService($.registries.networkOptIn).isOptedInAt(operator, address(this), ts, bytes(""))) {
             return 0;
         }
 
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
-    // TODO: change return signature
+    /// @inheritdoc IMiddleware
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
@@ -392,14 +359,22 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         uint256 operatorIdx = 0;
 
         for (uint256 i; i < $.operators.length(); ++i) {
-            (address operator, uint48 enabled, uint48 disabled) = $.operators.atWithTimes(i);
+            address operator = $.operators.at(i);
 
-            if (!_wasActiveAt(enabled, disabled, ts)) {
+            // If not opted into network, then skip operator.
+            // TODO: replace `address(this)` with $.router, because of in future must be router = network
+            if (!IOptInService($.registries.networkOptIn).isOptedInAt(operator, address(this), ts, bytes(""))) {
+                continue;
+            }
+
+            uint256 operatorStake = _collectOperatorStakeFromVaultsAt(operator, ts);
+            // skip operator if it has no stake
+            if (operatorStake == 0) {
                 continue;
             }
 
             activeOperators[operatorIdx] = operator;
-            stakes[operatorIdx] = _collectOperatorStakeFromVaultsAt(operator, ts);
+            stakes[operatorIdx] = operatorStake;
             operatorIdx += 1;
         }
 
@@ -456,18 +431,15 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function _collectOperatorStakeFromVaultsAt(address operator, uint48 ts) private view returns (uint256 stake) {
         Storage storage $ = _storage();
         for (uint256 i; i < $.vaults.length(); ++i) {
-            (address vault, uint48 vaultEnabledTime, uint48 vaultDisabledTime) = $.vaults.atWithTimes(i);
+            (address vault,) = $.vaults.at(i);
 
-            if (!_wasActiveAt(vaultEnabledTime, vaultDisabledTime, ts)) {
+            // If not opted into vault, then stake is zero.
+            if (!IOptInService($.registries.vaultOptIn).isOptedInAt(operator, vault, ts, bytes(""))) {
                 continue;
             }
 
             stake += IBaseDelegator(IVault(vault).delegator()).stakeAt($.subnetwork, operator, ts, new bytes(0));
         }
-    }
-
-    function _wasActiveAt(uint48 enabledTime, uint48 disabledTime, uint48 ts) private pure returns (bool) {
-        return enabledTime != 0 && enabledTime <= ts && (disabledTime == 0 || disabledTime >= ts);
     }
 
     // Supports only null hook for now
