@@ -303,3 +303,7 @@ install:
 .PHONY: typos
 typos:
 	@ ./scripts/gear.sh test typos
+
+.PHONY: ethexe-remappings
+ethexe-remappings:
+	@ cd ethexe/contracts && forge remappings > remappings.txt && cd ../..
