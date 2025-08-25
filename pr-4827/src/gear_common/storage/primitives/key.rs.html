@@ -26,7 +26,7 @@
 <a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">core::marker::PhantomData</a>;
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>gear_core::{
 <a href=#28 id=28 data-nosnippet>28</a>    ids::{<a href="../../../../gear_common/struct.ActorId.html">ActorId</a>, <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>},
-<a href=#29 id=29 data-nosnippet>29</a>    message::{StoredDispatch, UserStoredMessage},
+<a href=#29 id=29 data-nosnippet>29</a>    message::{<a href="../../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>, <a href="../../../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>},
 <a href=#30 id=30 data-nosnippet>30</a>};
 <a href=#31 id=31 data-nosnippet>31</a>
 <a href=#32 id=32 data-nosnippet>32</a><span class="doccomment">/// Represents logic of providing key as specified
@@ -51,10 +51,10 @@
 <a href=#51 id=51 data-nosnippet>51</a>// destination parameter.
 <a href=#52 id=52 data-nosnippet>52</a></span><span class="kw">impl</span>&lt;T: <a href="../../lib.rs.html#79-85">Origin</a>&gt; <a href="#35-43">KeyFor</a> <span class="kw">for </span><a href="#46">MailboxKeyGen</a>&lt;T&gt; {
 <a href=#53 id=53 data-nosnippet>53</a>    <span class="kw">type </span>Key = (T, <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>);
-<a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">type </span>Value = UserStoredMessage;
+<a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">type </span>Value = <a href="../../../../gear_core/message/user/struct.UserStoredMessage.html">UserStoredMessage</a>;
 <a href=#55 id=55 data-nosnippet>55</a>
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">fn </span>key_for(value: <span class="kw-2">&amp;</span><span class="self">Self</span>::Value) -&gt; <span class="self">Self</span>::Key {
-<a href=#57 id=57 data-nosnippet>57</a>        (<a href="#56">value</a>.destination().<a href="../../lib.rs.html#82-84">cast</a>(), <a href="#56">value</a>.id())
+<a href=#57 id=57 data-nosnippet>57</a>        (<a href="#56">value</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.destination">destination</a>().<a href="../../lib.rs.html#82-84">cast</a>(), <a href="#56">value</a>.<a href="../../../../gear_core/message/user/struct.UserStoredMessage.html#method.id">id</a>())
 <a href=#58 id=58 data-nosnippet>58</a>    }
 <a href=#59 id=59 data-nosnippet>59</a>}
 <a href=#60 id=60 data-nosnippet>60</a>
@@ -65,10 +65,10 @@
 <a href=#65 id=65 data-nosnippet>65</a>// it's `MessageId` id parameter.
 <a href=#66 id=66 data-nosnippet>66</a></span><span class="kw">impl </span><a href="#35-43">KeyFor</a> <span class="kw">for </span><a href="#62">QueueKeyGen</a> {
 <a href=#67 id=67 data-nosnippet>67</a>    <span class="kw">type </span>Key = <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>;
-<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">type </span>Value = StoredDispatch;
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="kw">type </span>Value = <a href="../../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
 <a href=#69 id=69 data-nosnippet>69</a>
 <a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">fn </span>key_for(value: <span class="kw-2">&amp;</span><span class="self">Self</span>::Value) -&gt; <span class="self">Self</span>::Key {
-<a href=#71 id=71 data-nosnippet>71</a>        <a href="#70">value</a>.id()
+<a href=#71 id=71 data-nosnippet>71</a>        <a href="#70">value</a>.<a href="../../../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>()
 <a href=#72 id=72 data-nosnippet>72</a>    }
 <a href=#73 id=73 data-nosnippet>73</a>}
 <a href=#74 id=74 data-nosnippet>74</a>
@@ -79,9 +79,9 @@
 <a href=#79 id=79 data-nosnippet>79</a>// `ActorId` and `MessageId` id parameters.
 <a href=#80 id=80 data-nosnippet>80</a></span><span class="kw">impl </span><a href="#35-43">KeyFor</a> <span class="kw">for </span><a href="#76">WaitlistKeyGen</a> {
 <a href=#81 id=81 data-nosnippet>81</a>    <span class="kw">type </span>Key = (<a href="../../../../gear_common/struct.ActorId.html">ActorId</a>, <a href="../../../../gear_common/struct.MessageId.html">MessageId</a>);
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">type </span>Value = StoredDispatch;
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">type </span>Value = <a href="../../../../gear_core/message/stored/struct.StoredDispatch.html">StoredDispatch</a>;
 <a href=#83 id=83 data-nosnippet>83</a>
 <a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">fn </span>key_for(value: <span class="kw-2">&amp;</span><span class="self">Self</span>::Value) -&gt; <span class="self">Self</span>::Key {
-<a href=#85 id=85 data-nosnippet>85</a>        (<a href="#84">value</a>.destination(), <a href="#84">value</a>.id())
+<a href=#85 id=85 data-nosnippet>85</a>        (<a href="#84">value</a>.<a href="../../../../gear_core/message/stored/struct.StoredMessage.html#method.destination">destination</a>(), <a href="#84">value</a>.<a href="../../../../gear_core/message/stored/struct.StoredMessage.html#method.id">id</a>())
 <a href=#86 id=86 data-nosnippet>86</a>    }
 <a href=#87 id=87 data-nosnippet>87</a>}</code></pre></div></section></main></body></html>

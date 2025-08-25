@@ -71,8 +71,8 @@
 <a href=#71 id=71 data-nosnippet>71</a>};
 <a href=#72 id=72 data-nosnippet>72</a><span class="kw">use </span>core::{<a href="https://doc.rust-lang.org/nightly/core/marker/struct.PhantomData.html">marker::PhantomData</a>, <a href="https://doc.rust-lang.org/nightly/core/num/nonzero/struct.NonZero.html">num::NonZero</a>};
 <a href=#73 id=73 data-nosnippet>73</a><span class="kw">use </span>core_processor::{
-<a href=#74 id=74 data-nosnippet>74</a>    common::{<a href="../../gear_core_processor/common/enum.DispatchOutcome.html">DispatchOutcome</a> <span class="kw">as </span>CoreDispatchOutcome, <a href="../../gear_core_processor/common/struct.ExecutableActorData.html">ExecutableActorData</a>, <a href="../../gear_core_processor/common/enum.JournalNote.html">JournalNote</a>},
-<a href=#75 id=75 data-nosnippet>75</a>    configs::{<a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a>, <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a>},
+<a href=#74 id=74 data-nosnippet>74</a>    common::{DispatchOutcome <span class="kw">as </span>CoreDispatchOutcome, ExecutableActorData, JournalNote},
+<a href=#75 id=75 data-nosnippet>75</a>    configs::{BlockConfig, BlockInfo},
 <a href=#76 id=76 data-nosnippet>76</a>};
 <a href=#77 id=77 data-nosnippet>77</a><span class="kw">use </span>frame_support::{
 <a href=#78 id=78 data-nosnippet>78</a>    dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
@@ -113,7 +113,7 @@
 <a href=#113 id=113 data-nosnippet>113</a>    prelude::<span class="kw-2">*</span>,
 <a href=#114 id=114 data-nosnippet>114</a>};
 <a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a><span class="kw">pub type </span><a href="../../pallet_gear/type.Ext.html">Ext</a> = <a href="../../gear_core_processor/ext/struct.Ext.html">core_processor::Ext</a>&lt;LazyPagesRuntimeInterface&gt;;
+<a href=#116 id=116 data-nosnippet>116</a><span class="kw">pub type </span><a href="../../pallet_gear/type.Ext.html">Ext</a> = core_processor::Ext&lt;LazyPagesRuntimeInterface&gt;;
 <a href=#117 id=117 data-nosnippet>117</a>
 <a href=#118 id=118 data-nosnippet>118</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>AccountIdOf&lt;T&gt; = &lt;T <span class="kw">as </span>frame_system::Config&gt;::AccountId;
 <a href=#119 id=119 data-nosnippet>119</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type </span>CurrencyOf&lt;T&gt; = &lt;T <span class="kw">as </span>pallet_gear_bank::Config&gt;::Currency;
@@ -1047,15 +1047,15 @@
 <a href=#1047 id=1047 data-nosnippet>1047</a>            }
 <a href=#1048 id=1048 data-nosnippet>1048</a>        }
 <a href=#1049 id=1049 data-nosnippet>1049</a>
-<a href=#1050 id=1050 data-nosnippet>1050</a>        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_config() -&gt; <a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a> {
-<a href=#1051 id=1051 data-nosnippet>1051</a>            <span class="kw">let </span>block_info = <a href="../../gear_core_processor/configs/struct.BlockInfo.html">BlockInfo</a> {
+<a href=#1050 id=1050 data-nosnippet>1050</a>        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_config() -&gt; BlockConfig {
+<a href=#1051 id=1051 data-nosnippet>1051</a>            <span class="kw">let </span>block_info = BlockInfo {
 <a href=#1052 id=1052 data-nosnippet>1052</a>                height: <a href="#522-524"><span class="self">Self</span>::block_number</a>().unique_saturated_into(),
 <a href=#1053 id=1053 data-nosnippet>1053</a>                timestamp: &lt;pallet_timestamp::Pallet&lt;T&gt;&gt;::get().unique_saturated_into(),
 <a href=#1054 id=1054 data-nosnippet>1054</a>            };
 <a href=#1055 id=1055 data-nosnippet>1055</a>
 <a href=#1056 id=1056 data-nosnippet>1056</a>            <span class="kw">let </span>schedule = T::Schedule::get();
 <a href=#1057 id=1057 data-nosnippet>1057</a>
-<a href=#1058 id=1058 data-nosnippet>1058</a>            <a href="../../gear_core_processor/configs/struct.BlockConfig.html">BlockConfig</a> {
+<a href=#1058 id=1058 data-nosnippet>1058</a>            BlockConfig {
 <a href=#1059 id=1059 data-nosnippet>1059</a>                <a href="#1051">block_info</a>,
 <a href=#1060 id=1060 data-nosnippet>1060</a>                performance_multiplier: T::PerformanceMultiplier::get().<a href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html#tymethod.into">into</a>(),
 <a href=#1061 id=1061 data-nosnippet>1061</a>                forbidden_funcs: <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Default::default</a>(),

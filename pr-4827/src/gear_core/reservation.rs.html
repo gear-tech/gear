@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>    <a href="message/incoming.rs.html#131-138">message::IncomingDispatch</a>,
 <a href=#24 id=24 data-nosnippet>24</a>};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>alloc::{<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html">collections::BTreeMap</a>, <a href="https://doc.rust-lang.org/nightly/alloc/macro.format.html">format</a>};
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span><a href="../../gear_core_errors/enum.ReservationError.html">gear_core_errors::ReservationError</a>;
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>gear_core_errors::ReservationError;
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>scale_info::{
 <a href=#28 id=28 data-nosnippet>28</a>    TypeInfo,
 <a href=#29 id=29 data-nosnippet>29</a>    scale::{Decode, Encode},
@@ -136,7 +136,7 @@
 <a href=#136 id=136 data-nosnippet>136</a>    /// in the `states` is less than `max_reservations`. Removed reservations,
 <a href=#137 id=137 data-nosnippet>137</a>    /// which are stored with the [`GasReservationState::Removed`] state in the
 <a href=#138 id=138 data-nosnippet>138</a>    /// `states`, aren't excluded from the check.
-<a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">fn </span>check_execution_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+<a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">fn </span>check_execution_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), ReservationError&gt; {
 <a href=#140 id=140 data-nosnippet>140</a>        <span class="comment">// operation might very expensive in the future
 <a href=#141 id=141 data-nosnippet>141</a>        // so we will store 2 numerics to optimize it maybe
 <a href=#142 id=142 data-nosnippet>142</a>        </span><span class="kw">let </span>current_reservations = <span class="self"><a href="#139">self</a>
@@ -150,7 +150,7 @@
 <a href=#150 id=150 data-nosnippet>150</a>            })
 <a href=#151 id=151 data-nosnippet>151</a>            .<a href="https://doc.rust-lang.org/nightly/core/iter/traits/iterator/trait.Iterator.html#tymethod.sum">sum</a>::&lt;<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>&gt;();
 <a href=#152 id=152 data-nosnippet>152</a>        <span class="kw">if </span>current_reservations &gt; <span class="self">self</span>.max_reservations {
-<a href=#153 id=153 data-nosnippet>153</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.ReservationsLimitReached">ReservationError::ReservationsLimitReached</a>)
+<a href=#153 id=153 data-nosnippet>153</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(ReservationError::ReservationsLimitReached)
 <a href=#154 id=154 data-nosnippet>154</a>        } <span class="kw">else </span>{
 <a href=#155 id=155 data-nosnippet>155</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Ok">Ok</a>(())
 <a href=#156 id=156 data-nosnippet>156</a>        }
@@ -174,7 +174,7 @@
 <a href=#174 id=174 data-nosnippet>174</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#175 id=175 data-nosnippet>175</a>        amount: <a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>,
 <a href=#176 id=176 data-nosnippet>176</a>        duration: <a href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>,
-<a href=#177 id=177 data-nosnippet>177</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+<a href=#177 id=177 data-nosnippet>177</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>, ReservationError&gt; {
 <a href=#178 id=178 data-nosnippet>178</a>        <a class="self" href="#174">self</a>.<a href="#139-157">check_execution_limit</a>()<span class="question-mark">?</span>;
 <a href=#179 id=179 data-nosnippet>179</a>
 <a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">let </span>id = <a href="ids.rs.html#149">ReservationId::generate</a>(<a class="self" href="#174">self</a>.message_id, <a class="self" href="#174">self</a>.nonce.<a href="#60-65">fetch_inc</a>());
@@ -212,12 +212,12 @@
 <a href=#212 id=212 data-nosnippet>212</a>    </span><span class="kw">pub fn </span>unreserve(
 <a href=#213 id=213 data-nosnippet>213</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#214 id=214 data-nosnippet>214</a>        id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>,
-<a href=#215 id=215 data-nosnippet>215</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#341">UnreservedReimbursement</a>&gt;), <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+<a href=#215 id=215 data-nosnippet>215</a>    ) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(<a href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>, <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;<a href="#341">UnreservedReimbursement</a>&gt;), ReservationError&gt; {
 <a href=#216 id=216 data-nosnippet>216</a>        <span class="comment">// Docs error case #1.
 <a href=#217 id=217 data-nosnippet>217</a>        </span><span class="kw">let </span>state = <span class="self"><a href="#213">self</a>
 <a href=#218 id=218 data-nosnippet>218</a>            </span>.states
 <a href=#219 id=219 data-nosnippet>219</a>            .<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get">get</a>(<span class="kw-2">&amp;</span><a href="#214">id</a>)
-<a href=#220 id=220 data-nosnippet>220</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>)<span class="question-mark">?</span>;
+<a href=#220 id=220 data-nosnippet>220</a>            .<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.ok_or">ok_or</a>(ReservationError::InvalidReservationId)<span class="question-mark">?</span>;
 <a href=#221 id=221 data-nosnippet>221</a>
 <a href=#222 id=222 data-nosnippet>222</a>        <span class="kw">if </span><a class="macro" href="https://doc.rust-lang.org/nightly/core/macro.matches.html">matches!</a>(
 <a href=#223 id=223 data-nosnippet>223</a>            state,
@@ -227,7 +227,7 @@
 <a href=#227 id=227 data-nosnippet>227</a>            </span>GasReservationState::Exists { used: <span class="bool-val">true</span>, .. } |
 <a href=#228 id=228 data-nosnippet>228</a>            GasReservationState::Created { used: <span class="bool-val">true</span>, .. }
 <a href=#229 id=229 data-nosnippet>229</a>        ) {
-<a href=#230 id=230 data-nosnippet>230</a>            <span class="kw">return </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>);
+<a href=#230 id=230 data-nosnippet>230</a>            <span class="kw">return </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(ReservationError::InvalidReservationId);
 <a href=#231 id=231 data-nosnippet>231</a>        }
 <a href=#232 id=232 data-nosnippet>232</a>
 <a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>state = <a class="self" href="#213">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.remove">remove</a>(<span class="kw-2">&amp;</span><a href="#214">id</a>).<a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#method.unwrap">unwrap</a>();
@@ -256,7 +256,7 @@
 <a href=#256 id=256 data-nosnippet>256</a>    /// This allows to avoid double usage of the reservation
 <a href=#257 id=257 data-nosnippet>257</a>    /// for sending a new message from execution of `message_id`
 <a href=#258 id=258 data-nosnippet>258</a>    /// of current gas reserver.
-<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">pub fn </span>mark_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+<a href=#259 id=259 data-nosnippet>259</a>    </span><span class="kw">pub fn </span>mark_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;(), ReservationError&gt; {
 <a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span>used = <a class="self" href="#259">self</a>.<a href="#268-281">check_not_used</a>(<a href="#259">id</a>)<span class="question-mark">?</span>;
 <a href=#261 id=261 data-nosnippet>261</a>        <span class="kw-2">*</span><a href="#260">used</a> = <span class="bool-val">true</span>;
 <a href=#262 id=262 data-nosnippet>262</a>        <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Ok">Ok</a>(())
@@ -265,18 +265,18 @@
 <a href=#265 id=265 data-nosnippet>265</a>    <span class="doccomment">/// Check if reservation is not used.
 <a href=#266 id=266 data-nosnippet>266</a>    ///
 <a href=#267 id=267 data-nosnippet>267</a>    /// If reservation does not exist returns `InvalidReservationId` error.
-<a href=#268 id=268 data-nosnippet>268</a>    </span><span class="kw">pub fn </span>check_not_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, <a href="../../gear_core_errors/enum.ReservationError.html">ReservationError</a>&gt; {
+<a href=#268 id=268 data-nosnippet>268</a>    </span><span class="kw">pub fn </span>check_not_used(<span class="kw-2">&amp;mut </span><span class="self">self</span>, id: <a href="../../gear_core/ids/struct.ReservationId.html">ReservationId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html">Result</a>&lt;<span class="kw-2">&amp;mut </span><a href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, ReservationError&gt; {
 <a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">if let </span><a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html#variant.Some">Some</a>(
 <a href=#270 id=270 data-nosnippet>270</a>            GasReservationState::Created { used, .. } | GasReservationState::Exists { used, .. },
 <a href=#271 id=271 data-nosnippet>271</a>        ) = <a class="self" href="#268">self</a>.states.<a href="https://doc.rust-lang.org/nightly/alloc/collections/btree/map/struct.BTreeMap.html#method.get_mut">get_mut</a>(<span class="kw-2">&amp;</span><a href="#268">id</a>)
 <a href=#272 id=272 data-nosnippet>272</a>        {
 <a href=#273 id=273 data-nosnippet>273</a>            <span class="kw">if </span><span class="kw-2">*</span>used {
-<a href=#274 id=274 data-nosnippet>274</a>                <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>)
+<a href=#274 id=274 data-nosnippet>274</a>                <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(ReservationError::InvalidReservationId)
 <a href=#275 id=275 data-nosnippet>275</a>            } <span class="kw">else </span>{
 <a href=#276 id=276 data-nosnippet>276</a>                <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Ok">Ok</a>(<a href="#270">used</a>)
 <a href=#277 id=277 data-nosnippet>277</a>            }
 <a href=#278 id=278 data-nosnippet>278</a>        } <span class="kw">else </span>{
-<a href=#279 id=279 data-nosnippet>279</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(<a href="../../gear_core_errors/enum.ReservationError.html#variant.InvalidReservationId">ReservationError::InvalidReservationId</a>)
+<a href=#279 id=279 data-nosnippet>279</a>            <a class="prelude-val" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#variant.Err">Err</a>(ReservationError::InvalidReservationId)
 <a href=#280 id=280 data-nosnippet>280</a>        }
 <a href=#281 id=281 data-nosnippet>281</a>    }
 <a href=#282 id=282 data-nosnippet>282</a>

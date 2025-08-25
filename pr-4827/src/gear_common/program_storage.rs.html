@@ -16,7 +16,7 @@
 <a href=#16 id=16 data-nosnippet>16</a>// You should have received a copy of the GNU General Public License
 <a href=#17 id=17 data-nosnippet>17</a>// along with this program. If not, see &lt;https://www.gnu.org/licenses/&gt;.
 <a href=#18 id=18 data-nosnippet>18</a>
-<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">use </span>gear_core::pages::{WasmPage, numerated::tree::IntervalsTree};
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">use </span>gear_core::pages::{<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>, numerated::tree::IntervalsTree};
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a><span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">crate</span>::storage::{<a href="storage/primitives/map.rs.html#30-68">MapStorage</a>, <a href="storage/primitives/triple_map.rs.html#29-89">TripleMapStorage</a>};
@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a>
 <a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">type </span>ProgramMap: <a href="storage/primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = <a href="../../gear_common/struct.ActorId.html">ActorId</a>, Value = <a href="../../gear_common/enum.Program.html">Program</a>&lt;<span class="self">Self</span>::BlockNumber&gt;&gt;;
 <a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">type </span>MemoryPageMap: <a href="storage/primitives/triple_map.rs.html#29-89">TripleMapStorage</a>&lt;Key1 = <a href="../../gear_common/struct.ActorId.html">ActorId</a>, Key2 = <a href="../../gear_common/struct.MemoryInfix.html">MemoryInfix</a>, Key3 = <a href="../../gear_common/type.GearPage.html">GearPage</a>, Value = <a href="../../gear_common/struct.PageBuf.html">PageBuf</a>&gt;;
-<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">type </span>AllocationsMap: <a href="storage/primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = <a href="../../gear_common/struct.ActorId.html">ActorId</a>, Value = IntervalsTree&lt;WasmPage&gt;&gt;;
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">type </span>AllocationsMap: <a href="storage/primitives/map.rs.html#30-68">MapStorage</a>&lt;Key = <a href="../../gear_common/struct.ActorId.html">ActorId</a>, Value = IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;&gt;;
 <a href=#57 id=57 data-nosnippet>57</a>
 <a href=#58 id=58 data-nosnippet>58</a>    <span class="doccomment">/// Attempt to remove all items from all the associated maps.
 <a href=#59 id=59 data-nosnippet>59</a>    </span><span class="kw">fn </span>reset() {
@@ -111,11 +111,11 @@
 <a href=#111 id=111 data-nosnippet>111</a>        }
 <a href=#112 id=112 data-nosnippet>112</a>    }
 <a href=#113 id=113 data-nosnippet>113</a>
-<a href=#114 id=114 data-nosnippet>114</a>    <span class="kw">fn </span>allocations(program_id: <a href="../../gear_common/struct.ActorId.html">ActorId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;IntervalsTree&lt;WasmPage&gt;&gt; {
+<a href=#114 id=114 data-nosnippet>114</a>    <span class="kw">fn </span>allocations(program_id: <a href="../../gear_common/struct.ActorId.html">ActorId</a>) -&gt; <a class="prelude-ty" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html">Option</a>&lt;IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;&gt; {
 <a href=#115 id=115 data-nosnippet>115</a>        <a href="storage/primitives/map.rs.html#40"><span class="self">Self</span>::AllocationsMap::get</a>(<span class="kw-2">&amp;</span><a href="#114">program_id</a>)
 <a href=#116 id=116 data-nosnippet>116</a>    }
 <a href=#117 id=117 data-nosnippet>117</a>
-<a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">fn </span>set_allocations(program_id: <a href="../../gear_common/struct.ActorId.html">ActorId</a>, allocations: IntervalsTree&lt;WasmPage&gt;) {
+<a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">fn </span>set_allocations(program_id: <a href="../../gear_common/struct.ActorId.html">ActorId</a>, allocations: IntervalsTree&lt;<a href="../../gear_core/pages/type.WasmPage.html">WasmPage</a>&gt;) {
 <a href=#119 id=119 data-nosnippet>119</a>        <a href="#91-102"><span class="self">Self</span>::update_active_program</a>(<a href="#118">program_id</a>, |program| {
 <a href=#120 id=120 data-nosnippet>120</a>            <a href="#119">program</a>.allocations_tree_len = <a href="https://doc.rust-lang.org/nightly/core/convert/trait.TryFrom.html#tymethod.try_from">u32::try_from</a>(<a href="#118">allocations</a>.intervals_amount())
 <a href=#121 id=121 data-nosnippet>121</a>                .<a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html#method.unwrap_or_else">unwrap_or_else</a>(|err| {
