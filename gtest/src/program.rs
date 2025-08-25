@@ -47,6 +47,8 @@ use std::{
     str::FromStr,
 };
 
+// todo [sab] rethink concept to make it more useful
+
 /// Trait for mocking gear programs.
 ///
 /// See [`Program`] and [`Program::mock`] for the usages.
