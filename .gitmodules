@@ -5,11 +5,11 @@
 [submodule "ethexe/contracts/lib/openzeppelin-contracts"]
 	path = ethexe/contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
-	branch = "release-v5.3"
+	branch = "release-v5.4"
 [submodule "ethexe/contracts/lib/openzeppelin-contracts-upgradeable"]
 	path = ethexe/contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
-	branch = "release-v5.3"
+	branch = "release-v5.4"
 [submodule "ethexe/contracts/lib/openzeppelin-foundry-upgrades"]
 	path = ethexe/contracts/lib/openzeppelin-foundry-upgrades
 	url = https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades
@@ -21,7 +21,7 @@
 [submodule "ethexe/contracts/lib/symbiotic-rewards"]
 	path = ethexe/contracts/lib/symbiotic-rewards
 	url = https://github.com/gear-tech/symbiotic-rewards
-	branch = gear-main
+	branch = "gear-main"
 [submodule "ethexe/contracts/lib/frost-secp256k1-evm"]
 	path = ethexe/contracts/lib/frost-secp256k1-evm
 	url = https://github.com/StackOverflowExcept1on/frost-secp256k1-evm

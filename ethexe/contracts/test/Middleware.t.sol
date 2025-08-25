@@ -2,32 +2,17 @@
 pragma solidity ^0.8.28;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
-import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
-import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IVaultFactory} from "symbiotic-core/src/interfaces/IVaultFactory.sol";
-import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
-import {IDelegatorFactory} from "symbiotic-core/src/interfaces/IDelegatorFactory.sol";
-import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
-import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
-import {ISlasherFactory} from "symbiotic-core/src/interfaces/ISlasherFactory.sol";
-import {DefaultStakerRewardsFactory} from
-    "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
-import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
-import {Vault} from "symbiotic-core/src/contracts/vault/Vault.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
-import {WrappedVara} from "../src/WrappedVara.sol";
 import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
 import {Base} from "./Base.t.sol";
 
@@ -57,8 +42,8 @@ contract MiddlewareTest is Base {
         address[] memory operators = new address[](5);
         address[] memory vaults = new address[](operators.length);
 
-        for (uint256 i = 0; i < operators.length; i++) {
-            operators[i] = address(uint160(i) + 0x1000);
+        for (uint160 i = 0; i < operators.length; i++) {
+            operators[i] = address(i + 0x1000);
             vaults[i] = createOperatorWithStake(operators[i], 1_000);
         }
 
@@ -391,10 +376,10 @@ contract MiddlewareTest is Base {
         assertEq(middleware.getOperatorStakeAt(operator1, ts), 0);
 
         // Check that operator1 is not in active operators list
-        (address[] memory active_operators, uint256[] memory stakes) = middleware.getActiveOperatorsStakeAt(ts);
-        assertEq(active_operators.length, 1);
+        (address[] memory activeOperators, uint256[] memory stakes) = middleware.getActiveOperatorsStakeAt(ts);
+        assertEq(activeOperators.length, 1);
         assertEq(stakes.length, 1);
-        assertEq(active_operators[0], operator2);
+        assertEq(activeOperators[0], operator2);
         assertEq(stakes[0], stake2);
     }
 
@@ -519,22 +504,22 @@ contract MiddlewareTest is Base {
         (address operator1, address operator2, address vault1, address vault2,,) = prepareTwoOperators();
 
         // Request slashes for 2 operators with corresponding vaults
-        Middleware.VaultSlashData[] memory operator1_vaults = new Middleware.VaultSlashData[](1);
-        operator1_vaults[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 10});
+        Middleware.VaultSlashData[] memory operator1Vaults = new Middleware.VaultSlashData[](1);
+        operator1Vaults[0] = IMiddleware.VaultSlashData({vault: vault1, amount: 10});
 
-        Middleware.VaultSlashData[] memory operator2_vaults = new Middleware.VaultSlashData[](1);
-        operator2_vaults[0] = IMiddleware.VaultSlashData({vault: vault2, amount: 20});
+        Middleware.VaultSlashData[] memory operator2Vaults = new Middleware.VaultSlashData[](1);
+        operator2Vaults[0] = IMiddleware.VaultSlashData({vault: vault2, amount: 20});
 
         Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
         slashes[0] = IMiddleware.SlashData({
             operator: operator1,
             ts: uint48(vm.getBlockTimestamp() - 1),
-            vaults: operator1_vaults
+            vaults: operator1Vaults
         });
         slashes[1] = IMiddleware.SlashData({
             operator: operator2,
             ts: uint48(vm.getBlockTimestamp() - 1),
-            vaults: operator2_vaults
+            vaults: operator2Vaults
         });
 
         requestSlash(slashes, 0);
@@ -595,8 +580,8 @@ contract MiddlewareTest is Base {
         vm.warp(vm.getBlockTimestamp() + 1);
     }
 
-    function vetoDeadline(address slasher, uint256 slash_index) private view returns (uint48) {
-        (,,,, uint48 _vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slash_index);
+    function vetoDeadline(address slasher, uint256 slashIndex) private view returns (uint48) {
+        (,,,, uint48 _vetoDeadline,) = IVetoSlasher(slasher).slashRequests(slashIndex);
         return _vetoDeadline;
     }
 

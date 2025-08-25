@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Script, console} from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {WrappedVara} from "../../src/WrappedVara.sol";
 
 contract WrappedVaraScript is Script {

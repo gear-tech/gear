@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
@@ -12,8 +11,9 @@ library MapWithTimeData {
     error NotEnabled();
     error AlreadyEnabled();
 
-    function toInner(uint256 value) private pure returns (uint48, uint48, uint160) {
-        // casting to uint48 will truncate the value to 48 bits, so it's safe for this case
+    function toInner(uint256 value) private pure returns (uint48 enabledTime, uint48 disabledTime, uint160 data) {
+        // SAFETY: casting to uint48 will truncate the value to 48 bits
+        // forge-lint: disable-next-line(unsafe-typecast)
         return (uint48(value), uint48(value >> 48), uint160(value >> 96));
     }
 
