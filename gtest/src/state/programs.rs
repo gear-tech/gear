@@ -42,17 +42,17 @@ pub(crate) enum GTestProgram {
 }
 
 impl GTestProgram {
-    pub(crate) fn as_program(&self) -> &Program<BlockNumber> {
+    pub(crate) fn as_primary_program(&self) -> &Program<BlockNumber> {
         match self {
             GTestProgram::Default(program) => program,
-            GTestProgram::Mock(mock) => &mock.program,
+            GTestProgram::Mock(mock) => &mock.primary,
         }
     }
 
-    pub(crate) fn as_program_mut(&mut self) -> &mut Program<BlockNumber> {
+    pub(crate) fn as_primary_program_mut(&mut self) -> &mut Program<BlockNumber> {
         match self {
             GTestProgram::Default(program) => program,
-            GTestProgram::Mock(mock) => &mut mock.program,
+            GTestProgram::Mock(mock) => &mut mock.primary,
         }
     }
 }
@@ -61,15 +61,15 @@ impl GTestProgram {
 #[derive(Debug)]
 pub(crate) struct MockWasmProgram {
     handlers: Box<dyn WasmProgram>,
-    program: Program<BlockNumber>,
+    primary: Program<BlockNumber>,
 }
 
 impl MockWasmProgram {
     /// Create a new mock WASM program with the given logic and program data.
-    pub(crate) fn new(logic: Box<dyn WasmProgram>, program: Program<BlockNumber>) -> Self {
+    pub(crate) fn new(handlers_impls: Box<dyn WasmProgram>, primary: Program<BlockNumber>) -> Self {
         Self {
-            handlers: logic,
-            program,
+            handlers: handlers_impls,
+            primary,
         }
     }
 
@@ -83,7 +83,7 @@ impl Clone for MockWasmProgram {
     fn clone(&self) -> Self {
         Self {
             handlers: self.handlers.clone_boxed(),
-            program: self.program.clone(),
+            primary: self.primary.clone(),
         }
     }
 }
@@ -114,8 +114,9 @@ fn memory_pages_storage()
 pub(crate) struct ProgramsStorageManager;
 
 impl ProgramsStorageManager {
-    // Accesses actor's inner data by program id.
-    pub(crate) fn access_program_data<R>(
+    // Accesses underlying primary program of a [`Program`] type, which is owned
+    // by [`GTestProgram`] variants.
+    pub(crate) fn access_primary_program<R>(
         program_id: ActorId,
         access: impl FnOnce(Option<&Program<BlockNumber>>) -> R,
     ) -> R {
@@ -124,28 +125,17 @@ impl ProgramsStorageManager {
                 storage
                     .data()
                     .get(&program_id)
-                    .map(|gtest_program| gtest_program.as_program()),
+                    .map(|gtest_program| gtest_program.as_primary_program()),
             )
         })
     }
 
     // Inserts actor directly by program id.
-    pub(crate) fn insert_program(
-        program_id: ActorId,
-        actor: GTestProgram,
-    ) -> Option<Program<BlockNumber>> {
-        programs_storage().with(|storage| {
-            storage
-                .data_mut()
-                .insert(program_id, actor)
-                .map(|gtest_program| match gtest_program {
-                    GTestProgram::Default(program) => program,
-                    GTestProgram::Mock(mock) => mock.program,
-                })
-        })
+    pub(crate) fn insert_program(program_id: ActorId, program: GTestProgram) -> bool {
+        programs_storage().with(|storage| storage.data_mut().insert(program_id, program).is_some())
     }
 
-    // Modifies the full GtestProgram (including mock logic if present).
+    // Modifies [`GTestProgram`] by program id.
     pub(crate) fn modify_program<R>(
         program_id: ActorId,
         modify: impl FnOnce(Option<&mut GTestProgram>) -> R,
@@ -170,7 +160,7 @@ impl ProgramsStorageManager {
             storage
                 .data()
                 .get(&id)
-                .map(|gtest_program| gtest_program.as_program().is_active())
+                .map(|gtest_program| gtest_program.as_primary_program().is_active())
                 .unwrap_or(false)
         })
     }
@@ -181,6 +171,7 @@ impl ProgramsStorageManager {
         !Self::is_user(id)
     }
 
+    // Checks if the `id` belongs to a mock program.
     pub(crate) fn is_mock_program(id: ActorId) -> bool {
         programs_storage().with(|storage| {
             storage
@@ -207,10 +198,10 @@ impl ProgramsStorageManager {
 
     pub(crate) fn set_allocations(program_id: ActorId, allocations: IntervalsTree<WasmPage>) {
         programs_storage().with(|storage| {
-            if let Some(gtest_program) = storage.data_mut().get_mut(&program_id)
-                && let Program::Active(program) = gtest_program.as_program_mut()
+            if let Some(program) = storage.data_mut().get_mut(&program_id)
+                && let Program::Active(active_program) = program.as_primary_program_mut()
             {
-                program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
+                active_program.allocations_tree_len = u32::try_from(allocations.intervals_amount())
                     .unwrap_or_else(|err| {
                         // This panic is impossible because page numbers are u32.
                         unreachable!("allocations tree length is too big to fit into u32: {err}")
@@ -247,7 +238,12 @@ impl fmt::Debug for ProgramsStorageManager {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         programs_storage().with(|storage| {
             f.debug_map()
-                .entries(storage.data().iter().map(|(k, v)| (k, v.as_program())))
+                .entries(
+                    storage
+                        .data()
+                        .iter()
+                        .map(|(k, v)| (k, v.as_primary_program())),
+                )
                 .finish()
         })
     }

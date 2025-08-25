@@ -320,15 +320,15 @@ impl ExtManager {
             }
         };
 
-        ProgramsStorageManager::modify_program(destination_id, |gtest_program| {
-            let Some(gtest_program) = gtest_program else {
+        ProgramsStorageManager::modify_program(destination_id, |program| {
+            let Some(program) = program else {
                 log::debug!(
                     "Message {dispatch_id} is sent to program {destination_id} which does not exist"
                 );
                 return core_processor::process_code_not_exists(context);
             };
 
-            match gtest_program.as_program() {
+            match program.as_primary_program() {
                 Program::Active(active_program) => {
                     // Check for invalid init message to already initialized program
                     if active_program.state == ProgramState::Initialized && dispatch_kind.is_init()
@@ -380,7 +380,7 @@ impl ExtManager {
             };
 
             // Dispatch to mock or regular program based on the type
-            match gtest_program {
+            match program {
                 GTestProgram::Default(Program::Active(active_program)) => self.process_program(
                     block_config,
                     context,
@@ -392,15 +392,12 @@ impl ExtManager {
                     self.process_mock_program(context, mock_program)
                 }
                 _ => {
-                    unreachable!(
-                        "Program {destination_id:?} is in unexpected state - {gtest_program:?}"
-                    );
+                    unreachable!("Program {destination_id:?} is in unexpected state - {program:?}");
                 }
             }
         })
     }
 
-    /// Process a regular WASM program through the core processor.
     fn process_program(
         &mut self,
         block_config: &BlockConfig,
@@ -526,8 +523,6 @@ impl ExtManager {
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
-    /// Process a mock program's message using its WasmProgram trait
-    /// implementation.
     fn process_mock_program(
         &mut self,
         context: ContextCharged<ForProgram>,
@@ -536,16 +531,16 @@ impl ExtManager {
         let (destination_id, dispatch, gas_counter, _) = context.into_parts();
         let payload = dispatch.payload().to_vec();
         let dispatch_kind = dispatch.kind();
-        let logic = mock_program.handlers_mut();
+        let handlers = mock_program.handlers_mut();
 
         let outcome = match dispatch_kind {
             DispatchKind::Init => {
                 log::debug!("Calling mock program init for {destination_id:?}");
-                logic.init(payload)
+                handlers.init(payload)
             }
             DispatchKind::Handle => {
                 log::debug!("Calling mock program handle for {destination_id:?}");
-                logic.handle(payload)
+                handlers.handle(payload)
             }
             _ => unreachable!("Unsupported dispatch kind for mock program"),
         };
@@ -584,7 +579,7 @@ impl ExtManager {
                 )
             }
             Err(error_msg) => {
-                logic.debug(error_msg);
+                handlers.debug(error_msg);
 
                 let err = ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
                     LimitedStr::from_small_str(error_msg).into(),

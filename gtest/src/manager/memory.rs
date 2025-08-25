@@ -32,9 +32,9 @@ impl ExtManager {
             .ok_or(TestError::ActorNotFound(program_id))?;
 
         if ProgramsStorageManager::is_mock_program(program_id) {
-            ProgramsStorageManager::modify_program(program_id, |gtest_program| {
-                let Some(GTestProgram::Mock(mock_program)) = gtest_program else {
-                    unreachable!("checked upper case for mock program");
+            ProgramsStorageManager::modify_program(program_id, |program| {
+                let Some(GTestProgram::Mock(mock_program)) = program else {
+                    unreachable!("checked upper, that it's the case for a mock program");
                 };
 
                 mock_program
@@ -44,10 +44,10 @@ impl ExtManager {
             })
         } else {
             let allocations = ProgramsStorageManager::allocations(program_id);
-            let code_id = ProgramsStorageManager::access_program_data(program_id, |program| {
+            let code_id = ProgramsStorageManager::access_primary_program(program_id, |program| {
                 let Some(Program::Active(ActiveProgram { code_id, .. })) = program else {
                     // Above checked that program exists and it's not a mock program
-                    unreachable!("checked upper case for active program");
+                    unreachable!("checked upper, that it's the case for an active program");
                 };
 
                 *code_id
