@@ -535,7 +535,7 @@ impl ExtManager {
         let (destination_id, dispatch, gas_counter, _) = context.into_parts();
         let payload = dispatch.payload().to_vec();
         let dispatch_kind = dispatch.kind();
-        let logic = mock_program.logic_mut();
+        let logic = mock_program.handlers_mut();
 
         let outcome = match dispatch_kind {
             DispatchKind::Init => {
@@ -545,10 +545,6 @@ impl ExtManager {
             DispatchKind::Handle => {
                 log::debug!("Calling mock program handle for {destination_id:?}");
                 logic.handle(payload)
-            }
-            DispatchKind::Reply => {
-                log::debug!("Calling mock program handle_reply for {destination_id:?}");
-                logic.handle_reply(payload).map(|_| None)
             }
             _ => unreachable!("Unsupported dispatch kind for mock program"),
         };
@@ -586,15 +582,6 @@ impl ExtManager {
                     dispatch,
                 )
             }
-            // Ok(MockedOutcome::Signal) => {
-            //     let dispatch_result = DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount());
-
-            //     core_processor::process_success(
-            //         SuccessfulDispatchResultKind::Success,
-            //         dispatch_result,
-            //         dispatch,
-            //     )
-            // }
             Err(error_msg) => {
                 logic.debug(error_msg);
 

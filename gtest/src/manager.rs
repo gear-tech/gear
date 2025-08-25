@@ -46,7 +46,7 @@ use gear_common::{
     storage::Interval,
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    code::{CodeMetadata, InstrumentedCode},
     gas_metering::{DbWeights, RentWeights, Schedule},
     ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::PageBuf,

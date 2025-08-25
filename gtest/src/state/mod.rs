@@ -392,7 +392,7 @@ mod tests {
 
         // Actors haven't changed.
         let check_actor = |idx, id, code_id_expected| {
-            ProgramsStorageManager::access_program(id, |a| {
+            ProgramsStorageManager::access_program_data(id, |a| {
                 let Some(Program::Active(active_program)) = a else {
                     panic!("Expected active program for actor {id}");
                 };

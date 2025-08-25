@@ -20,9 +20,12 @@
 
 use super::{ExtManager, Program};
 use crate::{
-    EXISTENTIAL_DEPOSIT, GtestProgram, Value,
+    EXISTENTIAL_DEPOSIT, Value,
     manager::hold_bound::HoldBoundBuilder,
-    state::{accounts::Accounts, programs::ProgramsStorageManager},
+    state::{
+        accounts::Accounts,
+        programs::{GtestProgram, ProgramsStorageManager},
+    },
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{

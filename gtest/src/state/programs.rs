@@ -29,68 +29,60 @@ use std::{collections::BTreeMap, fmt, thread::LocalKey};
 /// Message id used when program is set to the programs storage (with
 /// [`crate::Program`]), but no message is sent yet. So for uninitialized state
 /// we use a placeholder message id.
-// todo [sab] change as custom wasm program code id
-pub(crate) const PLACEHOLDER_MESSAGE_ID: MessageId = MessageId::new(PLACEHOLDER_MESSAGE_ID_BYTES);
-const PLACEHOLDER_MESSAGE_ID_BYTES: [u8; 32] = [
-    80, 76, 65, 67, 69, 72, 79, 76, 68, 69, 82, 95, 77, 69, 83, 83, 65, 71, 69, 95, 73, 68, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-];
-const _: () = {
-    let expected = b"PLACEHOLDER_MESSAGE_ID\0\0\0\0\0\0\0\0\0\0";
-    let mut i = 0;
-    while i < 32 {
-        assert!(PLACEHOLDER_MESSAGE_ID_BYTES[i] == expected[i]);
-        i += 1;
-    }
-};
+pub(crate) const PLACEHOLDER_MESSAGE_ID: MessageId =
+    MessageId::new(*b"PLACEHOLDER_MESSAGE_ID\0\0\0\0\0\0\0\0\0\0");
 
 /// Enum representing either a regular or mock WASM program in gtest.
 #[derive(Debug, Clone)]
-pub enum GtestProgram {
+pub(crate) enum GtestProgram {
     /// Regular program execution using the default runtime.
     Default(Program<BlockNumber>),
     /// Mock program execution using custom test logic.
     Mock(MockWasmProgram),
 }
 
+impl GtestProgram {
+    pub(crate) fn as_program(&self) -> &Program<BlockNumber> {
+        match self {
+            GtestProgram::Default(program) => program,
+            GtestProgram::Mock(mock) => &mock.program,
+        }
+    }
+
+    pub(crate) fn as_program_mut(&mut self) -> &mut Program<BlockNumber> {
+        match self {
+            GtestProgram::Default(program) => program,
+            GtestProgram::Mock(mock) => &mut mock.program,
+        }
+    }
+}
+
 /// Structure containing mock WASM program logic and associated program data.
 #[derive(Debug)]
-pub struct MockWasmProgram {
-    logic: Box<dyn WasmProgram>,
+pub(crate) struct MockWasmProgram {
+    handlers: Box<dyn WasmProgram>,
     program: Program<BlockNumber>,
 }
 
 impl MockWasmProgram {
     /// Create a new mock WASM program with the given logic and program data.
-    pub fn new(logic: Box<dyn WasmProgram>, program: Program<BlockNumber>) -> Self {
-        Self { logic, program }
-    }
-
-    /// Get a reference to the mock program logic.
-    pub fn logic(&self) -> &dyn WasmProgram {
-        &*self.logic
+    pub(crate) fn new(logic: Box<dyn WasmProgram>, program: Program<BlockNumber>) -> Self {
+        Self {
+            handlers: logic,
+            program,
+        }
     }
 
     /// Get a mutable reference to the mock program logic.
-    pub fn logic_mut(&mut self) -> &mut dyn WasmProgram {
-        &mut *self.logic
-    }
-
-    /// Get a reference to the program data.
-    pub fn data(&self) -> &Program<BlockNumber> {
-        &self.program
-    }
-
-    /// Get a mutable reference to the program data.
-    pub fn data_mut(&mut self) -> &mut Program<BlockNumber> {
-        &mut self.program
+    pub(crate) fn handlers_mut(&mut self) -> &mut dyn WasmProgram {
+        &mut *self.handlers
     }
 }
 
 impl Clone for MockWasmProgram {
     fn clone(&self) -> Self {
         Self {
-            logic: self.logic.clone_boxed(),
+            handlers: self.handlers.clone_boxed(),
             program: self.program.clone(),
         }
     }
@@ -119,27 +111,11 @@ fn memory_pages_storage()
     &MEMORY_PAGES_STORAGE
 }
 
-impl GtestProgram {
-    pub(crate) fn as_program(&self) -> &Program<BlockNumber> {
-        match self {
-            GtestProgram::Default(program) => program,
-            GtestProgram::Mock(mock) => &mock.program,
-        }
-    }
-
-    pub(crate) fn as_program_mut(&mut self) -> &mut Program<BlockNumber> {
-        match self {
-            GtestProgram::Default(program) => program,
-            GtestProgram::Mock(mock) => &mut mock.program,
-        }
-    }
-}
-
 pub(crate) struct ProgramsStorageManager;
 
 impl ProgramsStorageManager {
-    // Accesses actor by program id.
-    pub(crate) fn access_program<R>(
+    // Accesses actor's inner data by program id.
+    pub(crate) fn access_program_data<R>(
         program_id: ActorId,
         access: impl FnOnce(Option<&Program<BlockNumber>>) -> R,
     ) -> R {
@@ -203,6 +179,16 @@ impl ProgramsStorageManager {
     pub(crate) fn is_program(id: ActorId) -> bool {
         // if it's not a user, then it's a program
         !Self::is_user(id)
+    }
+
+    pub(crate) fn is_mock_program(id: ActorId) -> bool {
+        programs_storage().with(|storage| {
+            storage
+                .data()
+                .get(&id)
+                .map(|gtest_program| matches!(gtest_program, GtestProgram::Mock(_)))
+                .unwrap_or(false)
+        })
     }
 
     // Returns all program ids.

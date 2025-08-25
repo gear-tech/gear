@@ -506,16 +506,14 @@ pub use program::{
     Program, ProgramBuilder, ProgramIdWrapper, WasmProgram, calculate_program_id,
     gbuild::ensure_gbuild,
 };
-pub use state::{
-    mailbox::ActorMailbox,
-    programs::{GtestProgram, MockWasmProgram},
-};
+pub use state::mailbox::ActorMailbox;
 pub use system::System;
 
 pub use constants::Value;
 pub(crate) use constants::*;
 
 // todo [sab] write docs about wasm program.
+// also think of sending messages from it
 // devs doc - it doesn't change global states, but only in few points
 // tests:
 // - user interaction

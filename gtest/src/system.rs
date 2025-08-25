@@ -300,7 +300,7 @@ impl System {
     /// Returns [`None`] otherwise.
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
-        ProgramsStorageManager::access_program(program_id, |program| {
+        ProgramsStorageManager::access_program_data(program_id, |program| {
             program.and_then(|program| {
                 if let InnerProgram::Exited(inheritor_id) = program {
                     Some(*inheritor_id)

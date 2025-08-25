@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    BlockNumber, MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
+    MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
     state::programs::{
@@ -47,6 +47,8 @@ use std::{
     str::FromStr,
 };
 
+// todo [sab] rethink concept to make it more useful
+
 /// Trait for mocking gear programs.
 ///
 /// See [`Program`] and [`Program::mock`] for the usages.
@@ -64,19 +66,14 @@ pub trait WasmProgram: Debug {
     ///
     /// Returns `Ok(Some(payload))` if program has reply logic.
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Reply message handler with given `payload`.
-    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
-    // todo [sab] think how to redesign it, because system reservation is required here.
-    // /// Signal handler with given `payload`.
-    // fn handle_signal(&mut self, payload: Vec<u8>) -> Result<(), &'static str>;
     /// Clone the program and return it's boxed version.
     fn clone_boxed(&self) -> Box<dyn WasmProgram>;
-    // /// State of wasm program.
-    // ///
-    // /// See [`Program::read_state`] for the usage.
-    // fn state(&mut self) -> Result<Vec<u8>, &'static str>;
-    // /// Emit debug message in program with given `data`.
-    // ///
+    /// State of wasm program.
+    ///
+    /// See [`Program::read_state`] for the usage.
+    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
+    /// Emit debug message in program with given `data`.
+    ///
     /// Logging target `gwasm` is used in this method.
     fn debug(&mut self, data: &str) {
         log::debug!(target: "gwasm", "{data}");

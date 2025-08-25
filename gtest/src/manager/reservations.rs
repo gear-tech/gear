@@ -19,7 +19,7 @@
 //! Various reservation related methods for ExtManager
 
 use super::ExtManager;
-use crate::{GtestProgram, state::programs::ProgramsStorageManager};
+use crate::state::programs::{GtestProgram, ProgramsStorageManager};
 use gear_common::{ActorId, Program, ReservationId, scheduler::StorageType, storage::Interval};
 use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
 use std::mem;
