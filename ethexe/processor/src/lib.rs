@@ -270,7 +270,7 @@ impl OverlaidProcessor {
 
         let state = handler
             .db
-            .read_state(state_hash)
+            .program_state(state_hash)
             .ok_or(ProcessorError::StatePartiallyPresentsInStorage)?;
 
         if state.requires_init_message() {

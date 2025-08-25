@@ -26,8 +26,8 @@ use anyhow::{Result, bail};
 use ethexe_common::{
     Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
+        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -69,13 +69,6 @@ enum Key {
     ValidatorSet(H256) = 13,
 }
 
-#[derive(Debug, Encode, Decode)]
-enum BlockOutcome {
-    Transitions(Vec<StateTransition>),
-    /// The actual outcome is not available but it must be considered non-empty.
-    ForcedNonEmpty,
-}
-
 impl Key {
     fn prefix(&self) -> [u8; 32] {
         // SAFETY: Because `Key` is marked as `#[repr(u64)]` it's actual layout
@@ -114,6 +107,8 @@ impl Key {
     }
 }
 
+#[derive(derive_more::Debug)]
+#[debug("Database(CAS + KV)")]
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
@@ -252,15 +247,6 @@ impl Database {
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
 
-    fn block_outcome_inner(&self, block_hash: H256) -> Option<BlockOutcome> {
-        self.kv
-            .get(&Key::BlockOutcome(block_hash).to_bytes())
-            .map(|data| {
-                BlockOutcome::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<StateTransition>`")
-            })
-    }
-
     /// # Safety
     ///
     /// If the block is actually empty but forced to be not, then database invariants are violated.
@@ -302,21 +288,12 @@ impl BlockMetaStorageRead for Database {
             })
     }
 
-    fn block_outcome(&self, block_hash: H256) -> Option<Vec<StateTransition>> {
-        self.block_outcome_inner(block_hash)
-            .map(|outcome| match outcome {
-                BlockOutcome::Transitions(transitions) => transitions,
-                BlockOutcome::ForcedNonEmpty => {
-                    panic!("`block_outcome()` called on forced non-empty block {block_hash}")
-                }
-            })
-    }
-
-    fn block_outcome_is_empty(&self, block_hash: H256) -> Option<bool> {
-        self.block_outcome_inner(block_hash)
-            .map(|outcome| match outcome {
-                BlockOutcome::Transitions(transitions) => transitions.is_empty(),
-                BlockOutcome::ForcedNonEmpty => false,
+    fn block_outcome(&self, block_hash: H256) -> Option<BlockOutcome> {
+        self.kv
+            .get(&Key::BlockOutcome(block_hash).to_bytes())
+            .map(|data| {
+                BlockOutcome::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
             })
     }
 
@@ -488,7 +465,7 @@ impl CodesStorageWrite for Database {
 
 // TODO: consider to change decode panics to Results.
 impl Storage for Database {
-    fn read_state(&self, hash: H256) -> Option<ProgramState> {
+    fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             return Some(ProgramState::zero());
         }
@@ -501,7 +478,7 @@ impl Storage for Database {
         Some(state)
     }
 
-    fn write_state(&self, state: ProgramState) -> H256 {
+    fn write_program_state(&self, state: ProgramState) -> H256 {
         if state.is_zero() {
             return H256::zero();
         }
@@ -509,17 +486,17 @@ impl Storage for Database {
         self.cas.write(&state.encode())
     }
 
-    fn read_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
+    fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
         self.cas.read(hash.hash()).map(|data| {
             MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
         })
     }
 
-    fn write_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
+    fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
         unsafe { HashOf::new(self.cas.write(&queue.encode())) }
     }
 
-    fn read_waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
+    fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
         self.cas.read(hash.hash()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
@@ -529,18 +506,18 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&waitlist.encode())) }
     }
 
-    fn read_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
+    fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
         self.cas.read(hash.hash()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
     }
 
-    fn write_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
+    fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
         unsafe { HashOf::new(self.cas.write(&stash.encode())) }
     }
 
-    fn read_mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
+    fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
         self.cas.read(hash.hash()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
@@ -550,7 +527,7 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
     }
 
-    fn read_user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
+    fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
         self.cas.read(hash.hash()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
@@ -561,28 +538,31 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&use_mailbox.encode())) }
     }
 
-    fn read_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
+    fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
         self.cas.read(hash.hash()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
         })
     }
 
-    fn read_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
+    fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
         self.cas.read(hash.hash()).map(|data| {
             MemoryPagesRegion::decode(&mut &data[..])
                 .expect("Failed to decode data into `MemoryPagesRegion`")
         })
     }
 
-    fn write_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
+    fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
         unsafe { HashOf::new(self.cas.write(&pages.encode())) }
     }
 
-    fn write_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion> {
+    fn write_memory_pages_region(
+        &self,
+        pages_region: MemoryPagesRegion,
+    ) -> HashOf<MemoryPagesRegion> {
         unsafe { HashOf::new(self.cas.write(&pages_region.encode())) }
     }
 
-    fn read_allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
+    fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
         self.cas.read(hash.hash()).map(|data| {
             Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
         })
@@ -592,7 +572,7 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(&allocations.encode())) }
     }
 
-    fn read_payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
+    fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         self.cas
             .read(hash.hash())
             .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
@@ -602,7 +582,7 @@ impl Storage for Database {
         unsafe { HashOf::new(self.cas.write(payload.inner())) }
     }
 
-    fn read_page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
+    fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
         self.cas.read(hash.hash()).map(|data| {
             PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
         })
@@ -727,7 +707,7 @@ mod tests {
                 height: BASE_HEIGHT,
                 ..Default::default()
             };
-            db.set_block_header(block_hash, block_header.clone());
+            db.set_block_header(block_hash, block_header);
             db.set_latest_computed_block(block_hash, block_header);
             assert!(db.check_within_recent_blocks(block_hash).unwrap());
         }
@@ -741,16 +721,16 @@ mod tests {
                 height: BASE_HEIGHT + WINDOW_SIZE,
                 ..Default::default()
             };
-            db.set_latest_computed_block(current_hash, current_header.clone());
+            db.set_latest_computed_block(current_hash, current_header);
 
-            let mut history = vec![(current_hash, current_header.clone())];
+            let mut history = vec![(current_hash, current_header)];
 
             // Build history within the window
             for i in 0..WINDOW_SIZE {
                 let parent_hash = H256::random();
                 current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header.clone());
-                history.push((current_hash, current_header.clone()));
+                db.set_block_header(current_hash, current_header);
+                history.push((current_hash, current_header));
 
                 current_hash = parent_hash;
                 current_header = BlockHeader {
@@ -759,8 +739,8 @@ mod tests {
                 };
             }
             // Oldest in window
-            db.set_block_header(current_hash, current_header.clone());
-            history.push((current_hash, current_header.clone()));
+            db.set_block_header(current_hash, current_header);
+            history.push((current_hash, current_header));
 
             // Check block near the end of the window
             let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
@@ -789,7 +769,7 @@ mod tests {
                 parent_hash: H256::random(),
                 ..Default::default()
             };
-            db.set_latest_computed_block(current_hash, current_header.clone());
+            db.set_latest_computed_block(current_hash, current_header);
 
             let mut reference_block_hash = H256::zero();
 
@@ -797,7 +777,7 @@ mod tests {
             for i in 0..(WINDOW_SIZE + 1) {
                 let parent_hash = H256::random();
                 current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header.clone());
+                db.set_block_header(current_hash, current_header);
 
                 // This is the block just outside the window (height BASE_HEIGHT)
                 if i == WINDOW_SIZE {
@@ -827,13 +807,13 @@ mod tests {
                 parent_hash: H256::random(),
                 ..Default::default()
             };
-            db.set_latest_computed_block(current_hash, current_header.clone());
+            db.set_latest_computed_block(current_hash, current_header);
 
             // Build canonical chain history
             for i in 0..WINDOW_SIZE {
                 let parent_hash = H256::random();
                 current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header.clone());
+                db.set_block_header(current_hash, current_header);
 
                 current_hash = parent_hash;
                 current_header = BlockHeader {
@@ -843,7 +823,7 @@ mod tests {
                 };
             }
             // Oldest canonical block
-            db.set_block_header(current_hash, current_header.clone());
+            db.set_block_header(current_hash, current_header);
 
             // Create a fork (reference block not on the canonical chain)
             let fork_block_hash = H256::random();
@@ -883,7 +863,7 @@ mod tests {
                 height: BASE_HEIGHT,
                 ..Default::default()
             };
-            db.set_latest_computed_block(latest_hash, latest_header.clone());
+            db.set_latest_computed_block(latest_hash, latest_header);
             // Need the latest header itself
             db.set_block_header(latest_hash, latest_header);
 
@@ -911,7 +891,7 @@ mod tests {
                 parent_hash: missing_parent_hash,
                 ..Default::default()
             };
-            db.set_latest_computed_block(latest_hash, latest_header.clone());
+            db.set_latest_computed_block(latest_hash, latest_header);
             // Add latest block header
             db.set_block_header(latest_hash, latest_header);
 
@@ -953,7 +933,10 @@ mod tests {
         let block_hash = H256::random();
         let block_outcome = vec![StateTransition::default()];
         db.set_block_outcome(block_hash, block_outcome.clone());
-        assert_eq!(db.block_outcome(block_hash), Some(block_outcome));
+        assert_eq!(
+            db.block_outcome(block_hash),
+            Some(BlockOutcome::Transitions(block_outcome))
+        );
     }
 
     #[test]
@@ -972,7 +955,7 @@ mod tests {
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
-        db.set_latest_computed_block(block_hash, block_header.clone());
+        db.set_latest_computed_block(block_hash, block_header);
         assert_eq!(db.latest_computed_block(), Some((block_hash, block_header)));
     }
 
@@ -1107,7 +1090,7 @@ mod tests {
 
         let block_hash = H256::random();
         let block_header = BlockHeader::default();
-        db.set_block_header(block_hash, block_header.clone());
+        db.set_block_header(block_hash, block_header);
         assert_eq!(db.block_header(block_hash), Some(block_header));
     }
 
@@ -1116,8 +1099,8 @@ mod tests {
         let db = Database::memory();
 
         let state = ProgramState::zero();
-        let hash = db.write_state(state.clone());
-        assert_eq!(db.read_state(hash), Some(state));
+        let hash = db.write_program_state(state);
+        assert_eq!(db.program_state(hash), Some(state));
     }
 
     #[test]
@@ -1125,8 +1108,8 @@ mod tests {
         let db = Database::memory();
 
         let queue = MessageQueue::default();
-        let hash = db.write_queue(queue.clone());
-        assert_eq!(db.read_queue(hash), Some(queue));
+        let hash = db.write_message_queue(queue.clone());
+        assert_eq!(db.message_queue(hash), Some(queue));
     }
 
     #[test]
@@ -1135,7 +1118,7 @@ mod tests {
 
         let waitlist = Waitlist::default();
         let hash = db.write_waitlist(waitlist.clone());
-        assert_eq!(db.read_waitlist(hash), Some(waitlist));
+        assert_eq!(db.waitlist(hash), Some(waitlist));
     }
 
     #[test]
@@ -1143,8 +1126,8 @@ mod tests {
         let db = Database::memory();
 
         let stash = DispatchStash::default();
-        let hash = db.write_stash(stash.clone());
-        assert_eq!(db.read_stash(hash), Some(stash));
+        let hash = db.write_dispatch_stash(stash.clone());
+        assert_eq!(db.dispatch_stash(hash), Some(stash));
     }
 
     #[test]
@@ -1153,7 +1136,7 @@ mod tests {
 
         let mailbox = Mailbox::default();
         let hash = db.write_mailbox(mailbox.clone());
-        assert_eq!(db.read_mailbox(hash), Some(mailbox));
+        assert_eq!(db.mailbox(hash), Some(mailbox));
     }
 
     #[test]
@@ -1161,8 +1144,8 @@ mod tests {
         let db = Database::memory();
 
         let pages = MemoryPages::default();
-        let hash = db.write_pages(pages.clone());
-        assert_eq!(db.read_pages(hash), Some(pages));
+        let hash = db.write_memory_pages(pages.clone());
+        assert_eq!(db.memory_pages(hash), Some(pages));
     }
 
     #[test]
@@ -1170,8 +1153,8 @@ mod tests {
         let db = Database::memory();
 
         let pages_region = MemoryPagesRegion::default();
-        let hash = db.write_pages_region(pages_region.clone());
-        assert_eq!(db.read_pages_region(hash), Some(pages_region));
+        let hash = db.write_memory_pages_region(pages_region.clone());
+        assert_eq!(db.memory_pages_region(hash), Some(pages_region));
     }
 
     #[test]
@@ -1180,7 +1163,7 @@ mod tests {
 
         let allocations = Allocations::default();
         let hash = db.write_allocations(allocations.clone());
-        assert_eq!(db.read_allocations(hash), Some(allocations));
+        assert_eq!(db.allocations(hash), Some(allocations));
     }
 
     #[test]
@@ -1189,7 +1172,7 @@ mod tests {
 
         let payload: Payload = vec![1, 2, 3].try_into().unwrap();
         let hash = db.write_payload(payload.clone());
-        assert_eq!(db.read_payload(hash), Some(payload));
+        assert_eq!(db.payload(hash), Some(payload));
     }
 
     #[test]
@@ -1199,6 +1182,6 @@ mod tests {
         let mut page_data = PageBuf::new_zeroed();
         page_data[42] = 42;
         let hash = db.write_page_data(page_data.clone());
-        assert_eq!(db.read_page_data(hash), Some(page_data));
+        assert_eq!(db.page_data(hash), Some(page_data));
     }
 }
