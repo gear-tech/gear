@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
-    Announce,
+    Announce, AnnounceHash,
     db::{
         AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
         OnChainStorageRead,
@@ -29,8 +29,8 @@ use ethexe_processor::BlockProcessingResult;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum ComputationStatus {
-    Rejected,
-    Computed,
+    Rejected(AnnounceHash),
+    Computed(AnnounceHash),
 }
 
 pub(crate) async fn compute<P: ProcessorExt>(
@@ -48,7 +48,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
 
     if utils::announce_is_computed_and_included(&db, announce_hash, announce.block_hash)? {
         log::warn!("{announce:?} is already computed");
-        return Ok(ComputationStatus::Computed);
+        return Ok(ComputationStatus::Computed(announce_hash));
     }
 
     let parent_block_hash = db
@@ -60,7 +60,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
             "{announce:?} is from unknown branch: parent {}",
             announce.parent
         );
-        return Ok(ComputationStatus::Rejected);
+        return Ok(ComputationStatus::Rejected(announce_hash));
     }
 
     debug_assert!(
@@ -106,7 +106,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
     })
     .ok_or(ComputeError::LatestDataNotFound)?;
 
-    Ok(ComputationStatus::Computed)
+    Ok(ComputationStatus::Computed(announce_hash))
 }
 
 #[cfg(test)]
@@ -177,7 +177,7 @@ mod tests {
         // Set the PROCESSOR_RESULT to return non-empty result
         PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
         let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
-        assert_eq!(status, ComputationStatus::Computed);
+        assert_eq!(status, ComputationStatus::Computed(announce_hash));
 
         // Verify block was marked as computed
         assert!(db.announce_meta(announce_hash).computed);
@@ -201,7 +201,8 @@ mod tests {
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };
+        let announce_hash = announce.hash();
         let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
-        assert_eq!(status, ComputationStatus::Rejected);
+        assert_eq!(status, ComputationStatus::Rejected(announce_hash));
     }
 }

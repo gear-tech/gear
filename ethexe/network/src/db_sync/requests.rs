@@ -18,16 +18,16 @@
 
 use crate::{
     db_sync::{
-        AnnouncesRequest, Config, Event, ExternalDataProvider, HashesRequest,
-        InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest,
-        InnerProgramIdsResponse, InnerRequest, InnerResponse, NewRequestRoundReason, PeerId,
-        ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
+        AnnouncesRequest, Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour,
+        InnerHashesResponse, InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest,
+        InnerResponse, NewRequestRoundReason, PeerId, ProgramIdsRequest, Request, RequestFailure,
+        RequestId, Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
 };
 use anyhow::Context as _;
-use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
+use ethexe_common::{AnnouncesResponseError, CheckedAnnouncesResponse, gear::CodeState};
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
@@ -319,19 +319,6 @@ pub enum ValidCodesResponseError {
     RouterQuery(anyhow::Error),
 }
 
-#[derive(Debug, derive_more::Display)]
-pub enum AnnouncesResponseError {
-    #[display("announces head mismatch, expected hash {expected}, received {received}")]
-    HeadMismatch {
-        expected: AnnounceHash,
-        received: AnnounceHash,
-    },
-    #[display("announces len maximum {expected}, received {received}")]
-    LenOverflow { expected: usize, received: usize },
-    #[display("response is empty")]
-    Empty,
-}
-
 #[derive(Debug, derive_more::Display, derive_more::From)]
 enum ResponseError {
     #[display("{_0}")]
@@ -398,12 +385,7 @@ impl ResponseHandler {
                         validated_count: _,
                     },
             } => InnerRequest::ValidCodes,
-            ResponseHandler::Announces { request } => {
-                InnerRequest::Announces(InnerAnnouncesRequest {
-                    head: request.head,
-                    max_chain_len: request.max_chain_len,
-                })
-            }
+            ResponseHandler::Announces { request } => InnerRequest::Announces(*request),
         }
     }
 
@@ -515,31 +497,6 @@ impl ResponseHandler {
         Ok(code_ids)
     }
 
-    fn handle_announces(
-        request: &AnnouncesRequest,
-        response: Vec<Announce>,
-    ) -> Result<Response, AnnouncesResponseError> {
-        let Some(head) = response.first() else {
-            return Err(AnnouncesResponseError::Empty);
-        };
-
-        if request.head != head.hash() {
-            return Err(AnnouncesResponseError::HeadMismatch {
-                expected: request.head,
-                received: head.hash(),
-            });
-        }
-
-        if response.len() > request.max_chain_len as usize {
-            return Err(AnnouncesResponseError::LenOverflow {
-                expected: request.max_chain_len as usize,
-                received: response.len(),
-            });
-        }
-
-        Ok(Response::Announces(response))
-    }
-
     async fn handle(
         self,
         peer: PeerId,
@@ -604,8 +561,9 @@ impl ResponseHandler {
                     .map_err(|err| (Self::ValidCodes { request }, err.into()))
             }
             (Self::Announces { request }, InnerResponse::Announces(response)) => {
-                Self::handle_announces(&request, response)
+                CheckedAnnouncesResponse::new(request, response)
                     .map_err(|err| (Self::Announces { request }, err.into()))
+                    .map(Into::into)
             }
             (this, _) => Err((this, ResponseError::TypeMismatch)),
         }

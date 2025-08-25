@@ -27,7 +27,7 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
+use ethexe_common::{gear::CodeState, AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -199,14 +199,6 @@ pub struct ValidCodesRequest {
     pub validated_count: u64,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct AnnouncesRequest {
-    /// The hash of head announce
-    pub head: AnnounceHash,
-    /// Max chain length to return
-    pub max_chain_len: u64,
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
@@ -239,20 +231,12 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
-    Announces(Vec<Announce>),
+    Announces(CheckedAnnouncesResponse),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsRequest {
     at: H256,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-pub struct InnerAnnouncesRequest {
-    /// The hash of head announce
-    pub head: AnnounceHash,
-    /// Max chain length to return
-    pub max_chain_len: u64,
 }
 
 /// Network-only type to be encoded-decoded and sent over the network
@@ -261,7 +245,7 @@ pub enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
-    Announces(InnerAnnouncesRequest),
+    Announces(AnnouncesRequest),
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
@@ -276,7 +260,7 @@ pub enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
-    Announces(Vec<Announce>),
+    Announces(AnnouncesResponse),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
@@ -507,7 +491,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{StateHashWithQueueSize, db::*};
+    use ethexe_common::{db::*, Announce, AnnounceHash, StateHashWithQueueSize};
     use ethexe_db::MemDb;
     use libp2p::{
         Swarm, Transport,
