@@ -189,7 +189,9 @@ impl ProgramsStorageManager {
 
     // Clears programs storage.
     pub(crate) fn clear() {
-        programs_storage().with(|storage| storage.data_mut().clear())
+        programs_storage().with(|storage| storage.data_mut().clear());
+        allocations_storage().with(|storage| storage.data_mut().clear());
+        memory_pages_storage().with(|storage| storage.data_mut().clear());
     }
 
     pub(crate) fn allocations(program_id: ActorId) -> Option<IntervalsTree<WasmPage>> {
