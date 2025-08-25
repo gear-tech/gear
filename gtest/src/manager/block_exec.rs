@@ -19,7 +19,7 @@
 use super::*;
 use crate::state::{
     blocks,
-    programs::{GtestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
+    programs::{GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
 };
 use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
 use gear_core::{
@@ -354,8 +354,8 @@ impl ExtManager {
                         // Otherwise, we return error reply.
                         if message_id != dispatch_id && !dispatch_kind.is_reply() {
                             if dispatch_kind.is_init() {
-                                // This should never happen as the protocol doesn't allow second init
-                                // messages
+                                // This should never happen as the protocol doesn't allow second
+                                // init messages
                                 unreachable!(
                                     "Got init message which is not the first init message to the program. \
                                     Current init message id: {dispatch_id:?}, original init message id: {message_id:?}, \
@@ -381,14 +381,14 @@ impl ExtManager {
 
             // Dispatch to mock or regular program based on the type
             match gtest_program {
-                GtestProgram::Default(Program::Active(active_program)) => self.process_program(
+                GTestProgram::Default(Program::Active(active_program)) => self.process_program(
                     block_config,
                     context,
                     active_program,
                     dispatch_kind,
                     destination_id,
                 ),
-                GtestProgram::Mock(mock_program) => {
+                GTestProgram::Mock(mock_program) => {
                     self.process_mock_program(context, mock_program)
                 }
                 _ => {
@@ -526,7 +526,8 @@ impl ExtManager {
         .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
     }
 
-    /// Process a mock program's message using its WasmProgram trait implementation.
+    /// Process a mock program's message using its WasmProgram trait
+    /// implementation.
     fn process_mock_program(
         &mut self,
         context: ContextCharged<ForProgram>,

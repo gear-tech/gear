@@ -24,7 +24,7 @@ use crate::{
     manager::hold_bound::HoldBoundBuilder,
     state::{
         accounts::Accounts,
-        programs::{GtestProgram, ProgramsStorageManager},
+        programs::{GTestProgram, ProgramsStorageManager},
     },
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
@@ -291,7 +291,7 @@ impl JournalHandler for ExtManager {
                     let expiration_block = self.block_height();
                     self.store_new_program(
                         candidate_id,
-                        GtestProgram::Default(Program::Active(ActiveProgram {
+                        GTestProgram::Default(Program::Active(ActiveProgram {
                             allocations_tree_len: 0,
                             code_id: code_id.cast(),
                             state: ProgramState::Uninitialized {

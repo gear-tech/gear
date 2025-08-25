@@ -21,7 +21,7 @@ use crate::{
     error::usage_panic,
     manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
     state::programs::{
-        GtestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager,
+        GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager,
     },
     system::System,
 };
@@ -257,7 +257,7 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            GtestProgram::Default(InnerProgram::Active(ActiveProgram {
+            GTestProgram::Default(InnerProgram::Active(ActiveProgram {
                 allocations_tree_len: 0,
                 code_id: code_id.cast(),
                 state: ProgramState::Uninitialized {
@@ -313,7 +313,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: GtestProgram,
+        program: GTestProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -419,7 +419,7 @@ impl<'a> Program<'a> {
 
         let mock_program = MockWasmProgram::new(Box::new(mock), mock_program_data);
 
-        Self::program_with_id(system, id, GtestProgram::Mock(mock_program))
+        Self::program_with_id(system, id, GTestProgram::Mock(mock_program))
     }
 
     /// Send message to the program.
@@ -685,9 +685,9 @@ pub mod gbuild {
 
 #[cfg(test)]
 mod tests {
-    use super::Program;
+    use super::*;
     use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
-    use demo_constructor::{Arg, Scheme};
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
         ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
@@ -1357,5 +1357,126 @@ mod tests {
         target_block_nb += DELAY;
         let res = sys.run_to_block(target_block_nb);
         assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
+    }
+
+    #[test]
+    fn test_mock_program() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = ActorId::from(DEFAULT_USER_ALICE);
+        let mock_program_id = ActorId::new([1; 32]);
+
+        // Create custom WasmProgram implementor
+        #[derive(Debug, Clone)]
+        struct MockProgram;
+
+        impl WasmProgram for MockProgram {
+            fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> {
+                Ok(Some(b"Mock program initialized".to_vec()))
+            }
+
+            fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> {
+                Ok(Some(b"Hi from mock program".to_vec()))
+            }
+
+            fn clone_boxed(&self) -> Box<dyn WasmProgram> {
+                Box::new(self.clone())
+            }
+
+            fn state(&mut self) -> Result<Vec<u8>, &'static str> {
+                Ok(b"mock_state".to_vec())
+            }
+        }
+
+        // Create the mock program using the Program::mock_with_id method
+        let mock_program = Program::mock_with_id(&sys, mock_program_id, MockProgram);
+
+        // Initialize the mock program
+        let init_msg_id = mock_program.send_bytes(user_id, b"init");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&init_msg_id));
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(mock_program_id)
+                    .dest(user_id)
+                    .payload_bytes(b"Mock program initialized")
+            )
+        );
+
+        // Send a message to the mock program from user
+        let mid = mock_program.send_bytes(user_id, b"Hello Mock Program");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&mid));
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(mock_program_id)
+                    .dest(user_id)
+                    .payload_bytes(b"Hi from mock program")
+            )
+        );
+
+        // Create proxy program using demo constructor
+        // The proxy will store the mock program ID and forward messages
+        let proxy_scheme = Scheme::predefined(
+            // init: do nothing
+            Calls::builder().noop(),
+            // handle: load message payload and send it to mock program
+            Calls::builder()
+                .add_call(Call::LoadBytes)
+                .add_call(Call::StoreVec("current_payload".to_string()))
+                .add_call(Call::Send(
+                    Arg::new(mock_program_id.into_bytes()),
+                    Arg::new(vec![1, 2, 3]),
+                    None,
+                    Arg::new(0u128),
+                    Arg::new(0u32),
+                )),
+            // handle_reply: load reply payload and forward it to original sender
+            Calls::builder()
+                .add_call(Call::LoadBytes)
+                .add_call(Call::StoreVec("reply_payload".to_string()))
+                .add_call(Call::Send(
+                    Arg::new(user_id.into_bytes()),
+                    Arg::get("reply_payload"),
+                    None,
+                    Arg::new(0u128),
+                    Arg::new(0u32),
+                )),
+            // handle_signal: noop
+            Calls::builder(),
+        );
+
+        let proxy_program = Program::from_binary_with_id(&sys, ActorId::new([2; 32]), WASM_BINARY);
+
+        // Initialize proxy with the scheme
+        let init_msg_id = proxy_program.send(user_id, proxy_scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&init_msg_id));
+
+        // Send a message to the proxy to trigger the interaction
+        let trigger_msg_id = proxy_program.send_bytes(user_id, b"");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&trigger_msg_id));
+
+        // At this point:
+        // 1. User sent message to proxy
+        // 2. Proxy should have sent message to mock program
+        // 3. Mock program should have replied "Hi from mock program"
+        // 4. Proxy should have received the reply and sent it to user
+
+        // Verify the final message in user's mailbox contains the mock program's
+        // response
+        let final_mailbox = sys.get_mailbox(user_id);
+        assert!(
+            final_mailbox.contains(
+                &Log::builder()
+                    .source(proxy_program.id())
+                    .dest(user_id)
+                    .payload_bytes(b"Hi from mock program")
+            )
+        );
     }
 }

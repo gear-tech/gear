@@ -34,25 +34,25 @@ pub(crate) const PLACEHOLDER_MESSAGE_ID: MessageId =
 
 /// Enum representing either a regular or mock WASM program in gtest.
 #[derive(Debug, Clone)]
-pub(crate) enum GtestProgram {
+pub(crate) enum GTestProgram {
     /// Regular program execution using the default runtime.
     Default(Program<BlockNumber>),
     /// Mock program execution using custom test logic.
     Mock(MockWasmProgram),
 }
 
-impl GtestProgram {
+impl GTestProgram {
     pub(crate) fn as_program(&self) -> &Program<BlockNumber> {
         match self {
-            GtestProgram::Default(program) => program,
-            GtestProgram::Mock(mock) => &mock.program,
+            GTestProgram::Default(program) => program,
+            GTestProgram::Mock(mock) => &mock.program,
         }
     }
 
     pub(crate) fn as_program_mut(&mut self) -> &mut Program<BlockNumber> {
         match self {
-            GtestProgram::Default(program) => program,
-            GtestProgram::Mock(mock) => &mut mock.program,
+            GTestProgram::Default(program) => program,
+            GTestProgram::Mock(mock) => &mut mock.program,
         }
     }
 }
@@ -88,7 +88,7 @@ impl Clone for MockWasmProgram {
     }
 }
 
-type ProgramsStorage = WithOverlay<BTreeMap<ActorId, GtestProgram>>;
+type ProgramsStorage = WithOverlay<BTreeMap<ActorId, GTestProgram>>;
 type AllocationsStorage = WithOverlay<BTreeMap<ActorId, IntervalsTree<WasmPage>>>;
 type MemoryPagesStorage = WithOverlay<DoubleBTreeMap<ActorId, GearPage, PageBuf>>;
 thread_local! {
@@ -97,7 +97,7 @@ thread_local! {
     static MEMORY_PAGES_STORAGE: MemoryPagesStorage = WithOverlay::new(Default::default());
 }
 
-fn programs_storage() -> &'static LocalKey<WithOverlay<BTreeMap<ActorId, GtestProgram>>> {
+fn programs_storage() -> &'static LocalKey<WithOverlay<BTreeMap<ActorId, GTestProgram>>> {
     &PROGRAMS_STORAGE
 }
 
@@ -132,15 +132,15 @@ impl ProgramsStorageManager {
     // Inserts actor directly by program id.
     pub(crate) fn insert_program(
         program_id: ActorId,
-        actor: GtestProgram,
+        actor: GTestProgram,
     ) -> Option<Program<BlockNumber>> {
         programs_storage().with(|storage| {
             storage
                 .data_mut()
                 .insert(program_id, actor)
                 .map(|gtest_program| match gtest_program {
-                    GtestProgram::Default(program) => program,
-                    GtestProgram::Mock(mock) => mock.program,
+                    GTestProgram::Default(program) => program,
+                    GTestProgram::Mock(mock) => mock.program,
                 })
         })
     }
@@ -148,7 +148,7 @@ impl ProgramsStorageManager {
     // Modifies the full GtestProgram (including mock logic if present).
     pub(crate) fn modify_program<R>(
         program_id: ActorId,
-        modify: impl FnOnce(Option<&mut GtestProgram>) -> R,
+        modify: impl FnOnce(Option<&mut GTestProgram>) -> R,
     ) -> R {
         programs_storage().with(|storage| modify(storage.data_mut().get_mut(&program_id)))
     }
@@ -186,7 +186,7 @@ impl ProgramsStorageManager {
             storage
                 .data()
                 .get(&id)
-                .map(|gtest_program| matches!(gtest_program, GtestProgram::Mock(_)))
+                .map(|gtest_program| matches!(gtest_program, GTestProgram::Mock(_)))
                 .unwrap_or(false)
         })
     }

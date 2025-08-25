@@ -19,7 +19,7 @@
 //! Various reservation related methods for ExtManager
 
 use super::ExtManager;
-use crate::state::programs::{GtestProgram, ProgramsStorageManager};
+use crate::state::programs::{GTestProgram, ProgramsStorageManager};
 use gear_common::{ActorId, Program, ReservationId, scheduler::StorageType, storage::Interval};
 use gear_core::{reservation::GasReservationSlot, tasks::ScheduledTask};
 use std::mem;
@@ -82,7 +82,7 @@ impl ExtManager {
 
     pub(crate) fn remove_gas_reservation_map(&mut self, program_id: ActorId) {
         ProgramsStorageManager::modify_program(program_id, |gtest_program| {
-            if let Some(GtestProgram::Default(Program::Active(active_program))) = gtest_program {
+            if let Some(GTestProgram::Default(Program::Active(active_program))) = gtest_program {
                 for (reservation_id, slot) in mem::take(&mut active_program.gas_reservation_map) {
                     let slot = self.remove_gas_reservation_slot(reservation_id, slot);
 

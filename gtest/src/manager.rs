@@ -127,7 +127,7 @@ impl ExtManager {
     pub(crate) fn store_new_program(
         &mut self,
         program_id: ActorId,
-        gtest_program: crate::state::programs::GtestProgram,
+        gtest_program: crate::state::programs::GTestProgram,
     ) -> Option<Program<BlockNumber>> {
         ProgramsStorageManager::insert_program(program_id, gtest_program)
     }

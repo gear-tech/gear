@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::state::programs::GtestProgram;
+use crate::state::programs::GTestProgram;
 
 impl ExtManager {
     /// Call non-void meta function from actor stored in manager.
@@ -33,7 +33,7 @@ impl ExtManager {
 
         if ProgramsStorageManager::is_mock_program(program_id) {
             ProgramsStorageManager::modify_program(program_id, |gtest_program| {
-                let Some(GtestProgram::Mock(mock_program)) = gtest_program else {
+                let Some(GTestProgram::Mock(mock_program)) = gtest_program else {
                     unreachable!("checked upper case for mock program");
                 };
 
