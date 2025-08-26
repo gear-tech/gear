@@ -408,7 +408,7 @@ impl RouterQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Ethereum, deploy::EthereumDeployer};
+    use crate::deploy::EthereumDeployer;
     use alloy::node_bindings::Anvil;
     use ethexe_signer::Signer;
     use roast_secp256k1_evm::frost;

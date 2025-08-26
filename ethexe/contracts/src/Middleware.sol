@@ -438,8 +438,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function executeSlash(SlashIdentifier[] calldata slashes) external {
-        if (msg.sender != _storage().roleSlashRequester) {
-            revert NotSlashRequester();
+        if (msg.sender != _storage().roleSlashExecutor) {
+            revert NotSlashExecutor();
         }
 
         for (uint256 i; i < slashes.length; ++i) {

@@ -19,7 +19,7 @@
 use super::*;
 use alloy::node_bindings::Anvil;
 use ethexe_db::{Database, MemDb};
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer};
+use ethexe_ethereum::deploy::EthereumDeployer;
 use ethexe_signer::Signer;
 use gprimitives::ActorId;
 use roast_secp256k1_evm::frost::{

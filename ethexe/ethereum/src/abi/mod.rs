@@ -34,7 +34,7 @@ mod mirror_abi {
     );
 }
 
-mod middleware_abi {
+pub mod middleware_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMiddleware,
@@ -61,6 +61,71 @@ sol!(
     IWrappedVara,
     "WrappedVara.json"
 );
+
+/// Bindings for Symbiotic contracts.
+pub mod symbiotic_abi {
+    // Add additional modules because of duplicating contracts names inside `StakerRewards` and `StakerRewardsFactory`.
+    pub use staker_rewards::DefaultStakerRewards;
+    pub use staker_rewards_factory::DefaultStakerRewardsFactory;
+
+    alloy::sol!(
+        #[sol(rpc)]
+        Vault,
+        "../contracts/lib/symbiotic-core/out/Vault.sol/Vault.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        VaultFactory,
+        "../contracts/lib/symbiotic-core/out/VaultFactory.sol/VaultFactory.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        OperatorRegistry,
+        "../contracts/lib/symbiotic-core/out/OperatorRegistry.sol/OperatorRegistry.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        NetworkRegistry,
+        "../contracts/lib/symbiotic-core/out/NetworkRegistry.sol/NetworkRegistry.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        NetworkMiddlewareService,
+        "../contracts/lib/symbiotic-core/out/NetworkMiddlewareService.sol/NetworkMiddlewareService.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        OptInService,
+        "../contracts/lib/symbiotic-core/out/OptInService.sol/OptInService.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        DefaultOperatorRewards,
+        "../contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json"
+    );
+
+    pub mod staker_rewards_factory {
+        alloy::sol!(
+            #[sol(rpc)]
+            DefaultStakerRewardsFactory,
+            "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewardsFactory.sol/DefaultStakerRewardsFactory.json"
+        );
+    }
+
+    pub mod staker_rewards {
+        alloy::sol!(
+            #[sol(rpc)]
+            DefaultStakerRewards,
+            "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewards.sol/DefaultStakerRewards.json"
+        );
+    }
+}
 
 pub(crate) mod utils {
     use alloy::primitives::{FixedBytes, Uint};

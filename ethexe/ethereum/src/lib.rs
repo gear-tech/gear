@@ -18,16 +18,11 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{
-    IMirror,
-    IRouter::{self, initializeCall as RouterInitializeCall},
-    ITransparentUpgradeableProxy,
-    IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
-};
+use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, B256, Bytes, ChainId, Signature, SignatureError, U256},
+    primitives::{Address, B256, ChainId, Signature, SignatureError},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -41,19 +36,14 @@ use alloy::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
         sign_transaction_with_chain_id,
     },
-    sol_types::{SolCall, SolEvent},
+    sol_types::SolEvent,
     transports::RpcError,
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey, gear::AggregatedPublicKey};
+use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
 use ethexe_signer::Signer as LocalSigner;
-use gprimitives::{ActorId, U256 as GearU256};
 use mirror::Mirror;
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
-};
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
