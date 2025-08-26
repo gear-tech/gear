@@ -182,13 +182,13 @@ tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
 wat = "1.0.71"
-wasmer = { version = "6.1.0-rc.3", default-features = false, features = [
+wasmer = { version = "6.1.0-rc.3", git = "https://github.com/wasmerio/wasmer.git", rev = "ab6f820", default-features = false, features = [
     "singlepass",
 ] }
-wasmer-cache = "6.1.0-rc.3"
-wasmer-types = "6.1.0-rc.3"
-wasmer-vm = "6.1.0-rc.3"
-wasmer-compiler = "6.1.0-rc.3"
+wasmer-cache = { version = "6.1.0-rc.3", git = "https://github.com/wasmerio/wasmer.git", rev = "ab6f820" }
+wasmer-types = { version = "6.1.0-rc.3", git = "https://github.com/wasmerio/wasmer.git", rev = "ab6f820" }
+wasmer-vm = { version = "6.1.0-rc.3", git = "https://github.com/wasmerio/wasmer.git", rev = "ab6f820" }
+wasmer-compiler = { version = "6.1.0-rc.3", git = "https://github.com/wasmerio/wasmer.git", rev = "ab6f820" }
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
