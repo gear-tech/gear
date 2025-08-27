@@ -4709,6 +4709,7 @@ dependencies = [
 name = "ethexe-common"
 version = "1.9.0"
 dependencies = [
+ "alloy-primitives",
  "auto_impl",
  "derive_more 2.0.1",
  "gear-core",

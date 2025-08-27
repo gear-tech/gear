@@ -55,8 +55,9 @@ pub mod mirror;
 pub mod router;
 pub mod wvara;
 
-// By design, the deployment file is needed only for testing purposes.
+// By design, the deployment module is only needed for testing purposes.
 // Real deployments are done via scripts in the `contracts/scripts/` folder.
+#[cfg(feature = "local-deploy")]
 pub mod deploy;
 
 pub mod primitives {

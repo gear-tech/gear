@@ -30,7 +30,7 @@ use crate::{
         middleware_abi::Gear::SymbioticRegistries,
         symbiotic_abi::*,
     },
-    create_provider, 
+    create_provider,
 };
 use alloy::{
     primitives::{Address, Bytes, U256, Uint},
@@ -70,7 +70,7 @@ impl<'a> EthereumDeployer<'a> {
             verifiable_secret_sharing_commitment,
             sender_address,
             with_middleware: false,
-            validators: vec![],
+            validators: Default::default(),
         }
     }
 }
@@ -107,12 +107,7 @@ impl<'a> EthereumDeployer<'a> {
         let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
         let provider = create_provider(self.rpc_url, self.signer, self.sender_address).await?;
-        let validators: Vec<_> = self
-            .validators
-            .into_iter()
-            .map(|validator_address| Address::new(validator_address.0))
-            .collect();
-        let deployer = Address::new(self.sender_address.0);
+        let deployer = self.sender_address.into();
 
         let nonce = provider.get_transaction_count(deployer).await?;
         let mirror_address = deployer.create(
@@ -142,7 +137,7 @@ impl<'a> EthereumDeployer<'a> {
             middleware_address,
             aggregated_public_key,
             self.verifiable_secret_sharing_commitment,
-            validators,
+            self.validators.into_iter().map(Into::into).collect(),
             provider.clone(),
         )
         .await?;
