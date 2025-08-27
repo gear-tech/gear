@@ -68,6 +68,7 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
+pub mod ctor;
 pub mod errors;
 pub mod exec;
 pub mod msg;
