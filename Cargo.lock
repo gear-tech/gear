@@ -7124,6 +7124,12 @@ version = "1.9.0"
 name = "gtest"
 version = "1.9.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff 0.4.2",
+ "ark-scale",
+ "ark-serialize 0.4.2",
+ "ark-std 0.4.0",
  "cargo_toml",
  "colored",
  "demo-constructor",
@@ -7133,6 +7139,7 @@ dependencies = [
  "demo-piggy-bank",
  "demo-ping",
  "etc",
+ "gbuiltin-bls381",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -7146,7 +7153,10 @@ dependencies = [
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "scale-info",
+ "sha2 0.10.8",
  "sp-core",
+ "sp-crypto-ec-utils",
  "thiserror 2.0.12",
  "tracing-subscriber",
 ]

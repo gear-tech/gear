@@ -20,8 +20,10 @@ gear-lazy-pages-common.workspace = true
 gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gsys.workspace = true
+gbuiltin-bls381.workspace = true
 
 parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
 colored.workspace = true
 tracing-subscriber.workspace = true
 path-clean.workspace = true
@@ -31,7 +33,16 @@ cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
 
+ark-scale = { workspace = true, features = ["hazmat"] }
+ark-serialize = { workspace = true, features = ["derive"] }
+ark-bls12-381 = { workspace = true, features = ["curve"] }
+ark-ec.workspace = true
+ark-ff.workspace = true
+sha2.workspace = true
+sp-crypto-ec-utils = { workspace = true, features = ["std", "bls12-381"] }
+
 [dev-dependencies]
+ark-std.workspace = true
 sp-core.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true

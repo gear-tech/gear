@@ -17,17 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::state::{
-    blocks,
-    programs::{GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
+use crate::{
+    builtins::{self, BLS12_381_ID, Bls12_381Request, BuiltinActorError},
+    state::{
+        blocks,
+        programs::{GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
+    },
 };
-use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
+use core_processor::{
+    ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
+};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
-    message::{DispatchKind, ReplyPacket, StoredDispatch},
+    gas::{GasAmount, GasCounter},
+    message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     program::ProgramState,
     str::LimitedStr,
 };
+use parity_scale_codec::Encode;
 
 impl ExtManager {
     pub(crate) fn validate_and_route_dispatch(&mut self, dispatch: Dispatch) -> MessageId {
@@ -307,6 +314,10 @@ impl ExtManager {
             self.gas_allowance,
         );
 
+        if self.is_builtin(destination_id) {
+            return self.process_builtin(dispatch, gas_limit);
+        }
+
         let context = ContextCharged::new(
             destination_id,
             dispatch.into_incoming(gas_limit),
@@ -396,6 +407,95 @@ impl ExtManager {
                 }
             }
         })
+    }
+
+    fn process_builtin(&mut self, dispatch: StoredDispatch, gas_limit: u64) -> Vec<JournalNote> {
+        let destination = dispatch.destination();
+        if !dispatch.kind().is_handle() {
+            unreachable!(
+                "Only handle dispatch kind is supported for built-in programs. Received: {:?}",
+                dispatch.kind()
+            );
+        }
+
+        if dispatch.context().is_some() {
+            unreachable!("Built-in messages can't be executed more than 1 time");
+        }
+
+        let incoming_dispatch = dispatch.into_incoming(gas_limit);
+
+        // todo [sab] charge gas
+        let gas_counter = GasCounter::new(gas_limit);
+
+        match destination {
+            BLS12_381_ID => {
+                let res = builtins::process_bls12_381_dispatch(incoming_dispatch.payload().inner());
+                match res {
+                    Ok(reply) => {
+                        log::debug!("BLS12-381 builtin called successfully: {reply:?}");
+                        let mut dispatch_result = DispatchResult::success(
+                            &incoming_dispatch,
+                            destination,
+                            gas_counter.to_amount(),
+                        );
+
+                        // Create an artificial `MessageContext` object that will help us to generate
+                        // a reply from the builtin actor.
+                        // Dispatch clone is cheap here since it only contains Arc<Payload>
+                        let mut message_context = MessageContext::new(
+                            incoming_dispatch.clone(),
+                            destination,
+                            Default::default(),
+                        );
+                        let reply_payload = reply.encode().try_into().unwrap_or_else(|_| {
+                            unreachable!("Failed to encode reply payload from builtin actor")
+                        });
+                        // todo [sab] value must be non-zero
+                        let packet = ReplyPacket::new(reply_payload, 0);
+
+                        // Mark reply as sent
+                        if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
+                            let (outcome, context_store) = message_context.drain();
+
+                            dispatch_result.context_store = context_store;
+                            let ContextOutcomeDrain {
+                                outgoing_dispatches: generated_dispatches,
+                                ..
+                            } = outcome.drain();
+                            dispatch_result.generated_dispatches = generated_dispatches;
+                            dispatch_result.reply_sent = true;
+                        } else {
+                            unreachable!("Failed to send reply from builtin actor");
+                        };
+
+                        // Using the core processor logic create necessary `JournalNote`'s for us.
+                        core_processor::process_success(
+                            SuccessfulDispatchResultKind::Success,
+                            dispatch_result,
+                            incoming_dispatch,
+                        )
+                    }
+                    Err(BuiltinActorError::GasAllowanceExceeded) => {
+                        core_processor::process_allowance_exceed(incoming_dispatch, destination, 0)
+                    }
+                    Err(err) => {
+                        // Builtin actor call failed.
+                        log::debug!("Builtin actor error: {err:?}");
+                        let system_reservation_ctx =
+                            SystemReservationContext::from_dispatch(&incoming_dispatch);
+                        // The core processor will take care of creating necessary `JournalNote`'s.
+                        core_processor::process_execution_error(
+                            incoming_dispatch,
+                            destination,
+                            gas_counter.burned(),
+                            system_reservation_ctx,
+                            err,
+                        )
+                    }
+                }
+            }
+            id => unimplemented!("Unknown builtin program id: {id}"),
+        }
     }
 
     fn process_program(

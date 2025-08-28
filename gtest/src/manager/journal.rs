@@ -125,8 +125,10 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = ProgramsStorageManager::is_user(dispatch.destination())
-            && !self.no_code_program.contains(&dispatch.destination());
+        let destination = dispatch.destination();
+        let to_user = !self.is_builtin(destination)
+            && ProgramsStorageManager::is_user(destination)
+            && !self.no_code_program.contains(&destination);
         if delay > 0 {
             log::debug!(
                 "[{message_id}] new delayed dispatch#{} with delay for {delay} blocks",
@@ -140,8 +142,9 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = ProgramsStorageManager::is_program(dispatch.destination())
-            || self.no_code_program.contains(&dispatch.destination());
+        let is_program = self.is_builtin(destination)
+            || ProgramsStorageManager::is_program(destination)
+            || self.no_code_program.contains(&destination);
 
         if is_program {
             let gas_limit = dispatch.gas_limit();

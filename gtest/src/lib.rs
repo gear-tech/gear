@@ -492,6 +492,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+mod builtins;
 mod error;
 mod log;
 mod manager;
@@ -500,6 +501,7 @@ mod state;
 mod system;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
+pub use builtins::{BLS12_381_ID, Bls12_381Request, Bls12_381Response};
 pub use error::{Result, TestError};
 pub use parity_scale_codec;
 pub use program::{

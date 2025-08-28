@@ -509,23 +509,27 @@ impl<'a> Program<'a> {
             value,
             None,
         );
+        let kind = if system.is_builtin(self.id) {
+            DispatchKind::Handle
+        } else {
+            ProgramsStorageManager::modify_program(self.id, |program| {
+                let program = program.expect("Can't fail");
+                let PrimaryProgram::Active(active_program) = program.as_primary_program_mut()
+                else {
+                    usage_panic!("Program with id {} is not active - {program:?}", self.id);
+                };
+                match active_program.state {
+                    ProgramState::Uninitialized { ref mut message_id }
+                        if *message_id == PLACEHOLDER_MESSAGE_ID =>
+                    {
+                        *message_id = message.id();
 
-        let kind = ProgramsStorageManager::modify_program(self.id, |program| {
-            let program = program.expect("Can't fail");
-            let PrimaryProgram::Active(active_program) = program.as_primary_program_mut() else {
-                usage_panic!("Program with id {} is not active - {program:?}", self.id);
-            };
-            match active_program.state {
-                ProgramState::Uninitialized { ref mut message_id }
-                    if *message_id == PLACEHOLDER_MESSAGE_ID =>
-                {
-                    *message_id = message.id();
-
-                    DispatchKind::Init
+                        DispatchKind::Init
+                    }
+                    _ => DispatchKind::Handle,
                 }
-                _ => DispatchKind::Handle,
-            }
-        });
+            })
+        };
 
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
@@ -604,7 +608,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 /// `cargo-gbuild` utils
 pub mod gbuild {
     use crate::{
-        Result,
+        Bls12_381Request, Result,
         error::{TestError as Error, usage_panic},
     };
     use cargo_toml::Manifest;
@@ -674,12 +678,17 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
+    use crate::{
+        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value,
+        builtins::{BLS12_381_ID, Bls12_381Response},
+    };
+    use ark_ff::UniformRand;
     use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
         ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
     };
+    use parity_scale_codec::Decode;
 
     #[test]
     fn test_handle_signal() {
@@ -1473,5 +1482,90 @@ mod tests {
             .read_state::<String, _>(Vec::<u8>::new())
             .unwrap();
         assert_eq!(state.as_str(), "MockState");
+    }
+
+    #[test]
+    fn test_bls_builtin_message() {
+        use ark_bls12_381::{
+            Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2,
+        };
+        use ark_ec::{Group, pairing::Pairing};
+        use ark_ff::UniformRand;
+        use ark_std::test_rng;
+        use std::ops::Mul;
+
+        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
+
+        let mut rng = test_rng();
+        let message: G1Affine = G1::rand(&mut rng).into();
+        let a: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message].into();
+
+        let priv_key: <G2 as Group>::ScalarField = UniformRand::rand(&mut rng);
+        let generator = G2::generator();
+        let pub_key: G2Affine = generator.mul(priv_key).into();
+        let b: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
+
+        let payload = gbuiltin_bls381::Request::MultiMillerLoop {
+            a: a.encode(),
+            b: b.encode(),
+        };
+        let proxy_scheme = Scheme::predefined(
+            // init: do nothing
+            Calls::builder().noop(),
+            // handle: load message payload and send it to mock program
+            Calls::builder().add_call(Call::Send(
+                Arg::new(BLS12_381_ID.into_bytes()),
+                Arg::new(payload.encode()),
+                None,
+                Arg::new(0u128),
+                Arg::new(0u32),
+            )),
+            // handle_reply: load reply payload and forward it to original sender
+            Calls::builder()
+                .add_call(Call::LoadBytes)
+                .add_call(Call::StoreVec("reply_payload".to_string()))
+                .add_call(Call::Send(
+                    Arg::new(alice_actor_id.into_bytes()),
+                    Arg::get("reply_payload"),
+                    Some(Arg::new(0)),
+                    Arg::new(0u128),
+                    Arg::new(0u32),
+                )),
+            // handle_signal: noop
+            Calls::builder(),
+        );
+
+        let proxy_program = Program::from_binary_with_id(&sys, ActorId::new([2; 32]), WASM_BINARY);
+
+        // Initialize proxy with the scheme
+        let init_mid = proxy_program.send(alice_actor_id, proxy_scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&init_mid));
+
+        // Send a message to the proxy to trigger the interaction
+        let mid = proxy_program.send_bytes(alice_actor_id, b"");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&mid));
+
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(proxy_program.id())
+                    .dest(alice_actor_id)
+            )
+        );
+
+        let mut logs = res.decoded_log();
+        let response = logs.pop().expect("no log found");
+
+        assert!(matches!(
+            response.payload(),
+            Bls12_381Response::MultiMillerLoop(_)
+        ));
     }
 }
