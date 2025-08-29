@@ -68,7 +68,7 @@ pub fn setup_genesis_in_db<
     db.mutate_block_meta(genesis_block.hash, |meta| {
         *meta = BlockMeta {
             prepared: true,
-            announces: Some(vec![genesis_announce_hash]),
+            announces: Some([genesis_announce_hash].into()),
             codes_queue: Some(Default::default()),
             last_committed_batch: Some(Digest::zero()),
             last_committed_announce: Some(genesis_announce_hash),

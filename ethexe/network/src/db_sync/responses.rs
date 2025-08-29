@@ -79,7 +79,7 @@ impl OngoingResponses {
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_meta(request.at)
                     .announces
-                    .and_then(|mut a| a.pop())
+                    .and_then(|a| a.first().copied())
                     .and_then(|announce_hash| {
                         db.announce_program_states(announce_hash)
                             .map(|states| states.into_keys().collect())
@@ -89,17 +89,16 @@ impl OngoingResponses {
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
             InnerRequest::Announces(AnnouncesRequest {
-                head: head1,
-                tail: tail1,
-                max_chain_len: max_chain_len1,
+                head,
+                tail,
+                max_chain_len,
             }) => {
-                let max_chain_len1 =
-                    max_chain_len1.min(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE as u32);
+                let max_chain_len1 = max_chain_len.min(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE);
 
                 let mut announces = vec![];
-                let mut announce_hash = head1;
+                let mut announce_hash = head;
                 let mut counter = max_chain_len1;
-                while counter > 0 && Some(announce_hash) != tail1 {
+                while counter > 0 && Some(announce_hash) != tail {
                     let Some(announce) = db.announce(announce_hash) else {
                         log::warn!(
                             "Cannot complete request: announce {announce_hash} not found in database"

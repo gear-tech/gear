@@ -39,7 +39,7 @@ use parity_scale_codec::{Decode, Encode};
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     pub prepared: bool,
-    pub announces: Option<Vec<AnnounceHash>>,
+    pub announces: Option<BTreeSet<AnnounceHash>>,
     pub codes_queue: Option<VecDeque<CodeId>>,
     pub last_committed_batch: Option<Digest>,
     pub last_committed_announce: Option<AnnounceHash>,
@@ -64,7 +64,7 @@ pub trait BlockMetaStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait BlockMetaStorageWrite {
+pub trait BlockMetaStorageWrite: BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
@@ -124,7 +124,7 @@ pub trait AnnounceStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait AnnounceStorageWrite {
+pub trait AnnounceStorageWrite: AnnounceStorageRead {
     fn set_announce(&self, announce: Announce) -> AnnounceHash;
     fn set_announce_program_states(
         &self,

@@ -459,7 +459,7 @@ async fn mailbox() {
         .db
         .block_meta(block_data.header.parent_hash)
         .announces
-        .and_then(|mut a| a.pop())
+        .and_then(|a| a.first().copied())
         .expect("announce must exist");
     let schedule = node
         .db
@@ -574,7 +574,7 @@ async fn mailbox() {
         .db
         .block_meta(block_data.header.parent_hash)
         .announces
-        .and_then(|mut a| a.pop())
+        .and_then(|a| a.first().copied())
         .expect("announce must exist");
     let schedule = node
         .db
@@ -1151,7 +1151,12 @@ async fn fast_sync() {
             log::trace!("assert block {block}");
             assert_eq!(alice.db.block_meta(block), bob.db.block_meta(block));
 
-            let announce_hash = alice.db.block_meta(block).announces.expect("Must be set")[0];
+            let announce_hash = alice
+                .db
+                .block_meta(block)
+                .announces
+                .and_then(|a| a.first().copied())
+                .expect("Must be set");
             assert_eq!(
                 alice.db.announce_meta(announce_hash),
                 bob.db.announce_meta(announce_hash)

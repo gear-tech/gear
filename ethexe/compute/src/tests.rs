@@ -164,9 +164,9 @@ impl WrappedComputeService {
             .await
             .unwrap()
             .expect("expect compute service request codes to load");
-        let codes_to_load = event.unwrap_request_load_codes();
+        let data = event.unwrap_request_data();
 
-        for code_id in codes_to_load {
+        for code_id in data.codes {
             // skip if code not validated
             let Some(code) = self.codes_storage.remove(&code_id) else {
                 continue;
@@ -231,7 +231,13 @@ fn setup(
 
 fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> Announce {
     let parent_hash = db.block_header(block_hash).unwrap().parent_hash;
-    let parent_announce_hash = db.block_meta(parent_hash).announces.unwrap()[0];
+    let parent_announce_hash = db
+        .block_meta(parent_hash)
+        .announces
+        .unwrap()
+        .first()
+        .copied()
+        .unwrap();
     Announce {
         block_hash,
         parent: parent_announce_hash,

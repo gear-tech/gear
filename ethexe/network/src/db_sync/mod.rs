@@ -27,7 +27,9 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::{gear::CodeState, AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse};
+use ethexe_common::{
+    AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse, gear::CodeState,
+};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -491,7 +493,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{db::*, Announce, AnnounceHash, StateHashWithQueueSize};
+    use ethexe_common::{Announce, AnnounceHash, StateHashWithQueueSize, db::*};
     use ethexe_db::MemDb;
     use libp2p::{
         Swarm, Transport,
@@ -1221,7 +1223,7 @@ pub(crate) mod tests {
             assert!(meta.announces.is_none());
             let announce = Announce::base(H256::zero(), AnnounceHash::zero());
             announce_hash = announce.hash();
-            meta.announces = Some(vec![announce_hash]);
+            meta.announces = Some([announce_hash].into());
         });
 
         right_db.set_announce_program_states(

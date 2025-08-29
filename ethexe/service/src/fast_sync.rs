@@ -29,7 +29,6 @@ use ethexe_common::{
     },
     events::{BlockEvent, RouterEvent},
 };
-use ethexe_compute::ComputeService;
 use ethexe_db::{
     Database,
     iterator::{
@@ -207,7 +206,10 @@ async fn collect_announce(
     )
     .await?
     .unwrap_announces()
-    .pop()
+    .into_parts()
+    .1
+    .into_iter()
+    .next()
     .expect("announce must be present"))
 }
 
@@ -594,7 +596,7 @@ async fn sync_from_network(
 async fn instrument_codes(
     processor: &mut Processor,
     db: &Database,
-    mut code_ids: BTreeSet<CodeId>,
+    code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
     if code_ids.is_empty() {
         log::info!("No codes to instrument. Skipping...");
@@ -610,7 +612,7 @@ async fn instrument_codes(
         processor.process_upload_code(CodeAndIdUnchecked {
             code_id,
             code: original_code,
-        });
+        })?;
     }
 
     log::info!("Codes instrumentation done");
@@ -632,7 +634,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
-    let processor = compute.processor().clone();
+    let mut processor = compute.processor().clone();
 
     log::info!("Fast synchronization is in progress...");
 
@@ -678,7 +680,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let program_states = sync_from_network(network, db, &code_ids, program_states).await;
 
-    instrument_codes(compute, db, code_ids).await?;
+    instrument_codes(&mut processor, db, code_ids).await?;
 
     let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
 
@@ -697,7 +699,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {
             prepared: true,
-            announces: Some(vec![announce.hash()]),
+            announces: Some([announce.hash()].into()),
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Some(Default::default()),
             // TODO #4812: using `latest_committed_batch` here is not correct

@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{events::BlockRequestEvent, Announce, AnnounceHash, AnnouncesRequest, CodeAndIdUnchecked};
+use ethexe_common::{
+    Announce, AnnounceHash, AnnouncesRequest, CodeAndIdUnchecked, events::BlockRequestEvent,
+};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
-
-use crate::prepare::DataRequest;
 
 mod compute;
 mod prepare;
@@ -117,5 +117,18 @@ impl ProcessorExt for Processor {
 
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
         self.process_upload_code(code_and_id).map_err(Into::into)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct DataRequest {
+    pub codes: HashSet<CodeId>,
+    pub announces: Option<AnnouncesRequest>,
+}
+
+impl DataRequest {
+    pub fn is_empty(&self) -> bool {
+        let DataRequest { codes, announces } = self;
+        codes.is_empty() && announces.is_none()
     }
 }

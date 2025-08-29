@@ -19,11 +19,9 @@
 use crate::{
     ComputeError, ComputeEvent, ProcessorExt, Result,
     compute::{self, ComputationStatus},
-    prepare::{self, PrepareConfig, PrepareContext},
+    prepare::{PrepareContext, PrepareStatus},
 };
-use ethexe_common::{
-    Announce, AnnounceHash, CheckedAnnouncesResponse, CodeAndIdUnchecked, db::CodesStorageRead,
-};
+use ethexe_common::{Announce, CheckedAnnouncesResponse, CodeAndIdUnchecked, db::CodesStorageRead};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
@@ -48,12 +46,13 @@ enum BlockAction {
     Compute(Announce),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Default, derive_more::Debug)]
-enum State<P: ProcessorExt> {
+enum State {
     #[default]
     WaitForBlock,
-    WaitForRequiredData(PrepareContext<P>),
-    Preparation(#[debug(skip)] BoxFuture<'static, Result<H256>>),
+    PreparePhase1(PrepareContext),
+    PreparePhase2(#[debug(skip)] BoxFuture<'static, Result<H256>>),
     Computation(#[debug(skip)] BoxFuture<'static, Result<ComputationStatus>>),
 }
 
@@ -62,7 +61,7 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
     processor: P,
 
     blocks_queue: VecDeque<BlockAction>,
-    blocks_state: State<P>,
+    blocks_state: State,
 
     process_codes: JoinSet<Result<CodeId>>,
 }
@@ -118,7 +117,7 @@ impl<P: ProcessorExt> ComputeService<P> {
     }
 
     pub fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) {
-        if let State::WaitForRequiredData(ctx) = &mut self.blocks_state {
+        if let State::PreparePhase1(ctx) = &mut self.blocks_state {
             ctx.receive_announces(response);
         } else {
             log::warn!("Received announces response in unexpected state");
@@ -154,10 +153,9 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
-                    if let (Ok(code_id), State::WaitForRequiredData(ctx)) =
-                        (&res, &mut self.blocks_state)
+                    if let (Ok(code_id), State::PreparePhase1(ctx)) = (&res, &mut self.blocks_state)
                     {
-                        ctx.code_processed(*code_id);
+                        ctx.receive_processed_code(*code_id);
                     }
 
                     return Poll::Ready(Some(res.map(ComputeEvent::CodeProcessed)));
@@ -169,42 +167,52 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         if let State::WaitForBlock = &self.blocks_state {
             match self.blocks_queue.pop_back() {
                 Some(BlockAction::Prepare(block_hash)) => {
-                    let (ctx, data_request) = PrepareContext::new(
-                        PrepareConfig {
-                            db: self.db.clone(),
-                            processor: self.processor.clone(),
-                            commitment_delay_limit: 3,
-                        },
-                        block_hash,
-                    )?;
+                    let (ctx, request) = PrepareContext::new(self.db.clone(), 3, block_hash)?;
 
-                    self.blocks_state = State::WaitForRequiredData(ctx);
+                    self.blocks_state = State::PreparePhase1(ctx);
 
-                    if !data_request.is_empty() {
-                        return Poll::Ready(Some(Ok(ComputeEvent::RequestData(data_request))));
+                    if !request.is_empty() {
+                        return Poll::Ready(Some(Ok(ComputeEvent::RequestData(request))));
                     }
                 }
                 Some(BlockAction::Compute(announce)) => {
-                    let future =
-                        compute::compute(self.db.clone(), self.processor.clone(), announce).boxed();
+                    let future = compute::compute_and_include(
+                        self.db.clone(),
+                        self.processor.clone(),
+                        announce,
+                    )
+                    .boxed();
                     self.blocks_state = State::Computation(future);
                 }
                 None => {}
             }
         }
 
-        if let State::WaitForRequiredData(ctx) = &self.blocks_state
-            && ctx.is_ready()
-        {
-            self.blocks_state = State::Preparation(ctx.prepare().boxed());
+        if let State::PreparePhase1(ctx) = &mut self.blocks_state {
+            match ctx.prepare_if_ready() {
+                Err(err) => {
+                    self.blocks_state = State::WaitForBlock;
+                    return Poll::Ready(Some(Err(err)));
+                }
+                Ok(PrepareStatus::Prepared(block_hash)) => {
+                    self.blocks_state = State::PreparePhase2(
+                        compute::compute_block_announces(
+                            self.db.clone(),
+                            self.processor.clone(),
+                            block_hash,
+                        )
+                        .boxed(),
+                    );
+                }
+                Ok(PrepareStatus::NotReady) => {}
+            }
         }
 
-        if let State::Preparation(future) = &mut self.blocks_state
+        if let State::PreparePhase2(future) = &mut self.blocks_state
             && let Poll::Ready(res) = future.poll_unpin(cx)
         {
-            let result = res.map(|block_hash| ComputeEvent::BlockPrepared(block_hash));
             self.blocks_state = State::WaitForBlock;
-            return Poll::Ready(Some(result));
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockPrepared)));
         }
 
         if let State::Computation(future) = &mut self.blocks_state
@@ -302,7 +310,7 @@ mod tests {
         });
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta::default_prepared();
-            meta.announces = Some(vec![parent_announce_hash])
+            meta.announces = Some([parent_announce_hash].into())
         });
         db.mutate_latest_data(|data| {
             *data = Some(LatestData::default());
