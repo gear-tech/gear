@@ -21,12 +21,11 @@ use super::{
     initial::Initial,
 };
 use crate::{
-    ConsensusEvent, SignedProducerBlock, SignedValidationRequest,
-    validator::participant::Participant,
+    ConsensusEvent, SignedAnnounce, SignedValidationRequest, validator::participant::Participant,
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData};
+use ethexe_common::{Address, Announce, AnnounceHash, SimpleBlockData};
 use gprimitives::H256;
 use std::mem;
 
@@ -50,10 +49,12 @@ pub struct Subordinate {
 
 #[derive(Debug, PartialEq, Eq)]
 enum State {
-    WaitingForProducerBlock,
-    WaitingProducerBlockComputed {
-        // TODO #4640: change this to producer-block digest when off-chain transactions added
-        block_hash: H256,
+    WaitingForAnnounceAndBlockPrepared {
+        block_prepared: bool,
+        received_announce: Option<Announce>,
+    },
+    WaitingAnnounceComputed {
+        announce_hash: AnnounceHash,
     },
 }
 
@@ -70,39 +71,75 @@ impl StateHandler for Subordinate {
         self.ctx
     }
 
-    fn process_computed_block(self, computed_block: H256) -> Result<ValidatorState> {
-        match &self.state {
-            _ if computed_block == self.block.header.parent_hash => {
-                // Earlier we sent a task for parent block computation.
-                // Continue to wait for block from producer.
+    fn process_prepared_block(mut self, block: H256) -> Result<ValidatorState> {
+        if block != self.block.hash {
+            return DefaultProcessing::prepared_block(self, block);
+        }
+
+        match &mut self.state {
+            State::WaitingForAnnounceAndBlockPrepared {
+                block_prepared,
+                received_announce,
+            } => {
+                if *block_prepared {
+                    log::warn!("Receive block {} prepared twice or more, ignoring", block);
+                    return Ok(self.into());
+                }
+
+                *block_prepared = true;
+
+                if let Some(announce) = received_announce.take() {
+                    // If we have an announce, we can compute it.
+                    let announce_hash = announce.hash();
+                    self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
+                    self.state = State::WaitingAnnounceComputed { announce_hash };
+                }
+
                 Ok(self.into())
             }
-            State::WaitingProducerBlockComputed { block_hash } if computed_block == *block_hash => {
+            _ => DefaultProcessing::prepared_block(self, block),
+        }
+    }
+
+    fn process_computed_announce(
+        self,
+        computed_announce_hash: AnnounceHash,
+    ) -> Result<ValidatorState> {
+        match &self.state {
+            State::WaitingAnnounceComputed { announce_hash }
+                if *announce_hash == computed_announce_hash =>
+            {
                 if self.is_validator {
                     Participant::create(self.ctx, self.block, self.producer)
                 } else {
                     Initial::create(self.ctx)
                 }
             }
-            _ => DefaultProcessing::computed_block(self, computed_block),
+            _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
         }
     }
 
-    fn process_block_from_producer(mut self, block: SignedProducerBlock) -> Result<ValidatorState> {
-        if self.state == State::WaitingForProducerBlock
-            && block.address() == self.producer
-            && block.data().block_hash == self.block.hash
-        {
-            let pb = block.into_parts().0;
-            let block_hash = pb.block_hash;
+    fn process_announce(mut self, signed_announce: SignedAnnounce) -> Result<ValidatorState> {
+        match &mut self.state {
+            State::WaitingForAnnounceAndBlockPrepared {
+                block_prepared,
+                received_announce,
+                ..
+            } if received_announce.is_none()
+                && signed_announce.address() == self.producer
+                && signed_announce.data().block_hash == self.block.hash =>
+            {
+                let (announce, _sign) = signed_announce.into_parts();
+                let announce_hash = announce.hash();
 
-            self.output(ConsensusEvent::ComputeProducerBlock(pb));
+                if *block_prepared {
+                    self.output(ConsensusEvent::ComputeAnnounce(announce));
+                    self.state = State::WaitingAnnounceComputed { announce_hash };
+                }
 
-            self.state = State::WaitingProducerBlockComputed { block_hash };
-
-            Ok(self.into())
-        } else {
-            DefaultProcessing::block_from_producer(self, block)
+                Ok(self.into())
+            }
+            _ => DefaultProcessing::block_from_producer(self, signed_announce),
         }
     }
 
@@ -128,7 +165,7 @@ impl Subordinate {
         producer: Address,
         is_validator: bool,
     ) -> Result<ValidatorState> {
-        let mut earlier_producer_block = None;
+        let mut earlier_announce = None;
 
         // Search for already received producer blocks.
         // If events amount is eq to MAX_PENDING_EVENTS, then oldest ones would be removed.
@@ -138,12 +175,12 @@ impl Subordinate {
         // 2) Malicious validator can send a lot of events (consider what to do).
         for event in mem::take(&mut ctx.pending_events) {
             match event {
-                PendingEvent::ProducerBlock(signed_pb)
-                    if earlier_producer_block.is_none()
+                PendingEvent::Announce(signed_pb)
+                    if earlier_announce.is_none()
                         && (signed_pb.data().block_hash == block.hash)
                         && signed_pb.address() == producer =>
                 {
-                    earlier_producer_block = Some(signed_pb.into_parts().0);
+                    earlier_announce = Some(signed_pb.into_parts().0);
                 }
                 event if ctx.pending_events.len() < MAX_PENDING_EVENTS => {
                     // Events are sorted from newest to oldest,
@@ -156,15 +193,9 @@ impl Subordinate {
             }
         }
 
-        let state = if let Some(producer_block) = earlier_producer_block {
-            let block_hash = producer_block.block_hash;
-            ctx.output(ConsensusEvent::ComputeProducerBlock(producer_block));
-
-            State::WaitingProducerBlockComputed { block_hash }
-        } else {
-            ctx.output(ConsensusEvent::ComputeBlock(block.header.parent_hash));
-
-            State::WaitingForProducerBlock
+        let state = State::WaitingForAnnounceAndBlockPrepared {
+            block_prepared: false,
+            received_announce: earlier_announce,
         };
 
         Ok(Self {
@@ -181,7 +212,7 @@ impl Subordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SignedProducerBlock, SignedValidationRequest, mock::*, validator::mock::*};
+    use crate::{SignedAnnounce, SignedValidationRequest, mock::*, validator::mock::*};
 
     #[test]
     fn create_empty() {
@@ -190,43 +221,47 @@ mod tests {
         let block = SimpleBlockData::mock(H256::random());
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
-
         assert!(s.is_subordinate());
-        assert_eq!(
-            s.context().output,
-            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
-        );
+        assert!(s.context().output.is_empty());
         assert_eq!(s.context().pending_events, vec![]);
     }
 
     #[test]
-    fn create_with_producer_blocks() {
+    fn earlier_received_announces() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = SimpleBlockData::mock(H256::random());
-        let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
-        let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
+        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
+        let announce_hash = ctx.db.announce_hash(block.hash);
+        let announce1 =
+            SignedAnnounce::mock((ctx.signer.clone(), producer, (block.hash, announce_hash)));
+        let announce2 =
+            SignedAnnounce::mock((ctx.signer.clone(), keys[1], (block.hash, announce_hash)));
 
-        ctx.pending(pb1.clone());
-        ctx.pending(pb2.clone());
+        ctx.pending(announce1.clone());
+        ctx.pending(announce2.clone());
 
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        // Subordinate waits for block prepared after creation.
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        assert!(s.is_subordinate());
+        assert!(s.context().output.is_empty());
 
+        // After receiving block prepared, subordinate create a task to compute earlier received announce1.
+        let s = s.process_prepared_block(block.hash).unwrap();
         assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
-            vec![ConsensusEvent::ComputeProducerBlock(pb1.data().clone())]
+            vec![ConsensusEvent::ComputeAnnounce(announce1.data().clone())]
         );
 
-        // Second block must stay in pending events, because it's not from current producer.
+        // announce2 must stay in pending events, because it's not from current producer.
         assert_eq!(
             s.context().pending_events,
-            vec![PendingEvent::ProducerBlock(pb2)]
+            vec![PendingEvent::Announce(announce2)]
         );
     }
 
     #[test]
-    fn create_with_validation_requests() {
+    fn earlier_received_validation_requests() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
@@ -236,13 +271,10 @@ mod tests {
         ctx.pending(request1.clone());
         ctx.pending(request2.clone());
 
+        // Subordinate waits for block prepared and announce after creation, and does not process validation requests.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
-
         assert!(s.is_subordinate());
-        assert_eq!(
-            s.context().output,
-            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
-        );
+        assert!(s.context().output.is_empty());
         assert_eq!(
             s.context().pending_events,
             vec![request2.into(), request1.into()]
@@ -254,20 +286,32 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let announce = SignedAnnounce::mock((
+            ctx.signer.clone(),
+            producer,
+            (block.hash, AnnounceHash::random()),
+        ));
 
-        ctx.pending(pb.clone());
+        ctx.pending(announce.clone());
 
         // Fill with fake blocks
         for _ in 0..10 * MAX_PENDING_EVENTS {
-            let pb = SignedProducerBlock::mock((ctx.signer.clone(), keys[0], block.hash));
-            ctx.pending(pb);
+            let announce = SignedAnnounce::mock((
+                ctx.signer.clone(),
+                keys[1],
+                (block.hash, AnnounceHash::random()),
+            ));
+            ctx.pending(announce);
         }
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
-
+        // After block prepared, subordinate sends announce to computation and waits for it.
+        // All pending events except first MAX_PENDING_EVENTS will be removed.
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output, vec![pb.data().clone().into()]);
+        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
     }
 
@@ -276,27 +320,31 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let announce = SignedAnnounce::mock((
+            ctx.signer.clone(),
+            producer,
+            (block.hash, AnnounceHash::random()),
+        ));
 
+        // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(
-            s.context().output,
-            vec![ConsensusEvent::ComputeBlock(block.header.parent_hash)]
-        );
+        assert!(s.context().output.is_empty());
 
-        let s = s.process_block_from_producer(pb.clone()).unwrap();
+        // Block is prepared, but announce is not received yet.
+        let s = s.process_prepared_block(block.hash).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output.len(), 2);
-        assert_eq!(s.context().output[1], pb.data().clone().into());
+        assert!(s.context().output.is_empty());
 
-        let s = s.process_computed_block(block.header.parent_hash).unwrap();
+        // Announce is received, so subordinate sends it to computation.
+        let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output.len(), 2);
+        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
 
-        let s = s.process_computed_block(block.hash).unwrap();
+        // After announce is computed, subordinate switches to participant state.
+        let s = s.process_computed_announce(announce.data().hash()).unwrap();
         assert!(s.is_participant());
-        assert_eq!(s.context().output.len(), 2);
+        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
     }
 
     #[test]
@@ -304,60 +352,77 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let announce = SignedAnnounce::mock((
+            ctx.signer.clone(),
+            producer,
+            (block.hash, AnnounceHash::random()),
+        ));
 
+        // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output.len(), 1);
-        assert_eq!(
-            s.context().output[0],
-            ConsensusEvent::ComputeBlock(block.header.parent_hash)
-        );
+        assert!(s.context().output.is_empty());
 
-        let s = s.process_block_from_producer(pb.clone()).unwrap();
+        // Block is prepared, but announce is not received yet.
+        let s = s.process_prepared_block(block.hash).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output.len(), 2);
-        assert_eq!(s.context().output[1], pb.data().clone().into());
+        assert!(s.context().output.is_empty());
 
-        let s = s.process_computed_block(block.header.parent_hash).unwrap();
+        // Announce is received, so subordinate sends it to computation.
+        let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output.len(), 2);
+        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
 
-        let s = s.process_computed_block(block.hash).unwrap();
+        // After announce is computed, not-validator subordinate switches to initial state.
+        let s = s.process_computed_announce(announce.data().hash()).unwrap();
         assert!(s.is_initial());
     }
 
     #[test]
-    fn create_with_multiple_producer_blocks() {
+    fn create_with_multiple_announces() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
-        let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
+        let announce1 = SignedAnnounce::mock((
+            ctx.signer.clone(),
+            producer,
+            (block.hash, AnnounceHash::random()),
+        ));
+        let announce2 = SignedAnnounce::mock((
+            ctx.signer.clone(),
+            keys[1],
+            (block.hash, AnnounceHash::random()),
+        ));
 
-        ctx.pending(pb1.clone());
-        ctx.pending(pb2.clone());
+        ctx.pending(announce1.clone());
+        ctx.pending(announce2.clone());
 
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
-
-        assert_eq!(s.context().output, vec![pb1.data().clone().into()]);
-        assert_eq!(s.context().pending_events, vec![pb2.into()]);
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+        assert_eq!(s.context().output, vec![announce1.data().clone().into()]);
+        assert_eq!(s.context().pending_events, vec![announce2.into()]);
     }
 
     #[test]
-    fn process_external_event_with_invalid_producer_block() {
+    fn process_external_event_with_invalid_announce() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let invalid_pb = SignedProducerBlock::mock((ctx.signer.clone(), pub_keys[1], block.hash));
+        let invalid_announce = SignedAnnounce::mock((
+            ctx.signer.clone(),
+            pub_keys[1],
+            (block.hash, AnnounceHash::random()),
+        ));
 
-        let mut s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
-
-        s = s.process_block_from_producer(invalid_pb.clone()).unwrap();
-        assert_eq!(s.context().output.len(), 2);
-        assert!(matches!(s.context().output[1], ConsensusEvent::Warning(_)));
-        assert_eq!(s.context().pending_events.len(), 1);
-        assert_eq!(s.context().pending_events[0], invalid_pb.into());
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
+            .unwrap()
+            .process_announce(invalid_announce.clone())
+            .unwrap();
+        assert_eq!(s.context().output.len(), 1);
+        assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
+        assert_eq!(s.context().pending_events, vec![invalid_announce.into()]);
     }
 
     #[test]
@@ -365,12 +430,11 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let unexpected_hash = H256::random();
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
-        let s = s.process_computed_block(unexpected_hash).unwrap();
-        assert_eq!(s.context().output.len(), 2);
-        assert!(matches!(s.context().output[1], ConsensusEvent::Warning(_)));
+        let s = s.process_computed_announce(AnnounceHash::random()).unwrap();
+        assert_eq!(s.context().output.len(), 1);
+        assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
     }
 }

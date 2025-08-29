@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 use std::cell::RefCell;
 
 thread_local! {
@@ -61,6 +62,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         signatures_threshold: 1,
         router_address: 12345.into(),
         pub_key: keys.pop().unwrap(),
+        block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
         signer,
         db: Database::memory(),
         committer: Box::new(DummyCommitter),

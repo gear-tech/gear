@@ -24,9 +24,9 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
-use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
@@ -64,7 +64,7 @@ pub enum Event {
 // TODO #4176: consider to move this to another module
 #[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
-    ProducerBlock(SignedProducerBlock),
+    ProducerBlock(SignedAnnounce),
     RequestBatchValidation(SignedValidationRequest),
     ApproveBatch(BatchCommitmentValidationReply),
     OffchainTransaction {
@@ -186,7 +186,6 @@ impl Service {
         let processor = Processor::with_config(
             ProcessorConfig {
                 chunk_processing_threads: config.node.chunk_processing_threads,
-                block_gas_limit: config.node.block_gas_limit,
             },
             db.clone(),
         )
@@ -218,12 +217,16 @@ impl Service {
                         pub_key,
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
+                        block_gas_limit: config.node.block_gas_limit,
                     },
                 )
                 .await?,
             )
         } else {
-            Box::pin(SimpleConnectService::new())
+            Box::pin(SimpleConnectService::new(
+                db.clone(),
+                config.ethereum.block_time,
+            ))
         };
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
@@ -414,10 +417,17 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes, None)?;
                     }
-                    ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        consensus.receive_computed_block(block_hash)?
+                    ComputeEvent::AnnounceComputed(announce_hash) => {
+                        consensus.receive_computed_announce(announce_hash)?
                     }
-                    ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
+                    ComputeEvent::AnnounceRejected(announce_hash) => {
+                        // TODO: #4811 we should handle this case properly inside consensus service
+                        log::warn!("Announce {announce_hash:?} was rejected");
+                    }
+                    ComputeEvent::BlockPrepared(block_hash) => {
+                        consensus.receive_prepared_block(block_hash)?
+                    }
+                    ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
                 },
@@ -439,7 +449,7 @@ impl Service {
 
                             match message {
                                 NetworkMessage::ProducerBlock(block) => {
-                                    consensus.receive_block_from_producer(block)?
+                                    consensus.receive_announce(block)?
                                 }
                                 NetworkMessage::RequestBatchValidation(request) => {
                                     consensus.receive_validation_request(request)?
@@ -525,19 +535,8 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.process_block(block),
-                    ConsensusEvent::ComputeProducerBlock(producer_block) => {
-                        if !producer_block.off_chain_transactions.is_empty()
-                            || producer_block.gas_allowance.is_some()
-                        {
-                            todo!(
-                                "#4638 #4639 off-chain transactions and gas allowance are not supported yet"
-                            );
-                        }
-
-                        compute.process_block(producer_block.block_hash);
-                    }
-                    ConsensusEvent::PublishProducerBlock(block) => {
+                    ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
+                    ConsensusEvent::PublishAnnounce(block) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };

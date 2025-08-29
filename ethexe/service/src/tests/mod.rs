@@ -30,7 +30,7 @@ use crate::{
 use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
     ScheduledTask,
-    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
 };
@@ -45,7 +45,7 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, H160, MessageId};
+use gprimitives::{ActorId, H160, H256, MessageId};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -455,9 +455,15 @@ async fn mailbox() {
         ),
     ]);
 
+    let announce_hash = node
+        .db
+        .block_meta(block_data.header.parent_hash)
+        .announces
+        .and_then(|mut a| a.pop())
+        .expect("announce must exist");
     let schedule = node
         .db
-        .block_schedule(block_data.header.parent_hash)
+        .announce_schedule(announce_hash)
         .expect("must exist");
 
     assert_eq!(schedule, expected_schedule);
@@ -564,9 +570,15 @@ async fn mailbox() {
     let state = node.db.program_state(state_hash).unwrap();
     assert!(state.mailbox_hash.is_empty());
 
+    let announce_hash = node
+        .db
+        .block_meta(block_data.header.parent_hash)
+        .announces
+        .and_then(|mut a| a.pop())
+        .expect("announce must exist");
     let schedule = node
         .db
-        .block_schedule(block_data.header.parent_hash)
+        .announce_schedule(announce_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{schedule:?}");
 }
@@ -1040,9 +1052,9 @@ async fn tx_pool_gossip() {
     tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
-        .latest_computed_block()
-        .expect("at least genesis block is latest valid")
-        .0;
+        .latest_data()
+        .expect("latest data not found")
+        .prepared_block_hash;
 
     // Prepare tx data
     let signed_ethexe_tx = {
@@ -1107,9 +1119,27 @@ async fn fast_sync() {
             .verify_chain(latest_block, fast_synced_block)
             .expect("failed to verify Bob database");
 
+        let alice_latest_data = alice.db.latest_data().expect("latest data not found");
+        let bob_latest_data = bob.db.latest_data().expect("latest data not found");
         assert_eq!(
-            alice.db.latest_computed_block(),
-            bob.db.latest_computed_block()
+            alice_latest_data.computed_announce_hash,
+            bob_latest_data.computed_announce_hash
+        );
+        assert_eq!(
+            alice_latest_data.synced_block_height,
+            bob_latest_data.synced_block_height
+        );
+        assert_eq!(
+            alice_latest_data.prepared_block_hash,
+            bob_latest_data.prepared_block_hash
+        );
+        assert_eq!(
+            alice_latest_data.genesis_block_hash,
+            bob_latest_data.genesis_block_hash
+        );
+        assert_eq!(
+            alice_latest_data.genesis_announce_hash,
+            bob_latest_data.genesis_announce_hash
         );
 
         let mut block = latest_block;
@@ -1119,29 +1149,29 @@ async fn fast_sync() {
             }
 
             log::trace!("assert block {block}");
+            assert_eq!(alice.db.block_meta(block), bob.db.block_meta(block));
 
+            let announce_hash = alice.db.block_meta(block).announces.expect("Must be set")[0];
             assert_eq!(
-                alice.db.block_codes_queue(block),
-                bob.db.block_codes_queue(block)
-            );
-
-            assert_eq!(
-                alice.db.block_meta(block).computed,
-                bob.db.block_meta(block).computed
+                alice.db.announce_meta(announce_hash),
+                bob.db.announce_meta(announce_hash)
             );
             assert_eq!(
-                alice.db.block_program_states(block),
-                bob.db.block_program_states(block)
+                alice.db.announce_program_states(announce_hash),
+                bob.db.announce_program_states(announce_hash)
             );
-            assert_eq!(alice.db.block_outcome(block), bob.db.block_outcome(block));
-            assert_eq!(alice.db.block_schedule(block), bob.db.block_schedule(block));
+            assert_eq!(
+                alice.db.announce_outcome(announce_hash),
+                bob.db.announce_outcome(announce_hash)
+            );
+            assert_eq!(
+                alice.db.announce_outcome(announce_hash),
+                bob.db.announce_outcome(announce_hash)
+            );
 
             assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
             assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
-            assert_eq!(
-                alice.db.block_meta(block).synced,
-                bob.db.block_meta(block).synced,
-            );
+            assert_eq!(alice.db.block_synced(block), bob.db.block_synced(block));
 
             let header = alice.db.block_header(block).unwrap();
             block = header.parent_hash;
@@ -1192,10 +1222,10 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block: H256 = env.latest_block().await.hash.0.into();
     alice
         .listener()
-        .wait_for_block_processed(latest_block)
+        .wait_for_announce_computed(latest_block)
         .await;
 
     log::info!("Starting Bob (fast-sync)");
@@ -1222,12 +1252,32 @@ async fn fast_sync() {
     let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
-        .wait_for_block_processed(latest_block)
+        .wait_for_announce_computed(latest_block)
         .await;
-    bob.listener().wait_for_block_processed(latest_block).await;
+    bob.listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
 
     log::info!("Stopping Bob");
     bob.stop_service().await;
+
+    // // +_+_+
+    // log::info!("Alice's announce chain:");
+    // {
+    //     let mut announce_hash = alice.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = alice.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
+    // log::info!("Bob's announce chain:");
+    // {
+    //     let mut announce_hash = bob.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = bob.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
 
     assert_chain(
         latest_block,
@@ -1253,10 +1303,10 @@ async fn fast_sync() {
 
     env.skip_blocks(100).await;
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block: H256 = env.latest_block().await.hash.0.into();
     alice
         .listener()
-        .wait_for_block_processed(latest_block)
+        .wait_for_announce_computed(latest_block)
         .await;
 
     log::info!("Starting Bob again to check how it handles partially empty database");
@@ -1268,9 +1318,11 @@ async fn fast_sync() {
     let latest_block = env.latest_block().await.hash.0.into();
     alice
         .listener()
-        .wait_for_block_processed(latest_block)
+        .wait_for_announce_computed(latest_block)
         .await;
-    bob.listener().wait_for_block_processed(latest_block).await;
+    bob.listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
 
     assert_chain(
         latest_block,
