@@ -18,8 +18,11 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData,
-    db::{AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
+    Announce, AnnounceHash, SimpleBlockData,
+    db::{
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
+        BlockMetaStorageWrite, OnChainStorageRead,
+    },
 };
 use gprimitives::H256;
 use std::collections::VecDeque;
@@ -53,27 +56,77 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
     Ok(chain)
 }
 
-/// Returns true if the announce is computed and included in the block `block_hash`.
-/// We cannot just use announce compute flag in some cases,
-/// because it's possible for an announce to be computed but not included in a block.
-/// For example, if node accidentally drops a block
-/// after computing an announce, the announce will be marked as computed, but not included
-/// in the block.
-pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStorageRead>(
+/// Announce included - means announce is part of the block.
+/// Compute service guarantees that for included announce all its predecessors are included
+pub fn announce_is_included<DB: BlockMetaStorageRead + AnnounceStorageRead>(
     db: &DB,
     announce_hash: AnnounceHash,
-    block_hash: H256,
-) -> Result<bool> {
-    if !db.announce_meta(announce_hash).computed {
-        return Ok(false);
+) -> bool {
+    db.announce(announce_hash)
+        .and_then(|announce| db.block_meta(announce.block_hash).announces)
+        .into_iter()
+        .flat_map(|x| x.into_iter())
+        .any(|hash| hash == announce_hash)
+}
+
+pub fn not_computed_chain<DB: AnnounceStorageRead>(
+    db: &DB,
+    mut announce_hash: AnnounceHash,
+) -> Result<VecDeque<Announce>> {
+    let mut not_computed_chain = VecDeque::new();
+    while !db.announce_meta(announce_hash).computed {
+        let announce = db
+            .announce(announce_hash)
+            .ok_or(ComputeError::AnnounceNotFound(announce_hash))?;
+        announce_hash = announce.parent;
+        not_computed_chain.push_front(announce);
+    }
+    Ok(not_computed_chain)
+}
+
+pub fn include_one<DB: BlockMetaStorageWrite + AnnounceStorageWrite>(
+    db: &DB,
+    announce: Announce,
+) -> Result<AnnounceHash> {
+    let block_hash = announce.block_hash;
+    let announce_hash = announce.hash();
+
+    let mut announces = db
+        .block_meta(block_hash)
+        .announces
+        .ok_or(ComputeError::AnnouncesNotFound(block_hash))?;
+
+    if announces.iter().any(|&h| h == announce_hash) {
+        log::error!("{announce_hash} is already included in block {block_hash}");
+        return Ok(announce_hash);
     }
 
-    let meta = db.block_meta(block_hash);
-    Ok(meta.prepared
-        && meta
-            .announces
-            .ok_or(ComputeError::AnnouncesNotFound(block_hash))?
-            .contains(&announce_hash))
+    if !announce.is_base() {
+        // Check whether we have already announces from producer for this block
+        for &hash in announces.iter() {
+            let neighbor_announce = db
+                .announce(hash)
+                .ok_or(ComputeError::AnnounceNotFound(hash))?;
+            if !neighbor_announce.is_base() {
+                // TODO +_+_+: decide what to do in that case, currently we include both
+                log::warn!(
+                    "Double announcement detected!!! old {}, new {announce_hash}",
+                    neighbor_announce.hash()
+                );
+                break;
+            }
+        }
+    }
+
+    announces.insert(announce_hash);
+
+    db.set_announce(announce);
+
+    db.mutate_block_meta(block_hash, |meta| {
+        meta.announces = Some(announces);
+    });
+
+    Ok(announce_hash)
 }
 
 #[cfg(test)]

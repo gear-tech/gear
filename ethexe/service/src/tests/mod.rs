@@ -1252,6 +1252,24 @@ async fn fast_sync() {
     log::info!("Stopping Bob");
     bob.stop_service().await;
 
+    // // +_+_+
+    // log::info!("Alice's announce chain:");
+    // {
+    //     let mut announce_hash = alice.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = alice.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
+    // log::info!("Bob's announce chain:");
+    // {
+    //     let mut announce_hash = bob.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = bob.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
+
     assert_chain(
         latest_block,
         bob.latest_fast_synced_block.take().unwrap(),
