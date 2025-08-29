@@ -23,9 +23,8 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
     StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestDataStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
+        FullAnnounceData, FullBlockData, OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -693,41 +692,32 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let validators = NonEmpty::from_vec(observer.router_query().validators_at(block_hash).await?)
         .ok_or(anyhow!("validator set is empty"))?;
 
-    db.set_block_header(block_hash, header);
-    db.set_block_events(block_hash, &events);
-    db.set_validators(block_hash, validators);
-    db.set_block_synced(block_hash);
-
-    db.mutate_block_meta(block_hash, |meta| {
-        *meta = BlockMeta {
-            prepared: true,
-            announces: Some(vec![announce.hash()]),
+    ethexe_common::setup_start_block_in_db(
+        db,
+        block_hash,
+        FullBlockData {
+            header,
+            events,
+            validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
-            codes_queue: Some(Default::default()),
-            // TODO #4812: using `latest_committed_batch` here is not correct
-            last_committed_batch: Some(latest_committed_batch),
-            last_committed_announce: Some(announce_hash),
-        }
-    });
-
-    db.set_announce(announce);
-    // NOTE: it's ok to set empty outcome here, because it will never be used,
-    // since block is finalized and announce is committed
-    db.set_announce_outcome(announce_hash, Default::default());
-    db.set_announce_program_states(announce_hash, program_states);
-    db.set_announce_schedule(announce_hash, schedule);
-    db.mutate_announce_meta(announce_hash, |meta| {
-        meta.computed = true;
-    });
-
-    db.mutate_latest_data_if_some(|latest| {
-        latest.synced_block_height = header.height;
-        latest.prepared_block_hash = block_hash;
-        latest.computed_announce_hash = announce_hash;
-        latest.start_block_hash = block_hash;
-        latest.start_announce_hash = announce_hash;
-    })
-    .ok_or_else(|| anyhow!("Latest data must be already set, at least for genesis block"))?;
+            codes_queue: Default::default(),
+            announces: vec![announce_hash],
+            // TODO #4812: using `latest_committed_batch` here is not correct,
+            // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
+            last_committed_batch: latest_committed_batch,
+            // TODO #4812: using `latest_committed_announce` here is not correct,
+            // because `announce_hash` is created for `block_hash`, not committed.
+            last_committed_announce: announce_hash,
+        },
+        FullAnnounceData {
+            announce,
+            program_states,
+            // NOTE: it's ok to set empty outcome here, because it will never be used,
+            // since block is finalized and announce is committed
+            outcome: Default::default(),
+            schedule: schedule.clone(),
+        },
+    );
 
     log::info!(
         "Fast synchronization done: synced to {block_hash:?}, height {:?}",

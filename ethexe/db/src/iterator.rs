@@ -529,7 +529,6 @@ where
             announces,
             codes_queue,
             last_committed_batch: _,
-            // TODO +_+_+: consider to implement iteration for last_committed_announce
             last_committed_announce: _,
         } = meta;
 
@@ -569,8 +568,7 @@ where
             announce_meta: self.storage.announce_meta(announce_hash),
         });
 
-        // TODO +_+_+: offchain transactions
-        // TODO +_+_+: consider to iterate over parent announces
+        // TODO #4830: offchain transactions
     }
 
     fn iter_program_id(&mut self, ProgramIdNode { program_id }: ProgramIdNode) {

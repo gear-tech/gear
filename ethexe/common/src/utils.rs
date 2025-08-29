@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, AnnounceHash, Digest, SimpleBlockData,
+    Address, Announce, AnnounceHash, SimpleBlockData,
     db::{
-        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, LatestData, LatestDataStorageWrite,
-        OnChainStorageWrite,
+        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, FullAnnounceData, FullBlockData,
+        LatestData, LatestDataStorageWrite, OnChainStorageWrite,
     },
 };
 use alloc::vec;
+use gprimitives::H256;
 use nonempty::NonEmpty;
 
 /// Decodes hexed string to a byte array.
@@ -45,6 +46,36 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
+pub fn setup_start_block_in_db<
+    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
+>(
+    db: &DB,
+    start_block_hash: H256,
+    start_block_data: FullBlockData,
+    start_announce_data: FullAnnounceData,
+) {
+    let height = start_block_data.header.height;
+    let announce_hash = start_announce_data.announce.hash();
+
+    assert_eq!(
+        start_block_data.announces,
+        vec![announce_hash],
+        "start block and announce data incompatible"
+    );
+
+    setup_block_in_db(db, start_block_hash, start_block_data);
+    setup_announce_in_db(db, start_announce_data);
+
+    db.mutate_latest_data_if_some(|latest| {
+        latest.synced_block_height = height;
+        latest.prepared_block_hash = start_block_hash;
+        latest.computed_announce_hash = announce_hash;
+        latest.start_block_hash = start_block_hash;
+        latest.start_announce_hash = announce_hash;
+    })
+    .expect("Latest data must be set before `setup_genesis_in_db` calling");
+}
+
 pub fn setup_genesis_in_db<
     DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
 >(
@@ -52,28 +83,31 @@ pub fn setup_genesis_in_db<
     genesis_block: SimpleBlockData,
     validators: NonEmpty<Address>,
 ) {
-    db.set_block_header(genesis_block.hash, genesis_block.header);
-    db.set_block_events(genesis_block.hash, &[]);
-    db.set_validators(genesis_block.hash, validators);
-    db.set_block_synced(genesis_block.hash);
-
     let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
-    let genesis_announce_hash = db.set_announce(genesis_announce);
-    db.set_announce_outcome(genesis_announce_hash, vec![]);
-    db.set_announce_program_states(genesis_announce_hash, Default::default());
-    db.set_announce_schedule(genesis_announce_hash, Default::default());
-    db.mutate_announce_meta(genesis_announce_hash, |meta| meta.computed = true);
+    let genesis_announce_hash = setup_announce_in_db(
+        db,
+        FullAnnounceData {
+            announce: genesis_announce,
+            program_states: Default::default(),
+            outcome: Default::default(),
+            schedule: Default::default(),
+        },
+    );
 
-    // Genesis block is the only one block where announce is committed in the same block.
-    db.mutate_block_meta(genesis_block.hash, |meta| {
-        *meta = BlockMeta {
-            prepared: true,
-            announces: Some(vec![genesis_announce_hash]),
-            codes_queue: Some(Default::default()),
-            last_committed_batch: Some(Digest::zero()),
-            last_committed_announce: Some(genesis_announce_hash),
-        }
-    });
+    setup_block_in_db(
+        db,
+        genesis_block.hash,
+        FullBlockData {
+            header: genesis_block.header,
+            events: Default::default(),
+            validators: validators.clone(),
+
+            codes_queue: Default::default(),
+            announces: vec![genesis_announce_hash],
+            last_committed_batch: Default::default(),
+            last_committed_announce: Default::default(),
+        },
+    );
 
     db.mutate_latest_data(|data| {
         data.get_or_insert(LatestData {
@@ -86,4 +120,39 @@ pub fn setup_genesis_in_db<
             start_announce_hash: genesis_announce_hash,
         });
     });
+}
+
+pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
+    db: &DB,
+    block_hash: H256,
+    block_data: FullBlockData,
+) {
+    db.set_block_header(block_hash, block_data.header);
+    db.set_block_events(block_hash, &block_data.events);
+    db.set_validators(block_hash, block_data.validators);
+    db.set_block_synced(block_hash);
+
+    db.mutate_block_meta(block_hash, |meta| {
+        *meta = BlockMeta {
+            prepared: true,
+            announces: Some(block_data.announces),
+            codes_queue: Some(block_data.codes_queue),
+            last_committed_batch: Some(block_data.last_committed_batch),
+            last_committed_announce: Some(block_data.last_committed_announce),
+        }
+    });
+}
+
+pub fn setup_announce_in_db<DB: AnnounceStorageWrite>(
+    db: &DB,
+    announce_data: FullAnnounceData,
+) -> AnnounceHash {
+    let announce_hash = announce_data.announce.hash();
+    db.set_announce(announce_data.announce);
+    db.set_announce_program_states(announce_hash, announce_data.program_states);
+    db.set_announce_outcome(announce_hash, announce_data.outcome);
+    db.set_announce_schedule(announce_hash, announce_data.schedule);
+    db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
+
+    announce_hash
 }

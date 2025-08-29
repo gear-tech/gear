@@ -47,7 +47,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
     }
 
     if utils::announce_is_computed_and_included(&db, announce_hash, announce.block_hash)? {
-        log::warn!("{announce:?} is already computed");
+        log::trace!("{announce:?} is already computed");
         return Ok(ComputationStatus::Computed);
     }
 

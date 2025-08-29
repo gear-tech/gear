@@ -173,3 +173,21 @@ pub trait LatestDataStorageWrite {
         return_value
     }
 }
+
+pub struct FullBlockData {
+    pub header: BlockHeader,
+    pub events: Vec<BlockEvent>,
+    pub validators: NonEmpty<Address>,
+
+    pub codes_queue: VecDeque<CodeId>,
+    pub announces: Vec<AnnounceHash>,
+    pub last_committed_batch: Digest,
+    pub last_committed_announce: AnnounceHash,
+}
+
+pub struct FullAnnounceData {
+    pub announce: Announce,
+    pub program_states: ProgramStates,
+    pub outcome: Vec<StateTransition>,
+    pub schedule: Schedule,
+}
