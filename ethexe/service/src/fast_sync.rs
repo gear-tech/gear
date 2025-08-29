@@ -20,15 +20,14 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
-    StateHashWithQueueSize,
+    Address, Announce, AnnounceHash, AnnouncesRequest, BlockData, CodeAndIdUnchecked, Digest,
+    ProgramStates, StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
         FullAnnounceData, FullBlockData, OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };
-use ethexe_compute::ComputeService;
 use ethexe_db::{
     Database,
     iterator::{
@@ -41,6 +40,7 @@ use ethexe_db::{
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkEvent, NetworkService, db_sync};
 use ethexe_observer::ObserverService;
+use ethexe_processor::Processor;
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -81,7 +81,7 @@ impl EventData {
         }
     }
 
-    /// Collects metadata regarding the latest committed batch, block, and the previous committed block
+    /// Collects metadata regarding the latest committed batch and announce
     /// for a given blockchain observer and database.
     async fn collect(
         observer: &mut ObserverService,
@@ -196,15 +196,19 @@ async fn collect_announce(
 
     Ok(net_fetch(
         network,
-        db_sync::AnnouncesRequest {
+        AnnouncesRequest {
             head: announce_hash,
+            tail: None,
             max_chain_len: 1,
         }
         .into(),
     )
     .await?
     .unwrap_announces()
-    .pop()
+    .into_parts()
+    .1
+    .into_iter()
+    .next()
     .expect("announce must be present"))
 }
 
@@ -587,11 +591,11 @@ async fn sync_from_network(
         .collect()
 }
 
-/// Instruments a set of codes by delegating their processing to the `ComputeService`.
+/// Instruments a set of codes using `processor`.
 async fn instrument_codes(
-    compute: &mut ComputeService,
+    processor: &mut Processor,
     db: &Database,
-    mut code_ids: BTreeSet<CodeId>,
+    code_ids: BTreeSet<CodeId>,
 ) -> Result<()> {
     if code_ids.is_empty() {
         log::info!("No codes to instrument. Skipping...");
@@ -604,18 +608,10 @@ async fn instrument_codes(
         let original_code = db
             .original_code(code_id)
             .expect("`sync_from_network` must fulfill database");
-        compute.process_code(CodeAndIdUnchecked {
+        processor.process_upload_code(CodeAndIdUnchecked {
             code_id,
             code: original_code,
-        });
-    }
-
-    while let Some(event) = compute.next().await {
-        let id = event?.unwrap_code_processed();
-        code_ids.remove(&id);
-        if code_ids.is_empty() {
-            break;
-        }
+        })?;
     }
 
     log::info!("Codes instrumentation done");
@@ -637,6 +633,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         return Ok(());
     };
 
+    let mut processor = compute.processor().clone();
+
     log::info!("Fast synchronization is in progress...");
 
     let finalized_block = observer
@@ -655,7 +653,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         latest_committed_announce: announce_hash,
     }) = EventData::collect(observer, db, finalized_block).await?
     else {
-        log::warn!("No any committed block found. Skipping fast synchronization...");
+        log::info!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
     };
 
@@ -681,7 +679,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let program_states = sync_from_network(network, db, &code_ids, program_states).await;
 
-    instrument_codes(compute, db, code_ids).await?;
+    instrument_codes(&mut processor, db, code_ids).await?;
 
     let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
 

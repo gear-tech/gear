@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, events::BlockRequestEvent};
+use ethexe_common::{
+    Announce, AnnounceHash, AnnouncesRequest, CodeAndIdUnchecked, events::BlockRequestEvent,
+};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
@@ -37,7 +39,7 @@ pub struct BlockProcessed {
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
 pub enum ComputeEvent {
-    RequestLoadCodes(HashSet<CodeId>),
+    RequestData(DataRequest),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
     AnnounceComputed(AnnounceHash),
@@ -70,7 +72,22 @@ pub enum ComputeError {
     LatestDataNotFound,
 
     #[error(transparent)]
+    ConsensusGuarantees(#[from] ConsensusGuaranteesError),
+
+    #[error(transparent)]
     Processor(#[from] ProcessorError),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ConsensusGuaranteesError {
+    #[error("not base announce committed after delay limit exceeded")]
+    CommitmentDelayLimitExceeded,
+    #[error(
+        "announce corresponding block height must be smaller than block height where announce is committed"
+    )]
+    AnnounceFromFutureCommitted,
+    #[error("{0}")]
+    Other(String),
 }
 
 type Result<T> = std::result::Result<T, ComputeError>;
@@ -98,5 +115,18 @@ impl ProcessorExt for Processor {
 
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
         self.process_upload_code(code_and_id).map_err(Into::into)
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct DataRequest {
+    pub codes: HashSet<CodeId>,
+    pub announces: Option<AnnouncesRequest>,
+}
+
+impl DataRequest {
+    pub fn is_empty(&self) -> bool {
+        let DataRequest { codes, announces } = self;
+        codes.is_empty() && announces.is_none()
     }
 }

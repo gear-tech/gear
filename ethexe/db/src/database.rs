@@ -222,9 +222,10 @@ impl BlockMetaStorageRead for Database {
 
 impl BlockMetaStorageWrite for Database {
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
-        log::trace!("For block {block_hash} mutate meta");
         self.mutate_small_data(block_hash, |data| {
+            log::trace!("Mutate meta for block {block_hash}: from {:?}", data.meta);
             f(&mut data.meta);
+            log::trace!("Mutate meta for block {block_hash}: to {:?}", data.meta);
         });
     }
 }
@@ -579,6 +580,7 @@ impl AnnounceStorageRead for Database {
 
 impl AnnounceStorageWrite for Database {
     fn set_announce(&self, announce: Announce) -> AnnounceHash {
+        log::trace!("Set announce {announce:?}");
         AnnounceHash(self.cas.write(&announce.encode()))
     }
 
@@ -587,6 +589,7 @@ impl AnnounceStorageWrite for Database {
         announce_hash: AnnounceHash,
         program_states: ProgramStates,
     ) {
+        log::trace!("Set program states for {announce_hash}: len = {}", program_states.len());
         self.kv.put(
             &Key::AnnounceProgramStates(announce_hash).to_bytes(),
             program_states.encode(),
@@ -594,6 +597,7 @@ impl AnnounceStorageWrite for Database {
     }
 
     fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>) {
+        log::trace!("Set outcome for {announce_hash}: len = {}", outcome.len());
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
             outcome.encode(),
@@ -601,6 +605,7 @@ impl AnnounceStorageWrite for Database {
     }
 
     fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule) {
+        log::trace!("Set schedule for {announce_hash}: len = {}", schedule.len());
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
@@ -609,7 +614,9 @@ impl AnnounceStorageWrite for Database {
 
     fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta)) {
         let mut meta = self.announce_meta(announce_hash);
+        log::trace!("Mutate meta for {announce_hash}, from {meta:?}");
         f(&mut meta);
+        log::trace!("Mutate meta for {announce_hash}, to {meta:?}");
         self.kv
             .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
     }
@@ -626,6 +633,7 @@ impl LatestDataStorageRead for Database {
 
 impl LatestDataStorageWrite for Database {
     fn set_latest_data(&self, data: LatestData) {
+        log::trace!("Set latest data: {data:?}");
         self.kv.put(&Key::LatestData.to_bytes(), data.encode());
     }
 }

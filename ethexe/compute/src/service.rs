@@ -19,15 +19,15 @@
 use crate::{
     ComputeError, ComputeEvent, ProcessorExt, Result,
     compute::{self, ComputationStatus},
-    prepare::{self, MissingData},
+    prepare::{PrepareContext, PrepareStatus},
 };
-use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, db::CodesStorageRead};
+use ethexe_common::{Announce, CheckedAnnouncesResponse, CodeAndIdUnchecked, db::CodesStorageRead};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::VecDeque,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -46,24 +46,14 @@ enum BlockAction {
     Compute(Announce),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Default, derive_more::Debug)]
 enum State {
     #[default]
     WaitForBlock,
-    WaitForRequestedData {
-        block_hash: H256,
-        codes: HashSet<CodeId>,
-    },
-    Preparation {
-        block_hash: H256,
-        #[debug(skip)]
-        future: BoxFuture<'static, Result<()>>,
-    },
-    Computation {
-        announce_hash: AnnounceHash,
-        #[debug(skip)]
-        future: BoxFuture<'static, Result<ComputationStatus>>,
-    },
+    PreparePhase1(PrepareContext),
+    PreparePhase2(#[debug(skip)] BoxFuture<'static, Result<H256>>),
+    Computation(#[debug(skip)] BoxFuture<'static, Result<ComputationStatus>>),
 }
 
 pub struct ComputeService<P: ProcessorExt = Processor> {
@@ -126,20 +116,33 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.blocks_queue.push_front(BlockAction::Compute(announce));
     }
 
+    pub fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) {
+        if let State::PreparePhase1(ctx) = &mut self.blocks_state {
+            ctx.receive_announces(response);
+        } else {
+            log::warn!("Received announces response in unexpected state");
+        }
+    }
+
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
-        let waiting_codes_count =
-            if let State::WaitForRequestedData { codes, .. } = &self.blocks_state {
-                codes.len()
-            } else {
-                0
-            };
+        // +_+_+ fix
+        // let waiting_codes_count =
+        //     if let State::WaitForRequiredData { data, .. } = &self.blocks_state {
+        //         codes.len()
+        //     } else {
+        //         0
+        //     };
 
         ComputeMetrics {
             blocks_queue_len: self.blocks_queue.len(),
             process_codes_count: self.process_codes.len(),
-            waiting_codes_count,
+            waiting_codes_count: 0,
         }
+    }
+
+    pub fn processor(&self) -> &P {
+        &self.processor
     }
 }
 
@@ -150,10 +153,9 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
-                    if let (Ok(code_id), State::WaitForRequestedData { codes, .. }) =
-                        (&res, &mut self.blocks_state)
+                    if let (Ok(code_id), State::PreparePhase1(ctx)) = (&res, &mut self.blocks_state)
                     {
-                        codes.remove(code_id);
+                        ctx.receive_processed_code(*code_id);
                     }
 
                     return Poll::Ready(Some(res.map(ComputeEvent::CodeProcessed)));
@@ -164,68 +166,66 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
 
         if let State::WaitForBlock = &self.blocks_state {
             match self.blocks_queue.pop_back() {
-                Some(BlockAction::Prepare(block)) => {
-                    let MissingData {
-                        codes,
-                        validated_codes,
-                    } = prepare::missing_data(&self.db, block)?;
+                Some(BlockAction::Prepare(block_hash)) => {
+                    let (ctx, request) = PrepareContext::new(self.db.clone(), 3, block_hash)?;
 
-                    debug_assert!(
-                        validated_codes
-                            .iter()
-                            .all(|code_id| codes.contains(code_id)),
-                        "All missing validated codes must be in the missing codes list"
-                    );
+                    self.blocks_state = State::PreparePhase1(ctx);
 
-                    self.blocks_state = State::WaitForRequestedData {
-                        block_hash: block,
-                        codes: validated_codes,
-                    };
-
-                    if !codes.is_empty() {
-                        return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes))));
+                    if !request.is_empty() {
+                        return Poll::Ready(Some(Ok(ComputeEvent::RequestData(request))));
                     }
                 }
                 Some(BlockAction::Compute(announce)) => {
-                    self.blocks_state = State::Computation {
-                        announce_hash: announce.hash(),
-                        future: compute::compute(self.db.clone(), self.processor.clone(), announce)
-                            .boxed(),
-                    };
+                    let future = compute::compute_and_include(
+                        self.db.clone(),
+                        self.processor.clone(),
+                        announce,
+                    )
+                    .boxed();
+                    self.blocks_state = State::Computation(future);
                 }
                 None => {}
             }
         }
 
-        if let State::WaitForRequestedData { block_hash, codes } = &self.blocks_state
-            && codes.is_empty()
-        {
-            self.blocks_state = State::Preparation {
-                block_hash: *block_hash,
-                future: prepare::prepare(self.db.clone(), self.processor.clone(), *block_hash)
-                    .boxed(),
-            };
+        if let State::PreparePhase1(ctx) = &mut self.blocks_state {
+            match ctx.prepare_if_ready() {
+                Err(err) => {
+                    self.blocks_state = State::WaitForBlock;
+                    return Poll::Ready(Some(Err(err)));
+                }
+                Ok(PrepareStatus::Prepared(block_hash)) => {
+                    self.blocks_state = State::PreparePhase2(
+                        compute::compute_block_announces(
+                            self.db.clone(),
+                            self.processor.clone(),
+                            block_hash,
+                        )
+                        .boxed(),
+                    );
+                }
+                Ok(PrepareStatus::NotReady) => {}
+            }
         }
 
-        if let State::Preparation { block_hash, future } = &mut self.blocks_state
+        if let State::PreparePhase2(future) = &mut self.blocks_state
             && let Poll::Ready(res) = future.poll_unpin(cx)
         {
-            let result = res.map(|_| ComputeEvent::BlockPrepared(*block_hash));
             self.blocks_state = State::WaitForBlock;
-            return Poll::Ready(Some(result));
+            return Poll::Ready(Some(res.map(ComputeEvent::BlockPrepared)));
         }
 
-        if let State::Computation {
-            announce_hash,
-            future,
-        } = &mut self.blocks_state
+        if let State::Computation(future) = &mut self.blocks_state
             && let Poll::Ready(res) = future.poll_unpin(cx)
         {
-            let announce_hash = *announce_hash;
             self.blocks_state = State::WaitForBlock;
             return Poll::Ready(Some(res.map(|status| match status {
-                ComputationStatus::Computed => ComputeEvent::AnnounceComputed(announce_hash),
-                ComputationStatus::Rejected => ComputeEvent::AnnounceRejected(announce_hash),
+                ComputationStatus::Computed(announce_hash) => {
+                    ComputeEvent::AnnounceComputed(announce_hash)
+                }
+                ComputationStatus::Rejected(announce_hash) => {
+                    ComputeEvent::AnnounceRejected(announce_hash)
+                }
             })));
         }
 

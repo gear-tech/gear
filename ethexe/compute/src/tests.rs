@@ -152,9 +152,9 @@ impl TestEnv {
             .await
             .unwrap()
             .expect("expect compute service request codes to load");
-        let codes_to_load = event.unwrap_request_load_codes();
+        let data = event.unwrap_request_data();
 
-        for code_id in codes_to_load {
+        for code_id in data.codes {
             let Some(CodeData {
                 original_bytes: code,
                 ..

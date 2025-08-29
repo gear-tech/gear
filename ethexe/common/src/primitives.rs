@@ -44,6 +44,7 @@ pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
     derive_more::DerefMut,
     derive_more::Display,
 )]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("{}", self.0)]
 pub struct AnnounceHash(pub H256);
 
@@ -102,6 +103,7 @@ pub struct SimpleBlockData {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct Announce {
     pub block_hash: H256,
     pub parent: AnnounceHash,
@@ -231,3 +233,117 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
+
+/// Request announces body (see [`Announce`]) chain from `head_announce_hash` to `tail_announce_hash`.
+/// `tail_announce_hash` must not be included in response.
+/// If `tail_announce_hash` is None, then only data `head_announce_hash` must be returned.
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+pub struct AnnouncesRequest {
+    /// Hash of the requested chain head announce
+    pub head: AnnounceHash,
+    /// Hash of the announce which is parent for first announce in requested chain
+    pub tail: Option<AnnounceHash>,
+    /// Maximum length of the requested chain
+    pub max_chain_len: u32,
+}
+
+// TODO +_+_+: can be optimized - no reasons to return all announces in chain,
+// only not-base announces could be returned.
+/// Response for announces request (see [`AnnouncesRequest`]).
+/// Must contain all announces from the requested range not including `tail_announce_hash`.
+/// Must be sorted from predecessor to successor.
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+pub struct AnnouncesResponse {
+    /// List of announces
+    pub announces: Vec<Announce>,
+}
+
+#[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From)]
+pub struct CheckedAnnouncesResponse {
+    /// Corresponding request for this response
+    request: AnnouncesRequest,
+    /// List of announces
+    announces: Vec<Announce>,
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum AnnouncesResponseError {
+    #[display("response is empty")]
+    Empty,
+    #[display("announces head mismatch, expected hash {expected}, received {received}")]
+    HeadMismatch {
+        expected: AnnounceHash,
+        received: AnnounceHash,
+    },
+    #[display("announces tail mismatch, expected hash {expected}, received {received}")]
+    TailMismatch {
+        expected: AnnounceHash,
+        received: AnnounceHash,
+    },
+    #[display("announces len maximum {expected}, received {received}")]
+    LenOverflow { expected: usize, received: usize },
+    #[display("announces chain is not linked")]
+    ChainIsNotLinked,
+}
+
+impl CheckedAnnouncesResponse {
+    pub fn new(
+        request: AnnouncesRequest,
+        response: AnnouncesResponse,
+    ) -> Result<Self, AnnouncesResponseError> {
+        let Some((first, last)) = response.announces.first().zip(response.announces.last()) else {
+            return Err(AnnouncesResponseError::Empty);
+        };
+
+        if request.head != last.hash() {
+            return Err(AnnouncesResponseError::HeadMismatch {
+                expected: request.head,
+                received: last.hash(),
+            });
+        }
+
+        if let Some(tail) = request.tail
+            && tail != first.parent
+        {
+            return Err(AnnouncesResponseError::TailMismatch {
+                expected: tail,
+                received: first.parent,
+            });
+        }
+
+        if response.announces.len() > request.max_chain_len as usize {
+            return Err(AnnouncesResponseError::LenOverflow {
+                expected: request.max_chain_len as usize,
+                received: response.announces.len(),
+            });
+        }
+
+        // Check chain correctness
+        let mut expected_parent_hash = first.hash();
+        for announce in response.announces.iter().skip(1) {
+            if announce.parent != expected_parent_hash {
+                return Err(AnnouncesResponseError::ChainIsNotLinked);
+            }
+            expected_parent_hash = announce.hash();
+        }
+
+        Ok(CheckedAnnouncesResponse {
+            request,
+            announces: response.announces,
+        })
+    }
+
+    pub fn request(&self) -> &AnnouncesRequest {
+        &self.request
+    }
+
+    pub fn announces(&self) -> &[Announce] {
+        &self.announces
+    }
+
+    pub fn into_parts(self) -> (AnnouncesRequest, Vec<Announce>) {
+        (self.request, self.announces)
+    }
+}
