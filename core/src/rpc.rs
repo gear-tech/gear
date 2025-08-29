@@ -57,3 +57,70 @@ pub struct ReplyInfo {
     /// Reply code of the reply.
     pub code: ReplyCode,
 }
+
+/// `u128` value wrapper intended for usage in RPC calls due to serialization specifications.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    TypeInfo,
+    derive_more::From,
+    derive_more::Into,
+)]
+pub struct RpcValue(pub u128);
+
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for RpcValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use core::fmt;
+        use serde::de::{self, Visitor};
+
+        struct RpcValueVisitor;
+
+        impl<'de> Visitor<'de> for RpcValueVisitor {
+            type Value = RpcValue;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a u128 integer or a 0x-prefixed hex string containing big-endian bytes of a u128; if submitting a large integer literal, consider using a hex string for clarity and to avoid potential parsing issues")
+            }
+
+            fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E> {
+                Ok(RpcValue(v))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(RpcValue(v as u128))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let s = v
+                    .strip_prefix("0x")
+                    .ok_or(E::custom("invalid hex string: should be 0x-prefixed"))?;
+
+                let bytes = hex::decode(s).map_err(E::custom)?;
+                if bytes.len() > 16 {
+                    return Err(E::custom("invalid hex string: too long for u128"));
+                }
+
+                // left pad to 16 bytes (big-endian)
+                let mut padded = [0u8; 16];
+                padded[16 - bytes.len()..].copy_from_slice(&bytes);
+
+                Ok(RpcValue(u128::from_be_bytes(padded)))
+            }
+        }
+
+        deserializer.deserialize_any(RpcValueVisitor)
+    }
+}
