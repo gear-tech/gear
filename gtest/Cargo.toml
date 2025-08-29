@@ -11,6 +11,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+gprimitives = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-common = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
@@ -21,6 +22,8 @@ gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gsys.workspace = true
 gbuiltin-bls381.workspace = true
+gbuiltin-eth-bridge.workspace = true
+
 
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
@@ -33,6 +36,7 @@ cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
 
+# Builtins related dependencies
 ark-scale = { workspace = true, features = ["hazmat"] }
 ark-serialize = { workspace = true, features = ["derive"] }
 ark-bls12-381 = { workspace = true, features = ["curve"] }
@@ -40,6 +44,7 @@ ark-ec.workspace = true
 ark-ff.workspace = true
 sha2.workspace = true
 sp-crypto-ec-utils = { workspace = true, features = ["std", "bls12-381"] }
+sp-runtime = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 ark-std.workspace = true

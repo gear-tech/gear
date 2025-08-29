@@ -7140,6 +7140,7 @@ dependencies = [
  "demo-ping",
  "etc",
  "gbuiltin-bls381",
+ "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -7148,6 +7149,7 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gear-utils",
+ "gprimitives",
  "gsys",
  "log",
  "parity-scale-codec",
@@ -7157,6 +7159,7 @@ dependencies = [
  "sha2 0.10.8",
  "sp-core",
  "sp-crypto-ec-utils",
+ "sp-runtime",
  "thiserror 2.0.12",
  "tracing-subscriber",
 ]

@@ -21,6 +21,7 @@
 pub(crate) mod accounts;
 pub(crate) mod bank;
 pub(crate) mod blocks;
+pub(crate) mod bridge;
 pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
 pub(crate) mod nonce;

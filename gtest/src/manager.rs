@@ -19,7 +19,7 @@
 use crate::{
     EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
     ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
-    builtins::BLS12_381_ID,
+    builtins::{BLS12_381_ID, ETH_BRIDGE_ID},
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
@@ -115,7 +115,7 @@ pub(crate) struct ExtManager {
 
 impl ExtManager {
     pub(crate) fn new() -> Self {
-        let builtins = BTreeSet::from([BLS12_381_ID]);
+        let builtins = BTreeSet::from([BLS12_381_ID, ETH_BRIDGE_ID]);
         Self {
             blocks_manager: BlocksManager,
             messages_processing_enabled: true,
