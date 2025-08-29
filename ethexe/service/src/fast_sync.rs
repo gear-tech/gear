@@ -655,7 +655,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         latest_committed_announce: announce_hash,
     }) = EventData::collect(observer, db, finalized_block).await?
     else {
-        log::info!("No any committed block found. Skipping fast synchronization...");
+        log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
     };
 
