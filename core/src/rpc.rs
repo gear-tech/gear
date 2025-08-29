@@ -80,6 +80,7 @@ impl<'de> serde::Deserialize<'de> for RpcValue {
     where
         D: serde::Deserializer<'de>,
     {
+        use alloc::format;
         use core::fmt;
         use serde::de::{self, Visitor};
 
@@ -89,7 +90,7 @@ impl<'de> serde::Deserialize<'de> for RpcValue {
             type Value = RpcValue;
 
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a u128 integer or a 0x-prefixed hex string containing big-endian bytes of a u128; if submitting a large integer literal, consider using a hex string for clarity and to avoid potential parsing issues")
+                f.write_str("a numeric literal, a 0x-prefixed string with big-endian bytes, or a numeric string representing a u128; for large integer literals, consider using string options for clarity and to avoid potential parsing issues")
             }
 
             fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E> {
@@ -104,20 +105,24 @@ impl<'de> serde::Deserialize<'de> for RpcValue {
             where
                 E: de::Error,
             {
-                let s = v
-                    .strip_prefix("0x")
-                    .ok_or(E::custom("invalid hex string: should be 0x-prefixed"))?;
+                if let Some(hex) = v.strip_prefix("0x") {
+                    let bytes = hex::decode(hex)
+                        .map_err(|e| E::custom(format!("invalid hex string: {e}")))?;
 
-                let bytes = hex::decode(s).map_err(E::custom)?;
-                if bytes.len() > 16 {
-                    return Err(E::custom("invalid hex string: too long for u128"));
+                    if bytes.len() > 16 {
+                        return Err(E::custom("invalid hex string: too long for u128"));
+                    }
+
+                    // left pad to 16 bytes (big-endian)
+                    let mut padded = [0u8; 16];
+                    padded[16 - bytes.len()..].copy_from_slice(&bytes);
+
+                    Ok(RpcValue(u128::from_be_bytes(padded)))
+                } else {
+                    v.parse::<u128>()
+                        .map(RpcValue)
+                        .map_err(|e| E::custom(format!("invalid numeric string: {e}")))
                 }
-
-                // left pad to 16 bytes (big-endian)
-                let mut padded = [0u8; 16];
-                padded[16 - bytes.len()..].copy_from_slice(&bytes);
-
-                Ok(RpcValue(u128::from_be_bytes(padded)))
             }
         }
 
