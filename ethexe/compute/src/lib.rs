@@ -70,8 +70,6 @@ pub enum ComputeError {
     AnnouncesNotFound(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
-    #[error("commitment delay limit exceeded")]
-    CommitmentDelayLimitExceeded,
 
     #[error(transparent)]
     ConsensusGuarantees(#[from] ConsensusGuaranteesError),
