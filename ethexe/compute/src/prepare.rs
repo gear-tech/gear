@@ -471,6 +471,8 @@ fn calculate_announces_common_predecessor(
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::announce_is_included;
+
     use super::*;
     use ethexe_common::{Address, BlockHeader, Digest, db::*, events::BlockEvent};
     use ethexe_db::Database as DB;
@@ -595,6 +597,7 @@ mod tests {
         assert_eq!(db.announce_outcome(announce_hash), None);
         assert_eq!(db.announce_schedule(announce_hash), None);
         assert_eq!(db.announce_program_states(announce_hash), None);
+        assert!(announce_is_included(&db, announce_hash));
         assert_eq!(db.latest_data().unwrap().prepared_block_hash, block.hash);
     }
 }

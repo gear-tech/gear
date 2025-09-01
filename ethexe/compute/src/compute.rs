@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    ComputeError, ProcessorExt, Result,
-    utils::{self, announce_is_included},
-};
+use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce, AnnounceHash,
     db::{
@@ -112,7 +109,7 @@ async fn compute_chain<P: ProcessorExt>(
     head_announce_hash: AnnounceHash,
 ) -> Result<()> {
     debug_assert!(
-        announce_is_included(&db, head_announce_hash),
+        utils::announce_is_included(&db, head_announce_hash),
         "can be called over already included announces only"
     );
 
