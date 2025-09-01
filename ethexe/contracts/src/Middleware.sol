@@ -226,7 +226,20 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function unregisterOperator() external returns (bool unregistered) {
-        unregistered = _storage().operators.remove(msg.sender);
+        Storage storage $ = _storage();
+        uint48 checkpointTs = Time.timestamp() - $.operatorGracePeriod;
+
+        // Operator must wait until the end of the grace period,
+        if (
+            IOptInService($.registries.networkOptIn).isOptedInAt(
+                // replace `address(this)` with router address, when router would be as a network
+                msg.sender, address(this), checkpointTs, bytes("")
+            )
+        ) {
+            revert OperatorGracePeriodNotPassed();
+        }
+
+        unregistered = $.operators.remove(msg.sender);
     }
 
     function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32) {
@@ -286,7 +299,19 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function unregisterVault(address vault) external vaultOwner(vault) returns (bool unregistered) {
-        unregistered = _storage().vaults.remove(vault);
+        Storage storage $ = _storage();
+        uint48 checkpointTs = Time.timestamp() - $.operatorGracePeriod;
+
+        // Operator must wait until the end of the grace period,
+        if (
+            IOptInService($.registries.vaultOptIn).isOptedInAt(
+                // replace `address(this)` with router address, when router would be as a network
+                vault, address(this), checkpointTs, bytes("")
+            )
+        ) {
+            revert VaultGracePeriodNotPassed();
+        }
+        unregistered = $.vaults.remove(vault);
     }
 
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
@@ -334,14 +359,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     ///@inheritdoc IMiddleware
     function getOperatorStakeAt(address operator, uint48 ts) external view validTimestamp(ts) returns (uint256 stake) {
-        Storage storage $ = _storage();
-
-        // If not opted into network, then stake is zero.
-        // TODO: replace `address(this)` with $.router, because of in future must be router = network
-        if (!IOptInService($.registries.networkOptIn).isOptedInAt(operator, address(this), ts, bytes(""))) {
-            return 0;
-        }
-
         stake = _collectOperatorStakeFromVaultsAt(operator, ts);
     }
 
@@ -360,12 +377,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         for (uint256 i; i < $.operators.length(); ++i) {
             address operator = $.operators.at(i);
-
-            // If not opted into network, then skip operator.
-            // TODO: replace `address(this)` with $.router, because of in future must be router = network
-            if (!IOptInService($.registries.networkOptIn).isOptedInAt(operator, address(this), ts, bytes(""))) {
-                continue;
-            }
 
             uint256 operatorStake = _collectOperatorStakeFromVaultsAt(operator, ts);
             // skip operator if it has no stake
@@ -432,11 +443,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         Storage storage $ = _storage();
         for (uint256 i; i < $.vaults.length(); ++i) {
             (address vault,) = $.vaults.at(i);
-
-            // If not opted into vault, then stake is zero.
-            if (!IOptInService($.registries.vaultOptIn).isOptedInAt(operator, vault, ts, bytes(""))) {
-                continue;
-            }
 
             stake += IBaseDelegator(IVault(vault).delegator()).stakeAt($.subnetwork, operator, ts, new bytes(0));
         }
