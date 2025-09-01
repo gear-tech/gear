@@ -231,10 +231,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         // Operator must wait until the end of the grace period,
         if (
-            IOptInService($.registries.networkOptIn).isOptedInAt(
-                // replace `address(this)` with router address, when router would be as a network
-                msg.sender, address(this), checkpointTs, bytes("")
-            )
+            // replace `address(this)` with router address, when router would be as a network
+            IOptInService($.registries.networkOptIn).isOptedInAt(msg.sender, address(this), checkpointTs, bytes(""))
         ) {
             revert OperatorGracePeriodNotPassed();
         }
@@ -304,10 +302,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         // Operator must wait until the end of the grace period,
         if (
-            IOptInService($.registries.vaultOptIn).isOptedInAt(
-                // replace `address(this)` with router address, when router would be as a network
-                vault, address(this), checkpointTs, bytes("")
-            )
+            // replace `address(this)` with router address, when router would be as a network
+            IOptInService($.registries.vaultOptIn).isOptedInAt(vault, address(this), checkpointTs, bytes(""))
         ) {
             revert VaultGracePeriodNotPassed();
         }
