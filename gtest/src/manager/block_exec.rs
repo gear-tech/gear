@@ -431,7 +431,6 @@ impl ExtManager {
                         unreachable!("Failed to encode BLS12-381 builtin reply")
                     })
                 }),
-                // todo [sab] fee charging
                 ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch).map(|response| {
                     log::debug!("Eth-bridge response: {response:?}");
 
@@ -443,9 +442,9 @@ impl ExtManager {
             };
 
         let incoming_dispatch = dispatch.into_incoming(gas_limit);
-        // todo [sab] charge gas
         let gas_counter = GasCounter::new(gas_limit);
 
+        // TODO #4832 Charge gas for built-in ops
         match builtin_call_res {
             Ok(reply_payload) => {
                 let mut dispatch_result = DispatchResult::success(
@@ -459,8 +458,8 @@ impl ExtManager {
                 // Dispatch clone is cheap here since it only contains Arc<Payload>
                 let mut message_context =
                     MessageContext::new(incoming_dispatch.clone(), destination, Default::default());
-                // todo [sab] value must be non-zero
-                let packet = ReplyPacket::new(reply_payload, 0);
+                // TODO # , currently value is sent back
+                let packet = ReplyPacket::new(reply_payload, incoming_dispatch.value());
 
                 // Mark reply as sent
                 if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {

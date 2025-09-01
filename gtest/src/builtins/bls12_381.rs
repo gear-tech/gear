@@ -36,6 +36,8 @@ use gear_core::{ids::ActorId, message::StoredDispatch, str::LimitedStr};
 use parity_scale_codec::{Decode, Encode};
 use sp_crypto_ec_utils::bls12_381;
 
+// TODO #4832: Charge gas for bls12_381 ops
+
 /// The id of the BLS12-381 builtin actor.
 pub const BLS12_381_ID: ActorId = ActorId::new(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0");
 
@@ -89,10 +91,6 @@ fn multi_miller_loop(a: Vec<u8>, b: Vec<u8>) -> Result<Bls12_381Response, Builti
         Ok(_) => (),
     }
 
-    // todo [sab] charge gas
-    // let to_spend = WeightInfo::bls12_381_multi_miller_loop(count as u32).ref_time();
-    // context.try_charge_gas(to_spend)?;
-
     match bls12_381::host_calls::bls12_381_multi_miller_loop(a, b) {
         Ok(result) => Ok(Bls12_381Response::MultiMillerLoop(result)),
         Err(_) => Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
@@ -102,10 +100,6 @@ fn multi_miller_loop(a: Vec<u8>, b: Vec<u8>) -> Result<Bls12_381Response, Builti
 }
 
 fn final_exponentiation(f: Vec<u8>) -> Result<Bls12_381Response, BuiltinActorError> {
-    // todo [sab] charge gas
-    // let to_spend = WeightInfo::bls12_381_final_exponentiation().ref_time();
-    // context.try_charge_gas(to_spend)?;
-
     match bls12_381::host_calls::bls12_381_final_exponentiation(f) {
         Ok(result) => Ok(Bls12_381Response::FinalExponentiation(result)),
         Err(_) => Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
@@ -118,7 +112,7 @@ fn msm_g1(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Bls12_381Response, Builtin
     msm(
         bases,
         scalars,
-        |_count| 0, // WeightInfo::bls12_381_msm_g1(count).ref_time(),
+        |_count| 0,
         |bases, scalars| {
             bls12_381::host_calls::bls12_381_msm_g1(bases, scalars)
                 .map(Bls12_381Response::MultiScalarMultiplicationG1)
@@ -130,7 +124,7 @@ fn msm_g2(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Bls12_381Response, Builtin
     msm(
         bases,
         scalars,
-        |_count| 0, // WeightInfo::bls12_381_msm_g2(count).ref_time(),
+        |_count| 0,
         |bases, scalars| {
             bls12_381::host_calls::bls12_381_msm_g2(bases, scalars)
                 .map(Bls12_381Response::MultiScalarMultiplicationG2)
@@ -168,10 +162,6 @@ fn msm(
         Ok(_) => (),
     }
 
-    // todo [sab] charge gas
-    // let to_spend = gas_to_spend(count as u32);
-    // context.try_charge_gas(to_spend)?;
-
     match call(bases, scalars) {
         Ok(result) => Ok(result),
         Err(_) => Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
@@ -187,7 +177,7 @@ fn projective_multiplication_g1(
     projective_multiplication(
         base,
         scalar,
-        |_count| 0, // WeightInfo::bls12_381_mul_projective_g1(count).ref_time(),
+        |_count| 0,
         |base, scalar| {
             bls12_381::host_calls::bls12_381_mul_projective_g1(base, scalar)
                 .map(Bls12_381Response::ProjectiveMultiplicationG1)
@@ -202,7 +192,7 @@ fn projective_multiplication_g2(
     projective_multiplication(
         base,
         scalar,
-        |_count| 0, // WeightInfo::bls12_381_mul_projective_g2(count).ref_time(),
+        |_count| 0,
         |base, scalar| {
             bls12_381::host_calls::bls12_381_mul_projective_g2(base, scalar)
                 .map(Bls12_381Response::ProjectiveMultiplicationG2)
@@ -223,10 +213,6 @@ fn projective_multiplication(
 
         return Err(BuiltinActorError::DecodingError);
     };
-
-    // todo [sab] charge gas
-    // let to_spend = gas_to_spend(count as u32);
-    // context.try_charge_gas(to_spend)?;
 
     call(base, scalar).map_err(|_| {
         BuiltinActorError::Custom(LimitedStr::from_small_str(

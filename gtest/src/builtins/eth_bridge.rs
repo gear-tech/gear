@@ -33,6 +33,8 @@ use sp_runtime::traits::{Hash, Keccak256};
 /// The id of the ETH bridge builtin actor.
 pub const ETH_BRIDGE_ID: ActorId = ActorId::new(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0");
 
+// TODO #4832: Charge gas for eth-bridge ops
+
 /// Processes a dispatch message sent to the Eth-bridge builtin actor.
 pub(crate) fn process_eth_bridge_dispatch(
     dispatch: &StoredDispatch,
@@ -41,8 +43,6 @@ pub(crate) fn process_eth_bridge_dispatch(
     let mut payload = dispatch.payload_bytes();
     let request =
         EthBridgeRequest::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
-
-    // todo [sab] charge gas properly
 
     match request {
         EthBridgeRequest::SendEthMessage {
