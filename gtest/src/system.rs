@@ -537,8 +537,8 @@ impl Drop for System {
         ProgramsStorageManager::clear();
         Accounts::clear();
 
-        // Clear builtins state
-        BridgeBuiltinStorage::clear();
+        // Clear bridge-builtins state
+        BridgeBuiltinsStorage::clear();
     }
 }
 

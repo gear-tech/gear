@@ -502,7 +502,7 @@ mod system;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
 pub use builtins::{
-    BLS12_381_ID, Bls12Request, Bls12Response, ETH_BRIDGE_ID, EthBridgeRequest, EthBridgeResponse,
+    BLS12_381_ID, Bls12_381Request, Bls12_381Response, ETH_BRIDGE_ID, EthBridgeRequest, EthBridgeResponse,
 };
 pub use error::{Result, TestError};
 pub use parity_scale_codec;

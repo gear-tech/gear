@@ -1,8 +1,31 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Eth-bridge builtin actor implementation.
+//! 
+//! The main function the module is `process_eth_bridge_dispatch` which processes
+//! incoming dispatches to the eth-bridge builtin actor.
+
 pub use gbuiltin_eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
 
 use super::BuiltinActorError;
 use crate::state::bridge::BridgeBuiltinStorage;
-use gear_core::ids::ActorId;
+use gear_core::{ids::ActorId, message::StoredDispatch};
 use gprimitives::{H160, H256, U256};
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{Hash, Keccak256};
@@ -10,10 +33,10 @@ use sp_runtime::traits::{Hash, Keccak256};
 /// The id of the ETH bridge builtin actor.
 pub const ETH_BRIDGE_ID: ActorId = ActorId::new(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0");
 
-pub(crate) fn process_eth_bridge_dispatch(
-    source: ActorId,
-    mut payload: &[u8],
-) -> Result<EthBridgeResponse, BuiltinActorError> {
+/// Processes a dispatch message sent to the Eth-bridge builtin actor.
+pub(crate) fn process_eth_bridge_dispatch(dispatch: &StoredDispatch) -> Result<EthBridgeResponse, BuiltinActorError> {
+    let source = dispatch.source();
+    let mut payload = dispatch.payload_bytes();
     let request =
         EthBridgeRequest::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
 

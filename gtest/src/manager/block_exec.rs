@@ -422,149 +422,87 @@ impl ExtManager {
             unreachable!("Built-in messages can't be executed more than 1 time");
         }
 
-        let incoming_dispatch = dispatch.into_incoming(gas_limit);
+        let builtin_call_res =
+            match destination {
+                BLS12_381_ID => builtins::process_bls12_381_dispatch(&dispatch)
+                .map(|response| {
+                    log::debug!("BLS12-381 response: {response:?}");
 
+                    response.encode().try_into().unwrap_or_else(|_| {
+                        unreachable!("Failed to encode BLS12-381 builtin reply")
+                    })
+                }),
+                // todo [sab] fee charging
+                ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch)
+                .map(|response| {
+                    log::debug!("Eth-bridge response: {response:?}");
+
+                    response.encode().try_into().unwrap_or_else(|_| {
+                        unreachable!("Failed to encode eth-bridge builtin reply")
+                    })
+                }),
+                id => unimplemented!("Unknown builtin program id: {id}"),
+            };
+
+        let incoming_dispatch = dispatch.into_incoming(gas_limit);
         // todo [sab] charge gas
         let gas_counter = GasCounter::new(gas_limit);
 
-        match destination {
-            BLS12_381_ID => {
-                let res = builtins::process_bls12_381_dispatch(incoming_dispatch.payload().inner());
-                match res {
-                    Ok(reply) => {
-                        log::debug!("BLS12-381 builtin called successfully: {reply:?}");
-                        let mut dispatch_result = DispatchResult::success(
-                            &incoming_dispatch,
-                            destination,
-                            gas_counter.to_amount(),
-                        );
-
-                        // Create an artificial `MessageContext` object that will help us to generate
-                        // a reply from the builtin actor.
-                        // Dispatch clone is cheap here since it only contains Arc<Payload>
-                        let mut message_context = MessageContext::new(
-                            incoming_dispatch.clone(),
-                            destination,
-                            Default::default(),
-                        );
-                        let reply_payload = reply.encode().try_into().unwrap_or_else(|_| {
-                            unreachable!("Failed to encode reply payload from builtin actor")
-                        });
-                        // todo [sab] value must be non-zero
-                        let packet = ReplyPacket::new(reply_payload, 0);
-
-                        // Mark reply as sent
-                        if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
-                            let (outcome, context_store) = message_context.drain();
-
-                            dispatch_result.context_store = context_store;
-                            let ContextOutcomeDrain {
-                                outgoing_dispatches: generated_dispatches,
-                                ..
-                            } = outcome.drain();
-                            dispatch_result.generated_dispatches = generated_dispatches;
-                            dispatch_result.reply_sent = true;
-                        } else {
-                            unreachable!("Failed to send reply from builtin actor");
-                        };
-
-                        // Using the core processor logic create necessary `JournalNote`'s for us.
-                        core_processor::process_success(
-                            SuccessfulDispatchResultKind::Success,
-                            dispatch_result,
-                            incoming_dispatch,
-                        )
-                    }
-                    Err(BuiltinActorError::GasAllowanceExceeded) => {
-                        core_processor::process_allowance_exceed(incoming_dispatch, destination, 0)
-                    }
-                    Err(err) => {
-                        // Builtin actor call failed.
-                        log::debug!("Builtin actor error: {err:?}");
-                        let system_reservation_ctx =
-                            SystemReservationContext::from_dispatch(&incoming_dispatch);
-                        // The core processor will take care of creating necessary `JournalNote`'s.
-                        core_processor::process_execution_error(
-                            incoming_dispatch,
-                            destination,
-                            gas_counter.burned(),
-                            system_reservation_ctx,
-                            err,
-                        )
-                    }
-                }
-            }
-            // todo [sab] fee charging
-            ETH_BRIDGE_ID => {
-                let res = builtins::process_eth_bridge_dispatch(
-                    incoming_dispatch.source(),
-                    incoming_dispatch.payload().inner(),
+        match builtin_call_res {
+            Ok(reply_payload) => {
+                let mut dispatch_result = DispatchResult::success(
+                    &incoming_dispatch,
+                    destination,
+                    gas_counter.to_amount(),
                 );
-                match res {
-                    Ok(reply) => {
-                        log::debug!("Eth-bridge builtin called successfully: {reply:?}");
-                        let mut dispatch_result = DispatchResult::success(
-                            &incoming_dispatch,
-                            destination,
-                            gas_counter.to_amount(),
-                        );
 
-                        // Create an artificial `MessageContext` object that will help us to generate
-                        // a reply from the builtin actor.
-                        // Dispatch clone is cheap here since it only contains Arc<Payload>
-                        let mut message_context = MessageContext::new(
-                            incoming_dispatch.clone(),
-                            destination,
-                            Default::default(),
-                        );
-                        let reply_payload = reply.encode().try_into().unwrap_or_else(|_| {
-                            unreachable!("Failed to encode reply payload from builtin actor")
-                        });
-                        // todo [sab] value must be non-zero
-                        let packet = ReplyPacket::new(reply_payload, 0);
+                // Create an artificial `MessageContext` object that will help us to generate
+                // a reply from the builtin actor.
+                // Dispatch clone is cheap here since it only contains Arc<Payload>
+                let mut message_context =
+                    MessageContext::new(incoming_dispatch.clone(), destination, Default::default());
+                // todo [sab] value must be non-zero
+                let packet = ReplyPacket::new(reply_payload, 0);
 
-                        // Mark reply as sent
-                        if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
-                            let (outcome, context_store) = message_context.drain();
+                // Mark reply as sent
+                if let Ok(_reply_id) = message_context.reply_commit(packet.clone(), None) {
+                    let (outcome, context_store) = message_context.drain();
 
-                            dispatch_result.context_store = context_store;
-                            let ContextOutcomeDrain {
-                                outgoing_dispatches: generated_dispatches,
-                                ..
-                            } = outcome.drain();
-                            dispatch_result.generated_dispatches = generated_dispatches;
-                            dispatch_result.reply_sent = true;
-                        } else {
-                            unreachable!("Failed to send reply from builtin actor");
-                        };
+                    dispatch_result.context_store = context_store;
+                    let ContextOutcomeDrain {
+                        outgoing_dispatches: generated_dispatches,
+                        ..
+                    } = outcome.drain();
+                    dispatch_result.generated_dispatches = generated_dispatches;
+                    dispatch_result.reply_sent = true;
+                } else {
+                    unreachable!("Failed to send reply from builtin actor");
+                };
 
-                        // Using the core processor logic create necessary `JournalNote`'s for us.
-                        core_processor::process_success(
-                            SuccessfulDispatchResultKind::Success,
-                            dispatch_result,
-                            incoming_dispatch,
-                        )
-                    }
-                    Err(BuiltinActorError::GasAllowanceExceeded) => {
-                        core_processor::process_allowance_exceed(incoming_dispatch, destination, 0)
-                    }
-                    Err(err) => {
-                        // Builtin actor call failed.
-                        log::debug!("Builtin actor error: {err:?}");
-                        let system_reservation_ctx =
-                            SystemReservationContext::from_dispatch(&incoming_dispatch);
-                        // The core processor will take care of creating necessary `JournalNote`'s.
-                        core_processor::process_execution_error(
-                            incoming_dispatch,
-                            destination,
-                            gas_counter.burned(),
-                            system_reservation_ctx,
-                            err,
-                        )
-                    }
-                }
+                // Using the core processor logic create necessary `JournalNote`'s for us.
+                core_processor::process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    incoming_dispatch,
+                )
             }
-            id => unimplemented!("Unknown builtin program id: {id}"),
+            Err(BuiltinActorError::GasAllowanceExceeded) => {
+                core_processor::process_allowance_exceed(incoming_dispatch, destination, 0)
+            }
+            Err(err) => {
+                // Builtin actor call failed.
+                log::debug!("Builtin actor error: {err:?}");
+                let system_reservation_ctx =
+                    SystemReservationContext::from_dispatch(&incoming_dispatch);
+                // The core processor will take care of creating necessary `JournalNote`'s.
+                core_processor::process_execution_error(
+                    incoming_dispatch,
+                    destination,
+                    gas_counter.burned(),
+                    system_reservation_ctx,
+                    err,
+                )
+            }
         }
     }
 
