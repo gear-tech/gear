@@ -462,8 +462,10 @@ impl System {
             None,
         );
 
-        if !ProgramsStorageManager::is_active_program(destination) {
-            usage_panic!("Actor with {destination} id is not active");
+        if !manager_mut.is_builtin(destination)
+            && !ProgramsStorageManager::is_active_program(destination)
+        {
+            usage_panic!("Actor with {destination} id is not executable");
         }
 
         let dispatch = Dispatch::new(DispatchKind::Handle, message);
@@ -538,7 +540,7 @@ impl Drop for System {
         Accounts::clear();
 
         // Clear bridge-builtins state
-        BridgeBuiltinsStorage::clear();
+        BridgeBuiltinStorage::clear();
     }
 }
 

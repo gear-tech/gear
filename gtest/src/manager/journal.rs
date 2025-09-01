@@ -142,11 +142,7 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = self.is_builtin(destination)
-            || ProgramsStorageManager::is_program(destination)
-            || self.no_code_program.contains(&destination);
-
-        if is_program {
+        if !to_user {
             let gas_limit = dispatch.gas_limit();
             log::debug!(
                 "Sending message {:?} from {:?} with gas limit {:?}",
@@ -290,7 +286,9 @@ impl JournalHandler for ExtManager {
     ) {
         if self.instrumented_code(code_id).is_some() {
             for (init_message_id, candidate_id) in candidates {
-                if !ProgramsStorageManager::has_program(candidate_id) {
+                if !self.is_builtin(candidate_id)
+                    && !ProgramsStorageManager::has_program(candidate_id)
+                {
                     let expiration_block = self.block_height();
                     self.store_program(
                         candidate_id,

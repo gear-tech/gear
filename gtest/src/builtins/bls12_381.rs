@@ -45,7 +45,9 @@ const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 type ArkScaleLocal<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 
 /// Processes a dispatch message sent to the BLS12-381 builtin actor.
-pub(crate) fn process_bls12_381_dispatch(dispatch: &StoredDispatch) -> Result<Bls12_381Response, BuiltinActorError> {
+pub(crate) fn process_bls12_381_dispatch(
+    dispatch: &StoredDispatch,
+) -> Result<Bls12_381Response, BuiltinActorError> {
     let mut payload = dispatch.payload_bytes();
     let payload_decoded =
         Bls12_381Request::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
@@ -421,7 +423,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, final_expon_req.encode(), alice_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, final_expon_req.encode(), alice_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------
@@ -472,8 +475,7 @@ mod tests {
             &(0..count).map(|_| G1::rand(&mut rng)).collect::<Vec<_>>(),
         );
 
-        let faulty_ark_scalars: ArkScaleLocal<Vec<ScalarFieldG1>> =
-            scalars[1..].to_vec().into();
+        let faulty_ark_scalars: ArkScaleLocal<Vec<ScalarFieldG1>> = scalars[1..].to_vec().into();
         let ark_bases: ArkScaleLocal<Vec<G1Affine>> = bases.clone().into();
 
         let faulty_msm_g1_req = Bls12_381Request::MultiScalarMultiplicationG1 {
@@ -535,7 +537,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, msm_g1_req.encode(), alice_actor_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, msm_g1_req.encode(), alice_actor_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------
@@ -644,7 +647,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, msm_g2_req.encode(), alice_actor_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, msm_g2_req.encode(), alice_actor_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------
@@ -698,7 +702,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, proj_mul_g1_req.encode(), alice_actor_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, proj_mul_g1_req.encode(), alice_actor_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------
@@ -752,7 +757,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, proj_mul_g2_req.encode(), alice_actor_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, proj_mul_g2_req.encode(), alice_actor_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------
@@ -802,7 +808,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, aggregate_g1_req.encode(), alice_actor_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, aggregate_g1_req.encode(), alice_actor_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------
@@ -853,7 +860,8 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------ Create proxy program -------------------------
         // -----------------------------------------------------------------------
-        let proxy_program = create_proxy_program(&sys, proxy_pid, map_to_g2_req.encode(), alice_actor_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, map_to_g2_req.encode(), alice_actor_id);
 
         // -----------------------------------------------------------------------
         // ------------------------- Trigger builtin -----------------------------

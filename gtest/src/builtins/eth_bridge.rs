@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Eth-bridge builtin actor implementation.
-//! 
+//!
 //! The main function the module is `process_eth_bridge_dispatch` which processes
 //! incoming dispatches to the eth-bridge builtin actor.
 
@@ -34,7 +34,9 @@ use sp_runtime::traits::{Hash, Keccak256};
 pub const ETH_BRIDGE_ID: ActorId = ActorId::new(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0");
 
 /// Processes a dispatch message sent to the Eth-bridge builtin actor.
-pub(crate) fn process_eth_bridge_dispatch(dispatch: &StoredDispatch) -> Result<EthBridgeResponse, BuiltinActorError> {
+pub(crate) fn process_eth_bridge_dispatch(
+    dispatch: &StoredDispatch,
+) -> Result<EthBridgeResponse, BuiltinActorError> {
     let source = dispatch.source();
     let mut payload = dispatch.payload_bytes();
     let request =

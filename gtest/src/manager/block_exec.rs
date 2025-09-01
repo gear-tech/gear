@@ -424,8 +424,7 @@ impl ExtManager {
 
         let builtin_call_res =
             match destination {
-                BLS12_381_ID => builtins::process_bls12_381_dispatch(&dispatch)
-                .map(|response| {
+                BLS12_381_ID => builtins::process_bls12_381_dispatch(&dispatch).map(|response| {
                     log::debug!("BLS12-381 response: {response:?}");
 
                     response.encode().try_into().unwrap_or_else(|_| {
@@ -433,8 +432,7 @@ impl ExtManager {
                     })
                 }),
                 // todo [sab] fee charging
-                ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch)
-                .map(|response| {
+                ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch).map(|response| {
                     log::debug!("Eth-bridge response: {response:?}");
 
                     response.encode().try_into().unwrap_or_else(|_| {
@@ -479,7 +477,6 @@ impl ExtManager {
                     unreachable!("Failed to send reply from builtin actor");
                 };
 
-                // Using the core processor logic create necessary `JournalNote`'s for us.
                 core_processor::process_success(
                     SuccessfulDispatchResultKind::Success,
                     dispatch_result,
@@ -494,7 +491,6 @@ impl ExtManager {
                 log::debug!("Builtin actor error: {err:?}");
                 let system_reservation_ctx =
                     SystemReservationContext::from_dispatch(&incoming_dispatch);
-                // The core processor will take care of creating necessary `JournalNote`'s.
                 core_processor::process_execution_error(
                     incoming_dispatch,
                     destination,
