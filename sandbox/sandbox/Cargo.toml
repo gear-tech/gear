@@ -31,6 +31,9 @@ wasmer-compiler = { workspace = true, optional = true }
 gear-wasmer-cache = { workspace = true, optional = true }
 pathdiff = { workspace = true, optional = true }
 
+[build-dependencies]
+rustc_version.workspace = true
+
 [dev-dependencies]
 assert_matches.workspace = true
 wat.workspace = true
