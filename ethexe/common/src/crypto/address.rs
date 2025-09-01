@@ -127,9 +127,9 @@ impl From<alloy_primitives::Address> for Address {
     }
 }
 
-impl Into<alloy_primitives::Address> for Address {
-    fn into(self) -> alloy_primitives::Address {
-        alloy_primitives::Address(self.0.into())
+impl From<Address> for alloy_primitives::Address {
+    fn from(value: Address) -> Self {
+        Self(value.0.into())
     }
 }
 

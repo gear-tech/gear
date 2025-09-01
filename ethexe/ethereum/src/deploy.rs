@@ -23,7 +23,7 @@ use crate::{
             self, IMiddlewareInstance, InitParams as MiddlewareInitParams,
             initializeCall as MiddlewareInitializeCall,
         },
-        IMirror::{self, IMirrorInstance},
+        IMirror,
         IRouter::{self, IRouterInstance, initializeCall as RouterInitializeCall},
         ITransparentUpgradeableProxy,
         IWrappedVara::{self, IWrappedVaraInstance, initializeCall as WrappedVaraInitializeCall},
@@ -92,74 +92,33 @@ impl EthereumDeployer {
 
 // Private implementation details
 impl EthereumDeployer {
+    /// Deploy all contracts and return the router address.
     async fn deploy_contracts(&self, with_middleware: bool) -> Result<Address> {
-        let maybe_validator_identifiers: Result<Vec<_>, _> = self
-            .validators
-            .iter()
-            .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
-            .collect();
-        let validator_identifiers = maybe_validator_identifiers?;
-        let identifiers = validator_identifiers.into_iter().collect();
-        let public_key_package = PublicKeyPackage::from_commitment(
-            &identifiers,
-            &self.verifiable_secret_sharing_commitment,
-        )?;
-        let public_key_compressed: [u8; 33] = public_key_package
-            .verifying_key()
-            .serialize()?
-            .try_into()
-            .unwrap();
-        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
-        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
-
         let deployer = self.provider.default_signer_address();
         let wrapped_vara = deploy_wrapped_vara(deployer, self.provider.clone()).await?;
 
-        let nonce = self.provider.get_transaction_count(deployer).await?;
-        let mirror_address = deployer.create(
-            nonce
-                .checked_add(2)
-                .expect("nonce overflow when deploying router with mirror"),
-        );
-
-        let middleware_address = match with_middleware {
-            true => deployer.create(
-                nonce
-                    // Nonce is 12 because of deployment symbiotic contracts
-                    .checked_add(12)
-                    .expect("nonce overflow when deploying middleware"),
-            ),
-            false => Address::default(),
-        };
-
-        let aggregated_public_key = AggregatedPublicKey {
-            x: GearU256::from_big_endian(public_key_x_bytes),
-            y: GearU256::from_big_endian(public_key_y_bytes),
-        };
-        let (router, mirror) = deploy_router_with_mirror(
+        // NOTE: The order of deployment is important here because of the future addresses calculation
+        // inside `deploy_router`.
+        let router = deploy_router(
             deployer,
             *wrapped_vara.address(),
-            mirror_address,
-            middleware_address.into(),
-            aggregated_public_key,
             self.verifiable_secret_sharing_commitment.clone(),
             self.validators
                 .clone()
                 .into_iter()
                 .map(Into::into)
                 .collect(),
+            with_middleware,
             self.provider.clone(),
         )
         .await?;
 
+        let mirror = IMirror::deploy(self.provider.clone(), *router.address()).await?;
+        log::debug!("Mirror impl has been deployed at {}", mirror.address());
+
         if with_middleware {
-            let middleware =
+            let _ =
                 deploy_middleware(deployer, &router, &wrapped_vara, self.provider.clone()).await?;
-            log::info!("Middleware deployed at {}", *middleware.address());
-            log::info!(
-                "Router address linked to middleware: {}",
-                middleware.router().call().await?
-            );
         }
 
         let builder = wrapped_vara.approve(*router.address(), U256::MAX);
@@ -203,19 +162,38 @@ where
     Ok(wrapped_vara)
 }
 
-async fn deploy_router_with_mirror<P>(
+async fn deploy_router<P>(
     deployer: Address,
     wvara_address: Address,
-    mirror_address: Address,
-    middleware_address: Address,
-    aggregated_public_key: AggregatedPublicKey,
     verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     validators: Vec<Address>,
+    with_middleware: bool,
     provider: P,
-) -> Result<(IRouterInstance<P>, IMirrorInstance<P>)>
+) -> Result<IRouterInstance<P>>
 where
     P: Provider + Clone,
 {
+    // Calculate future contracts addresses for mirror and middleware
+    let nonce = provider.get_transaction_count(deployer).await?;
+    let mirror_address = deployer.create(
+        nonce
+            .checked_add(2)
+            .expect("nonce overflow when deploying router with mirror"),
+    );
+
+    let middleware_address = match with_middleware {
+        true => deployer.create(
+            nonce
+                // Add 12 to nonce because of deployment symbiotic contracts
+                .checked_add(12)
+                .expect("nonce overflow when deploying middleware"),
+        ),
+        false => Address::default(),
+    };
+
+    let aggregated_public_key =
+        aggregated_public_key(&validators, &verifiable_secret_sharing_commitment)?;
+
     let router_impl = IRouter::deploy(provider.clone()).await?;
     let proxy = ITransparentUpgradeableProxy::deploy(
         provider.clone(),
@@ -240,16 +218,14 @@ where
         ),
     )
     .await?;
+
     let router_address = *proxy.address();
-
     let router = IRouter::new(router_address, provider.clone());
-    let mirror = IMirror::deploy(provider.clone(), router_address).await?;
 
-    log::info!("Mirror impl has been deployed at {}", mirror.address());
-    log::info!("Router impl has been deployed at {}", router_impl.address());
-    log::info!("Router proxy has been deployed at {}", router.address());
+    log::debug!("Router impl has been deployed at {}", router_impl.address());
+    log::debug!("Router proxy has been deployed at {}", router.address());
 
-    Ok((router, mirror))
+    Ok(router)
 }
 
 async fn deploy_middleware<P>(
@@ -305,8 +281,6 @@ where
         vetoResolver: *router.address(),
     };
 
-    log::info!("Router address: {}", router.address());
-
     let middleware_init_params = MiddlewareInitParams {
         owner: deployer,
         eraDuration: Uint::<48, 1>::from(24 * 60 * 60),
@@ -345,6 +319,32 @@ where
     log::debug!("Middleware proxy deployed at {}", middleware.address());
 
     Ok(middleware)
+}
+
+fn aggregated_public_key(
+    validators: &[Address],
+    verifiable_secret_sharing_commitment: &VerifiableSecretSharingCommitment,
+) -> Result<AggregatedPublicKey> {
+    let maybe_validator_identifiers: Result<Vec<_>, _> = validators
+        .iter()
+        .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
+        .collect();
+    let validator_identifiers = maybe_validator_identifiers?;
+    let identifiers = validator_identifiers.into_iter().collect();
+    let public_key_package =
+        PublicKeyPackage::from_commitment(&identifiers, verifiable_secret_sharing_commitment)?;
+    let public_key_compressed: [u8; 33] = public_key_package
+        .verifying_key()
+        .serialize()?
+        .try_into()
+        .unwrap();
+    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
+    Ok(AggregatedPublicKey {
+        x: GearU256::from_big_endian(public_key_x_bytes),
+        y: GearU256::from_big_endian(public_key_y_bytes),
+    })
 }
 
 #[cfg(test)]

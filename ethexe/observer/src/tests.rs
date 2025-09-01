@@ -85,15 +85,13 @@ async fn test_deployment() -> Result<()> {
     .deploy()
     .await?;
 
-    let router_address = ethereum.router().address().into();
-
     let db = MemDb::default();
     let database = Database::from_one(&db);
 
     let mut observer = ObserverService::new(
         &EthereumConfig {
             rpc: ethereum_rpc,
-            router_address,
+            router_address: ethereum.router().address(),
             block_time: Duration::from_secs(1),
             beacon_rpc: Default::default(),
         },
