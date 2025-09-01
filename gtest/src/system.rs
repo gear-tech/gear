@@ -17,7 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    error::usage_panic, log::{BlockRunResult, CoreLog}, manager::ExtManager, program::{Program, ProgramIdWrapper}, state::{accounts::Accounts, bridge::BridgeBuiltinStorage, mailbox::ActorMailbox, programs::ProgramsStorageManager}, Gas, Value, GAS_ALLOWANCE
+    GAS_ALLOWANCE, Gas, Value,
+    error::usage_panic,
+    log::{BlockRunResult, CoreLog},
+    manager::ExtManager,
+    program::{Program, ProgramIdWrapper},
+    state::{
+        accounts::Accounts, bridge::BridgeBuiltinStorage, mailbox::ActorMailbox,
+        programs::ProgramsStorageManager,
+    },
 };
 use core_processor::common::JournalNote;
 use gear_common::MessageId;

@@ -2,8 +2,8 @@ mod bls12_381;
 mod eth_bridge;
 
 pub use bls12_381::{BLS12_381_ID, Bls12Request, Bls12Response, process_bls12_381_dispatch};
-pub use eth_bridge::{ETH_BRIDGE_ID, EthBridgeRequest, EthBridgeResponse};
 pub(crate) use eth_bridge::process_eth_bridge_dispatch;
+pub use eth_bridge::{ETH_BRIDGE_ID, EthBridgeRequest, EthBridgeResponse};
 
 use core_processor::common::{ActorExecutionErrorReplyReason, TrapExplanation};
 use gear_core::str::LimitedStr;

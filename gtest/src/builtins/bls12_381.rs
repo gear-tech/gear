@@ -30,8 +30,12 @@ pub fn process_bls12_381_dispatch(mut payload: &[u8]) -> Result<Bls12Response, B
         Bls12Request::FinalExponentiation { f } => final_exponentiation(f),
         Bls12Request::MultiScalarMultiplicationG1 { bases, scalars } => msm_g1(bases, scalars),
         Bls12Request::MultiScalarMultiplicationG2 { bases, scalars } => msm_g2(bases, scalars),
-        Bls12Request::ProjectiveMultiplicationG1 { base, scalar } => projective_multiplication_g1(base, scalar),
-        Bls12Request::ProjectiveMultiplicationG2 { base, scalar } => projective_multiplication_g2(base, scalar),
+        Bls12Request::ProjectiveMultiplicationG1 { base, scalar } => {
+            projective_multiplication_g1(base, scalar)
+        }
+        Bls12Request::ProjectiveMultiplicationG2 { base, scalar } => {
+            projective_multiplication_g2(base, scalar)
+        }
         Bls12Request::AggregateG1 { points } => aggregate_g1(points),
         Bls12Request::MapToG2Affine { message } => map_to_g2affine(message),
     }
@@ -151,7 +155,10 @@ fn msm(
     }
 }
 
-fn projective_multiplication_g1(base: Vec<u8>, scalar: Vec<u8>) -> Result<Bls12Response, BuiltinActorError> {
+fn projective_multiplication_g1(
+    base: Vec<u8>,
+    scalar: Vec<u8>,
+) -> Result<Bls12Response, BuiltinActorError> {
     projective_multiplication(
         base,
         scalar,
@@ -163,7 +170,10 @@ fn projective_multiplication_g1(base: Vec<u8>, scalar: Vec<u8>) -> Result<Bls12R
     )
 }
 
-fn projective_multiplication_g2(base: Vec<u8>, scalar: Vec<u8>) -> Result<Bls12Response, BuiltinActorError> {
+fn projective_multiplication_g2(
+    base: Vec<u8>,
+    scalar: Vec<u8>,
+) -> Result<Bls12Response, BuiltinActorError> {
     projective_multiplication(
         base,
         scalar,
@@ -237,7 +247,6 @@ fn aggregate_g1_impl(points: &[u8]) -> Result<Vec<u8>, BuiltinActorError> {
 }
 
 fn map_to_g2affine(message: Vec<u8>) -> Result<Bls12Response, BuiltinActorError> {
-
     // todo [sab] charge gas
     // let to_spend = WeightInfo::bls12_381_map_to_g2affine(len).ref_time();
     // context.try_charge_gas(to_spend)?;
@@ -267,20 +276,29 @@ fn map_to_g2affine_impl(message: &[u8]) -> Result<Vec<u8>, BuiltinActorError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_bls12_381::{Bls12_381, G1Affine, G2Affine,};
-    use ark_ec::{pairing::Pairing, Group, ScalarMul, VariableBaseMSM, short_weierstrass::{Projective as SWProjective, SWCurveConfig}};
+    use crate::{DEFAULT_USER_ALICE, Log, Program, System};
+    use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
+    use ark_ec::{
+        Group, ScalarMul, VariableBaseMSM,
+        pairing::Pairing,
+        short_weierstrass::{Projective as SWProjective, SWCurveConfig},
+    };
     use ark_ff::{UniformRand, biginteger::BigInt};
     use ark_scale::hazmat::ArkScaleProjective;
     use ark_std::test_rng;
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_common::Origin;
     use std::ops::Mul;
-    use crate::{System, Program, DEFAULT_USER_ALICE, Log};
-    use demo_constructor::{WASM_BINARY, Arg, Scheme, Calls, Call};
 
     type ScalarFieldG1 = <G1 as Group>::ScalarField;
     type ScalarFieldG2 = <G2 as Group>::ScalarField;
 
-    fn create_proxy_program(sys: &System, proxy_id: ActorId, builtin_req: Vec<u8>, reply_receiver: ActorId) -> Program<'_> {
+    fn create_proxy_program(
+        sys: &System,
+        proxy_id: ActorId,
+        builtin_req: Vec<u8>,
+        reply_receiver: ActorId,
+    ) -> Program<'_> {
         let proxy_scheme = Scheme::predefined(
             // init: do nothing
             Calls::builder().noop(),
@@ -338,20 +356,15 @@ mod tests {
             a: a.encode(),
             b: b.encode(),
         };
-        let proxy_program = create_proxy_program(&sys, proxy_pid, multi_miller_req.encode(), alice_id);
+        let proxy_program =
+            create_proxy_program(&sys, proxy_pid, multi_miller_req.encode(), alice_id);
 
         // Send a message to the proxy to trigger the interaction
         let mid = proxy_program.send_bytes(alice_id, b"");
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&mid));
 
-        assert!(
-            res.contains(
-                &Log::builder()
-                    .source(proxy_pid)
-                    .dest(alice_id)
-            )
-        );
+        assert!(res.contains(&Log::builder().source(proxy_pid).dest(alice_id)));
 
         let mut logs = res.decoded_log();
         let response = logs.pop().expect("no log found");
@@ -391,19 +404,16 @@ mod tests {
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&mid));
 
-        assert!(
-            res.contains(
-                &Log::builder()
-                    .source(proxy_pid)
-                    .dest(alice_id)
-            )
-        );
+        assert!(res.contains(&Log::builder().source(proxy_pid).dest(alice_id)));
 
         let mut logs = res.decoded_log();
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::FinalExponentiation(result_bytes) = response.payload() {
-            let actual  = ArkScaleLocal::<<Bls12_381 as Pairing>::TargetField>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleLocal::<<Bls12_381 as Pairing>::TargetField>::decode(
+                &mut result_bytes.as_ref(),
+            )
+            .expect("failed to decode result");
 
             assert!(matches!(expected, Some(inner) if inner.0 == actual.0));
         } else {
@@ -430,23 +440,33 @@ mod tests {
         let bases = (0..count).map(|_| G1::rand(&mut rng)).collect::<Vec<_>>();
         let bases = G1::batch_convert_to_mul_base(&bases);
 
-        let faulty_ark_scalars: ArkScaleLocal<Vec<<G1 as Group>::ScalarField>> = scalars[1..].to_vec().into();
+        let faulty_ark_scalars: ArkScaleLocal<Vec<<G1 as Group>::ScalarField>> =
+            scalars[1..].to_vec().into();
         let ark_bases: ArkScaleLocal<Vec<G1Affine>> = bases.clone().into();
 
-        let faulty_msm_g1_req = Bls12Request::MultiScalarMultiplicationG1 { bases: ark_bases.encode(), scalars: faulty_ark_scalars.encode() };
+        let faulty_msm_g1_req = Bls12Request::MultiScalarMultiplicationG1 {
+            bases: ark_bases.encode(),
+            scalars: faulty_ark_scalars.encode(),
+        };
 
         // Because of the impl of the demo_constructor, we have to waste 1 program as we cannot predefine `handle_reply` without
         // defining `handle` (using `Scheme::predefined`). So we have to define a proxy with `handle` sending the faulty request
-        let proxy_program = create_proxy_program(&sys, gprimitives::H256::random().cast(), faulty_msm_g1_req.encode(), alice_actor_id);
+        let proxy_program = create_proxy_program(
+            &sys,
+            gprimitives::H256::random().cast(),
+            faulty_msm_g1_req.encode(),
+            alice_actor_id,
+        );
 
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&mid));
 
-        let err_payload = LimitedStr::from_small_str("Multi scalar multiplication: uneven item count")
-            .into_inner()
-            .into_owned()
-            .into_bytes();
+        let err_payload =
+            LimitedStr::from_small_str("Multi scalar multiplication: uneven item count")
+                .into_inner()
+                .into_owned()
+                .into_bytes();
         assert!(
             res.contains(
                 &Log::builder()
@@ -456,13 +476,18 @@ mod tests {
             )
         );
 
-        let expected = <SWProjective<ark_bls12_381::g1::Config> as VariableBaseMSM>::msm(&bases, &scalars)
-            .expect("msm expected result generation failed");
+        let expected =
+            <SWProjective<ark_bls12_381::g1::Config> as VariableBaseMSM>::msm(&bases, &scalars)
+                .expect("msm expected result generation failed");
 
         let ark_scalars: ArkScaleLocal<Vec<ScalarFieldG1>> = scalars.into();
         let ark_bases: ArkScaleLocal<Vec<G1Affine>> = bases.into();
 
-        let msm_g1_req = Bls12Request::MultiScalarMultiplicationG1 { bases: ark_bases.encode(), scalars: ark_scalars.encode() }.encode();
+        let msm_g1_req = Bls12Request::MultiScalarMultiplicationG1 {
+            bases: ark_bases.encode(),
+            scalars: ark_scalars.encode(),
+        }
+        .encode();
 
         let proxy_program = create_proxy_program(&sys, proxy_pid, msm_g1_req, alice_actor_id);
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
@@ -473,7 +498,8 @@ mod tests {
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::MultiScalarMultiplicationG1(result_bytes) = response.payload() {
-            let actual  = ArkScaleProjective::<G1>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleProjective::<G1>::decode(&mut result_bytes.as_ref())
+                .expect("failed to decode result");
 
             assert_eq!(actual.0, expected);
         } else {
@@ -498,26 +524,35 @@ mod tests {
             .collect::<Vec<_>>();
 
         let bases = G2::batch_convert_to_mul_base(
-            &(0..count).map(|_| G2::rand(&mut rng)).collect::<Vec<_>>()
+            &(0..count).map(|_| G2::rand(&mut rng)).collect::<Vec<_>>(),
         );
 
         let faulty_ark_scalars: ArkScaleLocal<Vec<ScalarFieldG2>> = scalars[1..].to_vec().into();
         let ark_bases: ArkScaleLocal<Vec<G2Affine>> = bases.clone().into();
 
-        let faulty_msm_g2_req = Bls12Request::MultiScalarMultiplicationG2 { bases: ark_bases.encode(), scalars: faulty_ark_scalars.encode() };
+        let faulty_msm_g2_req = Bls12Request::MultiScalarMultiplicationG2 {
+            bases: ark_bases.encode(),
+            scalars: faulty_ark_scalars.encode(),
+        };
 
         // Because of the impl of the demo_constructor, we have to waste 1 program as we cannot predefine `handle_reply` without
         // defining `handle` (using `Scheme::predefined`). So we have to define a proxy with `handle` sending the faulty request
-        let proxy_program = create_proxy_program(&sys, gprimitives::H256::random().cast(), faulty_msm_g2_req.encode(), alice_actor_id);
+        let proxy_program = create_proxy_program(
+            &sys,
+            gprimitives::H256::random().cast(),
+            faulty_msm_g2_req.encode(),
+            alice_actor_id,
+        );
 
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&mid));
 
-        let err_payload = LimitedStr::from_small_str("Multi scalar multiplication: uneven item count")
-            .into_inner()
-            .into_owned()
-            .into_bytes();
+        let err_payload =
+            LimitedStr::from_small_str("Multi scalar multiplication: uneven item count")
+                .into_inner()
+                .into_owned()
+                .into_bytes();
         assert!(
             res.contains(
                 &Log::builder()
@@ -527,13 +562,18 @@ mod tests {
             )
         );
 
-        let expected = <SWProjective<ark_bls12_381::g2::Config> as VariableBaseMSM>::msm(&bases, &scalars)
-            .expect("msm expected result generation failed");
+        let expected =
+            <SWProjective<ark_bls12_381::g2::Config> as VariableBaseMSM>::msm(&bases, &scalars)
+                .expect("msm expected result generation failed");
 
         let ark_scalars: ArkScaleLocal<Vec<ScalarFieldG2>> = scalars.into();
         let ark_bases: ArkScaleLocal<Vec<G2Affine>> = bases.into();
 
-        let msm_g2_req = Bls12Request::MultiScalarMultiplicationG2 { bases: ark_bases.encode(), scalars: ark_scalars.encode() }.encode();
+        let msm_g2_req = Bls12Request::MultiScalarMultiplicationG2 {
+            bases: ark_bases.encode(),
+            scalars: ark_scalars.encode(),
+        }
+        .encode();
 
         let proxy_program = create_proxy_program(&sys, proxy_pid, msm_g2_req, alice_actor_id);
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
@@ -544,7 +584,8 @@ mod tests {
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::MultiScalarMultiplicationG2(result_bytes) = response.payload() {
-            let actual  = ArkScaleProjective::<G2>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleProjective::<G2>::decode(&mut result_bytes.as_ref())
+                .expect("failed to decode result");
 
             assert_eq!(actual.0, expected);
         } else {
@@ -569,11 +610,12 @@ mod tests {
 
         let ark_bigint: ArkScaleLocal<Vec<u64>> = bigint.into();
         let ark_base: ArkScaleProjective<G1> = base.into();
-        
-        let proj_mul_g1_req = Bls12Request::ProjectiveMultiplicationG1 { 
-            base: ark_base.encode(), 
-            scalar: ark_bigint.encode() 
-        }.encode();
+
+        let proj_mul_g1_req = Bls12Request::ProjectiveMultiplicationG1 {
+            base: ark_base.encode(),
+            scalar: ark_bigint.encode(),
+        }
+        .encode();
 
         let proxy_program = create_proxy_program(&sys, proxy_pid, proj_mul_g1_req, alice_actor_id);
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
@@ -584,7 +626,8 @@ mod tests {
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::ProjectiveMultiplicationG1(result_bytes) = response.payload() {
-            let actual = ArkScaleProjective::<G1>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleProjective::<G1>::decode(&mut result_bytes.as_ref())
+                .expect("failed to decode result");
 
             assert_eq!(actual.0, expected);
         } else {
@@ -602,20 +645,19 @@ mod tests {
 
         let mut rng = test_rng();
 
-        let bigint = BigInt::<3>::rand(&mut rng)
-            .0
-            .to_vec();
+        let bigint = BigInt::<3>::rand(&mut rng).0.to_vec();
         let base = G2::rand(&mut rng);
 
         let expected = <ark_bls12_381::g2::Config as SWCurveConfig>::mul_projective(&base, &bigint);
 
         let ark_bigint: ArkScaleLocal<Vec<u64>> = bigint.into();
         let ark_base: ArkScaleProjective<G2> = base.into();
-        
-        let proj_mul_g2_req = Bls12Request::ProjectiveMultiplicationG2 { 
-            base: ark_base.encode(), 
-            scalar: ark_bigint.encode() 
-        }.encode();
+
+        let proj_mul_g2_req = Bls12Request::ProjectiveMultiplicationG2 {
+            base: ark_base.encode(),
+            scalar: ark_bigint.encode(),
+        }
+        .encode();
 
         let proxy_program = create_proxy_program(&sys, proxy_pid, proj_mul_g2_req, alice_actor_id);
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
@@ -626,7 +668,8 @@ mod tests {
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::ProjectiveMultiplicationG2(result_bytes) = response.payload() {
-            let actual = ArkScaleProjective::<G2>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleProjective::<G2>::decode(&mut result_bytes.as_ref())
+                .expect("failed to decode result");
 
             assert_eq!(actual.0, expected);
         } else {
@@ -651,7 +694,8 @@ mod tests {
 
         let aggregate_g1_req = Bls12Request::AggregateG1 {
             points: ark_points.encode(),
-        }.encode();
+        }
+        .encode();
 
         let proxy_program = create_proxy_program(&sys, proxy_pid, aggregate_g1_req, alice_actor_id);
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
@@ -662,7 +706,8 @@ mod tests {
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::AggregateG1(result_bytes) = response.payload() {
-            let actual = ArkScaleLocal::<G1>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleLocal::<G1>::decode(&mut result_bytes.as_ref())
+                .expect("failed to decode result");
 
             let point_first = points.first().unwrap();
             let expected = points
@@ -688,7 +733,8 @@ mod tests {
 
         let map_to_g2_req = Bls12Request::MapToG2Affine {
             message: message.clone(), // Use the message directly as Vec<u8>
-        }.encode();
+        }
+        .encode();
 
         log::warn!("Sending payload: {:?}", map_to_g2_req);
         log::warn!("Payload length: {}", map_to_g2_req.len());
@@ -702,14 +748,16 @@ mod tests {
         let response = logs.pop().expect("no log found");
 
         if let Bls12Response::MapToG2Affine(result_bytes) = response.payload() {
-            let actual = ArkScaleLocal::<G2Affine>::decode(&mut result_bytes.as_ref()).expect("failed to decode result");
+            let actual = ArkScaleLocal::<G2Affine>::decode(&mut result_bytes.as_ref())
+                .expect("failed to decode result");
 
             // Verify the result matches what arkworks would produce
             type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
             const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
-            let mapper = MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
-                .expect("mapper creation failed");
+            let mapper =
+                MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
+                    .expect("mapper creation failed");
             let expected = mapper.hash(&message).expect("hash to curve failed");
 
             assert_eq!(actual.0, expected);
@@ -717,6 +765,4 @@ mod tests {
             panic!("unexpected response");
         }
     }
-
-    
 }

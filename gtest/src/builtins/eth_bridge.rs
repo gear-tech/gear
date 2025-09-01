@@ -31,11 +31,7 @@ pub(crate) fn process_eth_bridge_dispatch(
     }
 }
 
-fn create_bridge_call_output(
-    source: ActorId,
-    destination: H160,
-    payload: Vec<u8>,
-) -> (U256, H256) {
+fn create_bridge_call_output(source: ActorId, destination: H160, payload: Vec<u8>) -> (U256, H256) {
     let nonce = BridgeBuiltinStorage::fetch_nonce();
     let hash = bridge_call_hash(nonce, source, destination, &payload);
 
@@ -62,8 +58,8 @@ fn bridge_call_hash(nonce: U256, source: ActorId, destination: H160, payload: &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use demo_constructor::{WASM_BINARY, Arg, Scheme, Calls, Call};
-    use crate::{Log, System, Program, DEFAULT_USER_ALICE};
+    use crate::{DEFAULT_USER_ALICE, Log, Program, System};
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use parity_scale_codec::Encode;
 
     #[test]
@@ -80,7 +76,12 @@ mod tests {
 
         // Calculate expected hash and nonce using the same function as the builtin
         let expected_nonce = U256::zero();
-        let expected_hash = bridge_call_hash(expected_nonce, proxy_program_id, destination, &bridge_payload);
+        let expected_hash = bridge_call_hash(
+            expected_nonce,
+            proxy_program_id,
+            destination,
+            &bridge_payload,
+        );
 
         // Create the bridge request
         let bridge_request = EthBridgeRequest::SendEthMessage {
