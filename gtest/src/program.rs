@@ -608,7 +608,7 @@ pub fn calculate_program_id(code_id: CodeId, salt: &[u8], id: Option<MessageId>)
 /// `cargo-gbuild` utils
 pub mod gbuild {
     use crate::{
-        Bls12_381Request, Result,
+        Result,
         error::{TestError as Error, usage_panic},
     };
     use cargo_toml::Manifest;
@@ -678,18 +678,12 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value,
-        builtins::{BLS12_381_ID, Bls12_381Response},
-    };
-    use ark_ff::UniformRand;
-    use core_processor::common::Actor;
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
     use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
         ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
     };
-    use parity_scale_codec::Decode;
 
     #[test]
     fn test_handle_signal() {
@@ -1483,179 +1477,5 @@ mod tests {
             .read_state::<String, _>(Vec::<u8>::new())
             .unwrap();
         assert_eq!(state.as_str(), "MockState");
-    }
-
-    #[test]
-    fn test_bls_builtin_message() {
-        use ark_bls12_381::{
-            Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2,
-        };
-        use ark_ec::{Group, pairing::Pairing};
-        use ark_ff::UniformRand;
-        use ark_std::test_rng;
-        use std::ops::Mul;
-
-        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
-
-        let sys = System::new();
-        sys.init_logger();
-
-        let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
-
-        let mut rng = test_rng();
-        let message: G1Affine = G1::rand(&mut rng).into();
-        let a: ArkScale<Vec<<Bls12_381 as Pairing>::G1Affine>> = vec![message].into();
-
-        let priv_key: <G2 as Group>::ScalarField = UniformRand::rand(&mut rng);
-        let generator = G2::generator();
-        let pub_key: G2Affine = generator.mul(priv_key).into();
-        let b: ArkScale<Vec<<Bls12_381 as Pairing>::G2Affine>> = vec![pub_key].into();
-
-        let payload = gbuiltin_bls381::Request::MultiMillerLoop {
-            a: a.encode(),
-            b: b.encode(),
-        };
-        let proxy_scheme = Scheme::predefined(
-            // init: do nothing
-            Calls::builder().noop(),
-            // handle: load message payload and send it to mock program
-            Calls::builder().add_call(Call::Send(
-                Arg::new(BLS12_381_ID.into_bytes()),
-                Arg::new(payload.encode()),
-                None,
-                Arg::new(0u128),
-                Arg::new(0u32),
-            )),
-            // handle_reply: load reply payload and forward it to original sender
-            Calls::builder()
-                .add_call(Call::LoadBytes)
-                .add_call(Call::StoreVec("reply_payload".to_string()))
-                .add_call(Call::Send(
-                    Arg::new(alice_actor_id.into_bytes()),
-                    Arg::get("reply_payload"),
-                    Some(Arg::new(0)),
-                    Arg::new(0u128),
-                    Arg::new(0u32),
-                )),
-            // handle_signal: noop
-            Calls::builder(),
-        );
-
-        let proxy_program = Program::from_binary_with_id(&sys, ActorId::new([2; 32]), WASM_BINARY);
-
-        // Initialize proxy with the scheme
-        let init_mid = proxy_program.send(alice_actor_id, proxy_scheme);
-        let res = sys.run_next_block();
-        assert!(res.succeed.contains(&init_mid));
-
-        // Send a message to the proxy to trigger the interaction
-        let mid = proxy_program.send_bytes(alice_actor_id, b"");
-        let res = sys.run_next_block();
-        assert!(res.succeed.contains(&mid));
-
-        assert!(
-            res.contains(
-                &Log::builder()
-                    .source(proxy_program.id())
-                    .dest(alice_actor_id)
-            )
-        );
-
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
-
-        assert!(matches!(
-            response.payload(),
-            Bls12_381Response::MultiMillerLoop(_)
-        ));
-    }
-
-    #[test]
-    fn test_eth_bridge_builtin() {
-        use crate::builtins::{ETH_BRIDGE_ID, create_bridge_call_output};
-        use gbuiltin_eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
-        use gprimitives::H160;
-
-        let sys = System::new();
-        sys.init_logger();
-
-        let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
-        let proxy_program_id = ActorId::new([3; 32]);
-
-        // Create destination address and payload for the bridge message
-        let destination = H160::from_slice(&[1u8; 20]);
-        let bridge_payload = b"test bridge message".to_vec();
-
-        // Calculate expected hash and nonce using the same function as the builtin
-        let (expected_nonce, expected_hash) = {
-            sys.0.borrow().enable_overlay();
-
-            let res =
-                create_bridge_call_output(proxy_program_id, destination, bridge_payload.clone());
-            sys.0.borrow().disable_overlay();
-
-            res
-        };
-
-        // Create the bridge request
-        let bridge_request = EthBridgeRequest::SendEthMessage {
-            destination,
-            payload: bridge_payload,
-        };
-
-        let proxy_scheme = Scheme::predefined(
-            // init: do nothing
-            Calls::builder().noop(),
-            // handle: send message to eth bridge builtin
-            Calls::builder().add_call(Call::Send(
-                Arg::new(ETH_BRIDGE_ID.into_bytes()),
-                Arg::new(bridge_request.encode()),
-                None,
-                Arg::new(0u128),
-                Arg::new(0u32),
-            )),
-            // handle_reply: load reply payload and forward it to original sender
-            Calls::builder()
-                .add_call(Call::LoadBytes)
-                .add_call(Call::StoreVec("reply_payload".to_string()))
-                .add_call(Call::Send(
-                    Arg::new(alice_actor_id.into_bytes()),
-                    Arg::get("reply_payload"),
-                    Some(Arg::new(0)),
-                    Arg::new(0u128),
-                    Arg::new(0u32),
-                )),
-            // handle_signal: noop
-            Calls::builder(),
-        );
-
-        let proxy_program = Program::from_binary_with_id(&sys, proxy_program_id, WASM_BINARY);
-
-        // Initialize proxy with the scheme
-        let init_mid = proxy_program.send(alice_actor_id, proxy_scheme);
-        let res = sys.run_next_block();
-        assert!(res.succeed.contains(&init_mid));
-
-        // Send a message to the proxy to trigger the bridge interaction
-        let mid = proxy_program.send_bytes(alice_actor_id, b"");
-        let res = sys.run_next_block();
-        assert!(res.succeed.contains(&mid));
-
-        // Verify that Alice received a response from the proxy
-        assert!(
-            res.contains(
-                &Log::builder()
-                    .source(proxy_program.id())
-                    .dest(alice_actor_id)
-            )
-        );
-
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
-
-        let EthBridgeResponse::EthMessageQueued { nonce, hash } = response.payload();
-
-        assert_eq!(nonce, &expected_nonce);
-        assert_eq!(hash, &expected_hash);
     }
 }

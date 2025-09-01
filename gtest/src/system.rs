@@ -17,12 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    GAS_ALLOWANCE, Gas, Value,
-    error::usage_panic,
-    log::{BlockRunResult, CoreLog},
-    manager::ExtManager,
-    program::{Program, ProgramIdWrapper},
-    state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
+    error::usage_panic, log::{BlockRunResult, CoreLog}, manager::ExtManager, program::{Program, ProgramIdWrapper}, state::{accounts::Accounts, bridge::BridgeBuiltinStorage, mailbox::ActorMailbox, programs::ProgramsStorageManager}, Gas, Value, GAS_ALLOWANCE
 };
 use core_processor::common::JournalNote;
 use gear_common::MessageId;
@@ -533,6 +528,9 @@ impl Drop for System {
         // Clear programs and accounts storages
         ProgramsStorageManager::clear();
         Accounts::clear();
+
+        // Clear builtins state
+        BridgeBuiltinStorage::clear();
     }
 }
 

@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::{
-    builtins::{self, BLS12_381_ID, Bls12_381Request, BuiltinActorError, ETH_BRIDGE_ID},
+    builtins::{self, BLS12_381_ID, BuiltinActorError, ETH_BRIDGE_ID},
     state::{
         blocks,
         programs::{GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
@@ -29,7 +29,7 @@ use core_processor::{
 };
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
-    gas::{GasAmount, GasCounter},
+    gas::GasCounter,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     program::ProgramState,
     str::LimitedStr,

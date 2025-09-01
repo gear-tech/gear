@@ -1,5 +1,3 @@
-use std::io::Read;
-
 pub use gbuiltin_eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
 
 use super::BuiltinActorError;
@@ -9,6 +7,7 @@ use gprimitives::{H160, H256, U256};
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{Hash, Keccak256};
 
+/// The id of the ETH bridge builtin actor.
 pub const ETH_BRIDGE_ID: ActorId = ActorId::new(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0");
 
 pub(crate) fn process_eth_bridge_dispatch(
@@ -32,13 +31,20 @@ pub(crate) fn process_eth_bridge_dispatch(
     }
 }
 
-pub(crate) fn create_bridge_call_output(
+fn create_bridge_call_output(
     source: ActorId,
     destination: H160,
     payload: Vec<u8>,
 ) -> (U256, H256) {
     let nonce = BridgeBuiltinStorage::fetch_nonce();
+    let hash = bridge_call_hash(nonce, source, destination, &payload);
 
+    (nonce, hash)
+}
+
+// The function is needed mostly for testing purposes not to fetch nonce with storage mutation,
+// like it's done in `create_bridge_call_output`.
+fn bridge_call_hash(nonce: U256, source: ActorId, destination: H160, payload: &[u8]) -> H256 {
     let mut nonce_bytes = [0; 32];
     nonce.to_little_endian(&mut nonce_bytes);
 
@@ -46,11 +52,95 @@ pub(crate) fn create_bridge_call_output(
         nonce_bytes.as_ref(),
         source.into_bytes().as_ref(),
         destination.as_bytes(),
-        payload.as_ref(),
+        payload,
     ]
     .concat();
 
-    let hash = Keccak256::hash(&bytes);
+    Keccak256::hash(&bytes)
+}
 
-    (nonce, hash)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use demo_constructor::{WASM_BINARY, Arg, Scheme, Calls, Call};
+    use crate::{Log, System, Program, DEFAULT_USER_ALICE};
+    use parity_scale_codec::Encode;
+
+    #[test]
+    fn test_eth_bridge_builtin() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
+        let proxy_program_id = ActorId::new([3; 32]);
+
+        // Create destination address and payload for the bridge message
+        let destination = H160::from_slice(&[1u8; 20]);
+        let bridge_payload = b"test bridge message".to_vec();
+
+        // Calculate expected hash and nonce using the same function as the builtin
+        let expected_nonce = U256::zero();
+        let expected_hash = bridge_call_hash(expected_nonce, proxy_program_id, destination, &bridge_payload);
+
+        // Create the bridge request
+        let bridge_request = EthBridgeRequest::SendEthMessage {
+            destination,
+            payload: bridge_payload,
+        };
+
+        let proxy_scheme = Scheme::predefined(
+            // init: do nothing
+            Calls::builder().noop(),
+            // handle: send message to eth bridge builtin
+            Calls::builder().add_call(Call::Send(
+                Arg::new(ETH_BRIDGE_ID.into_bytes()),
+                Arg::new(bridge_request.encode()),
+                None,
+                Arg::new(0u128),
+                Arg::new(0u32),
+            )),
+            // handle_reply: load reply payload and forward it to original sender
+            Calls::builder()
+                .add_call(Call::LoadBytes)
+                .add_call(Call::StoreVec("reply_payload".to_string()))
+                .add_call(Call::Send(
+                    Arg::new(alice_actor_id.into_bytes()),
+                    Arg::get("reply_payload"),
+                    Some(Arg::new(0)),
+                    Arg::new(0u128),
+                    Arg::new(0u32),
+                )),
+            // handle_signal: noop
+            Calls::builder(),
+        );
+
+        let proxy_program = Program::from_binary_with_id(&sys, proxy_program_id, WASM_BINARY);
+
+        // Initialize proxy with the scheme
+        let init_mid = proxy_program.send(alice_actor_id, proxy_scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&init_mid));
+
+        // Send a message to the proxy to trigger the bridge interaction
+        let mid = proxy_program.send_bytes(alice_actor_id, b"");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&mid));
+
+        // Verify that Alice received a response from the proxy
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(proxy_program.id())
+                    .dest(alice_actor_id)
+            )
+        );
+
+        let mut logs = res.decoded_log();
+        let response = logs.pop().expect("no log found");
+
+        let EthBridgeResponse::EthMessageQueued { nonce, hash } = response.payload();
+
+        assert_eq!(nonce, &expected_nonce);
+        assert_eq!(hash, &expected_hash);
+    }
 }

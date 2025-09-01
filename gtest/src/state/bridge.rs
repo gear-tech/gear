@@ -46,6 +46,8 @@ impl BridgeBuiltinStorage {
     }
 
     pub(crate) fn clear() {
-        todo!("todo [sab]");
+        storage().with(|nonce| {
+            *nonce.data_mut() = U256::zero();
+        });
     }
 }
