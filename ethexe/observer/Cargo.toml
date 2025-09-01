@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-signer.workspace = true
-ethexe-ethereum = { workspace = true, features = ["local-deploy"] }
+ethexe-ethereum = {workspace = true, features = ["local-deploy"]}
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 

@@ -43,9 +43,10 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
 use ethexe_signer::Signer as LocalSigner;
+use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
-use std::time::Duration;
+use std::{ops::Deref, time::Duration};
 
 mod abi;
 mod eip1167;
@@ -74,48 +75,67 @@ pub(crate) type ExeFiller =
     JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
-    router_address: Address,
-    wvara_address: Address,
-    middleware_address: Option<Address>,
+    router: Address,
+    wvara: Address,
     provider: AlloyProvider,
+}
+
+pub struct EthereumWithMiddleware {
+    inner: Ethereum,
+    middleware: Address,
 }
 
 impl Ethereum {
     pub async fn new(
-        rpc_url: &str,
-        router_address: LocalAddress,
+        rpc: &str,
+        router_address: Address,
         signer: LocalSigner,
         sender_address: LocalAddress,
-    ) -> Result<Self> {
-        let router_query = RouterQuery::new(rpc_url, router_address).await?;
-        let wvara_address = router_query.wvara_address().await?;
-
-        let router_address = Address::new(router_address.0);
-
-        let provider = create_provider(rpc_url, signer, sender_address).await?;
-
+    ) -> Result<Ethereum> {
+        let provider = create_provider(rpc, signer, sender_address).await?;
+        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         Ok(Self {
-            router_address,
-            wvara_address,
-            middleware_address: None,
+            router: router_address,
+            wvara: router_query.wvara_address().await?,
             provider,
         })
     }
 
-    pub fn provider(&self) -> AlloyProvider {
+    pub async fn from_provider(provider: AlloyProvider, router: Address) -> Result<Self> {
+        let router_query = RouterQuery::from_provider(router, provider.root().clone());
+        Ok(Self {
+            router,
+            wvara: router_query.wvara_address().await?,
+            provider,
+        })
+    }
+}
+
+impl Ethereum {
+    fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 
-    pub fn router(&self) -> Router {
-        Router::new(
-            self.router_address,
-            self.wvara_address,
-            self.provider.clone(),
-        )
+    pub fn mirror(&self, address: LocalAddress) -> Mirror {
+        Mirror::new(address.0.into(), self.provider())
     }
 
-    pub fn mirror(&self, address: LocalAddress) -> Mirror {
-        Mirror::new(address.0.into(), self.provider.clone())
+    pub fn router(&self) -> Router {
+        Router::new(self.router, self.wvara, self.provider())
+    }
+}
+
+impl EthereumWithMiddleware {
+    pub fn middleware(&self) -> Middleware {
+        Middleware::new(self.middleware, self.provider())
+    }
+}
+
+impl Deref for EthereumWithMiddleware {
+    type Target = Ethereum;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 

@@ -68,13 +68,18 @@ contract DeploymentScript is Script {
         if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
-            Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+            Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
                 vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
                 operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
                 networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
                 middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
                 networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
-                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
+                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY"),
+
+                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
+                roleSlashRequester: address(router),
+                roleSlashExecutor: address(router),
+                vetoResolver: address(router)
             });
 
             IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
@@ -90,12 +95,8 @@ contract DeploymentScript is Script {
                 maxResolverSetEpochsDelay: 5 minutes,
                 collateral: address(wrappedVara),
                 maxAdminFee: 10000,
-                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
                 router: address(router),
-                roleSlashRequester: address(router),
-                roleSlashExecutor: address(router),
-                vetoResolver: address(router),
-                registries: registries
+                symbiotic: symbiotic
             });
 
             middleware = Middleware(

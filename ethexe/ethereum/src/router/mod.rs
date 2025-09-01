@@ -265,6 +265,10 @@ impl RouterQuery {
         self.instance.wrappedVara().call().await.map_err(Into::into)
     }
 
+    pub async fn middleware_address(&self) -> Result<Address> {
+        self.instance.middleware().call().await.map_err(Into::into)
+    }
+
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
         self.instance
             .validatorsAggregatedPublicKey()
@@ -442,12 +446,13 @@ mod tests {
             alice.to_address(),
             first_share.commitment().clone(),
         )
+        .await
+        .unwrap()
         .deploy()
         .await
         .unwrap();
 
-        let router =
-            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+        let router = ethereum.router().query();
 
         let latest_block = router
             .instance

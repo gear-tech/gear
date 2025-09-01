@@ -48,7 +48,7 @@ alloy = { workspace = true, features = [
     "kzg",
     "node-bindings",
 ] }
-
+gear-utils.workspace = true
 
 [features]
 local-deploy = []

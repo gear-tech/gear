@@ -4797,6 +4797,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
+ "gear-utils",
  "gprimitives",
  "log",
  "rand 0.8.5",

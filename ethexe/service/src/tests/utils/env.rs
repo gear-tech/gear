@@ -185,6 +185,8 @@ impl TestEnv {
                 sender_address,
                 verifiable_secret_sharing_commitment,
             )
+            .await
+            .unwrap()
             .with_validators(
                 validators
                     .iter()

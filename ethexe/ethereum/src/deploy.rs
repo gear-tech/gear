@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Ethereum, TryGetReceipt,
+    AlloyProvider, Ethereum, EthereumWithMiddleware, TryGetReceipt,
     abi::{
         IMiddleware::{
             self, IMiddlewareInstance, InitParams as MiddlewareInitParams,
@@ -27,14 +27,14 @@ use crate::{
         IRouter::{self, IRouterInstance, initializeCall as RouterInitializeCall},
         ITransparentUpgradeableProxy,
         IWrappedVara::{self, IWrappedVaraInstance, initializeCall as WrappedVaraInitializeCall},
-        middleware_abi::Gear::SymbioticRegistries,
+        middleware_abi::Gear::SymbioticContracts,
         symbiotic_abi::*,
     },
     create_provider,
 };
 use alloy::{
     primitives::{Address, Bytes, U256, Uint},
-    providers::Provider,
+    providers::{Provider, WalletProvider},
     sol_types::SolCall,
 };
 use anyhow::Result;
@@ -46,47 +46,53 @@ use roast_secp256k1_evm::frost::{
     keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 
-/// Smart contracts deployer for testing purposes.
-pub struct EthereumDeployer<'a> {
-    rpc_url: &'a str,
-    signer: LocalSigner,
-    sender_address: LocalAddress,
+/// [`EthereumDeployer`] is a builder for deploying smart contracts on Ethereum for testing purposes.
+pub struct EthereumDeployer {
+    // Required parameters
+    provider: AlloyProvider,
     verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
+    // Customizable parameters
     validators: Vec<LocalAddress>,
-    with_middleware: bool,
 }
 
-impl<'a> EthereumDeployer<'a> {
+// Public methods
+impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
-    pub fn new(
-        rpc_url: &'a str,
+    pub async fn new(
+        rpc: &str,
         signer: LocalSigner,
         sender_address: LocalAddress,
         verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
-    ) -> Self {
-        Self {
-            rpc_url,
-            signer,
+    ) -> Result<Self> {
+        let provider = create_provider(rpc, signer, sender_address).await?;
+        Ok(EthereumDeployer {
+            provider,
             verifiable_secret_sharing_commitment,
-            sender_address,
-            with_middleware: false,
             validators: Default::default(),
-        }
+        })
     }
-}
 
-impl<'a> EthereumDeployer<'a> {
     pub fn with_validators(mut self, validators: Vec<LocalAddress>) -> Self {
         self.validators = validators;
         self
     }
 
-    pub fn with_middleware(mut self) -> Self {
-        self.with_middleware = true;
-        self
+    pub async fn deploy(self) -> Result<Ethereum> {
+        let router = self.deploy_contracts(false).await?;
+        Ethereum::from_provider(self.provider.clone(), router).await
     }
 
-    pub async fn deploy(self) -> Result<Ethereum> {
+    pub async fn deploy_with_middleware(self) -> Result<EthereumWithMiddleware> {
+        let router = self.deploy_contracts(true).await?;
+        let inner = Ethereum::from_provider(self.provider.clone(), router).await?;
+        let middleware = inner.router().query().middleware_address().await?;
+        Ok(EthereumWithMiddleware { inner, middleware })
+    }
+}
+
+// Private implementation details
+impl EthereumDeployer {
+    async fn deploy_contracts(&self, with_middleware: bool) -> Result<Address> {
         let maybe_validator_identifiers: Result<Vec<_>, _> = self
             .validators
             .iter()
@@ -106,47 +112,55 @@ impl<'a> EthereumDeployer<'a> {
         let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
         let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
-        let provider = create_provider(self.rpc_url, self.signer, self.sender_address).await?;
-        let deployer = self.sender_address.into();
+        let deployer = self.provider.default_signer_address();
+        let wrapped_vara = deploy_wrapped_vara(deployer, self.provider.clone()).await?;
 
-        let nonce = provider.get_transaction_count(deployer).await?;
+        let nonce = self.provider.get_transaction_count(deployer).await?;
         let mirror_address = deployer.create(
             nonce
                 .checked_add(2)
                 .expect("nonce overflow when deploying router with mirror"),
         );
 
-        let middleware_address = match self.with_middleware {
+        let middleware_address = match with_middleware {
             true => deployer.create(
                 nonce
-                    .checked_add(3)
+                    // Nonce is 12 because of deployment symbiotic contracts
+                    .checked_add(12)
                     .expect("nonce overflow when deploying middleware"),
             ),
-            false => Address::ZERO,
+            false => Address::default(),
         };
 
         let aggregated_public_key = AggregatedPublicKey {
             x: GearU256::from_big_endian(public_key_x_bytes),
             y: GearU256::from_big_endian(public_key_y_bytes),
         };
-        let wrapped_vara = deploy_wrapped_vara(deployer, provider.clone()).await?;
         let (router, mirror) = deploy_router_with_mirror(
             deployer,
             *wrapped_vara.address(),
             mirror_address,
-            middleware_address,
+            middleware_address.into(),
             aggregated_public_key,
-            self.verifiable_secret_sharing_commitment,
-            self.validators.into_iter().map(Into::into).collect(),
-            provider.clone(),
+            self.verifiable_secret_sharing_commitment.clone(),
+            self.validators
+                .clone()
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            self.provider.clone(),
         )
         .await?;
 
-        let _middleware = if self.with_middleware {
-            Some(deploy_middleware(deployer, &router, &wrapped_vara, provider.clone()).await?)
-        } else {
-            None
-        };
+        if with_middleware {
+            let middleware =
+                deploy_middleware(deployer, &router, &wrapped_vara, self.provider.clone()).await?;
+            log::info!("Middleware deployed at {}", *middleware.address());
+            log::info!(
+                "Router address linked to middleware: {}",
+                middleware.router().call().await?
+            );
+        }
 
         let builder = wrapped_vara.approve(*router.address(), U256::MAX);
         builder.send().await?.try_get_receipt().await?;
@@ -156,12 +170,7 @@ impl<'a> EthereumDeployer<'a> {
         let builder = router.lookupGenesisHash();
         builder.send().await?.try_get_receipt().await?;
 
-        Ok(Ethereum {
-            router_address: *router.address(),
-            wvara_address: *wrapped_vara.address(),
-            middleware_address: None,
-            provider,
-        })
+        Ok(*router.address())
     }
 }
 
@@ -236,9 +245,9 @@ where
     let router = IRouter::new(router_address, provider.clone());
     let mirror = IMirror::deploy(provider.clone(), router_address).await?;
 
-    log::debug!("Mirror impl has been deployed at {}", mirror.address());
-    log::debug!("Router impl has been deployed at {}", router_impl.address());
-    log::debug!("Router proxy has been deployed at {}", router.address());
+    log::info!("Mirror impl has been deployed at {}", mirror.address());
+    log::info!("Router impl has been deployed at {}", router_impl.address());
+    log::info!("Router proxy has been deployed at {}", router.address());
 
     Ok((router, mirror))
 }
@@ -282,34 +291,37 @@ where
             .await?;
 
     // Prepare initialization parameters for middleware
-    let registries = SymbioticRegistries {
+    let symbiotic = SymbioticContracts {
         vaultRegistry: *vault_factory.address(),
         operatorRegistry: *operator_registry.address(),
         networkRegistry: *network_registry.address(),
         middlewareService: *network_middleware_service.address(),
         networkOptIn: *network_opt_in.address(),
         stakerRewardsFactory: *staker_rewards_factory.address(),
+
+        operatorRewards: *operator_rewards.address(),
+        roleSlashRequester: *router.address(),
+        roleSlashExecutor: *router.address(),
+        vetoResolver: *router.address(),
     };
+
+    log::info!("Router address: {}", router.address());
 
     let middleware_init_params = MiddlewareInitParams {
         owner: deployer,
         eraDuration: Uint::<48, 1>::from(24 * 60 * 60),
-        minVaultEpochDuration: Uint::<48, 1>::from(2 * 60 * 60),
+        minVaultEpochDuration: Uint::<48, 1>::from(2 * 24 * 60 * 60), // 2 eras
         operatorGracePeriod: Uint::<48, 1>::from(7 * 24 * 60 * 60),
-        vaultGracePeriod: Uint::from(0),
-        minVetoDuration: Uint::from(0),
-        minSlashExecutionDelay: Uint::from(0),
+        vaultGracePeriod: Uint::from(2 * 24 * 60 * 60), // 2 eras
+        minVetoDuration: Uint::from(2 * 60 * 60),       // 2 h
+        minSlashExecutionDelay: Uint::from(5 * 60),     // 5 min
         allowedVaultImplVersion: vault_factory.lastVersion().call().await?,
-        vetoSlasherImplType: 0,
-        maxResolverSetEpochsDelay: Uint::from(0),
+        vetoSlasherImplType: 1,
+        maxResolverSetEpochsDelay: Uint::from(5 * 60), // 5 min
         collateral: *wrapped_vara.address(),
         maxAdminFee: Uint::from(3), // 3%
-        operatorRewards: *operator_rewards.address(),
         router: *router.address(),
-        roleSlashRequester: Address::ZERO,
-        roleSlashExecutor: Address::ZERO,
-        vetoResolver: Address::ZERO,
-        registries,
+        symbiotic,
     };
 
     let proxy = ITransparentUpgradeableProxy::deploy(
@@ -318,7 +330,7 @@ where
         deployer,
         Bytes::copy_from_slice(
             &MiddlewareInitializeCall {
-                _params: middleware_init_params,
+                _params: (middleware_init_params),
             }
             .abi_encode(),
         ),
@@ -333,4 +345,65 @@ where
     log::debug!("Middleware proxy deployed at {}", middleware.address());
 
     Ok(middleware)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use alloy::node_bindings::Anvil;
+    use roast_secp256k1_evm::frost::keys::{self, IdentifierList};
+
+    #[tokio::test]
+    async fn test_deployment_with_middleware() -> Result<()> {
+        gear_utils::init_default_logger();
+
+        let anvil = Anvil::new().try_spawn()?;
+        let signer = LocalSigner::memory();
+
+        let sender_public_key = signer.storage_mut().add_key(
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
+        )?;
+        let sender_address = sender_public_key.to_address();
+        let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
+
+        let (secret_shares, _) = keys::generate_with_dealer(
+            1,
+            1,
+            IdentifierList::Custom(&[Identifier::deserialize(
+                &ActorId::from(validators[0]).into_bytes(),
+            )
+            .unwrap()]),
+            rand::thread_rng(),
+        )
+        .unwrap();
+
+        let verifiable_secret_sharing_commitment = secret_shares
+            .values()
+            .map(|secret_share| secret_share.commitment().clone())
+            .next()
+            .expect("conversion failed");
+
+        let ethereum = EthereumDeployer::new(
+            &anvil.endpoint(),
+            signer,
+            sender_address,
+            verifiable_secret_sharing_commitment,
+        )
+        .await?
+        .with_validators(validators)
+        .deploy_with_middleware()
+        .await?;
+
+        let router = ethereum.router();
+        let middleware = ethereum.middleware();
+
+        assert_eq!(
+            middleware.query().router().await?,
+            router.address(),
+            "Router address mismatch"
+        );
+
+        Ok(())
+    }
 }

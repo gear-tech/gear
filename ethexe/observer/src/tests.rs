@@ -79,11 +79,13 @@ async fn test_deployment() -> Result<()> {
         sender_address,
         verifiable_secret_sharing_commitment,
     )
+    .await
+    .unwrap()
     .with_validators(validators)
     .deploy()
     .await?;
 
-    let router_address = ethereum.router().address();
+    let router_address = ethereum.router().address().into();
 
     let db = MemDb::default();
     let database = Database::from_one(&db);

@@ -80,14 +80,10 @@ interface IMiddleware {
         uint64 allowedVaultImplVersion;
         uint64 vetoSlasherImplType;
         uint256 maxResolverSetEpochsDelay;
-        address collateral;
         uint256 maxAdminFee;
-        address operatorRewards;
+        address collateral;
         address router;
-        address roleSlashRequester;
-        address roleSlashExecutor;
-        address vetoResolver;
-        Gear.SymbioticRegistries registries;
+        Gear.SymbioticContracts symbiotic;
     }
 
     /// @custom:storage-location erc7201:middleware.storage.Middleware.
@@ -101,17 +97,13 @@ interface IMiddleware {
         uint256 maxResolverSetEpochsDelay;
         uint64 allowedVaultImplVersion;
         uint64 vetoSlasherImplType;
-        address collateral;
         bytes32 subnetwork;
         uint256 maxAdminFee;
-        address operatorRewards;
+        address collateral;
         address router;
-        address roleSlashRequester;
-        address roleSlashExecutor;
-        address vetoResolver;
         /// @notice Stores the addresses for Symbiotic Ecosystem contracts.
         /// @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
-        Gear.SymbioticRegistries registries;
+        Gear.SymbioticContracts symbiotic;
         EnumerableMap.AddressToUintMap operators;
         EnumerableMap.AddressToUintMap vaults;
     }
@@ -145,11 +137,8 @@ interface IMiddleware {
     function collateral() external view returns (address);
     function subnetwork() external view returns (bytes32);
     function maxAdminFee() external view returns (uint256);
-    function operatorRewards() external view returns (address);
     function router() external view returns (address);
-    function roleSlashRequester() external view returns (address);
-    function roleSlashExecutor() external view returns (address);
-    function operatorRegistry() external view returns (address);
+    function symbioticContracts() external view returns (Gear.SymbioticContracts memory);
 
     // # Calls.
     function changeSlashRequester(address newRole) external;

@@ -63,6 +63,7 @@ sol!(
 );
 
 /// Bindings for Symbiotic contracts.
+/// Only uses for local deployments and tests.
 pub mod symbiotic_abi {
     // Add additional modules because of duplicating contracts names inside `StakerRewards` and `StakerRewardsFactory`.
     pub use staker_rewards::DefaultStakerRewards;
