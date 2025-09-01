@@ -325,7 +325,7 @@ mod tests {
             Calls::builder(),
         );
 
-        let proxy_program = Program::from_binary_with_id(&sys, proxy_id, WASM_BINARY);
+        let proxy_program = Program::from_binary_with_id(sys, proxy_id, WASM_BINARY);
 
         // Initialize proxy with the scheme
         let init_mid = proxy_program.send(reply_receiver, proxy_scheme);
