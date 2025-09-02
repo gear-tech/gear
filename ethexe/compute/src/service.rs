@@ -310,11 +310,9 @@ mod tests {
         });
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta::default_prepared();
-            meta.announces = Some(vec![parent_announce_hash])
+            meta.announces = Some([parent_announce_hash].into())
         });
-        db.mutate_latest_data(|data| {
-            *data = Some(LatestData::default());
-        });
+        db.set_latest_data(Default::default());
 
         // Setup and prepare block
         let header = BlockHeader {
