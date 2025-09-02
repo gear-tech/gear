@@ -18,8 +18,8 @@
 
 //! BLS12-381 builtin actor implementation.
 //!
-//! The main function of the module is `process_bls12_381_dispatch` which processes
-//! incoming dispatches to the bls12-381 builtin actor.
+//! The main function of the module is `process_bls12_381_dispatch` which
+//! processes incoming dispatches to the bls12-381 builtin actor.
 
 pub use gbuiltin_bls381::{Request as Bls12_381Request, Response as Bls12_381Response};
 
@@ -469,8 +469,10 @@ mod tests {
         // -----------------------------------------------------------------------
         // ----------------------- Create a faulty proxy -------------------------
         // -----------------------------------------------------------------------
-        // Because of the impl of the demo_constructor, we have to waste 1 program as we cannot predefine `handle_reply` without
-        // defining `handle` (using `Scheme::predefined`). So we have to define a proxy with `handle` sending the faulty request
+        // Because of the impl of the demo_constructor, we have to waste 1 program as we
+        // cannot predefine `handle_reply` without defining `handle` (using
+        // `Scheme::predefined`). So we have to define a proxy with `handle` sending the
+        // faulty request
         let proxy_program = create_proxy_program(
             &sys,
             gprimitives::H256::random().cast(),
@@ -578,8 +580,10 @@ mod tests {
         // -----------------------------------------------------------------------
         // ----------------------- Create a faulty proxy -------------------------
         // -----------------------------------------------------------------------
-        // Because of the impl of the demo_constructor, we have to waste 1 program as we cannot predefine `handle_reply` without
-        // defining `handle` (using `Scheme::predefined`). So we have to define a proxy with `handle` sending the faulty request
+        // Because of the impl of the demo_constructor, we have to waste 1 program as we
+        // cannot predefine `handle_reply` without defining `handle` (using
+        // `Scheme::predefined`). So we have to define a proxy with `handle` sending the
+        // faulty request
         let proxy_program = create_proxy_program(
             &sys,
             gprimitives::H256::random().cast(),

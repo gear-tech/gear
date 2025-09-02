@@ -18,8 +18,8 @@
 
 //! Eth-bridge builtin actor implementation.
 //!
-//! The main function the module is `process_eth_bridge_dispatch` which processes
-//! incoming dispatches to the eth-bridge builtin actor.
+//! The main function the module is `process_eth_bridge_dispatch` which
+//! processes incoming dispatches to the eth-bridge builtin actor.
 
 pub use gbuiltin_eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
 
@@ -63,8 +63,8 @@ fn create_bridge_call_output(source: ActorId, destination: H160, payload: Vec<u8
     (nonce, hash)
 }
 
-// The function is needed mostly for testing purposes not to fetch nonce with storage mutation,
-// like it's done in `create_bridge_call_output`.
+// The function is needed mostly for testing purposes not to fetch nonce with
+// storage mutation, like it's done in `create_bridge_call_output`.
 fn bridge_call_hash(nonce: U256, source: ActorId, destination: H160, payload: &[u8]) -> H256 {
     let mut nonce_bytes = [0; 32];
     nonce.to_little_endian(&mut nonce_bytes);

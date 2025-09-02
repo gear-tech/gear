@@ -34,7 +34,8 @@ use parity_scale_codec::{Decode, Encode};
 /// Builtin actor errors.
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
 pub enum BuiltinActorError {
-    /// Occurs if the underlying call has the weight greater than the `gas_limit`.
+    /// Occurs if the underlying call has the weight greater than the
+    /// `gas_limit`.
     InsufficientGas,
     /// Occurs if the dispatch's value is less than the minimum required value.
     InsufficientValue,
@@ -47,7 +48,8 @@ pub enum BuiltinActorError {
 }
 
 impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
-    /// Convert [`BuiltinActorError`] to [`core_processor::common::ActorExecutionErrorReplyReason`]
+    /// Convert [`BuiltinActorError`] to
+    /// [`core_processor::common::ActorExecutionErrorReplyReason`]
     fn from(err: BuiltinActorError) -> Self {
         match err {
             BuiltinActorError::InsufficientGas => {
