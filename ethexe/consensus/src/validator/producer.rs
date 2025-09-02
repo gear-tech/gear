@@ -303,8 +303,11 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SignedValidationRequest, mock::*, validator::mock::*};
-    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*};
+    use crate::{
+        mock::*,
+        validator::{PendingEvent, mock::*},
+    };
+    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, mock::*};
     use nonempty::{NonEmpty, nonempty};
 
     #[tokio::test]
@@ -313,11 +316,9 @@ mod tests {
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(H256::random());
 
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.signer.clone(),
-            keys[0],
-            (),
-        )));
+        ctx.pending(PendingEvent::ValidationRequest(
+            ctx.signer.mock_signed_data(keys[0], ()),
+        ));
 
         let producer = Producer::create(ctx, block, validators.clone()).unwrap();
 
@@ -335,7 +336,7 @@ mod tests {
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
         let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
-        let announce_hash = ctx.db.announce_hash(block.hash);
+        let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         // Set parent announce
         ctx.db.mutate_block_meta(parent, |meta| {
@@ -359,9 +360,9 @@ mod tests {
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let batch = prepare_chain_for_batch_commitment(&ctx.db);
         let block = ctx.db.simple_block_data(batch.block_hash);
-        let announce_hash = ctx.db.announce_hash(block.hash);
+        let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
@@ -421,7 +422,7 @@ mod tests {
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
         let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
-        let announce_hash = ctx.db.announce_hash(block.hash);
+        let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         ctx.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;

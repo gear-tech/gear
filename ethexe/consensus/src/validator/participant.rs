@@ -210,12 +210,8 @@ impl Participant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        mock::*,
-        utils::{SignedAnnounce, SignedValidationRequest},
-        validator::mock::*,
-    };
-    use ethexe_common::{AnnounceHash, Digest, gear::CodeCommitment};
+    use crate::{mock::*, validator::mock::*};
+    use ethexe_common::{AnnounceHash, Digest, gear::CodeCommitment, mock::*};
     use gprimitives::H256;
 
     #[test]
@@ -238,32 +234,26 @@ mod tests {
         let block = SimpleBlockData::mock(H256::random());
 
         // Validation request from alice - must be kept
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.signer.clone(),
-            alice,
-            (),
-        )));
+        ctx.pending(PendingEvent::ValidationRequest(
+            ctx.signer.mock_signed_data(alice, ()),
+        ));
 
-        // Reply from producer - must be removed and processed
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.signer.clone(),
-            producer,
-            (),
-        )));
+        // Validation request from producer - must be removed and processed
+        ctx.pending(PendingEvent::ValidationRequest(
+            ctx.signer.mock_signed_data(producer, ()),
+        ));
 
         // Block from producer - must be kept
-        ctx.pending(SignedAnnounce::mock((
-            ctx.signer.clone(),
+        ctx.pending(PendingEvent::Announce(ctx.signer.mock_signed_data(
             producer,
             (H256::random(), AnnounceHash::random()),
         )));
 
         // Block from alice - must be kept
-        ctx.pending(SignedAnnounce::mock((
-            ctx.signer.clone(),
-            alice,
-            (H256::random(), AnnounceHash::random()),
-        )));
+        ctx.pending(PendingEvent::Announce(
+            ctx.signer
+                .mock_signed_data(alice, (H256::random(), AnnounceHash::random())),
+        ));
 
         let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(initial.is_initial());
@@ -286,7 +276,7 @@ mod tests {
     fn process_validation_request_success() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let batch = prepare_chain_for_batch_commitment(&ctx.db);
         let block = ctx.db.simple_block_data(batch.block_hash);
 
         let signed_request = ctx
@@ -322,7 +312,7 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let signed_request = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
+        let signed_request = ctx.signer.mock_signed_data(producer, ());
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
         let initial = participant
@@ -341,7 +331,7 @@ mod tests {
     fn test_codes_not_waiting_for_commitment() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let mut batch = prepared_mock_batch_commitment(&ctx.db);
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.db);
         let block = ctx.db.simple_block_data(batch.block_hash);
 
         // Add a code that's not in the waiting queue
@@ -396,7 +386,7 @@ mod tests {
     fn test_duplicate_codes_and_blocks() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let batch = prepare_chain_for_batch_commitment(&ctx.db);
         let block = ctx.db.simple_block_data(batch.block_hash);
 
         // Create a request with duplicate codes
@@ -424,7 +414,7 @@ mod tests {
     fn test_digest_mismatch() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
+        let batch = prepare_chain_for_batch_commitment(&ctx.db);
         let block = ctx.db.simple_block_data(batch.block_hash);
 
         // Create request with incorrect digest

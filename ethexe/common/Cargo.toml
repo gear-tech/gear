@@ -23,8 +23,7 @@ auto_impl.workspace = true
 sha3 = { version = "0.10", default-features = false }
 k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 
-# +_+_+ under feature
-itertools.workspace = true
+itertools = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
@@ -38,3 +37,4 @@ std = [
     "k256/std",
     "alloy-primitives/std",
 ]
+mock = ["std", "itertools", "itertools/use_std"]
