@@ -30,7 +30,7 @@ use crate::{
         gas_tree::GasTreeManager,
         mailbox::manager::{MailboxErrorImpl, MailboxManager},
         nonce::NonceManager,
-        programs::ProgramsStorageManager,
+        programs::{GTestProgram, ProgramsStorageManager},
         queue::QueueManager,
         stash::DispatchStashManager,
         task_pool::TaskPoolManager,
@@ -77,6 +77,9 @@ mod wait_wake;
 const OUTGOING_LIMIT: u32 = 1024;
 const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 
+pub(crate) const CUSTOM_WASM_PROGRAM_CODE_ID: CodeId =
+    CodeId::new(*b"CUSTOM_WASM_PROGRAM_CODE_ID\0\0\0\0\0");
+
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
     // State with possible overlay
@@ -121,15 +124,12 @@ impl ExtManager {
         self.blocks_manager.get().height
     }
 
-    pub(crate) fn store_new_actor(
-        &mut self,
-        program_id: ActorId,
-        program: Program<BlockNumber>,
-    ) -> Option<Program<BlockNumber>> {
+    // Returns `true`, if the program was already present.
+    pub(crate) fn store_program(&mut self, program_id: ActorId, program: GTestProgram) -> bool {
         ProgramsStorageManager::insert_program(program_id, program)
     }
 
-    pub(crate) fn store_new_code(&mut self, code_id: CodeId, code: Vec<u8>) {
+    pub(crate) fn store_code(&mut self, code_id: CodeId, code: Vec<u8>) {
         self.opt_binaries.insert(code_id, code.clone());
 
         let (instrumented_code, code_metadata) =
@@ -203,8 +203,9 @@ impl ExtManager {
 
     fn init_success(&mut self, program_id: ActorId) {
         ProgramsStorageManager::modify_program(program_id, |program| {
-            let Program::Active(active_program) =
-                program.unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+            let Program::Active(active_program) = program
+                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+                .as_primary_program_mut()
             else {
                 unreachable!(
                     "Before init finishes, program must always be active. But {program_id:?} program is not active."
@@ -219,7 +220,7 @@ impl ExtManager {
         self.clean_waitlist(program_id);
         self.remove_gas_reservation_map(program_id);
         ProgramsStorageManager::modify_program(program_id, |program| {
-            if let Some(program) = program {
+            if let Some(program) = program.map(GTestProgram::as_primary_program_mut) {
                 if !program.is_active() {
                     // Guaranteed to be called only on active program
                     unreachable!(
@@ -249,8 +250,8 @@ impl ExtManager {
         op: F,
     ) -> Option<R> {
         ProgramsStorageManager::modify_program(id, |program| {
-            program.and_then(|actor| {
-                if let Program::Active(active_program) = actor {
+            program.and_then(|program| {
+                if let Program::Active(active_program) = program.as_primary_program_mut() {
                     Some(op(active_program))
                 } else {
                     None
