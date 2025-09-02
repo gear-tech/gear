@@ -52,29 +52,6 @@ jobs:
       - name: Test docs
         run: ./scripts/gear.sh test docs
 
-      - name: Build docs
-        run: make doc
-        shell: bash
-
-      - name: Deploy
-        if: github.event_name == 'push'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          cname: docs.gear.rs
-          force_orphan: true
-          user_name: "github-actions[bot]"
-          user_email: "github-actions[bot]@users.noreply.github.com"
-
-      - name: Deploy PR
-        if: github.event_name == 'pull_request'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/x86_64-unknown-linux-gnu/doc
-          destination_dir: pr-${{ github.event.number }}
-
   workspace:
     runs-on: [ kuberunner, github-runner-02 ]
     strategy:
@@ -358,15 +335,15 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir artifact
-          
+
           # examples
           (cd examples-artifact && tar czvf ../artifact/examples.tar.gz *.wasm)
-          
+
           # runtime
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          
+
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
