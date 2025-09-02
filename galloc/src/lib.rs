@@ -16,15 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Gear Allocator.
+//!
+//! Lightweight memory allocator for Gear programs. Based on `dlmalloc` optimized fork.
+
 #![no_std]
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+/// Global allocator instance.
 // until https://github.com/alexcrichton/dlmalloc-rs/pull/26 is merged
 #[cfg(not(windows))]
 #[global_allocator]
 pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
+/// Prelude imports.
 pub mod prelude;

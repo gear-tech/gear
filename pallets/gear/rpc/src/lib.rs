@@ -19,7 +19,6 @@
 //! RPC interface for the gear module.
 
 #![allow(clippy::too_many_arguments)]
-#![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
