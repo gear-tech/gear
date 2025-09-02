@@ -19,7 +19,7 @@
 //! Utility library for writing end-to-end tests for Gear programs.
 //!
 //! This crate can be considered a companion of the
-//! [`gtest`](https://docs.gear.rs/gtest/) when covering the program code
+//! [`gtest`](https://docs.rs/gtest/) when covering the program code
 //! with tests. When `gtest` is most appropriate for unit and integration
 //! tests, `gclient` fits better for higher-level debugging.
 //!
@@ -127,8 +127,9 @@
 //! ```
 
 #![warn(missing_docs)]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod api;
 mod utils;

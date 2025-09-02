@@ -19,8 +19,10 @@
 //! RPC interface for the gear module.
 
 #![allow(clippy::too_many_arguments)]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![warn(missing_docs)]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 use gear_common::Origin;
 use gear_core_errors::*;
