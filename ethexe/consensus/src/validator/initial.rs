@@ -122,8 +122,8 @@ impl Initial {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::db::*;
+    use crate::{ConsensusEvent, validator::mock::*};
+    use ethexe_common::{db::*, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
