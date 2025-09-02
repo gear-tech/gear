@@ -187,6 +187,7 @@ impl Service {
             ProcessorConfig {
                 chunk_processing_threads: config.node.chunk_processing_threads,
                 block_gas_limit: config.node.block_gas_limit,
+                gas_limit_multiplier: config.node.gas_limit_multiplier,
             },
             db.clone(),
         )
