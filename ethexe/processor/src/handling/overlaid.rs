@@ -49,8 +49,8 @@ impl OverlaidContext {
         };
         transition_controller.update_state(base_program, |state, _, _| {
             state.queue.modify_queue(&db, |queue| {
-                log::warn!("Base program {base_program} queue will be nullified");
-                log::warn!("Queue state - {:#?}", queue);
+                log::debug!("Base program {base_program} queue will be nullified");
+                log::debug!("Queue state - {:#?}", queue);
                 // Last dispatch is the one for which overlaid executor was created.
                 // Implicit invariant!
                 let dispatch = queue
@@ -58,7 +58,7 @@ impl OverlaidContext {
                     .expect("last dispatch must be added before");
                 queue.clear();
                 queue.queue(dispatch);
-                log::warn!("Queue state after - {:#?}", queue);
+                log::debug!("Queue state after - {:#?}", queue);
             });
         });
 
@@ -86,16 +86,16 @@ impl OverlaidContext {
             return false;
         }
 
-        log::warn!("Nullifying queue for program {program_id}");
+        log::debug!("Nullifying queue for program {program_id}");
         let mut transition_controller = TransitionController {
             transitions,
             storage: &self.db,
         };
         transition_controller.update_state(program_id, |state, _, _| {
             state.queue.modify_queue(&self.db, |queue| {
-                log::warn!("Queue state before nullification - {:#?}", queue);
+                log::debug!("Queue state before nullification - {:#?}", queue);
                 queue.clear();
-                log::warn!("Queue state after nullification - {:#?}", queue);
+                log::debug!("Queue state after nullification - {:#?}", queue);
             });
         });
 
