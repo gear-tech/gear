@@ -22,7 +22,10 @@ use super::{ExtManager, Program};
 use crate::{
     EXISTENTIAL_DEPOSIT, Value,
     manager::hold_bound::HoldBoundBuilder,
-    state::{accounts::Accounts, programs::ProgramsStorageManager},
+    state::{
+        accounts::Accounts,
+        programs::{GTestProgram, ProgramsStorageManager},
+    },
 };
 use core_processor::common::{DispatchOutcome, JournalHandler};
 use gear_common::{
@@ -90,8 +93,9 @@ impl JournalHandler for ExtManager {
         self.remove_gas_reservation_map(id_exited);
 
         ProgramsStorageManager::modify_program(id_exited, |program| {
-            let program =
-                program.unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"));
+            let program = program
+                .unwrap_or_else(|| panic!("Can't find existing program {id_exited:?}"))
+                .as_primary_program_mut();
 
             if !program.is_active() {
                 // Guaranteed to be called only on active program
@@ -285,9 +289,9 @@ impl JournalHandler for ExtManager {
             for (init_message_id, candidate_id) in candidates {
                 if !ProgramsStorageManager::has_program(candidate_id) {
                     let expiration_block = self.block_height();
-                    self.store_new_actor(
+                    self.store_program(
                         candidate_id,
-                        Program::Active(ActiveProgram {
+                        GTestProgram::Default(Program::Active(ActiveProgram {
                             allocations_tree_len: 0,
                             code_id: code_id.cast(),
                             state: ProgramState::Uninitialized {
@@ -296,7 +300,7 @@ impl JournalHandler for ExtManager {
                             expiration_block,
                             memory_infix: Default::default(),
                             gas_reservation_map: Default::default(),
-                        }),
+                        })),
                     );
 
                     // Transfer the ED from the program-creator to the new program
