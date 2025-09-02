@@ -17,28 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 static int (*CXA_ATEXIT)(void (*)(void*), void*, void*);
-static int (*ATEXIT)(void (*)(void));
-static void (*DTOR_FN)(void);
+static void (*DTORS)(void);
 
 void __gcore_set_fns(
     int (*cxa_atexit)(void (*)(void*), void*, void*),
-    int (*atexit)(void (*)(void)),
-    void (*dtor_fn)(void)
+    void (*dtors)(void)
 ) {
     CXA_ATEXIT = cxa_atexit;
-    ATEXIT = atexit;
-    DTOR_FN = dtor_fn;
+    DTORS = dtors;
 }
 
 int __cxa_atexit(void (*f)(void*), void* arg, void* dso) {
     return CXA_ATEXIT(f, arg, dso);
 }
 
+static void call(void *f) {
+    ((void (*)(void)) (unsigned int) f)();
+}
+
 int atexit(void (*f)(void)) {
-    return ATEXIT(f);
+    return __cxa_atexit(call, (void *) (unsigned int) f, 0);
 }
 
 __attribute__((visibility("hidden")))
 void __wasm_call_dtors(void) {
-    DTOR_FN();
+    DTORS();
 }
