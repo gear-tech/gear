@@ -645,7 +645,7 @@ impl ExtManager {
                 log::debug!("Calling mock program handle for {destination_id:?}");
                 handlers.handle(payload)
             }
-            _ => unreachable!("Unsupported dispatch kind for mock program"),
+            kind => unreachable!("Unsupported dispatch kind {kind:?} for mock program"),
         };
 
         match outcome {
