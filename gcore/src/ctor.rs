@@ -83,15 +83,14 @@ macro_rules! dtor {
 unsafe extern "C" {
     fn __gcore_set_fns(
         cxa_atexit: unsafe extern "C" fn(Dtor, *mut (), *mut ()) -> i32,
+        atexit: unsafe extern "C" fn(AtExitFn) -> i32,
         dtors: unsafe extern "C" fn(),
     );
-
-    pub fn atexit(func: AtExitFn) -> i32;
 }
 
 ctor! {
     unsafe extern "C" fn 10() {
-        unsafe { __gcore_set_fns(cxa_atexit, dtors) };
+        unsafe { __gcore_set_fns(cxa_atexit, atexit, dtors) };
         unsafe { static_mut!(DTORS).clear() };
     }
 }
@@ -104,6 +103,16 @@ unsafe extern "C" fn cxa_atexit(func: Dtor, arg: *mut (), _dso: *mut ()) -> i32 
     }
 
     0
+}
+
+pub unsafe extern "C" fn atexit(f: AtExitFn) -> i32 {
+    unsafe extern "C" fn call(f: *mut ()) {
+        let f = unsafe { mem::transmute::<*mut (), AtExitFn>(f) };
+        unsafe { f() }
+    }
+
+    let f = unsafe { mem::transmute::<AtExitFn, *mut ()>(f) };
+    cxa_atexit(call, f, ptr::null_mut())
 }
 
 unsafe extern "C" fn dtors() {
