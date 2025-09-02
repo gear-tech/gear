@@ -24,10 +24,14 @@ gear-core-errors.workspace = true
 gear-stack-buffer.workspace = true
 thiserror.workspace = true
 arrayvec.workspace = true
+paste.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true
 galloc.workspace = true
+
+[build-dependencies]
+cc = "1.0"
 
 [features]
 codec = ["gear-core-errors/codec", "gprimitives/codec"]
