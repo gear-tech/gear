@@ -1401,17 +1401,14 @@ mod tests {
         let proxy_scheme = Scheme::predefined(
             // init: do nothing
             Calls::builder().noop(),
-            // handle: load message payload and send it to mock program
-            Calls::builder()
-                .add_call(Call::LoadBytes)
-                .add_call(Call::StoreVec("current_payload".to_string()))
-                .add_call(Call::Send(
-                    Arg::new(mock_program_id.into_bytes()),
-                    Arg::new(vec![1, 2, 3]),
-                    None,
-                    Arg::new(0u128),
-                    Arg::new(0u32),
-                )),
+            // handle: send message to mock program
+            Calls::builder().add_call(Call::Send(
+                Arg::new(mock_program_id.into_bytes()),
+                Arg::new(vec![1, 2, 3]),
+                None,
+                Arg::new(0u128),
+                Arg::new(0u32),
+            )),
             // handle_reply: load reply payload and forward it to original sender
             Calls::builder()
                 .add_call(Call::LoadBytes)
@@ -1419,7 +1416,7 @@ mod tests {
                 .add_call(Call::Send(
                     Arg::new(user_id.into_bytes()),
                     Arg::get("reply_payload"),
-                    None,
+                    Some(Arg::new(0u64)),
                     Arg::new(0u128),
                     Arg::new(0u32),
                 )),
@@ -1445,11 +1442,8 @@ mod tests {
         // 3. Mock program should have replied "Hi from mock program"
         // 4. Proxy should have received the reply and sent it to user
 
-        // Verify the final message in user's mailbox contains the mock program's
-        // response
-        let final_mailbox = sys.get_mailbox(user_id);
         assert!(
-            final_mailbox.contains(
+            res.contains(
                 &Log::builder()
                     .source(proxy_program.id())
                     .dest(user_id)

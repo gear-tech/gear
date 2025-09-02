@@ -297,7 +297,7 @@ mod tests {
         let proxy_scheme = Scheme::predefined(
             // init: do nothing
             Calls::builder().noop(),
-            // handle: load message payload and send it to mock program
+            // handle: send message to bls12-381 builtin
             Calls::builder().add_call(Call::Send(
                 Arg::new(BLS12_381_ID.into_bytes()),
                 Arg::new(builtin_req),
