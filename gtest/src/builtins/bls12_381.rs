@@ -333,7 +333,6 @@ mod tests {
     #[test]
     fn test_multi_miller_loop() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -385,7 +384,6 @@ mod tests {
     #[test]
     fn test_final_exponentiation() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -442,7 +440,6 @@ mod tests {
     #[test]
     fn test_msm_g1() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -552,7 +549,6 @@ mod tests {
     #[test]
     fn test_msm_g2() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -662,7 +658,6 @@ mod tests {
     #[test]
     fn test_projective_multiplication_g1() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -717,7 +712,6 @@ mod tests {
     #[test]
     fn test_projective_multiplication_g2() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -772,7 +766,6 @@ mod tests {
     #[test]
     fn test_aggregate_g1() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);
@@ -829,7 +822,6 @@ mod tests {
     #[test]
     fn test_map_to_g2affine() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_pid = ActorId::new([3; 32]);

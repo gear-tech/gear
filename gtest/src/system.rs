@@ -625,7 +625,6 @@ mod tests {
     #[should_panic(expected = "Got message sent to incomplete user program")]
     fn panic_calculate_reply_no_actor() {
         let sys = System::new();
-        sys.init_logger();
 
         let origin = DEFAULT_USER_ALICE;
         let pid = 42;

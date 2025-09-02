@@ -689,7 +689,6 @@ mod tests {
     fn test_handle_signal() {
         use demo_constructor::{Calls, Scheme, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let message = "Signal handle";
@@ -721,7 +720,6 @@ mod tests {
     #[test]
     fn test_queued_message_to_failed_program() {
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
 
@@ -749,7 +747,6 @@ mod tests {
     #[should_panic]
     fn test_new_message_to_failed_program() {
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
 
@@ -766,7 +763,6 @@ mod tests {
     #[test]
     fn simple_balance() {
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = 42;
         let mut user_spent_balance = 0;
@@ -807,7 +803,6 @@ mod tests {
     #[test]
     fn piggy_bank() {
         let sys = System::new();
-        sys.init_logger();
 
         let receiver = 42;
         let sender0 = 43;
@@ -918,7 +913,6 @@ mod tests {
     #[test]
     fn claim_zero_value() {
         let sys = System::new();
-        sys.init_logger();
 
         const RECEIVER_INITIAL_BALANCE: Value = 200 * EXISTENTIAL_DEPOSIT;
 
@@ -980,7 +974,6 @@ mod tests {
     fn save_load_memory_dump() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
@@ -1034,7 +1027,6 @@ mod tests {
     fn process_wait_for() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
@@ -1094,7 +1086,6 @@ mod tests {
         use demo_constructor::{WASM_BINARY, demo_exit_handle};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = 42;
         let mut user_balance = 4 * EXISTENTIAL_DEPOSIT;
@@ -1126,7 +1117,6 @@ mod tests {
     #[test]
     fn test_insufficient_gas() {
         let sys = System::new();
-        sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
@@ -1154,7 +1144,6 @@ mod tests {
         use demo_constructor::{Calls, WASM_BINARY};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
@@ -1203,7 +1192,6 @@ mod tests {
         use demo_constructor::{Calls, WASM_BINARY};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
@@ -1247,7 +1235,6 @@ mod tests {
         use demo_constructor::{Calls, WASM_BINARY};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let prog_id = 4242;
@@ -1311,7 +1298,6 @@ mod tests {
     #[test]
     fn tests_unused_gas_value_not_transferred() {
         let sys = System::new();
-        sys.init_logger();
 
         let user = 42;
         sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
@@ -1330,7 +1316,6 @@ mod tests {
         use demo_delayed_sender::DELAY;
 
         let sys = System::new();
-        sys.init_logger();
 
         let user = DEFAULT_USER_ALICE;
         let program_id = 69;
@@ -1356,7 +1341,6 @@ mod tests {
         use parity_scale_codec::Encode;
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = ActorId::from(DEFAULT_USER_ALICE);
         let mock_program_id = ActorId::new([1; 32]);

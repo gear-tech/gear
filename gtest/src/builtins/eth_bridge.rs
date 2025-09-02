@@ -90,7 +90,6 @@ mod tests {
     #[test]
     fn test_eth_bridge_builtin() {
         let sys = System::new();
-        sys.init_logger();
 
         let alice_actor_id = ActorId::from(DEFAULT_USER_ALICE);
         let proxy_program_id = ActorId::new([3; 32]);
