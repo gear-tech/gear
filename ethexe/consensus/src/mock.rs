@@ -182,7 +182,7 @@ impl Prepare for SimpleBlockData {
         let parent_announce = db
             .block_meta(self.header.parent_hash)
             .announces
-            .map(|a| a[0])
+            .map(|a| a.first().copied().unwrap())
             .unwrap_or(last_committed_announce);
         let announce = Announce::mock((self.hash, parent_announce));
         let announce_hash = db.set_announce(announce);
@@ -194,7 +194,7 @@ impl Prepare for SimpleBlockData {
         db.mutate_block_meta(self.hash, |meta| {
             *meta = BlockMeta {
                 prepared: true,
-                announces: Some(vec![announce_hash]),
+                announces: Some([announce_hash].into()),
                 codes_queue: Some(Default::default()),
                 last_committed_batch: None,
                 last_committed_announce: Some(last_committed_announce),
@@ -231,7 +231,11 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
     // [block3] <- [block2] <- [block1] <- [block0]
 
     let block3 = SimpleBlockData::mock(H256::zero()).prepare(db, AnnounceHash::random());
-    let block3_announce_hash = db.block_meta(block3.hash).announces.map(|a| a[0]).unwrap();
+    let block3_announce_hash = db
+        .block_meta(block3.hash)
+        .announces
+        .map(|a| a.first().copied().unwrap())
+        .unwrap();
 
     let block2 = SimpleBlockData::mock(block3.hash).prepare(db, block3_announce_hash);
     let block1 = SimpleBlockData::mock(block2.hash).prepare(db, block3_announce_hash);
@@ -242,10 +246,24 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
         meta.last_committed_batch = Some(last_committed_batch);
     });
 
-    let cc1 =
-        ChainCommitment::mock(db.block_meta(block1.hash).announces.unwrap()[0]).prepare(db, ());
-    let cc2 =
-        ChainCommitment::mock(db.block_meta(block2.hash).announces.unwrap()[0]).prepare(db, ());
+    let cc1 = ChainCommitment::mock(
+        db.block_meta(block1.hash)
+            .announces
+            .unwrap()
+            .first()
+            .copied()
+            .unwrap(),
+    )
+    .prepare(db, ());
+    let cc2 = ChainCommitment::mock(
+        db.block_meta(block2.hash)
+            .announces
+            .unwrap()
+            .first()
+            .copied()
+            .unwrap(),
+    )
+    .prepare(db, ());
 
     let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
     let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
@@ -259,7 +277,13 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
         previous_batch: last_committed_batch,
         chain_commitment: Some(ChainCommitment {
             transitions: [cc2.transitions, cc1.transitions].concat(),
-            head_announce: db.block_meta(block0.hash).announces.unwrap()[0],
+            head_announce: db
+                .block_meta(block0.hash)
+                .announces
+                .unwrap()
+                .first()
+                .copied()
+                .unwrap(),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,

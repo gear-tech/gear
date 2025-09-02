@@ -203,7 +203,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             let _ = self
                 .db
-                .mutate_latest_data_if_some(|data| data.synced_block_height = block_header.height)
+                .mutate_latest_data(|data| data.synced_block_height = block_header.height)
                 .ok_or_else(|| {
                     log::error!("Failed to update latest data for synced block {hash}");
                 });
