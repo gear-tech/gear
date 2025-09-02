@@ -39,7 +39,7 @@ use parity_scale_codec::{Decode, Encode};
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     pub prepared: bool,
-    pub announces: Option<Vec<AnnounceHash>>,
+    pub announces: Option<BTreeSet<AnnounceHash>>,
     pub codes_queue: Option<VecDeque<CodeId>>,
     pub last_committed_batch: Option<Digest>,
     pub last_committed_announce: Option<AnnounceHash>,
@@ -64,7 +64,7 @@ pub trait BlockMetaStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait BlockMetaStorageWrite {
+pub trait BlockMetaStorageWrite: BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
@@ -82,7 +82,7 @@ pub trait CodesStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait CodesStorageWrite {
+pub trait CodesStorageWrite: CodesStorageRead {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
@@ -101,7 +101,7 @@ pub trait OnChainStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait OnChainStorageWrite {
+pub trait OnChainStorageWrite: OnChainStorageRead {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
@@ -124,7 +124,7 @@ pub trait AnnounceStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait AnnounceStorageWrite {
+pub trait AnnounceStorageWrite: AnnounceStorageRead {
     fn set_announce(&self, announce: Announce) -> AnnounceHash;
     fn set_announce_program_states(
         &self,
@@ -160,31 +160,32 @@ pub trait LatestDataStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait LatestDataStorageWrite {
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>));
-    fn mutate_latest_data_if_some(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
-        let mut return_value = None;
-        self.mutate_latest_data(|data| {
-            if let Some(data) = data.as_mut() {
-                f(data);
-                return_value = Some(());
-            }
-        });
-        return_value
+pub trait LatestDataStorageWrite: LatestDataStorageRead {
+    fn set_latest_data(&self, data: LatestData);
+    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
+        if let Some(mut latest_data) = self.latest_data() {
+            f(&mut latest_data);
+            self.set_latest_data(latest_data);
+            Some(())
+        } else {
+            None
+        }
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FullBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
     pub validators: NonEmpty<Address>,
 
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: Vec<AnnounceHash>,
+    pub announces: BTreeSet<AnnounceHash>,
     pub last_committed_batch: Digest,
     pub last_committed_announce: AnnounceHash,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FullAnnounceData {
     pub announce: Announce,
     pub program_states: ProgramStates,

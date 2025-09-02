@@ -33,6 +33,7 @@ use ethexe_common::{
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    mock::*,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
@@ -455,12 +456,7 @@ async fn mailbox() {
         ),
     ]);
 
-    let announce_hash = node
-        .db
-        .block_meta(block_data.header.parent_hash)
-        .announces
-        .and_then(|mut a| a.pop())
-        .expect("announce must exist");
+    let announce_hash = node.db.top_announce_hash(block_data.header.parent_hash);
     let schedule = node
         .db
         .announce_schedule(announce_hash)
@@ -570,12 +566,7 @@ async fn mailbox() {
     let state = node.db.program_state(state_hash).unwrap();
     assert!(state.mailbox_hash.is_empty());
 
-    let announce_hash = node
-        .db
-        .block_meta(block_data.header.parent_hash)
-        .announces
-        .and_then(|mut a| a.pop())
-        .expect("announce must exist");
+    let announce_hash = node.db.top_announce_hash(block_data.header.parent_hash);
     let schedule = node
         .db
         .announce_schedule(announce_hash)
@@ -1151,7 +1142,7 @@ async fn fast_sync() {
             log::trace!("assert block {block}");
             assert_eq!(alice.db.block_meta(block), bob.db.block_meta(block));
 
-            let announce_hash = alice.db.block_meta(block).announces.expect("Must be set")[0];
+            let announce_hash = alice.db.top_announce_hash(block);
             assert_eq!(
                 alice.db.announce_meta(announce_hash),
                 bob.db.announce_meta(announce_hash)

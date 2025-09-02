@@ -146,7 +146,7 @@ async fn prepare_one_block(
     if parent_announces.len() != 1 {
         todo!("TODO #4813: Currently supporting exactly one announce per block only");
     }
-    let parent_announce_hash = parent_announces[0];
+    let parent_announce_hash = parent_announces.first().copied().unwrap();
 
     let new_base_announce_hash = propagate_from_parent_announce(
         db,
@@ -171,12 +171,12 @@ async fn prepare_one_block(
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
-        meta.announces = Some(vec![new_base_announce_hash]);
+        meta.announces = Some([new_base_announce_hash].into());
         meta.last_committed_announce = Some(last_committed_announce_hash);
         meta.prepared = true;
     });
 
-    db.mutate_latest_data_if_some(|data| {
+    db.mutate_latest_data(|data| {
         data.prepared_block_hash = block.hash;
         data.computed_announce_hash = new_base_announce_hash;
     })
@@ -342,7 +342,7 @@ mod tests {
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta {
                 prepared: true,
-                announces: Some(vec![parent_announce.hash()]),
+                announces: Some([parent_announce.hash()].into()),
                 codes_queue: Some(vec![code1_id].into()),
                 last_committed_batch: Some(Digest::random()),
                 last_committed_announce: Some(AnnounceHash::random()),
@@ -352,7 +352,7 @@ mod tests {
 
         db.set_block_header(block.hash, block.header);
 
-        db.mutate_latest_data(|data| *data = Some(Default::default()));
+        db.set_latest_data(Default::default());
 
         let events = vec![
             BlockEvent::Router(RouterEvent::BatchCommitted {
@@ -385,7 +385,7 @@ mod tests {
         assert_eq!(meta.last_committed_announce, Some(parent_announce.hash()));
         assert_eq!(meta.announces.as_ref().map(|a| a.len()), Some(1));
 
-        let announce_hash = meta.announces.unwrap()[0];
+        let announce_hash = meta.announces.unwrap().first().copied().unwrap();
         let announce = db.announce(announce_hash).unwrap();
         assert_eq!(
             announce,
