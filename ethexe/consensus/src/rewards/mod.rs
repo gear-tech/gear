@@ -45,7 +45,7 @@ const REWARDS_CONFIRMATION_SLOTS_WINDOW: u64 = 5;
 const STAKER_REWARDS_RATIO: u32 = 90;
 const PERCENTAGE_DENOMINATOR: u32 = 100;
 
-/// Window to wait for previous era 
+/// Window to wait for previous era
 const PREV_ERA_: u64 = alloy::eips::merge::SLOT_DURATION * 10;
 
 #[derive(thiserror::Error, Debug)]
@@ -269,16 +269,15 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + Clone> RewardsManager<DB> {
             .decimals()
             .await?;
 
-        Ok(Self {
-            db,
-            config: Config {
-                genesis_timestamp,
-                era_duration,
-                slot_duration_secs: alloy::eips::merge::SLOT_DURATION_SECS,
-                wvara_decimals,
-                wvara_address,
-            },
-        })
+        let config = Config {
+            genesis_timestamp,
+            era_duration,
+            slot_duration_secs: alloy::eips::merge::SLOT_DURATION_SECS,
+            wvara_decimals,
+            wvara_address,
+        };
+
+        Ok(Self { db, config })
     }
 
     #[cfg(test)]

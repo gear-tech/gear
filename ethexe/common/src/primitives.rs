@@ -183,15 +183,22 @@ pub enum RewardsState {
     },
 }
 
+/// [`OperatorStakingInfo`] contains staking information for an operator.
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Default)]
+pub struct OperatorStakingInfo {
+    // The current stake of the operator.
+    pub stake: U256,
+    // The vaults staked to the operator and their amounts.
+    pub staked_vaults: Vec<(Address, U256)>,
+}
+
 /// [`StakingEraMetadata`] contains metadata from Ethereum about the current staking era.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Default)]
 pub struct StakingEraMetadata {
     // The total amount of rewards distributed to operators up to the current era.
     pub operators_rewards_distribution: BTreeMap<Address, U256>,
-    // Mapping from operator address to its staked vaults with stake in them.
-    pub operators_staked_vaults: BTreeMap<Address, Vec<(Address, U256)>>,
-    // The total amount of stake for the operator in the current era.
-    pub operators_stake: BTreeMap<Address, U256>,
+    // The operators staking information for the current era.
+    pub operators_info: BTreeMap<Address, OperatorStakingInfo>,
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)

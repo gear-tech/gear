@@ -19,8 +19,10 @@
 // TODO #4552: add tests for observer utils
 
 use alloy::{
-    network::{Ethereum, Network},
-    providers::{Provider as _, RootProvider},
+    consensus::BlockHeader,
+    eips::BlockNumberOrTag,
+    network::{BlockResponse, Ethereum, Network},
+    providers::{Provider, RootProvider},
     rpc::{
         client::BatchRequest,
         types::{
@@ -28,13 +30,59 @@ use alloy::{
             eth::{Filter, Topic},
         },
     },
+    transports::{BoxFuture, RpcError, TransportErrorKind},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
 use ethexe_ethereum::{mirror, router, wvara};
-use futures::{FutureExt, future, stream::FuturesUnordered};
+use futures::{FutureExt, Stream, future, stream::FuturesUnordered};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture};
+
+type GetBlockFuture<N: Network> =
+    BoxFuture<'static, Result<Option<N::BlockResponse>, RpcError<TransportErrorKind>>>;
+type SleepFuture = BoxFuture<'static, ()>;
+
+pub(crate) struct FinalizedBlocksStream<P, N: Network = Ethereum> {
+    // Control flow futures
+    fut: Option<GetBlockFuture<N>>,
+    sleep_fut: Option<BoxFuture<'statis, ()>>,
+
+    // Cached d
+    previous_finalized: Option<N::BlockResponse>,
+
+    provider: P,
+}
+
+impl<P: Provider<N> + Clone, N: Network> FinalizedBlocksStream<P, N> {
+    pub async fn new(provider: P) -> Result<Self> {
+        let previous_finalized = provider
+            .get_block_by_number(BlockNumberOrTag::Finalized)
+            .await?
+            .unwrap();
+        let n = previous_finalized.header();
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).into_future();
+    }
+}
+
+impl<P, N> Stream for FinalizedBlocksStream<P>
+where
+    P: Provider<N> + Clone,
+    N: Network,
+{
+    type Item = Result<N::Header>;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let block = self
+            .provider
+            .get_block_by_number(BlockNumberOrTag::Finalized)
+            .into_future();
+    }
+}
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;

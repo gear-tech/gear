@@ -84,7 +84,6 @@ struct RuntimeConfig {
     middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    // block_time: Duration,
     genesis_timestamp: u64,
     era_duration: u64,
 }
