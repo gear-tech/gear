@@ -18,10 +18,11 @@
 
 use super::*;
 use crate::{
+    WasmProgram,
     builtins::{self, BLS12_381_ID, BuiltinActorError, ETH_BRIDGE_ID},
     state::{
         blocks,
-        programs::{GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
+        programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID},
     },
 };
 use core_processor::{
@@ -392,16 +393,16 @@ impl ExtManager {
 
             // Dispatch to mock or regular program based on the type
             match program {
-                GTestProgram::Default(Program::Active(active_program)) => self.process_program(
+                GTestProgram::Default {
+                    primary: Program::Active(active_program),
+                } => self.process_program(
                     block_config,
                     context,
                     active_program,
                     dispatch_kind,
                     destination_id,
                 ),
-                GTestProgram::Mock(mock_program) => {
-                    self.process_mock_program(context, mock_program)
-                }
+                GTestProgram::Mock { handlers, .. } => self.process_mock_program(context, handlers),
                 _ => {
                     unreachable!("Program {destination_id:?} is in unexpected state - {program:?}");
                 }
@@ -629,12 +630,11 @@ impl ExtManager {
     fn process_mock_program(
         &mut self,
         context: ContextCharged<ForProgram>,
-        mock_program: &mut MockWasmProgram,
+        handlers: &mut Box<dyn WasmProgram>,
     ) -> Vec<JournalNote> {
         let (destination_id, dispatch, gas_counter, _) = context.into_parts();
         let payload = dispatch.payload().to_vec();
         let dispatch_kind = dispatch.kind();
-        let handlers = mock_program.handlers_mut();
 
         let outcome = match dispatch_kind {
             DispatchKind::Init => {

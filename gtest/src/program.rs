@@ -20,9 +20,7 @@ use crate::{
     MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
-    state::programs::{
-        GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager,
-    },
+    state::programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
     system::System,
 };
 use gear_common::Origin;
@@ -251,16 +249,18 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            GTestProgram::Default(PrimaryProgram::Active(ActiveProgram {
-                allocations_tree_len: 0,
-                code_id: code_id.cast(),
-                state: ProgramState::Uninitialized {
-                    message_id: PLACEHOLDER_MESSAGE_ID,
-                },
-                expiration_block,
-                memory_infix: Default::default(),
-                gas_reservation_map: Default::default(),
-            })),
+            GTestProgram::Default {
+                primary: PrimaryProgram::Active(ActiveProgram {
+                    allocations_tree_len: 0,
+                    code_id: code_id.cast(),
+                    state: ProgramState::Uninitialized {
+                        message_id: PLACEHOLDER_MESSAGE_ID,
+                    },
+                    expiration_block,
+                    memory_infix: Default::default(),
+                    gas_reservation_map: Default::default(),
+                }),
+            },
         )
     }
 
@@ -406,8 +406,14 @@ impl<'a> Program<'a> {
             expiration_block: system.0.borrow().block_height(),
         });
 
-        let mock_program = MockWasmProgram::new(Box::new(mock), primary_program);
-        Self::program_with_id(system, id, GTestProgram::Mock(mock_program))
+        Self::program_with_id(
+            system,
+            id,
+            GTestProgram::Mock {
+                primary: primary_program,
+                handlers: Box::new(mock),
+            },
+        )
     }
 
     /// Send message to the program.
