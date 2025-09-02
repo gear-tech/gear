@@ -91,7 +91,7 @@ jobs:
     name: node (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker

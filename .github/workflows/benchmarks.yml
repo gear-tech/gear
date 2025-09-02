@@ -59,7 +59,7 @@ jobs:
         echo "::add-mask::$TOKEN"
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Check Capacity
       id: get-region
@@ -121,7 +121,7 @@ jobs:
       pull-requests: write
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -177,7 +177,7 @@ jobs:
 
       - name: Create commit
         if: ${{ inputs.change-type == 'commit' }}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "chore(runtime): update weights"
           file_pattern: >-
@@ -216,7 +216,7 @@ jobs:
         aws-region: us-west-2
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         sparse-checkout: terraform
 
