@@ -18,10 +18,11 @@
 
 use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockHeader, Digest, SimpleBlockData, ToDigest,
+    Address, AnnounceHash, Digest, ToDigest,
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    mock::*,
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;
@@ -37,48 +38,6 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
         .map(|&key| signer.storage_mut().add_key(key).unwrap())
         .collect();
     (signer, private_keys, public_keys)
-}
-
-pub trait Mock {
-    type Args;
-
-    fn mock(args: Self::Args) -> Self;
-}
-
-impl<T: Mock + ToDigest> Mock for SignedData<T> {
-    type Args = (Signer, PublicKey, T::Args);
-
-    fn mock((signer, public_key, args): Self::Args) -> Self {
-        signer.signed_data(public_key, T::mock(args)).unwrap()
-    }
-}
-
-impl Mock for SimpleBlockData {
-    type Args = H256;
-
-    fn mock(parent: H256) -> Self {
-        SimpleBlockData {
-            hash: H256::random(),
-            header: BlockHeader {
-                height: 43,
-                timestamp: 120,
-                parent_hash: parent,
-            },
-        }
-    }
-}
-
-impl Mock for Announce {
-    type Args = (H256, AnnounceHash);
-
-    fn mock((block_hash, parent): (H256, AnnounceHash)) -> Self {
-        Announce {
-            block_hash,
-            parent,
-            gas_allowance: Some(100),
-            off_chain_transactions: vec![],
-        }
-    }
 }
 
 impl Mock for BatchCommitmentValidationRequest {
@@ -106,184 +65,37 @@ impl Mock for BatchCommitmentValidationReply {
     }
 }
 
-impl Mock for CodeCommitment {
-    type Args = ();
+/// Prepare chain with case:
+/// ```txt
+/// chain:                  [genesis] <- [block1] <- [block2] <- [block3]
+/// transitions:                0           2           2           0
+/// codes in queue:             0           0           0           2
+/// last_committed_batch:      zero        zero        zero        zero
+/// last_committed_announce:  genesis     genesis     genesis     genesis
+/// ```
+pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
+    let mut chain = BlockChain::mock((4, None));
 
-    fn mock(_args: Self::Args) -> Self {
-        CodeCommitment {
-            id: H256::random().into(),
-            valid: true,
-        }
-    }
-}
+    let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.hash());
+    let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.hash());
+    chain.block_top_announce_mut(1).outcome = chain_commitment1.transitions.clone();
+    chain.block_top_announce_mut(2).outcome = chain_commitment2.transitions.clone();
 
-impl Mock for ChainCommitment {
-    type Args = AnnounceHash;
+    let code_commitment1 = CodeCommitment::mock(());
+    let code_commitment2 = CodeCommitment::mock(());
+    chain.blocks[3].1.codes_queue = [code_commitment1.id, code_commitment2.id].into();
 
-    fn mock(head_announce: Self::Args) -> Self {
-        ChainCommitment {
-            transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
-            head_announce,
-        }
-    }
-}
-
-impl Mock for BatchCommitment {
-    type Args = ();
-
-    fn mock(_args: Self::Args) -> Self {
-        BatchCommitment {
-            block_hash: H256::random(),
-            timestamp: 42,
-            previous_batch: Digest::random(),
-            chain_commitment: Some(ChainCommitment::mock(AnnounceHash::random())),
-            code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
-            validators_commitment: None,
-            rewards_commitment: None,
-        }
-    }
-}
-
-impl Mock for StateTransition {
-    type Args = ();
-
-    fn mock(_args: Self::Args) -> Self {
-        StateTransition {
-            actor_id: H256::random().into(),
-            new_state_hash: H256::random(),
-            inheritor: H256::random().into(),
-            value_to_receive: 123,
-            value_claims: vec![],
-            messages: vec![Message {
-                id: H256::random().into(),
-                destination: H256::random().into(),
-                payload: b"Hello, World!".to_vec(),
-                value: 0,
-                reply_details: None,
-                call: false,
-            }],
-            exited: false,
-        }
-    }
-}
-
-pub trait Prepare {
-    type Args;
-
-    fn prepare(self, db: &Database, args: Self::Args) -> Self;
-}
-
-impl Prepare for SimpleBlockData {
-    type Args = AnnounceHash;
-
-    fn prepare(self, db: &Database, last_committed_announce: AnnounceHash) -> Self {
-        db.set_block_header(self.hash, self.header);
-
-        let parent_announce = db
-            .block_meta(self.header.parent_hash)
-            .announces
-            .map(|a| a.first().copied().unwrap())
-            .unwrap_or(last_committed_announce);
-        let announce = Announce::mock((self.hash, parent_announce));
-        let announce_hash = db.set_announce(announce);
-        db.set_announce_outcome(announce_hash, Default::default());
-        db.mutate_announce_meta(announce_hash, |meta| {
-            *meta = AnnounceMeta { computed: true }
-        });
-
-        db.mutate_block_meta(self.hash, |meta| {
-            *meta = BlockMeta {
-                prepared: true,
-                announces: Some([announce_hash].into()),
-                codes_queue: Some(Default::default()),
-                last_committed_batch: None,
-                last_committed_announce: Some(last_committed_announce),
-            }
-        });
-
-        self
-    }
-}
-
-impl Prepare for CodeCommitment {
-    type Args = ();
-
-    fn prepare(self, db: &Database, _args: ()) -> Self {
-        db.set_code_valid(self.id, self.valid);
-        self
-    }
-}
-
-impl Prepare for ChainCommitment {
-    type Args = ();
-
-    fn prepare(self, db: &Database, _args: ()) -> Self {
-        let Self {
-            transitions,
-            head_announce: head,
-        } = &self;
-        db.set_announce_outcome(*head, transitions.clone());
-        self
-    }
-}
-
-pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
-    // [block3] <- [block2] <- [block1] <- [block0]
-
-    let block3 = SimpleBlockData::mock(H256::zero()).prepare(db, AnnounceHash::random());
-    let block3_announce_hash = db
-        .block_meta(block3.hash)
-        .announces
-        .map(|a| a.first().copied().unwrap())
-        .unwrap();
-
-    let block2 = SimpleBlockData::mock(block3.hash).prepare(db, block3_announce_hash);
-    let block1 = SimpleBlockData::mock(block2.hash).prepare(db, block3_announce_hash);
-    let block0 = SimpleBlockData::mock(block1.hash).prepare(db, block3_announce_hash);
-
-    let last_committed_batch = Digest::random();
-    db.mutate_block_meta(block0.hash, |meta| {
-        meta.last_committed_batch = Some(last_committed_batch);
-    });
-
-    let cc1 = ChainCommitment::mock(
-        db.block_meta(block1.hash)
-            .announces
-            .unwrap()
-            .first()
-            .copied()
-            .unwrap(),
-    )
-    .prepare(db, ());
-    let cc2 = ChainCommitment::mock(
-        db.block_meta(block2.hash)
-            .announces
-            .unwrap()
-            .first()
-            .copied()
-            .unwrap(),
-    )
-    .prepare(db, ());
-
-    let code_commitment1 = CodeCommitment::mock(()).prepare(db, ());
-    let code_commitment2 = CodeCommitment::mock(()).prepare(db, ());
-    db.mutate_block_meta(block0.hash, |m| {
-        m.codes_queue = Some(From::from([code_commitment1.id, code_commitment2.id]))
-    });
+    let chain = chain.prepare(db, ());
+    db.set_code_valid(code_commitment1.id, code_commitment1.valid);
+    db.set_code_valid(code_commitment2.id, code_commitment2.valid);
 
     BatchCommitment {
-        block_hash: block0.hash,
-        timestamp: block0.header.timestamp,
-        previous_batch: last_committed_batch,
+        block_hash: chain.blocks[3].0,
+        timestamp: chain.blocks[3].1.header.timestamp,
+        previous_batch: Digest::zero(),
         chain_commitment: Some(ChainCommitment {
-            transitions: [cc2.transitions, cc1.transitions].concat(),
-            head_announce: db
-                .block_meta(block0.hash)
-                .announces
-                .unwrap()
-                .first()
-                .copied()
-                .unwrap(),
+            transitions: [chain_commitment1.transitions, chain_commitment2.transitions].concat(),
+            head_announce: db.top_announce_hash(chain.blocks[3].0),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,
@@ -291,26 +103,20 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
     }
 }
 
-pub trait DBExt {
-    fn simple_block_data(&self, block: H256) -> SimpleBlockData;
-    fn announce_hash(&self, block: H256) -> AnnounceHash;
+pub trait SignerMockExt {
+    fn mock_signed_data<T: Mock + ToDigest>(
+        &self,
+        pub_key: PublicKey,
+        args: T::Args,
+    ) -> SignedData<T>;
 }
 
-impl DBExt for Database {
-    fn simple_block_data(&self, block: H256) -> SimpleBlockData {
-        let header = self.block_header(block).expect("block header not found");
-        SimpleBlockData {
-            hash: block,
-            header,
-        }
-    }
-
-    fn announce_hash(&self, block: H256) -> AnnounceHash {
-        self.block_meta(block)
-            .announces
-            .expect("block announces not found")
-            .into_iter()
-            .next()
-            .expect("must be at list one announce")
+impl SignerMockExt for Signer {
+    fn mock_signed_data<T: Mock + ToDigest>(
+        &self,
+        pub_key: PublicKey,
+        args: T::Args,
+    ) -> SignedData<T> {
+        self.signed_data(pub_key, T::mock(args)).unwrap()
     }
 }
