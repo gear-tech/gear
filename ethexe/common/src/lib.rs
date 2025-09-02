@@ -26,10 +26,12 @@ mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
-pub mod mock;
 mod primitives;
 pub mod tx_pool;
 mod utils;
+
+#[cfg(feature = "mock")]
+pub mod mock;
 
 pub use crypto::*;
 pub use gear_core;

@@ -504,7 +504,7 @@ env_logger = "0.11.8"                                        # lazy-pages-fuzzer
 errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 ipc-channel = "0.19.0"                                       # lazy-pages-fuzzer
-itertools = "0.13"                                           # utils/wasm-builder
+itertools = { version = "0.13", default-features = false }   # utils/wasm-builder
 keyring = "1.2.1"                                            # gcli
 libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.46", default-features = false }  # node/cli
