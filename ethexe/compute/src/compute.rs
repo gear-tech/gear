@@ -98,10 +98,10 @@ pub(crate) async fn compute<P: ProcessorExt>(
 
     db.mutate_block_meta(block_hash, |meta| {
         // Currently we replace announces, but we would append in future as separate branch
-        meta.announces = Some(vec![announce_hash]);
+        meta.announces = Some([announce_hash].into());
     });
 
-    db.mutate_latest_data_if_some(|data| {
+    db.mutate_latest_data(|data| {
         data.computed_announce_hash = announce_hash;
     })
     .ok_or(ComputeError::LatestDataNotFound)?;
@@ -141,7 +141,7 @@ mod tests {
         // Setup block as prepared
         db.mutate_block_meta(block_hash, |meta| {
             *meta = BlockMeta {
-                announces: Some(vec![AnnounceHash::random()]),
+                announces: Some([AnnounceHash::random()].into()),
                 ..BlockMeta::default_prepared()
             }
         });

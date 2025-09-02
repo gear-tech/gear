@@ -78,7 +78,7 @@ impl OngoingResponses {
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_meta(request.at)
                     .announces
-                    .and_then(|mut a| a.pop())
+                    .and_then(|a| a.first().copied())
                     .and_then(|announce_hash| {
                         db.announce_program_states(announce_hash)
                             .map(|states| states.into_keys().collect())

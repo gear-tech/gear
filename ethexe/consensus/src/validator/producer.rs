@@ -340,7 +340,7 @@ mod tests {
         // Set parent announce
         ctx.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some(vec![AnnounceHash::random()]);
+            meta.announces = Some([AnnounceHash::random()].into());
         });
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
@@ -425,7 +425,7 @@ mod tests {
 
         ctx.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some(vec![AnnounceHash::random()]);
+            meta.announces = Some([AnnounceHash::random()].into());
         });
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
