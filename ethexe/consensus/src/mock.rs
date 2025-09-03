@@ -78,24 +78,27 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
 
     let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.hash());
     let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.hash());
-    chain.block_top_announce_mut(1).outcome = chain_commitment1.transitions.clone();
-    chain.block_top_announce_mut(2).outcome = chain_commitment2.transitions.clone();
+    chain.block_top_announce_mut(1).as_computed_mut().outcome =
+        chain_commitment1.transitions.clone();
+    chain.block_top_announce_mut(2).as_computed_mut().outcome =
+        chain_commitment2.transitions.clone();
 
     let code_commitment1 = CodeCommitment::mock(());
     let code_commitment2 = CodeCommitment::mock(());
-    chain.blocks[3].1.codes_queue = [code_commitment1.id, code_commitment2.id].into();
+    chain.blocks[3].prepared.as_mut().unwrap().codes_queue =
+        [code_commitment1.id, code_commitment2.id].into();
 
     let chain = chain.prepare(db, ());
     db.set_code_valid(code_commitment1.id, code_commitment1.valid);
     db.set_code_valid(code_commitment2.id, code_commitment2.valid);
 
     BatchCommitment {
-        block_hash: chain.blocks[3].0,
-        timestamp: chain.blocks[3].1.header.timestamp,
+        block_hash: chain.blocks[3].hash,
+        timestamp: chain.blocks[3].as_synced().header.timestamp,
         previous_batch: Digest::zero(),
         chain_commitment: Some(ChainCommitment {
             transitions: [chain_commitment1.transitions, chain_commitment2.transitions].concat(),
-            head_announce: db.top_announce_hash(chain.blocks[3].0),
+            head_announce: db.top_announce_hash(chain.blocks[3].hash),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,

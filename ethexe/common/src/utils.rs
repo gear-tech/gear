@@ -137,7 +137,7 @@ pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
 ) {
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
-    db.set_validators(block_hash, block_data.validators);
+    db.set_block_validators(block_hash, block_data.validators);
     db.set_block_synced(block_hash);
 
     db.mutate_block_meta(block_hash, |meta| {
