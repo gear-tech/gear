@@ -336,7 +336,6 @@ mod tests {
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
         let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
-        // let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
         let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         // Set parent announce
