@@ -335,7 +335,8 @@ mod tests {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
-        let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
+        let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
+        // let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
         let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         // Set parent announce
@@ -421,7 +422,7 @@ mod tests {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
-        let block = SimpleBlockData::mock(parent).prepare(&ctx.db, AnnounceHash::random());
+        let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
         let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         ctx.db.mutate_block_meta(parent, |meta| {
@@ -429,8 +430,10 @@ mod tests {
             meta.announces = Some([AnnounceHash::random()].into());
         });
 
-        let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
-        let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
+        let code1 = CodeCommitment::mock(());
+        let code2 = CodeCommitment::mock(());
+        ctx.db.set_code_valid(code1.id, code1.valid);
+        ctx.db.set_code_valid(code2.id, code2.valid);
         ctx.db.mutate_block_meta(block.hash, |meta| {
             meta.codes_queue = Some([code1.id, code2.id].into_iter().collect())
         });

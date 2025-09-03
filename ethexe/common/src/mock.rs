@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::{BTreeSet, VecDeque};
+pub use tap::Tap;
 
 use crate::{
     Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
@@ -29,10 +29,15 @@ use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
-use nonempty::NonEmpty;
+use nonempty::{NonEmpty, nonempty};
+use std::collections::{BTreeSet, VecDeque};
 
 pub trait Mock<Args> {
     fn mock(args: Args) -> Self;
+}
+
+pub trait DBSetup<DB> {
+    fn setup(self, db: &DB) -> Self;
 }
 
 impl Mock<H256> for SimpleBlockData {
@@ -51,6 +56,13 @@ impl Mock<H256> for SimpleBlockData {
 impl Mock<()> for SimpleBlockData {
     fn mock(_args: ()) -> Self {
         SimpleBlockData::mock(H256::random())
+    }
+}
+
+impl<DB: OnChainStorageWrite> DBSetup<DB> for SimpleBlockData {
+    fn setup(self, db: &DB) -> Self {
+        db.set_block_header(self.hash, self.header);
+        self
     }
 }
 
@@ -136,69 +148,6 @@ impl Mock<()> for StateTransition {
     }
 }
 
-pub trait Prepare<DB> {
-    type Args;
-
-    fn prepare(self, db: &DB, args: Self::Args) -> Self;
-}
-
-// +_+_+ fix
-impl<DB: AnnounceStorageWrite + BlockMetaStorageWrite + OnChainStorageWrite> Prepare<DB>
-    for SimpleBlockData
-{
-    type Args = AnnounceHash;
-
-    fn prepare(self, db: &DB, last_committed_announce: AnnounceHash) -> Self {
-        db.set_block_header(self.hash, self.header);
-
-        let parent_announce = db
-            .block_meta(self.header.parent_hash)
-            .announces
-            .map(|a| *a.first().unwrap())
-            .unwrap_or(last_committed_announce);
-        let announce = Announce::mock((self.hash, parent_announce));
-        let announce_hash = db.set_announce(announce);
-        db.set_announce_outcome(announce_hash, Default::default());
-        db.mutate_announce_meta(announce_hash, |meta| {
-            *meta = AnnounceMeta { computed: true }
-        });
-
-        db.mutate_block_meta(self.hash, |meta| {
-            *meta = BlockMeta {
-                prepared: true,
-                announces: Some([announce_hash].into()),
-                codes_queue: Some(Default::default()),
-                last_committed_batch: None,
-                last_committed_announce: Some(last_committed_announce),
-            }
-        });
-
-        self
-    }
-}
-
-impl<DB: CodesStorageWrite> Prepare<DB> for CodeCommitment {
-    type Args = ();
-
-    fn prepare(self, db: &DB, _args: ()) -> Self {
-        db.set_code_valid(self.id, self.valid);
-        self
-    }
-}
-
-impl<DB: AnnounceStorageWrite> Prepare<DB> for ChainCommitment {
-    type Args = ();
-
-    fn prepare(self, db: &DB, _args: ()) -> Self {
-        let Self {
-            transitions,
-            head_announce: head,
-        } = &self;
-        db.set_announce_outcome(*head, transitions.clone());
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncedBlockData {
     pub header: BlockHeader,
@@ -236,6 +185,67 @@ impl BlockData {
 
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
         self.prepared.as_mut().expect("block not prepared")
+    }
+
+    pub fn to_simple(&self) -> SimpleBlockData {
+        SimpleBlockData {
+            hash: self.hash,
+            header: self.as_synced().header,
+        }
+    }
+}
+
+impl Mock<()> for BlockData {
+    fn mock(_args: ()) -> Self {
+        BlockData {
+            hash: H256::random(),
+            synced: Some(SyncedBlockData {
+                header: BlockHeader {
+                    height: 42,
+                    timestamp: 120,
+                    parent_hash: H256::random(),
+                },
+                events: vec![],
+                validators: nonempty![Address([123; 20])],
+            }),
+            prepared: Some(PreparedBlockData {
+                codes_queue: Default::default(),
+                announces: [AnnounceHash::random()].into(),
+                last_committed_batch: Digest::zero(),
+                last_committed_announce: AnnounceHash::zero(),
+            }),
+        }
+    }
+}
+
+impl<DB: OnChainStorageWrite + BlockMetaStorageWrite> DBSetup<DB> for BlockData {
+    fn setup(self, db: &DB) -> Self {
+        let BlockData {
+            hash,
+            synced,
+            prepared,
+        } = self.clone();
+
+        if let Some(synced) = synced {
+            db.set_block_header(hash, synced.header);
+            db.set_block_events(hash, &synced.events);
+            db.set_block_validators(hash, synced.validators.clone());
+            db.set_block_synced(hash);
+        }
+
+        if let Some(prepared) = prepared {
+            db.mutate_block_meta(hash, |meta| {
+                *meta = BlockMeta {
+                    prepared: true,
+                    announces: Some(prepared.announces),
+                    codes_queue: Some(prepared.codes_queue),
+                    last_committed_batch: Some(prepared.last_committed_batch),
+                    last_committed_announce: Some(prepared.last_committed_announce),
+                }
+            });
+        }
+
+        self
     }
 }
 
@@ -383,7 +393,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
 
 impl Mock<u32> for BlockChain {
     fn mock(len: u32) -> Self {
-        BlockChain::mock((len, nonempty::nonempty![Address([123; 20])]))
+        BlockChain::mock((len, nonempty![Address([123; 20])]))
     }
 }
 
@@ -393,11 +403,9 @@ impl<
         + OnChainStorageWrite
         + CodesStorageWrite
         + LatestDataStorageWrite,
-> Prepare<DB> for BlockChain
+> DBSetup<DB> for BlockChain
 {
-    type Args = ();
-
-    fn prepare(self, db: &DB, _args: Self::Args) -> Self {
+    fn setup(self, db: &DB) -> Self {
         let BlockChain {
             blocks,
             announces,
@@ -424,47 +432,24 @@ impl<
             }
         }
 
-        for BlockData {
-            hash,
-            synced,
-            prepared,
-        } in blocks
-        {
-            if let Some(SyncedBlockData {
-                header,
-                events,
-                validators,
-            }) = synced
-            {
+        for block in blocks {
+            let block = block.setup(db);
+
+            if let Some(SyncedBlockData { header, .. }) = block.synced {
                 db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
                     .unwrap();
-
-                db.set_block_header(hash, header);
-                db.set_block_events(hash, &events);
-                db.set_block_validators(hash, validators);
-                db.set_block_synced(hash);
             }
 
-            if let Some(PreparedBlockData {
-                codes_queue,
-                announces,
-                last_committed_batch,
-                last_committed_announce,
-            }) = prepared
-            {
+            if let Some(PreparedBlockData { announces, .. }) = block.prepared {
                 db.mutate_latest_data(|latest| {
-                    latest.prepared_block_hash = hash;
+                    latest.prepared_block_hash = block.hash;
                 });
 
-                db.mutate_block_meta(hash, |meta| {
-                    *meta = BlockMeta {
-                        prepared: true,
-                        announces: Some(announces),
-                        codes_queue: Some(codes_queue),
-                        last_committed_batch: Some(last_committed_batch),
-                        last_committed_announce: Some(last_committed_announce),
-                    }
-                });
+                if let Some(announce_hash) = announces.last().copied() {
+                    db.mutate_latest_data(|latest| {
+                        latest.computed_announce_hash = announce_hash;
+                    });
+                }
             }
         }
 
@@ -476,10 +461,6 @@ impl<
                 schedule,
             }) = computed
             {
-                db.mutate_latest_data(|latest| {
-                    latest.computed_announce_hash = announce_hash;
-                });
-
                 db.set_announce_outcome(announce_hash, outcome);
                 db.set_announce_program_states(announce_hash, program_states);
                 db.set_announce_schedule(announce_hash, schedule);
