@@ -21,7 +21,7 @@ use ethexe_common::{
     CodeBlobInfo,
     db::*,
     events::{BlockEvent, RouterEvent},
-    mock::{BlockChain, CodeData, DBMockExt, Mock, Prepare},
+    mock::{BlockChain, CodeData, DBMockExt, DBSetup, Mock},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
@@ -136,7 +136,7 @@ impl TestEnv {
         let mut chain = BlockChain::mock(chain_len + 1);
         insert_code_events(&mut chain, events_in_block);
         mark_as_not_prepared(&mut chain);
-        let chain = chain.prepare(&db, ());
+        let chain = chain.setup(&db);
 
         let compute = ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap());
 
