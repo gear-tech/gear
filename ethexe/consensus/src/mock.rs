@@ -40,27 +40,12 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
     (signer, private_keys, public_keys)
 }
 
-impl Mock for BatchCommitmentValidationRequest {
-    type Args = ();
-
-    fn mock(_args: Self::Args) -> Self {
+impl Mock<()> for BatchCommitmentValidationRequest {
+    fn mock(_args: ()) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
             head: Some(AnnounceHash(H256::random())),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
-        }
-    }
-}
-
-impl Mock for BatchCommitmentValidationReply {
-    type Args = (Signer, PublicKey, Address, Digest);
-
-    fn mock((signer, public_key, contract_address, digest): Self::Args) -> Self {
-        BatchCommitmentValidationReply {
-            digest,
-            signature: signer
-                .sign_for_contract(contract_address, public_key, digest)
-                .unwrap(),
         }
     }
 }
@@ -74,7 +59,7 @@ impl Mock for BatchCommitmentValidationReply {
 /// last_committed_announce:  genesis     genesis     genesis     genesis
 /// ```
 pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
-    let mut chain = BlockChain::mock((4, None));
+    let mut chain = BlockChain::mock(4);
 
     let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.hash());
     let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.hash());
@@ -89,6 +74,9 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         [code_commitment1.id, code_commitment2.id].into();
 
     let chain = chain.prepare(db, ());
+
+    // NOTE: we skipped codes instrumented data in `chain`, so mark them as valid manually,
+    // but instrumented data is still not in db.
     db.set_code_valid(code_commitment1.id, code_commitment1.valid);
     db.set_code_valid(code_commitment2.id, code_commitment2.valid);
 
@@ -107,19 +95,40 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
 }
 
 pub trait SignerMockExt {
-    fn mock_signed_data<T: Mock + ToDigest>(
+    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
         &self,
         pub_key: PublicKey,
-        args: T::Args,
-    ) -> SignedData<T>;
+        args: T,
+    ) -> SignedData<M>;
+
+    fn validation_reply(
+        &self,
+        pub_key: PublicKey,
+        contract_address: Address,
+        digest: Digest,
+    ) -> BatchCommitmentValidationReply;
 }
 
 impl SignerMockExt for Signer {
-    fn mock_signed_data<T: Mock + ToDigest>(
+    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
         &self,
         pub_key: PublicKey,
-        args: T::Args,
-    ) -> SignedData<T> {
-        self.signed_data(pub_key, T::mock(args)).unwrap()
+        args: T,
+    ) -> SignedData<M> {
+        self.signed_data(pub_key, M::mock(args)).unwrap()
+    }
+
+    fn validation_reply(
+        &self,
+        public_key: PublicKey,
+        contract_address: Address,
+        digest: Digest,
+    ) -> BatchCommitmentValidationReply {
+        BatchCommitmentValidationReply {
+            digest,
+            signature: self
+                .sign_for_contract(contract_address, public_key, digest)
+                .unwrap(),
+        }
     }
 }
