@@ -173,7 +173,6 @@ pub trait LatestDataStorageWrite: LatestDataStorageRead {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FullBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
@@ -185,7 +184,6 @@ pub struct FullBlockData {
     pub last_committed_announce: AnnounceHash,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FullAnnounceData {
     pub announce: Announce,
     pub program_states: ProgramStates,
