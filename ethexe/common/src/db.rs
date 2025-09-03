@@ -105,7 +105,7 @@ pub trait OnChainStorageWrite: OnChainStorageRead {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
+    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
     fn set_block_synced(&self, block_hash: H256);
 }
 
