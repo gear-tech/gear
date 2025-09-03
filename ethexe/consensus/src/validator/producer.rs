@@ -314,7 +314,7 @@ mod tests {
     async fn create() {
         let (mut ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         ctx.pending(PendingEvent::ValidationRequest(
             ctx.signer.mock_signed_data(keys[0], ()),
