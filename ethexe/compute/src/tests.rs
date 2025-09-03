@@ -18,20 +18,16 @@
 
 use super::*;
 use ethexe_common::{
-    Address, BlockHeader, SimpleBlockData,
+    CodeBlobInfo,
     db::*,
     events::{BlockEvent, RouterEvent},
-    mock::DBMockExt,
+    mock::{BlockChain, CodeData, DBMockExt, Mock, Prepare},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt;
-use nonempty::nonempty;
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashMap, VecDeque},
-};
+use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
     pub(crate) static PROCESSOR_RESULT: RefCell<BlockProcessingResult> = const { RefCell::new(
@@ -87,20 +83,22 @@ fn create_new_code(nonce: u32) -> Vec<u8> {
 
 // Generate codes for the given chain and store the events in the database
 // Return a map with `CodeId` and corresponding code bytes
-fn generate_codes(
-    db: &impl OnChainStorageWrite,
-    chain: &VecDeque<H256>,
-    events_in_block: u32,
-) -> HashMap<CodeId, Vec<u8>> {
+fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
     let mut nonce = 0;
-    let mut codes_storage = HashMap::new();
-    for block in chain.iter().copied() {
-        let events: Vec<BlockEvent> = (0..events_in_block)
+    for data in chain.blocks.iter_mut().map(|data| data.as_synced_mut()) {
+        data.events = (0..events_in_block)
             .map(|_| {
                 nonce += 1;
                 let code = create_new_code(nonce);
                 let code_id = CodeId::generate(&code);
-                codes_storage.insert(code_id, code);
+                chain.codes.insert(
+                    code_id,
+                    CodeData {
+                        original_bytes: code,
+                        blob_info: CodeBlobInfo::default(),
+                        instrumented: None,
+                    },
+                );
 
                 BlockEvent::Router(RouterEvent::CodeGotValidated {
                     code_id,
@@ -108,62 +106,48 @@ fn generate_codes(
                 })
             })
             .collect();
-
-        log::trace!("Generated {:?} events for block {}", events, block);
-        db.set_block_events(block, &events);
     }
-    codes_storage
 }
 
-// Generate a chain with the given length and setup the genesis block
-fn generate_chain(db: &Database, chain_len: u32) -> VecDeque<H256> {
-    let mut chain = VecDeque::new();
-
-    let mut parent_hash = H256::from_low_u64_be(u64::MAX);
-    for block_num in 0..chain_len + 1 {
-        let block = SimpleBlockData {
-            hash: H256::from_low_u64_be(
-                // Use block number as low 32 bits of the hash, avoiding zero hash
-                if block_num != 0 { block_num } else { u32::MAX } as u64,
-            ),
-            header: BlockHeader {
-                height: block_num,
-                timestamp: (block_num * 10) as u64,
-                parent_hash,
-            },
-        };
-
-        if block_num == 0 {
-            ethexe_common::setup_genesis_in_db(
-                db,
-                block.clone(),
-                nonempty![Address::from([1; 20])],
-            );
-        }
-
-        db.set_block_header(block.hash, block.header);
-        db.set_block_events(block.hash, Default::default());
-        db.set_block_synced(block.hash);
-
-        chain.push_back(block.hash);
-        parent_hash = block.hash;
+fn mark_as_not_prepared(chain: &mut BlockChain) {
+    // skip genesis
+    for block in chain.blocks.iter_mut().skip(1) {
+        block.prepared = None;
     }
 
+    // remove all announces except genesis announce
+    let genesis_announce_hash = chain.block_top_announce_hash(0);
     chain
+        .announces
+        .retain(|hash, _| *hash == genesis_announce_hash);
 }
 
-// A wrapper around the `ComputeService` to correctly handle code processing and block preparation
-struct WrappedComputeService {
-    inner: ComputeService,
-    codes_storage: HashMap<CodeId, Vec<u8>>,
+struct TestEnv {
+    db: Database,
+    compute: ComputeService,
+    chain: BlockChain,
 }
 
-impl WrappedComputeService {
+impl TestEnv {
+    // Setup the chain and compute service.
+    fn new(chain_len: u32, events_in_block: u32) -> TestEnv {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock((chain_len + 1, None));
+        insert_code_events(&mut chain, events_in_block);
+        mark_as_not_prepared(&mut chain);
+        let chain = chain.prepare(&db, ());
+
+        let compute = ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap());
+
+        TestEnv { db, compute, chain }
+    }
+
     async fn prepare_and_assert_block(&mut self, block: H256) {
-        self.inner.prepare_block(block);
+        self.compute.prepare_block(block);
 
         let event = self
-            .inner
+            .compute
             .next()
             .await
             .unwrap()
@@ -171,16 +155,19 @@ impl WrappedComputeService {
         let codes_to_load = event.unwrap_request_load_codes();
 
         for code_id in codes_to_load {
-            // skip if code not validated
-            let Some(code) = self.codes_storage.remove(&code_id) else {
+            let Some(CodeData {
+                original_bytes: code,
+                ..
+            }) = self.chain.codes.remove(&code_id)
+            else {
                 continue;
             };
 
-            self.inner
+            self.compute
                 .process_code(CodeAndIdUnchecked { code, code_id });
 
             let event = self
-                .inner
+                .compute
                 .next()
                 .await
                 .unwrap()
@@ -191,7 +178,7 @@ impl WrappedComputeService {
         }
 
         let event = self
-            .inner
+            .compute
             .next()
             .await
             .unwrap()
@@ -202,10 +189,10 @@ impl WrappedComputeService {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.hash();
-        self.inner.compute_announce(announce);
+        self.compute.compute_announce(announce);
 
         let event = self
-            .inner
+            .compute
             .next()
             .await
             .unwrap()
@@ -214,23 +201,6 @@ impl WrappedComputeService {
         let processed_announce = event.unwrap_announce_computed();
         assert_eq!(processed_announce, announce_hash);
     }
-}
-
-// Setup the chain and compute service.
-// It is needed to reduce the copy-paste in tests.
-fn setup(
-    db: &Database,
-    chain_len: u32,
-    events_in_block: u32,
-) -> (VecDeque<H256>, WrappedComputeService) {
-    let chain = generate_chain(db, chain_len);
-    let codes_storage = generate_codes(db, &chain, events_in_block);
-
-    let compute = WrappedComputeService {
-        inner: ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap()),
-        codes_storage,
-    };
-    (chain, compute)
 }
 
 fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> Announce {
@@ -248,15 +218,13 @@ fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> 
 async fn block_computation_basic() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let chain_len = 1;
-    let db = Database::memory();
-    let (chain, mut compute) = setup(&db, chain_len, 3);
+    let mut env = TestEnv::new(1, 3);
 
-    for block in chain.into_iter().skip(1) {
-        compute.prepare_and_assert_block(block).await;
+    for block in env.chain.blocks.clone().iter().skip(1) {
+        env.prepare_and_assert_block(block.hash).await;
 
-        let announce = new_announce(&db, block, Some(100));
-        compute.compute_and_assert_announce(announce).await;
+        let announce = new_announce(&env.db, block.hash, Some(100));
+        env.compute_and_assert_announce(announce).await;
     }
 
     Ok(())
@@ -266,21 +234,14 @@ async fn block_computation_basic() -> Result<()> {
 async fn multiple_preparation_and_one_processing() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let chain_len = 3;
-    let db = Database::memory();
-    let (mut chain, mut compute) = setup(&db, chain_len, 3);
+    let mut env = TestEnv::new(3, 3);
 
-    let _genesis = chain.pop_front().unwrap();
-    let block1 = chain.pop_front().unwrap();
-    let block2 = chain.pop_front().unwrap();
-    let block3 = chain.pop_front().unwrap();
+    for block in env.chain.blocks.clone().iter().skip(1) {
+        env.prepare_and_assert_block(block.hash).await;
+    }
 
-    compute.prepare_and_assert_block(block1).await;
-    compute.prepare_and_assert_block(block2).await;
-    compute.prepare_and_assert_block(block3).await;
-
-    let announce = new_announce(&db, block3, Some(100));
-    compute.compute_and_assert_announce(announce).await;
+    let announce = new_announce(&env.db, env.chain.blocks[3].hash, Some(100));
+    env.compute_and_assert_announce(announce).await;
 
     Ok(())
 }
@@ -289,27 +250,14 @@ async fn multiple_preparation_and_one_processing() -> Result<()> {
 async fn one_preparation_and_multiple_processing() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let chain_len = 3;
-    let db = Database::memory();
-    let (mut chain, mut compute) = setup(&db, chain_len, 3);
+    let mut env = TestEnv::new(3, 3);
 
-    let _genesis = chain.pop_front().unwrap();
-    let block1 = chain.pop_front().unwrap();
-    let block2 = chain.pop_front().unwrap();
-    let block3 = chain.pop_front().unwrap();
+    env.prepare_and_assert_block(env.chain.blocks[3].hash).await;
 
-    log::trace!("blocks: {_genesis}, {}, {}, {}", block1, block2, block3);
-
-    compute.prepare_and_assert_block(block3).await;
-
-    let announce1 = new_announce(&db, block1, Some(100));
-    compute.compute_and_assert_announce(announce1).await;
-
-    let announce2 = new_announce(&db, block2, Some(100));
-    compute.compute_and_assert_announce(announce2).await;
-
-    let announce3 = new_announce(&db, block3, Some(100));
-    compute.compute_and_assert_announce(announce3).await;
+    for block in env.chain.blocks.clone().iter().skip(1) {
+        let announce = new_announce(&env.db, block.hash, Some(100));
+        env.compute_and_assert_announce(announce).await;
+    }
 
     Ok(())
 }
@@ -318,12 +266,9 @@ async fn one_preparation_and_multiple_processing() -> Result<()> {
 async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let chain_len = 1;
-    let db = Database::memory();
-    let (mut chain, mut compute) = setup(&db, chain_len, 3);
+    let mut env = TestEnv::new(1, 3);
 
-    let block = chain.pop_back().unwrap();
-    let mut block_events = db.block_events(block).unwrap();
+    let mut block_events = env.chain.blocks[1].as_synced().events.clone();
 
     // add invalid event which shouldn't stop block prepare
     block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested {
@@ -331,12 +276,13 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
         timestamp: 0u64,
         tx_hash: H256::random(),
     }));
-    db.set_block_events(block, &block_events);
-    compute.prepare_and_assert_block(block).await;
+    env.db
+        .set_block_events(env.chain.blocks[1].hash, &block_events);
+    env.prepare_and_assert_block(env.chain.blocks[1].hash).await;
 
-    let announce = new_announce(&db, block, Some(100));
-    compute.compute_and_assert_announce(announce.clone()).await;
-    compute.compute_and_assert_announce(announce.clone()).await;
+    let announce = new_announce(&env.db, env.chain.blocks[1].hash, Some(100));
+    env.compute_and_assert_announce(announce.clone()).await;
+    env.compute_and_assert_announce(announce.clone()).await;
 
     Ok(())
 }

@@ -188,7 +188,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                 ))?
             }
         };
-        self.db.set_validators(block, validators.clone());
+        self.db.set_block_validators(block, validators.clone());
         Ok(())
     }
 

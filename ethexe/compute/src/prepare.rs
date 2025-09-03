@@ -348,7 +348,7 @@ mod tests {
                 last_committed_announce: Some(AnnounceHash::random()),
             }
         });
-        db.set_validators(parent_hash, validators.clone());
+        db.set_block_validators(parent_hash, validators.clone());
 
         db.set_block_header(block.hash, block.header);
 
@@ -370,7 +370,7 @@ mod tests {
             }),
         ];
         db.set_block_events(block.hash, &events);
-        db.set_validators(block.hash, validators);
+        db.set_block_validators(block.hash, validators);
         db.set_block_synced(block.hash);
 
         // Prepare the block

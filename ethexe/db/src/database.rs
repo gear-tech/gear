@@ -524,7 +524,7 @@ impl OnChainStorageWrite for Database {
         });
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
