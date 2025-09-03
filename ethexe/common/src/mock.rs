@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 
 use crate::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, SimpleBlockData,
+    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    SimpleBlockData,
     db::*,
+    events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    utils,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -188,42 +189,119 @@ impl<DB: AnnounceStorageWrite> Prepare<DB> for ChainCommitment {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FullCodeData {
-    pub original_bytes: Vec<u8>,
+pub struct SyncedBlockData {
+    pub header: BlockHeader,
+    pub events: Vec<BlockEvent>,
+    pub validators: NonEmpty<Address>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedBlockData {
+    pub codes_queue: VecDeque<CodeId>,
+    pub announces: BTreeSet<AnnounceHash>,
+    pub last_committed_batch: Digest,
+    pub last_committed_announce: AnnounceHash,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockData {
+    pub hash: H256,
+    pub synced: Option<SyncedBlockData>,
+    pub prepared: Option<PreparedBlockData>,
+}
+
+impl BlockData {
+    pub fn as_synced(&self) -> &SyncedBlockData {
+        self.synced.as_ref().expect("block not synced")
+    }
+
+    pub fn as_prepared(&self) -> &PreparedBlockData {
+        self.prepared.as_ref().expect("block not prepared")
+    }
+
+    pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
+        self.synced.as_mut().expect("block not synced")
+    }
+
+    pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
+        self.prepared.as_mut().expect("block not prepared")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputedAnnounceData {
+    pub outcome: Vec<StateTransition>,
+    pub program_states: ProgramStates,
+    pub schedule: Schedule,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnounceData {
+    pub announce: Announce,
+    pub computed: Option<ComputedAnnounceData>,
+}
+
+impl AnnounceData {
+    pub fn as_computed(&self) -> &ComputedAnnounceData {
+        self.computed.as_ref().expect("announce not computed")
+    }
+
+    pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
+        self.computed.as_mut().expect("announce not computed")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstrumentedCodeData {
     pub instrumented: InstrumentedCode,
-    pub blob_info: CodeBlobInfo,
     pub meta: CodeMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeData {
+    pub original_bytes: Vec<u8>,
+    pub blob_info: CodeBlobInfo,
+    pub instrumented: Option<InstrumentedCodeData>,
+}
+
+impl CodeData {
+    pub fn as_instrumented(&self) -> &InstrumentedCodeData {
+        self.instrumented.as_ref().expect("code not instrumented")
+    }
+
+    pub fn as_instrumented_mut(&mut self) -> &mut InstrumentedCodeData {
+        self.instrumented.as_mut().expect("code not instrumented")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
-    pub blocks: VecDeque<(H256, FullBlockData)>,
-    pub announces: BTreeMap<AnnounceHash, FullAnnounceData>,
-    pub codes: BTreeMap<CodeId, FullCodeData>,
+    pub blocks: VecDeque<BlockData>,
+    pub announces: BTreeMap<AnnounceHash, AnnounceData>,
+    pub codes: BTreeMap<CodeId, CodeData>,
 }
 
 impl BlockChain {
-    pub fn genesis(&self) -> &(H256, FullBlockData) {
-        self.blocks.front().expect("empty chain")
+    pub fn block_top_announce_hash(&self, block_index: usize) -> AnnounceHash {
+        self.blocks
+            .get(block_index)
+            .expect("block index overflow")
+            .as_prepared()
+            .announces
+            .first()
+            .copied()
+            .expect("no announces found for block")
     }
 
-    pub fn head(&self) -> &(H256, FullBlockData) {
-        self.blocks.back().expect("empty chain")
-    }
-
-    pub fn block_top_announce(&self, block_index: usize) -> &FullAnnounceData {
-        let block = &self.blocks[block_index];
-        let announce_hash = block.1.announces.first().expect("no announces");
+    pub fn block_top_announce(&self, block_index: usize) -> &AnnounceData {
         self.announces
-            .get(announce_hash)
+            .get(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
-    pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut FullAnnounceData {
-        let block = &self.blocks[block_index];
-        let announce_hash = block.1.announces.first().expect("no announces");
+    pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut AnnounceData {
         self.announces
-            .get_mut(announce_hash)
+            .get_mut(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 }
@@ -237,25 +315,28 @@ impl Mock for BlockChain {
 
         // genesis starts from i == 1
         let mut blocks: VecDeque<_> = (0..len + 1)
-            .map(|i| (H256::random(), i, i * 12))
+            .map(|i| (H256::from_low_u64_be(i as u64), i, i * 12))
             .tuple_windows()
             .map(
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
-                    let data = FullBlockData {
-                        header: BlockHeader {
-                            height: block_height,
-                            timestamp: block_timestamp as u64,
-                            parent_hash,
-                        },
-                        events: Default::default(),
-                        validators: validators.clone(),
-                        codes_queue: Default::default(),
-                        announces: Default::default(), // empty here, filled below with announces
-                        last_committed_batch: Digest::zero(),
-                        last_committed_announce: AnnounceHash::zero(),
-                    };
-
-                    (block_hash, data)
+                    BlockData {
+                        hash: block_hash,
+                        synced: Some(SyncedBlockData {
+                            header: BlockHeader {
+                                height: block_height,
+                                timestamp: block_timestamp as u64,
+                                parent_hash,
+                            },
+                            events: Default::default(),
+                            validators: validators.clone(),
+                        }),
+                        prepared: Some(PreparedBlockData {
+                            codes_queue: Default::default(),
+                            announces: Default::default(), // empty here, filled below with announces
+                            last_committed_batch: Digest::zero(),
+                            last_committed_announce: AnnounceHash::zero(),
+                        }),
+                    }
                 },
             )
             .collect();
@@ -264,20 +345,23 @@ impl Mock for BlockChain {
         let mut parent_announce_hash = AnnounceHash::zero();
         let announces = blocks
             .iter_mut()
-            .map(|(block_hash, block_data)| {
-                let announce = Announce::base(*block_hash, parent_announce_hash);
+            .map(|block| {
+                let announce = Announce::base(block.hash, parent_announce_hash);
                 let announce_hash = announce.hash();
                 let genesis_announce_hash = genesis_announce_hash.get_or_insert(announce_hash);
-                block_data.announces.insert(announce_hash);
-                block_data.last_committed_announce = *genesis_announce_hash;
+                let prepared_data = block.prepared.as_mut().unwrap();
+                prepared_data.announces.insert(announce_hash);
+                prepared_data.last_committed_announce = *genesis_announce_hash;
                 parent_announce_hash = announce_hash;
                 (
                     announce_hash,
-                    FullAnnounceData {
+                    AnnounceData {
                         announce,
-                        outcome: Default::default(),
-                        program_states: Default::default(),
-                        schedule: Default::default(),
+                        computed: Some(ComputedAnnounceData {
+                            outcome: Default::default(),
+                            program_states: Default::default(),
+                            schedule: Default::default(),
+                        }),
                     },
                 )
             })
@@ -308,39 +392,108 @@ impl<
             codes,
         } = self.clone();
 
-        for (_, announce_data) in announces {
-            utils::setup_announce_in_db(db, announce_data);
+        db.set_latest_data(LatestData::default());
+
+        if let Some(genesis) = blocks.front() {
+            db.mutate_latest_data(|latest| {
+                latest.genesis_block_hash = genesis.hash;
+                latest.start_block_hash = genesis.hash;
+            })
+            .unwrap();
+
+            if let Some(prepared) = &genesis.prepared
+                && let Some(first_announce) = prepared.announces.first()
+            {
+                db.mutate_latest_data(|latest| {
+                    latest.genesis_announce_hash = *first_announce;
+                    latest.start_announce_hash = *first_announce;
+                })
+                .unwrap();
+            }
         }
 
-        if let Some((
+        for BlockData {
             hash,
-            FullBlockData {
-                header, validators, ..
-            },
-        )) = blocks.front().cloned()
+            synced,
+            prepared,
+        } in blocks
         {
-            utils::setup_genesis_in_db(db, SimpleBlockData { hash, header }, validators);
+            if let Some(SyncedBlockData {
+                header,
+                events,
+                validators,
+            }) = synced
+            {
+                db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
+                    .unwrap();
+
+                db.set_block_header(hash, header);
+                db.set_block_events(hash, &events);
+                db.set_block_validators(hash, validators);
+                db.set_block_synced(hash);
+            }
+
+            if let Some(PreparedBlockData {
+                codes_queue,
+                announces,
+                last_committed_batch,
+                last_committed_announce,
+            }) = prepared
+            {
+                db.mutate_latest_data(|latest| {
+                    latest.prepared_block_hash = hash;
+                });
+
+                db.mutate_block_meta(hash, |meta| {
+                    *meta = BlockMeta {
+                        prepared: true,
+                        announces: Some(announces),
+                        codes_queue: Some(codes_queue),
+                        last_committed_batch: Some(last_committed_batch),
+                        last_committed_announce: Some(last_committed_announce),
+                    }
+                });
+            }
         }
 
-        for (block_hash, block_data) in blocks {
-            utils::setup_block_in_db(db, block_hash, block_data);
+        for (announce_hash, AnnounceData { announce, computed }) in announces {
+            db.set_announce(announce);
+            if let Some(ComputedAnnounceData {
+                outcome,
+                program_states,
+                schedule,
+            }) = computed
+            {
+                db.mutate_latest_data(|latest| {
+                    latest.computed_announce_hash = announce_hash;
+                });
+
+                db.set_announce_outcome(announce_hash, outcome);
+                db.set_announce_program_states(announce_hash, program_states);
+                db.set_announce_schedule(announce_hash, schedule);
+                db.mutate_announce_meta(announce_hash, |meta| {
+                    *meta = AnnounceMeta { computed: true }
+                });
+            }
         }
 
         for (
             code_id,
-            FullCodeData {
+            CodeData {
                 original_bytes,
-                instrumented,
                 blob_info,
-                meta,
+                instrumented,
             },
         ) in codes
         {
             db.set_original_code(&original_bytes);
-            db.set_instrumented_code(1, code_id, instrumented);
-            db.set_code_metadata(code_id, meta);
-            db.set_code_blob_info(code_id, blob_info);
-            db.set_code_valid(code_id, true);
+
+            if let Some(InstrumentedCodeData { instrumented, meta }) = instrumented {
+                db.set_instrumented_code(1, code_id, instrumented);
+                db.set_code_metadata(code_id, meta);
+                db.set_code_blob_info(code_id, blob_info);
+                db.set_code_valid(code_id, true);
+            }
         }
 
         self

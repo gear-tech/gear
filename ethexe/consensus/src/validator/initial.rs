@@ -154,7 +154,7 @@ mod tests {
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators(block.hash, validators.clone());
+        ctx.db.set_block_validators(block.hash, validators.clone());
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -173,7 +173,7 @@ mod tests {
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 1;
 
-        ctx.db.set_validators(block.hash, validators);
+        ctx.db.set_block_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
