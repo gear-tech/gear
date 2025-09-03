@@ -73,7 +73,7 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     chain.blocks[3].prepared.as_mut().unwrap().codes_queue =
         [code_commitment1.id, code_commitment2.id].into();
 
-    let chain = chain.prepare(db, ());
+    let head = chain.setup(db).blocks.remove(3).unwrap();
 
     // NOTE: we skipped codes instrumented data in `chain`, so mark them as valid manually,
     // but instrumented data is still not in db.
@@ -81,12 +81,12 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     db.set_code_valid(code_commitment2.id, code_commitment2.valid);
 
     BatchCommitment {
-        block_hash: chain.blocks[3].hash,
-        timestamp: chain.blocks[3].as_synced().header.timestamp,
+        block_hash: head.hash,
+        timestamp: head.as_synced().header.timestamp,
         previous_batch: Digest::zero(),
         chain_commitment: Some(ChainCommitment {
             transitions: [chain_commitment1.transitions, chain_commitment2.transitions].concat(),
-            head_announce: db.top_announce_hash(chain.blocks[3].hash),
+            head_announce: db.top_announce_hash(head.hash),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,

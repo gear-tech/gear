@@ -211,8 +211,7 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{AnnounceHash, Digest, gear::CodeCommitment, mock::*};
-    use gprimitives::H256;
+    use ethexe_common::{Digest, gear::CodeCommitment, mock::*};
 
     #[test]
     fn create() {
@@ -244,15 +243,13 @@ mod tests {
         ));
 
         // Block from producer - must be kept
-        ctx.pending(PendingEvent::Announce(ctx.signer.mock_signed_data(
-            producer,
-            (H256::random(), AnnounceHash::random()),
-        )));
+        ctx.pending(PendingEvent::Announce(
+            ctx.signer.mock_signed_data(producer, ()),
+        ));
 
         // Block from alice - must be kept
         ctx.pending(PendingEvent::Announce(
-            ctx.signer
-                .mock_signed_data(alice, (H256::random(), AnnounceHash::random())),
+            ctx.signer.mock_signed_data(alice, ()),
         ));
 
         let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
@@ -358,7 +355,7 @@ mod tests {
     fn test_empty_codes_and_blocks() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(()).prepare(&ctx.db, AnnounceHash::random());
+        let block = SimpleBlockData::mock(()).setup(&ctx.db);
 
         // Create a request with empty blocks and codes
         let request = BatchCommitmentValidationRequest {

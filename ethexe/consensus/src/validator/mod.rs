@@ -359,8 +359,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_computed_announce(announce))
     }
 
-    fn process_announce(self, block: SignedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_announce(block))
+    fn process_announce(self, announce: SignedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_announce(announce))
     }
 
     fn process_validation_request(
