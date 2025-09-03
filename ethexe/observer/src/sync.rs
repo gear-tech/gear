@@ -18,15 +18,12 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{
-    RuntimeConfig,
-    utils::{load_block_data, load_blocks_data_batched},
-};
+use crate::{RuntimeConfig, utils};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{LatestDataStorageWrite, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
@@ -35,19 +32,8 @@ use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::collections::HashMap;
 
-pub(crate) trait SyncDB:
-    OnChainStorageRead + OnChainStorageWrite + LatestDataStorageRead + LatestDataStorageWrite + Clone
-{
-}
-impl<
-    T: OnChainStorageRead
-        + OnChainStorageWrite
-        + LatestDataStorageRead
-        + LatestDataStorageWrite
-        + Clone,
-> SyncDB for T
-{
-}
+pub(crate) trait SyncDB: OnChainStorageWrite + LatestDataStorageWrite + Clone {}
+impl<T: OnChainStorageWrite + LatestDataStorageWrite + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -88,7 +74,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
-                    load_block_data(
+                    utils::load_block_data(
                         self.provider.clone(),
                         hash,
                         self.config.router_address,
@@ -161,7 +147,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        load_blocks_data_batched(
+        utils::load_blocks_data_batched(
             self.provider.clone(),
             latest.synced_block_height as u64,
             header.height as u64,
