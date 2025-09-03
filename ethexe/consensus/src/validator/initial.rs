@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
@@ -151,7 +151,7 @@ mod tests {
             keys[1].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(H256::random());
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 0;
 
         ctx.db.set_block_validators(block.hash, validators.clone());
@@ -170,7 +170,7 @@ mod tests {
             keys[2].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(H256::random());
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 1;
 
         ctx.db.set_block_validators(block.hash, validators);
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn process_synced_block_rejected() {
         let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         let initial = Initial::create(ctx)
             .unwrap()

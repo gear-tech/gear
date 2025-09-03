@@ -218,7 +218,7 @@ mod tests {
     fn create() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
@@ -231,7 +231,7 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         // Validation request from alice - must be kept
         ctx.pending(PendingEvent::ValidationRequest(
@@ -311,7 +311,7 @@ mod tests {
     fn process_validation_request_failure() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
         let signed_request = ctx.signer.mock_signed_data(producer, ());
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
@@ -358,7 +358,7 @@ mod tests {
     fn test_empty_codes_and_blocks() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
+        let block = SimpleBlockData::mock(()).prepare(&ctx.db, AnnounceHash::random());
 
         // Create a request with empty blocks and codes
         let request = BatchCommitmentValidationRequest {

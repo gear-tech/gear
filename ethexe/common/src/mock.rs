@@ -31,30 +31,30 @@ use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use nonempty::NonEmpty;
 
-pub trait Mock {
-    type Args;
-
-    fn mock(args: Self::Args) -> Self;
+pub trait Mock<Args> {
+    fn mock(args: Args) -> Self;
 }
 
-impl Mock for SimpleBlockData {
-    type Args = H256;
-
-    fn mock(parent: H256) -> Self {
+impl Mock<H256> for SimpleBlockData {
+    fn mock(parent_hash: H256) -> Self {
         SimpleBlockData {
             hash: H256::random(),
             header: BlockHeader {
                 height: 43,
                 timestamp: 120,
-                parent_hash: parent,
+                parent_hash,
             },
         }
     }
 }
 
-impl Mock for Announce {
-    type Args = (H256, AnnounceHash);
+impl Mock<()> for SimpleBlockData {
+    fn mock(_args: ()) -> Self {
+        SimpleBlockData::mock(H256::random())
+    }
+}
 
+impl Mock<(H256, AnnounceHash)> for Announce {
     fn mock((block_hash, parent): (H256, AnnounceHash)) -> Self {
         Announce {
             block_hash,
@@ -65,10 +65,20 @@ impl Mock for Announce {
     }
 }
 
-impl Mock for CodeCommitment {
-    type Args = ();
+impl Mock<H256> for Announce {
+    fn mock(block_hash: H256) -> Self {
+        Announce::mock((block_hash, AnnounceHash::random()))
+    }
+}
 
-    fn mock(_args: Self::Args) -> Self {
+impl Mock<()> for Announce {
+    fn mock(_args: ()) -> Self {
+        Announce::mock(H256::random())
+    }
+}
+
+impl Mock<()> for CodeCommitment {
+    fn mock(_args: ()) -> Self {
         CodeCommitment {
             id: H256::random().into(),
             valid: true,
@@ -76,10 +86,8 @@ impl Mock for CodeCommitment {
     }
 }
 
-impl Mock for ChainCommitment {
-    type Args = AnnounceHash;
-
-    fn mock(head_announce: Self::Args) -> Self {
+impl Mock<AnnounceHash> for ChainCommitment {
+    fn mock(head_announce: AnnounceHash) -> Self {
         ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
             head_announce,
@@ -87,10 +95,14 @@ impl Mock for ChainCommitment {
     }
 }
 
-impl Mock for BatchCommitment {
-    type Args = ();
+impl Mock<()> for ChainCommitment {
+    fn mock(_args: ()) -> Self {
+        ChainCommitment::mock(AnnounceHash::random())
+    }
+}
 
-    fn mock(_args: Self::Args) -> Self {
+impl Mock<()> for BatchCommitment {
+    fn mock(_args: ()) -> Self {
         BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
@@ -103,10 +115,8 @@ impl Mock for BatchCommitment {
     }
 }
 
-impl Mock for StateTransition {
-    type Args = ();
-
-    fn mock(_args: Self::Args) -> Self {
+impl Mock<()> for StateTransition {
+    fn mock(_args: ()) -> Self {
         StateTransition {
             actor_id: H256::random().into(),
             new_state_hash: H256::random(),
@@ -132,6 +142,7 @@ pub trait Prepare<DB> {
     fn prepare(self, db: &DB, args: Self::Args) -> Self;
 }
 
+// +_+_+ fix
 impl<DB: AnnounceStorageWrite + BlockMetaStorageWrite + OnChainStorageWrite> Prepare<DB>
     for SimpleBlockData
 {
@@ -306,13 +317,8 @@ impl BlockChain {
     }
 }
 
-impl Mock for BlockChain {
-    type Args = (u32, Option<Vec<Address>>);
-
-    fn mock((len, maybe_validators): Self::Args) -> Self {
-        let validators =
-            NonEmpty::from_vec(maybe_validators.unwrap_or(vec![Address([123; 20])])).unwrap();
-
+impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
+    fn mock((len, validators): (u32, NonEmpty<Address>)) -> Self {
         // genesis starts from i == 1
         let mut blocks: VecDeque<_> = (0..len + 1)
             .map(|i| (H256::from_low_u64_be(i as u64), i, i * 12))
@@ -372,6 +378,12 @@ impl Mock for BlockChain {
             announces,
             codes: Default::default(),
         }
+    }
+}
+
+impl Mock<u32> for BlockChain {
+    fn mock(len: u32) -> Self {
+        BlockChain::mock((len, nonempty::nonempty![Address([123; 20])]))
     }
 }
 
