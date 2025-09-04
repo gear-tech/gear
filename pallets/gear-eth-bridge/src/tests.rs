@@ -278,7 +278,13 @@ fn bridge_queue_root_changes() {
 
         on_finalize_gear_block(WHEN_INITIALIZED);
 
-        System::assert_last_event(Event::QueueMerkleRootChanged(expected_root).into());
+        System::assert_last_event(
+            Event::QueueMerkleRootChanged {
+                queue_id: 0,
+                root: expected_root,
+            }
+            .into(),
+        );
         assert!(!QueueChanged::get());
 
         on_initialize(WHEN_INITIALIZED + 1);
@@ -326,7 +332,7 @@ fn bridge_updates_authorities_and_clears() {
         assert_eq!(System::events().len(), 7);
         assert!(matches!(
             System::events().last().expect("infallible").event,
-            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged(_))
+            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged { .. })
         ));
         assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
 
@@ -385,10 +391,7 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(
             12,
             74,
-            [
-                Event::AuthoritySetHashReset.into(),
-                Event::QueueMerkleRootReset.into(),
-            ],
+            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
         );
 
         assert!(!AuthoritySetHash::exists());
@@ -439,10 +442,7 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(
             18,
             110,
-            [
-                Event::AuthoritySetHashReset.into(),
-                Event::QueueMerkleRootReset.into(),
-            ],
+            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
         );
     })
 }

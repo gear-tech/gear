@@ -3426,7 +3426,7 @@ pub mod runtime_types {
                     #[doc = "Authority set hash was reset."]
                     #[doc = ""]
                     #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
-                    AuthoritySetHashReset,
+                    AuthoritySetReset,
                     #[codec(index = 2)]
                     #[doc = "Optimistically, single-time called event defining that pallet"]
                     #[doc = "got initialized and started processing session changes,"]
@@ -3446,12 +3446,15 @@ pub mod runtime_types {
                     },
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
-                    QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
+                    QueueMerkleRootChanged {
+                        queue_id: ::core::primitive::u64,
+                        root: ::subxt::ext::subxt_core::utils::H256,
+                    },
                     #[codec(index = 7)]
-                    #[doc = "Queue merkle root was reset."]
+                    #[doc = "Queue was reset."]
                     #[doc = ""]
                     #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
-                    QueueMerkleRootReset,
+                    QueueReset,
                 }
             }
         }
@@ -11590,6 +11593,7 @@ pub mod storage {
         AuthoritySetHash,
         QueueMerkleRoot,
         Queue,
+        QueueId,
         SessionsTimer,
         ClearTimer,
         MessageNonce,
@@ -11605,6 +11609,7 @@ pub mod storage {
                 Self::AuthoritySetHash => "AuthoritySetHash",
                 Self::QueueMerkleRoot => "QueueMerkleRoot",
                 Self::Queue => "Queue",
+                Self::QueueId => "QueueId",
                 Self::SessionsTimer => "SessionsTimer",
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",

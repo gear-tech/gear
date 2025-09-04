@@ -18,7 +18,7 @@
 
 use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
-    Queue, QueueCapacityOf, QueueChanged, QueueMerkleRoot,
+    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot,
 };
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
 use gprimitives::{ActorId, H160, H256, U256};
@@ -53,30 +53,32 @@ impl<T: Config> Pallet<T> {
     }
 
     /// Updates the queue merkle root in storage and emits an event if it has changed.
-    pub(super) fn update_queue_merkle_root() {
+    pub(super) fn update_queue_merkle_root_if_changed() {
+        if !QueueChanged::<T>::take() {
+            return;
+        }
+
         log::debug!("Updating the queue merkle root");
 
         // Querying actual queue.
         let queue = Queue::<T>::get();
 
-        let merkle_root = if queue.is_empty() {
-            // Empty queue should always result in zero hash.
-            H256::zero()
-        } else {
-            // Actual hash recalculation.
-            binary_merkle_tree::merkle_root::<Keccak256, _>(queue)
-        };
-
-        // Checking if we should update the merkle root.
-        let changed = QueueMerkleRoot::<T>::get() != Some(merkle_root);
-
-        if changed {
-            // Updating queue merkle root in storage.
-            QueueMerkleRoot::<T>::put(merkle_root);
-
-            // Depositing event about queue root being updated.
-            Self::deposit_event(Event::<T>::QueueMerkleRootChanged(merkle_root));
+        if queue.is_empty() {
+            log::error!("Queue were changed within the block, but it's empty");
+            return;
         }
+
+        // Calculating new root.
+        let root = binary_merkle_tree::merkle_root::<Keccak256, _>(queue);
+
+        // Updating queue merkle root in storage.
+        QueueMerkleRoot::<T>::put(root);
+
+        // Depositing event about queue root being updated.
+        Self::deposit_event(Event::<T>::QueueMerkleRootChanged {
+            queue_id: QueueId::<T>::get(),
+            root,
+        });
     }
 
     /// Clears the bridge state: removes timer, authority set hash, message queue and emits event.
@@ -92,7 +94,7 @@ impl<T: Config> Pallet<T> {
 
         // Removing grandpa set hash from storage.
         AuthoritySetHash::<T>::kill();
-        Self::deposit_event(Event::<T>::AuthoritySetHashReset);
+        Self::deposit_event(Event::<T>::AuthoritySetReset);
         weight = weight.saturating_add(db_weight.writes(2));
 
         // Resetting queue.
@@ -102,20 +104,23 @@ impl<T: Config> Pallet<T> {
         weight
     }
 
-    /// Resets the message queue and its merkle root: makes 2 storage writes.
+    /// Resets the message queue, it's merkle root and bumps queue id.
     pub(super) fn reset_queue() -> Weight {
         log::debug!("Resetting the message queue");
 
         // Removing queued messages from storage.
         Queue::<T>::kill();
 
+        // Bumping queue id for future use.
+        QueueId::<T>::mutate(|id| *id = id.saturating_add(1));
+
         // Setting zero queue root, keeping invariant of this key existence.
         QueueMerkleRoot::<T>::put(H256::zero());
 
-        // Depositing event about queue root being reset.
-        Self::deposit_event(Event::<T>::QueueMerkleRootReset);
+        // Depositing event about queue being reset.
+        Self::deposit_event(Event::<T>::QueueReset);
 
-        T::DbWeight::get().writes(3)
+        T::DbWeight::get().writes(4)
     }
 
     pub(crate) fn queue_message(

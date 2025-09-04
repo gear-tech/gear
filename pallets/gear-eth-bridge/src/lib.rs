@@ -137,7 +137,7 @@ pub mod pallet {
         /// Authority set hash was reset.
         ///
         /// Related to bridge clearing on initialization of the second block in a new era.
-        AuthoritySetHashReset,
+        AuthoritySetReset,
 
         /// Optimistically, single-time called event defining that pallet
         /// got initialized and started processing session changes,
@@ -159,12 +159,17 @@ pub mod pallet {
         },
 
         /// Merkle root of the queue changed: new messages queued within the block.
-        QueueMerkleRootChanged(H256),
+        QueueMerkleRootChanged {
+            /// Queue identifier.
+            queue_id: u64,
+            /// Merkle root of the queue.
+            root: H256,
+        },
 
-        /// Queue merkle root was reset.
+        /// Queue was reset.
         ///
         /// Related to bridge clearing on initialization of the second block in a new era.
-        QueueMerkleRootReset,
+        QueueReset,
     }
 
     /// Pallet Gear Eth Bridge's error.
@@ -226,6 +231,12 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::unbounded]
     pub(crate) type Queue<T> = StorageValue<_, Vec<H256>, ValueQuery>;
+
+    /// Primary storage.
+    ///
+    /// Keeps the monotonic identifier of a bridge message queue.
+    #[pallet::storage]
+    pub(crate) type QueueId<T> = StorageValue<_, u64, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -452,10 +463,7 @@ pub mod pallet {
         }
 
         fn on_finalize(_bn: BlockNumberFor<T>) {
-            if QueueChanged::<T>::take() {
-                // If queue was changed, we need to update the merkle root.
-                Self::update_queue_merkle_root();
-            }
+            Self::update_queue_merkle_root_if_changed();
         }
     }
 
