@@ -11612,6 +11612,7 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        ResetQueueOnInit,
         TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
@@ -11629,6 +11630,7 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::ResetQueueOnInit => "ResetQueueOnInit",
                 Self::TransportFee => "TransportFee",
             }
         }

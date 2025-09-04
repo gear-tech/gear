@@ -48,9 +48,8 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use crate::internal::QueueInfo;
-
     use super::*;
+    use crate::internal::QueueInfo;
     use common::Origin;
     use frame_support::{
         PalletId,
@@ -283,6 +282,13 @@ pub mod pallet {
 
     /// Operational storage.
     ///
+    /// Defines if queue should be reset in the next block initialization.
+    /// Intended to support unlimited queue capacity.
+    #[pallet::storage]
+    pub(crate) type ResetQueueOnInit<T> = StorageValue<_, bool, ValueQuery>;
+
+    /// Operational storage.
+    ///
     /// Defines the amount of fee to be paid for the transport of messages.
     #[pallet::storage]
     pub type TransportFee<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
@@ -439,8 +445,11 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Resulting weight of the hook.
             //
-            // Initially consists of one read of `ClearTimer` storage.
-            let mut weight = T::DbWeight::get().reads(1);
+            // Initially consists of one read of `ClearTimer` and one write to `ResetQueueOnInit` storages.
+            let mut weight = T::DbWeight::get().reads_writes(1, 1);
+
+            // Flag defining if queue was reset within the hook.
+            let mut was_reset = false;
 
             // Querying timer and checking its value if some.
             if let Some(timer) = ClearTimer::<T>::get() {
@@ -454,8 +463,9 @@ pub mod pallet {
 
                 // Checking if it's time to clear.
                 if new_timer.is_zero() {
-                    // Clearing the bridge.
+                    // Clearing the bridge, including queue.
                     let clear_weight = Self::clear_bridge();
+                    was_reset = true;
                     weight = weight.saturating_add(clear_weight);
                 } else {
                     // Rescheduling clearing by putting back non-zero timer.
@@ -464,7 +474,12 @@ pub mod pallet {
                 }
             }
 
-            // Returning weight.
+            // Resetting queue on request from previous block if there wasn't reset.
+            if ResetQueueOnInit::<T>::take() && !was_reset {
+                let reset_weight = Self::reset_queue();
+                weight = weight.saturating_add(reset_weight);
+            }
+
             weight
         }
 
