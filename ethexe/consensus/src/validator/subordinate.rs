@@ -231,7 +231,7 @@ mod tests {
     fn earlier_received_announces() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = BlockData::mock(()).setup(&ctx.db);
+        let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
         let announce_hash = ctx.db.top_announce_hash(block.hash);
         let announce1 = ctx
             .signer
@@ -244,7 +244,7 @@ mod tests {
         ctx.pending(PendingEvent::Announce(announce2.clone()));
 
         // Subordinate waits for block prepared after creation.
-        let s = Subordinate::create(ctx, block.to_simple(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
         assert!(s.context().output.is_empty());
 

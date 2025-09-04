@@ -36,10 +36,6 @@ pub trait Mock<Args> {
     fn mock(args: Args) -> Self;
 }
 
-pub trait DBSetup<DB> {
-    fn setup(self, db: &DB) -> Self;
-}
-
 impl Mock<H256> for SimpleBlockData {
     fn mock(parent_hash: H256) -> Self {
         SimpleBlockData {
@@ -56,13 +52,6 @@ impl Mock<H256> for SimpleBlockData {
 impl Mock<()> for SimpleBlockData {
     fn mock(_args: ()) -> Self {
         SimpleBlockData::mock(H256::random())
-    }
-}
-
-impl<DB: OnChainStorageWrite> DBSetup<DB> for SimpleBlockData {
-    fn setup(self, db: &DB) -> Self {
-        db.set_block_header(self.hash, self.header);
-        self
     }
 }
 
@@ -195,60 +184,6 @@ impl BlockData {
     }
 }
 
-impl Mock<()> for BlockData {
-    fn mock(_args: ()) -> Self {
-        BlockData {
-            hash: H256::random(),
-            synced: Some(SyncedBlockData {
-                header: BlockHeader {
-                    height: 42,
-                    timestamp: 120,
-                    parent_hash: H256::random(),
-                },
-                events: vec![],
-                validators: nonempty![Address([123; 20])],
-            }),
-            prepared: Some(PreparedBlockData {
-                codes_queue: Default::default(),
-                announces: [AnnounceHash::random()].into(),
-                last_committed_batch: Digest::zero(),
-                last_committed_announce: AnnounceHash::zero(),
-            }),
-        }
-    }
-}
-
-impl<DB: OnChainStorageWrite + BlockMetaStorageWrite> DBSetup<DB> for BlockData {
-    fn setup(self, db: &DB) -> Self {
-        let BlockData {
-            hash,
-            synced,
-            prepared,
-        } = self.clone();
-
-        if let Some(synced) = synced {
-            db.set_block_header(hash, synced.header);
-            db.set_block_events(hash, &synced.events);
-            db.set_block_validators(hash, synced.validators.clone());
-            db.set_block_synced(hash);
-        }
-
-        if let Some(prepared) = prepared {
-            db.mutate_block_meta(hash, |meta| {
-                *meta = BlockMeta {
-                    prepared: true,
-                    announces: Some(prepared.announces),
-                    codes_queue: Some(prepared.codes_queue),
-                    last_committed_batch: Some(prepared.last_committed_batch),
-                    last_committed_announce: Some(prepared.last_committed_announce),
-                }
-            });
-        }
-
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
@@ -325,6 +260,129 @@ impl BlockChain {
             .get_mut(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
+
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: AnnounceStorageWrite
+            + BlockMetaStorageWrite
+            + OnChainStorageWrite
+            + CodesStorageWrite
+            + LatestDataStorageWrite,
+    {
+        let BlockChain {
+            blocks,
+            announces,
+            codes,
+        } = self.clone();
+
+        db.set_latest_data(LatestData::default());
+
+        if let Some(genesis) = blocks.front() {
+            db.mutate_latest_data(|latest| {
+                latest.genesis_block_hash = genesis.hash;
+                latest.start_block_hash = genesis.hash;
+            })
+            .unwrap();
+
+            if let Some(prepared) = &genesis.prepared
+                && let Some(first_announce) = prepared.announces.first()
+            {
+                db.mutate_latest_data(|latest| {
+                    latest.genesis_announce_hash = *first_announce;
+                    latest.start_announce_hash = *first_announce;
+                })
+                .unwrap();
+            }
+        }
+
+        for BlockData {
+            hash,
+            synced,
+            prepared,
+        } in blocks
+        {
+            if let Some(SyncedBlockData {
+                header,
+                events,
+                validators,
+            }) = synced
+            {
+                db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
+                    .unwrap();
+
+                db.set_block_header(hash, header);
+                db.set_block_events(hash, &events);
+                db.set_block_validators(hash, validators);
+                db.set_block_synced(hash);
+            }
+
+            if let Some(PreparedBlockData {
+                codes_queue,
+                announces,
+                last_committed_batch,
+                last_committed_announce,
+            }) = prepared
+            {
+                db.mutate_latest_data(|latest| {
+                    latest.prepared_block_hash = hash;
+                });
+
+                if let Some(announce_hash) = announces.last().copied() {
+                    db.mutate_latest_data(|latest| {
+                        latest.computed_announce_hash = announce_hash;
+                    });
+                }
+
+                db.mutate_block_meta(hash, |meta| {
+                    *meta = BlockMeta {
+                        prepared: true,
+                        announces: Some(announces),
+                        codes_queue: Some(codes_queue),
+                        last_committed_batch: Some(last_committed_batch),
+                        last_committed_announce: Some(last_committed_announce),
+                    }
+                });
+            }
+        }
+
+        for (announce_hash, AnnounceData { announce, computed }) in announces {
+            db.set_announce(announce);
+            if let Some(ComputedAnnounceData {
+                outcome,
+                program_states,
+                schedule,
+            }) = computed
+            {
+                db.set_announce_outcome(announce_hash, outcome);
+                db.set_announce_program_states(announce_hash, program_states);
+                db.set_announce_schedule(announce_hash, schedule);
+                db.mutate_announce_meta(announce_hash, |meta| {
+                    *meta = AnnounceMeta { computed: true }
+                });
+            }
+        }
+
+        for (
+            code_id,
+            CodeData {
+                original_bytes,
+                blob_info,
+                instrumented,
+            },
+        ) in codes
+        {
+            db.set_original_code(&original_bytes);
+
+            if let Some(InstrumentedCodeData { instrumented, meta }) = instrumented {
+                db.set_instrumented_code(1, code_id, instrumented);
+                db.set_code_metadata(code_id, meta);
+                db.set_code_blob_info(code_id, blob_info);
+                db.set_code_valid(code_id, true);
+            }
+        }
+
+        self
+    }
 }
 
 impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
@@ -394,102 +452,6 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
 impl Mock<u32> for BlockChain {
     fn mock(len: u32) -> Self {
         BlockChain::mock((len, nonempty![Address([123; 20])]))
-    }
-}
-
-impl<
-    DB: AnnounceStorageWrite
-        + BlockMetaStorageWrite
-        + OnChainStorageWrite
-        + CodesStorageWrite
-        + LatestDataStorageWrite,
-> DBSetup<DB> for BlockChain
-{
-    fn setup(self, db: &DB) -> Self {
-        let BlockChain {
-            blocks,
-            announces,
-            codes,
-        } = self.clone();
-
-        db.set_latest_data(LatestData::default());
-
-        if let Some(genesis) = blocks.front() {
-            db.mutate_latest_data(|latest| {
-                latest.genesis_block_hash = genesis.hash;
-                latest.start_block_hash = genesis.hash;
-            })
-            .unwrap();
-
-            if let Some(prepared) = &genesis.prepared
-                && let Some(first_announce) = prepared.announces.first()
-            {
-                db.mutate_latest_data(|latest| {
-                    latest.genesis_announce_hash = *first_announce;
-                    latest.start_announce_hash = *first_announce;
-                })
-                .unwrap();
-            }
-        }
-
-        for block in blocks {
-            let block = block.setup(db);
-
-            if let Some(SyncedBlockData { header, .. }) = block.synced {
-                db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
-                    .unwrap();
-            }
-
-            if let Some(PreparedBlockData { announces, .. }) = block.prepared {
-                db.mutate_latest_data(|latest| {
-                    latest.prepared_block_hash = block.hash;
-                });
-
-                if let Some(announce_hash) = announces.last().copied() {
-                    db.mutate_latest_data(|latest| {
-                        latest.computed_announce_hash = announce_hash;
-                    });
-                }
-            }
-        }
-
-        for (announce_hash, AnnounceData { announce, computed }) in announces {
-            db.set_announce(announce);
-            if let Some(ComputedAnnounceData {
-                outcome,
-                program_states,
-                schedule,
-            }) = computed
-            {
-                db.set_announce_outcome(announce_hash, outcome);
-                db.set_announce_program_states(announce_hash, program_states);
-                db.set_announce_schedule(announce_hash, schedule);
-                db.mutate_announce_meta(announce_hash, |meta| {
-                    *meta = AnnounceMeta { computed: true }
-                });
-            }
-        }
-
-        for (
-            code_id,
-            CodeData {
-                original_bytes,
-                blob_info,
-                instrumented,
-            },
-        ) in codes
-        {
-            db.set_original_code(&original_bytes);
-
-            if let Some(InstrumentedCodeData { instrumented, meta }) = instrumented {
-                db.set_instrumented_code(1, code_id, instrumented);
-                db.set_code_metadata(code_id, meta);
-                db.set_code_blob_info(code_id, blob_info);
-                db.set_code_valid(code_id, true);
-            }
-        }
-
-        self
     }
 }
 
