@@ -56,7 +56,7 @@ pub struct RunCmd {
     /// Sets a limit at which the underlying sandbox store will be cleared (applies only to the Wasmer sandbox backend),
     /// potentially altering performance characteristics.
     ///
-    /// See https://github.com/gear-tech/gear/pull/4420 for more context.
+    /// See <https://github.com/gear-tech/gear/pull/4420> for more context.
     #[arg(long, default_value_t = 50)]
     pub sandbox_store_clear_counter_limit: u32,
 
