@@ -18,11 +18,13 @@
 
 use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
-    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot,
+    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo,
 };
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
 use gprimitives::{ActorId, H160, H256, U256};
 use pallet_gear_eth_bridge_primitives::EthMessage;
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
 use sp_runtime::{
     RuntimeAppPublic as _,
     traits::{Hash, Keccak256},
@@ -74,11 +76,24 @@ impl<T: Config> Pallet<T> {
         // Updating queue merkle root in storage.
         QueueMerkleRoot::<T>::put(root);
 
+        // Querying current queue id.
+        let queue_id = QueueId::<T>::get();
+
+        // Calculating last nonce used as `next_message_nonce - 1`, since queue is not empty,
+        // so it was bumped within the block.
+        let latest_nonce_used = MessageNonce::<T>::get().saturating_sub(U256::one());
+
+        // Updating queue info in storage.
+        QueuesInfo::<T>::insert(
+            queue_id,
+            QueueInfo::NonEmpty {
+                highest_root: root,
+                latest_nonce_used,
+            },
+        );
+
         // Depositing event about queue root being updated.
-        Self::deposit_event(Event::<T>::QueueMerkleRootChanged {
-            queue_id: QueueId::<T>::get(),
-            root,
-        });
+        Self::deposit_event(Event::<T>::QueueMerkleRootChanged { queue_id, root });
     }
 
     /// Clears the bridge state: removes timer, authority set hash, message queue and emits event.
@@ -112,7 +127,13 @@ impl<T: Config> Pallet<T> {
         Queue::<T>::kill();
 
         // Bumping queue id for future use.
-        QueueId::<T>::mutate(|id| *id = id.saturating_add(1));
+        let new_queue_id = QueueId::<T>::mutate(|id| {
+            *id = id.saturating_add(1);
+            *id
+        });
+
+        // Setting info for future queue.
+        QueuesInfo::<T>::insert(new_queue_id, QueueInfo::Empty);
 
         // Setting zero queue root, keeping invariant of this key existence.
         QueueMerkleRoot::<T>::put(H256::zero());
@@ -176,6 +197,22 @@ impl<T: Config> Pallet<T> {
 
         Ok((nonce, hash))
     }
+}
+
+/// Information about a specific message queue with its unique ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode, TypeInfo, MaxEncodedLen)]
+pub enum QueueInfo {
+    /// The queue is empty.
+    Empty,
+    /// The queue contains some messages, so it has a non-zero root.
+    NonEmpty {
+        /// The highest root that includes all messages in the queue.
+        highest_root: H256,
+        /// The latest message nonce used in the queue.
+        ///
+        /// Helps to identify the range of nonces to which the messages in the queue belong.
+        latest_nonce_used: U256,
+    },
 }
 
 /// Extension trait for [`EthMessage`] that provides additional functionality.

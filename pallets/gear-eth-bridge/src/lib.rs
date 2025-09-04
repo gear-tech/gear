@@ -48,6 +48,8 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use crate::internal::QueueInfo;
+
     use super::*;
     use common::Origin;
     use frame_support::{
@@ -237,6 +239,12 @@ pub mod pallet {
     /// Keeps the monotonic identifier of a bridge message queue.
     #[pallet::storage]
     pub(crate) type QueueId<T> = StorageValue<_, u64, ValueQuery>;
+
+    /// Helper storage.
+    ///
+    /// Keeps queue infos to their ids. For details on info, see [`QueueInfo`].
+    #[pallet::storage]
+    pub(crate) type QueuesInfo<T> = StorageMap<_, Identity, u64, QueueInfo>;
 
     /// Operational storage.
     ///
@@ -448,12 +456,10 @@ pub mod pallet {
                 if new_timer.is_zero() {
                     // Clearing the bridge.
                     let clear_weight = Self::clear_bridge();
-
                     weight = weight.saturating_add(clear_weight);
                 } else {
                     // Rescheduling clearing by putting back non-zero timer.
                     ClearTimer::<T>::put(new_timer);
-
                     weight = weight.saturating_add(T::DbWeight::get().writes(1));
                 }
             }

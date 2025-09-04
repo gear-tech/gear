@@ -3369,6 +3369,19 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_eth_bridge {
             use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum QueueInfo {
+                    #[codec(index = 0)]
+                    Empty,
+                    #[codec(index = 1)]
+                    NonEmpty {
+                        highest_root: ::subxt::ext::subxt_core::utils::H256,
+                        latest_nonce_used: runtime_types::primitive_types::U256,
+                    },
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -11594,6 +11607,7 @@ pub mod storage {
         QueueMerkleRoot,
         Queue,
         QueueId,
+        QueuesInfo,
         SessionsTimer,
         ClearTimer,
         MessageNonce,
@@ -11610,6 +11624,7 @@ pub mod storage {
                 Self::QueueMerkleRoot => "QueueMerkleRoot",
                 Self::Queue => "Queue",
                 Self::QueueId => "QueueId",
+                Self::QueuesInfo => "QueuesInfo",
                 Self::SessionsTimer => "SessionsTimer",
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
