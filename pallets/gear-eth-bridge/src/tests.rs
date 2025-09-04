@@ -382,7 +382,14 @@ fn bridge_updates_authorities_and_clears() {
         System::reset_events();
 
         on_initialize(ERA_BLOCKS * 2 + 2);
-        do_events_assertion(12, 74, [Event::BridgeCleared.into()]);
+        do_events_assertion(
+            12,
+            74,
+            [
+                Event::AuthoritySetHashReset.into(),
+                Event::QueueMerkleRootReset.into(),
+            ],
+        );
 
         assert!(!AuthoritySetHash::exists());
         assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
@@ -429,7 +436,14 @@ fn bridge_updates_authorities_and_clears() {
         );
 
         on_initialize(ERA_BLOCKS * 3 + 2);
-        do_events_assertion(18, 110, [Event::BridgeCleared.into()]);
+        do_events_assertion(
+            18,
+            110,
+            [
+                Event::AuthoritySetHashReset.into(),
+                Event::QueueMerkleRootReset.into(),
+            ],
+        );
     })
 }
 

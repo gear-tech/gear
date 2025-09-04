@@ -43,27 +43,37 @@ use utils::*;
 #[cfg(feature = "dev")]
 #[test]
 fn bridge_storages_have_correct_prefixes() {
-    use frame_support::traits::StorageInstance;
-
     // # SAFETY: Do not change storage prefixes without total bridge re-deploy.
     const PALLET_PREFIX: &str = "GearEthBridge";
 
+    const AUTHORITY_SET_HASH_STORAGE_PREFIX: &str = "AuthoritySetHash";
+    const AUTHORITY_SET_HASH_PREFIX_HASH: [u8; 32] = [
+        253, 110, 2, 127, 122, 27, 216, 186, 166, 64, 108, 234, 77, 128, 217, 50, 113, 32, 253, 42,
+        221, 109, 18, 73, 191, 27, 107, 252, 59, 223, 81, 15,
+    ];
+
+    const QUEUE_MERKLE_ROOT_STORAGE_PREFIX: &str = "QueueMerkleRoot";
+    const QUEUE_MERKLE_ROOT_PREFIX_HASH: [u8; 32] = [
+        253, 110, 2, 127, 122, 27, 216, 186, 166, 64, 108, 234, 77, 128, 217, 50, 223, 80, 147, 16,
+        188, 101, 91, 191, 117, 165, 181, 99, 252, 60, 142, 238,
+    ];
+
     assert_eq!(
-        pallet_gear_eth_bridge::AuthoritySetHashPrefix::<Runtime>::pallet_prefix(),
-        PALLET_PREFIX
-    );
-    assert_eq!(
-        pallet_gear_eth_bridge::QueueMerkleRootPrefix::<Runtime>::pallet_prefix(),
-        PALLET_PREFIX
+        pallet_gear_eth_bridge::Pallet::<Runtime>::authority_set_hash_storage_info(),
+        (
+            PALLET_PREFIX,
+            AUTHORITY_SET_HASH_STORAGE_PREFIX,
+            AUTHORITY_SET_HASH_PREFIX_HASH
+        )
     );
 
     assert_eq!(
-        pallet_gear_eth_bridge::AuthoritySetHashPrefix::<Runtime>::STORAGE_PREFIX,
-        "AuthoritySetHash"
-    );
-    assert_eq!(
-        pallet_gear_eth_bridge::QueueMerkleRootPrefix::<Runtime>::STORAGE_PREFIX,
-        "QueueMerkleRoot"
+        pallet_gear_eth_bridge::Pallet::<Runtime>::queue_merkle_root_storage_info(),
+        (
+            PALLET_PREFIX,
+            QUEUE_MERKLE_ROOT_STORAGE_PREFIX,
+            QUEUE_MERKLE_ROOT_PREFIX_HASH
+        )
     );
 }
 

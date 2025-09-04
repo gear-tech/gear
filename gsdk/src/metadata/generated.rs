@@ -3423,8 +3423,10 @@ pub mod runtime_types {
                     #[doc = "first block of the last session in the era."]
                     AuthoritySetHashChanged(::subxt::ext::subxt_core::utils::H256),
                     #[codec(index = 1)]
-                    #[doc = "Bridge got cleared on initialization of the second block in a new era."]
-                    BridgeCleared,
+                    #[doc = "Authority set hash was reset."]
+                    #[doc = ""]
+                    #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
+                    AuthoritySetHashReset,
                     #[codec(index = 2)]
                     #[doc = "Optimistically, single-time called event defining that pallet"]
                     #[doc = "got initialized and started processing session changes,"]
@@ -3445,6 +3447,11 @@ pub mod runtime_types {
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
                     QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
+                    #[codec(index = 7)]
+                    #[doc = "Queue merkle root was reset."]
+                    #[doc = ""]
+                    #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
+                    QueueMerkleRootReset,
                 }
             }
         }
