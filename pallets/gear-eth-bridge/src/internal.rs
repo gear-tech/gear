@@ -18,7 +18,7 @@
 
 use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
-    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo,
+    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo, ResetQueueOnInit,
 };
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
 use gprimitives::{ActorId, H160, H256, U256};
@@ -64,8 +64,23 @@ impl<T: Config> Pallet<T> {
 
         // Querying actual queue.
         let queue = Queue::<T>::get();
+        let queue_len = queue.len();
 
-        if queue.is_empty() {
+        match queue_len {
+            0 => {
+                log::error!("Queue were changed within the block, but it's empty");
+                return;
+            }
+            // If we reached queue capacity, it's time to reset the queue,
+            // so it could handle further messages with next queue id.
+            x if x >= QueueCapacityOf::<T>::get() as usize => {
+                log::debug!("Queue reached it's capacity. Scheduling next block reset");
+                ResetQueueOnInit::<T>::put(true);
+            }
+            _ => {}
+        }
+
+        if queue_len == 0 {
             log::error!("Queue were changed within the block, but it's empty");
             return;
         }

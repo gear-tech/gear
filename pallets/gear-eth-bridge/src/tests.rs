@@ -1,6 +1,6 @@
 use crate::{
-    Config, EthMessage, WeightInfo,
-    internal::EthMessageExt,
+    Config, EthMessage, QueuesInfo, WeightInfo,
+    internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
 };
 use common::Origin as _;
@@ -492,7 +492,19 @@ fn bridge_queues_governance_messages_when_over_capacity() {
             0,
         );
 
-        assert_eq!(Queue::get().len(), msg_queue_len + 2);
+        // Queue got reset on init.
+        System::assert_has_event(Event::QueueReset.into());
+        assert_eq!(Queue::get().len(), 0);
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for past id");
+        };
+
+        // Expected len is `msg_queue_len + 2`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), msg_queue_len + 2 - 1);
     })
 }
 
