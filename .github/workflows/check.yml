@@ -17,7 +17,7 @@ jobs:
   unused-deps:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall --no-confirm cargo-shear
       - run: cargo shear
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -60,7 +60,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22.x
 
@@ -108,7 +108,7 @@ jobs:
     name: clippy (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -147,7 +147,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: wasm32v1-none
 
@@ -183,7 +183,7 @@ jobs:
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -237,7 +237,7 @@ jobs:
     name: stack-height (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -261,7 +261,7 @@ jobs:
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
