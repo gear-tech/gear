@@ -133,10 +133,10 @@ impl TestEnv {
     fn new(chain_len: u32, events_in_block: u32) -> TestEnv {
         let db = Database::memory();
 
-        let mut chain = BlockChain::mock(chain_len + 1);
+        let mut chain = BlockChain::mock(chain_len);
         insert_code_events(&mut chain, events_in_block);
         mark_as_not_prepared(&mut chain);
-        let chain = chain.setup(&db);
+        chain = chain.setup(&db);
 
         let compute = ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap());
 

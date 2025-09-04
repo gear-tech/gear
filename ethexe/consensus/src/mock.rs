@@ -59,7 +59,7 @@ impl Mock<()> for BatchCommitmentValidationRequest {
 /// last_committed_announce:  genesis     genesis     genesis     genesis
 /// ```
 pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
-    let mut chain = BlockChain::mock(4);
+    let mut chain = BlockChain::mock(3);
 
     let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.hash());
     let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.hash());
@@ -73,7 +73,7 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     chain.blocks[3].prepared.as_mut().unwrap().codes_queue =
         [code_commitment1.id, code_commitment2.id].into();
 
-    let head = chain.setup(db).blocks.remove(3).unwrap();
+    let block3 = chain.setup(db).blocks[3].to_simple();
 
     // NOTE: we skipped codes instrumented data in `chain`, so mark them as valid manually,
     // but instrumented data is still not in db.
@@ -81,12 +81,12 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     db.set_code_valid(code_commitment2.id, code_commitment2.valid);
 
     BatchCommitment {
-        block_hash: head.hash,
-        timestamp: head.as_synced().header.timestamp,
+        block_hash: block3.hash,
+        timestamp: block3.header.timestamp,
         previous_batch: Digest::zero(),
         chain_commitment: Some(ChainCommitment {
             transitions: [chain_commitment1.transitions, chain_commitment2.transitions].concat(),
-            head_announce: db.top_announce_hash(head.hash),
+            head_announce: db.top_announce_hash(block3.hash),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
         validators_commitment: None,

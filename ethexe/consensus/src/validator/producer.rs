@@ -335,7 +335,7 @@ mod tests {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
-        let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
+        let block = BlockChain::mock(1).setup(&ctx.db).blocks[1].to_simple();
         let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         // Set parent announce
@@ -421,7 +421,7 @@ mod tests {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
-        let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
+        let block = BlockChain::mock(1).setup(&ctx.db).blocks[1].to_simple();
         let announce_hash = ctx.db.top_announce_hash(block.hash);
 
         ctx.db.mutate_block_meta(parent, |meta| {
