@@ -55,11 +55,12 @@ jobs:
           __GEAR_WASM_BUILDER_NO_BUILD: 1
           SKIP_WASM_BUILD: 1
 
-      - run: ./scripts/gear.sh test docs
-        env:
-          RUSTFLAGS: "-D warnings"
-          __GEAR_WASM_BUILDER_NO_BUILD: 1
-          SKIP_WASM_BUILD: 1
+      # TODO: uncomment once caching fixed
+      # - run: ./scripts/gear.sh test docs
+      #   env:
+      #     RUSTFLAGS: "-D warnings"
+      #     __GEAR_WASM_BUILDER_NO_BUILD: 1
+      #     SKIP_WASM_BUILD: 1
 
   workspace:
     runs-on: [ kuberunner, github-runner-02 ]
