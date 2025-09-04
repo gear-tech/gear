@@ -355,7 +355,7 @@ mod tests {
     fn test_empty_codes_and_blocks() {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(()).setup(&ctx.db);
+        let block = SimpleBlockData::mock(());
 
         // Create a request with empty blocks and codes
         let request = BatchCommitmentValidationRequest {
