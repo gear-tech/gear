@@ -386,10 +386,26 @@ impl BlockChain {
 }
 
 impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
+    /// `len` - length of chain not counting genesis block
     fn mock((len, validators): (u32, NonEmpty<Address>)) -> Self {
-        // genesis starts from i == 1
-        let mut blocks: VecDeque<_> = (0..len + 1)
-            .map(|i| (H256::from_low_u64_be(i as u64), i, i * 12))
+        // i = 0 - genesis parent
+        // i = 1 - genesis
+        // i = 2 - first block
+        // ...
+        // i = len + 1 - last block
+        let mut blocks: VecDeque<_> = (0..len + 2)
+            .map(|i| {
+                // Human readable blocks, to avoid zero values append some readable numbers
+                i.checked_sub(1)
+                    .map(|h| {
+                        (
+                            H256::from_low_u64_be(0x1_000_000 + h as u64),
+                            1_000_000 + h,
+                            1_000_000 + h * 10,
+                        )
+                    })
+                    .unwrap_or((H256([u8::MAX; 32]), 0, 0))
+            })
             .tuple_windows()
             .map(
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
@@ -450,6 +466,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
 }
 
 impl Mock<u32> for BlockChain {
+    /// `len` - length of chain not counting genesis block
     fn mock(len: u32) -> Self {
         BlockChain::mock((len, nonempty![Address([123; 20])]))
     }
