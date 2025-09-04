@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Gear Gas Pallet"><title>pallet_gear_gas - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="pallet_gear_gas" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../pallet_gear_gas/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../pallet_gear_gas/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../pallet_gear_gas/index.html">pallet_<wbr>gear_<wbr>gas</a><span class="version">1.9.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#gear-gas-pallet" title="Gear Gas Pallet">Gear Gas Pallet</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#interface" title="Interface">Interface</a></li><li><a href="#usage" title="Usage">Usage</a></li><li><a href="#genesis-config" title="Genesis config">Genesis config</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>pallet_gear_gas</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/pallet_gear_gas/lib.rs.html#19-389">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="gear-gas-pallet"><a class="doc-anchor" href="#gear-gas-pallet">§</a>Gear Gas Pallet</h2>
+<p>The Gear Gas Pallet provides functionality for handling messages’
+execution resources.</p>
+<ul>
+<li><a href="pallet/trait.Config.html" title="trait pallet_gear_gas::pallet::Config"><code>Config</code></a></li>
+<li><a href="pallet/struct.Pallet.html" title="struct pallet_gear_gas::pallet::Pallet"><code>Pallet</code></a></li>
+</ul>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The Gear Gas Pallet’s main aim is to separate message’s associated gas tree nodes storages out
+of Gear’s execution logic and provide soft functionality to manage them.</p>
+<p>The Gear Gas Pallet provides functions for:</p>
+<ul>
+<li>Obtaining maximum gas amount available within one block of execution.</li>
+<li>Managing number of remaining gas, i.e. gas allowance.</li>
+<li>Managing gas tree: create, split, cut, etc new nodes determining
+execution resources of messages.</li>
+</ul>
+<h3 id="interface"><a class="doc-anchor" href="#interface">§</a>Interface</h3>
+<p>The Gear Gas Pallet implements <code>gear_common::GasProvider</code> trait
+and shouldn’t contain any other functionality, except this trait declares.</p>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>How to use the gas functionality from the Gear Gas Pallet:</p>
+<ol>
+<li>Implement its <code>Config</code> for your runtime with specified <code>BlockGasLimit</code> type.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="kw">impl </span>pallet_gear_gas::Config <span class="kw">for </span>Runtime {
+    <span class="kw">type </span>BlockGasLimit = .. ;
+}
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="2">
+<li>Provide associated type for your pallet’s <code>Config</code>, which implements
+<code>gear_common::GasProvider</code> trait, specifying associated types if needed.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `some_pallet/src/lib.rs`
+// ... //
+
+</span><span class="kw">use </span>gear_common::GasProvider;
+
+<span class="attr">#[pallet::config]
+</span><span class="kw">pub trait </span>Config: frame_system::Config {
+    <span class="comment">// .. //
+
+    </span><span class="kw">type </span>GasProvider: GasProvider&lt;Balance = u64, ...&gt;;
+
+    <span class="comment">// .. //
+</span>}</code></pre></div>
+<ol start="3">
+<li>Declare Gear Gas Pallet in your <code>construct_runtime!</code> macro.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="macro">construct_runtime!</span>(
+    <span class="kw">pub enum </span>Runtime
+        <span class="kw">where </span><span class="comment">// ... //
+    </span>{
+        <span class="comment">// ... //
+
+        </span>GearGas: pallet_gear_gas,
+
+        <span class="comment">// ... //
+    </span>}
+);
+
+<span class="comment">// ... //</span></code></pre></div>
+<p><code>GearGas: pallet_gear_gas,</code></p>
+<ol start="4">
+<li>Set <code>GearGas</code> as your pallet <code>Config</code>’s <code>GasProvider</code> type.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="kw">impl </span>some_pallet::Config <span class="kw">for </span>Runtime {
+    <span class="comment">// ... //
+
+    </span><span class="kw">type </span>GasProvider = GearGas;
+
+    <span class="comment">// ... //
+</span>}
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="5">
+<li>Work with Gear Gas Pallet in your pallet with provided
+associated type interface.</li>
+</ol>
+<h3 id="genesis-config"><a class="doc-anchor" href="#genesis-config">§</a>Genesis config</h3>
+<p>The Gear Gas Pallet doesn’t depend on the <code>GenesisConfig</code>.</p>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt><code>pub use <a class="mod" href="pallet/index.html" title="mod pallet_gear_gas::pallet">pallet</a>::*;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="pallet/index.html" title="mod pallet_gear_gas::pallet">pallet</a></dt><dd>The <code>pallet</code> module in each FRAME pallet hosts the most important items needed
+to construct this pallet.</dd></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.impl_config.html" title="macro pallet_gear_gas::impl_config">impl_<wbr>config</a></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.H256.html" title="struct pallet_gear_gas::H256">H256</a></dt><dd>Fixed-size uninterpreted hash type with 32 bytes (256 bits) size.</dd></dl><script type="text/json" id="notable-traits-data">{"&'static [u8]":"<h3>Notable traits for <code>&amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.u8.html\">u8</a>]</code></h3><pre><code><div class=\"where\">impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/std/io/trait.Read.html\" title=\"trait std::io::Read\">Read</a> for &amp;[<a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.u8.html\">u8</a>]</div>","Vec<u8>":"<h3>Notable traits for <code><a class=\"struct\" href=\"https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.u8.html\">u8</a>, A&gt;</code></h3><pre><code><div class=\"where\">impl&lt;A&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html\" title=\"struct alloc::vec::Vec\">Vec</a>&lt;<a class=\"primitive\" href=\"https://doc.rust-lang.org/nightly/std/primitive.u8.html\">u8</a>, A&gt;<div class=\"where\">where\n    A: <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/alloc/trait.Allocator.html\" title=\"trait core::alloc::Allocator\">Allocator</a>,</div></div>"}</script></section></div></main></body></html>

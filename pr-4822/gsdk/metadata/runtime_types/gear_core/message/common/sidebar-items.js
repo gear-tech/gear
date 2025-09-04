@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MessageDetails"],"struct":["ReplyDetails","SignalDetails"]};

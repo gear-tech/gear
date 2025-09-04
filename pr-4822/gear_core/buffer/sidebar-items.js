@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_PAYLOAD_SIZE"],"struct":["LimitedVec","PanicBuffer","PayloadSizeError","PayloadSlice","RuntimeBufferSizeError"],"type":["Payload","RuntimeBuffer"]};

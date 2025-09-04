@@ -1,0 +1,202 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Efficient and space-efficient serialization of Rust types."><title>gclient::ext::sp_runtime::scale_info - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="gclient" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../../static.files/storage-4e99c027.js"></script><script defer src="../../../../crates.js"></script><script defer src="../../../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../../../gclient/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../gclient/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../../../../gclient/index.html">gclient</a><span class="version">1.9.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#registry" title="Registry">Registry</a></li><li><a href="#type-information" title="Type Information">Type Information</a><ul><li><a href="#deriving-typeinfo" title="Deriving `TypeInfo`">Deriving <code>TypeInfo</code></a></li></ul></li><li><a href="#forms" title="Forms">Forms</a></li><li><a href="#symbols-and-namespaces" title="Symbols and Namespaces">Symbols and Namespaces</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#functions" title="Functions">Functions</a></li><li><a href="#derives" title="Derive Macros">Derive Macros</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In gclient::<wbr>ext::<wbr>sp_<wbr>runtime</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">gclient</a>::<wbr><a href="../../index.html">ext</a>::<wbr><a href="../index.html">sp_runtime</a></div><h1>Crate <span>scale_info</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Efficient and space-efficient serialization of Rust types.</p>
+<p>This library provides structures to easily retrieve compile-time type
+information at runtime and also to serialize this information in a
+space-efficient form, aka <code>PortableForm</code>.</p>
+<h2 id="registry"><a class="doc-anchor" href="#registry">§</a>Registry</h2>
+<p>At the heart of its functionality is the <a href="struct.Registry.html" title="struct gclient::ext::sp_runtime::scale_info::Registry"><code>Registry</code></a>
+that acts as a cache for known types in order to efficiently deduplicate
+types and ensure a space-efficient serialization.</p>
+<h2 id="type-information"><a class="doc-anchor" href="#type-information">§</a>Type Information</h2>
+<p>Information about types is provided via the <a href="trait.TypeInfo.html" title="trait gclient::ext::sp_runtime::scale_info::TypeInfo"><code>TypeInfo</code></a>
+trait.</p>
+<p>This trait should be implemented for all types that are serializable.
+<code>scale-info</code> provides implementations for all commonly used Rust standard
+types and a derive macro for implementing of custom types.</p>
+<h3 id="deriving-typeinfo"><a class="doc-anchor" href="#deriving-typeinfo">§</a>Deriving <code>TypeInfo</code></h3>
+<p>Enable the <code>derive</code> feature of this crate:</p>
+<div class="example-wrap"><pre class="language-toml"><code>scale-info = { version = &quot;2.0.0&quot;, features = [&quot;derive&quot;] }</code></pre></div>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>scale_info::TypeInfo;
+
+<span class="attr">#[derive(TypeInfo)]
+</span><span class="kw">struct </span>MyStruct {
+    a: u32,
+    b: MyEnum,
+}
+
+<span class="attr">#[derive(TypeInfo)]
+</span><span class="kw">enum </span>MyEnum {
+    A(bool),
+    B { f: Vec&lt;u8&gt; },
+    C,
+}</code></pre></div>
+<h4 id="attributes"><a class="doc-anchor" href="#attributes">§</a>Attributes</h4><h5 id="scale_infobounds"><a class="doc-anchor" href="#scale_infobounds">§</a><code>#[scale_info(bounds(..))]</code></h5>
+<p>Replace the auto-generated <code>where</code> clause bounds for the derived <code>TypeInfo</code> implementation.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(TypeInfo)]
+#[scale_info(bounds(T: TypeInfo + <span class="lifetime">'static</span>))]
+</span><span class="kw">struct </span>MyStruct&lt;T&gt; {
+    a: Vec&lt;T&gt;,
+}</code></pre></div>
+<p>The derive macro automatically adds <code>TypeInfo</code> bounds for all type parameters, and all field
+types containing type parameters or associated types.</p>
+<p>This is naive and sometimes adds unnecessary bounds, since on a syntactical level there is no
+way to differentiate between a generic type constructor and a type alias with a generic argument
+e.g.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">trait </span>MyTrait {
+    <span class="kw">type </span>A;
+}
+
+<span class="kw">type </span>MyAlias&lt;T&gt; = &lt;T <span class="kw">as </span>MyTrait&gt;::A;
+
+<span class="attr">#[derive(TypeInfo)]
+</span><span class="kw">struct </span>MyStruct&lt;T&gt; {
+    a: MyAlias&lt;T&gt;,
+    b: Vec&lt;T&gt;,
+}</code></pre></div>
+<p>So for the above, since a <code>MyAlias&lt;T&gt;: TypeInfo</code> bound is required, and we can’t distinguish
+between <code>MyAlias&lt;T&gt;</code> and <code>Vec&lt;T&gt;</code>, then the <code>TypeInfo</code> bound is simply added for all
+fields which contain any type param. In this case the redundant <code>Vec&lt;T&gt;: TypeInfo</code>
+would be added.</p>
+<p>This is usually okay, but in some circumstances can cause problems, for example with the
+[<code>overflow evaluating the requirement</code>] error <a href="https://github.com/paritytech/scale-info/blob/master/test_suite/tests/ui/pass_custom_bounds_fix_overflow.rs">here</a>.</p>
+<p>The <code>bounds</code> attribute provides an <a href="https://serde.rs/attr-bound.html">“escape hatch”</a> to allow
+the programmer control of the <code>where</code> clause on the generated <code>impl</code>, to solve this and other
+issues that can’t be foreseen by the auto-generated bounds heuristic.</p>
+<h5 id="scale_infoskip_type_params"><a class="doc-anchor" href="#scale_infoskip_type_params">§</a><code>#[scale_info(skip_type_params(..))]</code></h5>
+<p>Remove the requirement for the specified type params to implement <code>TypeInfo</code>.</p>
+<p>Consider a simple example of a type parameter which is used for associated types, but the type
+itself does not carry any type information. Consider this common pattern:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">trait </span>Config {
+    <span class="kw">type </span>Balance;
+}
+
+<span class="kw">struct </span>Runtime; <span class="comment">// doesn't implement `TypeInfo`
+
+</span><span class="kw">impl </span>Config <span class="kw">for </span>Runtime {
+    <span class="kw">type </span>Balance = u64;
+}
+
+<span class="attr">#[allow(unused)]
+#[derive(TypeInfo)]
+#[scale_info(skip_type_params(T))]
+</span><span class="kw">struct </span>A&lt;T: Config&gt; {
+    balance: T::Balance,
+    marker: core::marker::PhantomData&lt;T&gt;,
+}
+
+<span class="kw">fn </span>assert_type_info&lt;T: scale_info::TypeInfo + <span class="lifetime">'static</span>&gt;() {}
+
+<span class="kw">fn </span>main() {
+    <span class="comment">// without the `skip_type_params` attribute this will fail.
+    </span>assert_type_info::&lt;A&lt;Runtime&gt;&gt;();
+}</code></pre></div>
+<p>By default, the derived <code>TypeInfo</code> implementation will add the type of all type parameters to
+the <code>TypeParameter</code> specification e.g.</p>
+<p><code>type_params(vec![TypeParameter::new("T", Some(MetaType::new::&lt;T&gt;()))])</code></p>
+<p>In the example above, this will cause a compiler error because <code>Runtime</code> is the concrete tyoe
+for <code>T</code>, which does not satisfy the <code>TypeInfo</code> requirement of <code>MetaType::new::&lt;T&gt;()</code>.</p>
+<p>Simply adding a <code>TypeInfo</code> derive to <code>Runtime</code> is one way of solving this, but that could be
+misleading (why does it need <code>TypeInfo</code> if a value of that type is never encoded?), and can
+sometimes require adding <code>TypeInfo</code> bounds in other impl blocks.</p>
+<p>The <code>skip_type_params</code> attribute solves this, providing an additional “escape hatch” which
+prevents the given type parameter’s type information being required:</p>
+<p><code>type_params(vec![TypeParameter::new("T", None)])</code></p>
+<p>The generated type params do not now require <code>T</code> to implement <code>TypeInfo</code>, so the auto-generated
+bound is not added to the generated <code>TypeInfo</code> <code>where</code> clause.</p>
+<h5 id="combining-bounds-and-skip_type_params"><a class="doc-anchor" href="#combining-bounds-and-skip_type_params">§</a>Combining <code>bounds</code> and <code>skip_type_params</code></h5>
+<p>These two attributes can complement one another, particularly in the case where using <code>bounds</code>
+would still require manually adding a <code>TypeInfo</code> bound for the type parameter:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(TypeInfo)]
+#[scale_info(bounds(), skip_type_params(T))]
+</span><span class="kw">struct </span>A&lt;T&gt; {
+    marker: core::marker::PhantomData&lt;T&gt;,
+}</code></pre></div>
+<p>Without <code>skip_type_params</code> in the example above, it would require the <code>TypeInfo</code> bounds for <code>T</code>
+to be added manually e.g. <code>#[scale_info(bounds(T: TypeInfo + 'static))]</code>. Since the intention of
+the empty bounds is to <strong>remove</strong> all type bounds, then the addition of <code>skip_type_params</code>
+allows this to compile successfully.</p>
+<h6 id="precedence"><a class="doc-anchor" href="#precedence">§</a>Precedence</h6>
+<p>When used independently, both attributes modify the <code>where</code> clause of the derived <code>TypeInfo</code>
+impl. When used together, the predicates supplied in the <code>bounds</code> attribute replaces <em>all</em>
+auto-generated bounds, and <code>skip_type_params</code> will have no effect on the resulting <code>where</code>
+clause.</p>
+<p><strong>Note:</strong> When using <code>bounds</code> without <code>skip_type_params</code>, it is therefore required to manually
+add a <code>TypeInfo</code> bound for any non skipped type parameters. The compiler will let you know.</p>
+<h5 id="scale_infocapture_docs--defaultalwaysnever"><a class="doc-anchor" href="#scale_infocapture_docs--defaultalwaysnever">§</a><code>#[scale_info(capture_docs = "default|always|never")]</code></h5>
+<p>Docs for types, fields and variants can all be captured by the <code>docs</code> feature being enabled.
+This can be overridden using the <code>capture_docs</code> attribute:</p>
+<p><code>#[scale_info(capture_docs = "default")]</code> will capture docs iff the <code>docs</code> feature is enabled.
+This is the default if <code>capture_docs</code> is not specified.</p>
+<p><code>#[scale_info(capture_docs = "always")]</code> will capture docs for the annotated type even if the
+<code>docs</code> feature is <em>not</em> enabled.</p>
+<p><code>#[scale_info(capture_docs = "never")]</code> will <em>not</em> capture docs for the annotated type even if
+the <code>docs</code> is enabled.</p>
+<p>This is useful e.g. when compiling metadata into a Wasm blob, and it is desirable to keep the
+binary size as small as possible, so the <code>docs</code> feature would be disabled. In case the docs for
+some types is necessary they could be enabled on a per-type basis with the above attribute.</p>
+<h5 id="scale_infocrate--pathtocrate"><a class="doc-anchor" href="#scale_infocrate--pathtocrate">§</a><code>#[scale_info(crate = path::to::crate)]</code></h5>
+<p>Specify a path to the scale-info crate instance to use when referring to the APIs from generated
+code. This is normally only applicable when invoking re-exported scale-info derives from a public
+macro in a different crate. For example:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>scale_info_reexport::info::TypeInfo;
+
+<span class="attr">#[derive(TypeInfo)]
+#[scale_info(<span class="kw">crate </span>= scale_info_reexport::info)]
+</span><span class="kw">enum </span>TestEnum {
+    FirstVariant,
+    SecondVariant,
+}</code></pre></div>
+<h5 id="scale_inforeplace_segmentsearch-replace"><a class="doc-anchor" href="#scale_inforeplace_segmentsearch-replace">§</a><code>#[scale_info(replace_segment("search", "replace"))]</code></h5>
+<p>Specify to rename a segment in the <code>path</code> returned by the [<code>TypeInfo::path</code>] function.
+Normally the path is generated by using the <code>module_path!</code> macro. This path includes
+the crate name and all the modules up to the declaration of the type. Sometimes it
+is useful to replace one of these segments to ensure that for example a renaming
+of the crate isn’t propagated to downstream users. Be aware that if a <code>crate-name</code>
+contains an hypen, the actual segment is <code>crate_name</code>. The <code>replace</code> name needs
+to be a valid Rust identifier. The attribute is allowed to be passed multiple
+times to replace multiple segments.</p>
+<p>Example:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>scale_info_reexport::info::TypeInfo;
+
+<span class="attr">#[derive(TypeInfo)]
+#[scale_info(replace_segment(<span class="string">"something"</span>, <span class="string">"better_name"</span>))]
+#[scale_info(replace_segment(<span class="string">"TestEnum"</span>, <span class="string">"BetterEnumName"</span>))]
+</span><span class="kw">enum </span>TestEnum {
+    FirstVariant,
+    SecondVariant,
+}</code></pre></div>
+<h2 id="forms"><a class="doc-anchor" href="#forms">§</a>Forms</h2>
+<p>To bridge between compile-time type information and runtime the
+<a href="form/enum.MetaForm.html" title="enum gclient::ext::sp_runtime::scale_info::form::MetaForm"><code>MetaForm</code></a> is used to easily retrieve all
+information needed to uniquely identify types.</p>
+<p>The <code>MetaForm</code> and its associated <code>Registry</code> can be transformed into the
+space-efficient form by the <a href="trait.IntoPortable.html" title="trait gclient::ext::sp_runtime::scale_info::IntoPortable"><code>IntoPortable</code></a> trait; it is
+used internally by the <a href="struct.Registry.html" title="struct gclient::ext::sp_runtime::scale_info::Registry"><code>Registry</code></a> in order to convert
+the expanded types into their space-efficient form.</p>
+<h2 id="symbols-and-namespaces"><a class="doc-anchor" href="#symbols-and-namespaces">§</a>Symbols and Namespaces</h2>
+<p>To differentiate two types sharing the same name, namespaces are used.
+Commonly the namespace is equal to the one where the type has been defined
+in. For Rust prelude types such as <a href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option"><code>Option</code></a> and
+<a href="../../sp_core/sp_std/result/enum.Result.html" title="enum gclient::ext::sp_core::sp_std::result::Result"><code>Result</code></a> the root namespace (empty namespace) is
+used.</p>
+<p>To use this library simply use the <a href="form/enum.MetaForm.html" title="enum gclient::ext::sp_runtime::scale_info::form::MetaForm"><code>MetaForm</code></a>
+initially with your own data structures; make them generic over the
+<a href="form/trait.Form.html" title="trait gclient::ext::sp_runtime::scale_info::form::Form"><code>Form</code></a> trait just as has been done in this crate with
+<a href="trait.TypeInfo.html" title="trait gclient::ext::sp_runtime::scale_info::TypeInfo"><code>TypeInfo</code></a> in order to get a simple implementation of
+<a href="trait.IntoPortable.html" title="trait gclient::ext::sp_runtime::scale_info::IntoPortable"><code>IntoPortable</code></a>. Use a single instance of the
+<a href="struct.Registry.html" title="struct gclient::ext::sp_runtime::scale_info::Registry"><code>Registry</code></a> for compaction and provide this registry
+instance upon serialization.</p>
+<p>A usage example can be found in ink! here:
+https://github.com/paritytech/ink/blob/master/abi/src/specs.rs</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="build/index.html" title="mod gclient::ext::sp_runtime::scale_info::build">build</a></dt><dd>Builders for defining metadata for variant types (enums), and composite types (structs).
+They are designed to allow only construction of valid definitions.</dd><dt><a class="mod" href="form/index.html" title="mod gclient::ext::sp_runtime::scale_info::form">form</a></dt><dd>Provides form definitions.</dd><dt><a class="mod" href="interner/index.html" title="mod gclient::ext::sp_runtime::scale_info::interner">interner</a></dt><dd>Interning data structure and associated symbol definitions.</dd><dt><a class="mod" href="prelude/index.html" title="mod gclient::ext::sp_runtime::scale_info::prelude">prelude</a></dt><dd>Exports from <code>std</code>, <code>core</code> and <code>alloc</code> crates.</dd></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.named_type_params.html" title="macro gclient::ext::sp_runtime::scale_info::named_type_params">named_<wbr>type_<wbr>params</a></dt><dd>Construct a vector of <code>TypeParameter</code>s from pairs of the name and the concrete type.</dd><dt><a class="macro" href="macro.tuple_meta_type.html" title="macro gclient::ext::sp_runtime::scale_info::tuple_meta_type">tuple_<wbr>meta_<wbr>type</a></dt><dd>Takes a number of types and returns a vector that contains their respective
+<a href="struct.MetaType.html" title="struct gclient::ext::sp_runtime::scale_info::MetaType"><code>MetaType</code></a> instances.</dd><dt><a class="macro" href="macro.type_params.html" title="macro gclient::ext::sp_runtime::scale_info::type_params">type_<wbr>params</a></dt><dd>Construct a vector of <a href="struct.TypeParameter.html" title="struct gclient::ext::sp_runtime::scale_info::TypeParameter"><code>TypeParameter</code></a> instances with the name of the type parameter,
+together with its concrete <a href="struct.MetaType.html" title="struct gclient::ext::sp_runtime::scale_info::MetaType"><code>MetaType</code></a>.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Field.html" title="struct gclient::ext::sp_runtime::scale_info::Field">Field</a></dt><dd>A field of a struct-like data type.</dd><dt><a class="struct" href="struct.MetaType.html" title="struct gclient::ext::sp_runtime::scale_info::MetaType">Meta<wbr>Type</a></dt><dd>A metatype abstraction.</dd><dt><a class="struct" href="struct.Path.html" title="struct gclient::ext::sp_runtime::scale_info::Path">Path</a></dt><dd>Represents the path of a type definition.</dd><dt><a class="struct" href="struct.PortableRegistry.html" title="struct gclient::ext::sp_runtime::scale_info::PortableRegistry">Portable<wbr>Registry</a></dt><dd>A read-only registry containing types in their portable form for serialization.</dd><dt><a class="struct" href="struct.PortableRegistryBuilder.html" title="struct gclient::ext::sp_runtime::scale_info::PortableRegistryBuilder">Portable<wbr>Registry<wbr>Builder</a></dt><dd>Construct a <a href="struct.PortableRegistry.html" title="struct gclient::ext::sp_runtime::scale_info::PortableRegistry"><code>PortableRegistry</code></a>.</dd><dt><a class="struct" href="struct.PortableType.html" title="struct gclient::ext::sp_runtime::scale_info::PortableType">Portable<wbr>Type</a></dt><dd>Represent a type in it’s portable form.</dd><dt><a class="struct" href="struct.Registry.html" title="struct gclient::ext::sp_runtime::scale_info::Registry">Registry</a></dt><dd>The registry for space-efficient storage of type identifiers and
+definitions.</dd><dt><a class="struct" href="struct.Type.html" title="struct gclient::ext::sp_runtime::scale_info::Type">Type</a></dt><dd>A <a href="struct.Type.html" title="struct gclient::ext::sp_runtime::scale_info::Type"><code>Type</code></a> definition with optional metadata.</dd><dt><a class="struct" href="struct.TypeDefArray.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefArray">Type<wbr>DefArray</a></dt><dd>An array type.</dd><dt><a class="struct" href="struct.TypeDefBitSequence.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefBitSequence">Type<wbr>DefBit<wbr>Sequence</a></dt><dd>Type describing a [<code>bitvec::vec::BitVec</code>].</dd><dt><a class="struct" href="struct.TypeDefCompact.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefCompact">Type<wbr>DefCompact</a></dt><dd>A type wrapped in [<code>Compact</code>].</dd><dt><a class="struct" href="struct.TypeDefComposite.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefComposite">Type<wbr>DefComposite</a></dt><dd>A composite type, consisting of either named (struct) or unnamed (tuple
+struct) fields</dd><dt><a class="struct" href="struct.TypeDefSequence.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefSequence">Type<wbr>DefSequence</a></dt><dd>A type to refer to a sequence of elements of the same type.</dd><dt><a class="struct" href="struct.TypeDefTuple.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefTuple">Type<wbr>DefTuple</a></dt><dd>A type to refer to tuple types.</dd><dt><a class="struct" href="struct.TypeDefVariant.html" title="struct gclient::ext::sp_runtime::scale_info::TypeDefVariant">Type<wbr>DefVariant</a></dt><dd>A Enum type (consisting of variants).</dd><dt><a class="struct" href="struct.TypeParameter.html" title="struct gclient::ext::sp_runtime::scale_info::TypeParameter">Type<wbr>Parameter</a></dt><dd>A generic type parameter.</dd><dt><a class="struct" href="struct.Variant.html" title="struct gclient::ext::sp_runtime::scale_info::Variant">Variant</a></dt><dd>A struct enum variant with either named (struct) or unnamed (tuple struct)
+fields.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.PathError.html" title="enum gclient::ext::sp_runtime::scale_info::PathError">Path<wbr>Error</a></dt><dd>An error that may be encountered upon constructing namespaces.</dd><dt><a class="enum" href="enum.TypeDef.html" title="enum gclient::ext::sp_runtime::scale_info::TypeDef">TypeDef</a></dt><dd>The possible types a SCALE encodable Rust value could have.</dd><dt><a class="enum" href="enum.TypeDefPrimitive.html" title="enum gclient::ext::sp_runtime::scale_info::TypeDefPrimitive">Type<wbr>DefPrimitive</a></dt><dd>A primitive Rust type.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.IntoPortable.html" title="trait gclient::ext::sp_runtime::scale_info::IntoPortable">Into<wbr>Portable</a></dt><dd>Convert the type definition into the portable form using a registry.</dd><dt><a class="trait" href="trait.StaticTypeInfo.html" title="trait gclient::ext::sp_runtime::scale_info::StaticTypeInfo">Static<wbr>Type<wbr>Info</a></dt><dd>Convenience trait for implementors, combining <code>TypeInfo</code> and <code>'static</code> bounds.</dd><dt><a class="trait" href="trait.TypeInfo.html" title="trait gclient::ext::sp_runtime::scale_info::TypeInfo">Type<wbr>Info</a></dt><dd>Implementors return their meta type information.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.meta_type.html" title="fn gclient::ext::sp_runtime::scale_info::meta_type">meta_<wbr>type</a></dt><dd>Returns the runtime bridge to the types compile-time type information.</dd></dl><h2 id="derives" class="section-header">Derive Macros<a href="#derives" class="anchor">§</a></h2><dl class="item-table"><dt><a class="derive" href="derive.TypeInfo.html" title="derive gclient::ext::sp_runtime::scale_info::TypeInfo">Type<wbr>Info</a></dt></dl></section></div></main></body></html>

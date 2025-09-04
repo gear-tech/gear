@@ -1,0 +1,102 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Gear Program Pallet"><title>pallet_gear_program - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="pallet_gear_program" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../static.files/storage-4e99c027.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../pallet_gear_program/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../pallet_gear_program/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../pallet_gear_program/index.html">pallet_<wbr>gear_<wbr>program</a><span class="version">1.9.1</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#gear-program-pallet" title="Gear Program Pallet">Gear Program Pallet</a><ul><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#interface" title="Interface">Interface</a></li><li><a href="#usage" title="Usage">Usage</a></li><li><a href="#genesis-config" title="Genesis config">Genesis config</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#macros" title="Macros">Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>pallet_gear_program</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/pallet_gear_program/lib.rs.html#19-328">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="gear-program-pallet"><a class="doc-anchor" href="#gear-program-pallet">§</a>Gear Program Pallet</h2>
+<p>The Gear Program Pallet provides functionality for storing programs
+and binary codes.</p>
+<ul>
+<li><a href="pallet/trait.Config.html" title="trait pallet_gear_program::pallet::Config"><code>Config</code></a></li>
+<li><a href="pallet/struct.Pallet.html" title="struct pallet_gear_program::pallet::Pallet"><code>Pallet</code></a></li>
+</ul>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>The Gear Program Pallet’s main aim is to separate programs and binary codes storages out
+of Gear’s execution logic and provide soft functionality to manage them.</p>
+<p>The Gear Program Pallet provides functions for:</p>
+<ul>
+<li>Add/remove/check existence for binary codes;</li>
+<li>Get original binary code, instrumented binary code and associated metadata;</li>
+<li>Update instrumented binary code in the storage;</li>
+<li>Add/remove/check existence for programs;</li>
+<li>Get program data;</li>
+<li>Update program in the storage;</li>
+<li>Work with program memory pages and messages for uninitialized programs.</li>
+</ul>
+<h3 id="interface"><a class="doc-anchor" href="#interface">§</a>Interface</h3>
+<p>The Gear Program Pallet implements <code>gear_common::{CodeStorage, ProgramStorage}</code> traits
+and shouldn’t contain any other functionality, except this trait declares.</p>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>How to use the functionality from the Gear Program Pallet:</p>
+<ol>
+<li>Implement the pallet <code>Config</code> for your runtime.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="kw">impl </span>pallet_gear_program::Config <span class="kw">for </span>Runtime {}
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="2">
+<li>Provide associated type for your pallet’s <code>Config</code>, which implements
+<code>gear_common::{CodeStorage, ProgramStorage}</code> traits,
+specifying associated types if needed.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `some_pallet/src/lib.rs`
+// ... //
+
+</span><span class="kw">use </span>gear_common::{CodeStorage, ProgramStorage};
+
+<span class="attr">#[pallet::config]
+</span><span class="kw">pub trait </span>Config: frame_system::Config {
+    <span class="comment">// .. //
+
+    </span><span class="kw">type </span>CodeStorage: CodeStorage;
+
+    <span class="kw">type </span>ProgramStorage: ProgramStorage;
+
+    <span class="comment">// .. //
+</span>}</code></pre></div>
+<ol start="3">
+<li>Declare Gear Program Pallet in your <code>construct_runtime!</code> macro.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="macro">construct_runtime!</span>(
+    <span class="kw">pub enum </span>Runtime
+        <span class="kw">where </span><span class="comment">// ... //
+    </span>{
+        <span class="comment">// ... //
+
+        </span>GearProgram: pallet_gear_program,
+
+        <span class="comment">// ... //
+    </span>}
+);
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="4">
+<li>Set <code>GearProgram</code> as your pallet <code>Config</code>’s <code>{CodeStorage, ProgramStorage}</code> types.</li>
+</ol>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// `runtime/src/lib.rs`
+// ... //
+
+</span><span class="kw">impl </span>some_pallet::Config <span class="kw">for </span>Runtime {
+    <span class="comment">// ... //
+
+    </span><span class="kw">type </span>CodeStorage = GearProgram;
+
+    <span class="kw">type </span>ProgramStorage = GearProgram;
+
+    <span class="comment">// ... //
+</span>}
+
+<span class="comment">// ... //</span></code></pre></div>
+<ol start="5">
+<li>Work with Gear Program Pallet in your pallet with provided
+associated type interface.</li>
+</ol>
+<h3 id="genesis-config"><a class="doc-anchor" href="#genesis-config">§</a>Genesis config</h3>
+<p>The Gear Program Pallet doesn’t depend on the <code>GenesisConfig</code>.</p>
+</div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt><code>pub use <a class="mod" href="pallet/index.html" title="mod pallet_gear_program::pallet">pallet</a>::*;</code></dt></dl><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="migrations/index.html" title="mod pallet_gear_program::migrations">migrations</a></dt><dt><a class="mod" href="pallet/index.html" title="mod pallet_gear_program::pallet">pallet</a></dt><dd>The <code>pallet</code> module in each FRAME pallet hosts the most important items needed
+to construct this pallet.</dd><dt><a class="mod" href="pallet_tests/index.html" title="mod pallet_gear_program::pallet_tests">pallet_<wbr>tests</a></dt></dl><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.impl_config.html" title="macro pallet_gear_program::impl_config">impl_<wbr>config</a></dt></dl></section></div></main></body></html>

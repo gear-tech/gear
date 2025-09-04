@@ -1,0 +1,34 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Transforms a given module into one that charges gas for code to be executed by proxy of an imported gas metering function."><title>inject in gear_core::gas_metering - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="gear_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../gear_core/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../gear_core/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../../gear_core/index.html">gear_<wbr>core</a><span class="version">1.9.1</span></h2></div><div class="sidebar-elems"><div id="rustdoc-modnav"><h2><a href="index.html">In gear_<wbr>core::<wbr>gas_<wbr>metering</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">gear_core</a>::<wbr><a href="index.html">gas_metering</a></div><h1>Function <span class="fn">inject</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><pre class="rust item-decl"><code>pub fn inject&lt;R&gt;(
+    module: Module,
+    rules: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;R</a>,
+    gas_module_name: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Module, <a class="enum" href="enum.GasMeteringError.html" title="enum gear_core::gas_metering::GasMeteringError">GasMeteringError</a>&gt;<div class="where">where
+    R: <a class="trait" href="trait.Rules.html" title="trait gear_core::gas_metering::Rules">Rules</a>,</div></code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Transforms a given module into one that charges gas for code to be executed by proxy of an
+imported gas metering function.</p>
+<p>The output module imports a function “gas” from the specified module with type signature
+<a href="https://doc.rust-lang.org/nightly/std/primitive.i32.html" title="primitive i32">i32</a> -&gt; []. The argument is the amount of gas required to continue execution. The external
+function is meant to keep track of the total amount of gas used and trap or otherwise halt
+execution of the runtime if the gas usage exceeds some allowed limit.</p>
+<p>The body of each function is divided into metered blocks, and the calls to charge gas are
+inserted at the beginning of every such block of code. A metered block is defined so that,
+unless there is a trap, either all of the instructions are executed or none are. These are
+similar to basic blocks in a control flow graph, except that in some cases multiple basic
+blocks can be merged into a single metered block. This is the case if any path through the
+control flow graph containing one basic block also contains another.</p>
+<p>Charging gas is at the beginning of each metered block ensures that 1) all instructions
+executed are already paid for, 2) instructions that will not be executed are not charged for
+unless execution traps, and 3) the number of calls to “gas” is minimized. The corollary is that
+modules instrumented with this metering code may charge gas for instructions not executed in
+the event of a trap.</p>
+<p>Additionally, each <code>memory.grow</code> instruction found in the module is instrumented to first make
+a call to charge gas for the additional pages requested. This cannot be done as part of the
+block level gas charges as the gas cost is not static and depends on the stack argument to
+<code>memory.grow</code>.</p>
+<p>The above transformations are performed for every function body defined in the module. This
+function also rewrites all function indices references by code, table elements, etc., since
+the addition of an imported functions changes the indices of module-defined functions. If the
+the module has a NameSection, added by calling <code>parse_names</code>, the indices will also be updated.</p>
+<p>This routine runs in time linear in the size of the input module.</p>
+<p>The function fails if the module contains any operation forbidden by gas rule set, returning
+the original module as an Err.</p>
+</div></details></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["weight_v2"],"struct":["RuntimeDbWeight"]};

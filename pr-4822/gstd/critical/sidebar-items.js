@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["set_hook","take_and_execute","take_hook"]};

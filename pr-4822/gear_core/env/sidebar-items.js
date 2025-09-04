@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["MessageWaitedType"],"trait":["Externalities","WasmEntryPoint"]};

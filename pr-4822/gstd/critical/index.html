@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Critical hook that guarantees code section execution."><title>gstd::critical - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="gstd" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (ccf3198de 2025-06-05)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="icon" href="https://gear-tech.io/favicons/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button><a class="logo-container" href="../../gstd/index.html"><img src="https://docs.gear.rs/logo.svg" alt=""></a></nav><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../gstd/index.html"><img src="https://docs.gear.rs/logo.svg" alt="logo"></a><h2><a href="../../gstd/index.html">gstd</a><span class="version">1.9.1</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module critical</a></h2><h3><a href="#functions">Module Items</a></h3><ul class="block"><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate gstd</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">gstd</a></div><h1>Module <span>critical</span><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/gstd/critical.rs.html#20-141">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Critical hook that guarantees code section execution.</p>
+<p><strong>Hook is set on per-message basis.</strong></p>
+<p>Code is executed in <code>handle_signal</code> entry point in case of failure
+only across <a href="../exec/fn.wait.html" title="fn gstd::exec::wait"><code>exec::wait()</code></a> calls because hook has to be saved.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>gstd::{critical, msg};
+
+<span class="comment">// get source outside of critical hook
+// because `gr_source` syscall is forbidden inside `handle_signal` entry point
+</span><span class="kw">let </span>source = msg::source();
+
+critical::set_hook(<span class="kw">move </span>|| {
+    msg::send(source, <span class="string">"sends failed"</span>, <span class="number">0</span>).expect(<span class="string">"Failed to send emergency message"</span>);
+});
+
+<span class="kw">let </span>msg = msg::send_for_reply(source, <span class="string">"send_for_reply"</span>, <span class="number">0</span>, <span class="number">0</span>)
+    .expect(<span class="string">"Failed to send message"</span>)
+    <span class="comment">// await on `MessageFuture` which calls `exec::wait()` inside
+    // so program state will be saved and thus hook will too
+    </span>.<span class="kw">await
+    </span>.expect(<span class="string">"Received error reply"</span>);
+
+<span class="comment">// if some code fails (panic, out of gas, etc) after `exec::wait()` and friends
+// then saved hook will be executed in `handle_signal`
+
+// your code
+// ...
+</span></code></pre></div>
+</div></details><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.set_hook.html" title="fn gstd::critical::set_hook">set_<wbr>hook</a></dt><dd>Sets a critical hook.</dd><dt><a class="fn" href="fn.take_and_execute.html" title="fn gstd::critical::take_and_execute">take_<wbr>and_<wbr>execute</a></dt><dd>Removes current hook and executes it.</dd><dt><a class="fn" href="fn.take_hook.html" title="fn gstd::critical::take_hook">take_<wbr>hook</a></dt><dd>Removes current hook and returns it.</dd></dl></section></div></main></body></html>
