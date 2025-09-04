@@ -1,5 +1,5 @@
 use crate::{
-    Config, EthMessage, QueuesInfo, WeightInfo,
+    Config, EthMessage, QueueId, QueuesInfo, TransportFee, WeightInfo,
     internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
 };
@@ -562,11 +562,9 @@ fn bridge_max_payload_size_exceeded_err() {
 }
 
 #[test]
-fn bridge_queue_capacity_exceeded_err() {
+fn bridge_queue_capacity_exceeded_causes_reset() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::QueueCapacityExceeded;
-
         run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
@@ -579,13 +577,32 @@ fn bridge_queue_capacity_exceeded_err() {
             ));
         }
 
-        run_block_and_assert_messaging_error(
+        run_block_with_builtin_call(
+            SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
                 payload: vec![],
             },
-            ERR,
+            None,
+            TransportFee::<Test>::get(),
         );
+
+        System::assert_has_event(Event::QueueReset.into());
+        assert_eq!(Queue::get().len(), 0);
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for past id");
+        };
+
+        assert_eq!(QueueId::<Test>::get(), 1);
+
+        let capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+
+        // Expected len is `QueueCapacity + 1`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), capacity as usize,);
     })
 }
 

@@ -3420,10 +3420,6 @@ pub mod runtime_types {
                     #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
                     #[codec(index = 3)]
-                    #[doc = "The error happens when bridging queue capacity exceeded,"]
-                    #[doc = "so message couldn't be sent."]
-                    QueueCapacityExceeded,
-                    #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
                     InsufficientValueApplied,

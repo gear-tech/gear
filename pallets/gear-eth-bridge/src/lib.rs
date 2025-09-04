@@ -60,10 +60,10 @@ pub mod pallet {
         },
     };
     use frame_system::{
-        ensure_signed,
+        ensure_root, ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
-    use gprimitives::{ActorId, H160, H256, U256};
+    use gprimitives::{H160, H256, U256};
     use sp_runtime::{
         BoundToRuntimeAppPublic,
         traits::{Keccak256, One, Saturating, Zero},
@@ -94,9 +94,6 @@ pub mod pallet {
         /// Account ID of the bridge builtin.
         #[pallet::constant]
         type BuiltinAddress: Get<Self::AccountId>;
-
-        /// Privileged origin for bridge management operations.
-        type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Privileged origin for administrative operations.
         type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -186,10 +183,6 @@ pub mod pallet {
 
         /// The error happens when bridging message sent with too big payload.
         MaxPayloadSizeExceeded,
-
-        /// The error happens when bridging queue capacity exceeded,
-        /// so message couldn't be sent.
-        QueueCapacityExceeded,
 
         /// The error happens when bridging thorough builtin and message value
         /// is inapplicable to operation or insufficient.
@@ -308,8 +301,11 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by `ControlOrigin` or root.
-            T::ControlOrigin::ensure_origin_or_root(origin)?;
+            // Root or governance admin/pauser.
+            if ensure_root(origin.clone()).is_err() {
+                let origin = ensure_signed(origin)?;
+                Self::ensure_admin_or_pauser(origin.clone().cast())?;
+            }
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -332,8 +328,11 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by `ControlOrigin` or root.
-            T::ControlOrigin::ensure_origin_or_root(origin)?;
+            // Root or governance admin/pauser.
+            if ensure_root(origin.clone()).is_err() {
+                let origin = ensure_signed(origin)?;
+                Self::ensure_admin_or_pauser(origin.clone().cast())?;
+            }
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -366,22 +365,23 @@ pub mod pallet {
         where
             T::AccountId: Origin,
         {
-            let source: ActorId = ensure_signed(origin.clone())?.cast();
-            let is_governance_origin = T::ControlOrigin::ensure_origin(origin).is_ok();
+            let origin = ensure_signed(origin)?;
+
+            let from_governance = Self::ensure_admin_or_pauser(origin.clone().cast()).is_ok();
 
             // Transfer fee or skip it if it's zero or governance origin.
             let fee = TransportFee::<T>::get();
-            if !(fee.is_zero() || is_governance_origin) {
+            if !(fee.is_zero() || from_governance) {
                 let builtin_id = T::BuiltinAddress::get();
                 CurrencyOf::<T>::transfer(
-                    &source.cast(),
+                    &origin,
                     &builtin_id,
                     fee,
                     ExistenceRequirement::AllowDeath,
                 )?;
             }
 
-            Self::queue_message(source, destination, payload, is_governance_origin)?;
+            Self::queue_message(origin.cast(), destination, payload)?;
 
             Ok(().into())
         }

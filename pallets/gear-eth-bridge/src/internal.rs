@@ -20,13 +20,14 @@ use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
     Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo, ResetQueueOnInit,
 };
+use common::Origin;
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
 use gprimitives::{ActorId, H160, H256, U256};
 use pallet_gear_eth_bridge_primitives::EthMessage;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_runtime::{
-    RuntimeAppPublic as _,
+    DispatchError, RuntimeAppPublic as _,
     traits::{Hash, Keccak256},
 };
 use sp_std::vec::Vec;
@@ -159,11 +160,11 @@ impl<T: Config> Pallet<T> {
         T::DbWeight::get().writes(4)
     }
 
+    // TODO (breathx): return bn as well?
     pub(crate) fn queue_message(
         source: ActorId,
         destination: H160,
         payload: Vec<u8>,
-        is_governance_origin: bool,
     ) -> Result<(U256, H256), Error<T>> {
         // Ensuring that pallet is initialized.
         ensure!(
@@ -179,27 +180,10 @@ impl<T: Config> Pallet<T> {
         // Inside goes query and bump of nonce,
         // as well as checking payload size.
         let message = EthMessage::try_new(source, destination, payload)?;
+        let hash = message.hash();
 
-        // Appending hash of the message into the queue,
-        // checks whether the queue capacity is exceeded,
-        // or skips the check when the origin is governance.
-        let hash = Queue::<T>::mutate(|v| {
-            (is_governance_origin || v.len() < QueueCapacityOf::<T>::get() as usize)
-                .then(|| {
-                    let hash = message.hash();
-                    v.push(hash);
-                    hash
-                })
-                .ok_or(Error::<T>::QueueCapacityExceeded)
-        })
-        .inspect_err(|_| {
-            // In case of error, reverting increase of `MessageNonce` performed
-            // in message creation to keep builtin interactions transactional.
-            MessageNonce::<T>::mutate_exists(|nonce| {
-                *nonce = nonce
-                    .and_then(|inner| inner.checked_sub(U256::one()).filter(|new| !new.is_zero()));
-            });
-        })?;
+        // Appending hash of the message into the queue.
+        Queue::<T>::mutate(|v| v.push(hash));
 
         // Marking queue as changed, so root will be updated later.
         QueueChanged::<T>::put(true);
@@ -211,6 +195,18 @@ impl<T: Config> Pallet<T> {
         Self::deposit_event(Event::<T>::MessageQueued { message, hash });
 
         Ok((nonce, hash))
+    }
+
+    pub(super) fn ensure_admin_or_pauser(source: ActorId) -> Result<(), DispatchError>
+    where
+        T::AccountId: Origin,
+    {
+        let governance_addrs = [T::BridgeAdmin::get(), T::BridgePauser::get()];
+        ensure!(
+            governance_addrs.contains(&source.cast()),
+            DispatchError::BadOrigin,
+        );
+        Ok(())
     }
 }
 
