@@ -61,6 +61,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         slot_duration: Duration::from_secs(1),
         signatures_threshold: 1,
         router_address: 12345.into(),
+        #[cfg(feature = "staking-rewards")]
         rewards_manager: RewardsManager::mock(db.clone()),
         pub_key: keys.pop().unwrap(),
         signer,

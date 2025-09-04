@@ -43,13 +43,15 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
     SignedValidationRequest,
-    rewards::RewardsManager,
     utils::MultisignedBatchCommitment,
     validator::{
         coordinator::Coordinator, participant::Participant, producer::Producer,
         submitter::Submitter, subordinate::Subordinate,
     },
 };
+
+#[cfg(feature = "staking-rewards")]
+use crate::rewards::RewardsManager;
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
@@ -129,7 +131,6 @@ impl ValidatorService {
         .await?;
 
         let router = ethereum.router();
-        let rewards_manager = RewardsManager::new(db.clone(), ethereum.router().query()).await?;
 
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
@@ -137,7 +138,8 @@ impl ValidatorService {
             router_address: config.router_address,
 
             // TODO: use router.query().timelines() after merge PR
-            rewards_manager,
+            #[cfg(feature = "staking-rewards")]
+            rewards_manager: RewardsManager::new(db.clone(), ethereum.router().query()).await?,
             pub_key: config.pub_key,
             signer,
             db,
@@ -432,6 +434,7 @@ struct ValidatorContext {
     slot_duration: Duration,
     signatures_threshold: u64,
     router_address: Address,
+    #[cfg(feature = "staking-rewards")]
     rewards_manager: RewardsManager<Database>,
     pub_key: PublicKey,
 

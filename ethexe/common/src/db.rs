@@ -84,18 +84,10 @@ pub trait OnChainStorageRead {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
+    fn latest_synced_finalized_block(&self) -> Option<H256>;
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
     fn rewards_state(&self, block_hash: H256) -> Option<RewardsState>;
     fn staking_metadata(&self, era: u64) -> Option<StakingEraMetadata>;
-
-    // 1. Add to network sharing the tree of operators rewards for the era.
-    // fn operators_rewards_distribution_at(
-    //     &self,
-    //     distribution: u64,
-    // ) -> Option<BTreeMap<Address, U256>>;
-    // fn operator_stake_at(&self, operator: H160, era: u64) -> Option<U256>;
-    // // Temporary solution: returns all operator vaults with stake in it.
-    // fn operator_stake_vaults_at(&self, operator: H160, era: u64) -> Option<Vec<(Address, U256)>>;
 }
 
 pub trait OnChainStorageWrite {
@@ -103,16 +95,8 @@ pub trait OnChainStorageWrite {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
+    fn set_latest_synced_finalized_block(&self, block_hash: H256);
     fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
     fn set_rewards_state(&self, block_hash: H256, state: RewardsState);
     fn mutate_staking_metadata(&self, era: u64, f: impl FnOnce(&mut StakingEraMetadata));
-
-    // maybe extract these methods into separate trait
-    // fn set_operators_rewards_distribution_at(
-    //     &self,
-    //     era: u64,
-    //     distribution: BTreeMap<Address, U256>,
-    // );
-    // fn set_operator_stake_at(&self, operator: H160, era: u64, stake: U256);
-    // fn set_operator_stake_vaults_at(&self, operator: H160, era: u64, vaults: Vec<(Address, U256)>);
 }

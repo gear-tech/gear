@@ -32,12 +32,13 @@
 //! - [`utils`]: Utility functions and shared data structures
 
 mod connect;
-mod rewards;
 mod utils;
 mod validator;
 
 #[cfg(test)]
 mod mock;
+#[cfg(feature = "staking-rewards")]
+mod rewards;
 
 use anyhow::Result;
 pub use connect::SimpleConnectService;

@@ -23,17 +23,21 @@ use crate::{
     utils::{load_block_data, load_blocks_data_batched},
 };
 use alloy::{
+    consensus::BlockHeader as _,
+    network::{BlockResponse, primitives::HeaderResponse},
     providers::{Provider, RootProvider},
-    rpc::types::eth::Header,
+    rpc::types::eth::{Block, Header},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, Address, BlockData, BlockHeader, CodeBlobInfo, RewardsState,
+    self, Address, BlockData, BlockHeader, CodeBlobInfo, OperatorStakingInfo, RewardsState,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
-use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
+use ethexe_ethereum::{
+    middleware::MiddlewareQuery, primitives::private::derive_more, router::RouterQuery,
+};
 use gprimitives::{H256, U256};
 use nonempty::NonEmpty;
 use std::collections::{BTreeMap, HashMap};
@@ -69,22 +73,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, &header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-
-        let era_first_block = self.era_first_block(&header)?;
-        self.propagate_onchain_data(block, &header, era_first_block)
-            .await?;
-
-        #[cfg(feature = "staking-rewards")]
-        if era_first_block {
-            self.load_staking_data(block, &header).await?;
-        }
-
-        let last_finalized_block = self
-            .provider
-            .get_block_by_number(alloy::eips::BlockNumberOrTag::Finalized)
-            .await?
-            .expect("Last finalized block msut exists")
-            .header;
+        self.propagate_onchain_data(block, &header).await?;
 
         Ok(block)
     }
@@ -185,64 +174,10 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    #[cfg(feature = "staking-rewards")]
-    async fn load_staking_data(&self, block: H256, header: &BlockHeader) -> Result<()> {
-        let middleware_query = MiddlewareQuery::from_provider(
-            self.config.middleware_address.0.into(),
-            self.provider.clone(),
-        );
-
-        let validators = self
-            .db
-            .validators(block)
-            .expect("Must be propagate in `propagate_validators`");
-
-        let mut operators_stake = BTreeMap::new();
-        let mut operators_staked_vaults = BTreeMap::new();
-
-        for validator in validators.iter() {
-            // THINK: maybe timestamp not from header
-            let validator_stake = middleware_query
-                .operator_stake_at(validator.0.into(), header.timestamp)
-                .await?;
-
-            operators_stake.insert(*validator, U256(validator_stake.into_limbs()));
-
-            let validator_stake_vaults = middleware_query
-                .operator_stake_vaults_at(validator.0.into(), header.timestamp)
-                .await?
-                .iter()
-                .map(|vault_with_stake| {
-                    (
-                        Address(vault_with_stake.vault.into_array()),
-                        U256::from_little_endian(vault_with_stake.stake.as_le_slice()),
-                    )
-                })
-                .collect();
-
-            operators_staked_vaults.insert(*validator, validator_stake_vaults);
-        }
-
-        let era = self.block_era_index(header.timestamp);
-
-        self.db.mutate_staking_metadata(era, |metadata| {
-            metadata.operators_stake.extend(operators_stake.into_iter());
-            metadata
-                .operators_staked_vaults
-                .extend(operators_staked_vaults.into_iter());
-        });
-
-        self.db.set_validators(block, validators);
-        Ok(())
-    }
-
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_onchain_data(
-        &self,
-        block: H256,
-        header: &BlockHeader,
-        era_first_block: bool,
-    ) -> Result<()> {
+    async fn propagate_onchain_data(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        let era_first_block = self.era_first_block(&header)?;
+
         // propagate validators
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !era_first_block => validators,
@@ -308,5 +243,97 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     fn block_era_index(&self, block_ts: u64) -> u64 {
         (block_ts - self.config.genesis_timestamp) / self.config.era_duration
+    }
+}
+
+// THOUGHTS: create another struct to split the logic of onchain data
+
+/// [`FinalizedDataSync`] works with finalized blocks and sync the necessary data.
+#[derive(Clone, derive_more::Debug)]
+pub(crate) struct FinalizedDataSync<DB: Clone> {
+    #[debug(skip)]
+    pub db: DB,
+    pub provider: RootProvider,
+    pub config: RuntimeConfig,
+}
+
+impl<DB: SyncDB> FinalizedDataSync<DB> {
+    /// Entry point to process finalized block.
+    pub async fn process_finalized_block(self, finalized_block: Block) -> Result<H256> {
+        if self.can_load_staking_data(&finalized_block) {
+            let _: () = self.sync_staking_data(&finalized_block).await?;
+        }
+
+        let finalized_block_hash = finalized_block.header().hash().0.into();
+        self.db
+            .set_latest_synced_finalized_block(finalized_block_hash);
+        Ok(finalized_block_hash)
+    }
+
+    // Check if we can load staking data for the given finalized block.
+    // We can load staking data if received block in a new era and not in the genesis.
+    pub fn can_load_staking_data(&self, block: &Block) -> bool {
+        let parent_hash = block.header().parent_hash().0.into();
+        let parent = self
+            .db
+            .block_header(parent_hash)
+            .expect("Expect parent header for finalized block exists in db");
+
+        let era =
+            (block.header().timestamp() - self.config.genesis_timestamp) / self.config.era_duration;
+        let parent_era =
+            (parent.timestamp - self.config.genesis_timestamp) / self.config.era_duration;
+
+        era > 0 && era > parent_era
+    }
+
+    // Sync staking data for the given finalized block.
+    async fn sync_staking_data(&self, block: &Block) -> Result<()> {
+        let middleware_query = MiddlewareQuery::from_provider(
+            self.config.middleware_address.0.into(),
+            self.provider.root().clone(),
+        );
+
+        let validators = self
+            .db
+            .validators(block.header().hash().0.into())
+            .expect("Must be propagate in `propagate_validators`");
+
+        let mut operators_info = BTreeMap::new();
+        for validator in validators.iter() {
+            // THINK: maybe timestamp not from header
+            let validator_stake = middleware_query
+                .operator_stake_at(validator.0.into(), block.header().timestamp())
+                .await?;
+
+            let validator_stake_vaults = middleware_query
+                .operator_stake_vaults_at(validator.0.into(), block.header().timestamp())
+                .await?
+                .iter()
+                .map(|vault_with_stake| {
+                    (
+                        Address(vault_with_stake.vault.into_array()),
+                        U256::from_little_endian(vault_with_stake.stake.as_le_slice()),
+                    )
+                })
+                .collect();
+
+            operators_info.insert(
+                *validator,
+                OperatorStakingInfo {
+                    stake: U256(validator_stake.into_limbs()),
+                    staked_vaults: validator_stake_vaults,
+                },
+            );
+        }
+
+        let era =
+            (block.header().timestamp() - self.config.genesis_timestamp) / self.config.era_duration;
+
+        self.db.mutate_staking_metadata(era, |metadata| {
+            metadata.operators_info = operators_info;
+        });
+
+        Ok(())
     }
 }

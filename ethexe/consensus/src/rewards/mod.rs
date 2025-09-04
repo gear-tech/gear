@@ -46,7 +46,7 @@ const STAKER_REWARDS_RATIO: u32 = 90;
 const PERCENTAGE_DENOMINATOR: u32 = 100;
 
 /// Window to wait for previous era
-const PREV_ERA_: u64 = alloy::eips::merge::SLOT_DURATION * 10;
+// const PREV_ERA_: u64 = alloy::eips::merge::SLOT_DURATION * 10;
 
 #[derive(thiserror::Error, Debug)]
 pub enum RewardsError {
@@ -95,15 +95,10 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> TotalEraRewards<DB> {
             total_operator_rewards += *amount;
             total_staker_rewards += staker_amount;
 
-            let operator_stake_vaults = staking_metadata
-                .operators_staked_vaults
-                .get(operator)
-                .unwrap();
-            let operator_total_stake = staking_metadata.operators_stake.get(operator).unwrap();
-
-            for (vault, stake_in_vault) in operator_stake_vaults {
+            let operator_info = staking_metadata.operators_info.get(operator).unwrap();
+            for (vault, stake_in_vault) in operator_info.staked_vaults.iter() {
                 let vault_rewards = stakers.entry(*vault).or_insert(U256::zero());
-                *vault_rewards += (staker_amount * stake_in_vault) / *operator_total_stake;
+                *vault_rewards += (staker_amount * stake_in_vault) / operator_info.stake;
             }
         }
 

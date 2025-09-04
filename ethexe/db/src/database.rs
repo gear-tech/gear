@@ -67,9 +67,10 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
-    ValidatorSet(H256) = 13,
-    RewardsState(H256) = 14,
-    StakingMetadata(u64) = 15,
+    LatestSyncedFinalizedBlock = 13,
+    ValidatorSet(H256) = 14,
+    RewardsState(H256) = 15,
+    StakingMetadata(u64) = 16,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -114,7 +115,9 @@ impl Key {
             .concat(),
             Self::StakingMetadata(era) => [prefix.as_ref(), era.to_le_bytes().as_ref()].concat(),
 
-            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestComputedBlock
+            | Self::LatestSyncedBlockHeight
+            | Self::LatestSyncedFinalizedBlock => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -649,6 +652,14 @@ impl OnChainStorageRead for Database {
             })
     }
 
+    fn latest_synced_finalized_block(&self) -> Option<H256> {
+        self.kv
+            .get(&Key::LatestSyncedFinalizedBlock.to_bytes())
+            .map(|data| {
+                H256::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+            })
+    }
+
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
@@ -697,6 +708,13 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    }
+
+    fn set_latest_synced_finalized_block(&self, block_hash: H256) {
+        self.kv.put(
+            &Key::LatestSyncedFinalizedBlock.to_bytes(),
+            block_hash.encode(),
+        );
     }
 
     fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
