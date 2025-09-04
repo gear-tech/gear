@@ -333,7 +333,7 @@ pub fn block_producer_for(
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::db::*;
+    use ethexe_common::{db::*, mock::*};
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);
@@ -466,8 +466,8 @@ mod tests {
     #[test]
     fn test_aggregate_chain_commitment() {
         let db = Database::memory();
-        let BatchCommitment { block_hash, .. } = prepared_mock_batch_commitment(&db);
-        let announce = db.announce_hash(block_hash);
+        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
+        let announce = db.top_announce_hash(block_hash);
 
         let (commitment, counter) = aggregate_chain_commitment(&db, announce, false, None)
             .unwrap()
