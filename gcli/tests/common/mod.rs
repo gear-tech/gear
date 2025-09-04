@@ -103,8 +103,8 @@ pub fn alice_account_id() -> AccountId32 {
     AccountId32::from_ss58check(ALICE_SS58_ADDRESS).expect("Invalid address")
 }
 
-/// Create program messager
-pub async fn create_messager() -> Result<NodeInstance> {
+/// Create program messenger
+pub async fn create_messenger() -> Result<NodeInstance> {
     let node = dev()?;
 
     let args = Args::new("upload").program_stdin(demo_messenger::WASM_BINARY);

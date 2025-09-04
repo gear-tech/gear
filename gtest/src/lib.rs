@@ -225,8 +225,8 @@
 //!     - `[u8; 32]`
 //!     - `String`
 //!     - `&str`
-//!     - [`ActorId`](https://docs.gear.rs/gear_core/ids/struct.ActorId.html)
-//!       (from `gear_core` one's, not from `gstd`).
+//!     - [`ActorId`](https://docs.rs/gear_core/ids/struct.ActorId.html) (from
+//!       `gear_core` one's, not from `gstd`).
 //!
 //!     `String` implementation means the input as hex (with or without "0x").
 //!
@@ -293,7 +293,7 @@
 //! Both of the methods require sender id as the first argument and the payload
 //! as second.
 //!
-//! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
+//! The difference between them is pretty simple and similar to [`gstd`](https://docs.rs/gstd/) functions [`msg::send`](https://docs.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.rs/gstd/msg/fn.send_bytes.html).
 //!
 //! The first one requires payload to be CODEC Encodable, while the second
 //! requires payload implement `AsRef<[u8]>`, that means to be able to represent
@@ -488,9 +488,11 @@
 //! // without any arguments.
 //! ```
 //! -->
-#![deny(missing_docs)]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+
+#![warn(missing_docs)]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod error;
 mod log;
