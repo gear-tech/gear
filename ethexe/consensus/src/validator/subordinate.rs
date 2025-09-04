@@ -231,7 +231,7 @@ mod tests {
     fn earlier_received_announces() {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
-        let block = BlockChain::mock(2).setup(&ctx.db).blocks[1].to_simple();
+        let block = BlockChain::mock(1).setup(&ctx.db).blocks[1].to_simple();
         let announce_hash = ctx.db.top_announce_hash(block.hash);
         let announce1 = ctx
             .signer
