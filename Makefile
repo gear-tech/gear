@@ -272,22 +272,6 @@ test-syscalls-integrity-release:
 	@ ./scripts/gear.sh test syscalls --release
 
 # Misc section
-.PHONY: doc
-doc:
-	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
-		-p galloc -p gclient -p gcore -p gear-core-backend \
-		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gtest -p gear-wasm-builder -p gear-common \
-		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
-		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
-	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
-		-p gstd -F document-features
-	@if [ -z CARGO_BUILD_TARGET ]; then \
-		cp -f images/logo.svg target/doc/logo.svg; \
-	else \
-		cp -f images/logo.svg target/${CARGO_BUILD_TARGET}/doc/logo.svg; \
-	fi
-
 .PHONY: kill-gear
 kill:
 	@ pkill -f 'gear |gear$' -9

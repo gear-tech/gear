@@ -2005,7 +2005,7 @@ where
 ///
 /// NOTE: Copy-paste from substrate/frame/system/src/extensions/check_nonce.rs,
 /// but without providers and sufficients checks, so contains revert of changes
-/// from substrate v1.3.0 https://github.com/paritytech/polkadot-sdk/pull/1578.
+/// from substrate v1.3.0 <https://github.com/paritytech/polkadot-sdk/pull/1578>.
 #[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct CustomCheckNonce<T: frame_system::Config>(#[codec(compact)] pub T::Nonce);
