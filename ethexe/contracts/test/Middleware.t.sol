@@ -32,12 +32,6 @@ contract MiddlewareTest is Base {
         sym = POCBaseTest(address(this));
     }
 
-    // TODO: sync with the latest version of the middleware
-    function test_constructor() public view {
-        assertTrue(sym.networkRegistry().isEntity(address(middleware)));
-        assertEq(sym.networkMiddlewareService().middleware(address(middleware)), address(middleware));
-    }
-
     function test_election() public {
         address[] memory operators = new address[](5);
         address[] memory vaults = new address[](operators.length);
@@ -106,6 +100,41 @@ contract MiddlewareTest is Base {
                 assertEq(res[i], operators[i]);
             }
         }
+
+        // Simple test case for election when operator opted-out from network
+        {
+            vm.startPrank(operators[3]);
+            {
+                sym.operatorNetworkOptInService().optOut(address(middleware));
+            }
+            vm.stopPrank();
+
+            // set new timestamp to make election where operator[3] should not be in the list
+            vm.warp(vm.getBlockTimestamp() + 1000);
+
+            // Choose operator with highest stake, which is operator[1]
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 1);
+            assertEq(res.length, 1);
+            assertEq(res[0], operators[1]);
+        }
+
+        // Simple test case for election when operator opted-out from vault
+        {
+            vm.startPrank(operators[3]);
+            {
+                sym.operatorVaultOptInService().optOut(vaults[3]);
+            }
+            vm.stopPrank();
+
+            // So operator[3] should not be in the list, because of opt-out from vault and its stake not highest now
+
+            vm.warp(vm.getBlockTimestamp() + 1000);
+
+            // Choose operator with highest stake, which is operator[1]
+            address[] memory res = middleware.makeElectionAt(uint48(vm.getBlockTimestamp() - 1), 1);
+            assertEq(res.length, 1);
+            assertEq(res[0], operators[1]);
+        }
     }
 
     // TODO: split to multiple tests
@@ -113,57 +142,37 @@ contract MiddlewareTest is Base {
         // Register operator
         vm.startPrank(address(0x1));
         {
-            sym.operatorRegistry().registerOperator();
-            sym.operatorNetworkOptInService().optIn(address(middleware));
+            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotExist.selector));
             middleware.registerOperator();
 
-            // Try to register operator again
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyAdded.selector));
-            middleware.registerOperator();
+            sym.operatorRegistry().registerOperator();
+            assertTrue(middleware.registerOperator());
+
+            // Try to register operator again - false expected, because of already added to set
+            assertFalse(middleware.registerOperator());
+
+            assertTrue(middleware.unregisterOperator());
+
+            assertFalse(middleware.unregisterOperator());
         }
         vm.stopPrank();
 
         // Try to register another operator without registering it in symbiotic
-        vm.startPrank(address(0x2));
-        {
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotExist.selector));
-            middleware.registerOperator();
-
-            // Try to register operator without opting in network
-            sym.operatorRegistry().registerOperator();
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorDoesNotOptIn.selector));
-            middleware.registerOperator();
-
-            // Now must be possible to register operator
-            sym.operatorNetworkOptInService().optIn(address(middleware));
-            middleware.registerOperator();
-
-            // Disable operator and then enable it
-            middleware.disableOperator();
-            middleware.enableOperator();
-
-            // Try to enable operator again
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyEnabled.selector));
-            middleware.enableOperator();
-
-            // Try to disable operator twice
-            middleware.disableOperator();
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.NotEnabled.selector));
-            middleware.disableOperator();
-
-            // Try to unregister operator - failed because operator is not disabled for enough time
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorGracePeriodNotPassed.selector));
-            middleware.unregisterOperator(address(0x2));
-        }
-        vm.stopPrank();
+        // vm.startPrank(address(0x2));
+        // {
+        // Try to unregister operator - failed because operator is not disabled for enough time
+        // vm.expectRevert(abi.encodeWithSelector(IMiddleware.OperatorGracePeriodNotPassed.selector));
+        // middleware.unregisterOperator();
+        // }
+        // vm.stopPrank();
 
         // Wait for grace period and unregister operator from other address
-        vm.startPrank(address(0x3));
-        {
-            vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
-            middleware.unregisterOperator(address(0x2));
-        }
-        vm.stopPrank();
+        // vm.startPrank(address(0x3));
+        // {
+        //     vm.warp(vm.getBlockTimestamp() + middleware.operatorGracePeriod());
+        //     middleware.unregisterOperator();
+        // }
+        // vm.stopPrank();
     }
 
     // TODO: split to multiple tests
@@ -185,19 +194,6 @@ contract MiddlewareTest is Base {
         vm.startPrank(_operator);
         {
             middleware.registerVault(vault, newStakerRewards(vault, _operator));
-        }
-        vm.stopPrank();
-
-        vm.startPrank(_operator);
-        {
-            // Try to enable vault once more
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.AlreadyEnabled.selector));
-            middleware.enableVault(vault);
-
-            // Try to disable vault twice
-            middleware.disableVault(vault);
-            vm.expectRevert(abi.encodeWithSelector(MapWithTimeData.NotEnabled.selector));
-            middleware.disableVault(vault);
         }
         vm.stopPrank();
 
@@ -229,38 +225,6 @@ contract MiddlewareTest is Base {
 
         vm.startPrank(address(0xdead));
         {
-            // Try to enable vault not from vault owner
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
-            middleware.enableVault(vault);
-
-            // Try to disable vault not from vault owner
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
-            middleware.disableVault(vault);
-        }
-        vm.stopPrank();
-
-        // Try to unregister vault - failed because vault is not disabled for enough time
-        vm.startPrank(_operator);
-        {
-            vm.expectRevert(abi.encodeWithSelector(IMiddleware.VaultGracePeriodNotPassed.selector));
-            middleware.unregisterVault(vault);
-
-            // Wait for grace period and unregister vault
-            vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
-            middleware.unregisterVault(vault);
-        }
-        vm.stopPrank();
-
-        // Register vault again, disable and unregister it not by vault owner
-        vm.startPrank(_operator);
-        {
-            middleware.registerVault(vault, _rewards);
-            middleware.disableVault(vault);
-        }
-        vm.stopPrank();
-
-        vm.startPrank(address(0xdead));
-        {
             vm.warp(vm.getBlockTimestamp() + eraDuration * 2);
             vm.expectRevert(abi.encodeWithSelector(IMiddleware.NotVaultOwner.selector));
             middleware.unregisterVault(vault);
@@ -270,17 +234,8 @@ contract MiddlewareTest is Base {
         address unknownVault = newVault(_operator, _defaultVaultInitParams(_operator));
         vm.startPrank(_operator);
         {
-            // Try to enable unknown vault
-            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
-            middleware.enableVault(unknownVault);
-
-            // Try to disable unknown vault
-            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
-            middleware.disableVault(unknownVault);
-
             // Try to unregister unknown vault
-            vm.expectRevert(abi.encodeWithSelector(EnumerableMap.EnumerableMapNonexistentKey.selector, unknownVault));
-            middleware.unregisterVault(unknownVault);
+            assertFalse(middleware.unregisterVault(unknownVault));
         }
         vm.stopPrank();
 
@@ -347,10 +302,10 @@ contract MiddlewareTest is Base {
         vm.warp(vm.getBlockTimestamp() + 1);
         assertEq(middleware.getOperatorStakeAt(operator1, ts), stake1 + stake3);
 
-        // Disable vault1 and check operator1 stake
+        // Opt-out operator1 from vault1 and check its stake
         vm.startPrank(operator1);
         {
-            middleware.disableVault(vault1);
+            sym.operatorVaultOptInService().optOut(vault1);
         }
         vm.stopPrank();
 
@@ -363,10 +318,11 @@ contract MiddlewareTest is Base {
     function test_stakeDisabledOperator() public {
         (address operator1, address operator2,,,, uint256 stake2) = prepareTwoOperators();
 
-        // Disable operator1 and check operator1 stake is 0
+        // Opt-out operator1 from network.
+        // Then he is not work with network, so stake should be zero in the next epochs.
         vm.startPrank(operator1);
         {
-            middleware.disableOperator();
+            sym.operatorNetworkOptInService().optOut(address(middleware));
         }
         vm.stopPrank();
 
