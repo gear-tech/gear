@@ -70,6 +70,7 @@ jobs:
       - name: "Check: ethexe contracts"
         run: |
           npm cache clean --force
+
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
