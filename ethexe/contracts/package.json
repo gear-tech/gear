@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "@openzeppelin/upgrades-core": "^1.44.1"
+  }
+}
