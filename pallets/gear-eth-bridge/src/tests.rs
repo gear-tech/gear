@@ -1,6 +1,6 @@
 use crate::{
-    Config, EthMessage, WeightInfo,
-    internal::EthMessageExt,
+    Config, EthMessage, QueueId, QueuesInfo, TransportFee, WeightInfo,
+    internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
 };
 use common::Origin as _;
@@ -278,7 +278,13 @@ fn bridge_queue_root_changes() {
 
         on_finalize_gear_block(WHEN_INITIALIZED);
 
-        System::assert_last_event(Event::QueueMerkleRootChanged(expected_root).into());
+        System::assert_last_event(
+            Event::QueueMerkleRootChanged {
+                queue_id: 0,
+                root: expected_root,
+            }
+            .into(),
+        );
         assert!(!QueueChanged::get());
 
         on_initialize(WHEN_INITIALIZED + 1);
@@ -326,7 +332,7 @@ fn bridge_updates_authorities_and_clears() {
         assert_eq!(System::events().len(), 7);
         assert!(matches!(
             System::events().last().expect("infallible").event,
-            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged(_))
+            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged { .. })
         ));
         assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
 
@@ -382,7 +388,11 @@ fn bridge_updates_authorities_and_clears() {
         System::reset_events();
 
         on_initialize(ERA_BLOCKS * 2 + 2);
-        do_events_assertion(12, 74, [Event::BridgeCleared.into()]);
+        do_events_assertion(
+            12,
+            74,
+            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
+        );
 
         assert!(!AuthoritySetHash::exists());
         assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
@@ -429,7 +439,11 @@ fn bridge_updates_authorities_and_clears() {
         );
 
         on_initialize(ERA_BLOCKS * 3 + 2);
-        do_events_assertion(18, 110, [Event::BridgeCleared.into()]);
+        do_events_assertion(
+            18,
+            110,
+            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
+        );
     })
 }
 
@@ -478,7 +492,19 @@ fn bridge_queues_governance_messages_when_over_capacity() {
             0,
         );
 
-        assert_eq!(Queue::get().len(), msg_queue_len + 2);
+        // Queue got reset on init.
+        System::assert_has_event(Event::QueueReset.into());
+        assert_eq!(Queue::get().len(), 0);
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for past id");
+        };
+
+        // Expected len is `msg_queue_len + 2`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), msg_queue_len + 2 - 1);
     })
 }
 
@@ -536,11 +562,9 @@ fn bridge_max_payload_size_exceeded_err() {
 }
 
 #[test]
-fn bridge_queue_capacity_exceeded_err() {
+fn bridge_queue_capacity_exceeded_causes_reset() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::QueueCapacityExceeded;
-
         run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
@@ -553,13 +577,32 @@ fn bridge_queue_capacity_exceeded_err() {
             ));
         }
 
-        run_block_and_assert_messaging_error(
+        run_block_with_builtin_call(
+            SIGNER,
             Request::SendEthMessage {
                 destination: H160::zero(),
                 payload: vec![],
             },
-            ERR,
+            None,
+            TransportFee::<Test>::get(),
         );
+
+        System::assert_has_event(Event::QueueReset.into());
+        assert_eq!(Queue::get().len(), 0);
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for past id");
+        };
+
+        assert_eq!(QueueId::<Test>::get(), 1);
+
+        let capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+
+        // Expected len is `QueueCapacity + 1`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), capacity as usize,);
     })
 }
 
