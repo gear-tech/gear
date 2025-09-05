@@ -19,9 +19,7 @@
 // TODO #4552: add tests for observer utils
 
 use alloy::{
-    consensus::BlockHeader as _,
-    eips::BlockNumberOrTag,
-    network::{BlockResponse, Ethereum, Network, primitives::HeaderResponse},
+    network::{Ethereum, Network},
     providers::{Provider, RootProvider},
     rpc::{
         client::BatchRequest,
@@ -30,137 +28,13 @@ use alloy::{
             eth::{Filter, Topic},
         },
     },
-    transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
 use ethexe_ethereum::{mirror, router, wvara};
-use futures::{FutureExt, Stream, future, future::BoxFuture, stream::FuturesUnordered};
+use futures::{FutureExt, future, stream::FuturesUnordered};
 use gprimitives::H256;
-use std::{
-    collections::HashMap,
-    future::IntoFuture,
-    ops::Mul,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration,
-};
-
-type GetBlockFuture<N> =
-    BoxFuture<'static, Result<Option<<N as Network>::BlockResponse>, RpcError<TransportErrorKind>>>;
-
-/// [`FinalizedBlocksStream`] returns finalized blocks as they become available.
-/// It designed to minimize the number of requests to the provider.
-/// It does so by:
-/// - Waiting for the approximate time when the next finalized block is expected to be available.
-/// - If the block is not yet available, it waits for the next slot duration before trying
-/// NOTE: This is not a standart stream provided by the RPC node.
-pub(crate) struct FinalizedBlocksStream<P, N: Network = Ethereum> {
-    // Control flow futures
-    get_block_fut: Option<GetBlockFuture<N>>,
-    sleep_fut: Option<BoxFuture<'static, ()>>,
-    // The latest finalized block we have seen
-    latest_finalized: N::BlockResponse,
-
-    provider: P,
-}
-
-impl<P: Provider<N> + Clone, N: Network> FinalizedBlocksStream<P, N> {
-    pub async fn new(provider: P) -> Result<Self> {
-        let latest_finalized = provider
-            .get_block_by_number(BlockNumberOrTag::Finalized)
-            .await?
-            .unwrap();
-
-        let mut this = Self {
-            get_block_fut: None,
-            sleep_fut: None,
-            latest_finalized,
-            provider,
-        };
-
-        // Turn to the waiting state
-        this.wait_for_next_finalized_block();
-        Ok(this)
-    }
-
-    // Set up a future to wait until the next finalized block is expected to be available.
-    fn wait_for_next_finalized_block(&mut self) {
-        let current_ts = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-            Ok(duration) => duration.as_secs(),
-            Err(_) => unreachable!("Block timestamp can not be earlier than UNIX_EPOCH"),
-        };
-
-        let time_spent = current_ts.saturating_sub(self.latest_finalized.header().timestamp());
-
-        // We assume that the blocks become finalized approximately every 2 epochs.
-        self.wait_for(Duration::from_secs(
-            alloy::eips::merge::EPOCH_DURATION_SECS
-                .mul(2)
-                .saturating_sub(time_spent),
-        ));
-    }
-
-    // Wait for the next slot duration before trying again.
-    fn wait_for_next_slot(&mut self) {
-        self.wait_for(Duration::from_secs(alloy::eips::merge::SLOT_DURATION_SECS));
-    }
-
-    // Set up a future to wait.
-    fn wait_for(&mut self, duration: Duration) {
-        self.sleep_fut = Some(tokio::time::sleep(duration).into_future().boxed());
-    }
-}
-
-impl<P, N> Stream for FinalizedBlocksStream<P, N>
-where
-    P: Provider<N> + Clone + std::marker::Unpin,
-    N: Network,
-{
-    type Item = N::BlockResponse;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.as_mut().get_mut();
-
-        if let Some(fut) = this.sleep_fut.as_mut() {
-            let _: () = futures::ready!(fut.poll_unpin(cx));
-            this.sleep_fut = None;
-
-            let fut = this
-                .provider
-                .clone()
-                .get_block_by_number(BlockNumberOrTag::Finalized)
-                .into_future()
-                .boxed();
-            this.get_block_fut = Some(fut);
-        }
-
-        let Some(fut) = this.get_block_fut.as_mut() else {
-            return Poll::Pending;
-        };
-
-        let maybe_block = match futures::ready!(fut.poll_unpin(cx)) {
-            Ok(maybe_block) => maybe_block,
-            Err(_) => {
-                unimplemented!();
-            }
-        };
-        this.get_block_fut = None;
-
-        let block = match maybe_block {
-            Some(block) if block.header().hash() != this.latest_finalized.header().hash() => block,
-            _ => {
-                // Wait for the next slot and try again.
-                this.wait_for_next_slot();
-                return Poll::Pending;
-            }
-        };
-
-        this.latest_finalized = block.clone();
-        this.wait_for_next_finalized_block();
-        return Poll::Ready(Some(block));
-    }
-}
+use std::{collections::HashMap, future::IntoFuture};
 
 /// Max number of blocks to query in alloy.
 pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;

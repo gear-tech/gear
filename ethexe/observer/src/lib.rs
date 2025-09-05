@@ -19,13 +19,13 @@
 //! Ethereum state observer for ethexe.
 
 use crate::{
-    sync::FinalizedDataSync,
-    utils::{FinalizedBlocksStream, load_block_data},
+    finalization::{FinalizedBlocksStream, FinalizedDataSync},
+    utils::load_block_data,
 };
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
-    rpc::types::eth::Header,
+    rpc::types::{Block, eth::Header},
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{Context as _, Result, anyhow};
@@ -47,6 +47,7 @@ use std::{
 };
 use sync::ChainSync;
 
+mod finalization;
 mod sync;
 mod utils;
 
@@ -105,6 +106,7 @@ pub struct ObserverService {
     finalized_blocks_stream: FinalizedBlocksStream<RootProvider>,
 
     block_sync_queue: VecDeque<Header>,
+    finalized_blocks_sync_queue: VecDeque<Block>,
     sync_future: Option<BoxFuture<'static, Result<H256>>>,
     finalization_sync_future: Option<BoxFuture<'static, Result<H256>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
@@ -159,20 +161,24 @@ impl Stream for ObserverService {
                 // This is unreachable because FinalizedBlocksStream never ends.
                 unreachable!("Finalized blocks stream ended");
             };
-
-            log::trace!("received a new finalized block: {block:?}");
-            self.finalization_sync_future = Some(
-                self.finalized_data_sync
-                    .clone()
-                    .process_finalized_block(block)
-                    .boxed(),
-            );
+            self.finalized_blocks_sync_queue.push_front(block);
         }
 
         if self.sync_future.is_none()
             && let Some(header) = self.block_sync_queue.pop_back()
         {
             self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
+        }
+
+        if self.finalization_sync_future.is_none()
+            && let Some(block) = self.finalized_blocks_sync_queue.pop_back()
+        {
+            self.finalization_sync_future = Some(
+                self.finalized_data_sync
+                    .clone()
+                    .process_finalized_block(block)
+                    .boxed(),
+            );
         }
 
         if let Some(fut) = self.sync_future.as_mut()
@@ -209,6 +215,8 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
+            #[cfg(test)]
+            block_time,
             ..
         } = eth_cfg;
 
@@ -231,7 +239,12 @@ impl ObserverService {
             .await
             .context("failed to subscribe blocks")?
             .into_stream();
-        let finalized_blocks_stream = FinalizedBlocksStream::new(provider.clone()).await?;
+
+        #[cfg(not(test))]
+        let finalized_blocks_stream = FinalizedBlocksStream::new(provider.clone());
+        #[cfg(test)]
+        let finalized_blocks_stream =
+            FinalizedBlocksStream::mock_new(provider.clone(), block_time.as_secs());
 
         let config = RuntimeConfig {
             router_address: *router_address,
@@ -268,6 +281,7 @@ impl ObserverService {
             finalized_blocks_stream,
 
             block_sync_queue: VecDeque::new(),
+            finalized_blocks_sync_queue: VecDeque::new(),
             sync_future: None,
             finalization_sync_future: None,
             subscription_future: None,
