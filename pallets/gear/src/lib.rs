@@ -1116,6 +1116,8 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.type_section_len.into(),
+                schedule.limits.parameters.into(),
             ) {
                 Ok(code) => {
                     let instrumented_code_and_metadata = code.into_instrumented_code_and_metadata();
@@ -1155,6 +1157,8 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.type_section_len.into(),
+                schedule.limits.parameters.into(),
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");

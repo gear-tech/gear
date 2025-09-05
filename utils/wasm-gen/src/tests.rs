@@ -64,7 +64,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let _code = Code::try_new(original_code.clone(), 1, |_| CustomConstantCostRules::default(), None, None).unwrap();
+        let _code = Code::try_new(original_code.clone(), 1, |_| CustomConstantCostRules::default(), None, None, None, None).unwrap();
     }
 
     #[test]
@@ -93,7 +93,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None, None);
         assert!(code_res.is_ok());
     }
 
@@ -1020,6 +1020,8 @@ fn execute_wasm_with_custom_configs(
         code,
         1,
         |_| CustomConstantCostRules::new(0, 0, 0),
+        None,
+        None,
         None,
         None,
     )
