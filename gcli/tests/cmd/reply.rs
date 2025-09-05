@@ -23,7 +23,7 @@ use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_reply_works() -> Result<()> {
-    let node = common::create_messager().await?;
+    let node = common::create_messenger().await?;
 
     // Get balance of the testing address
     let signer = Api::new(node.ws().as_str())
@@ -35,7 +35,7 @@ async fn test_command_reply_works() -> Result<()> {
         .await?;
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
-    // Send message to messager
+    // Send message to messenger
     let id = hex::encode(mailbox[0].0.id.0);
     let _ = node.run(Args::new("reply").message_id(id).gas_limit("20000000000"))?;
     let mailbox = signer
