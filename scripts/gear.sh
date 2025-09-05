@@ -213,13 +213,6 @@ case "$COMMAND" in
         fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
-      doc)
-        if [ "$CHECK" = "true" ]
-          then header "Checking gear doc formatting"
-          else header "Formatting gear doc"
-        fi
-        doc_format "$@"; ;;
-
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         format_usage
