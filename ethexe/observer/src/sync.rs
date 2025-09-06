@@ -63,7 +63,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         };
 
         let blocks_data = self.pre_load_data(&header).await?;
-        let chain = self.load_chain(block, &header, blocks_data).await?;
+        let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
         self.propagate_onchain_data(block, &header).await?;
@@ -74,7 +74,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     async fn load_chain(
         &self,
         block: H256,
-        header: &BlockHeader,
+        header: BlockHeader,
         mut blocks_data: HashMap<H256, BlockData>,
     ) -> Result<Vec<H256>> {
         let mut chain = Vec::new();
@@ -89,7 +89,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                         hash,
                         self.config.router_address,
                         self.config.wvara_address,
-                        (hash == block).then_some(header.clone()),
+                        (hash == block).then_some(header),
                     )
                     .await?
                 }
@@ -167,11 +167,10 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
     async fn propagate_onchain_data(&self, block: H256, header: &BlockHeader) -> Result<()> {
         let era_first_block = self.era_first_block(&header)?;
 
-        // propagate validators
+        // Propagate validators from the parent block. If start new era, fetch new validators from the router.
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !era_first_block => validators,
             _ => {

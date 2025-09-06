@@ -3,7 +3,6 @@ pragma solidity ^0.8.28;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Gear} from "./libraries/Gear.sol";
 
 import {IMiddleware} from "./IMiddleware.sol";
@@ -20,11 +19,7 @@ import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.s
 import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
 import {IDefaultOperatorRewards} from
     "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
-import {IDefaultOperatorRewardsFactory} from
-    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
 import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
-import {IDefaultStakerRewardsFactory} from
-    "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewardsFactory.sol";
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -306,22 +301,22 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return keccak256(bytes.concat(distributionBytes, abi.encodePacked(_commitment.totalAmount, _commitment.token)));
     }
 
-    function registerVault(address _vault, address _rewards) external _vaultOwner(_vault) {
+    function registerVault(address _vault, address _rewards) external vaultOwner(_vault) {
         _validateVault(_vault);
         _validateStakerRewards(_vault, _rewards);
 
         _storage().vaults.append(_vault, uint160(_rewards));
     }
 
-    function disableVault(address vault) external _vaultOwner(vault) {
+    function disableVault(address vault) external vaultOwner(vault) {
         _storage().vaults.disable(vault);
     }
 
-    function enableVault(address vault) external _vaultOwner(vault) {
+    function enableVault(address vault) external vaultOwner(vault) {
         _storage().vaults.enable(vault);
     }
 
-    function unregisterVault(address vault) external _vaultOwner(vault) {
+    function unregisterVault(address vault) external vaultOwner(vault) {
         Storage storage $ = _storage();
         (, uint48 disabledTime) = $.vaults.getTimes(vault);
 
@@ -375,12 +370,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return activeOperators;
     }
 
-    function getOperatorStakeAt(address operator, uint48 ts)
-        external
-        view
-        _validTimestamp(ts)
-        returns (uint256 stake)
-    {
+    function getOperatorStakeAt(address operator, uint48 ts) external view validTimestamp(ts) returns (uint256 stake) {
         (uint48 enabledTime, uint48 disabledTime) = _storage().operators.getTimes(operator);
         if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
             return 0;
@@ -425,7 +415,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function getActiveOperatorsStakeAt(uint48 ts)
         public
         view
-        _validTimestamp(ts)
+        validTimestamp(ts)
         returns (address[] memory activeOperators, uint256[] memory stakes)
     {
         Storage storage $ = _storage();
@@ -648,7 +638,12 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
     // Timestamp must be always in the past, but not too far,
     // so that some operators or vaults can be already unregistered.
-    modifier _validTimestamp(uint48 ts) {
+    modifier validTimestamp(uint48 ts) {
+        _validTimestamp(ts);
+        _;
+    }
+
+    function _validTimestamp(uint48 ts) internal view {
         Storage storage $ = _storage();
         if (ts >= Time.timestamp()) {
             revert IncorrectTimestamp();
@@ -658,8 +653,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         if (ts + gracePeriod <= Time.timestamp()) {
             revert IncorrectTimestamp();
         }
-
-        _;
     }
 
     function _storage() private view returns (Storage storage middleware) {
@@ -679,10 +672,14 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 
-    modifier _vaultOwner(address vault) {
+    modifier vaultOwner(address vault) {
+        _vaultOwner(vault);
+        _;
+    }
+
+    function _vaultOwner(address vault) internal view {
         if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
             revert NotVaultOwner();
         }
-        _;
     }
 }

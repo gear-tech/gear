@@ -123,9 +123,10 @@
 //! The Gear Gas Pallet doesn't depend on the `GenesisConfig`.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![allow(clippy::manual_inspect)]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 use common::{
     BlockLimiter, GasProvider,

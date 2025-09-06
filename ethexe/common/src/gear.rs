@@ -284,7 +284,7 @@ pub struct ComputationSettings {
     pub wvara_per_second: u128,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
@@ -346,7 +346,7 @@ pub struct ProtocolData {
     pub last_rewarded_era_index: U256,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
@@ -388,7 +388,7 @@ pub struct ValidationSettings {
     // flatten mapping of validators ActorId => bool
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,
@@ -413,7 +413,7 @@ impl ToDigest for [ValueClaim] {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Origin {
     #[default]

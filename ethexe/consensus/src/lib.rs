@@ -27,9 +27,21 @@
 //! - [`ValidatorService`]: Service for handling block validation
 //!
 //! The crate is organized into several modules:
-//! - [`connect`]: Connection management functionality
-//! - [`validator`]: Block validation services and implementations
-//! - [`utils`]: Utility functions and shared data structures
+//! - `connect`: Connection management functionality
+//! - `validator`: Block validation services and implementations
+//! - `utils`: Utility functions and shared data structures
+
+use anyhow::Result;
+use ethexe_common::{ProducerBlock, SimpleBlockData};
+use futures::{Stream, stream::FusedStream};
+use gprimitives::H256;
+
+pub use connect::SimpleConnectService;
+pub use utils::{
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
+    SignedValidationRequest,
+};
+pub use validator::{ValidatorConfig, ValidatorService};
 
 mod connect;
 mod utils;
@@ -39,17 +51,6 @@ mod validator;
 mod mock;
 #[cfg(feature = "staking-rewards")]
 mod rewards;
-
-use anyhow::Result;
-pub use connect::SimpleConnectService;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
-use futures::{Stream, stream::FusedStream};
-use gprimitives::H256;
-pub use utils::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
-    SignedValidationRequest,
-};
-pub use validator::{ValidatorConfig, ValidatorService};
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static

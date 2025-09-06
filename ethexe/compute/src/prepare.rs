@@ -592,7 +592,7 @@ mod tests {
             parent_hash,
             timestamp: 2000,
         };
-        db.set_block_header(head, header.clone());
+        db.set_block_header(head, header);
 
         // Empty events
         db.set_block_events(head, &[]);
@@ -636,7 +636,7 @@ mod tests {
             parent_hash,
             timestamp: 2000,
         };
-        db.set_block_header(head, header.clone());
+        db.set_block_header(head, header);
 
         // Events with code validation request
         let events = vec![BlockEvent::Router(
@@ -691,14 +691,14 @@ mod tests {
             parent_hash: grandparent_hash,
             timestamp: 1500,
         };
-        db.set_block_header(parent_hash, parent_header.clone());
+        db.set_block_header(parent_hash, parent_header);
 
         let head_header = BlockHeader {
             height: 2,
             parent_hash,
             timestamp: 2000,
         };
-        db.set_block_header(head, head_header.clone());
+        db.set_block_header(head, head_header);
 
         // Events for parent block
         let parent_events = vec![BlockEvent::Router(

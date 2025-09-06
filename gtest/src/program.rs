@@ -17,10 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    BlockNumber, MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
+    MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
-    manager::ExtManager,
-    state::programs::{PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
+    manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
+    state::programs::{
+        GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager,
+    },
     system::System,
 };
 use gear_common::Origin;
@@ -29,7 +31,7 @@ use gear_core::{
     gas_metering::Schedule,
     ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
-    program::{ActiveProgram, Program as InnerProgram, ProgramState},
+    program::{ActiveProgram, Program as PrimaryProgram, ProgramState},
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::{Codec, Decode, Encode};
@@ -44,6 +46,33 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
 };
+
+/// Trait for mocking gear programs.
+///
+/// See [`Program`] and [`Program::mock`] for the usages.
+pub trait WasmProgram: Debug {
+    /// Initialize wasm program with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic
+    /// with given `payload`.
+    fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    /// Message handler with given `payload`.
+    ///
+    /// Returns `Ok(Some(payload))` if program has reply logic.
+    fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    /// Clone the program and return it's boxed version.
+    fn clone_boxed(&self) -> Box<dyn WasmProgram>;
+    /// State of wasm program.
+    ///
+    /// See [`Program::read_state`] for the usage.
+    fn state(&mut self) -> Result<Vec<u8>, &'static str>;
+    /// Emit debug message in program with given `data`.
+    ///
+    /// Logging target `gwasm` is used in this method.
+    fn debug(&mut self, data: &str) {
+        log::debug!(target: "gwasm", "{data}");
+    }
+}
 
 /// Wrapper for program id.
 #[derive(Clone, Debug)]
@@ -207,7 +236,7 @@ impl ProgramBuilder {
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
         let code_id = CodeId::generate(&self.code);
-        system.0.borrow_mut().store_new_code(code_id, self.code);
+        system.0.borrow_mut().store_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
                 .0
@@ -222,7 +251,7 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            InnerProgram::Active(ActiveProgram {
+            GTestProgram::Default(PrimaryProgram::Active(ActiveProgram {
                 allocations_tree_len: 0,
                 code_id: code_id.cast(),
                 state: ProgramState::Uninitialized {
@@ -231,7 +260,7 @@ impl ProgramBuilder {
                 expiration_block,
                 memory_infix: Default::default(),
                 gas_reservation_map: Default::default(),
-            }),
+            })),
         )
     }
 
@@ -278,7 +307,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram<BlockNumber>,
+        program: GTestProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -289,12 +318,7 @@ impl<'a> Program<'a> {
             )
         }
 
-        if system
-            .0
-            .borrow_mut()
-            .store_new_actor(program_id, program)
-            .is_some()
-        {
+        if system.0.borrow_mut().store_program(program_id, program) {
             usage_panic!(
                 "Can't create program with id {id:?}, because Program with this id already exists. \
                 Please, use another id."
@@ -350,6 +374,41 @@ impl<'a> Program<'a> {
         ProgramBuilder::from_binary(binary)
             .with_id(id)
             .build(system)
+    }
+
+    /// Mock a program with provided `system` and `mock`.
+    ///
+    /// See [`WasmProgram`] for more details.
+    pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
+        let nonce = system.0.borrow_mut().free_id_nonce();
+
+        Self::mock_with_id(system, nonce, mock)
+    }
+
+    /// Create a mock program with provided `system` and `mock`,
+    /// and initialize it with provided `id`.
+    ///
+    /// See also [`Program::mock`].
+    pub fn mock_with_id<ID, T>(system: &'a System, id: ID, mock: T) -> Self
+    where
+        T: WasmProgram + 'static,
+        ID: Into<ProgramIdWrapper> + Clone + Debug,
+    {
+        // Create a default active program for the mock
+        let primary_program = PrimaryProgram::Active(ActiveProgram {
+            allocations_tree_len: 0,
+            memory_infix: Default::default(),
+            gas_reservation_map: Default::default(),
+            code_id: CUSTOM_WASM_PROGRAM_CODE_ID,
+            state: ProgramState::Uninitialized {
+                message_id: PLACEHOLDER_MESSAGE_ID,
+            },
+            expiration_block: system.0.borrow().block_height(),
+        });
+
+        let mock_program = MockWasmProgram::new(Box::new(mock), primary_program);
+
+        Self::program_with_id(system, id, GTestProgram::Mock(mock_program))
     }
 
     /// Send message to the program.
@@ -454,7 +513,7 @@ impl<'a> Program<'a> {
 
         let kind = ProgramsStorageManager::modify_program(self.id, |program| {
             let program = program.expect("Can't fail");
-            let InnerProgram::Active(active_program) = program else {
+            let PrimaryProgram::Active(active_program) = program.as_primary_program_mut() else {
                 usage_panic!("Program with id {} is not active - {program:?}", self.id);
             };
             match active_program.state {
@@ -615,9 +674,9 @@ pub mod gbuild {
 
 #[cfg(test)]
 mod tests {
-    use super::Program;
+    use super::*;
     use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
-    use demo_constructor::{Arg, Scheme};
+    use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
         ErrorReplyReason, ReplyCode, SimpleExecutionError, SimpleUnavailableActorError,
@@ -1287,5 +1346,133 @@ mod tests {
         target_block_nb += DELAY;
         let res = sys.run_to_block(target_block_nb);
         assert_eq!(res.iter().last().unwrap().succeed.len(), 1);
+    }
+
+    #[test]
+    fn test_mock_program() {
+        use parity_scale_codec::Encode;
+
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = ActorId::from(DEFAULT_USER_ALICE);
+        let mock_program_id = ActorId::new([1; 32]);
+
+        // Create custom WasmProgram implementor
+        #[derive(Debug, Clone)]
+        struct MockProgram;
+
+        impl WasmProgram for MockProgram {
+            fn init(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> {
+                Ok(Some(b"Mock program initialized".to_vec()))
+            }
+
+            fn handle(&mut self, _payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> {
+                Ok(Some(b"Hi from mock program".to_vec()))
+            }
+
+            fn clone_boxed(&self) -> Box<dyn WasmProgram> {
+                Box::new(self.clone())
+            }
+
+            fn state(&mut self) -> Result<Vec<u8>, &'static str> {
+                Ok(String::from_str("MockState").unwrap().encode())
+            }
+        }
+
+        // Create the mock program using the Program::mock_with_id method
+        let mock_program = Program::mock_with_id(&sys, mock_program_id, MockProgram);
+
+        // Initialize the mock program
+        let init_msg_id = mock_program.send_bytes(user_id, b"init");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&init_msg_id));
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(mock_program_id)
+                    .dest(user_id)
+                    .payload_bytes(b"Mock program initialized")
+            )
+        );
+
+        // Send a message to the mock program from user
+        let mid = mock_program.send_bytes(user_id, b"Hello Mock Program");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&mid));
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(mock_program_id)
+                    .dest(user_id)
+                    .payload_bytes(b"Hi from mock program")
+            )
+        );
+
+        // Create proxy program using demo constructor
+        // The proxy will store the mock program ID and forward messages
+        let proxy_scheme = Scheme::predefined(
+            // init: do nothing
+            Calls::builder().noop(),
+            // handle: load message payload and send it to mock program
+            Calls::builder()
+                .add_call(Call::LoadBytes)
+                .add_call(Call::StoreVec("current_payload".to_string()))
+                .add_call(Call::Send(
+                    Arg::new(mock_program_id.into_bytes()),
+                    Arg::new(vec![1, 2, 3]),
+                    None,
+                    Arg::new(0u128),
+                    Arg::new(0u32),
+                )),
+            // handle_reply: load reply payload and forward it to original sender
+            Calls::builder()
+                .add_call(Call::LoadBytes)
+                .add_call(Call::StoreVec("reply_payload".to_string()))
+                .add_call(Call::Send(
+                    Arg::new(user_id.into_bytes()),
+                    Arg::get("reply_payload"),
+                    None,
+                    Arg::new(0u128),
+                    Arg::new(0u32),
+                )),
+            // handle_signal: noop
+            Calls::builder(),
+        );
+
+        let proxy_program = Program::from_binary_with_id(&sys, ActorId::new([2; 32]), WASM_BINARY);
+
+        // Initialize proxy with the scheme
+        let init_msg_id = proxy_program.send(user_id, proxy_scheme);
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&init_msg_id));
+
+        // Send a message to the proxy to trigger the interaction
+        let trigger_msg_id = proxy_program.send_bytes(user_id, b"");
+        let res = sys.run_next_block();
+        assert!(res.succeed.contains(&trigger_msg_id));
+
+        // At this point:
+        // 1. User sent message to proxy
+        // 2. Proxy should have sent message to mock program
+        // 3. Mock program should have replied "Hi from mock program"
+        // 4. Proxy should have received the reply and sent it to user
+
+        // Verify the final message in user's mailbox contains the mock program's
+        // response
+        let final_mailbox = sys.get_mailbox(user_id);
+        assert!(
+            final_mailbox.contains(
+                &Log::builder()
+                    .source(proxy_program.id())
+                    .dest(user_id)
+                    .payload_bytes(b"Hi from mock program")
+            )
+        );
+
+        let state = mock_program
+            .read_state::<String, _>(Vec::<u8>::new())
+            .unwrap();
+        assert_eq!(state.as_str(), "MockState");
     }
 }
