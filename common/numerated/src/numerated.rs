@@ -29,7 +29,7 @@ use num_traits::{One, PrimInt, Unsigned};
 ///
 /// # Examples
 /// 1) For any `T`, which max value can be get by calling some static live time function,
-///    `Option<T>`` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
+///    `Option<T>` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
 ///
 /// 2) When `inner` field max value is always smaller than `inner` type max value, then we can use this variant:
 /// ```

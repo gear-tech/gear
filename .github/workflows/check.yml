@@ -51,15 +51,13 @@ jobs:
       - name: "Install: rustup stable"
         run: |
           rustup show
-          rustup install stable
+          rustup install 1.88.0
 
       - name: "Install rust-script"
         run: cargo install rust-script
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly-129bea58b6f141ee8d6c25bd62b9a4f6d0f4d011
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v4
@@ -72,6 +70,7 @@ jobs:
       - name: "Check: ethexe contracts"
         run: |
           npm cache clean --force
+
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
@@ -79,6 +78,16 @@ jobs:
           forge build --sizes
           forge test -vvv
         working-directory: ethexe/contracts
+
+      - name: "Check: ABI files are updated"
+        run: |
+          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+
+          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |
@@ -151,7 +160,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32v1-none
 
@@ -178,9 +187,9 @@ jobs:
       - name: "Check clippy: no_std crates"
         run: ./scripts/gear.sh clippy no_std --locked
 
-      - run: cargo +stable check -p gstd --target wasm32v1-none
-      - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-      - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+      - run: cargo +1.88.0 check -p gstd --target wasm32v1-none
+      - run: cargo +1.88.0 check --manifest-path utils/wasm-builder/test-program/Cargo.toml
+      - run: cargo +1.88.0 check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   vara-runtime-imports:
     runs-on: ubuntu-latest

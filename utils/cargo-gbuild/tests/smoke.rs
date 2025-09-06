@@ -75,7 +75,7 @@ fn test_program_tests() {
     {
         if option_env!("IN_NIX_SHELL").is_none() {
             let targets = Command::new("rustup")
-                .args(["target", "list", "--toolchain", "stable"])
+                .args(["target", "list", "--toolchain", "1.88.0"])
                 .output()
                 .expect("Failed to list rust toolchains")
                 .stdout;
@@ -86,7 +86,7 @@ fn test_program_tests() {
                         .args([
                             "toolchain",
                             "install",
-                            "stable",
+                            "1.88.0",
                             "--target",
                             "wasm32v1-none",
                         ])
@@ -101,7 +101,7 @@ fn test_program_tests() {
     assert!(
         Command::new("cargo")
             .current_dir("test-program")
-            .args(["+stable", "test", "--manifest-path", "Cargo.toml"])
+            .args(["+1.88.0", "test", "--manifest-path", "Cargo.toml"])
             .status()
             .expect("Failed to run the tests of cargo-gbuild/test-program")
             .success()

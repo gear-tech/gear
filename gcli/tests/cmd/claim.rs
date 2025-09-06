@@ -25,7 +25,7 @@ const REWARD_PER_BLOCK: u128 = 300_000; // 3_000 gas * 100 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
-    let node = common::create_messager().await?;
+    let node = common::create_messenger().await?;
 
     // Check the mailbox of the testing account
     let signer = Api::new(node.ws().as_str())

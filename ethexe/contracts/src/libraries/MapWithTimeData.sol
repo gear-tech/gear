@@ -12,8 +12,6 @@ library MapWithTimeData {
     error AlreadyEnabled();
 
     function toInner(uint256 value) private pure returns (uint48 enabledTime, uint48 disabledTime, uint160 data) {
-        // SAFETY: casting to uint48 will truncate the value to 48 bits
-        // forge-lint: disable-next-line(unsafe-typecast)
         return (uint48(value), uint48(value >> 48), uint160(value >> 96));
     }
 

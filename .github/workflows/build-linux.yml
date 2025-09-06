@@ -51,31 +51,18 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      - name: Test docs
-        run: ./scripts/gear.sh test docs
+      - run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+          __GEAR_WASM_BUILDER_NO_BUILD: 1
+          SKIP_WASM_BUILD: 1
 
-      - name: Build docs
-        run: make doc
-        shell: bash
-
-      - name: Deploy
-        if: github.event_name == 'push'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          cname: docs.gear.rs
-          force_orphan: true
-          user_name: "github-actions[bot]"
-          user_email: "github-actions[bot]@users.noreply.github.com"
-
-      - name: Deploy PR
-        if: github.event_name == 'pull_request'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/x86_64-unknown-linux-gnu/doc
-          destination_dir: pr-${{ github.event.number }}
+      # TODO: uncomment once caching fixed
+      # - run: ./scripts/gear.sh test docs
+      #   env:
+      #     RUSTFLAGS: "-D warnings"
+      #     __GEAR_WASM_BUILDER_NO_BUILD: 1
+      #     SKIP_WASM_BUILD: 1
 
   workspace:
     runs-on: [ kuberunner, github-runner-02 ]
@@ -107,8 +94,6 @@ jobs:
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly-129bea58b6f141ee8d6c25bd62b9a4f6d0f4d011
 
       - name: "Show: Versioning"
         run: |
@@ -149,7 +134,7 @@ jobs:
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32v1-none
 
@@ -163,7 +148,7 @@ jobs:
           cache-all-crates: true
 
       - name: "Test: crates-io packages publishing"
-        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+        run: cargo +1.88.0 run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
@@ -364,15 +349,15 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir artifact
-          
+
           # examples
           (cd examples-artifact && tar czvf ../artifact/examples.tar.gz *.wasm)
-          
+
           # runtime
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          
+
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
