@@ -19,7 +19,7 @@
 use crate::{
     db_sync::{
         Config, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse, InnerRequest,
-        InnerResponse, ResponseId,
+        InnerResponse, InnerRewardsDistributionResponse, ResponseId,
     },
     export::PeerId,
 };
@@ -76,6 +76,13 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
+            InnerRequest::RewardsDistribution(_request) => InnerRewardsDistributionResponse(
+                // FIXME: Option might be more suitable
+                // db.operators_rewards_distribution_at(request.0)
+                //     .unwrap_or_default(),
+                Default::default(),
+            )
+            .into(),
         }
     }
 
@@ -101,7 +108,6 @@ impl OngoingResponses {
                 response,
             }
         });
-
         Some(response_id)
     }
 
