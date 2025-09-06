@@ -137,6 +137,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().implAddresses.wrappedVara;
     }
 
+    function middleware() public view returns (address) {
+        return _router().implAddresses.middleware;
+    }
+
     function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
         return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }

@@ -265,6 +265,10 @@ impl RouterQuery {
         self.instance.wrappedVara().call().await.map_err(Into::into)
     }
 
+    pub async fn middleware_address(&self) -> Result<Address> {
+        self.instance.middleware().call().await.map_err(Into::into)
+    }
+
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
         self.instance
             .validatorsAggregatedPublicKey()
@@ -408,7 +412,7 @@ impl RouterQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Ethereum;
+    use crate::deploy::EthereumDeployer;
     use alloy::node_bindings::Anvil;
     use ethexe_signer::Signer;
     use roast_secp256k1_evm::frost;
@@ -436,18 +440,19 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum = Ethereum::deploy(
+        let ethereum = EthereumDeployer::new(
             anvil.endpoint_url().as_str(),
-            vec![],
             signer,
             alice.to_address(),
             first_share.commitment().clone(),
         )
         .await
+        .unwrap()
+        .deploy()
+        .await
         .unwrap();
 
-        let router =
-            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+        let router = ethereum.router().query();
 
         let latest_block = router
             .instance

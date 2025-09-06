@@ -75,18 +75,12 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         $.subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
         $.maxAdminFee = _params.maxAdminFee;
 
-        $.operatorRewards = _params.operatorRewards;
-
         $.router = _params.router;
 
-        $.roleSlashRequester = _params.roleSlashRequester;
-        $.roleSlashExecutor = _params.roleSlashExecutor;
-        $.vetoResolver = _params.vetoResolver;
+        $.symbiotic = _params.symbiotic;
 
-        $.registries = _params.registries;
-
-        INetworkRegistry(_params.registries.networkRegistry).registerNetwork();
-        INetworkMiddlewareService(_params.registries.middlewareService).setMiddleware(address(this));
+        INetworkRegistry(_params.symbiotic.networkRegistry).registerNetwork();
+        INetworkMiddlewareService(_params.symbiotic.middlewareService).setMiddleware(address(this));
 
         _validateStorage($);
     }
@@ -112,12 +106,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         newStorage.collateral = oldStorage.collateral;
         newStorage.subnetwork = oldStorage.subnetwork;
         newStorage.maxAdminFee = oldStorage.maxAdminFee;
-        newStorage.operatorRewards = oldStorage.operatorRewards;
         newStorage.router = oldStorage.router;
-        newStorage.roleSlashRequester = oldStorage.roleSlashRequester;
-        newStorage.roleSlashExecutor = oldStorage.roleSlashExecutor;
-        newStorage.vetoResolver = oldStorage.vetoResolver;
-        newStorage.registries = oldStorage.registries;
+        newStorage.symbiotic = oldStorage.symbiotic;
 
         for (uint256 i = 0; i < oldStorage.operators.length(); i++) {
             (address key, uint256 value) = oldStorage.operators.at(i);
@@ -179,52 +169,40 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().maxAdminFee;
     }
 
-    function operatorRewards() external view returns (address) {
-        return _storage().operatorRewards;
-    }
-
     function router() external view returns (address) {
         return _storage().router;
     }
 
-    function roleSlashRequester() external view returns (address) {
-        return _storage().roleSlashRequester;
-    }
-
-    function roleSlashExecutor() external view returns (address) {
-        return _storage().roleSlashExecutor;
-    }
-
-    function operatorRegistry() external view returns (address) {
-        return _storage().registries.operatorRegistry;
+    function symbioticContracts() external view returns (Gear.SymbioticContracts memory) {
+        return _storage().symbiotic;
     }
 
     // # Calls.
 
     function changeSlashRequester(address newRole) external {
         Storage storage $ = _storage();
-        if (msg.sender != $.roleSlashRequester) {
+        if (msg.sender != $.symbiotic.roleSlashRequester) {
             revert NotSlashRequester();
         }
-        $.roleSlashRequester = newRole;
+        $.symbiotic.roleSlashRequester = newRole;
     }
 
     function changeSlashExecutor(address newRole) external {
         Storage storage $ = _storage();
-        if (msg.sender != $.roleSlashExecutor) {
+        if (msg.sender != $.symbiotic.roleSlashExecutor) {
             revert NotSlashExecutor();
         }
-        $.roleSlashExecutor = newRole;
+        $.symbiotic.roleSlashExecutor = newRole;
     }
 
     // TODO: Check that total stake is big enough
     function registerOperator() external {
         Storage storage $ = _storage();
 
-        if (!IRegistry($.registries.operatorRegistry).isEntity(msg.sender)) {
+        if (!IRegistry($.symbiotic.operatorRegistry).isEntity(msg.sender)) {
             revert OperatorDoesNotExist();
         }
-        if (!IOptInService($.registries.networkOptIn).isOptedIn(msg.sender, address(this))) {
+        if (!IOptInService($.symbiotic.networkOptIn).isOptedIn(msg.sender, address(this))) {
             revert OperatorDoesNotOptIn();
         }
 
@@ -262,7 +240,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             revert UnknownCollateral();
         }
 
-        IDefaultOperatorRewards($.operatorRewards).distributeRewards($.router, token, amount, root);
+        IDefaultOperatorRewards($.symbiotic.operatorRewards).distributeRewards($.router, token, amount, root);
 
         return keccak256(abi.encodePacked(amount, root));
     }
@@ -412,7 +390,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function requestSlash(SlashData[] calldata data) external {
         Storage storage $ = _storage();
 
-        if (msg.sender != $.roleSlashRequester) {
+        if (msg.sender != $.symbiotic.roleSlashRequester) {
             revert NotSlashRequester();
         }
 
@@ -438,8 +416,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function executeSlash(SlashIdentifier[] calldata slashes) external {
-        if (msg.sender != _storage().roleSlashRequester) {
-            revert NotSlashRequester();
+        if (msg.sender != _storage().symbiotic.roleSlashExecutor) {
+            revert NotSlashExecutor();
         }
 
         for (uint256 i; i < slashes.length; ++i) {
@@ -519,7 +497,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     function _validateVault(address _vault) private {
         Storage storage $ = _storage();
 
-        if (!IRegistry($.registries.vaultRegistry).isEntity(_vault)) {
+        if (!IRegistry($.symbiotic.vaultRegistry).isEntity(_vault)) {
             revert NonFactoryVault();
         }
 
@@ -577,8 +555,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
 
         address resolver = IVetoSlasher(slasher).resolver($.subnetwork, new bytes(0));
         if (resolver == address(0)) {
-            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, $.vetoResolver, new bytes(0));
-        } else if (resolver != $.vetoResolver) {
+            IVetoSlasher(slasher).setResolver(NETWORK_IDENTIFIER, $.symbiotic.vetoResolver, new bytes(0));
+        } else if (resolver != $.symbiotic.vetoResolver) {
             // TODO: consider how to support this case
             revert ResolverMismatch();
         }
@@ -590,7 +568,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function _validateStakerRewards(address _vault, address _rewards) private view {
-        if (!IRegistry(_storage().registries.stakerRewardsFactory).isEntity(_rewards)) {
+        if (!IRegistry(_storage().symbiotic.stakerRewardsFactory).isEntity(_rewards)) {
             revert NonFactoryStakerRewards();
         }
 
