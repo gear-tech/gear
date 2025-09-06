@@ -75,7 +75,6 @@ contract DeploymentScript is Script {
                 middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
                 networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
                 stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY"),
-
                 operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
                 roleSlashRequester: address(router),
                 roleSlashExecutor: address(router),
