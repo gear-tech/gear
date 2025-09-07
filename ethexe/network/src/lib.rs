@@ -433,7 +433,7 @@ impl NetworkService {
         self.swarm.behaviour().peer_score.handle()
     }
 
-    pub fn db_sync_handle(&self) -> db_sync::DbSyncHandle {
+    pub fn db_sync_handle(&self) -> db_sync::Handle {
         self.swarm.behaviour().db_sync.handle()
     }
 
