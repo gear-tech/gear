@@ -115,38 +115,12 @@ impl OngoingRequests {
         }
     }
 
-    pub(crate) fn request(
+    fn inner_request(
         &mut self,
         request_id: RequestId,
-        request: Request,
-        channel: oneshot::Sender<HandleResult>,
-    ) -> RequestId {
-        self.requests.insert(
-            request_id,
-            (
-                OngoingRequest::new(request)
-                    .request(
-                        self.peer_score_handle.clone(),
-                        self.external_data_provider.clone_boxed(),
-                        self.request_timeout,
-                        self.max_rounds_per_request,
-                    )
-                    .boxed(),
-                Some(channel),
-            ),
-        );
-        request_id
-    }
-
-    pub(crate) fn retry(
-        &mut self,
-        request: RetriableRequest,
+        request: OngoingRequest,
         channel: oneshot::Sender<HandleResult>,
     ) {
-        let RetriableRequest {
-            request_id,
-            request,
-        } = request;
         self.requests.insert(
             request_id,
             (
@@ -161,6 +135,27 @@ impl OngoingRequests {
                 Some(channel),
             ),
         );
+    }
+
+    pub(crate) fn request(
+        &mut self,
+        request_id: RequestId,
+        request: Request,
+        channel: oneshot::Sender<HandleResult>,
+    ) {
+        self.inner_request(request_id, OngoingRequest::new(request), channel);
+    }
+
+    pub(crate) fn retry(
+        &mut self,
+        request: RetriableRequest,
+        channel: oneshot::Sender<HandleResult>,
+    ) {
+        let RetriableRequest {
+            request_id,
+            request,
+        } = request;
+        self.inner_request(request_id, request, channel);
     }
 
     fn inner_on_peer(
