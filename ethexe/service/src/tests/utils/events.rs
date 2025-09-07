@@ -25,7 +25,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
+use ethexe_network::{NetworkEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
@@ -42,14 +42,6 @@ pub type TestingEventReceiver = Receiver<TestingEvent>;
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(dead_code)]
 pub(crate) enum TestingNetworkEvent {
-    DbResponse {
-        request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, db_sync::RequestFailure>,
-    },
-    DbExternalValidation {
-        request_id: db_sync::RequestId,
-        response: db_sync::Response,
-    },
     Message {
         data: Vec<u8>,
         source: Option<PeerId>,
@@ -61,10 +53,6 @@ pub(crate) enum TestingNetworkEvent {
 impl TestingNetworkEvent {
     fn new(event: &NetworkEvent) -> Self {
         match event {
-            NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
-                request_id: *request_id,
-                result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
-            },
             NetworkEvent::Message { data, source } => Self::Message {
                 data: data.clone(),
                 source: *source,
