@@ -40,7 +40,6 @@ pub type TestingEventSender = Sender<TestingEvent>;
 pub type TestingEventReceiver = Receiver<TestingEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum TestingNetworkEvent {
     Message {
         data: Vec<u8>,
