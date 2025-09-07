@@ -18,7 +18,7 @@
 
 use crate::{
     db_sync::{
-        AnnouncesRequest, Config, Event, ExternalDataProvider, HashesRequest,
+        AnnouncesRequest, Config, Event, ExternalDataProvider, HandleResult, HashesRequest,
         InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest,
         InnerProgramIdsResponse, InnerRequest, InnerResponse, NewRequestRoundReason, PeerId,
         ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
@@ -43,7 +43,7 @@ use std::{
     task::{Context, Poll, Waker},
     time::Duration,
 };
-use tokio::time;
+use tokio::{sync::oneshot, time};
 
 ethexe_service_utils::task_local! {
     static CONTEXT: OngoingRequestContext;
@@ -53,7 +53,7 @@ type OngoingRequestFuture = BoxFuture<'static, Result<Response, (RequestFailure,
 
 pub(crate) struct OngoingRequests {
     pending_events: VecDeque<Event>,
-    requests: HashMap<RequestId, (OngoingRequestFuture, Option<DbSyncOneshot>)>,
+    requests: HashMap<RequestId, (OngoingRequestFuture, Option<oneshot::Sender<HandleResult>>)>,
     active_requests: HashMap<OutboundRequestId, RequestId>,
     responses: HashMap<RequestId, Result<InnerResponse, ()>>,
     connections: ConnectionMap,
@@ -119,7 +119,7 @@ impl OngoingRequests {
         &mut self,
         request_id: RequestId,
         request: Request,
-        channel: DbSyncOneshot,
+        channel: oneshot::Sender<HandleResult>,
     ) -> RequestId {
         self.requests.insert(
             request_id,
@@ -138,7 +138,11 @@ impl OngoingRequests {
         request_id
     }
 
-    pub(crate) fn retry(&mut self, request: RetriableRequest, channel: DbSyncOneshot) {
+    pub(crate) fn retry(
+        &mut self,
+        request: RetriableRequest,
+        channel: oneshot::Sender<HandleResult>,
+    ) {
         let RetriableRequest {
             request_id,
             request,

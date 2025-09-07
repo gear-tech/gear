@@ -251,35 +251,35 @@ pub enum Response {
     Announces(Vec<Announce>),
 }
 
-type DbSyncOneshot = oneshot::Sender<Result<Response, (RequestFailure, RetriableRequest)>>;
+pub type HandleResult = Result<Response, (RequestFailure, RetriableRequest)>;
 
-enum DbSyncAction {
+enum HandleAction {
     Request(RequestId, Request),
     Retry(RetriableRequest),
 }
 
-impl DbSyncAction {
+impl HandleAction {
     fn request_id(&self) -> RequestId {
         match self {
-            DbSyncAction::Request(request_id, _) => *request_id,
-            DbSyncAction::Retry(request) => request.id(),
+            HandleAction::Request(request_id, _) => *request_id,
+            HandleAction::Retry(request) => request.id(),
         }
     }
 }
 
-pub struct DbSyncHandleFuture {
+pub struct HandleFuture {
     request_id: RequestId,
-    rx: oneshot::Receiver<Result<Response, (RequestFailure, RetriableRequest)>>,
+    rx: oneshot::Receiver<HandleResult>,
 }
 
-impl DbSyncHandleFuture {
+impl HandleFuture {
     pub fn request_id(&self) -> RequestId {
         self.request_id
     }
 }
 
-impl Future for DbSyncHandleFuture {
-    type Output = Result<Response, (RequestFailure, RetriableRequest)>;
+impl Future for HandleFuture {
+    type Output = HandleResult;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.rx
@@ -289,10 +289,10 @@ impl Future for DbSyncHandleFuture {
 }
 
 #[derive(Clone)]
-pub struct DbSyncHandle(mpsc::UnboundedSender<(DbSyncAction, DbSyncOneshot)>);
+pub struct Handle(mpsc::UnboundedSender<(HandleAction, oneshot::Sender<HandleResult>)>);
 
-impl DbSyncHandle {
-    fn send(&self, action: DbSyncAction) -> DbSyncHandleFuture {
+impl Handle {
+    fn send(&self, action: HandleAction) -> HandleFuture {
         let (tx, rx) = oneshot::channel();
         let request_id = action.request_id();
 
@@ -300,20 +300,20 @@ impl DbSyncHandle {
             .send((action, tx))
             .expect("channel should never be closed");
 
-        DbSyncHandleFuture { request_id, rx }
+        HandleFuture { request_id, rx }
     }
 
-    pub fn request(&self, request: Request) -> DbSyncHandleFuture {
-        self.send(DbSyncAction::Request(RequestId::next(), request))
+    pub fn request(&self, request: Request) -> HandleFuture {
+        self.send(HandleAction::Request(RequestId::next(), request))
     }
 
-    pub fn retry(&self, request: RetriableRequest) -> DbSyncHandleFuture {
-        self.send(DbSyncAction::Retry(request))
+    pub fn retry(&self, request: RetriableRequest) -> HandleFuture {
+        self.send(HandleAction::Retry(request))
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-pub struct InnerProgramIdsRequest {
+pub(crate) struct InnerProgramIdsRequest {
     at: H256,
 }
 
@@ -327,7 +327,7 @@ pub struct InnerAnnouncesRequest {
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
-pub enum InnerRequest {
+pub(crate) enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
@@ -335,14 +335,14 @@ pub enum InnerRequest {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
-pub struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
+pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
-pub struct InnerProgramIdsResponse(BTreeSet<ActorId>);
+pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
-pub enum InnerResponse {
+pub(crate) enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
@@ -351,10 +351,10 @@ pub enum InnerResponse {
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
-pub struct Behaviour {
+pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    handle: DbSyncHandle,
-    rx: mpsc::UnboundedReceiver<(DbSyncAction, DbSyncOneshot)>,
+    handle: Handle,
+    rx: mpsc::UnboundedReceiver<(HandleAction, oneshot::Sender<HandleResult>)>,
     peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
@@ -369,7 +369,7 @@ impl Behaviour {
         db: Database,
     ) -> Self {
         let (handle, rx) = mpsc::unbounded_channel();
-        let handle = DbSyncHandle(handle);
+        let handle = Handle(handle);
 
         Self {
             inner: InnerBehaviour::new(
@@ -388,7 +388,7 @@ impl Behaviour {
         }
     }
 
-    pub fn handle(&self) -> DbSyncHandle {
+    pub fn handle(&self) -> Handle {
         self.handle.clone()
     }
 
@@ -551,10 +551,10 @@ impl NetworkBehaviour for Behaviour {
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Poll::Ready(Some((action, channel))) = self.rx.poll_recv(cx) {
             match action {
-                DbSyncAction::Request(request_id, request) => {
+                HandleAction::Request(request_id, request) => {
                     self.ongoing_requests.request(request_id, request, channel);
                 }
-                DbSyncAction::Retry(request) => {
+                HandleAction::Retry(request) => {
                     self.ongoing_requests.retry(request, channel);
                 }
             }
