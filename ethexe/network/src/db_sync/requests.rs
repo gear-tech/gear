@@ -209,6 +209,7 @@ impl OngoingRequests {
                 // it means `HandleFuture` is dropped,
                 // so we just remove the request and don't make any further work
                 if channel.as_ref().expect("always Some").is_closed() {
+                    self.pending_events.push_back(Event::RequestCancelled { request_id });
                     return false;
                 }
 
@@ -254,9 +255,15 @@ impl OngoingRequests {
                             )))
                         }
                     };
+
                     self.pending_events.push_back(event);
-                    // `send()` can return an error because of the channel being dropped, so we ignore it
-                    let _res = channel.take().expect("always Some").send(res);
+
+                    // channel can be dropped after `is_closed()` check during future polling
+                    let res = channel.take().expect("always Some").send(res);
+                    if res.is_err() {
+                        self.pending_events.push_back(Event::RequestCancelled { request_id });
+                    }
+
                     return false;
                 }
 
