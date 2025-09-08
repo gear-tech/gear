@@ -65,7 +65,7 @@ impl BlocksManager {
 
                 self.db.set_block_header(block_hash, header);
                 self.db
-                    .mutate_latest_data_if_some(|data| {
+                    .mutate_latest_data(|data| {
                         data.prepared_block_hash = block_hash;
                     })
                     .unwrap();
@@ -80,16 +80,14 @@ impl BlocksManager {
                 };
 
                 self.db.set_block_header(block_hash, header);
-                self.db.mutate_latest_data(|data| {
-                    *data = Some(LatestData {
-                        prepared_block_hash: block_hash,
-                        synced_block_height: header.height,
-                        computed_announce_hash: AnnounceHash::zero(),
-                        genesis_block_hash: block_hash,
-                        genesis_announce_hash: AnnounceHash::zero(),
-                        start_block_hash: block_hash,
-                        start_announce_hash: AnnounceHash::zero(),
-                    });
+                self.db.set_latest_data(LatestData {
+                    prepared_block_hash: block_hash,
+                    synced_block_height: header.height,
+                    computed_announce_hash: AnnounceHash::zero(),
+                    genesis_block_hash: block_hash,
+                    genesis_announce_hash: AnnounceHash::zero(),
+                    start_block_hash: block_hash,
+                    start_announce_hash: AnnounceHash::zero(),
                 });
 
                 (block_hash, header)
