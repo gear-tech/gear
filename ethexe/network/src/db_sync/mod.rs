@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -101,6 +101,13 @@ pub enum Event {
         request_id: RequestId,
         /// Reason of request failure
         error: RequestFailure,
+    },
+    /// Request canceled
+    ///
+    /// User dropped [`HandleFuture`].
+    RequestCancelled {
+        /// The canceled request
+        request_id: RequestId,
     },
     /// Incoming request
     IncomingRequest {
@@ -1319,6 +1326,18 @@ pub(crate) mod tests {
 
         let response = request.await.unwrap();
         assert_eq!(response, expected_response);
+    }
+
+    #[tokio::test]
+    async fn request_cancelled() {
+        let (mut alice, _db, _data_provider) = new_swarm().await;
+
+        let request = alice.behaviour().handle().request(Request::hashes([]));
+        let request_id = request.request_id();
+        drop(request);
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::RequestCancelled { request_id });
     }
 
     pub(crate) async fn fill_data_provider(
