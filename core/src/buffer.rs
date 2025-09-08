@@ -21,7 +21,7 @@
 use core::{
     convert::TryFrom,
     fmt::{self, Debug, Display, Formatter},
-    marker::PhantomData,
+    ops::{Deref, DerefMut},
 };
 
 use alloc::{sync::Arc, vec, vec::Vec};
@@ -40,15 +40,17 @@ use crate::str::LimitedStr;
 /// `N` is max len which a vector can have.
 #[derive(Clone, Default, Eq, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
+pub struct LimitedVec<T, const N: usize> {
+    inner: Vec<T>,
+}
 
 /// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
-impl<T: Clone + Default, E: Default, const N: usize> Display for LimitedVec<T, E, N>
+impl<T: Clone + Default, const N: usize> Display for LimitedVec<T, N>
 where
     [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let len = self.0.len();
+        let len = self.inner.len();
         let median = len.div_ceil(2);
 
         let mut e1 = median;
@@ -64,8 +66,8 @@ where
             s2 = len - 8;
         }
 
-        let p1 = hex::encode(&self.0[..e1]);
-        let p2 = hex::encode(&self.0[s2..]);
+        let p1 = hex::encode(&self.inner[..e1]);
+        let p2 = hex::encode(&self.inner[s2..]);
         let sep = if e1.ne(&s2) { ".." } else { Default::default() };
 
         if f.alternate() {
@@ -76,7 +78,19 @@ where
     }
 }
 
-impl<T: Clone + Default, E: Default, const N: usize> Debug for LimitedVec<T, E, N>
+/// Error type for limited vector overflowing.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct LimitedVecError;
+
+impl Display for LimitedVecError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("vector length limit is exceeded")
+    }
+}
+
+impl core::error::Error for LimitedVecError {}
+
+impl<T: Clone + Default, const N: usize> Debug for LimitedVec<T, N>
 where
     [T]: AsRef<[u8]>,
 {
@@ -85,110 +99,185 @@ where
     }
 }
 
-impl<T: Clone, E: Default, const N: usize> TryFrom<&[T]> for LimitedVec<T, E, N> {
-    type Error = E;
-    fn try_from(x: &[T]) -> Result<Self, Self::Error> {
-        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
-        Ok(Self(Vec::from(x), PhantomData))
+impl<T: Clone, const N: usize> TryFrom<&[T]> for LimitedVec<T, N> {
+    type Error = LimitedVecError;
+
+    fn try_from(slice: &[T]) -> Result<Self, Self::Error> {
+        Self::validate_len(slice.len()).map(|_| Self {
+            inner: slice.to_vec(),
+        })
     }
 }
 
-impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
-    type Error = E;
-    fn try_from(x: Vec<T>) -> Result<Self, Self::Error> {
-        (x.len() <= N).then_some(()).ok_or_else(E::default)?;
-        Ok(Self(x, PhantomData))
+impl<T, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, N> {
+    type Error = LimitedVecError;
+    fn try_from(vec: Vec<T>) -> Result<Self, Self::Error> {
+        Self::validate_len(vec.len()).map(|_| Self { inner: vec })
     }
 }
 
-impl<T: Hash, E: Default, const N: usize> Hash for LimitedVec<T, E, N> {
+impl<T, const N: usize> AsRef<[T]> for LimitedVec<T, N> {
+    fn as_ref(&self) -> &[T] {
+        &self.inner
+    }
+}
+
+impl<T, const N: usize> AsMut<[T]> for LimitedVec<T, N> {
+    fn as_mut(&mut self) -> &mut [T] {
+        &mut self.inner
+    }
+}
+
+impl<T, const N: usize> Deref for LimitedVec<T, N> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+
+impl<T, const N: usize> DerefMut for LimitedVec<T, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut()
+    }
+}
+
+impl<T, const N: usize> IntoIterator for LimitedVec<T, N> {
+    type Item = T;
+    type IntoIter = alloc::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
+impl<'a, T, const N: usize> IntoIterator for &'a LimitedVec<T, N> {
+    type Item = &'a T;
+    type IntoIter = core::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T, const N: usize> IntoIterator for &'a mut LimitedVec<T, N> {
+    type Item = &'a mut T;
+    type IntoIter = core::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
+impl<T: Hash, const N: usize> Hash for LimitedVec<T, N> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
+        self.inner.hash(state);
     }
 }
 
-impl<T: Clone + Default, E: Default, const N: usize> LimitedVec<T, E, N> {
-    /// Maximum length of the vector.
-    pub const MAX_LEN: usize = N;
+impl<T, const N: usize> LimitedVec<T, N> {
+    /// Validates given length.
+    ///
+    /// Returns `Ok(())` if the vector can store such number
+    /// of elements and `Err(LimitedVecError { .. })` otherwise.
+    const fn validate_len(len: usize) -> Result<(), LimitedVecError> {
+        if len <= N {
+            Ok(())
+        } else {
+            Err(LimitedVecError)
+        }
+    }
 
     /// Constructs a new, empty `LimitedVec<T>`.
     pub const fn new() -> Self {
-        Self(Vec::new(), PhantomData)
+        Self { inner: vec![] }
     }
 
     /// Tries to create new limited vector of length `len`
     /// with default initialized elements.
-    pub fn try_new_default(len: usize) -> Result<Self, E> {
-        (len <= N).then_some(()).ok_or_else(E::default)?;
-        Ok(Self(vec![T::default(); len], PhantomData))
+    pub fn try_new_default(len: usize) -> Result<Self, LimitedVecError>
+    where
+        T: Default + Clone,
+    {
+        Self::validate_len(len).map(|_| Self {
+            inner: vec![T::default(); len],
+        })
     }
 
     /// Creates new limited vector with default initialized elements.
-    pub fn new_default() -> Self {
-        Self(vec![T::default(); N], PhantomData)
+    pub fn new_default() -> Self
+    where
+        T: Default + Clone,
+    {
+        Self::filled_with(T::default())
     }
 
     /// Creates limited vector filled with the specified `value`.
-    pub fn filled_with(value: T) -> Self {
-        Self(vec![value; N], PhantomData)
+    pub fn filled_with(value: T) -> Self
+    where
+        T: Clone,
+    {
+        Self {
+            inner: vec![value; N],
+        }
     }
 
     /// Extends the array to its limit and fills with the specified `value`.
-    pub fn extend_with(&mut self, value: T) {
-        self.0.resize(N, value);
+    pub fn extend_with(&mut self, value: T)
+    where
+        T: Clone,
+    {
+        self.inner.resize(N, value);
     }
 
     /// Append `value` to the end of vector.
-    pub fn try_push(&mut self, value: T) -> Result<(), E> {
-        (self.0.len() != N).then_some(()).ok_or_else(E::default)?;
-        self.0.push(value);
+    pub fn try_push(&mut self, value: T) -> Result<(), LimitedVecError> {
+        Self::validate_len(self.inner.len() + 1)?;
+
+        self.inner.push(value);
         Ok(())
     }
 
     /// Append `values` to the end of vector.
-    pub fn try_extend_from_slice(&mut self, values: &[T]) -> Result<(), E> {
-        self.0
+    pub fn try_extend_from_slice(&mut self, values: &[T]) -> Result<(), LimitedVecError>
+    where
+        T: Clone,
+    {
+        let new_len = self
+            .inner
             .len()
             .checked_add(values.len())
-            .and_then(|len| (len <= N).then_some(()))
-            .ok_or_else(E::default)?;
+            .ok_or(LimitedVecError)?;
+        Self::validate_len(new_len)?;
 
-        self.0.extend_from_slice(values);
-
+        self.inner.extend_from_slice(values);
         Ok(())
     }
 
     /// Append `values` to the begin of vector.
-    pub fn try_prepend(&mut self, values: Self) -> Result<(), E> {
-        self.0
+    pub fn try_prepend(&mut self, values: Self) -> Result<(), LimitedVecError> {
+        let new_len = self
+            .inner
             .len()
-            .checked_add(values.0.len())
-            .and_then(|len| (len <= N).then_some(()))
-            .ok_or_else(E::default)?;
+            .checked_add(values.inner.len())
+            .ok_or(LimitedVecError)?;
+        Self::validate_len(new_len)?;
 
-        self.0.splice(0..0, values.0);
-
+        self.inner.splice(0..0, values.inner);
         Ok(())
     }
 
-    /// Returns ref to the internal data.
-    pub fn inner(&self) -> &[T] {
-        &self.0
-    }
-
-    /// Returns mut ref to the internal data slice.
-    pub fn inner_mut(&mut self) -> &mut [T] {
-        &mut self.0
-    }
-
     /// Clones self into vector.
-    pub fn to_vec(&self) -> Vec<T> {
-        self.0.clone()
+    pub fn to_vec(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        self.inner.clone()
     }
 
     /// Destruct limited vector and returns inner vector.
     pub fn into_vec(self) -> Vec<T> {
-        self.0
+        self.inner
     }
 
     /// Returns max len which this type of limited vector can have.
@@ -252,12 +341,12 @@ impl PayloadSlice {
 
     /// Get slice of the payload.
     pub fn slice(&self) -> &[u8] {
-        &self.payload.inner()[self.start..self.end]
+        &self.payload[self.start..self.end]
     }
 }
 
 /// Buffer which size cannot be bigger then max allowed allocation size in runtime.
-pub type RuntimeBuffer = LimitedVec<u8, RuntimeBufferSizeError, RUNTIME_MAX_BUFF_SIZE>;
+pub type RuntimeBuffer = LimitedVec<u8, RUNTIME_MAX_BUFF_SIZE>;
 
 /// Max payload size which one message can have (8 MiB).
 pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
@@ -285,13 +374,13 @@ impl Display for PayloadSizeError {
 }
 
 /// Payload type for message.
-pub type Payload = LimitedVec<u8, PayloadSizeError, MAX_PAYLOAD_SIZE>;
+pub type Payload = LimitedVec<u8, MAX_PAYLOAD_SIZE>;
 
 impl Payload {
     /// Get payload length as u32.
     pub fn len_u32(&self) -> u32 {
         // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
-        self.inner().len() as u32
+        self.len() as u32
     }
 }
 
@@ -326,7 +415,7 @@ impl PanicBuffer {
     }
 
     fn to_limited_str(&self) -> Option<LimitedStr<'_>> {
-        let s = core::str::from_utf8(self.0.inner()).ok()?;
+        let s = core::str::from_utf8(&self.0).ok()?;
         LimitedStr::try_from(s).ok()
     }
 }
@@ -336,7 +425,7 @@ impl From<LimitedStr<'_>> for PanicBuffer {
         const _: () = assert!(crate::str::TRIMMED_MAX_LEN <= MAX_PAYLOAD_SIZE);
         Payload::try_from(value.into_inner().into_owned().into_bytes())
             .map(Self)
-            .unwrap_or_else(|PayloadSizeError| {
+            .unwrap_or_else(|LimitedVecError| {
                 unreachable!("`LimitedStr` is always smaller than maximum payload size",)
             })
     }
@@ -364,14 +453,14 @@ impl Debug for PanicBuffer {
 
 #[cfg(test)]
 mod test {
-    use super::{LimitedVec, PanicBuffer, Payload, RuntimeBufferSizeError};
+    use super::{LimitedVec, PanicBuffer, Payload};
     use alloc::{format, string::String, vec, vec::Vec};
     use core::convert::{TryFrom, TryInto};
 
     const N: usize = 1000;
-    type TestBuffer = LimitedVec<u8, RuntimeBufferSizeError, N>;
+    type TestBuffer = LimitedVec<u8, N>;
     const M: usize = 64;
-    type SmallTestBuffer = LimitedVec<u8, RuntimeBufferSizeError, M>;
+    type SmallTestBuffer = LimitedVec<u8, M>;
 
     #[test]
     fn test_try_from() {
@@ -383,24 +472,24 @@ mod test {
         let _ = TestBuffer::try_from(v2).expect_err("Must be err because of size overflow");
         let z = TestBuffer::try_from(v3).unwrap();
 
-        assert_eq!(x.inner().len(), N);
-        assert_eq!(z.inner().len(), N - 1);
-        assert_eq!(x.inner()[N / 2], 1);
-        assert_eq!(z.inner()[N / 2], 1);
+        assert_eq!(x.len(), N);
+        assert_eq!(z.len(), N - 1);
+        assert_eq!(x[N / 2], 1);
+        assert_eq!(z[N / 2], 1);
     }
 
     #[test]
     fn test_new_default() {
-        let x = LimitedVec::<String, RuntimeBufferSizeError, N>::try_new_default(N).unwrap();
+        let x = LimitedVec::<String, N>::try_new_default(N).unwrap();
         assert!(
-            LimitedVec::<u64, RuntimeBufferSizeError, N>::try_new_default(N + 1).is_err(),
+            LimitedVec::<u64, N>::try_new_default(N + 1).is_err(),
             "Must be error because of size overflow"
         );
-        let z = LimitedVec::<Vec<u8>, RuntimeBufferSizeError, N>::try_new_default(0).unwrap();
+        let z = LimitedVec::<Vec<u8>, N>::try_new_default(0).unwrap();
 
-        assert_eq!(x.inner().len(), N);
-        assert_eq!(z.inner().len(), 0);
-        assert_eq!(x.inner()[N / 2], "");
+        assert_eq!(x.len(), N);
+        assert_eq!(z.len(), 0);
+        assert_eq!(x[N / 2], "");
     }
 
     #[test]
@@ -409,7 +498,7 @@ mod test {
         let prepend_buf = TestBuffer::try_from(vec![6, 7, 8]).unwrap();
         buf.try_prepend(prepend_buf).unwrap();
 
-        assert_eq!(buf.inner(), &[6, 7, 8, 1, 2, 3, 4, 5]);
+        assert_eq!(buf.as_ref(), &[6, 7, 8, 1, 2, 3, 4, 5]);
     }
 
     #[test]
@@ -431,7 +520,7 @@ mod test {
         y.try_prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
         z.try_prepend(vec![1, 2, 3].try_into().unwrap()).unwrap();
 
-        z.inner_mut()[0] = 0;
+        z[0] = 0;
 
         assert_eq!(&z.into_vec(), &[0, 2, 3, 42, 1, 2, 3]);
         assert_eq!(TestBuffer::max_len(), N);
