@@ -32,7 +32,6 @@ use core_processor::{
 };
 use frame_support::traits::{Currency, Get};
 use gear_core::{
-    buffer::LimitedVecError,
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
@@ -117,9 +116,7 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload
-                        .try_into()
-                        .map_err(|err: LimitedVecError| err.message())?,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -142,9 +139,7 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload
-                        .try_into()
-                        .map_err(|err: LimitedVecError| err.message())?,
+                    payload.try_into()?,
                     Some(u64::MAX),
                     config.value,
                     None,

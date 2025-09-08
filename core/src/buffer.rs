@@ -89,6 +89,12 @@ impl LimitedVecError {
     }
 }
 
+impl From<LimitedVecError> for &'static str {
+    fn from(err: LimitedVecError) -> Self {
+        err.message()
+    }
+}
+
 impl Display for LimitedVecError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.message())
