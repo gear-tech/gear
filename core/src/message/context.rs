@@ -414,7 +414,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -427,7 +427,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input_len = self.current.payload().inner().len();
+        let input_len = self.current.payload().len();
         let offset = offset as usize;
         let len = len as usize;
 
@@ -517,7 +517,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
+            .try_extend_from_slice(&self.current.payload()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 

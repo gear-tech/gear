@@ -104,7 +104,7 @@ impl Debug for MemoryInterval {
 pub struct IntoPageBufError;
 
 /// Alias for inner type of page buffer.
-pub type PageBufInner = LimitedVec<u8, IntoPageBufError, { GearPage::SIZE as usize }>;
+pub type PageBufInner = LimitedVec<u8, { GearPage::SIZE as usize }>;
 
 /// Buffer for gear page data.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, TypeInfo)]
@@ -122,7 +122,7 @@ impl Encode for PageBuf {
     }
 
     fn encode_to<W: Output + ?Sized>(&self, dest: &mut W) {
-        dest.write(self.0.inner())
+        dest.write(&self.0)
     }
 }
 
@@ -130,7 +130,7 @@ impl Decode for PageBuf {
     #[inline]
     fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
         let mut buffer = PageBufInner::new_default();
-        input.read(buffer.inner_mut())?;
+        input.read(&mut buffer)?;
         Ok(Self(buffer))
     }
 }
@@ -142,8 +142,8 @@ impl Debug for PageBuf {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0.inner()[0..10],
-            &self.0.inner()[GearPage::SIZE as usize - 10..GearPage::SIZE as usize]
+            &self.0[0..10],
+            &self.0[GearPage::SIZE as usize - 10..GearPage::SIZE as usize]
         )
     }
 }
@@ -151,13 +151,13 @@ impl Debug for PageBuf {
 impl Deref for PageBuf {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        self.0.inner()
+        &self.0
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.inner_mut()
+        &mut self.0
     }
 }
 
@@ -549,7 +549,7 @@ mod tests {
         let _ = tracing_subscriber::fmt::try_init();
 
         let mut data = PageBufInner::filled_with(199u8);
-        data.inner_mut()[1] = 2;
+        data[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {page_buf:?}");
     }
