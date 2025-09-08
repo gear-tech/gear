@@ -11671,6 +11671,7 @@ name = "pallet-gear-rpc"
 version = "1.9.1"
 dependencies = [
  "gear-common",
+ "gear-core",
  "gear-core-errors",
  "jsonrpsee 0.24.7",
  "pallet-gear-rpc-runtime-api",

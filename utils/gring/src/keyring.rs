@@ -42,8 +42,6 @@ pub struct Keyring {
 
 impl Keyring {
     /// Loads the keyring from the store.
-    ///
-    /// NOTE: For the store path, see [`STORE`].
     pub fn load(store: PathBuf) -> Result<Self> {
         let ring = fs::read_dir(&store)?
             .filter_map(|entry| {

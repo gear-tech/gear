@@ -70,6 +70,7 @@ jobs:
       - name: "Check: ethexe contracts"
         run: |
           npm cache clean --force
+
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
@@ -77,6 +78,16 @@ jobs:
           forge build --sizes
           forge test -vvv
         working-directory: ethexe/contracts
+
+      - name: "Check: ABI files are updated"
+        run: |
+          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+
+          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |

@@ -89,7 +89,7 @@ impl EventProcessor for EventListener {
 
 impl EventListener {
     /// Look through finalized blocks to find the
-    /// [`QueueNotProcessed`](https://docs.gear.rs/pallet_gear/pallet/enum.Event.html#variant.QueueNotProcessed)
+    /// [`QueueNotProcessed`](https://docs.rs/pallet_gear/pallet/enum.Event.html#variant.QueueNotProcessed)
     /// event.
     pub async fn queue_processing_reverted(&mut self) -> Result<H256> {
         while let Some(events) = self.0.next_events().await? {
