@@ -51,7 +51,7 @@ async fn test_command_send_works() -> Result<()> {
     assert!(
         mailbox
             .iter()
-            .any(|mail| mail.0.payload.0 == demo_messenger::SEND_REPLY.encode()),
+            .any(|mail| mail.0.payload.inner == demo_messenger::SEND_REPLY.encode()),
         "Mailbox should have the send reply message"
     );
 

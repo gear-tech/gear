@@ -176,7 +176,7 @@ pub fn err_waited_or_succeed_batch(
                 Some(vec![(
                     (*to).into(),
                     (!ReplyCode::from(code.clone()).is_success())
-                        .then(|| String::from_utf8(payload.0.to_vec()).expect("Infallible")),
+                        .then(|| String::from_utf8(payload.inner.to_vec()).expect("Infallible")),
                 )])
             }
             Event::Gear(GearEvent::MessageWaited { id, .. }) if message_ids.contains(id) => {

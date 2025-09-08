@@ -116,7 +116,7 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    payload.try_into().map_err(|err| err.message())?,
                     Some(u64::MAX),
                     config.value,
                     None,

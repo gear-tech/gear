@@ -44,7 +44,7 @@ async fn test_command_reply_works() -> Result<()> {
         .await?;
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
     assert_eq!(
-        mailbox[0].0.payload.0,
+        mailbox[0].0.payload.inner,
         demo_messenger::REPLY_REPLY.encode(),
         "Alice should have received a reply"
     );
