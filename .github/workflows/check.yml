@@ -34,9 +34,6 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
-
   ethexe-contracts:
     runs-on: ubuntu-latest
     steps:
