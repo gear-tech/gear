@@ -32,14 +32,14 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{Announce, AnnounceHash, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::SimpleConnectService;
 pub use utils::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
-    SignedValidationRequest,
+    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
+    SignedValidationRequest, block_producer_for, block_producer_index,
 };
 pub use validator::{ValidatorConfig, ValidatorService};
 
