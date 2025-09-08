@@ -296,24 +296,6 @@ const RUNTIME_MAX_ALLOC_SIZE: usize = 512 * 0x10000;
 /// Take half from [RUNTIME_MAX_ALLOC_SIZE] in order to avoid problems with capacity overflow.
 const RUNTIME_MAX_BUFF_SIZE: usize = RUNTIME_MAX_ALLOC_SIZE / 2;
 
-/// Runtime buffer size exceed error
-#[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
-pub struct RuntimeBufferSizeError;
-
-impl From<RuntimeBufferSizeError> for &str {
-    fn from(_: RuntimeBufferSizeError) -> Self {
-        "Runtime buffer size exceed"
-    }
-}
-
-impl Display for RuntimeBufferSizeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str((*self).into())
-    }
-}
-
 /// Wrapper for payload slice.
 pub struct PayloadSlice {
     /// Start of the slice.
@@ -353,25 +335,6 @@ pub const MAX_PAYLOAD_SIZE: usize = 8 * 1024 * 1024;
 
 // **WARNING**: do not remove this check
 const _: () = assert!(MAX_PAYLOAD_SIZE <= u32::MAX as usize);
-
-/// Payload size exceed error
-#[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
-)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct PayloadSizeError;
-
-impl From<PayloadSizeError> for &str {
-    fn from(_: PayloadSizeError) -> Self {
-        "Payload size limit exceeded"
-    }
-}
-
-impl Display for PayloadSizeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str((*self).into())
-    }
-}
 
 /// Payload type for message.
 pub type Payload = LimitedVec<u8, MAX_PAYLOAD_SIZE>;
