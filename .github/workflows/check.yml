@@ -34,9 +34,6 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
-
   ethexe-contracts:
     runs-on: ubuntu-latest
     steps:
@@ -70,6 +67,7 @@ jobs:
       - name: "Check: ethexe contracts"
         run: |
           npm cache clean --force
+
           # version from ethexe/contracts/lib/openzeppelin-foundry-upgrades/src/internal/Versions.sol
           npx @openzeppelin/upgrades-core@^1.37.0
 
@@ -77,6 +75,16 @@ jobs:
           forge build --sizes
           forge test -vvv
         working-directory: ethexe/contracts
+
+      - name: "Check: ABI files are updated"
+        run: |
+          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+
+          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |
@@ -131,7 +139,7 @@ jobs:
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
 
-      - name: "Check clippy: Gear"
+      - name: "Check clippy"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
   wasm:
