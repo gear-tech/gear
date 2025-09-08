@@ -61,7 +61,7 @@ impl CoreLog {
 
     /// Get the payload of the message that emitted this log.
     pub fn payload(&self) -> &[u8] {
-        self.payload.inner()
+        &self.payload
     }
 
     /// Get the reply code of the message that emitted this log.
@@ -108,7 +108,7 @@ pub struct DecodedCoreLog<T: Codec + Debug> {
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {
     pub(crate) fn try_from_log(log: CoreLog) -> Option<Self> {
-        let payload = T::decode(&mut log.payload.inner()).ok()?;
+        let payload = T::decode(&mut log.payload.as_ref()).ok()?;
 
         Some(Self {
             id: log.id,
@@ -318,7 +318,7 @@ impl PartialEq<UserStoredMessage> for Log {
             return false;
         }
 
-        if matches!(&self.payload, Some(payload) if payload.inner() != other.payload_bytes()) {
+        if matches!(&self.payload, Some(payload) if payload.as_ref() != other.payload_bytes()) {
             return false;
         }
 
@@ -375,7 +375,7 @@ impl PartialEq<CoreLog> for Log {
         }
 
         if let Some(payload) = &self.payload
-            && payload.inner() != other.payload.inner()
+            && payload.as_ref() != other.payload.as_ref()
         {
             return false;
         }

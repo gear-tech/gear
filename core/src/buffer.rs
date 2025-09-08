@@ -82,9 +82,16 @@ where
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct LimitedVecError;
 
+impl LimitedVecError {
+    /// Returns a static error message.
+    pub const fn message(&self) -> &'static str {
+        "vector length limit is exceeded"
+    }
+}
+
 impl Display for LimitedVecError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("vector length limit is exceeded")
+        f.write_str(self.message())
     }
 }
 
@@ -176,10 +183,13 @@ impl<T: Hash, const N: usize> Hash for LimitedVec<T, N> {
 }
 
 impl<T, const N: usize> LimitedVec<T, N> {
+    /// Maximum length of the vector.
+    pub const MAX_LEN: usize = N;
+
     /// Validates given length.
     ///
     /// Returns `Ok(())` if the vector can store such number
-    /// of elements and `Err(LimitedVecError { .. })` otherwise.
+    /// of elements and `Err(LimitedVecError)` otherwise.
     const fn validate_len(len: usize) -> Result<(), LimitedVecError> {
         if len <= N {
             Ok(())

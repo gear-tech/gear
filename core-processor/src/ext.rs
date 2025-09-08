@@ -1167,13 +1167,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
-        Ok(self
-            .context
-            .message_context
-            .current()
-            .payload()
-            .inner()
-            .len())
+        Ok(self.context.message_context.current().payload().len())
     }
 
     fn reserve_gas(

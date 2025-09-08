@@ -30,7 +30,7 @@ use crate::{
 use alloc::{format, vec::Vec};
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::{LimitedVecError, RuntimeBuffer},
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
     pages::WasmPagesAmount,
 };
@@ -96,7 +96,7 @@ where
 pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
-    RuntimeBuffer(RuntimeBufferSizeError),
+    RuntimeBuffer(LimitedVecError),
     // TODO: remove #2164
     Decode,
 }
@@ -111,12 +111,10 @@ impl BackendSyscallError for MemoryAccessError {
                 )
                 .into()
             }
-            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
-                TrapExplanation::UnrecoverableExt(
-                    UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into(),
-                )
-                .into()
-            }
+            MemoryAccessError::RuntimeBuffer(LimitedVecError) => TrapExplanation::UnrecoverableExt(
+                UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into(),
+            )
+            .into(),
             // TODO: In facts thats legacy from lazy pages V1 implementation,
             // previously it was able to figure out that gas ended up in
             // pre-process charges: now we need actual counter type, so
@@ -142,7 +140,7 @@ impl BackendSyscallError for MemoryAccessError {
             | MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
             }
-            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+            MemoryAccessError::RuntimeBuffer(LimitedVecError) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::RuntimeAllocOutOfBounds.into())
             }
             e => RunFallibleError::UndefinedTerminationReason(e.into_termination_reason()),
