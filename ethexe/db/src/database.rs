@@ -589,7 +589,10 @@ impl AnnounceStorageWrite for Database {
         announce_hash: AnnounceHash,
         program_states: ProgramStates,
     ) {
-        log::trace!("Set program states for {announce_hash}: len = {}", program_states.len());
+        log::trace!(
+            "Set program states for {announce_hash}: len = {}",
+            program_states.len()
+        );
         self.kv.put(
             &Key::AnnounceProgramStates(announce_hash).to_bytes(),
             program_states.encode(),

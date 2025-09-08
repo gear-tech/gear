@@ -160,12 +160,9 @@ fn set_computation_result<DB: AnnounceStorageWrite>(
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{
-        AnnounceHash, BlockHeader, SimpleBlockData, db::*, gear::StateTransition, mock::*,
-    };
+    use ethexe_common::{AnnounceHash, db::*, gear::StateTransition, mock::*};
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
-    use nonempty::NonEmpty;
 
     #[tokio::test]
     async fn test_compute() {
