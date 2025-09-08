@@ -575,10 +575,10 @@ pub mod pallet {
             let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
-                    .map_err(|err: LimitedVecError| DispatchError::Other(err.into()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?,
                 init_payload
                     .try_into()
-                    .map_err(|err: LimitedVecError| DispatchError::Other(err.into()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
