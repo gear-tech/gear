@@ -19,7 +19,7 @@ jobs:
     runs-on: [kuberunner]
     steps:
       - name: "ACTIONS: Checkout & fetch all history"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
