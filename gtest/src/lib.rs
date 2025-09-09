@@ -35,15 +35,19 @@
 //!
 //! - [`System`] — a structure that represents the environment of the Gear
 //!   network. It contains the current block number, timestamp, and other
-//!   parameters. It also stores the mailbox and the list of programs.
+//!   parameters. It also stores the mailbox the list of programs and does
+//!   many other useful things.
 //! - [`Program`] — a structure that represents a Gear program. It contains the
 //!   information about program and allows sending messages to other programs.
-//! - [`Log`] — a structure that represents a message log. It allows checking
-//!   the result of the program execution.
+//! - [`BlockRunResult`] - a structure that represents the result of running a block. It
+//!   contains the status of the block execution, the list of events, and other
+//!   relevant information.
+//! - [`UserMessageEvent`] — a structure that represents a message addressed to user, but
+//!   not reached the mailbox, so it's stored as an event.
 //!
 //! Let's take a closer look at how to write tests using `gtest`.
 //!
-//! ## Import `gtest` lib
+//! ### Import `gtest` lib
 //!
 //! To use the `gtest` library, you must import it into your `Cargo.toml` file
 //! in the `[dev-dependencies]` block to fetch and compile it for tests only:
@@ -64,8 +68,10 @@
 //! [dev-dependencies]
 //! gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
 //! ```
+//! 
+//! Make sure you use the latest version of the `gtest`.
 //!
-//! ## Program example
+//! ### Program example
 //!
 //! Let's write a simple program that will receive a message and reply to it.
 //!
@@ -94,24 +100,12 @@
 //! ```
 //!
 //! We will add a test that will check the program's behavior. To do this, we
-//! will use the `gtest` library.
-//!
-//! Our test will consist of the following steps:
-//!
-//! 1. Initialize the `System` structure.
-//! 2. Initialize the `Program` structure.
-//! 3. Send an init message to the program. Even though we don't have the `init`
-//!    function in our program, the first message to the program sent via
-//!    `gtest` is always the init one.
-//! 4. Send a handle message to the program.
-//! 5. Check the result of the program execution.
-//!
-//! Add these lines to the bottom of the `lib.rs` file:
+//! will use the `gtest` library. Add these lines to the bottom of the `lib.rs` file:
 //!
 //! ```no_run
 //! #[cfg(test)]
 //! mod tests {
-//!     use gtest::{Log, Program, System};
+//!     use gtest::{EventBuilder, Program, System};
 //!
 //!     // Alternatively, you can use the default users from `gtest::constants`:
 //!     // `DEFAULT_USER_ALICE`, `DEFAULT_USER_BOB`, `DEFAULT_USER_CHARLIE`, `DEFAULT_USER_EVE`.
@@ -130,6 +124,8 @@
 //!         sys.mint_to(USER_ID, EXISTENTIAL_DEPOSIT * 1000);
 //!
 //!         // Send an init message to the program.
+//!         // The `Program` type automatically detects the kind of the message,
+//!         // if it's program initialization message or a handle message.
 //!         let init_message_id = prog.send_bytes(USER_ID, b"Doesn't matter");
 //!
 //!         // Run execution of the block which will contain `init_message_id`
@@ -143,17 +139,18 @@
 //!         let block_run_result = sys.run_next_block();
 //!
 //!         // Check the result of the program execution.
-//!         // 1. Create a log pattern with the expected result.
-//!         let log = Log::builder()
+//!         // 1. Using `EventBuilder` build an expected to be found event.
+//!         let event = EventBuilder::new()
 //!             .source(prog.id())
 //!             .dest(USER_ID)
-//!             .payload_bytes(b"PONG");
+//!             .payload_bytes(b"PONG")
+//!             .build();
 //!
 //!         // 2. Check whether the program was executed successfully.
 //!         assert!(block_run_result.succeed.contains(&handle_message_id));
 //!
-//!         // 3. Make sure the log entry is in the result.
-//!         assert!(block_run_result.contains(&log));
+//!         // 3. Make sure the event is in the result.
+//!         assert!(block_run_result.contains(&event));
 //!     }
 //! }
 //! ```
@@ -168,20 +165,190 @@
 //!
 //! Let's take a closer look at the `gtest` capabilities.
 //!
-//! ## Initialization of the network environment for running programs
+//! ## [`System`]
 //!
-//! ```no_run
+//! The [`System`] represents a complete Gear blockchain environment in a testing context. It maintains:
+//! - Block height and timestamp progression
+//! - Message queue and dispatch processing
+//! - Program storage and execution state
+//! - User and program balances
+//! - Mailbox for user messages
+//! - Task scheduling and execution
+//!
+//! ### `System` is a per-thread singleton.
+//! The `System` is implemented as a per-thread singleton, meaning only one instance can exist
+//! per thread at any given time. Attempting to create multiple instances will result in a panic:
+//!
+//! ```should_panic
 //! # use gtest::System;
-//! let sys = System::new();
+//! let sys1 = System::new(); // OK
+//! let sys2 = System::new(); // Panics: "Impossible to have multiple instances of the `System`."
 //! ```
 //!
-//! This emulates node's and chain's behavior. By default, the [`System::new`]
-//! function sets the following parameters:
+//! This design ensures consistent state management for globally accessed storages, managed by `System`.
 //!
-//! - current block equals `0`
-//! - current timestamp equals UNIX timestamp of your system
-//! - starting message id equals `0x010000..`
-//! - starting program id equals `0x010000..`
+//! ### Logging configuration
+//! The `System` provides several methods for configuring logging output during tests (see [`System::init_logger`] and other methods).
+//! These methods allow to pre-set logging targets and levels for convenience, or control logging via the `RUST_LOG` environment variable.
+//!
+//! ### Blockchain state advancement methods
+//! The `System` provides several methods for advancing blockchain state through block execution. These methods are:
+//! - [`System::run_next_block`]
+//! - [`System::run_next_block_with_allowance`]
+//! - [`System::run_to_block`]
+//! - [`System::run_scheduled_tasks`]
+//! 
+//! What's common between them is that they all move forward the block height and timestamp, possibly executing
+//! two main messages storages - queue and task pool. Another commonality is that they all return a result of type [`BlockRunResult`],
+//! which is going to be covered later.
+//! 
+//! ### Balance management
+//! The `System` provides methods for managing user and program balances:
+//!
+//! ```no_run
+//! # let sys = gtest::System::new();
+//! # use gtest::constants::EXISTENTIAL_DEPOSIT;
+//! let user_id = 42;
+//! let program_id = 100;
+//!
+//! // Mint balance to a user (required before sending messages)
+//! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
+//!
+//! // Transfer balance between users
+//! sys.transfer(user_id, program_id, 5000, true);
+//!
+//! // Check balance
+//! let balance = sys.balance_of(user_id);
+//! println!("User balance: {}", balance);
+//! ```
+//! 
+//! Prior to sending a message, it is necessary to mint sufficient balance for the sender
+//! to ensure coverage of the existential deposit and gas costs. Alternatively, as a sender 
+//! you can use the default users with preallocated balance from [`constants`] module.
+//!
+//! ### Code storage
+//! Every program in `gtest` is basically a WASM binary and it's state. Both state and binary are stored and managed inside the `System`.
+//! The `System` allows storing codes using various code submission methods. For example:
+//! 
+//! ```no_run
+//! # let sys = gtest::System::new();
+//! # use std::fs;
+//! // Submit WASM bytes code
+//! let code = fs::read("demo.wasm").unwrap();
+//! let code_id = sys.submit_code(code);
+//!
+//! // Retrieve previously submitted code
+//! let original_code = sys.submitted_code(code_id);
+//! ```
+//! 
+//! For more methods see `System` methods documentation.
+//! 
+//! ### Programs API
+//! The `System` provides methods to access all known programs. A known program is
+//! at least once instantiated within the `System` program of [`Program`] type. [`System::get_program`] - allows retrieving
+//! an instance of the `Program` by id. To get all known programs a [`System::programs`] method must be called.
+//! 
+//! Although `Program`s are going to be covered later, it must be stated, that most of times a desired `Program` 
+//! is instantiated directly by `Program` methods. The `System` methods can be used when instance of the known
+//! program was lost or more than one instance of the same program is required.
+//!
+//! ### User mailbox
+//! Messages sent from program to user can end up being stored in user's mailbox. To access all mailbox messages
+//! of the particular user, the [`System::get_mailbox`] method must be used. It instantiates user's mailbox
+//! managing interface - [`UserMailbox`], which is going to be covered later. The method is an only mean by which
+//! a `UserMailbox` can be instantiated.
+//! 
+//! ### No message calculation
+//! Sometimes it's useful to calculate the result of the message execution without actually sending message.
+//! That could be a case when message produces unwanted side effects on each received message, which can't be
+//! easily reverted. That's where the [`System::calculate_reply_for_handle`] method comes in handy. It forms
+//! a message with desired parameters and calculates what reply the destination program would send.
+//!
+//! ## [`Program`]
+//! The `Program` type is a representation of a Gear program, which gives an interface for interacting with it
+//! and reading its state.
+//! 
+//! ### `Program` instantiation
+//! There are several ways to instantiate a `Program`:
+//! - [`Program::current`] - instantiates current crate's program. The method recognizes a path
+//!   that stores the compiled WASM binary of the current crate program.
+//! - [`Program::from_file`] - instantiates a program from a specified WASM file path.
+//! - [`Program::from_binary_with_id`] - instantiates a program from given WASM binary.
+//! 
+//! All of these methods use under the hood the [`ProgramBuilder`], which itself handles instantiation
+//! job and provides additional configuration options, like defining custom program id.
+//! 
+//! ### `Sending messages`
+//! The `Program` provides methods for sending messages to the program:
+//! - [`Program::send`] (or [`Program::send_with_value`] if you need to send a
+//!   message with attached funds).
+//! - [`Program::send_bytes`] (or [`Program::send_bytes_with_value`] if you need
+//!   to send a message with attached funds).
+//!
+//! Both of the methods require sender id as the first argument and the payload
+//! as second.
+//!
+//! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions
+//! [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
+//!
+//! The first one requires payload to be CODEC Encodable, while the second
+//! requires payload implement `AsRef<[u8]>`, that means to be able to represent
+//! as bytes.
+//!
+//! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes
+//! from `payload.encode()`.
+//!
+//! Under the hood the `Program` detects what dispatch kind should have a message to the program. 
+//! If it's a first message, it instantiates from provided data *init* dispatch kind. Otherwise, it's
+//! going to be a *handle* message.
+//!
+//! ```no_run
+//! # use gtest::{System, Program};
+//! let sys = System::new();
+//! let prog = Program::current(&sys);
+//! let init_message_id = prog.send_bytes(100001, "INIT MESSAGE");
+//! let handle_message_id = prog.send(100001, "HANDLE MESSAGE");
+//! ```
+//! 
+//! ### `Program` info
+//! The `Program` provides methods to access its info:
+//! - [`Program::id`] - returns program id.
+//! - [`Program::balance`] - returns program balance.
+//! - [`Program::read_state_bytes`] and [`Program::read_state`] - returns program state.
+//! The latter methods actually require a WASM program to define extern `state` function,
+//! which will be considered as an entry-point to the program when the latter methods are called.
+//! 
+//! Besides, `Program` provides methods to save program's memory state to a file or to load state
+//! from the file and update the program's state in the `System`. The latter is useful when one
+//! needs to have a program with a specific state, like having two programs with exact same state.
+//! 
+//! ### Program id
+//! The `gtest` introduces a new abstraction over classical program id of [`ActorId`](https://docs.rs/gear-core/latest/gear_core/ids/struct.ActorId.html) type.
+//! This abstraction is called [`ProgramIdWrapper`]. It's main purpose to ease use of `gtest` API, which requires
+//! having program id as an argument. That's done by having as an argument for this methods a trait bound `Into<ProgramIdWrapper>`.
+//! The `ProgramIdWrapper` can be constructed from several types:
+//! - `u64`;
+//! - `[u8; 32]`;
+//! - `String` (hex representation, with or without "0x");
+//! - `&str` (hex representation, with or without "0x");
+//! - `ActorId` (from `gear_core` one's, not from `gstd`).
+//! - `Vec<u8>` and slice of `u8` (`&[u8]`).
+//! 
+//! So when a method transforms an argument into `ProgramIdWrapper`, the latter is easily transformed then into
+//! `ActorId`.
+//! 
+//! ### __Mock__ programs
+//! An exclusive feature of the `gtest` is an ability to create mock programs, which doesn't have a binary code,
+//! or a persistent storage. These are just types that implement [`WasmProgram`] trait.
+//! 
+//! The trait defines how
+//! init and handle messages must be handled by calling [`WasmProgram::init`] and [`WasmProgram::handle`] methods respectively.
+//! The methods accept as an argument `payload` which is a received message payload.
+//!
+//! ## [`UserMessageEvent`]
+//! ## [`EventBuilder`]
+//! ## [`UserMailbox`]
+//! ## Builtins
 //!
 //! ## Program initialization
 //!
@@ -241,22 +408,6 @@
 //! let prog = sys.get_program(105).unwrap();
 //! ```
 //!
-//! ## Initialization of styled `tracing-subscriber`
-//!
-//! Initialization of styled `tracing-subscriber` to
-//! print logs (only from gwasm` by default) into stdout:
-//!
-//! ```no_run
-//! # let sys = gtest::System::new();
-//! sys.init_logger();
-//! ```
-//!
-//! To specify printed logs, set the env variable `RUST_LOG`:
-//!
-//! ```bash
-//! RUST_LOG="target_1=logging_level,target_2=logging_level" cargo test
-//! ```
-//!
 //! ## Pre-requisites for sending a message
 //!
 //! Prior to sending a message, it is necessary to mint sufficient balance for
@@ -284,32 +435,6 @@
 //! ## Sending messages
 //!
 //! To send message to the program need to call one of two program's functions:
-//!
-//! - [`Program::send`] (or [`Program::send_with_value`] if you need to send a
-//!   message with attached funds).
-//! - [`Program::send_bytes`] (or [`Program::send_bytes_with_value`] if you need
-//!   to send a message with attached funds).
-//!
-//! Both of the methods require sender id as the first argument and the payload
-//! as second.
-//!
-//! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
-//!
-//! The first one requires payload to be CODEC Encodable, while the second
-//! requires payload implement `AsRef<[u8]>`, that means to be able to represent
-//! as bytes.
-//!
-//! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes
-//! from `payload.encode()`.
-//!
-//! First message to the initialized program structure is always the init
-//! message.
-//!
-//! ```no_run
-//! # let sys = gtest::System::new();
-//! # let prog = gtest::Program::current(&sys);
-//! let res = prog.send_bytes(100001, "INIT MESSAGE");
-//! ```
 //!
 //! ## Processing the result of the program execution
 //!
