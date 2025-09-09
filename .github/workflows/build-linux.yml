@@ -121,11 +121,12 @@ jobs:
 
   lazy-pages-linux-aarch64-tests:
     runs-on: ubuntu-24.04-arm
+    needs: workspace
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
-    name: lazy pages linux-aarch64 tests (${{ matrix.profiles.name }})
+    name: linux-aarch64 (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
