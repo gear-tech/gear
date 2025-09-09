@@ -23,7 +23,7 @@ use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        OnChainStorageRead, OnChainStorageWrite, ValidatorsInfo,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -692,7 +692,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                 .await?,
         )
         .ok_or(anyhow!("validator set is empty"))?;
-        db.set_validators(latest_committed_block, validators);
+        let validators_info = ValidatorsInfo {
+            current: validators.into(),
+            next: None,
+        };
+        db.set_validators_info(latest_committed_block, validators_info);
     }
 
     log::info!("Fast synchronization done");

@@ -61,8 +61,9 @@ impl StateHandler for Initial {
                 let validators = self
                     .ctx
                     .db
-                    .validators(block_hash)
-                    .ok_or(anyhow!("validators not found for block({block_hash})"))?;
+                    .validators_info(block_hash)
+                    .ok_or(anyhow!("validators not found for block({block_hash})"))?
+                    .current;
                 let producer = self.producer_for(block.header.timestamp, &validators);
                 let my_address = self.ctx.pub_key.to_address();
 
@@ -128,7 +129,7 @@ impl Initial {
 mod tests {
     use super::*;
     use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::db::OnChainStorageWrite;
+    use ethexe_common::db::{OnChainStorageWrite, ValidatorsInfo};
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -150,16 +151,19 @@ mod tests {
     #[tokio::test]
     async fn switch_to_producer() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![
-            ctx.pub_key.to_address(),
-            keys[0].to_address(),
-            keys[1].to_address(),
-        ];
+        let validators_info = ValidatorsInfo {
+            current: nonempty![
+                ctx.pub_key.to_address(),
+                keys[0].to_address(),
+                keys[1].to_address(),
+            ],
+            next: None,
+        };
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators(block.hash, validators.clone());
+        ctx.db.set_validators_info(block.hash, validators_info);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -169,16 +173,19 @@ mod tests {
     #[test]
     fn switch_to_subordinate() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![
-            ctx.pub_key.to_address(),
-            keys[1].to_address(),
-            keys[2].to_address(),
-        ];
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 1;
 
-        ctx.db.set_validators(block.hash, validators);
+        let validators_info = ValidatorsInfo {
+            current: nonempty![
+                ctx.pub_key.to_address(),
+                keys[1].to_address(),
+                keys[2].to_address(),
+            ],
+            next: None,
+        };
+        ctx.db.set_validators_info(block.hash, validators_info);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();

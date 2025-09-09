@@ -18,7 +18,7 @@
 
 use super::*;
 use ethexe_common::{
-    Address, BlockHeader, CodeAndIdUnchecked, Digest,
+    BlockHeader, CodeAndIdUnchecked, Digest,
     db::{BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
 };
@@ -26,7 +26,7 @@ use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt;
-use nonempty::nonempty;
+// use nonempty::nonempty;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, VecDeque},
@@ -134,7 +134,7 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
             parent_hash: H256::zero(),
         },
     );
-    db.set_validators(genesis_hash, nonempty![Address::from([0u8; 20])]);
+    db.set_validators_info(genesis_hash, Default::default());
 
     let mut chain = VecDeque::new();
 

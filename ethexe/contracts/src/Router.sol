@@ -137,6 +137,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().implAddresses.wrappedVara;
     }
 
+    function middleware() public view returns (address) {
+        return _router().implAddresses.middleware;
+    }
+
     function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
         return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }
@@ -308,6 +312,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash,
             "invalid previous committed batch hash"
         );
+
         require(
             router.latestCommittedBatch.timestamp <= _batch.blockTimestamp,
             "batch timestamp must be greater or equal to latest committed batch timestamp"

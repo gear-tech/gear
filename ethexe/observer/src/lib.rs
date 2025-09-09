@@ -28,7 +28,11 @@ use alloy::{
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, BlockHeader, Digest, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        ValidatorsInfo,
+    },
+    gear::Timelines,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -82,11 +86,12 @@ impl fmt::Debug for ObserverEvent {
 struct RuntimeConfig {
     router_address: Address,
     wvara_address: Address,
+    middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
-    genesis_timestamp: u64,
-    era_duration: u64,
+    genesis_ts: u64,
+    timelines: Timelines,
 }
 
 // TODO #4552: make tests for observer service
@@ -182,8 +187,8 @@ impl ObserverService {
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
-
         let wvara_address = Address(router_query.wvara_address().await?.0.0);
+        let middleware_address = router_query.middleware().await?;
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -192,8 +197,6 @@ impl ObserverService {
 
         let genesis_header =
             Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
-
-        let timelines = router_query.timelines().await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -204,12 +207,13 @@ impl ObserverService {
         let config = RuntimeConfig {
             router_address: *router_address,
             wvara_address,
+            middleware_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
             block_time: *block_time,
-            genesis_timestamp: genesis_header.timestamp,
-            era_duration: timelines.era,
+            genesis_ts: genesis_header.timestamp,
+            timelines: router_query.timelines().await?,
         };
 
         let chain_sync = ChainSync {
@@ -267,6 +271,12 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
+        let validators_info = ValidatorsInfo {
+            current: genesis_validators.into(),
+            next: None,
+        };
+        log::info!("Genesis block: {:?}", genesis_block.header.hash);
+
         db.set_block_header(genesis_block_hash, genesis_header);
         db.set_block_events(genesis_block_hash, &[]);
         db.set_latest_synced_block_height(genesis_header.height);
@@ -283,7 +293,7 @@ impl ObserverService {
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_validators(genesis_block_hash, genesis_validators);
+        db.set_validators_info(genesis_block_hash, validators_info);
 
         Ok(genesis_header)
     }

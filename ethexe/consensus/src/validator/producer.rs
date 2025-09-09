@@ -199,6 +199,19 @@ impl Producer {
         _ctx: &ValidatorContext,
         _block_hash: H256,
     ) -> Result<Option<ValidatorsCommitment>> {
+        // let validators = ctx.db.validators_info(block_hash).unwrap().next.unwrap();
+
+        // let aggregated_public_key = AggregatedPublicKey {
+        //     x: U256::zero(),
+        //     y: U256::zero(),
+        // };
+
+        // Ok(ValidatorsCommitment {
+        //     aggregated_public_key,
+        //     verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment<Secp256K1Keccak256>,
+        //     validators,
+        //     era_index: u64,
+        // })
         Ok(None)
     }
 

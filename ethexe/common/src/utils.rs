@@ -34,3 +34,25 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 
     [b1, b2, b3, b4, b5, b6]
 }
+
+// Eras management
+// Era: (gensis + era_index * era_duration, end_ts]
+
+/// Returns the era index for the given timestamp.
+/// The eras starts from 0.
+#[inline(always)]
+pub fn era_index_from_ts(ts: u64, genesis_ts: u64, era_duration: u64) -> u64 {
+    (ts - genesis_ts) / era_duration
+}
+
+/// Returns the timestamp since which the given era started.
+#[inline(always)]
+pub fn start_of_era_timestamp(era_index: u64, genesis_ts: u64, era_duration: u64) -> u64 {
+    genesis_ts + era_index * era_duration + 1
+}
+
+/// Returns the timestamp at which the given era ended.
+#[inline(always)]
+pub fn end_of_era_timestamp(era_index: u64, genesis_ts: u64, era_duration: u64) -> u64 {
+    genesis_ts + (era_index + 1) * era_duration
+}

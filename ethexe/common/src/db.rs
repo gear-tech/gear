@@ -61,6 +61,18 @@ impl BlockOutcome {
     }
 }
 
+/// [`ValidatorsInfo`] stores the current and maybe next set of validators.
+/// The next set of validators will be applied at the beginning of the next era
+/// and will be set to `Some` in the election time.
+///
+/// NOTE: [`Default`] implementation creates a non-empty set with a single zero address.
+/// DO NOT use default in production code.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ValidatorsInfo {
+    pub current: NonEmpty<Address>,
+    pub next: Option<NonEmpty<Address>>,
+}
+
 #[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -115,7 +127,7 @@ pub trait OnChainStorageRead {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
-    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
+    fn validators_info(&self, block_hash: H256) -> Option<ValidatorsInfo>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -124,5 +136,5 @@ pub trait OnChainStorageWrite {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
+    fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo);
 }

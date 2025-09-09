@@ -27,7 +27,7 @@ use ethexe_common::{
     Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
-        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, ValidatorsInfo,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -66,7 +66,7 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
-    ValidatorSet(H256) = 13,
+    ValidatorsInfo(H256) = 13,
 }
 
 impl Key {
@@ -87,7 +87,7 @@ impl Key {
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
             | Self::SignedTransaction(hash)
-            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::ValidatorsInfo(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -624,15 +624,22 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+    fn validators_info(&self, block_hash: H256) -> Option<ValidatorsInfo> {
         self.kv
-            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .get(&Key::ValidatorsInfo(block_hash).to_bytes())
             .map(|data| {
-                NonEmpty::from_vec(
-                    Vec::<Address>::decode(&mut data.as_slice())
-                        .expect("Failed to decode data into `Vec<Address>`"),
-                )
-            })?
+                let (current, next): (Vec<Address>, Option<Vec<Address>>) =
+                    Decode::decode(&mut data.as_slice())
+                        .expect("Failed to decode data into `ValidatorsInfo`");
+
+                ValidatorsInfo {
+                    current: NonEmpty::from_vec(current)
+                        .expect("Failed to decode vec into nonempty"),
+                    next: next.map(|value| {
+                        NonEmpty::from_vec(value).expect("Failed to decode vec into nonempty")
+                    }),
+                }
+            })
     }
 }
 
@@ -656,11 +663,11 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
-        self.kv.put(
-            &Key::ValidatorSet(block_hash).to_bytes(),
-            Into::<Vec<Address>>::into(validator_set).encode(),
-        );
+    fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo) {
+        let ValidatorsInfo { current, next } = validators_info;
+        let data: (Vec<Address>, Option<Vec<Address>>) = (current.into(), next.map(Into::into));
+        self.kv
+            .put(&Key::ValidatorsInfo(block_hash).to_bytes(), data.encode());
     }
 }
 

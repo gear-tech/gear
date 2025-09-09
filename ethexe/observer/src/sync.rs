@@ -25,12 +25,15 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    BlockData, BlockHeader, CodeBlobInfo,
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        ValidatorsInfo,
+    },
+    end_of_era_timestamp, era_index_from_ts,
     events::{BlockEvent, RouterEvent},
-    gear_core::pages::num_traits::Zero,
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
 use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::collections::HashMap;
@@ -66,7 +69,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, header).await?;
+        self.propagate_validators_info(block, &header).await?;
 
         Ok(block)
     }
@@ -167,24 +170,56 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
-            _ => {
-                let fetched_validators = RouterQuery::from_provider(
-                    self.config.router_address.0.into(),
-                    self.provider.clone(),
-                )
-                .validators_at(block)
-                .await?;
+    /// Propagate validators info. If block in the election period - make election if it not done.
+    /// If block in the next era from parent, then make `next` era validators current.
+    async fn propagate_validators_info(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        let header = self.db.block_header(header.parent_hash).ok_or(anyhow!(
+            "header not found for parent block({:?})",
+            header.parent_hash
+        ))?;
 
-                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
-                    "validator set is empty on router for block({block})"
-                ))?
+        let mut validators_info = match self.db.validators_info(header.parent_hash) {
+            Some(validators_info) => validators_info,
+            None => {
+                let router_address =
+                    alloy::primitives::Address(self.config.router_address.0.into());
+                let router_query =
+                    RouterQuery::from_provider(router_address, self.provider.clone());
+                let validators = router_query.validators_at(header.parent_hash).await?;
+                let validators_info = ValidatorsInfo {
+                    current: NonEmpty::from_vec(validators).ok_or(anyhow!(
+                        "Router query `validators_at` returns empty validator set for block {:?}",
+                        header.parent_hash
+                    ))?,
+                    next: None,
+                };
+                self.db
+                    .set_validators_info(header.parent_hash, validators_info.clone());
+                validators_info
             }
         };
-        self.db.set_validators(block, validators.clone());
+
+        // If next validators are already set, no need to fetch them again, because of
+        // propagation in chain
+        let election_ts = self.current_election_ts(header.timestamp);
+        if validators_info.next.is_none() && header.timestamp >= election_ts {
+            let middleware_query =
+                MiddlewareQuery::new(self.provider.clone(), self.config.middleware_address);
+            let elected_validators =
+                NonEmpty::from_vec(middleware_query.make_election_at(election_ts, 10).await?)
+                    .ok_or(anyhow!("`make_election_at` returns empty validator set"))?;
+            validators_info.next = Some(elected_validators);
+        }
+
+        // Switch validators from `next` to `current`
+        if self.chain_head_in_next_era(&header)? {
+            // Must be elected - handle then there is no
+            let next_validators = validators_info.next.clone().unwrap();
+            validators_info.next = None;
+            validators_info.current = next_validators;
+        }
+
+        self.db.set_validators_info(block, validators_info);
         Ok(())
     }
 
@@ -203,23 +238,34 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
     /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
-        let chain_head_era = self.block_era_index(chain_head.timestamp);
-
-        if chain_head_era.is_zero() {
-            return Ok(false);
-        }
-
+    fn chain_head_in_next_era(&self, chain_head: &BlockHeader) -> Result<bool> {
         let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
             "header not found for block({:?})",
             chain_head.parent_hash
         ))?;
 
-        let parent_era_index = self.block_era_index(parent.timestamp);
+        let chain_head_era = era_index_from_ts(
+            chain_head.timestamp,
+            self.config.genesis_ts,
+            self.config.timelines.era,
+        );
+        let parent_era_index = era_index_from_ts(
+            parent.timestamp,
+            self.config.genesis_ts,
+            self.config.timelines.era,
+        );
+
         Ok(chain_head_era > parent_era_index)
     }
 
-    fn block_era_index(&self, block_ts: u64) -> u64 {
-        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
+    /// Returns the timstamp at which the current election started.
+    fn current_election_ts(&self, block_ts: u64) -> u64 {
+        let block_era =
+            era_index_from_ts(block_ts, self.config.genesis_ts, self.config.timelines.era);
+
+        let end_of_block_era =
+            end_of_era_timestamp(block_era, self.config.genesis_ts, self.config.timelines.era);
+
+        end_of_block_era - self.config.timelines.election
     }
 }
