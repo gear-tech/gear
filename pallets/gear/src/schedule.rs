@@ -886,7 +886,7 @@ impl<T: Config> Default for InstructionWeights<T> {
         // See below for the assembly listings of the mentioned instructions.
         type W<T> = <T as Config>::WeightInfo;
         Self {
-            version: 1700,
+            version: 1900,
             i64const: cost_i64const::<T>(),
             i64load: cost_instr::<T>(W::<T>::instr_i64load, 0),
             i32load: cost_instr::<T>(W::<T>::instr_i32load, 0),
@@ -1507,7 +1507,7 @@ impl<T: Config> Rules for ScheduleRules<'_, T> {
                     .copied()
                     .unwrap_or(max_params);
                 w.call_indirect
-                    .saturating_add(w.call_indirect_per_param.saturating_sub(params))
+                    .saturating_add(w.call_indirect_per_param.saturating_mul(params))
             }
             BrTable(targets) => w
                 .br_table

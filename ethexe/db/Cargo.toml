@@ -11,13 +11,16 @@ repository.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 dashmap = "5.5.3"
 parity-scale-codec.workspace = true
 log = { workspace = true, features = ["std"] }
 nonempty.workspace = true
+paste.workspace = true
+derive_more.workspace = true
+auto_impl.workspace = true
 
 # TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
 [target.'cfg(target_env = "msvc")'.dependencies.rocksdb]

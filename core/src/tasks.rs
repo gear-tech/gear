@@ -29,7 +29,22 @@ pub type VaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool
 /// Scheduled task sense and required data for processing action.
 ///
 /// CAUTION: NEVER ALLOW `ScheduledTask` BE A BIG DATA.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
+/// To avoid redundant migrations only append new variant(s) to the enum
+/// with an explicit corresponding scale codec index.
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    MaxEncodedLen,
+)]
 pub enum ScheduledTask<RFM, SD, SUM> {
     /// Remove message from mailbox as out of rent one.
     RemoveFromMailbox(RFM, MessageId),

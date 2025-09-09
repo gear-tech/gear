@@ -168,7 +168,7 @@ impl Runner for WasmiRunner {
 
         if let Err(error) = init_fn.call(&mut store, &[], &mut []) {
             if let Some(custom_error) = error.downcast_ref::<CustomHostError>() {
-                log::info!("{custom_error}");
+                log::debug!("{custom_error}");
             } else {
                 Err(error)?;
             }

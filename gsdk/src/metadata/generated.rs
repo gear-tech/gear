@@ -3405,7 +3405,7 @@ pub mod runtime_types {
                     #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
-                    IncorrectValueApplied,
+                    InsufficientValueApplied,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
@@ -3635,7 +3635,15 @@ pub mod runtime_types {
                         value: ::core::primitive::u128,
                     },
                     #[codec(index = 3)]
-                    align_supply { target: ::core::primitive::u128 },
+                    set_target_inflation {
+                        p: ::core::primitive::u64,
+                        n: ::core::primitive::u64,
+                    },
+                    #[codec(index = 4)]
+                    set_ideal_staking_ratio {
+                        p: ::core::primitive::u64,
+                        n: ::core::primitive::u64,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Error for the staking rewards pallet."]
@@ -3662,6 +3670,16 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "Minted to the pool."]
                     Minted { amount: ::core::primitive::u128 },
+                    #[codec(index = 4)]
+                    #[doc = "Target inflation changed."]
+                    TargetInflationChanged {
+                        value: runtime_types::sp_arithmetic::per_things::Perquintill,
+                    },
+                    #[codec(index = 5)]
+                    #[doc = "Ideal staking ratio changed."]
+                    IdealStakingRatioChanged {
+                        value: runtime_types::sp_arithmetic::per_things::Perquintill,
+                    },
                 }
             }
         }
@@ -11107,7 +11125,8 @@ pub mod calls {
         Refill,
         ForceRefill,
         Withdraw,
-        AlignSupply,
+        SetTargetInflation,
+        SetIdealStakingRatio,
     }
     impl CallInfo for StakingRewardsCall {
         const PALLET: &'static str = "StakingRewards";
@@ -11116,7 +11135,8 @@ pub mod calls {
                 Self::Refill => "refill",
                 Self::ForceRefill => "force_refill",
                 Self::Withdraw => "withdraw",
-                Self::AlignSupply => "align_supply",
+                Self::SetTargetInflation => "set_target_inflation",
+                Self::SetIdealStakingRatio => "set_ideal_staking_ratio",
             }
         }
     }

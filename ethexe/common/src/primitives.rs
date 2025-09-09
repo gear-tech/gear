@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ToDigest, events::BlockEvent};
+use crate::{Digest, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -28,7 +28,7 @@ use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
@@ -60,7 +60,7 @@ impl BlockData {
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
-            header: self.header.clone(),
+            header: self.header,
         }
     }
 }
@@ -71,11 +71,13 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     pub synced: bool,
     pub prepared: bool,
     pub computed: bool,
+    pub last_committed_batch: Option<Digest>,
+    pub last_committed_head: Option<H256>,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
@@ -93,7 +95,7 @@ impl ToDigest for ProducerBlock {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Default, Encode, Decode)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,

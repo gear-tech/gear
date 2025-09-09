@@ -27,7 +27,7 @@ for f in "$WEIGHTS_OUTPUT_DIR"/pallet_gear*; do
     base=$(basename "$f" .rs)
     name=${base#pallet_}
     name=${name//_/-}
-    mv "$f" "$PALLETS_DIR/$name/src/weight.rs"
+    mv "$f" "$PALLETS_DIR/$name/src/weights.rs"
 done
 
 echo "[+] Moving substrate pallets weights to their respective directories"

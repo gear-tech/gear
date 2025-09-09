@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {NetworkRegistry} from "symbiotic-core/src/contracts/NetworkRegistry.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
@@ -14,8 +13,8 @@ import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.s
 import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
-import {IMirror, Mirror} from "../src/Mirror.sol";
-import {IRouter, Router} from "../src/Router.sol";
+import {Mirror} from "../src/Mirror.sol";
+import {Router} from "../src/Router.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {Gear} from "../src/libraries/Gear.sol";
@@ -27,7 +26,6 @@ import {DefaultStakerRewardsFactory} from
 import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
 import {DefaultOperatorRewardsFactory} from
     "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
-import {console} from "forge-std/console.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -208,11 +206,8 @@ contract Base is POCBaseTest {
         uint48 _timestamp,
         bool revertExpected
     ) internal {
-        Gear.GearBlock[] memory _blocks = new Gear.GearBlock[](1);
-        _blocks[0] = Gear.GearBlock({hash: _blockHash, gasAllowance: 1234, offchainTransactionsHash: keccak256("1234")});
-
         Gear.ChainCommitment memory _chainCommitment =
-            Gear.ChainCommitment({transitions: _transactions, blocks: _blocks});
+            Gear.ChainCommitment({transitions: _transactions, head: keccak256("head")});
 
         Gear.ChainCommitment[] memory _chainCommitments = new Gear.ChainCommitment[](1);
         _chainCommitments[0] = _chainCommitment;
@@ -332,15 +327,7 @@ contract Base is POCBaseTest {
             );
         }
 
-        bytes32[] memory _gearBlockHashes = new bytes32[](_commitment.blocks.length);
-        for (uint256 i = 0; i < _commitment.blocks.length; i++) {
-            Gear.GearBlock memory _gearBlock = _commitment.blocks[i];
-            _gearBlockHashes[i] = Gear.gearBlockHash(_gearBlock);
-        }
-
-        return Gear.chainCommitmentHash(
-            keccak256(abi.encodePacked(_transitionsHashes)), Gear.gearBlocksHash(_gearBlockHashes)
-        );
+        return Gear.chainCommitmentHash(keccak256(abi.encodePacked(_transitionsHashes)), _commitment.head);
     }
 
     function codeCommitmentsHash(Gear.CodeCommitment[] memory _commitments) internal pure returns (bytes32) {
@@ -357,8 +344,9 @@ contract Base is POCBaseTest {
         signatures = new bytes[](1);
         bytes32 _messageHash = address(router).toDataWithIntendedValidatorHash(abi.encodePacked(_hash));
         SigningKey signingKey = FROSTOffchain.signingKeyFromScalar(_privateKeys[0]);
-        (uint256 signatureRX, uint256 signatureRY, uint256 signatureZ) = signingKey.createSignature(_messageHash);
-        signatures[0] = abi.encodePacked(signatureRX, signatureRY, signatureZ);
+        (uint256 signatureCommitmentX, uint256 signatureCommitmentY, uint256 signatureZ) =
+            signingKey.createSignature(_messageHash);
+        signatures[0] = abi.encodePacked(signatureCommitmentX, signatureCommitmentY, signatureZ);
     }
 
     function createOperator(address _operator) internal {

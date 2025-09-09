@@ -2,14 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
-import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
-import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
-import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
-import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
-import {IBaseSlasher} from "symbiotic-core/src/interfaces/slasher/IBaseSlasher.sol";
 import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {Vm} from "forge-std/Vm.sol";
 

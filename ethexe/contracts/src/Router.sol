@@ -376,14 +376,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
-        bytes32[] memory _gearBlockHashes = new bytes32[](_commitment.blocks.length);
-        for (uint256 i = 0; i < _commitment.blocks.length; i++) {
-            Gear.GearBlock calldata _gearBlock = _commitment.blocks[i];
-            emit GearBlockCommitted(_gearBlock);
-            _gearBlockHashes[i] = Gear.gearBlockHash(_gearBlock);
-        }
+        emit HeadCommitted(_commitment.head);
 
-        return Gear.chainCommitmentHash(_transitionsHash, Gear.gearBlocksHash(_gearBlockHashes));
+        return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
@@ -500,7 +495,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             );
 
             if (transition.valueToReceive != 0) {
-                IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+                bool success = IWrappedVara(router.implAddresses.wrappedVara).transfer(
+                    transition.actorId, transition.valueToReceive
+                );
+                require(success, "transfer to actor failed");
             }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);

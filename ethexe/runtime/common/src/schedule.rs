@@ -176,7 +176,7 @@ impl Restorer {
 
         for (hash, program_ids) in program_states {
             let program_state = storage
-                .read_state(hash)
+                .program_state(hash)
                 .context("failed to read ['Waitlist'] from storage by hash")?;
             let ProgramState {
                 waitlist_hash,
@@ -200,7 +200,7 @@ impl Restorer {
             if let Ok(mailbox) = mailbox_hash.query(storage) {
                 for (&user_id, &user_mailbox) in mailbox.as_ref() {
                     let user_mailbox = storage
-                        .read_user_mailbox(user_mailbox)
+                        .user_mailbox(user_mailbox)
                         .context("failed to read ['UserMailbox'] from storage by hash")?;
 
                     for &program_id in &program_ids {
@@ -350,7 +350,7 @@ mod tests {
             .next()
             .map(|(&mailbox_user_id, &user_mailbox)| {
                 assert_eq!(user_id, mailbox_user_id);
-                storage.read_user_mailbox(user_mailbox).unwrap()
+                storage.user_mailbox(user_mailbox).unwrap()
             })
             .unwrap();
 
