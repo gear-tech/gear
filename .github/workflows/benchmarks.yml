@@ -15,23 +15,23 @@ on:
       instance_type:
         description: Instance type to provision for benchmarking.
         required: true
-        default: 'c6i.metal'
+        default: "c6i.metal"
       instance_max_cpu_frequency:
         description: Max CPU frequency (only baremetal).
         required: true
-        default: '3000000'
+        default: "3000000"
       instance_disk_size:
         description: Disk size (in GB) for the instance.
         required: true
-        default: '100'
+        default: "100"
       selected_pallet:
         description: "Name of the pallet to benchmark (e.g.: pallet_gear)."
         required: true
-        default: '*'
+        default: "*"
       selected_extrinsics:
         description: "Comma-separated list of extrinsics to benchmark (e.g.: gr_reply,gr_wait)."
         required: true
-        default: '*'
+        default: "*"
 
 concurrency:
   group: benchmarks
@@ -47,78 +47,78 @@ jobs:
     outputs:
       available_region: ${{ steps.get-region.outputs.available_region }}
     steps:
-    - name: AWS Login
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-west-2
+      - name: AWS Login
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
 
-    - name: Generate Runner Registration Token
-      id: get-runner-token
-      run: |
-        RESPONSE=$(curl -L -X POST \
-        -H "Accept: application/vnd.github+json" \
-        -H "Authorization: Bearer ${{ secrets.RUNNER_TOKEN }}" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token)
-        TOKEN=$(echo "$RESPONSE" | jq -r .token)
-        echo "REGISTER_TOKEN=$TOKEN" >> $GITHUB_ENV
-        echo "::add-mask::$TOKEN"
+      - name: Generate Runner Registration Token
+        id: get-runner-token
+        run: |
+          RESPONSE=$(curl -L -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ secrets.RUNNER_TOKEN }}" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          https://api.github.com/repos/${{ github.repository }}/actions/runners/registration-token)
+          TOKEN=$(echo "$RESPONSE" | jq -r .token)
+          echo "REGISTER_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "::add-mask::$TOKEN"
 
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Check Capacity
-      id: get-region
-      run: |
-        regions=(us-east-1 us-east-2 us-west-1 us-west-2 ap-south-1 ap-southeast-1 ap-southeast-2 ap-southeast-3 ap-northeast-1 ap-northeast-2 ap-northeast-3 ca-central-1 eu-central-1 eu-west-1 eu-west-2 eu-west-3 eu-north-1 sa-east-1)
-        instance_type="${{ inputs.instance_type }}"
-        available_region=""
-        for region in "${regions[@]}"
-        do
-          available_region=$(aws ec2 describe-instance-type-offerings \
-            --location-type availability-zone \
-            --filters Name=instance-type,Values=$instance_type \
-            --region $region \
-            --query "InstanceTypeOfferings[?InstanceType=='$instance_type'].InstanceType" \
-            --output text)
-          if [ -n "$available_region" ]; then
-            echo "AVAILABLE_REGION=$region" >> $GITHUB_ENV
-            echo "available_region=$region" >> $GITHUB_OUTPUT
-            break
+      - name: Check Capacity
+        id: get-region
+        run: |
+          regions=(us-east-1 us-east-2 us-west-1 us-west-2 ap-south-1 ap-southeast-1 ap-southeast-2 ap-southeast-3 ap-northeast-1 ap-northeast-2 ap-northeast-3 ca-central-1 eu-central-1 eu-west-1 eu-west-2 eu-west-3 eu-north-1 sa-east-1)
+          instance_type="${{ inputs.instance_type }}"
+          available_region=""
+          for region in "${regions[@]}"
+          do
+            available_region=$(aws ec2 describe-instance-type-offerings \
+              --location-type availability-zone \
+              --filters Name=instance-type,Values=$instance_type \
+              --region $region \
+              --query "InstanceTypeOfferings[?InstanceType=='$instance_type'].InstanceType" \
+              --output text)
+            if [ -n "$available_region" ]; then
+              echo "AVAILABLE_REGION=$region" >> $GITHUB_ENV
+              echo "available_region=$region" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
+      - name: Check Region
+        run: |
+          if [ -z "${{ env.AVAILABLE_REGION }}" ]; then
+            echo "No available regions for instance type ${{ inputs.instance_type }}"
+            exit 1
           fi
-        done
 
-    - name: Check Region
-      run: |
-        if [ -z "${{ env.AVAILABLE_REGION }}" ]; then
-          echo "No available regions for instance type ${{ inputs.instance_type }}"
-          exit 1
-        fi
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      - name: Terraform Apply
+        timeout-minutes: 30
+        run: |
+          cd terraform/bench-runner
+          terraform init
+          terraform apply -auto-approve -var="aws_region=${{ env.AVAILABLE_REGION }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
 
-    - name: Terraform Apply
-      timeout-minutes: 30
-      run: |
-        cd terraform/bench-runner
-        terraform init
-        terraform apply -auto-approve -var="aws_region=${{ env.AVAILABLE_REGION }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
-
-    - name: Notify on Failure
-      if: failure()
-      uses: appleboy/telegram-action@master
-      with:
-        to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
-        token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
-        format: markdown
-        disable_web_page_preview: true
-        message: |
-          *Status*: 🔥
-          *Problem*: Issue with server provisioning - bench-runner-${{ github.run_id }}
-          *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+      - name: Notify on Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+          token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+          format: markdown
+          disable_web_page_preview: true
+          message: |
+            *Status*: 🔥
+            *Problem*: Issue with server provisioning - bench-runner-${{ github.run_id }}
+            *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
   benchmarks:
     needs: provision-runner
@@ -137,7 +137,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake wabt protobuf-compiler wget bzip2
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev foundry wabt protobuf-compiler wget bzip2
           curl -o wasm-opt-linux-x64.tar.gz -L `curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | jq -r '.assets[] | select(.name | contains("x86_64-linux")) | .browser_download_url' |grep -v sha256`
           tar xzf wasm-opt-linux-x64.tar.gz && sudo mv binaryen-version_*/bin/* /usr/local/bin/
           wasm-opt --version
@@ -219,37 +219,37 @@ jobs:
     needs: [provision-runner, benchmarks]
     runs-on: ubuntu-latest
     steps:
-    - name: AWS Login
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-west-2
+      - name: AWS Login
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
 
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        sparse-checkout: terraform
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: terraform
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Destroy
-      timeout-minutes: 60
-      run: |
-        cd terraform/bench-runner
-        terraform init
-        terraform destroy -auto-approve -var="aws_region=${{ needs.provision-runner.outputs.available_region }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
+      - name: Terraform Destroy
+        timeout-minutes: 60
+        run: |
+          cd terraform/bench-runner
+          terraform init
+          terraform destroy -auto-approve -var="aws_region=${{ needs.provision-runner.outputs.available_region }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
 
-    - name: Notify on Failure
-      if: failure()
-      uses: appleboy/telegram-action@master
-      with:
-        to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
-        token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
-        format: markdown
-        disable_web_page_preview: true
-        message: |
-          *Status*: 🔥
-          *Problem*: Issue with server destroying - bench-runner-${{ github.run_id }}
-          *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+      - name: Notify on Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_DEVOPS_CHAT }}
+          token: ${{ secrets.TELEGRAM_DEVOPS_TOKEN }}
+          format: markdown
+          disable_web_page_preview: true
+          message: |
+            *Status*: 🔥
+            *Problem*: Issue with server destroying - bench-runner-${{ github.run_id }}
+            *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
