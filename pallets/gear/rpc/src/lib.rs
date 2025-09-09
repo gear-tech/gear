@@ -19,10 +19,12 @@
 //! RPC interface for the gear module.
 
 #![allow(clippy::too_many_arguments)]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 use gear_common::Origin;
+use gear_core::rpc::RpcValue;
 use gear_core_errors::*;
 use jsonrpsee::{
     core::{RpcResult, async_trait},
@@ -51,7 +53,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         destination: H256,
         payload: Bytes,
         gas_limit: u64,
-        value: u128,
+        value: RpcValue,
         at: Option<BlockHash>,
     ) -> RpcResult<ReplyInfo>;
 
@@ -61,7 +63,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         source: H256,
         code_id: H256,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
@@ -72,7 +74,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         source: H256,
         code: Bytes,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
@@ -83,7 +85,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         source: H256,
         dest: H256,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
@@ -94,7 +96,7 @@ pub trait GearApi<BlockHash, ResponseType> {
         source: H256,
         message_id: H256,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<BlockHash>,
     ) -> RpcResult<GasInfo>;
@@ -200,7 +202,7 @@ where
         source: H256,
         kind: HandleKind,
         payload: Vec<u8>,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         min_limit: Option<u64>,
     ) -> RpcResult<GasInfo> {
@@ -214,7 +216,7 @@ where
                     source,
                     kind,
                     payload,
-                    value,
+                    value.0,
                     allow_other_panics,
                     min_limit,
                 )
@@ -224,7 +226,7 @@ where
                     source,
                     kind,
                     payload,
-                    value,
+                    value.0,
                     allow_other_panics,
                     min_limit,
                     Some(self.allowance_multiplier),
@@ -264,7 +266,7 @@ where
         destination: H256,
         payload: Bytes,
         gas_limit: u64,
-        value: u128,
+        value: RpcValue,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<ReplyInfo> {
         let at_hash = at.unwrap_or_else(|| self.client.info().best_hash);
@@ -276,7 +278,7 @@ where
                 destination,
                 payload.to_vec(),
                 gas_limit,
-                value,
+                value.0,
                 self.allowance_multiplier,
             )
         })
@@ -287,7 +289,7 @@ where
         source: H256,
         code_id: H256,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
@@ -319,7 +321,7 @@ where
         source: H256,
         code: Bytes,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
@@ -351,7 +353,7 @@ where
         source: H256,
         dest: H256,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {
@@ -383,7 +385,7 @@ where
         source: H256,
         message_id: H256,
         payload: Bytes,
-        value: u128,
+        value: RpcValue,
         allow_other_panics: bool,
         at: Option<<Block as BlockT>::Hash>,
     ) -> RpcResult<GasInfo> {

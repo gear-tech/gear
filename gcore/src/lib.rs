@@ -19,7 +19,7 @@
 //! Lightweight library for use in Gear programs.
 //!
 //! This library should be used as a standard library when writing Gear
-//! programs. Compared to [`gstd`](https://docs.gear.rs/gstd/) crate, this
+//! programs. Compared to [`gstd`](https://docs.rs/gstd/) crate, this
 //! library provides lower-level primitives that allow you to develop less
 //! expensive programs. Choose it if you are ready to write more code
 //! but get a more efficient Wasm.
@@ -64,8 +64,9 @@
 
 #![no_std]
 #![warn(missing_docs)]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 pub mod errors;

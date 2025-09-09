@@ -19,7 +19,7 @@
 //! Runs provided from the cli corpus
 //!
 //! Alternatively, `cargo fuzz run` can be used to reproduce some corpus,
-//! but it won't give logs of [`GearCalls`] generation, which sheds some
+//! but it won't give logs of [`GearCalls`](gear_call_gen::GearCall) generation, which sheds some
 //! light on how `gear-wasm-gen` worked.
 //!
 //! Also that script can be used to run any bytes input, not only fuzzer's
