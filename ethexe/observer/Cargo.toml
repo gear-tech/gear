@@ -8,11 +8,11 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-db.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 alloy = { workspace = true, features = [

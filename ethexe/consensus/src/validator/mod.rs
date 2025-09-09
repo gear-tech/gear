@@ -78,6 +78,15 @@ mod subordinate;
 #[cfg(test)]
 mod mock;
 
+// TODO #4790: should be configurable
+/// Event if chain commitment does not contain any transitions
+/// and chain is not deep enough, producer still emits it to the network.
+const CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
+
+// TODO #4790: should be configurable
+/// Maximum chain deepness for the chain commitment aggregation.
+const MAX_CHAIN_DEEPNESS: u32 = 10000;
+
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
 pub struct ValidatorService {

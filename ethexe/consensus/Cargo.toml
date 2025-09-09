@@ -13,7 +13,7 @@ ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
-gprimitives = { workspace = true, features = ["codec"] }
+gprimitives = { workspace = true, features = ["codec", "std"] }
 
 async-trait.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }

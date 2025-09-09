@@ -16,16 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Digest, gear::GearBlock};
+use crate::Digest;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted {
         digest: Digest,
     },
-    GearBlockCommitted(GearBlock),
+    HeadCommitted(H256),
     CodeGotValidated {
         code_id: CodeId,
         valid: bool,
@@ -76,7 +76,7 @@ impl Event {
                 RequestEvent::NextEraValidatorsCommitted { next_era_start }
             }
             Self::CodeGotValidated { .. }
-            | Self::GearBlockCommitted(_)
+            | Self::HeadCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

@@ -50,20 +50,28 @@ fn cache_base_path() -> PathBuf {
             // We acquire workspace root dir during runtime and compile-time.
             //
             // During development, runtime workspace dir equals to compile-time one,
-            // so all compiled WASMs are cached in usual `OUT_DIR`
+            // so all compiled WASMs are cached in the usual ` OUT_DIR `
             // like we don't rewrite it.
             //
-            // During cross-compile, runtime workspace dir differs from compile-time one and
-            // accordingly `OUT_DIR` beginning differs too,
+            // During cross-compilation, the runtime workspace dir differs from the compile-time one,
+            // and accordingly, `OUT_DIR` beginning differs too,
             // so we change its beginning to successfully run tests.
             //
             // `OUT_DIR` is used for caching instead of some platform-specific project folder to
-            // not maintain ever-growing number of cached WASMs
-
-            let runtime_workspace_dir = PathBuf::from(env::var("GEAR_WORKSPACE_DIR").unwrap());
-            let compiled_workspace_dir = PathBuf::from(env!("GEAR_WORKSPACE_DIR"));
+            // not maintain the ever-growing number of cached WASMs
 
             let out_dir = PathBuf::from(env!("OUT_DIR"));
+
+            let runtime_workspace_dir = env::var_os("GEAR_WORKSPACE_DIR").map(PathBuf::from);
+            let compiled_workspace_dir = option_env!("GEAR_WORKSPACE_DIR").map(PathBuf::from);
+            let (Some(runtime_workspace_dir), Some(compiled_workspace_dir)) =
+                (runtime_workspace_dir, compiled_workspace_dir)
+            else {
+                // `GEAR_WORKSPACE_DIR` is not present in user code,
+                // so we return `OUT_DIR` without any changes
+                return out_dir;
+            };
+
             let out_dir = pathdiff::diff_paths(out_dir, compiled_workspace_dir).unwrap();
             let out_dir = runtime_workspace_dir.join(out_dir);
 

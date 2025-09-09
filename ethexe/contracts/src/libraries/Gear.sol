@@ -50,20 +50,11 @@ library Gear {
         bool valid;
     }
 
-    struct GearBlock {
-        /// @dev Hash of corresponding ethereum block.
-        bytes32 hash;
-        /// @dev Gas allowance for programs execution.
-        uint64 gasAllowance;
-        /// @dev Hash (keccak256) of off-chain transaction hashes list.
-        bytes32 offchainTransactionsHash;
-    }
-
     struct ChainCommitment {
         /// @dev Transitions of program states, value and messages.
         StateTransition[] transitions;
-        /// @dev List of blocks in chain.
-        GearBlock[] blocks;
+        /// @dev Head of chain. Hash of the last block in chain.
+        bytes32 head;
     }
 
     struct ValidatorsCommitment {
@@ -224,16 +215,8 @@ library Gear {
         );
     }
 
-    function gearBlockHash(GearBlock memory gearBlock) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(gearBlock.hash, gearBlock.gasAllowance, gearBlock.offchainTransactionsHash));
-    }
-
-    function gearBlocksHash(bytes32[] memory gearBlockHashes) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(gearBlockHashes));
-    }
-
-    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _gearBlocksHash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_transitionsHash, _gearBlocksHash));
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_transitionsHash, _head));
     }
 
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
@@ -355,13 +338,13 @@ library Gear {
             bytes memory _signature = _signatures[0];
             require(_signature.length == 96, "FROST signature length must be 96 bytes");
 
-            uint256 _signatureRX;
-            uint256 _signatureRY;
+            uint256 _signatureCommitmentX;
+            uint256 _signatureCommitmentY;
             uint256 _signatureZ;
 
             assembly ("memory-safe") {
-                _signatureRX := mload(add(_signature, 0x20))
-                _signatureRY := mload(add(_signature, 0x40))
+                _signatureCommitmentX := mload(add(_signature, 0x20))
+                _signatureCommitmentY := mload(add(_signature, 0x40))
                 _signatureZ := mload(add(_signature, 0x60))
             }
 
@@ -372,8 +355,8 @@ library Gear {
             return FROST.verifySignature(
                 validators.aggregatedPublicKey.x,
                 validators.aggregatedPublicKey.y,
-                _signatureRX,
-                _signatureRY,
+                _signatureCommitmentX,
+                _signatureCommitmentY,
                 _signatureZ,
                 _messageHash
             );
@@ -444,17 +427,17 @@ library Gear {
         require(ts0 != ts1, "eras timestamp must not be equal");
 
         bool ts1Greater = ts0 < ts1;
-        bool tsGE0 = ts0 <= ts;
-        bool tsGE1 = ts1 <= ts;
+        bool tsGe0 = ts0 <= ts;
+        bool tsGe1 = ts1 <= ts;
 
         // Both eras are in the future - not supported by this function.
-        require(tsGE0 || tsGE1, "could not identify validators for the given timestamp");
+        require(tsGe0 || tsGe1, "could not identify validators for the given timestamp");
 
         // Two impossible cases, because of math rules:
-        // 1)  ts1Greater && !tsGE0 &&  tsGE1
-        // 2) !ts1Greater &&  tsGE0 && !tsGE1
+        // 1)  ts1Greater && !tsGe0 &&  tsGe1
+        // 2) !ts1Greater &&  tsGe0 && !tsGe1
 
-        return ts1Greater && (tsGE0 == tsGE1);
+        return ts1Greater && (tsGe0 == tsGe1);
     }
 
     function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage)

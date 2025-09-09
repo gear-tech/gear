@@ -76,6 +76,7 @@ std = [
     "sp-consensus-grandpa/std",
     "sp-runtime/std",
     "sp-std/std",
+    "gprimitives/std",
 ]
 runtime-benchmarks = [
     # Gear deps.

@@ -278,7 +278,7 @@ fn run_runtime(
 ) -> (ProgramJournals, H256, u64) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
 
-    let instrumented_code = db.instrumented_code(ethexe_runtime::VERSION, code_id);
+    let instrumented_code = db.instrumented_code(ethexe_runtime_common::VERSION, code_id);
     let code_metadata = db.code_metadata(code_id);
 
     executor

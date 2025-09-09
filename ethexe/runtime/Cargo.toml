@@ -29,6 +29,7 @@ std = [
     "core-processor/std",
     "gear-core/std",
     "gear-lazy-pages-interface/std",
+    "gprimitives/std",
     #
     "log/std",
     "parity-scale-codec/std",

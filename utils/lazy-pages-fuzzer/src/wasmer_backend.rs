@@ -121,7 +121,7 @@ impl Runner for WasmerRunner {
             Ok(_) => {}
             Err(e) => {
                 if e.message().contains("out of gas") {
-                    log::info!("out of gas");
+                    log::debug!("out of gas");
                 } else {
                     Err(e)?
                 }
