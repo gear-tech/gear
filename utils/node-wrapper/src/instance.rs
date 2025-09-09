@@ -22,7 +22,7 @@ use std::{net::SocketAddrV4, process::Child};
 
 /// The instance of the node
 ///
-/// NOTE: This instance should be built from [`Node`].
+/// NOTE: This instance should be built from [`Node`](crate::node::Node).
 pub struct NodeInstance {
     /// RPC address of this node
     pub address: SocketAddrV4,
