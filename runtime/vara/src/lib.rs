@@ -176,7 +176,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1900,
+    spec_version: 1910,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -192,7 +192,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1900,
+    spec_version: 1910,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -2007,7 +2007,7 @@ where
 ///
 /// NOTE: Copy-paste from substrate/frame/system/src/extensions/check_nonce.rs,
 /// but without providers and sufficients checks, so contains revert of changes
-/// from substrate v1.3.0 https://github.com/paritytech/polkadot-sdk/pull/1578.
+/// from substrate v1.3.0 <https://github.com/paritytech/polkadot-sdk/pull/1578>.
 #[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct CustomCheckNonce<T: frame_system::Config>(#[codec(compact)] pub T::Nonce);

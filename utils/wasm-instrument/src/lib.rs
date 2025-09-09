@@ -50,8 +50,7 @@ pub const GLOBAL_NAME_GAS: &str = "gear_gas";
 /// it indicates the end of program stack memory.
 pub const STACK_END_EXPORT_NAME: &str = "__gear_stack_end";
 /// `__gear_stack_height` export is inserted by gear-wasm-instrument,
-/// it points to stack height global that is used by
-/// [`gwasm_instrument::stack_limiter`].
+/// it points to stack height global that is used by [`stack_limiter`].
 pub const STACK_HEIGHT_EXPORT_NAME: &str = "__gear_stack_height";
 
 /// System break code for [`SyscallName::SystemBreak`] syscall.
