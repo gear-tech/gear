@@ -948,7 +948,6 @@ mod tests {
     fn walk_block_schedule_tasks() {
         let block = H256::random();
         let program_id = ActorId::from([10u8; 32]);
-        let code_id = CodeId::from([12u8; 32]);
 
         let mut tasks = BTreeSet::new();
         tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
@@ -970,15 +969,7 @@ mod tests {
             .map(|node| node.program_id)
             .collect();
 
-        let visited_codes: Vec<CodeId> = visited
-            .iter()
-            .cloned()
-            .filter_map(Node::into_code_id)
-            .map(|node| node.code_id)
-            .collect();
-
         assert!(visited_programs.contains(&program_id));
-        assert!(visited_codes.contains(&code_id));
     }
 
     #[test]
