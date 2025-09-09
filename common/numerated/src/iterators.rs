@@ -167,7 +167,7 @@ impl<T: Display> Display for IntervalIterator<T> {
 
 /// Helper struct to iterate over intervals from `tree1`, which are not in `tree2`.
 ///
-/// See also [`IntervalsTree::difference`].
+/// See also [`IntervalsTree::difference`](crate::tree::IntervalsTree::difference).
 pub struct DifferenceIterator<T: Numerated, I: Iterator<Item = Interval<T>>> {
     /// Iterator over intervals in `tree1`.
     pub(crate) iter1: I,
@@ -252,7 +252,7 @@ impl<T: Numerated, I: Iterator<Item = Interval<T>>> Iterator for DifferenceItera
 
 /// Helper struct to iterate over voids in tree.
 ///
-/// See also [`IntervalsTree::voids`].
+/// See also [`IntervalsTree::voids`](crate::tree::IntervalsTree::voids).
 pub struct VoidsIterator<T: Numerated, I: Iterator<Item = Interval<T>>> {
     pub(crate) inner: Option<(I, Interval<T>)>,
 }

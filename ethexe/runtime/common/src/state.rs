@@ -1094,9 +1094,9 @@ impl MemoryPages {
 
     /// Granularity parameter of how memory pages hashes are stored.
     ///
-    /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
+    /// Instead of a single huge map of `GearPage` to `HashOf<PageBuf>`, memory is
     /// stored in page regions. Each region represents the same map,
-    /// but with a specific range of GearPage as keys.
+    /// but with a specific range of `GearPage` as keys.
     ///
     /// # Safety
     /// Be careful adjusting this value, as it affects the storage invariants.

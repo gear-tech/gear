@@ -168,11 +168,11 @@ impl GearApi {
     }
 
     /// Create a new program from a previously uploaded code identified by
-    /// [`CodeId`](https://docs.gear.rs/gear_core/ids/struct.CodeId.html) and
+    /// [`CodeId`](https://docs.rs/gear_core/ids/struct.CodeId.html) and
     /// initialize it with a byte slice `payload`.
     ///
     /// Sends the
-    /// [`pallet_gear::create_program`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.create_program)
+    /// [`pallet_gear::create_program`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.create_program)
     /// extrinsic.
     ///
     /// Parameters:
@@ -711,7 +711,7 @@ impl GearApi {
     /// Claim value from the mailbox message identified by `message_id`.
     ///
     /// Sends the
-    /// [`pallet_gear::claim_value`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.claim_value)
+    /// [`pallet_gear::claim_value`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.claim_value)
     /// extrinsic.
     ///
     /// This function returns a tuple with value and block hash containing the
@@ -805,7 +805,7 @@ impl GearApi {
     /// the `value` to be transferred to the `destination`'s account.
     ///
     /// Sends the
-    /// [`pallet_gear::send_message`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.send_message)
+    /// [`pallet_gear::send_message`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.send_message)
     /// extrinsic.
     ///
     /// This function returns a tuple with a new message identifier and a hash
@@ -917,7 +917,7 @@ impl GearApi {
     /// the `value` to be transferred to the destination's account.
     ///
     /// Sends the
-    /// [`pallet_gear::send_reply`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.send_reply)
+    /// [`pallet_gear::send_reply`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.send_reply)
     /// extrinsic.
     ///
     /// This function returns a tuple with a new message identifier, transferred
@@ -1053,7 +1053,7 @@ impl GearApi {
     /// Upload Wasm `code` to be used for creating a new program.
     ///
     /// Sends the
-    /// [`pallet_gear::upload_code`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.upload_code)
+    /// [`pallet_gear::upload_code`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.upload_code)
     /// extrinsic.
     ///
     /// This function returns a tuple with a code identifier and a hash of the
@@ -1145,7 +1145,7 @@ impl GearApi {
     /// Upload a new program and initialize it with a byte slice `payload`.
     ///
     /// Sends the
-    /// [`pallet_gear::upload_program`](https://docs.gear.rs/pallet_gear/pallet/struct.Pallet.html#method.upload_program)
+    /// [`pallet_gear::upload_program`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.upload_program)
     /// extrinsic.
     ///
     /// Parameters:

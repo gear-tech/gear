@@ -19,7 +19,7 @@
 //! Standard library for use in Gear programs.
 //!
 //! This library should be used as a standard library when writing Gear
-//! programs. Compared to [`gcore`](https://docs.gear.rs/gcore/) crate,
+//! programs. Compared to [`gcore`](https://docs.rs/gcore/) crate,
 //! this library provides higher-level primitives that allow you to develop more
 //! complex dApps. Choose this library if you are ready to spend more gas but
 //! receive refined code.
@@ -131,15 +131,16 @@
 //! ```
 
 #![no_std]
-#![warn(missing_docs)]
 #![cfg_attr(
     all(target_arch = "wasm32", feature = "oom-handler"),
     feature(alloc_error_handler)
 )]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
-#![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 #![allow(ambiguous_glob_reexports)]
+#![warn(missing_docs)]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
 

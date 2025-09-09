@@ -95,7 +95,7 @@ impl Signature {
     }
 
     /// Creates a signature from the bytes in the pre-EIP-155 format.
-    /// See also: https://shorturl.at/ckQ3y
+    /// See also: <https://shorturl.at/ckQ3y>
     pub fn from_pre_eip155_bytes(bytes: SignatureBytes) -> Option<Self> {
         let v = bytes[SIGNATURE_LAST_BYTE_IDX];
 
@@ -215,7 +215,7 @@ where
 }
 
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
-/// See also [`contract_specific_digest`] and explanation here: https://eips.ethereum.org/EIPS/eip-191
+/// See also `contract_specific_digest` and explanation here: <https://eips.ethereum.org/EIPS/eip-191>
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct ContractSignature(Signature);
 
