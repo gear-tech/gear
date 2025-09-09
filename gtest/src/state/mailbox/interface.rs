@@ -18,7 +18,7 @@
 
 use super::manager::{MailboxErrorImpl, MailboxedMessage};
 use crate::{
-    Log, MAX_USER_GAS_LIMIT, Value,
+    MAX_USER_GAS_LIMIT, UserMessageEvent, Value,
     constants::BlockNumber,
     error::usage_panic,
     manager::ExtManager,
@@ -36,20 +36,20 @@ use std::cell::RefCell;
 ///
 /// Gives a simplified interface to perform some operations
 /// over a particular user mailbox.
-pub struct ActorMailbox<'a> {
+pub struct UserMailbox<'a> {
     manager: &'a RefCell<ExtManager>,
     user_id: ActorId,
 }
 
-impl<'a> ActorMailbox<'a> {
-    pub(crate) fn new(user_id: ActorId, manager: &'a RefCell<ExtManager>) -> ActorMailbox<'a> {
-        ActorMailbox { user_id, manager }
+impl<'a> UserMailbox<'a> {
+    pub(crate) fn new(user_id: ActorId, manager: &'a RefCell<ExtManager>) -> UserMailbox<'a> {
+        UserMailbox { user_id, manager }
     }
 
-    /// Checks whether message with some traits (defined in `log`) is
+    /// Checks whether message with some traits (defined in `event`) is
     /// in mailbox.
-    pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
-        self.find_message_by_log(&log.clone().into()).is_some()
+    pub fn contains<T: Into<UserMessageEvent> + Clone>(&self, event: &T) -> bool {
+        self.find_message_by_event(&event.clone().into()).is_some()
     }
 
     /// Sends user reply message.
@@ -58,23 +58,23 @@ impl<'a> ActorMailbox<'a> {
     /// in a *parity-scale-codec* format.
     pub fn reply(
         &self,
-        log: Log,
+        event: impl Into<UserMessageEvent>,
         payload: impl Encode,
         value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
-        self.reply_bytes(log, payload.encode(), value)
+        self.reply_bytes(event, payload.encode(), value)
     }
 
     /// Sends user reply message to a mailboxed message
-    /// finding it in the mailbox by traits of `log`.
+    /// finding it in the mailbox by traits of `event`.
     pub fn reply_bytes(
         &self,
-        log: Log,
+        event: impl Into<UserMessageEvent>,
         raw_payload: impl AsRef<[u8]>,
         value: Value,
     ) -> Result<MessageId, MailboxErrorImpl> {
         let reply_to_id = self
-            .find_message_by_log(&log)
+            .find_message_by_event(&event.into())
             .ok_or(MailboxErrorImpl::ElementNotFound)?
             .id();
 
@@ -86,7 +86,7 @@ impl<'a> ActorMailbox<'a> {
         let destination = mailboxed.source();
 
         // No need to check the mailbox message source being builtin actor,
-        // because builtins only send replies, which goes only to log.
+        // because builtins only send replies, which goes only to events storage.
         assert!(!self.manager.borrow().is_builtin(destination));
 
         let reply_id = MessageId::generate_reply(mailboxed.id());
@@ -127,11 +127,11 @@ impl<'a> ActorMailbox<'a> {
 
     /// Claims value from a message in mailbox.
     ///
-    /// If message with traits defined in `log` is not found, an error is
+    /// If message with traits defined in `event` is not found, an error is
     /// returned.
-    pub fn claim_value<T: Into<Log>>(&self, log: T) -> Result<(), MailboxErrorImpl> {
+    pub fn claim_value<T: Into<UserMessageEvent>>(&self, event: T) -> Result<(), MailboxErrorImpl> {
         let message_id = self
-            .find_message_by_log(&log.into())
+            .find_message_by_event(&event.into())
             .ok_or(MailboxErrorImpl::ElementNotFound)?
             .id();
 
@@ -151,7 +151,7 @@ impl<'a> ActorMailbox<'a> {
         let destination = mailboxed.source();
 
         // No need to check the mailbox message source being builtin actor,
-        // because builtins only send replies, which goes only to log.
+        // because builtins only send replies, which goes only to events storage.
         assert!(!self.manager.borrow().is_builtin(destination));
 
         if ProgramsStorageManager::is_active_program(destination) {
@@ -171,9 +171,9 @@ impl<'a> ActorMailbox<'a> {
         Ok(())
     }
 
-    fn find_message_by_log(&self, log: &Log) -> Option<MailboxedMessage> {
+    fn find_message_by_event(&self, event: &UserMessageEvent) -> Option<MailboxedMessage> {
         self.get_user_mailbox()
-            .find_map(|(msg, _)| log.eq(&msg).then_some(msg))
+            .find_map(|(msg, _)| event.eq(&msg).then_some(msg))
     }
 
     fn get_user_mailbox(
@@ -185,29 +185,33 @@ impl<'a> ActorMailbox<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_MULTIPLIER, Log, Program, System};
+    use crate::{
+        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, EventBuilder, GAS_MULTIPLIER, Program, System,
+    };
     use demo_constructor::{Call, Calls, Scheme, WASM_BINARY};
     use gear_core::{gas_metering::RentWeights, ids::ActorId};
     use parity_scale_codec::Encode;
 
-    fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, Log)) {
+    fn prepare_program(system: &System) -> (Program<'_>, ([u8; 32], Vec<u8>, EventBuilder)) {
         let program = Program::from_binary_with_id(system, 121, WASM_BINARY);
 
         let sender = ActorId::from(DEFAULT_USER_ALICE).into_bytes();
         let payload = b"sup!".to_vec();
-        let log = Log::builder().dest(sender).payload_bytes(payload.clone());
+        let event_builder = EventBuilder::new()
+            .with_destination(sender)
+            .with_payload_bytes(payload.clone());
 
         let msg_id = program.send(sender, Scheme::empty());
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
 
-        (program, (sender, payload, log))
+        (program, (sender, payload, event_builder))
     }
 
     #[test]
     fn claim_value_from_mailbox() {
         let system = System::new();
-        let (program, (sender, payload, log)) = prepare_program(&system);
+        let (program, (sender, payload, event_builder)) = prepare_program(&system);
 
         let original_balance = system.balance_of(sender);
 
@@ -216,7 +220,7 @@ mod tests {
         let msg_id = program.send_bytes_with_value(sender, handle.encode(), value_send);
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
-        assert!(res.contains(&log));
+        assert!(res.contains(&event_builder));
 
         assert_eq!(
             system.balance_of(sender),
@@ -227,8 +231,8 @@ mod tests {
         );
 
         let mailbox = system.get_mailbox(sender);
-        assert!(mailbox.contains(&log));
-        assert!(mailbox.claim_value(log).is_ok());
+        assert!(mailbox.contains(&event_builder));
+        assert!(mailbox.claim_value(event_builder).is_ok());
         assert_eq!(
             system.balance_of(sender),
             original_balance - res.spent_value()
@@ -238,18 +242,18 @@ mod tests {
     #[test]
     fn reply_to_mailbox_message() {
         let system = System::new();
-        let (program, (sender, payload, log)) = prepare_program(&system);
+        let (program, (sender, payload, event_builder)) = prepare_program(&system);
 
         let handle = Calls::builder().send(sender, payload);
         let msg_id = program.send(sender, handle);
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
-        assert!(res.contains(&log));
+        assert!(res.contains(&event_builder));
 
         let mailbox = system.get_mailbox(sender);
-        assert!(mailbox.contains(&log));
+        assert!(mailbox.contains(&event_builder));
         let msg_id = mailbox
-            .reply(log, Calls::default(), 0)
+            .reply(event_builder, Calls::default(), 0)
             .expect("sending reply failed: didn't find message in mailbox");
         let res = system.run_next_block();
         assert!(res.succeed.contains(&msg_id));
@@ -258,7 +262,7 @@ mod tests {
     #[test]
     fn delayed_mailbox_message() {
         let system = System::new();
-        let (program, (sender, payload, log)) = prepare_program(&system);
+        let (program, (sender, payload, event_builder)) = prepare_program(&system);
 
         let delay = 5;
         let handle = Calls::builder().add_call(Call::Send(
@@ -275,8 +279,8 @@ mod tests {
         let results = system.run_scheduled_tasks(delay);
         let delayed_dispatch_res = results.last().expect("internal error: no blocks spent");
 
-        assert!(delayed_dispatch_res.contains(&log));
+        assert!(delayed_dispatch_res.contains(&event_builder));
         let mailbox = system.get_mailbox(sender);
-        assert!(mailbox.contains(&log));
+        assert!(mailbox.contains(&event_builder));
     }
 }

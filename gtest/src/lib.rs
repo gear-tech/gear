@@ -492,15 +492,15 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+mod artifacts;
 mod builtins;
 mod error;
-mod log;
 mod manager;
 mod program;
 mod state;
 mod system;
 
-pub use crate::log::{BlockRunResult, CoreLog, Log};
+pub use crate::artifacts::{BlockRunResult, EventBuilder, UserMessageEvent};
 pub use builtins::{
     BLS12_381_ID, Bls12_381Request, Bls12_381Response, ETH_BRIDGE_ID, EthBridgeRequest,
     EthBridgeResponse,
@@ -511,7 +511,7 @@ pub use program::{
     Program, ProgramBuilder, ProgramIdWrapper, WasmProgram, calculate_program_id,
     gbuild::ensure_gbuild,
 };
-pub use state::mailbox::ActorMailbox;
+pub use state::mailbox::UserMailbox;
 pub use system::System;
 
 pub use constants::Value;

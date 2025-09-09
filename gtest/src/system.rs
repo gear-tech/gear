@@ -18,12 +18,12 @@
 
 use crate::{
     GAS_ALLOWANCE, Gas, Value,
+    artifacts::{BlockRunResult, UserMessageEvent},
     error::usage_panic,
-    log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     state::{
-        accounts::Accounts, bridge::BridgeBuiltinStorage, mailbox::ActorMailbox,
+        accounts::Accounts, bridge::BridgeBuiltinStorage, mailbox::UserMailbox,
         programs::ProgramsStorageManager,
     },
 };
@@ -235,14 +235,14 @@ impl System {
                 let next_block_number = block_info.height;
                 manager.process_tasks(next_block_number);
 
-                let log = mem::take(&mut manager.log)
+                let events = mem::take(&mut manager.events)
                     .into_iter()
-                    .map(CoreLog::from)
+                    .map(UserMessageEvent::from)
                     .collect();
                 BlockRunResult {
                     block_info,
                     gas_allowance_spent: GAS_ALLOWANCE - manager.gas_allowance,
-                    log,
+                    events,
                     ..Default::default()
                 }
             })
@@ -373,12 +373,12 @@ impl System {
     ///
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
-    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox<'_> {
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> UserMailbox<'_> {
         let program_id = id.into().0;
         if !ProgramsStorageManager::is_user(program_id) {
             usage_panic!("Mailbox available only for users. Please, provide a user id.");
         }
-        ActorMailbox::new(program_id, &self.0)
+        UserMailbox::new(program_id, &self.0)
     }
 
     /// Mint balance to user with given `id` and `value`.
@@ -547,7 +547,7 @@ impl Drop for System {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, MAX_USER_GAS_LIMIT};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, EventBuilder, MAX_USER_GAS_LIMIT};
     use gear_core_errors::{ReplyCode, SuccessReplyReason};
 
     #[test]
@@ -686,9 +686,9 @@ mod tests {
         assert!(block_result.succeed.contains(&handle_mid1));
         assert!(
             block_result.contains(
-                &Log::builder()
-                    .dest(DEFAULT_USER_ALICE)
-                    .reply_code(reply_info.code)
+                &EventBuilder::new()
+                    .with_destination(DEFAULT_USER_ALICE)
+                    .with_reply_code(reply_info.code)
             )
         );
 
@@ -722,22 +722,22 @@ mod tests {
             alice_expected_balance_after_msg1
         );
         let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
-        let log = Log::builder()
-            .dest(DEFAULT_USER_ALICE)
-            .payload_bytes(b"send");
-        assert!(!mailbox.contains(&log));
+        let event = EventBuilder::new()
+            .with_destination(DEFAULT_USER_ALICE)
+            .with_payload_bytes(b"send");
+        assert!(!mailbox.contains(&event));
 
         let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"smash");
         let block_result = sys.run_next_block();
         assert!(block_result.succeed.contains(&handle_mid));
         assert_eq!(sys.balance_of(pid), EXISTENTIAL_DEPOSIT);
         let mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
-        let log = Log::builder()
-            .dest(DEFAULT_USER_ALICE)
-            .payload_bytes(b"send");
-        assert!(mailbox.contains(&log));
+        let event = EventBuilder::new()
+            .with_destination(DEFAULT_USER_ALICE)
+            .with_payload_bytes(b"send");
+        assert!(mailbox.contains(&event));
 
-        mailbox.claim_value(log).expect("Failed to claim value");
+        mailbox.claim_value(event).expect("Failed to claim value");
 
         let alice_expected_balance_after_msg2 =
             alice_expected_balance_after_msg1 - block_result.spent_value() + storing_value;

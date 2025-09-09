@@ -684,7 +684,9 @@ pub mod gbuild {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, ProgramIdWrapper, System, Value};
+    use crate::{
+        DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, EventBuilder, ProgramIdWrapper, System, Value,
+    };
     use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_core::ids::ActorId;
     use gear_core_errors::{
@@ -718,7 +720,7 @@ mod tests {
         let msg_id = prog.send(user_id, *b"Hello");
         let res = sys.run_next_block();
         res.assert_panicked_with(msg_id, panic_message);
-        let log = Log::builder().payload_bytes(message);
+        let log = EventBuilder::new().with_payload_bytes(message);
         let value = sys.get_mailbox(user_id).claim_value(log);
         assert!(value.is_ok(), "not okay: {value:?}");
     }
@@ -739,14 +741,19 @@ mod tests {
 
         res.assert_panicked_with(failed_mid, "Failed to load destination: Decode(Error)");
 
-        let expected_log = Log::error_builder(ErrorReplyReason::UnavailableActor(
-            SimpleUnavailableActorError::InitializationFailure,
-        ))
-        .source(prog.id())
-        .dest(user_id);
+        let expected_event = EventBuilder::new()
+            .with_reply_code(
+                ErrorReplyReason::UnavailableActor(
+                    SimpleUnavailableActorError::InitializationFailure,
+                )
+                .into(),
+            )
+            .with_source(prog.id())
+            .with_destination(user_id)
+            .build();
 
         assert!(res.not_executed.contains(&skipped_mid));
-        assert!(res.contains(&expected_log));
+        assert!(res.contains(&expected_event));
     }
 
     #[test]
@@ -861,14 +868,17 @@ mod tests {
         let res = sys.run_next_block();
         receiver_expected_balance -= res.spent_value();
         let reply_to_id = {
-            let log = res.log();
+            let events = res.events();
             // 1 auto reply and 1 message from program
-            assert_eq!(log.len(), 2);
+            assert_eq!(events.len(), 2);
 
-            let core_log = log
+            let core_log = events
                 .iter()
                 .find(|&core_log| {
-                    core_log.eq(&Log::builder().dest(receiver).payload_bytes(b"send"))
+                    core_log.eq(&EventBuilder::new()
+                        .with_destination(receiver)
+                        .with_payload_bytes(b"send")
+                        .build())
                 })
                 .expect("message not found");
 
@@ -877,7 +887,7 @@ mod tests {
 
         assert!(
             sys.get_mailbox(receiver)
-                .claim_value(Log::builder().reply_to(reply_to_id))
+                .claim_value(EventBuilder::new().with_reply_to(reply_to_id))
                 .is_ok()
         );
         assert_eq!(
@@ -941,7 +951,11 @@ mod tests {
         let receiver_mailbox = sys.get_mailbox(receiver);
         assert!(
             receiver_mailbox
-                .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+                .claim_value(
+                    EventBuilder::new()
+                        .with_destination(receiver)
+                        .with_payload_bytes(b"send")
+                )
                 .is_ok()
         );
         assert_eq!(sys.balance_of(receiver), receiver_expected_balance);
@@ -955,7 +969,11 @@ mod tests {
         // Check receiver's balance
         assert!(
             receiver_mailbox
-                .claim_value(Log::builder().dest(receiver).payload_bytes(b"send"))
+                .claim_value(
+                    EventBuilder::new()
+                        .with_destination(receiver)
+                        .with_payload_bytes(b"send")
+                )
                 .is_ok()
         );
         assert_eq!(
@@ -993,10 +1011,10 @@ mod tests {
         // Charge capacitor with charge = 10
         dbg!(prog.send_bytes(signer, b"10"));
         let res = sys.run_next_block();
-        let log = Log::builder()
-            .source(prog.id())
-            .dest(signer)
-            .payload_bytes([]);
+        let log = EventBuilder::new()
+            .with_source(prog.id())
+            .with_destination(signer)
+            .with_payload_bytes([]);
         assert!(res.contains(&log));
 
         let cleanup = CleanupFolderOnDrop {
@@ -1007,10 +1025,10 @@ mod tests {
         // Charge capacitor with charge = 10
         prog.send_bytes(signer, b"10");
         let res = sys.run_next_block();
-        let log = Log::builder()
-            .source(prog.id())
-            .dest(signer)
-            .payload_bytes("Discharged: 20");
+        let log = EventBuilder::new()
+            .with_source(prog.id())
+            .with_destination(signer)
+            .with_payload_bytes("Discharged: 20");
         // dbg!(log.clone());
         assert!(res.contains(&log));
         assert!(signer_mailbox.claim_value(log).is_ok());
@@ -1021,10 +1039,10 @@ mod tests {
         // Charge capacitor with charge = 10
         prog.send_bytes(signer, b"10");
         let res = sys.run_next_block();
-        let log = Log::builder()
-            .source(prog.id())
-            .dest(signer)
-            .payload_bytes("Discharged: 20");
+        let log = EventBuilder::new()
+            .with_source(prog.id())
+            .with_destination(signer)
+            .with_payload_bytes("Discharged: 20");
         assert!(res.contains(&log));
         assert!(signer_mailbox.claim_value(log).is_ok());
     }
@@ -1047,16 +1065,16 @@ mod tests {
         let result = sys.run_next_block();
 
         // No log entries as the program is waiting
-        assert!(result.log().is_empty());
+        assert!(result.events().is_empty());
 
         // Run task pool to make the waiter to wake up
         let _ = sys.run_scheduled_tasks(20);
         let res = sys.run_next_block();
 
-        let log = Log::builder()
-            .source(prog.id())
-            .dest(signer)
-            .payload_bytes("hello");
+        let log = EventBuilder::new()
+            .with_source(prog.id())
+            .with_destination(signer)
+            .with_payload_bytes("hello");
         assert!(res.contains(&log));
     }
 
@@ -1133,13 +1151,12 @@ mod tests {
         let msg_id = prog.send_with_gas(user_id, "init".to_string(), 1, 0);
         let res = sys.run_next_block();
 
-        let expected_log =
-            Log::builder()
-                .source(prog.id())
-                .dest(user_id)
-                .reply_code(ReplyCode::Error(ErrorReplyReason::Execution(
-                    SimpleExecutionError::RanOutOfGas,
-                )));
+        let expected_log = EventBuilder::new()
+            .with_source(prog.id())
+            .with_destination(user_id)
+            .with_reply_code(ReplyCode::Error(ErrorReplyReason::Execution(
+                SimpleExecutionError::RanOutOfGas,
+            )));
 
         assert!(res.contains(&expected_log));
         assert!(res.failed.contains(&msg_id));
@@ -1268,7 +1285,13 @@ mod tests {
 
         // Check user message in mailbox
         let mailbox = sys.get_mailbox(user_id);
-        assert!(mailbox.contains(&Log::builder().payload(payload).source(prog_id)));
+        assert!(
+            mailbox.contains(
+                &EventBuilder::new()
+                    .with_payload(payload)
+                    .with_source(prog_id)
+            )
+        );
 
         // Initialize another program for another test
         let new_prog_id = 4343;
@@ -1298,7 +1321,13 @@ mod tests {
         let msg_id = prog.send(user_id, handle);
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&msg_id));
-        assert!(mailbox.contains(&Log::builder().payload_bytes(payload).source(new_prog_id)));
+        assert!(
+            mailbox.contains(
+                &EventBuilder::new()
+                    .with_payload_bytes(payload)
+                    .with_source(new_prog_id)
+            )
+        );
     }
 
     #[test]
@@ -1382,10 +1411,10 @@ mod tests {
         assert!(res.succeed.contains(&init_msg_id));
         assert!(
             res.contains(
-                &Log::builder()
-                    .source(mock_program_id)
-                    .dest(user_id)
-                    .payload_bytes(b"Mock program initialized")
+                &EventBuilder::new()
+                    .with_source(mock_program_id)
+                    .with_destination(user_id)
+                    .with_payload_bytes(b"Mock program initialized")
             )
         );
 
@@ -1395,10 +1424,10 @@ mod tests {
         assert!(res.succeed.contains(&mid));
         assert!(
             res.contains(
-                &Log::builder()
-                    .source(mock_program_id)
-                    .dest(user_id)
-                    .payload_bytes(b"Hi from mock program")
+                &EventBuilder::new()
+                    .with_source(mock_program_id)
+                    .with_destination(user_id)
+                    .with_payload_bytes(b"Hi from mock program")
             )
         );
 
@@ -1450,10 +1479,10 @@ mod tests {
 
         assert!(
             res.contains(
-                &Log::builder()
-                    .source(proxy_program.id())
-                    .dest(user_id)
-                    .payload_bytes(b"Hi from mock program")
+                &EventBuilder::new()
+                    .with_source(proxy_program.id())
+                    .with_destination(user_id)
+                    .with_payload_bytes(b"Hi from mock program")
             )
         );
 

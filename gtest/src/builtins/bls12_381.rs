@@ -271,7 +271,7 @@ fn map_to_g2affine(message: Vec<u8>) -> Result<Bls12_381Response, BuiltinActorEr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_USER_ALICE, Log, Program, System};
+    use crate::{DEFAULT_USER_ALICE, EventBuilder, Program, System};
     use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
     use ark_ec::{
         Group, ScalarMul, VariableBaseMSM,
@@ -370,15 +370,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        assert!(res.contains(&Log::builder().source(proxy_pid).dest(alice_id)));
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
-
-        assert!(matches!(
-            response.payload(),
-            Bls12_381Response::MultiMillerLoop(_)
-        ));
+        assert!(matches!(response, Bls12_381Response::MultiMillerLoop(_)));
     }
 
     #[test]
@@ -420,12 +424,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        assert!(res.contains(&Log::builder().source(proxy_pid).dest(alice_id)));
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
-
-        if let Bls12_381Response::FinalExponentiation(result_bytes) = response.payload() {
+        if let Bls12_381Response::FinalExponentiation(result_bytes) = response {
             let actual = ArkScaleLocal::<<Bls12_381 as Pairing>::TargetField>::decode(
                 &mut result_bytes.as_ref(),
             )
@@ -497,10 +508,10 @@ mod tests {
                 .into_bytes();
         assert!(
             res.contains(
-                &Log::builder()
-                    .source(proxy_program.id())
-                    .dest(alice_actor_id)
-                    .payload_bytes(err_payload)
+                &EventBuilder::new()
+                    .with_source(proxy_program.id())
+                    .with_destination(alice_actor_id)
+                    .with_payload_bytes(err_payload)
             )
         );
 
@@ -535,10 +546,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        if let Bls12_381Response::MultiScalarMultiplicationG1(result_bytes) = response.payload() {
+        if let Bls12_381Response::MultiScalarMultiplicationG1(result_bytes) = response {
             let actual = ArkScaleProjective::<G1>::decode(&mut result_bytes.as_ref())
                 .expect("failed to decode result");
 
@@ -608,10 +628,10 @@ mod tests {
                 .into_bytes();
         assert!(
             res.contains(
-                &Log::builder()
-                    .source(proxy_program.id())
-                    .dest(alice_actor_id)
-                    .payload_bytes(err_payload)
+                &EventBuilder::new()
+                    .with_source(proxy_program.id())
+                    .with_destination(alice_actor_id)
+                    .with_payload_bytes(err_payload)
             )
         );
 
@@ -646,10 +666,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        if let Bls12_381Response::MultiScalarMultiplicationG2(result_bytes) = response.payload() {
+        if let Bls12_381Response::MultiScalarMultiplicationG2(result_bytes) = response {
             let actual = ArkScaleProjective::<G2>::decode(&mut result_bytes.as_ref())
                 .expect("failed to decode result");
 
@@ -697,13 +726,24 @@ mod tests {
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&mid));
 
+        log::debug!("Result: {:#?}", res.events());
+
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        if let Bls12_381Response::ProjectiveMultiplicationG1(result_bytes) = response.payload() {
+        if let Bls12_381Response::ProjectiveMultiplicationG1(result_bytes) = response {
             let actual = ArkScaleProjective::<G1>::decode(&mut result_bytes.as_ref())
                 .expect("failed to decode result");
 
@@ -754,10 +794,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        if let Bls12_381Response::ProjectiveMultiplicationG2(result_bytes) = response.payload() {
+        if let Bls12_381Response::ProjectiveMultiplicationG2(result_bytes) = response {
             let actual = ArkScaleProjective::<G2>::decode(&mut result_bytes.as_ref())
                 .expect("failed to decode result");
 
@@ -804,10 +853,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        if let Bls12_381Response::AggregateG1(result_bytes) = response.payload() {
+        if let Bls12_381Response::AggregateG1(result_bytes) = response {
             let actual = ArkScaleLocal::<G1>::decode(&mut result_bytes.as_ref())
                 .expect("failed to decode result");
 
@@ -855,10 +913,19 @@ mod tests {
         // -----------------------------------------------------------------------
         // ------------------------- Check response ------------------------------
         // -----------------------------------------------------------------------
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_pid && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
 
-        if let Bls12_381Response::MapToG2Affine(result_bytes) = response.payload() {
+        if let Bls12_381Response::MapToG2Affine(result_bytes) = response {
             let actual = ArkScaleLocal::<G2Affine>::decode(&mut result_bytes.as_ref())
                 .expect("failed to decode result");
 

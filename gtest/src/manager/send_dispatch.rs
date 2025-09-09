@@ -413,7 +413,7 @@ impl ExtManager {
 
             None
         };
-        self.log.push(stored_message);
+        self.events.push(stored_message);
 
         if let Some(reservation_id) = reservation {
             self.remove_gas_reservation_with_task(message.source(), reservation_id);
@@ -521,6 +521,6 @@ impl ExtManager {
             None
         };
 
-        self.log.push(message.into());
+        self.events.push(message.into());
     }
 }

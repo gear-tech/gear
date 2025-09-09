@@ -163,9 +163,9 @@ impl ExtManager {
             failed: mem::take(&mut self.failed),
             not_executed: mem::take(&mut self.not_executed),
             total_processed,
-            log: mem::take(&mut self.log)
+            events: mem::take(&mut self.events)
                 .into_iter()
-                .map(CoreLog::from)
+                .map(UserMessageEvent::from)
                 .collect(),
             gas_burned: mem::take(&mut self.gas_burned),
         }
