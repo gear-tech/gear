@@ -495,7 +495,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             );
 
             if (transition.valueToReceive != 0) {
-                IWrappedVara(router.implAddresses.wrappedVara).transfer(transition.actorId, transition.valueToReceive);
+                bool success = IWrappedVara(router.implAddresses.wrappedVara).transfer(
+                    transition.actorId, transition.valueToReceive
+                );
+                require(success, "transfer to actor failed");
             }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);

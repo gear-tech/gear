@@ -31,7 +31,20 @@ pub type VaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool
 /// CAUTION: NEVER ALLOW `ScheduledTask` BE A BIG DATA.
 /// To avoid redundant migrations only append new variant(s) to the enum
 /// with an explicit corresponding scale codec index.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    TypeInfo,
+    MaxEncodedLen,
+)]
 pub enum ScheduledTask<RFM, SD, SUM> {
     // Rent charging section.
     // -----

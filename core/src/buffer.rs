@@ -25,6 +25,7 @@ use core::{
 };
 
 use alloc::{sync::Arc, vec, vec::Vec};
+use core::hash::{Hash, Hasher};
 use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_info::{
     TypeInfo,
@@ -37,7 +38,7 @@ use crate::str::LimitedStr;
 /// `T` is data type.
 /// `E` is overflow error type.
 /// `N` is max len which a vector can have.
-#[derive(Clone, Default, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
+#[derive(Clone, Default, Eq, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct LimitedVec<T, E, const N: usize>(Vec<T>, PhantomData<E>);
 
@@ -97,6 +98,12 @@ impl<T, E: Default, const N: usize> TryFrom<Vec<T>> for LimitedVec<T, E, N> {
     fn try_from(x: Vec<T>) -> Result<Self, Self::Error> {
         (x.len() <= N).then_some(()).ok_or_else(E::default)?;
         Ok(Self(x, PhantomData))
+    }
+}
+
+impl<T: Hash, E: Default, const N: usize> Hash for LimitedVec<T, E, N> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
     }
 }
 
