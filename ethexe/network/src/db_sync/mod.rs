@@ -186,7 +186,7 @@ pub trait ExternalDataProvider: Send + Sync {
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
-pub struct RequestId(pub(crate) u64);
+pub struct RequestId(u64);
 
 impl RequestId {
     fn next() -> Self {
