@@ -41,7 +41,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 /// Returns the era index for the given timestamp.
 /// The eras starts from 0.
 #[inline(always)]
-pub fn era_index_from_ts(ts: u64, genesis_ts: u64, era_duration: u64) -> u64 {
+pub fn era_from_ts(ts: u64, genesis_ts: u64, era_duration: u64) -> u64 {
     (ts - genesis_ts) / era_duration
 }
 

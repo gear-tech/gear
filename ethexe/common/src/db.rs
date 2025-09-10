@@ -61,6 +61,67 @@ impl BlockOutcome {
     }
 }
 
+/// [`NextEraValidators`] represents the all possible states of the next era validators.
+/// The majority of the era time, the next era validators are not known yet.
+/// The state switches to [`NextEraValidators::Elected`] at the election checkpoint by calling `makeElectionAt` in the middleware.
+/// After the commitment is included in a block, the state switches to [`NextEraValidators::Committed`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum NextEraValidators {
+    /// Validators are not known yet.
+    #[default]
+    Unknown,
+    /// Validators are elected, but not yet committed.
+    Elected(NonEmpty<Address>),
+    // Committed in the Router.
+    Committed(NonEmpty<Address>),
+}
+
+/// The encodable/decodable inner representation for [`NextEraValidators`].
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+enum NextEraValidatorsInner {
+    Unknown,
+    Elected(Vec<Address>),
+    Committed(Vec<Address>),
+}
+
+impl From<NextEraValidators> for NextEraValidatorsInner {
+    fn from(v: NextEraValidators) -> Self {
+        match v {
+            NextEraValidators::Unknown => NextEraValidatorsInner::Unknown,
+            NextEraValidators::Elected(v) => NextEraValidatorsInner::Elected(v.into()),
+            NextEraValidators::Committed(v) => NextEraValidatorsInner::Committed(v.into()),
+        }
+    }
+}
+
+impl From<NextEraValidatorsInner> for NextEraValidators {
+    fn from(v: NextEraValidatorsInner) -> Self {
+        match v {
+            NextEraValidatorsInner::Unknown => NextEraValidators::Unknown,
+            NextEraValidatorsInner::Elected(v) => {
+                NextEraValidators::Elected(NonEmpty::from_vec(v).expect("must be non-empty"))
+            }
+            NextEraValidatorsInner::Committed(v) => {
+                NextEraValidators::Committed(NonEmpty::from_vec(v).expect("must be non-empty"))
+            }
+        }
+    }
+}
+
+// impl Into<NextEraValidators> for NextEraValidatorsInner {
+//     fn into(self) -> NextEraValidators {
+//         match self {
+//             NextEraValidatorsInner::Unknown => NextEraValidators::Unknown,
+//             NextEraValidatorsInner::Elected(v) => {
+//                 NextEraValidators::Elected(NonEmpty::from_vec(v).expect("must be non-empty"))
+//             }
+//             NextEraValidatorsInner::Committed(v) => {
+//                 NextEraValidators::Committed(NonEmpty::from_vec(v).expect("must be non-empty"))
+//             }
+//         }
+//     }
+// }
+
 /// [`ValidatorsInfo`] stores the current and maybe next set of validators.
 /// The next set of validators will be applied at the beginning of the next era
 /// and will be set to `Some` in the election time.
@@ -70,7 +131,60 @@ impl BlockOutcome {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ValidatorsInfo {
     pub current: NonEmpty<Address>,
-    pub next: Option<NonEmpty<Address>>,
+    pub next: NextEraValidators,
+}
+
+impl ValidatorsInfo {
+    pub fn encode(self) -> Vec<u8> {
+        Into::<ValidatorsInfoInner>::into(self).encode()
+    }
+
+    pub fn decode(data: &[u8]) -> Result<Self, parity_scale_codec::Error> {
+        ValidatorsInfoInner::decode(&mut &*data).map(Into::into)
+    }
+}
+
+/// The encodable/decodable inner representation for [`ValidatorsInfo`].
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+struct ValidatorsInfoInner {
+    current: Vec<Address>,
+    next: NextEraValidatorsInner,
+}
+
+// impl Into<ValidatorsInfoInner> for ValidatorsInfo {
+//     fn into(self) -> ValidatorsInfoInner {
+//         ValidatorsInfoInner {
+//             current: self.current.into(),
+//             next: self.next.into(),
+//         }
+//     }
+// }
+
+impl From<ValidatorsInfo> for ValidatorsInfoInner {
+    fn from(v: ValidatorsInfo) -> Self {
+        ValidatorsInfoInner {
+            current: v.current.into(),
+            next: v.next.into(),
+        }
+    }
+}
+
+// impl Into<ValidatorsInfo> for ValidatorsInfoInner {
+//     fn into(self) -> ValidatorsInfo {
+//         ValidatorsInfo {
+//             current: NonEmpty::from_vec(self.current).expect("must be non-empty"),
+//             next: self.next.into(),
+//         }
+//     }
+// }
+
+impl From<ValidatorsInfoInner> for ValidatorsInfo {
+    fn from(v: ValidatorsInfoInner) -> Self {
+        ValidatorsInfo {
+            current: NonEmpty::from_vec(v.current).expect("must be non-empty"),
+            next: v.next.into(),
+        }
+    }
 }
 
 #[auto_impl::auto_impl(&, Box)]

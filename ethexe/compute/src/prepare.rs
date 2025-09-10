@@ -167,7 +167,7 @@ mod tests {
             parent_hash,
             ValidatorsInfo {
                 current: nonempty![Address::from([0u8; 20])],
-                next: None,
+                next: Default::default(),
             },
         );
 
@@ -206,13 +206,7 @@ mod tests {
             meta.last_committed_head = Some(initial_head);
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])],
-                next: None,
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         let new_digest = Digest([99; 32]);
         let events = [BlockEvent::Router(
@@ -254,7 +248,7 @@ mod tests {
             parent_hash,
             ValidatorsInfo {
                 current: nonempty![Address::from([0u8; 20])],
-                next: None,
+                next: Default::default(),
             },
         );
 
@@ -359,13 +353,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])],
-                next: None,
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         // Add code to DB as valid
         db.set_code_valid(code_id, true);
@@ -435,13 +423,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])],
-                next: None,
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         let events = vec![
             BlockEvent::Router(
@@ -479,13 +461,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])],
-                next: None,
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         // Code2 already exists in DB
         db.set_code_valid(code_id2, true);
@@ -570,13 +546,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])],
-                next: None,
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -620,13 +590,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])],
-                next: None,
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         // Configure parent as prepared
         db.mutate_block_meta(parent_hash, |m| {
@@ -682,7 +646,7 @@ mod tests {
             parent_hash,
             ValidatorsInfo {
                 current: nonempty![Address::from([0u8; 20])],
-                next: None,
+                next: Default::default(),
             },
         );
 

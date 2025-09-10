@@ -24,7 +24,7 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
         CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, ValidatorsInfo,
@@ -44,7 +44,6 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -628,17 +627,7 @@ impl OnChainStorageRead for Database {
         self.kv
             .get(&Key::ValidatorsInfo(block_hash).to_bytes())
             .map(|data| {
-                let (current, next): (Vec<Address>, Option<Vec<Address>>) =
-                    Decode::decode(&mut data.as_slice())
-                        .expect("Failed to decode data into `ValidatorsInfo`");
-
-                ValidatorsInfo {
-                    current: NonEmpty::from_vec(current)
-                        .expect("Failed to decode vec into nonempty"),
-                    next: next.map(|value| {
-                        NonEmpty::from_vec(value).expect("Failed to decode vec into nonempty")
-                    }),
-                }
+                ValidatorsInfo::decode(&data).expect("Failed to decode data into `ValidatorsInfo`")
             })
     }
 }
@@ -664,10 +653,10 @@ impl OnChainStorageWrite for Database {
     }
 
     fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo) {
-        let ValidatorsInfo { current, next } = validators_info;
-        let data: (Vec<Address>, Option<Vec<Address>>) = (current.into(), next.map(Into::into));
-        self.kv
-            .put(&Key::ValidatorsInfo(block_hash).to_bytes(), data.encode());
+        self.kv.put(
+            &Key::ValidatorsInfo(block_hash).to_bytes(),
+            validators_info.encode(),
+        );
     }
 }
 

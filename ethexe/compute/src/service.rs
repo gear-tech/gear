@@ -229,7 +229,7 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-         BlockHeader, CodeAndIdUnchecked,
+        BlockHeader, CodeAndIdUnchecked,
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use ethexe_db::Database as DB;

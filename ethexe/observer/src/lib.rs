@@ -272,8 +272,8 @@ impl ObserverService {
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
         let validators_info = ValidatorsInfo {
-            current: genesis_validators.into(),
-            next: None,
+            current: genesis_validators,
+            next: Default::default(),
         };
         log::info!("Genesis block: {:?}", genesis_block.header.hash);
 

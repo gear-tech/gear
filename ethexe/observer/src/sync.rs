@@ -27,10 +27,10 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     BlockData, BlockHeader, CodeBlobInfo,
     db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
-        ValidatorsInfo,
+        BlockMetaStorageRead, BlockMetaStorageWrite, NextEraValidators, OnChainStorageRead,
+        OnChainStorageWrite, ValidatorsInfo,
     },
-    end_of_era_timestamp, era_index_from_ts,
+    end_of_era_timestamp, era_from_ts,
     events::{BlockEvent, RouterEvent},
 };
 use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
@@ -181,6 +181,11 @@ impl<DB: SyncDB> ChainSync<DB> {
         let mut validators_info = match self.db.validators_info(header.parent_hash) {
             Some(validators_info) => validators_info,
             None => {
+                log::trace!(
+                    "No validators info for parent block({:?}), query from router",
+                    header.parent_hash
+                );
+
                 let router_address =
                     alloy::primitives::Address(self.config.router_address.0.into());
                 let router_query =
@@ -191,7 +196,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                         "Router query `validators_at` returns empty validator set for block {:?}",
                         header.parent_hash
                     ))?,
-                    next: None,
+                    next: Default::default(),
                 };
                 self.db
                     .set_validators_info(header.parent_hash, validators_info.clone());
@@ -201,21 +206,27 @@ impl<DB: SyncDB> ChainSync<DB> {
 
         // If next validators are already set, no need to fetch them again, because of
         // propagation in chain
-        let election_ts = self.current_election_ts(header.timestamp);
-        if validators_info.next.is_none() && header.timestamp >= election_ts {
+        let era_election_ts = self.era_election_ts(header.timestamp);
+        if validators_info.next == NextEraValidators::Unknown && header.timestamp >= era_election_ts
+        {
             let middleware_query =
                 MiddlewareQuery::new(self.provider.clone(), self.config.middleware_address);
-            let elected_validators =
-                NonEmpty::from_vec(middleware_query.make_election_at(election_ts, 10).await?)
-                    .ok_or(anyhow!("`make_election_at` returns empty validator set"))?;
-            validators_info.next = Some(elected_validators);
+            let elected_validators = NonEmpty::from_vec(
+                middleware_query
+                    .make_election_at(era_election_ts, 10)
+                    .await?,
+            )
+            .ok_or(anyhow!("`make_election_at` returns empty validator set"))?;
+            validators_info.next = NextEraValidators::Elected(elected_validators);
         }
 
         // Switch validators from `next` to `current`
         if self.chain_head_in_next_era(&header)? {
-            // Must be elected - handle then there is no
-            let next_validators = validators_info.next.clone().unwrap();
-            validators_info.next = None;
+            // Must be committed - handle then no.
+            let NextEraValidators::Committed(next_validators) = validators_info.next.clone() else {
+                return Err(anyhow!(""));
+            };
+            validators_info.next = NextEraValidators::Unknown;
             validators_info.current = next_validators;
         }
 
@@ -244,12 +255,12 @@ impl<DB: SyncDB> ChainSync<DB> {
             chain_head.parent_hash
         ))?;
 
-        let chain_head_era = era_index_from_ts(
+        let chain_head_era = era_from_ts(
             chain_head.timestamp,
             self.config.genesis_ts,
             self.config.timelines.era,
         );
-        let parent_era_index = era_index_from_ts(
+        let parent_era_index = era_from_ts(
             parent.timestamp,
             self.config.genesis_ts,
             self.config.timelines.era,
@@ -258,10 +269,9 @@ impl<DB: SyncDB> ChainSync<DB> {
         Ok(chain_head_era > parent_era_index)
     }
 
-    /// Returns the timstamp at which the current election started.
-    fn current_election_ts(&self, block_ts: u64) -> u64 {
-        let block_era =
-            era_index_from_ts(block_ts, self.config.genesis_ts, self.config.timelines.era);
+    /// Returns the timestamp at which the current election started.
+    fn era_election_ts(&self, block_ts: u64) -> u64 {
+        let block_era = era_from_ts(block_ts, self.config.genesis_ts, self.config.timelines.era);
 
         let end_of_block_era =
             end_of_era_timestamp(block_era, self.config.genesis_ts, self.config.timelines.era);

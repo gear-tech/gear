@@ -157,7 +157,7 @@ mod tests {
                 keys[0].to_address(),
                 keys[1].to_address(),
             ],
-            next: None,
+            next: Default::default(),
         };
 
         let mut block = SimpleBlockData::mock(H256::random());
@@ -183,7 +183,7 @@ mod tests {
                 keys[1].to_address(),
                 keys[2].to_address(),
             ],
-            next: None,
+            next: Default::default(),
         };
         ctx.db.set_validators_info(block.hash, validators_info);
 

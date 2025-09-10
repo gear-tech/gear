@@ -61,6 +61,11 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         signatures_threshold: 1,
         router_address: 12345.into(),
         pub_key: keys.pop().unwrap(),
+        timelines: ValidatorTimelines {
+            genesis_ts: 0,
+            era: 36,
+            election: 6,
+        },
         signer,
         db: Database::memory(),
         committer: Box::new(DummyCommitter),

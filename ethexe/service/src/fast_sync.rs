@@ -693,8 +693,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         )
         .ok_or(anyhow!("validator set is empty"))?;
         let validators_info = ValidatorsInfo {
-            current: validators.into(),
-            next: None,
+            current: validators,
+            next: Default::default(),
         };
         db.set_validators_info(latest_committed_block, validators_info);
     }
