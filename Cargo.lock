@@ -4778,7 +4778,6 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "parity-scale-codec",
  "paste",
  "rocksdb",
