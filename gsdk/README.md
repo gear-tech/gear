@@ -6,7 +6,7 @@
 [ci1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
 [ci2]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
 [docs1]: https://img.shields.io/badge/current-docs-brightgreen.svg
-[docs2]: https://docs.gear.rs/gsdk/index.html
+[docs2]: https://docs.rs/gsdk/
 
 Rust SDK for gear network.
 

@@ -42,7 +42,7 @@ impl<'a> Arbitrary<'a> for FuzzerInput<'a> {
 }
 
 /// That's done because when fuzzer finds a crash it prints a [`Debug`] string of the crashing input.
-/// Fuzzer constructs from the input an array of [`GearCall`] with pretty large codes and payloads,
+/// Fuzzer constructs from the input an array of [`GearCall`](gear_call_gen::GearCall) with pretty large codes and payloads,
 /// therefore to avoid printing huge amount of data we do a mock implementation of [`Debug`].
 impl Debug for FuzzerInput<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -15,10 +15,11 @@ ethexe-contracts-pre-commit:
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
-	@ echo " > Copying Router arfitact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-	@ echo " > Copying Mirror arfitact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-	@ echo " > Copying WrappedVara arfitact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
-	@ echo " > Copying TransparentUpgradeableProxy arfitact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
+	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
+	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
+	@ echo " > Copying TransparentUpgradeableProxy artifact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
+	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
 
 # Common section
 .PHONY: show
@@ -133,26 +134,12 @@ docker-run:
 
 # Format section
 .PHONY: fmt
-fmt: fmt-gear fmt-doc
-
-.PHONY: fmt-check
-fmt-check: fmt-gear-check fmt-doc-check
-
-.PHONY: fmt-gear
-fmt-gear:
+fmt:
 	@ ./scripts/gear.sh format gear
 
-.PHONY: fmt-gear-check
-fmt-gear-check:
+.PHONY: fmt-check
+fmt-check:
 	@ ./scripts/gear.sh format gear --check
-
-.PHONY: fmt-doc
-fmt-doc:
-	@ ./scripts/gear.sh format doc
-
-.PHONY: fmt-doc-check
-fmt-doc-check:
-	@ ./scripts/gear.sh format doc --check
 
 # Init section
 .PHONY: init
@@ -272,22 +259,6 @@ test-syscalls-integrity-release:
 	@ ./scripts/gear.sh test syscalls --release
 
 # Misc section
-.PHONY: doc
-doc:
-	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
-		-p galloc -p gclient -p gcore -p gear-core-backend \
-		-p gear-core -p gear-core-processor -p gear-lazy-pages -p gear-core-errors \
-		-p gtest -p gear-wasm-builder -p gear-common \
-		-p pallet-gear -p pallet-gear-gas -p pallet-gear-messenger -p pallet-gear-payment \
-		-p pallet-gear-program -p pallet-gear-rpc-runtime-api -p pallet-gear-rpc -p pallet-gear-scheduler -p gsdk
-	@ RUSTDOCFLAGS="--enable-index-page --generate-link-to-definition -Zunstable-options -D warnings" cargo doc --no-deps \
-		-p gstd -F document-features
-	@if [ -z CARGO_BUILD_TARGET ]; then \
-		cp -f images/logo.svg target/doc/logo.svg; \
-	else \
-		cp -f images/logo.svg target/${CARGO_BUILD_TARGET}/doc/logo.svg; \
-	fi
-
 .PHONY: kill-gear
 kill:
 	@ pkill -f 'gear |gear$' -9
