@@ -586,55 +586,7 @@
 //! or receiving replies/mailbox messages/events. Although these types are useful for direct
 //! interaction with built-in actors or decoding replies from them by users, most of times,
 //! the interaction with built-in actors is done by programs.
-//! <!--
-//! - Reading the program state:
-//! ```ignore
-//! // To read the program state you need to call one of two program's functions:
-//! // `meta_state()` or `meta_state_with_bytes()`.
-//! //
-//! // The methods require the payload as the input argument.
-//! //
-//! // The first one requires payload to be CODEC Encodable, while the second requires payload
-//! // implement `AsRef<[u8]>`, that means to be able to represent as bytes.
-//! //
-//! // Let we have the following program state and `meta_state` function:
-//! #[derive(Encode, Decode, TypeInfo)]
-//! pub struct ProgramState {
-//!     a: u128,
-//!     b: u128,
-//! }
-//!
-//! pub enum State {
-//!     A,
-//!     B,
-//! }
-//!
-//! pub enum StateReply {
-//!     A(u128),
-//!     B(u128),
-//! }
-//!
-//! #[unsafe(no_mangle)]
-//! unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
-//!     let query: State = msg::load().expect("Unable to decode `State`");
-//!     let encoded = match query {
-//!         State::A => StateReply::A(STATE.a),
-//!         State::B => StateReply::B(STATE.b),
-//!     }
-//!     .encode();
-//!     gstd::util::to_leak_ptr(encoded)
-//! }
-//!
-//! // Let's send a query from gtest:
-//! let reply: StateReply = self.meta_state(&State::A).expect("Meta_state failed");
-//! let expected_reply = StateReply::A(10);
-//! assert_eq!(reply, expected_reply);
-//!
-//! // If your `meta_state` function doesn't require input payloads,
-//! // you can use `meta_state_empty` or `meta_state_empty_with_bytes` functions
-//! // without any arguments.
-//! ```
-//! -->
+
 #![deny(missing_docs)]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
