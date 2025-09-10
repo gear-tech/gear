@@ -1,27 +1,10 @@
-#!/usr/bin/env rust-script
-
-//! ```cargo
-//! [dependencies]
-//! syn = { version = "2.0.66", features = ["parsing", "full", "visit"] }
-//! clap = { version = "4.5.4", features = ["derive"] }
-//! serde = { version = "1.0.203", features = ["derive"] }
-//! proc-macro2 = { version = "1.0.84", features = ["span-locations"]}
-//! quote = "1.0.36"
-//! ```
-
-extern crate clap;
-extern crate proc_macro2;
-extern crate quote;
-extern crate serde;
-extern crate syn;
-
 use clap::Parser;
-use std::fs;
-use std::ops::Range;
-use std::path::PathBuf;
-use syn::spanned::Spanned;
-use syn::visit::Visit;
-use syn::{Expr, ExprCall, ExprMethodCall, File, ImplItem, ItemImpl, Stmt};
+use std::{fs, ops::Range, path::PathBuf};
+use syn::{
+    Expr, ExprCall, ExprMethodCall, File, ImplItem, ItemImpl, Stmt, spanned::Spanned, visit::Visit,
+};
+
+extern crate proc_macro2;
 
 // Adjust specific weights by 10 percent
 const WEIGHT_SLOPE_MULTI: (usize, usize) = (110, 100);
@@ -86,16 +69,14 @@ fn find_patch_position(stmt: &Stmt) -> Option<PatchRule> {
         return None;
     };
 
-    let patch_rule = args.first().map(|arg| {
+    args.first().map(|arg| {
         let span = arg.span();
         let range = span.byte_range();
         PatchRule::WeightFile {
             range,
             add_parenthesis: !matches!(arg, Expr::Lit(_)),
         }
-    });
-
-    patch_rule
+    })
 }
 
 fn patch_entries(content: &str, patch_positions: Vec<PatchRule>) -> String {

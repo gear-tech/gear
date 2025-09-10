@@ -65,7 +65,7 @@ use scale_info::TypeInfo;
 
 /// Type that should be used to create a message to the staking built-in actor.
 ///
-/// A [partial] mirror of the staking pallet interface. Not all extrinsics
+/// A `partial` mirror of the staking pallet interface. Not all extrinsics
 /// are supported, more can be added as needed for real-world use cases.
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub enum Request {
@@ -89,7 +89,7 @@ pub enum Request {
     #[codec(index = 4)]
     Nominate { targets: Vec<ActorId> },
 
-    /// Declare intention to [temporarily] stop nominating while still having funds bonded.
+    /// Declare intention to `temporarily` stop nominating while still having funds bonded.
     #[codec(index = 5)]
     Chill,
 
