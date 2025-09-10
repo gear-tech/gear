@@ -47,4 +47,8 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     pkgs.cargo-binutils
     oldPkgs.rustfilt
   ];
+
+  buildInputs = [
+    pkgs.openssl
+  ];
 }
