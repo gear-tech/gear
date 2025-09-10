@@ -68,7 +68,7 @@
 //! [dev-dependencies]
 //! gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
 //! ```
-//! 
+//!
 //! Make sure you use the latest version of the `gtest`.
 //!
 //! ### Program example
@@ -197,11 +197,11 @@
 //! - [`System::run_next_block_with_allowance`]
 //! - [`System::run_to_block`]
 //! - [`System::run_scheduled_tasks`]
-//! 
+//!
 //! What's common between them is that they all move forward the block height and timestamp, possibly executing
 //! two main messages storages - queue and task pool. Another commonality is that they all return a result of type [`BlockRunResult`],
 //! which is going to be covered later.
-//! 
+//!
 //! ### Balance management
 //! The `System` provides methods for managing user and program balances:
 //!
@@ -221,15 +221,15 @@
 //! let balance = sys.balance_of(user_id);
 //! println!("User balance: {}", balance);
 //! ```
-//! 
+//!
 //! Prior to sending a message, it is necessary to mint sufficient balance for the sender
-//! to ensure coverage of the existential deposit and gas costs. Alternatively, as a sender 
+//! to ensure coverage of the existential deposit and gas costs. Alternatively, as a sender
 //! you can use the default users with preallocated balance from [`constants`] module.
 //!
 //! ### Code storage
 //! Every program in `gtest` is basically a WASM binary and it's state. Both state and binary are stored and managed inside the `System`.
 //! The `System` allows storing codes using various code submission methods. For example:
-//! 
+//!
 //! ```no_run
 //! # let sys = gtest::System::new();
 //! # use std::fs;
@@ -240,15 +240,15 @@
 //! // Retrieve previously submitted code
 //! let original_code = sys.submitted_code(code_id);
 //! ```
-//! 
+//!
 //! For more methods see `System` methods documentation.
-//! 
+//!
 //! ### Programs API
 //! The `System` provides methods to access all known programs. A known program is
 //! at least once instantiated within the `System` program of [`Program`] type. [`System::get_program`] - allows retrieving
 //! an instance of the `Program` by id. To get all known programs a [`System::programs`] method must be called.
-//! 
-//! Although `Program`s are going to be covered later, it must be stated, that most of times a desired `Program` 
+//!
+//! Although `Program`s are going to be covered later, it must be stated, that most of times a desired `Program`
 //! is instantiated directly by `Program` methods. The `System` methods can be used when instance of the known
 //! program was lost or more than one instance of the same program is required.
 //!
@@ -257,7 +257,7 @@
 //! of the particular user, the [`System::get_mailbox`] method must be used. It instantiates user's mailbox
 //! managing interface - [`UserMailbox`], which is going to be covered later. The method is an only mean by which
 //! a `UserMailbox` can be instantiated.
-//! 
+//!
 //! ### No message calculation
 //! Sometimes it's useful to calculate the result of the message execution without actually sending message.
 //! That could be a case when message produces unwanted side effects on each received message, which can't be
@@ -267,18 +267,18 @@
 //! ## [`Program`]
 //! The `Program` type is a representation of a Gear program, which gives an interface for interacting with it
 //! and reading its state.
-//! 
+//!
 //! ### `Program` instantiation
 //! There are several ways to instantiate a `Program`:
 //! - [`Program::current`] - instantiates current crate's program. The method recognizes a path
 //!   that stores the compiled WASM binary of the current crate program.
 //! - [`Program::from_file`] - instantiates a program from a specified WASM file path.
 //! - [`Program::from_binary_with_id`] - instantiates a program from given WASM binary.
-//! 
+//!
 //! All of these methods use under the hood the [`ProgramBuilder`], which itself handles instantiation
 //! job and provides additional configuration options, like defining custom program id.
-//! 
-//! ### `Sending messages`
+//!
+//! ### Sending messages
 //! The `Program` provides methods for sending messages to the program:
 //! - [`Program::send`] (or [`Program::send_with_value`] if you need to send a
 //!   message with attached funds).
@@ -291,14 +291,14 @@
 //! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions
 //! [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
 //!
-//! The first one requires payload to be CODEC Encodable, while the second
+//! The first one requires payload to be CODEC encodable, while the second
 //! requires payload implement `AsRef<[u8]>`, that means to be able to represent
 //! as bytes.
 //!
 //! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes
 //! from `payload.encode()`.
 //!
-//! Under the hood the `Program` detects what dispatch kind should have a message to the program. 
+//! Under the hood the `Program` detects what dispatch kind should have a message to the program.
 //! If it's a first message, it instantiates from provided data *init* dispatch kind. Otherwise, it's
 //! going to be a *handle* message.
 //!
@@ -309,105 +309,266 @@
 //! let init_message_id = prog.send_bytes(100001, "INIT MESSAGE");
 //! let handle_message_id = prog.send(100001, "HANDLE MESSAGE");
 //! ```
-//! 
+//!
 //! ### `Program` info
 //! The `Program` provides methods to access its info:
 //! - [`Program::id`] - returns program id.
 //! - [`Program::balance`] - returns program balance.
 //! - [`Program::read_state_bytes`] and [`Program::read_state`] - returns program state.
-//! The latter methods actually require a WASM program to define extern `state` function,
+//!
+//! The latter two methods actually require a WASM program to define extern `state` function,
 //! which will be considered as an entry-point to the program when the latter methods are called.
-//! 
+//!
 //! Besides, `Program` provides methods to save program's memory state to a file or to load state
-//! from the file and update the program's state in the `System`. The latter is useful when one
-//! needs to have a program with a specific state, like having two programs with exact same state.
-//! 
+//! from the file and update the program's state in the `System`. This is useful when one needs
+//! to have a program with a specific state, like having two programs with exact same state.
+//!
 //! ### Program id
 //! The `gtest` introduces a new abstraction over classical program id of [`ActorId`](https://docs.rs/gear-core/latest/gear_core/ids/struct.ActorId.html) type.
-//! This abstraction is called [`ProgramIdWrapper`]. It's main purpose to ease use of `gtest` API, which requires
-//! having program id as an argument. That's done by having as an argument for this methods a trait bound `Into<ProgramIdWrapper>`.
-//! The `ProgramIdWrapper` can be constructed from several types:
+//! This abstraction is [`ProgramIdWrapper`]. It's main purpose to ease use of `gtest` API in a way that every method, which requires a user or program id as
+//! an argument, actually accepts a trait bound `Into<ProgramIdWrapper>`. The best part of it, is that `ProgramIdWrapper` can be constructed from several types:
 //! - `u64`;
 //! - `[u8; 32]`;
 //! - `String` (hex representation, with or without "0x");
 //! - `&str` (hex representation, with or without "0x");
 //! - `ActorId` (from `gear_core` one's, not from `gstd`).
 //! - `Vec<u8>` and slice of `u8` (`&[u8]`).
-//! 
+//!
 //! So when a method transforms an argument into `ProgramIdWrapper`, the latter is easily transformed then into
 //! `ActorId`.
-//! 
+//!
 //! ### __Mock__ programs
 //! An exclusive feature of the `gtest` is an ability to create mock programs, which doesn't have a binary code,
-//! or a persistent storage. These are just types that implement [`WasmProgram`] trait.
-//! 
-//! The trait defines how
-//! init and handle messages must be handled by calling [`WasmProgram::init`] and [`WasmProgram::handle`] methods respectively.
-//! The methods accept as an argument `payload` which is a received message payload.
+//! or a persistent storage. Mock program is the one implementing [`WasmProgram`] trait, which defines how init
+//! and handle messages must be handled by the program. Let's look at the example:
 //!
-//! ## [`UserMessageEvent`]
-//! ## [`EventBuilder`]
-//! ## [`UserMailbox`]
-//! ## Builtins
+//! ```no_run
+//! # use gtest::WasmProgram;
 //!
-//! ## Program initialization
+//! // Global state, because mutation of the `MockCounter` fields won't be saved.
+//! static mut COUNTER: u32 = 0;
 //!
-//! There are a few ways to initialize a program:
+//! #[derive(Debug)]
+//! struct MockCounter;
 //!
-//! - Initialize the current program using the [`Program::current`] function:
+//! impl WasmProgram for MockCounter {
+//!     // Handles init messages.
+//!     //
+//!     // Sets as initial counter state a value encoded in init message payload.
+//!     // In case received bytes are not `u32` bytes, return error, which will be
+//!     // processed as a message execution trap, i.e. will result in error reply.
+//!     //
+//!     // In case of success returns `None`, which means no custom reply will be sent,
+//!     // just successful auto-reply.
+//!     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> {
+//!         unsafe {
+//!             COUNTER = u32::from_le_bytes(
+//!                 payload
+//!                     .try_into()
+//!                     .map_err(|_| "Init payload is not u32 in bytes")?,
+//!             );
+//!         }
+//!         
+//!         Ok(None)
+//!     }
 //!
-//!     ```no_run
-//!     # use gtest::Program;
-//!     # let sys = gtest::System::new();
-//!     let prog = Program::current(&sys);
-//!     ```
+//!     // Handles handle messages.
+//!     //
+//!     // In case of receiving "INC" bytes, increments internal counter state.
+//!     // In case of receiving "GET" bytes, returns current counter state in bytes
+//!     // as a reply payload.
+//!     //
+//!     // All other payloads are treated as unknown and result in error reply.
+//!     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str> {
+//!         unsafe {
+//!             match payload.as_slice() {
+//!                 b"INC" => {
+//!                     COUNTER += 1;
+//!                     Ok(None)
+//!                 }
+//!                 b"GET" => Ok(Some(COUNTER.to_le_bytes().to_vec())),
+//!                 _ => Err("Unknown handle command"),
+//!             }
+//!         }
+//!     }
 //!
-//! - Initialize a program from a Wasm-file with a default id using the
-//!   [`Program::from_file`] function:
+//!     // Mock programs are stored in `gtest` storage as trait objects
+//!     // hidden under the `Box` pointer. Due to internal implementation
+//!     // the program object must be cloneable. So this method
+//!     // provides a way to clone the boxed trait object.
+//!     fn clone_boxed(&self) -> Box<dyn WasmProgram> {
+//!         Box::new(MockCounter)
+//!     }
 //!
-//!     ```no_run
-//!     # use gtest::Program;
-//!     # let sys = gtest::System::new();
-//!     let prog = Program::from_file(
-//!         &sys,
-//!         "./target/wasm32-gear/release/demo_ping.wasm",
-//!     );
-//!     ```
+//!     // Handles reading the program state requests.
+//!     //
+//!     // This emulates calling `state` extern function possibly
+//!     // defined in the WASM program.
+//!     fn state(&mut self) -> Result<Vec<u8>, &'static str> {
+//!         unsafe { Ok(COUNTER.to_le_bytes().to_vec()) }
+//!     }
+//! }
 //!
-//! - Initialize a program via builder:
+//! #[test]
+//! fn test_mock() {
+//!     use gtest::{System, Program, EventBuilder};
+//!     use gtest::constants::DEFAULT_USER_ALICE;
 //!
-//!     ```no_run
-//!     # use gtest::ProgramBuilder;
-//!     # let sys = gtest::System::new();
-//!     let prog = ProgramBuilder::from_file("your_gear_program.wasm")
-//!         .with_id(105)
-//!         .build(&sys);
-//!     ```
+//!     let sys = System::new();
 //!
-//!     Every place in this lib, where you need to specify some ids, it requires
-//!   generic type `ID`, which implements ``Into<ProgramIdWrapper>``.
+//!     // Instantiate the mock program with `Program` interface
+//!     let program = Program::mock(&sys, MockCounter);
 //!
-//!     `ProgramIdWrapper` may be built from:
-//!     - `u64`
-//!     - `[u8; 32]`
-//!     - `String`
-//!     - `&str`
-//!     - [`ActorId`](https://docs.gear.rs/gear_core/ids/struct.ActorId.html)
-//!       (from `gear_core` one's, not from `gstd`).
+//!     // Initialize the program with `42` as initial counter value
+//!     let init_mid = program.send_bytes(DEFAULT_USER_ALICE, 42u32.to_le_bytes());
+//!     let res = sys.run_next_block();
+//!     assert!(res.succeed.contains(&init_mid));
 //!
-//!     `String` implementation means the input as hex (with or without "0x").
+//!     // Check the counter
+//!     let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"GET");
+//!     let res = sys.run_next_block();
+//!     assert!(res.contains(&EventBuilder::new()
+//!         .with_source(program.id())
+//!         .with_destination(DEFAULT_USER_ALICE)
+//!         .with_payload_bytes(42u32.to_le_bytes())
+//!         .with_reply_to(handle_mid)
+//!     ));
 //!
-//! ## Getting the program from the system
+//!     // Increment the counter
+//!     let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"INC");
+//!     let res = sys.run_next_block();
+//!     assert!(res.succeed.contains(&handle_mid));
 //!
-//! If you initialize program not in this scope, in cycle, in other conditions,
-//! where you didn't save the structure, you may get the object from the system
-//! by id.
+//!     // Check the counter again
+//!     let handle_mid = program.send_bytes(DEFAULT_USER_ALICE, b"GET");
+//!     let res = sys.run_next_block();
+//!     assert!(res.contains(&EventBuilder::new()
+//!         .with_source(program.id())
+//!         .with_destination(DEFAULT_USER_ALICE)
+//!         .with_payload_bytes(43u32.to_le_bytes())
+//!         .with_reply_to(handle_mid)
+//!     ));
+//! }
+//! ```
+//!
+//! Mock programs are instantiated with the [`Program::mock`] and [`Program::mock_with_id`] methods.
+//! When executed there's no actual WASM executor is created, but, instead, the methods of the trait
+//! are called directly. Because of the fact that mock programs doesn't have any persistent state,
+//! if you want to have some, it can be done with static variables as shown in the example above.
+//!
+//! ## [`BlockRunResult`]
+//! After calling message sending methods, messages are stored in the `System` message queue.
+//! To actually process the messages, one of the block execution methods must be called. The `gtest`
+//! provides the following methods for that:
+//! - [`System::run_next_block`] - runs one block, processing as many messages as possible.
+//! - [`System::run_next_block_with_allowance`] - runs one block, processing as many messages as possible,
+//!   while gas allowance for the block is limited by the provided value. The first method uses a default
+//!   allowance - [`constants::GAS_ALLOWANCE`].
+//! - [`System::run_to_block`] - runs blocks until the specified block number is reached.
+//!
+//! All of these methods actually pop messages from the queue and process them, mutating then storages
+//! which were requested to be mutated by those messages, i.e. programs state, balance and etc. Programs
+//! can also request not immediate, scheduled actions (tasks), which are stored in the `System` task pool.
+//! So the block execution model of those methods is a two step model:
+//! - tasks processing
+//! - messages processing
+//!
+//! Tasks processing is a step, when all scheduled for the current block number
+//! tasks are tried to be processed. This includes processing delayed
+//! dispatches, waking waited messages and etc.
+//!
+//! Blocks can't be "spent" without their execution except for use the
+//! [`System::run_scheduled_tasks`] method, which doesn't process the message
+//! queue, but only processes scheduled tasks triggering blocks info (height and timestamp)
+//! adjustments, which can be treated as "spending" blocks, if no tasks are scheduled.
+//! Note, that for now 1 block in Gear-based network is 3 sec duration.
 //!
 //! ```no_run
 //! # let sys = gtest::System::new();
-//! let prog = sys.get_program(105).unwrap();
+//! // Spend 150 blocks by running only the task pool (7.5 mins for 3 sec block).
+//! sys.run_scheduled_tasks(150);
 //! ```
 //!
+//! All of methods mentioned above return a result of type `BlockRunResult`, which
+//! encapsulates the outcome of the block execution, including any events that were emitted
+//! during the process, set of messages that were successfully executed, those that failed,
+//! also those that were skipped. The type also gives information about the block itself, like
+//! its height and timestamp, gas allowance spent, total messages processed.
+//!
+//! ## [`UserMessageEvent`]
+//! Messages sent from program to user can end up being stored in user's mailbox. But if conditions
+//! for storing the message in mailbox are not met, the message is stored in a collection of events
+//! of `UserMessageEvent` type. The `UserMessageEvent` has basically same fields as a regular message
+//! along with methods accessing them. Besides, it has [`UserMessageEvent::decode_payload`] method,
+//! which can be used to decode the payload bytes into CODEC decodable type.
+//!
+//! The collection of events can be accessed from `BlockRunResult`. Here's a raw example of that:
+//! ```no_run
+//! // Access events collection and iterate through it.
+//! let events = block_run_result.events();
+//! assert!(events.iter().any(|event| event.id() == target_event_id));
+//! ```
+//!
+//! ## [`EventBuilder`]
+//! The event of `UserMessageEvent` type can't be constructed manually. The `gtest` provides
+//! a builder for that - [`EventBuilder`]. What's more, most of API which expects an event
+//! as an argument, actually waits for a type matching `impl Into<UserMessageEvent>` trait bound.
+//! The `EventBuilder` itself can be built into `UserMessageEvent` with its [`EventBuilder::build`] method,
+//! or converted into the event type, because it implements `Into<UserMessageEvent>`. So `EventBuilder`
+//! can be used directly as an argument for such methods.
+//!
+//! So the last example with accessing events in `BlockRunResult` can be rewritten like this:
+//! ```no_run
+//! # use gtest::EventBuilder;
+//! // Check whether the collection contains a target event using a convenience method of `BlockRunResult`.
+//! assert!(block_run_result.contains(&EventBuilder::new()
+//!     .with_source(program.id())
+//!     .with_destination(USER_ID)
+//!     .with_payload_bytes(b"PONG")
+//! ));
+//!
+//! // Or with iterating through the collection.
+//! let target_event = EventBuilder::new()
+//!     .with_source(program.id())
+//!     .with_destination(USER_ID)
+//!     .with_payload_bytes(b"PONG")
+//!     .build();
+//! assert!(block_run_result.events().iter().any(|event| event == &target_event));
+//! ```
+//!
+//! ## [`UserMailbox`]
+//! The definition of the `UserMailbox` was given earlier - it's a managing interface for user's mailbox.
+//! The interface can be used to:
+//! - check if some message is in the mailbox ([`UserMailbox::contains`] method);
+//! - reply to messages in the mailbox ([`UserMailbox::reply`] or [`UserMailbox::reply_bytes`] method);
+//! - claim value inside the message without replying on it ([`UserMailbox::claim_value`] method);
+//!
+//! There was given an example of how to find an event in the `BlockRunResult` events collection. The same
+//! `EventBuilder` can be used to build a message to be searched in the mailbox, because `UserMessageEvent`
+//! can be compared to a mailbox message. Here's an example:
+//! ```no_run
+//! # use gtest::{System, Program, EventBuilder};
+//! # use gtest::constants::DEFAULT_USER_ALICE;
+//! let sys = System::new();
+//! let prog = Program::current(&sys);
+//!
+//! // Say, the program sends a message to user mailbox
+//! let mid = program.send_bytes(DEFAULT_USER_ALICE, b"PING");
+//! let res = sys.run_next_block();
+//! assert!(res.succeed.contains(&mid));
+//!
+//! let alice_mailbox = sys.get_mailbox(DEFAULT_USER_ALICE);
+//! assert!(alice_mailbox.contains(&EventBuilder::new()
+//!     .with_source(prog.id())
+//!     .with_destination(DEFAULT_USER_ALICE)
+//!     .with_payload_bytes(b"PONG")
+//! ));
+//! ```
+//!
+//! ## Builtins
+//!
+//! ## Misc (constants and balances)
+
 //! ## Pre-requisites for sending a message
 //!
 //! Prior to sending a message, it is necessary to mint sufficient balance for
@@ -504,31 +665,12 @@
 //! - tasks processing
 //! - messages processing
 //!
-//! Tasks processing is a step, when all scheduled for the current block number
-//! tasks are tried to be processed. This includes processing delayed
-//! dispatches, waking waited messages and etc.
 //!
 //! Messages processing is a step, when messages from the queue are processed
 //! until either the queue is empty or the block gas allowance is not enough for
 //! the execution.
 //!
-//! Blocks can't be "spent" without their execution except for use the
-//! [`System::run_scheduled_tasks`] method, which doesn't process the message
-//! queue, but only processes scheduled tasks triggering blocks info
-//! adjustments, which can be used to "spend" blocks.
 //!
-//! Note, that for now 1 block in Gear-based network is 3 sec duration.
-//!
-//! ```no_run
-//! # let sys = gtest::System::new();
-//! // Spend 150 blocks by running only the task pool (7.5 mins for 3 sec block).
-//! sys.run_scheduled_tasks(150);
-//! ```
-//!
-//! Note that processing messages (e.g. by using
-//! [`Program::send`]/[`Program::send_bytes`] methods) doesn't spend blocks, nor
-//! changes the timestamp. If you write time dependent logic, you should spend
-//! blocks manually.
 //!
 //! ## Balance
 //!
