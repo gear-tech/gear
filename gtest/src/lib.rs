@@ -214,7 +214,7 @@
 //! // Mint balance to a user (required before sending messages)
 //! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
 //!
-//! // Transfer balance between users
+//! // Transfer value to the program directly
 //! sys.transfer(user_id, program_id, 5000, true);
 //!
 //! // Check balance
@@ -291,9 +291,9 @@
 //! The difference between them is pretty simple and similar to [`gstd`](https://docs.gear.rs/gstd/) functions
 //! [`msg::send`](https://docs.gear.rs/gstd/msg/fn.send.html) and [`msg::send_bytes`](https://docs.gear.rs/gstd/msg/fn.send_bytes.html).
 //!
-//! The first one requires payload to be CODEC encodable, while the second
+//! The first one requires payload to be parity-scale-codec encodable, while the second
 //! requires payload implement `AsRef<[u8]>`, that means to be able to represent
-//! as bytes.
+//! as bytes. Should be noted, that parity-scale-codec is re-exported by `gtest`.
 //!
 //! [`Program::send`] uses [`Program::send_bytes`] under the hood with bytes
 //! from `payload.encode()`.
@@ -500,7 +500,7 @@
 //! for storing the message in mailbox are not met, the message is stored in a collection of events
 //! of `UserMessageEvent` type. The `UserMessageEvent` has basically same fields as a regular message
 //! along with methods accessing them. Besides, it has [`UserMessageEvent::decode_payload`] method,
-//! which can be used to decode the payload bytes into CODEC decodable type.
+//! which can be used to decode the payload bytes into parity-scale-codec decodable type.
 //!
 //! The collection of events can be accessed from `BlockRunResult`. Here's a raw example of that:
 //! ```no_run
@@ -566,146 +566,26 @@
 //! ```
 //!
 //! ## Builtins
+//! Gear network has some built-in programs, which provide specific functionality.
+//! The `gtest` provides their ids and request/response types for interaction with them.
+//! The built-in programs are:
+//! - [BLS12-381](https://wiki.vara.network/docs/build/builtinactors/bia-bls)
+//! - [Ethereum Bridge](https://wiki.vara.network/docs/build/builtinactors/bia-bridge)
+//! 
+//! For the BLS12-381 actor the provided items are:
+//! - [`BLS12_381_ID`] - id, that can be used to send messages to the BLS12-381 built-in actor.
+//! - [`Bls12_381Request`] - enum of requests that can be sent to the BLS12-381 built-in actor.
+//! - [`Bls12_381Response`] - enum of responses that can be received from the BLS12-381 built-in actor.
 //!
-//! ## Misc (constants and balances)
-
-//! ## Pre-requisites for sending a message
-//!
-//! Prior to sending a message, it is necessary to mint sufficient balance for
-//! the sender to ensure coverage of the existential deposit and gas costs.
-//!
-//! ```no_run
-//! # use gtest::constants::EXISTENTIAL_DEPOSIT;
-//! # let sys = gtest::System::new();
-//! let user_id = 42;
-//! sys.mint_to(user_id, EXISTENTIAL_DEPOSIT * 1000);
-//! ```
-//!
-//! Alternatively, you can use the default users from `gtest::constants`, which
-//! have a preallocated balance, as the message sender.
-//!
-//! ```no_run
-//! # use gtest::constants::DEFAULT_USERS_INITIAL_BALANCE;
-//! # let sys = gtest::System::new();
-//! assert_eq!(
-//!     sys.balance_of(gtest::constants::DEFAULT_USER_ALICE),
-//!     DEFAULT_USERS_INITIAL_BALANCE
-//! );
-//! ```
-//!
-//! ## Sending messages
-//!
-//! To send message to the program need to call one of two program's functions:
-//!
-//! ## Processing the result of the program execution
-//!
-//! Any sending functions in the lib returns an id of the sent message.
-//!
-//! In order to actually get the result of the program execution the block
-//! execution should be triggered (see "Block execution model" section).
-//! Block execution function returns the result of the block run
-//! ([`BlockRunResult`])
-//!
-//! It contains the final result of the processing message and others, which
-//! were created during the execution.
-//!
-//! It has 2 main functions:
-//!
-//! - [`BlockRunResult::log`] — returns the reference to the Vec produced to
-//!   users messages. You may assert them as you wish, iterating through them.
-//! - [`BlockRunResult::contains`] — returns bool which shows that logs contain
-//!   a given log. Syntax sugar around `res.log().iter().any(|v| v == arg)`.
-//!
-//! Fields of the type are public, and some of them can be really useful:
-//!
-//! - field `succeed` is a set of ids of messages that were successfully
-//!   executed.
-//! - field `failed` is a set of ids of messages that failed during the
-//!   execution.
-//!
-//! To build a log for assertion you need to use [`Log`] structure with its
-//! builders. All fields here are optional. Assertion with `Log`s from core are
-//! made on the `Some(..)` fields. You will run into panic if you try to set the
-//! already specified field.
-//!
-//! ```no_run
-//! # use gtest::Log;
-//! # use gear_core_errors::ErrorReplyReason;
-//! // Constructor for success log.
-//! let log = Log::builder();
-//!
-//! // Constructor for error reply log.
-//! let log = Log::error_builder(ErrorReplyReason::RemovedFromWaitlist);
-//! # let sys = gtest::System::new();
-//! # let prog = gtest::Program::current(&sys);
-//! // Other fields are set optionally by `dest()`, `source()`, `payload()`, `payload_bytes()`.
-//! let log = Log::builder()
-//!     .source(prog.id())
-//!     .dest(100001)
-//!     .payload_bytes("PONG");
-//! ```
-//!
-//! Log also has `From` implementations from `(ID, T)` and from `(ID_1, ID_2,
-//! T)`, where `ID: Into<ProgramIdWrapper>`, `T: AsRef<[u8]>`.
-//!
-//! ```no_run
-//! # use gtest::Log;
-//! let x = Log::builder().dest(5).payload_bytes("A");
-//! let x_from: Log = (5, "A").into();
-//! assert_eq!(x, x_from);
-//!
-//! let y = Log::builder().dest(5).source(15).payload_bytes("A");
-//! let y_from: Log = (15, 5, "A").into();
-//! assert_eq!(y, y_from);
-//! ```
-//!
-//! ## Blocks execution model
-//!
-//! Block execution has 2 main step:
-//! - tasks processing
-//! - messages processing
-//!
-//!
-//! Messages processing is a step, when messages from the queue are processed
-//! until either the queue is empty or the block gas allowance is not enough for
-//! the execution.
-//!
-//!
-//!
-//! ## Balance
-//!
-//! There are certain invariants in `gtest` regarding user and program balances:
-//!
-//! * For a user to successfully send a message to the program, they must have
-//!   sufficient balance to cover the existential deposit and gas costs.
-//! * The program charges the existential deposit from the user upon receiving
-//!   the initial message.
-//!
-//! As previously mentioned [here](#Pre-requisites-for-Sending-a-Message),
-//! a balance for the user must be minted before sending a message. This balance
-//! should be sufficient to cover the following: the user's existential deposit,
-//! the existential deposit of the initialized program (the first message to the
-//! program charges the program's existential deposit from the sender), and the
-//! message's gas costs.
-//!
-//! The [`System::mint_to`] method can be utilized to allocate a balance to the
-//! user or the program. The [`System::balance_of`] method may be used to verify
-//! the current balance.
-//!
-//! ```no_run
-//! # use gtest::Program;
-//! # let sys = gtest::System::new();
-//! // If you need to send a message with value you have to mint balance for the message sender:
-//! let user_id = 42;
-//! sys.mint_to(user_id, 5000);
-//! assert_eq!(sys.balance_of(user_id), 5000);
-//!
-//! // To give the balance to the program you should use [`System::transfer`] method:
-//! let mut prog = Program::current(&sys);
-//! sys.transfer(user_id, prog.id(), 1000, true);
-//! assert_eq!(prog.balance(), 1000);
-//! ```
-//!
+//! For the Ethereum Bridge actor the provided items are the same:
+//! - [`ETH_BRIDGE_ID`] - id.
+//! - [`EthBridgeRequest`] - enum of requests.
+//! - [`EthBridgeResponse`] - enum of responses.
+//! 
+//! These request and response types can be used with `Program` methods for sending messages
+//! or receiving replies/mailbox messages/events. Although these types are useful for direct
+//! interaction with built-in actors or decoding replies from them by users, most of times,
+//! the interaction with built-in actors is done by programs.
 //! <!--
 //! - Reading the program state:
 //! ```ignore
