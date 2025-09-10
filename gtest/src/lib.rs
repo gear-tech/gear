@@ -23,7 +23,7 @@
 //! blockchain, it is fast and lightweight. But being a model of the blockchain
 //! network, `gtest` cannot be a complete reflection of the latter.
 //!
-//! As we said earlier, `gtest` is excellent for unit and integration testing.
+//! `gtest` is excellent for unit and integration testing.
 //! It is also helpful for debugging Gear program logic. Nothing other than the
 //! Rust compiler is required for running tests based on `gtest`. It is
 //! predictable and robust when used in continuous integration.
@@ -35,15 +35,16 @@
 //!
 //! - [`System`] — a structure that represents the environment of the Gear
 //!   network. It contains the current block number, timestamp, and other
-//!   parameters. It also stores the mailbox the list of programs and does
-//!   many other useful things.
+//!   parameters. It also stores the mailbox, the list of programs, manages
+//!   the state and does many other useful things.
 //! - [`Program`] — a structure that represents a Gear program. It contains the
-//!   information about program and allows sending messages to other programs.
+//!   information about program and allows sending messages to it.
 //! - [`BlockRunResult`] - a structure that represents the result of running a block. It
 //!   contains the status of the block execution, the list of events, and other
 //!   relevant information.
 //! - [`UserMessageEvent`] — a structure that represents a message addressed to user, but
-//!   not reached the mailbox, so it's stored as an event.
+//!   not reached the mailbox, so it's stored as an event. Most of times, there's no need
+//!   to use it directly, but [`EventBuilder`] is used instead.
 //!
 //! Let's take a closer look at how to write tests using `gtest`.
 //!
@@ -69,7 +70,7 @@
 //! gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.1" }
 //! ```
 //!
-//! Make sure you use the latest version of the `gtest`.
+//! Make sure you use the latest version of the `gtest` and other crates for program development.
 //!
 //! ### Program example
 //!
@@ -355,7 +356,7 @@
 //!     // Handles init messages.
 //!     //
 //!     // Sets as initial counter state a value encoded in init message payload.
-//!     // In case received bytes are not `u32` bytes, return error, which will be
+//!     // In case received bytes are not `u32` bytes, returns error, which will be
 //!     // processed as a message execution trap, i.e. will result in error reply.
 //!     //
 //!     // In case of success returns `None`, which means no custom reply will be sent,
@@ -458,8 +459,8 @@
 //!
 //! ## [`BlockRunResult`]
 //! After calling message sending methods, messages are stored in the `System` message queue.
-//! To actually process the messages, one of the block execution methods must be called. The `gtest`
-//! provides the following methods for that:
+//! To actually process the messages, one of the block execution methods must be called. They were
+//! mentioned earlier:
 //! - [`System::run_next_block`] - runs one block, processing as many messages as possible.
 //! - [`System::run_next_block_with_allowance`] - runs one block, processing as many messages as possible,
 //!   while gas allowance for the block is limited by the provided value. The first method uses a default
@@ -491,7 +492,7 @@
 //!
 //! All of methods mentioned above return a result of type `BlockRunResult`, which
 //! encapsulates the outcome of the block execution, including any events that were emitted
-//! during the process, set of messages that were successfully executed, those that failed,
+//! during the block run, set of messages that were successfully executed, those that failed,
 //! also those that were skipped. The type also gives information about the block itself, like
 //! its height and timestamp, gas allowance spent, total messages processed.
 //!
@@ -537,8 +538,8 @@
 //! ```
 //!
 //! ## [`UserMailbox`]
-//! The definition of the `UserMailbox` was given earlier - it's a managing interface for user's mailbox.
-//! The interface can be used to:
+//! The definition of the `UserMailbox` was given earlier - it's a managing interface for a particular
+//! user mailbox. The interface can be used to:
 //! - check if some message is in the mailbox ([`UserMailbox::contains`] method);
 //! - reply to messages in the mailbox ([`UserMailbox::reply`] or [`UserMailbox::reply_bytes`] method);
 //! - claim value inside the message without replying on it ([`UserMailbox::claim_value`] method);
@@ -571,7 +572,7 @@
 //! The built-in programs are:
 //! - [BLS12-381](https://wiki.vara.network/docs/build/builtinactors/bia-bls)
 //! - [Ethereum Bridge](https://wiki.vara.network/docs/build/builtinactors/bia-bridge)
-//! 
+//!
 //! For the BLS12-381 actor the provided items are:
 //! - [`BLS12_381_ID`] - id, that can be used to send messages to the BLS12-381 built-in actor.
 //! - [`Bls12_381Request`] - enum of requests that can be sent to the BLS12-381 built-in actor.
@@ -581,7 +582,7 @@
 //! - [`ETH_BRIDGE_ID`] - id.
 //! - [`EthBridgeRequest`] - enum of requests.
 //! - [`EthBridgeResponse`] - enum of responses.
-//! 
+//!
 //! These request and response types can be used with `Program` methods for sending messages
 //! or receiving replies/mailbox messages/events. Although these types are useful for direct
 //! interaction with built-in actors or decoding replies from them by users, most of times,

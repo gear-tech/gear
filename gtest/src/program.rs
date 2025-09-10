@@ -47,23 +47,38 @@ use std::{
 
 /// Trait for mocking gear programs.
 ///
-/// See [`Program`] and [`Program::mock`] for the usages.
+/// For in-depth info see the [`crate`] docs.
 pub trait WasmProgram: Debug {
-    /// Initialize wasm program with given `payload`.
+    /// *init* message handler.
     ///
-    /// Returns `Ok(Some(payload))` if program has reply logic
-    /// with given `payload`.
+    /// The method is called when the program receives init message.
+    /// The payload provided with the init message is passed as the argument
+    /// of the method.
+    ///
+    /// To return a reply with a payload, one should implement the return of
+    /// `Ok(Some(reply_payload))` from the method.
+    /// No reply (`Ok(None)`) will result in auto-reply with an empty payload.
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    /// Message handler with given `payload`.
+
+    /// *handle* message handler.
     ///
-    /// Returns `Ok(Some(payload))` if program has reply logic.
+    /// The method is called when the program receives handle message.
+    /// The payload provided with the handle message is passed as the argument
+    /// of the method.
+    ///
+    /// To return a reply with a payload, one should implement the return of
+    /// `Ok(Some(reply_payload))` from the method.
+    /// No reply (`Ok(None)`) will result in auto-reply with an empty payload.
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+
     /// Clone the program and return it's boxed version.
     fn clone_boxed(&self) -> Box<dyn WasmProgram>;
-    /// State of wasm program.
+
+    /// Program state reading method.
     ///
-    /// See [`Program::read_state`] for the usage.
+    /// See [`Program::read_state`] for more info.
     fn state(&mut self) -> Result<Vec<u8>, &'static str>;
+
     /// Emit debug message in program with given `data`.
     ///
     /// Logging target `gwasm` is used in this method.
@@ -72,7 +87,7 @@ pub trait WasmProgram: Debug {
     }
 }
 
-/// Wrapper for program id.
+/// Wrapper for `ActorId`.
 #[derive(Clone, Debug)]
 pub struct ProgramIdWrapper(pub(crate) ActorId);
 
@@ -140,6 +155,11 @@ pub struct ProgramBuilder {
 }
 
 impl ProgramBuilder {
+    /// Create a program instance from wasm file, accessed by provided path.
+    pub fn from_file(path: impl AsRef<Path>) -> Self {
+        Self::from_binary(fs::read(path).expect("Failed to read WASM file"))
+    }
+
     /// Create program from WASM binary.
     pub fn from_binary(code: impl Into<Vec<u8>>) -> Self {
         Self {
@@ -147,65 +167,6 @@ impl ProgramBuilder {
             meta: None,
             id: None,
         }
-    }
-
-    /// Create a program instance from wasm file.
-    pub fn from_file(path: impl AsRef<Path>) -> Self {
-        Self::from_binary(fs::read(path).expect("Failed to read WASM file"))
-    }
-
-    fn wasm_path(optimized: bool) -> PathBuf {
-        Self::wasm_path_from_binpath(optimized)
-            .unwrap_or_else(|| gbuild::wasm_path().expect("Unable to find built wasm"))
-    }
-
-    fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
-        let cwd = env::current_dir().expect("Unable to get current dir");
-        let extension = if optimized { "opt.wasm" } else { "wasm" };
-        let path_file = cwd.join(".binpath");
-        let path_bytes = fs::read(path_file).ok()?;
-        let mut relative_path: PathBuf =
-            String::from_utf8(path_bytes).expect("Invalid path").into();
-        relative_path.set_extension(extension);
-        Some(cwd.join(relative_path))
-    }
-
-    fn inner_current(optimized: bool) -> Self {
-        let path = env::current_dir()
-            .expect("Unable to get root directory of the project")
-            .join(Self::wasm_path(optimized))
-            // TODO: consider to use `.canonicalize()` instead
-            .clean();
-
-        let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
-        assert!(
-            filename.ends_with(".wasm"),
-            "File must have `.wasm` extension"
-        );
-
-        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {path:?}"));
-
-        Self {
-            code,
-            meta: None,
-            id: None,
-        }
-    }
-
-    /// Get program of the root crate with provided `system`.
-    ///
-    /// It looks up the wasm binary of the root crate that contains
-    /// the current test, uploads it to the testing system, then
-    /// returns the program instance.
-    pub fn current() -> Self {
-        Self::inner_current(false)
-    }
-
-    /// Get optimized program of the root crate with provided `system`,
-    ///
-    /// See also [`ProgramBuilder::current`].
-    pub fn current_opt() -> Self {
-        Self::inner_current(true)
     }
 
     /// Set ID for future program.
@@ -264,6 +225,59 @@ impl ProgramBuilder {
         )
     }
 
+    /// Get program of the root crate.
+    ///
+    /// It looks up the wasm binary of the root crate that contains
+    /// the call to the current function and uses it to create a program instance.
+    pub fn current() -> Self {
+        Self::inner_current(false)
+    }
+
+    /// Get optimized program of the root crate.
+    ///
+    /// See also [`ProgramBuilder::current`].
+    pub fn current_opt() -> Self {
+        Self::inner_current(true)
+    }
+
+    fn inner_current(optimized: bool) -> Self {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(Self::wasm_path(optimized))
+            // TODO: consider to use `.canonicalize()` instead
+            .clean();
+
+        let filename = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+        assert!(
+            filename.ends_with(".wasm"),
+            "File must have `.wasm` extension"
+        );
+
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {path:?}"));
+
+        Self {
+            code,
+            meta: None,
+            id: None,
+        }
+    }
+
+    fn wasm_path(optimized: bool) -> PathBuf {
+        Self::wasm_path_from_binpath(optimized)
+            .unwrap_or_else(|| gbuild::wasm_path().expect("Unable to find built wasm"))
+    }
+
+    fn wasm_path_from_binpath(optimized: bool) -> Option<PathBuf> {
+        let cwd = env::current_dir().expect("Unable to get current dir");
+        let extension = if optimized { "opt.wasm" } else { "wasm" };
+        let path_file = cwd.join(".binpath");
+        let path_bytes = fs::read(path_file).ok()?;
+        let mut relative_path: PathBuf =
+            String::from_utf8(path_bytes).expect("Invalid path").into();
+        relative_path.set_extension(extension);
+        Some(cwd.join(relative_path))
+    }
+
     pub(crate) fn build_instrumented_code_and_id(
         original_code: Vec<u8>,
     ) -> (CodeId, InstrumentedCodeAndMetadata) {
@@ -284,19 +298,6 @@ impl ProgramBuilder {
 }
 
 /// Gear program instance.
-///
-/// ```ignore
-/// use gtest::{System, Program};
-///
-/// // Create a testing system.
-/// let system = System::new();
-///
-/// // Get the current program of the testing system.
-/// let program = Program::current(&system);
-///
-/// // Initialize the program from user 42 with message "init program".
-/// let _result = program.send(42, "init program");
-/// ```
 pub struct Program<'a> {
     pub(crate) manager: &'a RefCell<ExtManager>,
     pub(crate) id: ActorId,
@@ -304,34 +305,7 @@ pub struct Program<'a> {
 
 /// Program creation related impl.
 impl<'a> Program<'a> {
-    fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
-        system: &'a System,
-        id: I,
-        program: GTestProgram,
-    ) -> Self {
-        let program_id = id.clone().into().0;
-
-        if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
-            usage_panic!(
-                "Can't create program with id {id:?}, because it's reserved for default users.\
-                Please, use another id."
-            )
-        }
-
-        if system.0.borrow_mut().store_program(program_id, program) {
-            usage_panic!(
-                "Can't create program with id {id:?}, because Program with this id already exists. \
-                Please, use another id."
-            )
-        }
-
-        Self {
-            manager: &system.0,
-            id: program_id,
-        }
-    }
-
-    /// Get the program of the root crate with provided `system`.
+    /// Get the program of the root crate with the provided `system`.
     ///
     /// See [`ProgramBuilder::current`]
     pub fn current(system: &'a System) -> Self {
@@ -339,7 +313,7 @@ impl<'a> Program<'a> {
     }
 
     /// Get the program of the root crate with provided `system` and
-    /// initialize it with given `id`.
+    /// initialize it with the given `id`.
     ///
     /// See also [`Program::current`].
     pub fn current_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
@@ -349,21 +323,21 @@ impl<'a> Program<'a> {
         ProgramBuilder::current().with_id(id).build(system)
     }
 
-    /// Get optimized program of the root crate with provided `system`,
+    /// Get optimized program of the root crate with the provided `system`,
     ///
     /// See also [`Program::current`].
     pub fn current_opt(system: &'a System) -> Self {
         ProgramBuilder::current_opt().build(system)
     }
 
-    /// Create a program instance from wasm file.
+    /// Create a program instance from wasm file, accessed by `path`.
     ///
-    /// See also [`Program::current`].
+    /// See also [`ProgramBuilder::from_file`].
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
         ProgramBuilder::from_file(path).build(system)
     }
 
-    /// Create a program instance from wasm file with given ID.
+    /// Create a program instance from wasm file with given id.
     ///
     /// See also [`Program::from_file`].
     pub fn from_binary_with_id<ID, B>(system: &'a System, id: ID, binary: B) -> Self
@@ -376,7 +350,7 @@ impl<'a> Program<'a> {
             .build(system)
     }
 
-    /// Mock a program with provided `system` and `mock`.
+    /// Create a mock program with provided `system` and `WasmProgram` trait implementor.
     ///
     /// See [`WasmProgram`] for more details.
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
@@ -385,7 +359,7 @@ impl<'a> Program<'a> {
         Self::mock_with_id(system, nonce, mock)
     }
 
-    /// Create a mock program with provided `system` and `mock`,
+    /// Create a mock program with provided `system` and `WasmProgram` trait implementor,
     /// and initialize it with provided `id`.
     ///
     /// See also [`Program::mock`].
@@ -416,6 +390,36 @@ impl<'a> Program<'a> {
         )
     }
 
+    fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+        program: GTestProgram,
+    ) -> Self {
+        let program_id = id.clone().into().0;
+
+        if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
+            usage_panic!(
+                "Can't create program with id {id:?}, because it's reserved for default users.\
+                Please, use another id."
+            )
+        }
+
+        if system.0.borrow_mut().store_program(program_id, program) {
+            usage_panic!(
+                "Can't create program with id {id:?}, because Program with this id already exists. \
+                Please, use another id."
+            )
+        }
+
+        Self {
+            manager: &system.0,
+            id: program_id,
+        }
+    }
+}
+
+/// Message sending related impl.
+impl Program<'_> {
     /// Send message to the program.
     pub fn send<ID, C>(&self, from: ID, payload: C) -> MessageId
     where
@@ -549,17 +553,24 @@ impl Program<'_> {
     }
 
     /// Reads the program’s state as a byte vector.
+    ///
+    /// Program can define *state* extern function, which is an entry point
+    /// for read state message requests. All messages to *state* are static calls,
+    /// i.e. they do not affect the program state and do not consume gas from caller.
+    /// The main purpose of the *state* function is to provide read-only access
+    /// to the program's internal state.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
         self.manager.borrow_mut().read_state_bytes(payload, self.id)
     }
 
-    /// Reads and decodes the program's state .
+    /// Reads and decodes the program's state.
+    /// See [`Program::read_state_bytes`].
     pub fn read_state<D: Decode, P: Encode>(&self, payload: P) -> Result<D> {
         let state_bytes = self.read_state_bytes(payload.encode())?;
         D::decode(&mut state_bytes.as_ref()).map_err(Into::into)
     }
 
-    /// Returns the balance of the account.
+    /// Returns the balance of the program.
     pub fn balance(&self) -> Value {
         self.manager.borrow().balance_of(self.id())
     }

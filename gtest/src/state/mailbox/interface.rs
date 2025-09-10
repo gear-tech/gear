@@ -52,7 +52,8 @@ impl<'a> UserMailbox<'a> {
         self.find_message_by_event(&event.clone().into()).is_some()
     }
 
-    /// Sends user reply message.
+    /// Sends user reply message to the program that sent a message
+    /// with traits defined in `event` to the mailbox.
     ///
     /// Same as [`Self::reply_bytes`], but payload is encoded
     /// in a *parity-scale-codec* format.
@@ -65,8 +66,8 @@ impl<'a> UserMailbox<'a> {
         self.reply_bytes(event, payload.encode(), value)
     }
 
-    /// Sends user reply message to a mailboxed message
-    /// finding it in the mailbox by traits of `event`.
+    /// Sends user reply message to the program that sent a message
+    /// with traits defined in `event` to the mailbox.
     pub fn reply_bytes(
         &self,
         event: impl Into<UserMessageEvent>,
@@ -126,6 +127,9 @@ impl<'a> UserMailbox<'a> {
     }
 
     /// Claims value from a message in mailbox.
+    ///
+    /// Method differs from [`Self::reply`] and [`Self::reply_bytes`] in the way,
+    /// that it doesn't send a reply message, but just claims value from a mailbox message.
     ///
     /// If message with traits defined in `event` is not found, an error is
     /// returned.

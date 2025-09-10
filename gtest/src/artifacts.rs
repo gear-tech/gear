@@ -32,7 +32,23 @@ use std::{
 };
 
 /// A user message that was stored as an event during execution.
-/// todo [sab] add comprehensive docs
+///
+/// Some messages sent from programs can be stored in the mailbox storage
+/// in case they meet certain criteria (gas sufficiency, not a reply message).
+/// If the criteria isn't met, the message is stored as an event instead of the
+/// current type.
+///
+/// ### Event comparisons
+/// The event type on the `gtest` users side can only be created with [`EventBuilder`].
+/// Most of times the event creation is necessary to check block execution artifacts.
+/// i.e. a certain event was emitted, or a certain message was stored in the mailbox.
+///
+/// Both [`UserMailbox`](crate::UserMailbox) and [`BlockRunResult`] types define `contains` methods,
+/// which check if the event is in the set. The check is done by comparing events in the set
+/// with the target built event, so `UserMessageEvent` implement `PartialEq` trait. The implementation
+/// stands on two rules:
+/// - if a field is not set (has a default value), then it's not compared.
+/// - if any of set fields isn't equal, then the events are not equal.
 #[derive(Clone, Debug, Eq)]
 pub struct UserMessageEvent {
     id: MessageId,
@@ -44,27 +60,27 @@ pub struct UserMessageEvent {
 }
 
 impl UserMessageEvent {
-    /// Get the id of the message that emitted this log.
+    /// Get the id of the message that emitted this event.
     pub fn id(&self) -> MessageId {
         self.id
     }
 
-    /// Get the source of the message that emitted this log.
+    /// Get the source of the message that emitted this event.
     pub fn source(&self) -> ActorId {
         self.source
     }
 
-    /// Get the destination of the message that emitted this log.
+    /// Get the destination of the message that emitted this event.
     pub fn destination(&self) -> ActorId {
         self.destination
     }
 
-    /// Get the payload of the message that emitted this log.
+    /// Get the payload of the message that emitted this event.
     pub fn payload(&self) -> &[u8] {
         self.payload.inner()
     }
 
-    /// Get the reply code of the message that emitted this log.
+    /// Get the reply code of the message that emitted this event.
     pub fn reply_code(&self) -> Option<ReplyCode> {
         self.reply_code
     }
@@ -73,7 +89,9 @@ impl UserMessageEvent {
     pub fn reply_to(&self) -> Option<MessageId> {
         self.reply_to
     }
-    /// todo [sab]
+
+    /// Decode the payload of the user message event into the specified type,
+    /// implementing the `parity_scale_codec::Codec` trait.
     pub fn decode_payload<T: Codec>(&self) -> Option<T> {
         T::decode(&mut self.payload.inner()).ok()
     }
@@ -172,7 +190,7 @@ impl From<EventBuilder> for UserMessageEvent {
     }
 }
 
-/// todo [sab] add docs for the builder
+/// A builder for `UserMessageEvent`.
 #[derive(Clone, Debug, Default)]
 pub struct EventBuilder {
     pub(crate) message_id: Option<MessageId>,
@@ -184,30 +202,40 @@ pub struct EventBuilder {
 }
 
 impl EventBuilder {
-    /// todo [sab]
+    /// Create a new builder.
     pub fn new() -> Self {
         Default::default()
     }
-    /// todo [sab]
+
+    /// Set the message id.
     pub fn with_message_id(mut self, message_id: MessageId) -> Self {
         self.message_id = Some(message_id);
         self
     }
-    /// todo [sab]
+
+    /// Set the source actor id.
     pub fn with_source(mut self, source: impl Into<ProgramIdWrapper>) -> Self {
         self.source = Some(source.into().0);
         self
     }
-    /// todo [sab]
+
+    /// Set the destination actor id.
     pub fn with_destination(mut self, destination: impl Into<ProgramIdWrapper>) -> Self {
         self.destination = Some(destination.into().0);
         self
     }
-    /// todo [sab]
+
+    /// Set the payload.
+    ///
+    /// The payload is set to `Encode::encode` resulting bytes of the provided value.
     pub fn with_payload(self, payload: impl Encode) -> Self {
         self.with_payload_bytes(payload.encode())
     }
-    /// todo [sab]
+
+    /// Set the payload bytes.
+    ///
+    /// If a success auto reply is set as a reply code, the method will panic,
+    /// because auto replies cannot have a payload.
     pub fn with_payload_bytes(mut self, payload: impl AsRef<[u8]>) -> Self {
         if let Some(ReplyCode::Success(SuccessReplyReason::Auto)) = self.reply_code {
             usage_panic!("Cannot set payload for auto reply");
@@ -220,7 +248,12 @@ impl EventBuilder {
         self.payload = Some(payload);
         self
     }
-    /// todo [sab]
+
+    /// Set the reply code.
+    ///
+    /// If a payload is already set, the method will panic in case
+    /// the provided reply code is a success auto reply, because
+    /// auto replies cannot have a payload.
     pub fn with_reply_code(mut self, reply_code: ReplyCode) -> Self {
         if self.payload.is_some() && reply_code == ReplyCode::Success(SuccessReplyReason::Auto) {
             usage_panic!("Cannot set auto reply for event with payload");
@@ -229,12 +262,16 @@ impl EventBuilder {
         self.reply_code = Some(reply_code);
         self
     }
-    /// todo [sab]
+
+    /// Set to which message id is the reply message event.
+    ///
+    /// If the message event is not a reply, no need to set this field.
     pub fn with_reply_to(mut self, reply_to: MessageId) -> Self {
         self.reply_to = Some(reply_to);
         self
     }
-    /// todo [sab]
+
+    /// Build the event.
     pub fn build(self) -> UserMessageEvent {
         UserMessageEvent {
             id: self.message_id.unwrap_or_default(),
@@ -247,43 +284,7 @@ impl EventBuilder {
     }
 }
 
-/// A log that can be emitted by a program.
-///
-/// ```ignore
-/// use gtest::{Log, Program, System};
-///
-/// let system = System::new();
-/// let program = Program::current(&system);
-/// let from = 42;
-/// let res = program.send(from, ());
-///
-/// // Check that the log is emitted.
-/// let log = Log::builder().source(program.id()).dest(from);
-/// assert!(res.contains(&log));
-/// ```
-///
-/// The Log instance is also possible being parsed from tuples.
-///
-/// ```
-/// use gtest::Log;
-///
-/// let log: Log = (1, "payload").into();
-/// assert_eq!(Log::builder().dest(1).payload_bytes("payload"), log);
-///
-/// assert_eq!(
-///     Log::builder().source(1).dest(2).payload_bytes("payload"),
-///     Log::from((1, 2, "payload")),
-/// );
-///
-/// let v = vec![1; 32];
-/// assert_eq!(
-///     Log::builder().source(1).dest(&v).payload_bytes("payload"),
-///     Log::from((1, v, "payload"))
-/// );
-/// ```
-///
-
-/// Result of running the block.
+/// Result of block execution.
 #[derive(Debug, Default)]
 pub struct BlockRunResult {
     /// Executed block info.
@@ -310,20 +311,23 @@ pub struct BlockRunResult {
 }
 
 impl BlockRunResult {
-    /// Check, if the result contains a specific log.
+    /// Check, if the block run result contains a specific event.
     pub fn contains<T: Into<UserMessageEvent> + Clone>(&self, event: &T) -> bool {
         let events = event.clone().into();
 
         self.events.iter().any(|e| e == &events)
     }
 
-    /// Get the events.
+    /// Get all the generated events in this block.
     pub fn events(&self) -> &[UserMessageEvent] {
         &self.events
     }
 
     /// Asserts that the message panicked and that the panic contained a
     /// given message.
+    ///
+    /// Error replies are stored as events, because the do not match mailbox
+    /// storing criteria.
     pub fn assert_panicked_with(&self, message_id: MessageId, msg: impl Into<String>) {
         let panic_event = self.message_panic_event(message_id);
         assert!(panic_event.is_some(), "Program did not panic");
@@ -342,7 +346,7 @@ impl BlockRunResult {
         );
     }
 
-    /// Calculate the total spent value for the gas consumption.
+    /// Calculate the total spent value for the messages gas consumption in this block.
     pub fn spent_value(&self) -> Value {
         let spent_gas = self
             .gas_burned

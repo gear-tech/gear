@@ -86,19 +86,10 @@ impl LazyPagesStorage for PagesStorage {
     }
 }
 
-/// The testing environment which simulates the chain state and its
-/// transactions but somehow the real on-chain execution environment
-/// could be different.
+/// Gear blockchain environment simulator.
 ///
-/// ```
-/// use gtest::System;
-///
-/// // Create a new testing environment.
-/// let system = System::new();
-///
-/// // Init logger with "gwasm" target set to `debug` level.
-/// system.init_logger();
-/// ```
+/// The type manages the state of the blockchain, also provides
+/// various utilities for interacting with it.
 pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl System {
@@ -108,8 +99,8 @@ impl System {
     /// Create a new testing environment.
     ///
     /// # Panics
-    /// Only one instance in the current thread of the `System` is possible to
-    /// create. Instantiation of the other one leads to runtime panic.
+    /// Only one instance of the `System` in the current thread is possible to
+    /// create. Instantiation of the other one leads to a runtime panic.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
@@ -132,16 +123,22 @@ impl System {
     }
 
     /// Init logger with "gwasm" target set to `debug` level.
+    ///
+    /// If `RUST_LOG` environment variable is set, it will be used as the filter.
     pub fn init_logger(&self) {
         self.init_logger_with_default_filter("gwasm=debug");
     }
 
     /// Init logger with "gwasm" and "gtest" targets set to `debug` level.
+    ///
+    /// If `RUST_LOG` environment variable is set, it will be used as the filter.
     pub fn init_verbose_logger(&self) {
         self.init_logger_with_default_filter("gwasm=debug,gtest=debug");
     }
 
     /// Init logger with `default_filter` as default filter.
+    ///
+    /// If `RUST_LOG` environment variable is set, it will be used as the filter.
     pub fn init_logger_with_default_filter<'a>(&self, default_filter: impl Into<Cow<'a, str>>) {
         let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
             EnvFilter::from_default_env()
@@ -155,7 +152,7 @@ impl System {
             .try_init();
     }
 
-    /// Returns amount of dispatches in the queue.
+    /// Returns amount of messages in the queue.
     pub fn queue_len(&self) -> usize {
         self.0.borrow().dispatches.len()
     }
@@ -190,7 +187,7 @@ impl System {
     }
 
     /// Runs blocks same as [`Self::run_next_block`], but with limited
-    /// allowance.
+    /// block gas allowance.
     pub fn run_next_block_with_allowance(&self, allowance: Gas) -> BlockRunResult {
         if allowance > GAS_ALLOWANCE {
             usage_panic!(
@@ -277,7 +274,7 @@ impl System {
         self.programs().into_iter().next_back()
     }
 
-    /// Returns a list of programs.
+    /// Returns a list of all known programs, stored and managed by the `System` instance.
     pub fn programs(&self) -> Vec<Program<'_>> {
         ProgramsStorageManager::program_ids()
             .into_iter()
@@ -288,19 +285,19 @@ impl System {
             .collect()
     }
 
-    /// Detect if a program is active with given `id`.
+    /// Detects if a program is active.
     ///
-    /// An active program means that the program could be called,
-    /// instead, if returns `false` it means that the program has
+    /// An active program means that the program receive messages.
+    /// If `false` is returned, it means that the program has
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
         ProgramsStorageManager::is_active_program(program_id)
     }
 
-    /// Returns `Some(ActorId)` if a program is exited with inheritor.
+    /// Returns id of the inheritor actor if program exited.
     ///
-    /// Returns [`None`] otherwise.
+    /// Otherwise, returns `None`.
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
         ProgramsStorageManager::access_primary_program(program_id, |program| {
@@ -316,7 +313,7 @@ impl System {
 
     /// Saves code to the storage and returns its code hash
     ///
-    /// Same as ['submit_code_file'], but the path is provided as relative to
+    /// Same as [`System::submit_code_file`], but the path is provided as relative to
     /// the current directory.
     pub fn submit_local_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
@@ -327,7 +324,7 @@ impl System {
         self.submit_code_file(path)
     }
 
-    /// Saves code from file to the storage and returns its code hash
+    /// Saves code from file to the storage and returns its code hash.
     ///
     /// See also [`System::submit_code`]
     pub fn submit_code_file<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
@@ -347,10 +344,10 @@ impl System {
     /// creation logic. In order to successfully create a new program with
     /// `gstd::prog::create_program_bytes_with_gas` function, developer should
     /// provide to the function "child's" code hash. Code for that code hash
-    /// must be in storage at the time of the function call. So this method
+    /// must be in storage at the time of the `gstd` function call. So this method
     /// stores the code in storage.
     ///
-    /// Also method saves instrumented version of the code.
+    /// Note: method saves instrumented version of the code.
     pub fn submit_code(&self, binary: impl Into<Vec<u8>>) -> CodeId {
         let code = binary.into();
         let code_id = CodeId::generate(code.as_ref());
@@ -361,7 +358,7 @@ impl System {
         code_id
     }
 
-    /// Returns previously submitted original code by its code hash.
+    /// Returns previously submitted original code finding it by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
         self.0
             .borrow()
@@ -381,7 +378,10 @@ impl System {
         UserMailbox::new(program_id, &self.0)
     }
 
-    /// Mint balance to user with given `id` and `value`.
+    /// Mint to user with given `id` a value in amount of `value`.
+    ///
+    /// # Panics
+    /// Panics if `id` is a program id.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
         let id = id.into().0;
 
@@ -396,6 +396,9 @@ impl System {
 
     /// Transfer balance from user with given `from` id to user with given `to`
     /// id.
+    ///
+    /// # Panics
+    /// Panics if `from` is a program id.
     pub fn transfer(
         &self,
         from: impl Into<ProgramIdWrapper>,
