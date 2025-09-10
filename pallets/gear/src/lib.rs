@@ -95,6 +95,7 @@ use gear_core::{
     code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
     env::MessageWaitedType,
     ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
+    limited::LimitedVecError,
     message::*,
     percent::Percent,
     tasks::VaraScheduledTask,

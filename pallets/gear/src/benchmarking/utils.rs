@@ -34,6 +34,7 @@ use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     ids::{ActorId, CodeId, MessageId, prelude::*},
+    limited::LimitedVecError,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
 };
@@ -116,7 +117,9 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.message())?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -139,7 +142,9 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.message())?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -152,7 +157,9 @@ where
                 root_message_id,
                 source.cast(),
                 dest,
-                payload.try_into()?,
+                payload
+                    .try_into()
+                    .map_err(|err: LimitedVecError| err.message())?,
                 Some(u64::MAX),
                 config.value,
                 None,
@@ -167,7 +174,9 @@ where
                     root_message_id,
                     source.cast(),
                     msg.source(),
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.message())?,
                     Some(u64::MAX),
                     config.value,
                     Some(ReplyDetails::new(msg.id(), exit_code).into()),
@@ -183,7 +192,9 @@ where
                     root_message_id,
                     source.cast(),
                     msg.source(),
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.message())?,
                     Some(u64::MAX),
                     config.value,
                     Some(SignalDetails::new(msg.id(), status_code).into()),

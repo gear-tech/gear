@@ -19,8 +19,8 @@
 //! Module for memory and allocations context.
 
 use crate::{
-    buffer::LimitedVec,
     gas::ChargeError,
+    limited::LimitedVec,
     pages::{GearPage, WasmPage, WasmPagesAmount},
 };
 use alloc::format;
@@ -129,7 +129,7 @@ impl Encode for PageBuf {
 impl Decode for PageBuf {
     #[inline]
     fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
-        let mut buffer = PageBufInner::new_default();
+        let mut buffer = PageBufInner::repeat_default();
         input.read(&mut buffer)?;
         Ok(Self(buffer))
     }
@@ -164,7 +164,7 @@ impl DerefMut for PageBuf {
 impl PageBuf {
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
-        Self(PageBufInner::new_default())
+        Self(PageBufInner::repeat_default())
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has
@@ -548,7 +548,7 @@ mod tests {
     fn page_buf() {
         let _ = tracing_subscriber::fmt::try_init();
 
-        let mut data = PageBufInner::filled_with(199u8);
+        let mut data = PageBufInner::repeat(199u8);
         data[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {page_buf:?}");

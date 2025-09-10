@@ -37,11 +37,12 @@ use alloc::{format, string::String};
 use blake2::{Blake2b, Digest, digest::typenum::U32};
 use core::marker::PhantomData;
 use gear_core::{
-    buffer::{LimitedVecError, Payload, RuntimeBuffer},
+    buffer::{Payload, RuntimeBuffer},
     costs::CostToken,
     env::MessageWaitedType,
     gas::CounterType,
     ids::{ActorId, MessageId, ReservationId},
+    limited::LimitedVecError,
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };

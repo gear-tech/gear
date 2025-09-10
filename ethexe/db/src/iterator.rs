@@ -1144,7 +1144,7 @@ mod tests {
     #[test]
     fn walk_payload_lookup_stored() {
         let db = Database::memory();
-        let payload = Payload::filled_with(0xfe);
+        let payload = Payload::repeat(0xfe);
         let payload_hash = db.write_payload(payload.clone());
 
         let visited_payloads: Vec<_> = DatabaseIterator::new(

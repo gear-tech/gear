@@ -100,7 +100,7 @@ impl From<generated_message::user::UserMessage> for message::UserMessage {
             other.source.into(),
             other.destination.into(),
             // converting data from the same type
-            other.payload.inner.try_into().expect("Infallible"),
+            other.payload.0.try_into().expect("Infallible"),
             other.value,
             other.details.map(Into::into),
         )
@@ -114,7 +114,7 @@ impl From<generated_message::user::UserStoredMessage> for message::UserStoredMes
             other.source.into(),
             other.destination.into(),
             // converting data from the same type
-            other.payload.inner.try_into().expect("Infallible"),
+            other.payload.0.try_into().expect("Infallible"),
             other.value,
         )
     }

@@ -318,7 +318,7 @@ impl PartialEq<UserStoredMessage> for Log {
             return false;
         }
 
-        if matches!(&self.payload, Some(payload) if payload.as_ref() != other.payload_bytes()) {
+        if matches!(&self.payload, Some(payload) if payload.as_slice() != other.payload_bytes()) {
             return false;
         }
 
@@ -375,7 +375,7 @@ impl PartialEq<CoreLog> for Log {
         }
 
         if let Some(payload) = &self.payload
-            && payload.as_ref() != other.payload.as_ref()
+            && payload.as_slice() != other.payload.as_slice()
         {
             return false;
         }

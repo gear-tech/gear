@@ -30,7 +30,8 @@ use crate::{
 use alloc::{format, vec::Vec};
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
 use gear_core::{
-    buffer::{LimitedVecError, RuntimeBuffer},
+    buffer::RuntimeBuffer,
+    limited::LimitedVecError,
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
     pages::WasmPagesAmount,
 };
@@ -285,7 +286,7 @@ where
         let buff = if read.size == 0 {
             Vec::new()
         } else {
-            let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+            let mut buff = RuntimeBuffer::try_repeat_default(read.size as usize)?.into_vec();
             self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
@@ -328,7 +329,7 @@ where
         let buff = if size == 0 {
             Vec::new()
         } else {
-            let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
+            let mut buff = RuntimeBuffer::try_repeat_default(size)?.into_vec();
             self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };

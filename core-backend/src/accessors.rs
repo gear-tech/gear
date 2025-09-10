@@ -28,7 +28,7 @@ use crate::{
     state::HostState,
 };
 use alloc::vec::Vec;
-use gear_core::buffer::{LimitedVecError, Payload};
+use gear_core::{buffer::Payload, limited::LimitedVecError};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 use parity_scale_codec::{Decode, MaxEncodedLen};

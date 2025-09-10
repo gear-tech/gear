@@ -31,9 +31,10 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
-    buffer::{LimitedVecError, Payload},
+    buffer::Payload,
     env::Externalities,
     ids::{ActorId, MessageId, prelude::*},
+    limited::LimitedVecError,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };

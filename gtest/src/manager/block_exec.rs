@@ -24,9 +24,9 @@ use crate::state::{
 use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    limited::LimitedStr,
     message::{DispatchKind, ReplyPacket, StoredDispatch},
     program::ProgramState,
-    str::LimitedStr,
 };
 
 impl ExtManager {

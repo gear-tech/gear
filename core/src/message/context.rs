@@ -724,7 +724,7 @@ mod tests {
         // push 1 byte
         assert_ok!(message_context.send_push(handle, &[1]));
 
-        let payload = Payload::filled_with(2);
+        let payload = Payload::repeat(2);
         assert_err!(
             message_context.send_commit(
                 handle,
@@ -735,7 +735,7 @@ mod tests {
             Error::MaxMessageSizeExceed,
         );
 
-        let payload = Payload::try_from(vec![1; Payload::max_len() - 1]).unwrap();
+        let payload = Payload::try_from(vec![1; Payload::MAX_LEN - 1]).unwrap();
         assert_ok!(message_context.send_commit(
             handle,
             HandlePacket::new(Default::default(), payload, 0),
@@ -746,7 +746,7 @@ mod tests {
         let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             Payload::try_from(messages[0].0.payload_bytes().to_vec()).unwrap(),
-            Payload::filled_with(1)
+            Payload::repeat(1)
         );
     }
 
@@ -891,19 +891,19 @@ mod tests {
 
         assert_ok!(message_context.reply_push(&[1]));
 
-        let payload = Payload::filled_with(2);
+        let payload = Payload::repeat(2);
         assert_err!(
             message_context.reply_commit(ReplyPacket::new(payload, 0), None),
             Error::MaxMessageSizeExceed,
         );
 
-        let payload = Payload::try_from(vec![1; Payload::max_len() - 1]).unwrap();
+        let payload = Payload::try_from(vec![1; Payload::MAX_LEN - 1]).unwrap();
         assert_ok!(message_context.reply_commit(ReplyPacket::new(payload, 0), None));
 
         let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             Payload::try_from(messages[0].0.payload_bytes().to_vec()).unwrap(),
-            Payload::filled_with(1)
+            Payload::repeat(1)
         );
     }
 
