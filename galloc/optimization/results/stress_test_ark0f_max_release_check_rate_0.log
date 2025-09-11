@@ -1,0 +1,562 @@
+WARNING: No public address specified, validator node may not be reachable.
+				Consider setting `--public-addr` to the public IP address of this node.
+				This will become a hard requirement in future versions.
+WARNING: No public address specified, validator node may not be reachable.
+				Consider setting `--public-addr` to the public IP address of this node.
+				This will become a hard requirement in future versions.
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: Gear Node    
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: ✌️  version 1.9.0-03770ae4093    
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: ❤️  by Gear Technologies, 2021-2025    
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: 📋 Chain specification: Development    
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: 🏷  Node name: hallowed-paint-6963    
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: 👤 Role: AUTHORITY    
+2025-09-03 00:52:05.299  INFO main sc_cli::runner: 💾 Database: RocksDb at /var/folders/y5/73khbnnd489dw62p6frgj24h0000gp/T/substratekp4IZL/chains/vara_dev/db/full    
+2025-09-03 00:52:07.102  INFO main runtime::staking: [0] 💸 generated 0 npos voters, 0 from validators and 0 nominators    
+2025-09-03 00:52:07.102  INFO main runtime::staking: [0] 💸 generated 0 npos targets    
+2025-09-03 00:52:07.490  INFO main sc_service::client::client: 🔨 Initializing Genesis block/state (state: 0x830b…7e7e, header-hash: 0xf9ee…15d7)    
+2025-09-03 00:52:07.492  INFO main grandpa: 👴 Loading GRANDPA authority set from genesis on what appears to be first startup.    
+2025-09-03 00:52:07.493  INFO main babe: 👶 Creating empty BABE epoch changes on what appears to be first startup.    
+2025-09-03 00:52:07.493  WARN main sc_service::config: Using default protocol ID "sup" because none is configured in the chain specs    
+2025-09-03 00:52:07.493  INFO main sub-libp2p: 🏷  Local node identity is: 12D3KooWCUbnbAFhxkxdJoyBqTkh8H8y6LuzUsmPZJ3LcXzYTnNM    
+2025-09-03 00:52:07.493  INFO main sub-libp2p: Running libp2p network backend    
+2025-09-03 00:52:07.497  INFO main sc_sysinfo: 💻 Operating system: macos    
+2025-09-03 00:52:07.497  INFO main sc_sysinfo: 💻 CPU architecture: aarch64    
+2025-09-03 00:52:07.497  INFO main sc_service::builder: 📦 Highest known block at #0    
+2025-09-03 00:52:07.497  INFO tokio-runtime-worker prometheus: 〽️ Prometheus exporter started at 127.0.0.1:9615    
+2025-09-03 00:52:07.497  INFO                 main sc_rpc_server: Running JSON-RPC server: addr=127.0.0.1:9944,[::1]:9944    
+2025-09-03 00:52:07.497  INFO                 main sc_sysinfo: 🏁 CPU single core score: 1.34 GiBs, parallelism score: 1.44 GiBs with expected cores: 8    
+2025-09-03 00:52:07.497  INFO                 main sc_sysinfo: 🏁 Memory score: 71.30 GiBs    
+2025-09-03 00:52:07.497  INFO                 main sc_sysinfo: 🏁 Disk score (seq. writes): 2.22 GiBs    
+2025-09-03 00:52:07.497  INFO                 main sc_sysinfo: 🏁 Disk score (rand. writes): 615.36 MiBs    
+2025-09-03 00:52:07.497  INFO                 main babe: 👶 Starting BABE Authorship worker    
+2025-09-03 00:52:09.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xf9ee5ddd973bb56033e46f0270aae7947b24e567727446dafb2992f3e84715d7    
+2025-09-03 00:52:09.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 1 (3 ms) [hash: 0x8264cd3d0688177d6d2ec6bfa4fde8f73e2ba368537e99556832d124a57e92bd; parent_hash: 0xf9ee…15d7; extrinsics (2): [0xb785…5a41, 0xba77…e94f]    
+2025-09-03 00:52:09.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 1. Hash now 0x2849a94cbe0214eb2152aa31c53ccacab3e4fce7c1017acf4df32e29256ed722, previously 0x8264cd3d0688177d6d2ec6bfa4fde8f73e2ba368537e99556832d124a57e92bd.    
+2025-09-03 00:52:09.012  INFO tokio-runtime-worker babe: 👶 New epoch 0 launching at block 0x2849…d722 (block slot 585616643 >= start slot 585616643).    
+2025-09-03 00:52:09.012  INFO tokio-runtime-worker babe: 👶 Next epoch starts at slot 585619043    
+2025-09-03 00:52:09.012  INFO tokio-runtime-worker substrate: 🏆 Imported #1 (0xf9ee…15d7 → 0x2849…d722)    
+2025-09-03 00:52:12.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x2849a94cbe0214eb2152aa31c53ccacab3e4fce7c1017acf4df32e29256ed722    
+2025-09-03 00:52:12.007  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 2 (1 ms) [hash: 0xb9003e0266f8f09c467a71111c16850a1a59029e9494232c02501be89f8db810; parent_hash: 0x2849…d722; extrinsics (2): [0x9830…d8ff, 0xba77…e94f]    
+2025-09-03 00:52:12.007  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 2. Hash now 0x665514b922e12673b03964846bfbfafe7bfe2ae8010787c11676ae2ca8578050, previously 0xb9003e0266f8f09c467a71111c16850a1a59029e9494232c02501be89f8db810.    
+2025-09-03 00:52:12.007  INFO tokio-runtime-worker substrate: 🏆 Imported #2 (0x2849…d722 → 0x6655…8050)    
+2025-09-03 00:52:12.499  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #2 (0x6655…8050), finalized #0 (0xf9ee…15d7), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:15.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x665514b922e12673b03964846bfbfafe7bfe2ae8010787c11676ae2ca8578050    
+2025-09-03 00:52:15.007  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 3 (1 ms) [hash: 0x522192ed4742cb62fd22fff1dafcc4d7987d90777150330c8b3ac5b2680287bc; parent_hash: 0x6655…8050; extrinsics (2): [0xae22…6066, 0xba77…e94f]    
+2025-09-03 00:52:15.007  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 3. Hash now 0x2aac6705b4a900641a62ba0d4bf3169b90fa555a6549c948b00f7688d7b535ea, previously 0x522192ed4742cb62fd22fff1dafcc4d7987d90777150330c8b3ac5b2680287bc.    
+2025-09-03 00:52:15.009  INFO tokio-runtime-worker substrate: 🏆 Imported #3 (0x6655…8050 → 0x2aac…35ea)    
+2025-09-03 00:52:17.500  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #3 (0x2aac…35ea), finalized #0 (0xf9ee…15d7), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:18.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x2aac6705b4a900641a62ba0d4bf3169b90fa555a6549c948b00f7688d7b535ea    
+2025-09-03 00:52:18.007  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 4 (1 ms) [hash: 0x246752943005419c0424661a8cb7a738c69a2f25d6edd27d554b5c67e4b6a58e; parent_hash: 0x2aac…35ea; extrinsics (2): [0x3844…85d6, 0xba77…e94f]    
+2025-09-03 00:52:18.008  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 4. Hash now 0xada4c3ba6678bda9d7d730367fc8371fe4fde193696c0e932f349942d686b275, previously 0x246752943005419c0424661a8cb7a738c69a2f25d6edd27d554b5c67e4b6a58e.    
+2025-09-03 00:52:18.008  INFO tokio-runtime-worker substrate: 🏆 Imported #4 (0x2aac…35ea → 0xada4…b275)    
+2025-09-03 00:52:21.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xada4c3ba6678bda9d7d730367fc8371fe4fde193696c0e932f349942d686b275    
+2025-09-03 00:52:21.036 DEBUG tokio-runtime-worker gwasm: [handle(0xd59c..731a)] 0x3662..c07e: GAS SPENT: 195014225    
+2025-09-03 00:52:21.038  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 5 (33 ms) [hash: 0x1d1bf68be07ea9adbbedcfa0934f61abf4b12f36b83fc27906908f79cdff3a47; parent_hash: 0xada4…b275; extrinsics (3): [0x4cde…1fb7, 0x2e65…eab1, 0xba77…e94f]    
+2025-09-03 00:52:21.039  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 5. Hash now 0x3c76eb382f96efefc7e2668601fc66233e98f603930f3689e89c754ced80feb7, previously 0x1d1bf68be07ea9adbbedcfa0934f61abf4b12f36b83fc27906908f79cdff3a47.    
+2025-09-03 00:52:21.039  INFO tokio-runtime-worker substrate: 🏆 Imported #5 (0xada4…b275 → 0x3c76…feb7)    
+2025-09-03 00:52:22.502  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #5 (0x3c76…feb7), finalized #1 (0x2849…d722), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:24.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x3c76eb382f96efefc7e2668601fc66233e98f603930f3689e89c754ced80feb7    
+2025-09-03 00:52:24.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 6 (4 ms) [hash: 0xa6bfec27b42f2f33801bcbb9746513ab9129a5b464f74bafc6a117ab8ba2a72f; parent_hash: 0x3c76…feb7; extrinsics (2): [0x7d5a…a6ac, 0xba77…e94f]    
+2025-09-03 00:52:24.015  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 6. Hash now 0xc8b7265296c289704dda0259dbed5e5ded44e1c8d016c51fb58151a72e730aa4, previously 0xa6bfec27b42f2f33801bcbb9746513ab9129a5b464f74bafc6a117ab8ba2a72f.    
+2025-09-03 00:52:24.015  INFO tokio-runtime-worker substrate: 🏆 Imported #6 (0x3c76…feb7 → 0xc8b7…0aa4)    
+2025-09-03 00:52:27.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xc8b7265296c289704dda0259dbed5e5ded44e1c8d016c51fb58151a72e730aa4    
+2025-09-03 00:52:27.011  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 7 (4 ms) [hash: 0xa848524d91e099d026ec89c6f9c3f000be22d45551d0d6102b16ca3be49a64dd; parent_hash: 0xc8b7…0aa4; extrinsics (2): [0x159c…2201, 0xba77…e94f]    
+2025-09-03 00:52:27.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 7. Hash now 0xfa9e73e67c1f2b80ce86f3e35870b36e4aa5028b2fab17e71c91be708b4d10bc, previously 0xa848524d91e099d026ec89c6f9c3f000be22d45551d0d6102b16ca3be49a64dd.    
+2025-09-03 00:52:27.013  INFO tokio-runtime-worker substrate: 🏆 Imported #7 (0xc8b7…0aa4 → 0xfa9e…10bc)    
+2025-09-03 00:52:27.505  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #7 (0xfa9e…10bc), finalized #3 (0x2aac…35ea), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:30.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xfa9e73e67c1f2b80ce86f3e35870b36e4aa5028b2fab17e71c91be708b4d10bc    
+2025-09-03 00:52:30.015  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 8 (5 ms) [hash: 0x0dc3db1d886ec8d50f48840c4d85776ea90eea98dffed1d1078035c46eb394c8; parent_hash: 0xfa9e…10bc; extrinsics (2): [0xa027…c155, 0xba77…e94f]    
+2025-09-03 00:52:30.017  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 8. Hash now 0xb78bd762f61296afc8beb0a2fa14c5cf68ee94b09bcf01f90a97ff72a63e49af, previously 0x0dc3db1d886ec8d50f48840c4d85776ea90eea98dffed1d1078035c46eb394c8.    
+2025-09-03 00:52:30.018  INFO tokio-runtime-worker substrate: 🏆 Imported #8 (0xfa9e…10bc → 0xb78b…49af)    
+2025-09-03 00:52:32.510  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #8 (0xb78b…49af), finalized #5 (0x3c76…feb7), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:33.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xb78bd762f61296afc8beb0a2fa14c5cf68ee94b09bcf01f90a97ff72a63e49af    
+2025-09-03 00:52:33.014 DEBUG tokio-runtime-worker gwasm: [handle(0xf411..133e)] 0x3662..c07e: GAS SPENT: 277025745    
+2025-09-03 00:52:33.015 DEBUG tokio-runtime-worker gwasm: [handle(0x5a04..6b7b)] 0x3662..c07e: GAS SPENT: 255593393    
+2025-09-03 00:52:33.016 DEBUG tokio-runtime-worker gwasm: [handle(0xfe19..3bcf)] 0x3662..c07e: GAS SPENT: 255593393    
+2025-09-03 00:52:33.035 DEBUG tokio-runtime-worker gwasm: [handle(0x9865..65a5)] 0x3662..c07e: GAS SPENT: 234902042    
+2025-09-03 00:52:33.035 DEBUG tokio-runtime-worker gwasm: [handle(0x8021..167f)] 0x3662..c07e: GAS SPENT: 234902042    
+2025-09-03 00:52:33.036 DEBUG tokio-runtime-worker gwasm: [handle(0x50aa..5dae)] 0x3662..c07e: GAS SPENT: 234902042    
+2025-09-03 00:52:33.037 DEBUG tokio-runtime-worker gwasm: [handle(0x55f3..054a)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:33.038  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 9 (30 ms) [hash: 0xf190bac19a3fa47e98dfc0e5c2c22d75de898928402e226cb5ecef58522bc518; parent_hash: 0xb78b…49af; extrinsics (3): [0xccfe…e689, 0xeb39…29f8, 0xba77…e94f]    
+2025-09-03 00:52:33.039  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 9. Hash now 0x900d7f63a4fb2010ca40574cfda9d39a5d090dd13407e9a9536436f86e84018d, previously 0xf190bac19a3fa47e98dfc0e5c2c22d75de898928402e226cb5ecef58522bc518.    
+2025-09-03 00:52:33.039  INFO tokio-runtime-worker substrate: 🏆 Imported #9 (0xb78b…49af → 0x900d…018d)    
+2025-09-03 00:52:36.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x900d7f63a4fb2010ca40574cfda9d39a5d090dd13407e9a9536436f86e84018d    
+2025-09-03 00:52:36.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 10 (3 ms) [hash: 0x13b98eac8d416a6df9f996eb9e50b42b75bc1750939c31cd5d2df4313f34c6c9; parent_hash: 0x900d…018d; extrinsics (2): [0x3225…80df, 0xba77…e94f]    
+2025-09-03 00:52:36.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 10. Hash now 0x4ae15aa84ce92f18183a8b894035d8c364dc6e159a78be40ee24b012f3d612f1, previously 0x13b98eac8d416a6df9f996eb9e50b42b75bc1750939c31cd5d2df4313f34c6c9.    
+2025-09-03 00:52:36.014  INFO tokio-runtime-worker substrate: 🏆 Imported #10 (0x900d…018d → 0x4ae1…12f1)    
+2025-09-03 00:52:37.514  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #10 (0x4ae1…12f1), finalized #7 (0xfa9e…10bc), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:39.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x4ae15aa84ce92f18183a8b894035d8c364dc6e159a78be40ee24b012f3d612f1    
+2025-09-03 00:52:39.009  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 11 (3 ms) [hash: 0x5968a183b88d4fcfad813f4e5bcc7a01792e9d5ef65e64d8754dd19f06937537; parent_hash: 0x4ae1…12f1; extrinsics (2): [0x730d…06cf, 0xba77…e94f]    
+2025-09-03 00:52:39.011  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 11. Hash now 0xc8787b2e29af587afc3405b057b72913ad6cd84e51a168ca005a0ffc4809ef65, previously 0x5968a183b88d4fcfad813f4e5bcc7a01792e9d5ef65e64d8754dd19f06937537.    
+2025-09-03 00:52:39.011  INFO tokio-runtime-worker substrate: 🏆 Imported #11 (0x4ae1…12f1 → 0xc878…ef65)    
+2025-09-03 00:52:42.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xc8787b2e29af587afc3405b057b72913ad6cd84e51a168ca005a0ffc4809ef65    
+2025-09-03 00:52:42.015  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 12 (4 ms) [hash: 0x3a0e4c8a002d99176b287b686c6d931db09a4b048316d9e700ba4e005ca17c62; parent_hash: 0xc878…ef65; extrinsics (2): [0x024a…3164, 0xba77…e94f]    
+2025-09-03 00:52:42.017  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 12. Hash now 0x4db1f7722555497fd71487cdf54509572ab2a42b2455b2ef911b160f8c887e8c, previously 0x3a0e4c8a002d99176b287b686c6d931db09a4b048316d9e700ba4e005ca17c62.    
+2025-09-03 00:52:42.017  INFO tokio-runtime-worker substrate: 🏆 Imported #12 (0xc878…ef65 → 0x4db1…7e8c)    
+2025-09-03 00:52:42.515  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #12 (0x4db1…7e8c), finalized #8 (0xb78b…49af), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:45.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x4db1f7722555497fd71487cdf54509572ab2a42b2455b2ef911b160f8c887e8c    
+2025-09-03 00:52:45.017 DEBUG tokio-runtime-worker gwasm: [handle(0x24ea..1746)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.019 DEBUG tokio-runtime-worker gwasm: [handle(0x6bca..744e)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.020 DEBUG tokio-runtime-worker gwasm: [handle(0xe816..0d0f)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.021 DEBUG tokio-runtime-worker gwasm: [handle(0x9002..8c22)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.022 DEBUG tokio-runtime-worker gwasm: [handle(0x30f7..1b29)] 0x3662..c07e: GAS SPENT: 232515923    
+2025-09-03 00:52:45.023 DEBUG tokio-runtime-worker gwasm: [handle(0x8213..bb43)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.023 DEBUG tokio-runtime-worker gwasm: [handle(0x7dfd..5b97)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.024 DEBUG tokio-runtime-worker gwasm: [handle(0x509e..bb30)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.025 DEBUG tokio-runtime-worker gwasm: [handle(0x4b44..43e9)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.026 DEBUG tokio-runtime-worker gwasm: [handle(0x5f08..5d5d)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.027 DEBUG tokio-runtime-worker gwasm: [handle(0x8191..de82)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.028 DEBUG tokio-runtime-worker gwasm: [handle(0xa6a6..2c02)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.029 DEBUG tokio-runtime-worker gwasm: [handle(0xf312..846d)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.030 DEBUG tokio-runtime-worker gwasm: [handle(0x4e60..8c37)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.031 DEBUG tokio-runtime-worker gwasm: [handle(0x34c6..28ac)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.032 DEBUG tokio-runtime-worker gwasm: [handle(0x4d16..9bbc)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.033 DEBUG tokio-runtime-worker gwasm: [handle(0xfc0b..ee4a)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:45.040  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 13 (32 ms) [hash: 0xca27b0da43c65831d1a67182905caf0dc05e9e5afb89419e2236a952732d9670; parent_hash: 0x4db1…7e8c; extrinsics (3): [0x6034…f442, 0x1235…9803, 0xba77…e94f]    
+2025-09-03 00:52:45.041  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 13. Hash now 0x195f3e1d566ae1ab59b07efaccce638eb2be902e22ada76a35e2a443319b056d, previously 0xca27b0da43c65831d1a67182905caf0dc05e9e5afb89419e2236a952732d9670.    
+2025-09-03 00:52:45.041  INFO tokio-runtime-worker substrate: 🏆 Imported #13 (0x4db1…7e8c → 0x195f…056d)    
+2025-09-03 00:52:47.519  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #13 (0x195f…056d), finalized #9 (0x900d…018d), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:48.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x195f3e1d566ae1ab59b07efaccce638eb2be902e22ada76a35e2a443319b056d    
+2025-09-03 00:52:48.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 14 (5 ms) [hash: 0xb79b0e64ff5c09ef042b7821cf196a87baf88b1e486e24e0218be1d25f4bfa72; parent_hash: 0x195f…056d; extrinsics (2): [0x8f3e…8eca, 0xba77…e94f]    
+2025-09-03 00:52:48.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 14. Hash now 0x167faf1e55624d6278435b7990268a417a96f3d89ad9da377b14a9d7bde74273, previously 0xb79b0e64ff5c09ef042b7821cf196a87baf88b1e486e24e0218be1d25f4bfa72.    
+2025-09-03 00:52:48.015  INFO tokio-runtime-worker substrate: 🏆 Imported #14 (0x195f…056d → 0x167f…4273)    
+2025-09-03 00:52:51.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x167faf1e55624d6278435b7990268a417a96f3d89ad9da377b14a9d7bde74273    
+2025-09-03 00:52:51.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 15 (4 ms) [hash: 0x52302d449f32016f9a4d5eb5038edbf65192ee9b2d6c01fdbccf7e3104652dc5; parent_hash: 0x167f…4273; extrinsics (2): [0x27d7…9c48, 0xba77…e94f]    
+2025-09-03 00:52:51.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 15. Hash now 0x4b5b73959f4bd5798337ecc94a1ad90146aacad1fc31dbd43311ea768577eacd, previously 0x52302d449f32016f9a4d5eb5038edbf65192ee9b2d6c01fdbccf7e3104652dc5.    
+2025-09-03 00:52:51.015  INFO tokio-runtime-worker substrate: 🏆 Imported #15 (0x167f…4273 → 0x4b5b…eacd)    
+2025-09-03 00:52:52.525  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #15 (0x4b5b…eacd), finalized #12 (0x4db1…7e8c), ⬇ 0 ⬆ 0    
+2025-09-03 00:52:54.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x4b5b73959f4bd5798337ecc94a1ad90146aacad1fc31dbd43311ea768577eacd    
+2025-09-03 00:52:54.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 16 (4 ms) [hash: 0xc4cab1ae924d309e4260986483515f12b2dd7309b62fb0af30bd54c3f0c621bf; parent_hash: 0x4b5b…eacd; extrinsics (2): [0x31af…4e6b, 0xba77…e94f]    
+2025-09-03 00:52:54.015  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 16. Hash now 0xe5bda1928e85c0b0604159c46641da352107a42039fc286f3d2a2e97fb211df8, previously 0xc4cab1ae924d309e4260986483515f12b2dd7309b62fb0af30bd54c3f0c621bf.    
+2025-09-03 00:52:54.015  INFO tokio-runtime-worker substrate: 🏆 Imported #16 (0x4b5b…eacd → 0xe5bd…1df8)    
+2025-09-03 00:52:57.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe5bda1928e85c0b0604159c46641da352107a42039fc286f3d2a2e97fb211df8    
+2025-09-03 00:52:57.025 DEBUG tokio-runtime-worker gwasm: [handle(0x021c..ffcd)] 0x3662..c07e: GAS SPENT: 234902042    
+2025-09-03 00:52:57.026 DEBUG tokio-runtime-worker gwasm: [handle(0xf612..3f17)] 0x3662..c07e: GAS SPENT: 234902042    
+2025-09-03 00:52:57.027 DEBUG tokio-runtime-worker gwasm: [handle(0xd611..6072)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.028 DEBUG tokio-runtime-worker gwasm: [handle(0xad7b..d508)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.029 DEBUG tokio-runtime-worker gwasm: [handle(0x829a..d22c)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.029 DEBUG tokio-runtime-worker gwasm: [handle(0xef67..8df9)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.030 DEBUG tokio-runtime-worker gwasm: [handle(0xafec..b06b)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.031 DEBUG tokio-runtime-worker gwasm: [handle(0xc1cf..bb88)] 0x3662..c07e: GAS SPENT: 232515923    
+2025-09-03 00:52:57.032 DEBUG tokio-runtime-worker gwasm: [handle(0xf792..0e92)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.033 DEBUG tokio-runtime-worker gwasm: [handle(0xba4e..95f9)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.034 DEBUG tokio-runtime-worker gwasm: [handle(0x3581..78b7)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.035 DEBUG tokio-runtime-worker gwasm: [handle(0xb474..40f0)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.036 DEBUG tokio-runtime-worker gwasm: [handle(0x817f..2374)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:52:57.037  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 17 (28 ms) [hash: 0x2824ee6b829109c70890c72dd2819f183f5cf7492c0ddb424124a81e05449d39; parent_hash: 0xe5bd…1df8; extrinsics (3): [0x962a…2f48, 0xff93…1d94, 0xba77…e94f]    
+2025-09-03 00:52:57.038  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 17. Hash now 0x57715b8693739fa8f075eedd178e90b0d142c3db9f55c6c69efee3aefc71b3e0, previously 0x2824ee6b829109c70890c72dd2819f183f5cf7492c0ddb424124a81e05449d39.    
+2025-09-03 00:52:57.038  INFO tokio-runtime-worker substrate: 🏆 Imported #17 (0xe5bd…1df8 → 0x5771…b3e0)    
+2025-09-03 00:52:57.530  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #17 (0x5771…b3e0), finalized #13 (0x195f…056d), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:00.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x57715b8693739fa8f075eedd178e90b0d142c3db9f55c6c69efee3aefc71b3e0    
+2025-09-03 00:53:00.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 18 (4 ms) [hash: 0x08828d4fcf4f315c01bf9006ee777083e09883bc747f4db80cbbdca2cc58990f; parent_hash: 0x5771…b3e0; extrinsics (2): [0x6301…f052, 0xba77…e94f]    
+2025-09-03 00:53:00.015  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 18. Hash now 0x5e9d6fd63c2cc4a344ed62f7b9efa0df2acc1091c1300a2efaf06f154cf8c53d, previously 0x08828d4fcf4f315c01bf9006ee777083e09883bc747f4db80cbbdca2cc58990f.    
+2025-09-03 00:53:00.015  INFO tokio-runtime-worker substrate: 🏆 Imported #18 (0x5771…b3e0 → 0x5e9d…c53d)    
+2025-09-03 00:53:02.535  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #18 (0x5e9d…c53d), finalized #15 (0x4b5b…eacd), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:03.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x5e9d6fd63c2cc4a344ed62f7b9efa0df2acc1091c1300a2efaf06f154cf8c53d    
+2025-09-03 00:53:03.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 19 (5 ms) [hash: 0x077be9136f16c08fa96e50786ffdc59d2c46dcdc521c6c6123f9709d9fdbcb5a; parent_hash: 0x5e9d…c53d; extrinsics (2): [0x0cd9…14ca, 0xba77…e94f]    
+2025-09-03 00:53:03.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 19. Hash now 0x0beafcaca3b640623a76e383d0a3106fdf313136a5b678b0ec1bb287d502e15d, previously 0x077be9136f16c08fa96e50786ffdc59d2c46dcdc521c6c6123f9709d9fdbcb5a.    
+2025-09-03 00:53:03.016  INFO tokio-runtime-worker substrate: 🏆 Imported #19 (0x5e9d…c53d → 0x0bea…e15d)    
+2025-09-03 00:53:06.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x0beafcaca3b640623a76e383d0a3106fdf313136a5b678b0ec1bb287d502e15d    
+2025-09-03 00:53:06.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 20 (3 ms) [hash: 0x07a97a9931a7b95b50038b498e568c61dc4ae0049ea60c9409f7a29fcc9e0a48; parent_hash: 0x0bea…e15d; extrinsics (2): [0xae39…b499, 0xba77…e94f]    
+2025-09-03 00:53:06.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 20. Hash now 0x2ce16b6a89cfe5d5f3219fdb69f4911e1861d3f055a37bf86d9ceb2ec89b2e4c, previously 0x07a97a9931a7b95b50038b498e568c61dc4ae0049ea60c9409f7a29fcc9e0a48.    
+2025-09-03 00:53:06.012  INFO tokio-runtime-worker substrate: 🏆 Imported #20 (0x0bea…e15d → 0x2ce1…2e4c)    
+2025-09-03 00:53:07.536  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #20 (0x2ce1…2e4c), finalized #16 (0xe5bd…1df8), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:09.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x2ce16b6a89cfe5d5f3219fdb69f4911e1861d3f055a37bf86d9ceb2ec89b2e4c    
+2025-09-03 00:53:09.016 DEBUG tokio-runtime-worker gwasm: [handle(0xef90..7b56)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.017 DEBUG tokio-runtime-worker gwasm: [handle(0xe46f..05b2)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.018 DEBUG tokio-runtime-worker gwasm: [handle(0xd275..22fa)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.018 DEBUG tokio-runtime-worker gwasm: [handle(0xe5ba..0061)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.019 DEBUG tokio-runtime-worker gwasm: [handle(0x15b6..6bb2)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.020 DEBUG tokio-runtime-worker gwasm: [handle(0xe562..34f5)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.021 DEBUG tokio-runtime-worker gwasm: [handle(0x9457..7dd2)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.022 DEBUG tokio-runtime-worker gwasm: [handle(0x81aa..5501)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.022 DEBUG tokio-runtime-worker gwasm: [handle(0xbe5e..4e82)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.024 DEBUG tokio-runtime-worker gwasm: [handle(0x6752..4f93)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.025 DEBUG tokio-runtime-worker gwasm: [handle(0x8a56..7dd0)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.026 DEBUG tokio-runtime-worker gwasm: [handle(0x8771..e422)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.027 DEBUG tokio-runtime-worker gwasm: [handle(0x69bd..7873)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.029 DEBUG tokio-runtime-worker gwasm: [handle(0x675b..f7dd)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.030 DEBUG tokio-runtime-worker gwasm: [handle(0xceaf..dbef)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.031 DEBUG tokio-runtime-worker gwasm: [handle(0xdee4..cf0c)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.032 DEBUG tokio-runtime-worker gwasm: [handle(0x0cce..968f)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.033 DEBUG tokio-runtime-worker gwasm: [handle(0x6fb4..c62c)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:09.034 DEBUG tokio-runtime-worker gwasm: [handle(0x9f2b..4f98)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:09.036  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 21 (28 ms) [hash: 0x4d6ae2a9abfa34e820aad710683fc461afa8419b8fcec0cad4f1d11439c273ba; parent_hash: 0x2ce1…2e4c; extrinsics (3): [0xcee1…6882, 0x6209…b748, 0xba77…e94f]    
+2025-09-03 00:53:09.037  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 21. Hash now 0x40669bff60f48b3089d23957e358e7b3e506b8956e4aa85f2dc13d681e99293b, previously 0x4d6ae2a9abfa34e820aad710683fc461afa8419b8fcec0cad4f1d11439c273ba.    
+2025-09-03 00:53:09.037  INFO tokio-runtime-worker substrate: 🏆 Imported #21 (0x2ce1…2e4c → 0x4066…293b)    
+2025-09-03 00:53:12.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x40669bff60f48b3089d23957e358e7b3e506b8956e4aa85f2dc13d681e99293b    
+2025-09-03 00:53:12.015  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 22 (5 ms) [hash: 0x52900a6f2a1d3bf90496b81c23ce04d2a436d8b104537d1b4e3ec6b996af239b; parent_hash: 0x4066…293b; extrinsics (2): [0xe667…96d0, 0xba77…e94f]    
+2025-09-03 00:53:12.017  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 22. Hash now 0xcb757fdfd57713d806b6b8060315823ab8e03c8ee0b2d8ca9bcab8c928e49b49, previously 0x52900a6f2a1d3bf90496b81c23ce04d2a436d8b104537d1b4e3ec6b996af239b.    
+2025-09-03 00:53:12.017  INFO tokio-runtime-worker substrate: 🏆 Imported #22 (0x4066…293b → 0xcb75…9b49)    
+2025-09-03 00:53:12.540  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #22 (0xcb75…9b49), finalized #19 (0x0bea…e15d), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:15.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xcb757fdfd57713d806b6b8060315823ab8e03c8ee0b2d8ca9bcab8c928e49b49    
+2025-09-03 00:53:15.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 23 (4 ms) [hash: 0x98f474ddb634d05be39dafe44139624bdc0276e7046babe8bd008bbd3a11e201; parent_hash: 0xcb75…9b49; extrinsics (2): [0xcf23…aedb, 0xba77…e94f]    
+2025-09-03 00:53:15.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 23. Hash now 0xcb1bee9df0d85fa701559fa97ad57aed0837f06acd7b33c5443626a37727cace, previously 0x98f474ddb634d05be39dafe44139624bdc0276e7046babe8bd008bbd3a11e201.    
+2025-09-03 00:53:15.014  INFO tokio-runtime-worker substrate: 🏆 Imported #23 (0xcb75…9b49 → 0xcb1b…cace)    
+2025-09-03 00:53:17.544  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #23 (0xcb1b…cace), finalized #20 (0x2ce1…2e4c), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:18.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xcb1bee9df0d85fa701559fa97ad57aed0837f06acd7b33c5443626a37727cace    
+2025-09-03 00:53:18.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 24 (4 ms) [hash: 0xeb2870b90e88dbb91e8cca8bda54afe1d4bb49c7e117196b885f52e920b50675; parent_hash: 0xcb1b…cace; extrinsics (2): [0x3c96…4121, 0xba77…e94f]    
+2025-09-03 00:53:18.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 24. Hash now 0x460e77a5c0771ed6e0178e731582203c199e9d6f264ec4eaf142b0235108b30c, previously 0xeb2870b90e88dbb91e8cca8bda54afe1d4bb49c7e117196b885f52e920b50675.    
+2025-09-03 00:53:18.016  INFO tokio-runtime-worker substrate: 🏆 Imported #24 (0xcb1b…cace → 0x460e…b30c)    
+2025-09-03 00:53:21.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x460e77a5c0771ed6e0178e731582203c199e9d6f264ec4eaf142b0235108b30c    
+2025-09-03 00:53:21.014 DEBUG tokio-runtime-worker gwasm: [handle(0x95de..befd)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.015 DEBUG tokio-runtime-worker gwasm: [handle(0x2ed6..597b)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.018 DEBUG tokio-runtime-worker gwasm: [handle(0xac0a..b798)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.019 DEBUG tokio-runtime-worker gwasm: [handle(0xf30e..4bba)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.021 DEBUG tokio-runtime-worker gwasm: [handle(0x927d..3c6b)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.022 DEBUG tokio-runtime-worker gwasm: [handle(0x303e..c1a5)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.024 DEBUG tokio-runtime-worker gwasm: [handle(0x1aee..f756)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.025 DEBUG tokio-runtime-worker gwasm: [handle(0x728c..5e6a)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.026 DEBUG tokio-runtime-worker gwasm: [handle(0x425a..a826)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.027 DEBUG tokio-runtime-worker gwasm: [handle(0x941d..f7dc)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.029 DEBUG tokio-runtime-worker gwasm: [handle(0xb410..b5d4)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.030 DEBUG tokio-runtime-worker gwasm: [handle(0xc4a4..ed2c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.031 DEBUG tokio-runtime-worker gwasm: [handle(0x9e99..9ed7)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.032 DEBUG tokio-runtime-worker gwasm: [handle(0x18e1..313e)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.033 DEBUG tokio-runtime-worker gwasm: [handle(0x6399..031f)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.034 DEBUG tokio-runtime-worker gwasm: [handle(0xdfbc..4633)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:21.035 DEBUG tokio-runtime-worker gwasm: [handle(0x7b70..5fee)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:21.036  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 25 (31 ms) [hash: 0xbe1d587fda7883dc9e21b63a04456641065ed7d69dce0be6c7eed6e6b72d45ae; parent_hash: 0x460e…b30c; extrinsics (3): [0x9f30…d7ab, 0x885b…0170, 0xba77…e94f]    
+2025-09-03 00:53:21.037  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 25. Hash now 0xecd0f1b79c3ddfdfa5ee5e6794b122e2559a71ce49ee59c5eadff546c2852cf0, previously 0xbe1d587fda7883dc9e21b63a04456641065ed7d69dce0be6c7eed6e6b72d45ae.    
+2025-09-03 00:53:21.037  INFO tokio-runtime-worker substrate: 🏆 Imported #25 (0x460e…b30c → 0xecd0…2cf0)    
+2025-09-03 00:53:22.546  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #25 (0xecd0…2cf0), finalized #21 (0x4066…293b), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:24.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xecd0f1b79c3ddfdfa5ee5e6794b122e2559a71ce49ee59c5eadff546c2852cf0    
+2025-09-03 00:53:24.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 26 (3 ms) [hash: 0x17b310c1ab1e4cc312e3f18818d7470d512c08390df333b960e2ece21d3338a9; parent_hash: 0xecd0…2cf0; extrinsics (2): [0x78f4…8aa5, 0xba77…e94f]    
+2025-09-03 00:53:24.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 26. Hash now 0xf34271536e2e58abbf9276d4274ac662c1f0e1c2e11d90d1479d8abeb2eb2759, previously 0x17b310c1ab1e4cc312e3f18818d7470d512c08390df333b960e2ece21d3338a9.    
+2025-09-03 00:53:24.013  INFO tokio-runtime-worker substrate: 🏆 Imported #26 (0xecd0…2cf0 → 0xf342…2759)    
+2025-09-03 00:53:27.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xf34271536e2e58abbf9276d4274ac662c1f0e1c2e11d90d1479d8abeb2eb2759    
+2025-09-03 00:53:27.011  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 27 (5 ms) [hash: 0x9c0039ba11abd560da2414233edeb83e96292edd139de6881535eb51bd1c2472; parent_hash: 0xf342…2759; extrinsics (2): [0xcb99…6af4, 0xba77…e94f]    
+2025-09-03 00:53:27.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 27. Hash now 0x4b7f78f2bca781dae4c309b946fdc3d4de92e731d75ea875c2fb6c2052c94eb1, previously 0x9c0039ba11abd560da2414233edeb83e96292edd139de6881535eb51bd1c2472.    
+2025-09-03 00:53:27.013  INFO tokio-runtime-worker substrate: 🏆 Imported #27 (0xf342…2759 → 0x4b7f…4eb1)    
+2025-09-03 00:53:27.551  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #27 (0x4b7f…4eb1), finalized #23 (0xcb1b…cace), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:30.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x4b7f78f2bca781dae4c309b946fdc3d4de92e731d75ea875c2fb6c2052c94eb1    
+2025-09-03 00:53:30.011  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 28 (4 ms) [hash: 0x3d081cd5b8eac442932a476808085e1a89a13d1c73860ce5c8252ef9b06c85f1; parent_hash: 0x4b7f…4eb1; extrinsics (2): [0x0afa…83d7, 0xba77…e94f]    
+2025-09-03 00:53:30.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 28. Hash now 0x05cd37cc7d168198488086e11af2642faeeb8159c36336016905093d1f6a443a, previously 0x3d081cd5b8eac442932a476808085e1a89a13d1c73860ce5c8252ef9b06c85f1.    
+2025-09-03 00:53:30.013  INFO tokio-runtime-worker substrate: 🏆 Imported #28 (0x4b7f…4eb1 → 0x05cd…443a)    
+2025-09-03 00:53:32.554  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #28 (0x05cd…443a), finalized #25 (0xecd0…2cf0), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:33.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x05cd37cc7d168198488086e11af2642faeeb8159c36336016905093d1f6a443a    
+2025-09-03 00:53:33.019 DEBUG tokio-runtime-worker gwasm: [handle(0x5bc2..8f8f)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.021 DEBUG tokio-runtime-worker gwasm: [handle(0xf9ca..6bba)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.022 DEBUG tokio-runtime-worker gwasm: [handle(0xbeb3..0c21)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.024 DEBUG tokio-runtime-worker gwasm: [handle(0xacba..faa3)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.025 DEBUG tokio-runtime-worker gwasm: [handle(0x6a50..7013)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.026 DEBUG tokio-runtime-worker gwasm: [handle(0xa784..4abe)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.027 DEBUG tokio-runtime-worker gwasm: [handle(0x0f40..18a6)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.029 DEBUG tokio-runtime-worker gwasm: [handle(0xb89b..618b)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.029 DEBUG tokio-runtime-worker gwasm: [handle(0xfefa..8348)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.031 DEBUG tokio-runtime-worker gwasm: [handle(0x82f6..e70f)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.032 DEBUG tokio-runtime-worker gwasm: [handle(0xf7f5..6cd4)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.033 DEBUG tokio-runtime-worker gwasm: [handle(0xa1ec..0a37)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.034 DEBUG tokio-runtime-worker gwasm: [handle(0xf8b8..0c1f)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.035 DEBUG tokio-runtime-worker gwasm: [handle(0x66fb..4659)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.036 DEBUG tokio-runtime-worker gwasm: [handle(0x4629..e438)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.037 DEBUG tokio-runtime-worker gwasm: [handle(0x7ce4..a046)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:33.039 DEBUG tokio-runtime-worker gwasm: [handle(0xe9fa..1e69)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:33.040  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 29 (30 ms) [hash: 0x59359ca5bdd1828a8840bc83fa7d6623754f43ba0f6f58946c9774a63dec9294; parent_hash: 0x05cd…443a; extrinsics (3): [0xf0f9…e22a, 0x8979…3999, 0xba77…e94f]    
+2025-09-03 00:53:33.041  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 29. Hash now 0x66809b5d815544961e8a24be1e9799e8f236198b5fa7d8af3ba674e4bcc14470, previously 0x59359ca5bdd1828a8840bc83fa7d6623754f43ba0f6f58946c9774a63dec9294.    
+2025-09-03 00:53:33.041  INFO tokio-runtime-worker substrate: 🏆 Imported #29 (0x05cd…443a → 0x6680…4470)    
+2025-09-03 00:53:36.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x66809b5d815544961e8a24be1e9799e8f236198b5fa7d8af3ba674e4bcc14470    
+2025-09-03 00:53:36.005  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 30 (1 ms) [hash: 0xd2225267b6d41f191aa293345101ef17f0a9a112db49877ee78d2d6849fb2c10; parent_hash: 0x6680…4470; extrinsics (2): [0x950c…1e67, 0xba77…e94f]    
+2025-09-03 00:53:36.006  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 30. Hash now 0xf382d6e68eca9e5ffc0e43a91b583b25d1adcc58466fe02d1064bec6ac4e6c22, previously 0xd2225267b6d41f191aa293345101ef17f0a9a112db49877ee78d2d6849fb2c10.    
+2025-09-03 00:53:36.006  INFO tokio-runtime-worker substrate: 🏆 Imported #30 (0x6680…4470 → 0xf382…6c22)    
+2025-09-03 00:53:37.559  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #30 (0xf382…6c22), finalized #27 (0x4b7f…4eb1), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:39.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xf382d6e68eca9e5ffc0e43a91b583b25d1adcc58466fe02d1064bec6ac4e6c22    
+2025-09-03 00:53:39.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 31 (4 ms) [hash: 0x1dfedb6986b1cc329d299e63d892528f757a9c93c4ef1c0977bf107a0e51efa7; parent_hash: 0xf382…6c22; extrinsics (2): [0x96e6…7ae8, 0xba77…e94f]    
+2025-09-03 00:53:39.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 31. Hash now 0xb5c4c35e34c769024ec9c5f6aca965c468ef2cc3fb1db6ca39e11c8cbbea433d, previously 0x1dfedb6986b1cc329d299e63d892528f757a9c93c4ef1c0977bf107a0e51efa7.    
+2025-09-03 00:53:39.014  INFO tokio-runtime-worker substrate: 🏆 Imported #31 (0xf382…6c22 → 0xb5c4…433d)    
+2025-09-03 00:53:42.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xb5c4c35e34c769024ec9c5f6aca965c468ef2cc3fb1db6ca39e11c8cbbea433d    
+2025-09-03 00:53:42.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 32 (3 ms) [hash: 0x409dd9ab0764f6224981088ef0d20589805838a1d4820c10949948348d2a8b7c; parent_hash: 0xb5c4…433d; extrinsics (2): [0xff0f…75d5, 0xba77…e94f]    
+2025-09-03 00:53:42.015  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 32. Hash now 0xb5b1248c1e5c3ee18df89c00492864265bcd00e8c756b5fe744f6df79d7b6567, previously 0x409dd9ab0764f6224981088ef0d20589805838a1d4820c10949948348d2a8b7c.    
+2025-09-03 00:53:42.015  INFO tokio-runtime-worker substrate: 🏆 Imported #32 (0xb5c4…433d → 0xb5b1…6567)    
+2025-09-03 00:53:42.564  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #32 (0xb5b1…6567), finalized #28 (0x05cd…443a), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:45.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xb5b1248c1e5c3ee18df89c00492864265bcd00e8c756b5fe744f6df79d7b6567    
+2025-09-03 00:53:45.018 DEBUG tokio-runtime-worker gwasm: [handle(0xd2e6..6834)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.019 DEBUG tokio-runtime-worker gwasm: [handle(0x7aa0..552c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.021 DEBUG tokio-runtime-worker gwasm: [handle(0xbd00..dcc4)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.021 DEBUG tokio-runtime-worker gwasm: [handle(0xefb6..42c7)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.023 DEBUG tokio-runtime-worker gwasm: [handle(0xc52c..efc5)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.024 DEBUG tokio-runtime-worker gwasm: [handle(0xd798..cf89)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.026 DEBUG tokio-runtime-worker gwasm: [handle(0x87a9..eaeb)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.026 DEBUG tokio-runtime-worker gwasm: [handle(0x4d6f..aaef)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.028 DEBUG tokio-runtime-worker gwasm: [handle(0xc745..d296)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.029 DEBUG tokio-runtime-worker gwasm: [handle(0x8eac..e11a)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.030 DEBUG tokio-runtime-worker gwasm: [handle(0xc6b9..70a6)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.031 DEBUG tokio-runtime-worker gwasm: [handle(0xed9c..5dde)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.032 DEBUG tokio-runtime-worker gwasm: [handle(0x518a..8ec8)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.033 DEBUG tokio-runtime-worker gwasm: [handle(0x626b..2e2c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.034 DEBUG tokio-runtime-worker gwasm: [handle(0x0bcf..e62d)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:45.035 DEBUG tokio-runtime-worker gwasm: [handle(0x9d32..e6b4)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:45.037  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 33 (26 ms) [hash: 0x1ff3af9b893894eccb7c708bd81719d4d52cbb121c44dfc9def02c263e28f296; parent_hash: 0xb5b1…6567; extrinsics (3): [0xae7a…65ea, 0x1a62…f370, 0xba77…e94f]    
+2025-09-03 00:53:45.038  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 33. Hash now 0x172cc70d87ebe06767182c9ba76156a4977e8d7f8ef3602e7d4caea819721616, previously 0x1ff3af9b893894eccb7c708bd81719d4d52cbb121c44dfc9def02c263e28f296.    
+2025-09-03 00:53:45.038  INFO tokio-runtime-worker substrate: 🏆 Imported #33 (0xb5b1…6567 → 0x172c…1616)    
+2025-09-03 00:53:47.569  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #33 (0x172c…1616), finalized #29 (0x6680…4470), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:48.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x172cc70d87ebe06767182c9ba76156a4977e8d7f8ef3602e7d4caea819721616    
+2025-09-03 00:53:48.009  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 34 (2 ms) [hash: 0xb3dca6bc3f249369a4a44f06509c0a6f750af836a4fb5bcff9a4666ef7619d96; parent_hash: 0x172c…1616; extrinsics (2): [0xa6ac…894c, 0xba77…e94f]    
+2025-09-03 00:53:48.011  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 34. Hash now 0x5d386830d16ccefa5881060d02b3ec3086d7cc2b3f7ff8c09f65ad709fcf8944, previously 0xb3dca6bc3f249369a4a44f06509c0a6f750af836a4fb5bcff9a4666ef7619d96.    
+2025-09-03 00:53:48.011  INFO tokio-runtime-worker substrate: 🏆 Imported #34 (0x172c…1616 → 0x5d38…8944)    
+2025-09-03 00:53:51.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x5d386830d16ccefa5881060d02b3ec3086d7cc2b3f7ff8c09f65ad709fcf8944    
+2025-09-03 00:53:51.009  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 35 (4 ms) [hash: 0xbe47cfe775f9a34b09224c18156d0d32da22998d26c830666aa436989acfdfa3; parent_hash: 0x5d38…8944; extrinsics (2): [0x3145…fbdb, 0xba77…e94f]    
+2025-09-03 00:53:51.011  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 35. Hash now 0xe07268559393d7826c28c825a3eab77e112cd44ad9b1d20beb8d9c8bf849ce91, previously 0xbe47cfe775f9a34b09224c18156d0d32da22998d26c830666aa436989acfdfa3.    
+2025-09-03 00:53:51.011  INFO tokio-runtime-worker substrate: 🏆 Imported #35 (0x5d38…8944 → 0xe072…ce91)    
+2025-09-03 00:53:52.574  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #35 (0xe072…ce91), finalized #32 (0xb5b1…6567), ⬇ 0 ⬆ 0    
+2025-09-03 00:53:54.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe07268559393d7826c28c825a3eab77e112cd44ad9b1d20beb8d9c8bf849ce91    
+2025-09-03 00:53:54.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 36 (4 ms) [hash: 0x778517547f2b4ccac4df8fdfc0049c498e7218efbc5a59636dee010e7b6a99f7; parent_hash: 0xe072…ce91; extrinsics (2): [0x2832…2854, 0xba77…e94f]    
+2025-09-03 00:53:54.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 36. Hash now 0x9a199f2846ba3e0f18b979fc4434150d65c32185550dc4d1ba05262e9a290954, previously 0x778517547f2b4ccac4df8fdfc0049c498e7218efbc5a59636dee010e7b6a99f7.    
+2025-09-03 00:53:54.016  INFO tokio-runtime-worker substrate: 🏆 Imported #36 (0xe072…ce91 → 0x9a19…0954)    
+2025-09-03 00:53:57.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x9a199f2846ba3e0f18b979fc4434150d65c32185550dc4d1ba05262e9a290954    
+2025-09-03 00:53:57.018 DEBUG tokio-runtime-worker gwasm: [handle(0x112e..fc07)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:57.019 DEBUG tokio-runtime-worker gwasm: [handle(0xd0d2..95dc)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.021 DEBUG tokio-runtime-worker gwasm: [handle(0xe6bb..c526)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:57.022 DEBUG tokio-runtime-worker gwasm: [handle(0x1147..203a)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.023 DEBUG tokio-runtime-worker gwasm: [handle(0xf5cb..b13a)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:57.024 DEBUG tokio-runtime-worker gwasm: [handle(0xf8bc..ff54)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.026 DEBUG tokio-runtime-worker gwasm: [handle(0xcd5f..23b7)] 0x3662..c07e: GAS SPENT: 231997522    
+2025-09-03 00:53:57.027 DEBUG tokio-runtime-worker gwasm: [handle(0xaae0..9f8c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.029 DEBUG tokio-runtime-worker gwasm: [handle(0xeb16..abb7)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.031 DEBUG tokio-runtime-worker gwasm: [handle(0xd8c5..8bb9)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.033 DEBUG tokio-runtime-worker gwasm: [handle(0x5e7e..af5f)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.035 DEBUG tokio-runtime-worker gwasm: [handle(0x5c79..774c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:53:57.040  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 37 (32 ms) [hash: 0x1724f8cc4b345217020a39077fadcc619479ad192fb4d809c22e4571f408f96e; parent_hash: 0x9a19…0954; extrinsics (3): [0x7c06…41c0, 0x5a9c…6285, 0xba77…e94f]    
+2025-09-03 00:53:57.041  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 37. Hash now 0x8456545e375d7514fc4ed4320a7f7c2d5ffefaad370a42743c3f141852c5e1bf, previously 0x1724f8cc4b345217020a39077fadcc619479ad192fb4d809c22e4571f408f96e.    
+2025-09-03 00:53:57.041  INFO tokio-runtime-worker substrate: 🏆 Imported #37 (0x9a19…0954 → 0x8456…e1bf)    
+2025-09-03 00:53:57.579  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #37 (0x8456…e1bf), finalized #33 (0x172c…1616), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:00.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x8456545e375d7514fc4ed4320a7f7c2d5ffefaad370a42743c3f141852c5e1bf    
+2025-09-03 00:54:00.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 38 (6 ms) [hash: 0x9d85ec51658680d6921cbb3a4206bc6e03a3b80980caec95bd928bd66bbecba2; parent_hash: 0x8456…e1bf; extrinsics (2): [0x0151…d297, 0xba77…e94f]    
+2025-09-03 00:54:00.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 38. Hash now 0xfb7be0d2dc0207312773fe12376e8891d86a339792d2772ba67e9bf98eb4f113, previously 0x9d85ec51658680d6921cbb3a4206bc6e03a3b80980caec95bd928bd66bbecba2.    
+2025-09-03 00:54:00.016  INFO tokio-runtime-worker substrate: 🏆 Imported #38 (0x8456…e1bf → 0xfb7b…f113)    
+2025-09-03 00:54:02.584  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #38 (0xfb7b…f113), finalized #35 (0xe072…ce91), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:03.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xfb7be0d2dc0207312773fe12376e8891d86a339792d2772ba67e9bf98eb4f113    
+2025-09-03 00:54:03.008  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 39 (4 ms) [hash: 0xe09f1aca4cafe1f4c0695a35944d335b9fb1dadbc97fce806c557e63ca9fcc37; parent_hash: 0xfb7b…f113; extrinsics (2): [0x4cdc…6735, 0xba77…e94f]    
+2025-09-03 00:54:03.010  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 39. Hash now 0x8221e7030fbc1f1ec570095321a60165098450d4934f18e8731be6b19177c668, previously 0xe09f1aca4cafe1f4c0695a35944d335b9fb1dadbc97fce806c557e63ca9fcc37.    
+2025-09-03 00:54:03.010  INFO tokio-runtime-worker substrate: 🏆 Imported #39 (0xfb7b…f113 → 0x8221…c668)    
+2025-09-03 00:54:06.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x8221e7030fbc1f1ec570095321a60165098450d4934f18e8731be6b19177c668    
+2025-09-03 00:54:06.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 40 (3 ms) [hash: 0x31ae1b32b06682d51b52946265070ccb6ef62cc48514198f4f1a21b197a0d3d3; parent_hash: 0x8221…c668; extrinsics (2): [0xd5f6…0159, 0xba77…e94f]    
+2025-09-03 00:54:06.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 40. Hash now 0x43d764b25e96c2e7a427cc630e3d02a49ed6cdfd8e465016a51b2a6d52690319, previously 0x31ae1b32b06682d51b52946265070ccb6ef62cc48514198f4f1a21b197a0d3d3.    
+2025-09-03 00:54:06.014  INFO tokio-runtime-worker substrate: 🏆 Imported #40 (0x8221…c668 → 0x43d7…0319)    
+2025-09-03 00:54:07.589  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #40 (0x43d7…0319), finalized #36 (0x9a19…0954), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:09.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x43d764b25e96c2e7a427cc630e3d02a49ed6cdfd8e465016a51b2a6d52690319    
+2025-09-03 00:54:09.013 DEBUG tokio-runtime-worker gwasm: [handle(0xfc1a..a946)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.017 DEBUG tokio-runtime-worker gwasm: [handle(0x24ec..0a24)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.020 DEBUG tokio-runtime-worker gwasm: [handle(0x91c2..b414)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.023 DEBUG tokio-runtime-worker gwasm: [handle(0xeabd..fcdb)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.025 DEBUG tokio-runtime-worker gwasm: [handle(0xaf37..a3c5)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.028 DEBUG tokio-runtime-worker gwasm: [handle(0x5881..ca5c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.031 DEBUG tokio-runtime-worker gwasm: [handle(0xcd83..f75d)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.033 DEBUG tokio-runtime-worker gwasm: [handle(0xdd5b..385d)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.035 DEBUG tokio-runtime-worker gwasm: [handle(0x4869..dadd)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:09.036  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 41 (29 ms) [hash: 0xb53e51edee4c0d0832a8f94bfbde39f9be13765b49e0525134cbb79f6b9e9256; parent_hash: 0x43d7…0319; extrinsics (3): [0xaf30…4482, 0x66af…864d, 0xba77…e94f]    
+2025-09-03 00:54:09.037  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 41. Hash now 0xd446882104f5005f7d93b6fe9f6367b6f36ffbf0ffdb05db2b4da5e655f1baf1, previously 0xb53e51edee4c0d0832a8f94bfbde39f9be13765b49e0525134cbb79f6b9e9256.    
+2025-09-03 00:54:09.037  INFO tokio-runtime-worker substrate: 🏆 Imported #41 (0x43d7…0319 → 0xd446…baf1)    
+2025-09-03 00:54:12.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xd446882104f5005f7d93b6fe9f6367b6f36ffbf0ffdb05db2b4da5e655f1baf1    
+2025-09-03 00:54:12.011  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 42 (4 ms) [hash: 0xfe9d3422cb8cf15118158b2a770c8337ebf017eb43a99a9c9652800d7ac0f528; parent_hash: 0xd446…baf1; extrinsics (2): [0xf9cc…3281, 0xba77…e94f]    
+2025-09-03 00:54:12.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 42. Hash now 0xba2f7fca37ff57568120a45bc51d35e2d93a90b740f763b42f14fc37c581e4aa, previously 0xfe9d3422cb8cf15118158b2a770c8337ebf017eb43a99a9c9652800d7ac0f528.    
+2025-09-03 00:54:12.013  INFO tokio-runtime-worker substrate: 🏆 Imported #42 (0xd446…baf1 → 0xba2f…e4aa)    
+2025-09-03 00:54:12.598  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #42 (0xba2f…e4aa), finalized #39 (0x8221…c668), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:15.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xba2f7fca37ff57568120a45bc51d35e2d93a90b740f763b42f14fc37c581e4aa    
+2025-09-03 00:54:15.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 43 (4 ms) [hash: 0x0bd0a59957ad4afa215432e469372065d126027048af31b830702ea7261e60db; parent_hash: 0xba2f…e4aa; extrinsics (2): [0x9184…4440, 0xba77…e94f]    
+2025-09-03 00:54:15.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 43. Hash now 0xf4c149c33172b2b0dc90fef6bee053761e3c296f94be6cda48b9aac251f90d05, previously 0x0bd0a59957ad4afa215432e469372065d126027048af31b830702ea7261e60db.    
+2025-09-03 00:54:15.012  INFO tokio-runtime-worker substrate: 🏆 Imported #43 (0xba2f…e4aa → 0xf4c1…0d05)    
+2025-09-03 00:54:17.598  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #43 (0xf4c1…0d05), finalized #40 (0x43d7…0319), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:18.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xf4c149c33172b2b0dc90fef6bee053761e3c296f94be6cda48b9aac251f90d05    
+2025-09-03 00:54:18.007  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 44 (2 ms) [hash: 0xd7ff129dbd44c351bd4feb077d8b62c8881462a7ad0a45c93d00143a155fe97f; parent_hash: 0xf4c1…0d05; extrinsics (2): [0xa599…400e, 0xba77…e94f]    
+2025-09-03 00:54:18.008  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 44. Hash now 0x6b1464789ae36a6365bc68e6fe557b247660f74fa2778788eebf5a35f9d45a1c, previously 0xd7ff129dbd44c351bd4feb077d8b62c8881462a7ad0a45c93d00143a155fe97f.    
+2025-09-03 00:54:18.009  INFO tokio-runtime-worker substrate: 🏆 Imported #44 (0xf4c1…0d05 → 0x6b14…5a1c)    
+2025-09-03 00:54:21.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x6b1464789ae36a6365bc68e6fe557b247660f74fa2778788eebf5a35f9d45a1c    
+2025-09-03 00:54:21.019 DEBUG tokio-runtime-worker gwasm: [handle(0x47f7..7cf8)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.021 DEBUG tokio-runtime-worker gwasm: [handle(0x2fd3..b9ec)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.024 DEBUG tokio-runtime-worker gwasm: [handle(0xf91e..d8fb)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.026 DEBUG tokio-runtime-worker gwasm: [handle(0x62ae..dc7b)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.028 DEBUG tokio-runtime-worker gwasm: [handle(0xd165..75b7)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.030 DEBUG tokio-runtime-worker gwasm: [handle(0x2ea1..16be)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.033 DEBUG tokio-runtime-worker gwasm: [handle(0xbb70..261a)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.035 DEBUG tokio-runtime-worker gwasm: [handle(0xc8fb..6d24)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:21.038  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 45 (30 ms) [hash: 0x80b7c2d69b3b87d1964815b4f53463b093d6fff281e0f0b969c9a868ed3ca1c8; parent_hash: 0x6b14…5a1c; extrinsics (3): [0x0fbb…73cf, 0x0724…4bc2, 0xba77…e94f]    
+2025-09-03 00:54:21.039  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 45. Hash now 0xe8a116de8accd5f49548bce18378dbb36e4bc7795f661184693875d277847bde, previously 0x80b7c2d69b3b87d1964815b4f53463b093d6fff281e0f0b969c9a868ed3ca1c8.    
+2025-09-03 00:54:21.039  INFO tokio-runtime-worker substrate: 🏆 Imported #45 (0x6b14…5a1c → 0xe8a1…7bde)    
+2025-09-03 00:54:22.599  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #45 (0xe8a1…7bde), finalized #41 (0xd446…baf1), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:24.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe8a116de8accd5f49548bce18378dbb36e4bc7795f661184693875d277847bde    
+2025-09-03 00:54:24.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 46 (3 ms) [hash: 0xd8bf6022b223d2ffc21e75ee613a53d1b66886dd0f014b12b32ebdcad5f624dd; parent_hash: 0xe8a1…7bde; extrinsics (2): [0x682a…b49f, 0xba77…e94f]    
+2025-09-03 00:54:24.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 46. Hash now 0x9cde42963c8f46c2c85c9f211eb6b1cea911644de4eff0f2595f17f707139d71, previously 0xd8bf6022b223d2ffc21e75ee613a53d1b66886dd0f014b12b32ebdcad5f624dd.    
+2025-09-03 00:54:24.016  INFO tokio-runtime-worker substrate: 🏆 Imported #46 (0xe8a1…7bde → 0x9cde…9d71)    
+2025-09-03 00:54:27.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x9cde42963c8f46c2c85c9f211eb6b1cea911644de4eff0f2595f17f707139d71    
+2025-09-03 00:54:27.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 47 (4 ms) [hash: 0xf805a3f11a25c679f70c3482cd05a88d74d4ee0aea574f6a2287e185be88ff69; parent_hash: 0x9cde…9d71; extrinsics (2): [0x309f…d8d5, 0xba77…e94f]    
+2025-09-03 00:54:27.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 47. Hash now 0xcaa7a65d482e2b316d5f056d2e56d72770f491f6d78d651aee3b2c5be62e1704, previously 0xf805a3f11a25c679f70c3482cd05a88d74d4ee0aea574f6a2287e185be88ff69.    
+2025-09-03 00:54:27.016  INFO tokio-runtime-worker substrate: 🏆 Imported #47 (0x9cde…9d71 → 0xcaa7…1704)    
+2025-09-03 00:54:27.604  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #47 (0xcaa7…1704), finalized #43 (0xf4c1…0d05), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:30.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xcaa7a65d482e2b316d5f056d2e56d72770f491f6d78d651aee3b2c5be62e1704    
+2025-09-03 00:54:30.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 48 (4 ms) [hash: 0x0ef2afca9296de00e930b2b5c9c6d0ef06d6b899f53e9ad2be3e7dd815ee5ec5; parent_hash: 0xcaa7…1704; extrinsics (2): [0x1fe0…5cec, 0xba77…e94f]    
+2025-09-03 00:54:30.015  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 48. Hash now 0xaf389891ea19d4e1ad47ed524ff5cfd6c7203973325f4ffedf9c435f0c54306e, previously 0x0ef2afca9296de00e930b2b5c9c6d0ef06d6b899f53e9ad2be3e7dd815ee5ec5.    
+2025-09-03 00:54:30.016  INFO tokio-runtime-worker substrate: 🏆 Imported #48 (0xcaa7…1704 → 0xaf38…306e)    
+2025-09-03 00:54:32.606  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #48 (0xaf38…306e), finalized #45 (0xe8a1…7bde), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:33.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xaf389891ea19d4e1ad47ed524ff5cfd6c7203973325f4ffedf9c435f0c54306e    
+2025-09-03 00:54:33.012 DEBUG tokio-runtime-worker gwasm: [handle(0xf2fb..eab9)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.015 DEBUG tokio-runtime-worker gwasm: [handle(0xccfb..8958)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.017 DEBUG tokio-runtime-worker gwasm: [handle(0xffa1..fc11)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.019 DEBUG tokio-runtime-worker gwasm: [handle(0x07b7..376b)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.022 DEBUG tokio-runtime-worker gwasm: [handle(0xaa9b..5d1b)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.024 DEBUG tokio-runtime-worker gwasm: [handle(0xe21f..72dc)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.027 DEBUG tokio-runtime-worker gwasm: [handle(0x7213..3113)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.029 DEBUG tokio-runtime-worker gwasm: [handle(0x9e1c..bebb)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:33.031  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 49 (26 ms) [hash: 0x62e21e61930b5d18835bcdebcd64d1d05b260955f65e7c633d45ce31e0b98583; parent_hash: 0xaf38…306e; extrinsics (3): [0x5035…a073, 0x95b5…494a, 0xba77…e94f]    
+2025-09-03 00:54:33.032  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 49. Hash now 0x4c1abeca9c0d84b18768c052c2db61c831087b9eb50a7a99d76daa0d4abdca57, previously 0x62e21e61930b5d18835bcdebcd64d1d05b260955f65e7c633d45ce31e0b98583.    
+2025-09-03 00:54:33.032  INFO tokio-runtime-worker substrate: 🏆 Imported #49 (0xaf38…306e → 0x4c1a…ca57)    
+2025-09-03 00:54:36.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x4c1abeca9c0d84b18768c052c2db61c831087b9eb50a7a99d76daa0d4abdca57    
+2025-09-03 00:54:36.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 50 (4 ms) [hash: 0xbf9a492644e6de8d44e23b77729452610bfafa5c20e8bd15d2a461a5a70311e4; parent_hash: 0x4c1a…ca57; extrinsics (2): [0x3494…2a46, 0xba77…e94f]    
+2025-09-03 00:54:36.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 50. Hash now 0xca77ae836b69e34652f8b380d99d53d934571b74b8a8e857f285e224a16b7f06, previously 0xbf9a492644e6de8d44e23b77729452610bfafa5c20e8bd15d2a461a5a70311e4.    
+2025-09-03 00:54:36.015  INFO tokio-runtime-worker substrate: 🏆 Imported #50 (0x4c1a…ca57 → 0xca77…7f06)    
+2025-09-03 00:54:37.607  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #50 (0xca77…7f06), finalized #47 (0xcaa7…1704), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:39.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xca77ae836b69e34652f8b380d99d53d934571b74b8a8e857f285e224a16b7f06    
+2025-09-03 00:54:39.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 51 (4 ms) [hash: 0xd453a60a8e4b6b5f5dc80cacaa39b90d7c27379ee0c01eb2d0effb07e84b0f1e; parent_hash: 0xca77…7f06; extrinsics (2): [0x0360…a8fc, 0xba77…e94f]    
+2025-09-03 00:54:39.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 51. Hash now 0x548a22c01a6f51e317833aa12f67391740836ae7d5cb434c400c9bada9dc95f2, previously 0xd453a60a8e4b6b5f5dc80cacaa39b90d7c27379ee0c01eb2d0effb07e84b0f1e.    
+2025-09-03 00:54:39.014  INFO tokio-runtime-worker substrate: 🏆 Imported #51 (0xca77…7f06 → 0x548a…95f2)    
+2025-09-03 00:54:42.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x548a22c01a6f51e317833aa12f67391740836ae7d5cb434c400c9bada9dc95f2    
+2025-09-03 00:54:42.011  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 52 (3 ms) [hash: 0xfb2f4bf1186baaeee1dca15430ebf47bac003026e1d3b5fc040d40c67ad353a7; parent_hash: 0x548a…95f2; extrinsics (2): [0x379a…577a, 0xba77…e94f]    
+2025-09-03 00:54:42.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 52. Hash now 0x87a28d0cf31e9607a9c3457f015a68f3c1c6885821fee8b8f1f9f2ce2b84f18d, previously 0xfb2f4bf1186baaeee1dca15430ebf47bac003026e1d3b5fc040d40c67ad353a7.    
+2025-09-03 00:54:42.013  INFO tokio-runtime-worker substrate: 🏆 Imported #52 (0x548a…95f2 → 0x87a2…f18d)    
+2025-09-03 00:54:42.612  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #52 (0x87a2…f18d), finalized #48 (0xaf38…306e), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:45.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x87a28d0cf31e9607a9c3457f015a68f3c1c6885821fee8b8f1f9f2ce2b84f18d    
+2025-09-03 00:54:45.015 DEBUG tokio-runtime-worker gwasm: [handle(0x58d0..3698)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.017 DEBUG tokio-runtime-worker gwasm: [handle(0xbe55..45cc)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.020 DEBUG tokio-runtime-worker gwasm: [handle(0x9bf2..a148)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.022 DEBUG tokio-runtime-worker gwasm: [handle(0xcc28..8f64)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.024 DEBUG tokio-runtime-worker gwasm: [handle(0x34ac..b166)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.026 DEBUG tokio-runtime-worker gwasm: [handle(0x1922..8286)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.028 DEBUG tokio-runtime-worker gwasm: [handle(0x0f9f..bb81)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.030 DEBUG tokio-runtime-worker gwasm: [handle(0x7cd0..117b)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.032 DEBUG tokio-runtime-worker gwasm: [handle(0x1676..e893)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:45.033  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 53 (25 ms) [hash: 0xa6894c280beb8f50222081069bbf29567ff5218e1a89d0f53d7b63c9921fb23a; parent_hash: 0x87a2…f18d; extrinsics (3): [0x6c8e…4073, 0x3b51…b1b6, 0xba77…e94f]    
+2025-09-03 00:54:45.034  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 53. Hash now 0x5ed84b252afc42a7fddd82b7dc897dde92b609ea422194eba940536ba97ec694, previously 0xa6894c280beb8f50222081069bbf29567ff5218e1a89d0f53d7b63c9921fb23a.    
+2025-09-03 00:54:45.034  INFO tokio-runtime-worker substrate: 🏆 Imported #53 (0x87a2…f18d → 0x5ed8…c694)    
+2025-09-03 00:54:47.613  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #53 (0x5ed8…c694), finalized #49 (0x4c1a…ca57), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:48.008  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x5ed84b252afc42a7fddd82b7dc897dde92b609ea422194eba940536ba97ec694    
+2025-09-03 00:54:48.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 54 (2 ms) [hash: 0x15b5ab70c234fc0c9050f1bf623598e672516484694981596d8067640b8ba61c; parent_hash: 0x5ed8…c694; extrinsics (2): [0xbd84…423f, 0xba77…e94f]    
+2025-09-03 00:54:48.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 54. Hash now 0x3e32f6d0b47902df3852eb770fbf697ab8c60f44b0ebdf23d636effbfb51b157, previously 0x15b5ab70c234fc0c9050f1bf623598e672516484694981596d8067640b8ba61c.    
+2025-09-03 00:54:48.012  INFO tokio-runtime-worker substrate: 🏆 Imported #54 (0x5ed8…c694 → 0x3e32…b157)    
+2025-09-03 00:54:51.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x3e32f6d0b47902df3852eb770fbf697ab8c60f44b0ebdf23d636effbfb51b157    
+2025-09-03 00:54:51.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 55 (3 ms) [hash: 0xcc921d656613b24bea71e48696b65159c4a3e17ce2680e8a541ae29fcb4f8053; parent_hash: 0x3e32…b157; extrinsics (2): [0xd7d1…3dc3, 0xba77…e94f]    
+2025-09-03 00:54:51.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 55. Hash now 0xc4641aaa708c87c83a8dfe1a943f3b7a34150c91e3e86d218eb2b2654b63525b, previously 0xcc921d656613b24bea71e48696b65159c4a3e17ce2680e8a541ae29fcb4f8053.    
+2025-09-03 00:54:51.014  INFO tokio-runtime-worker substrate: 🏆 Imported #55 (0x3e32…b157 → 0xc464…525b)    
+2025-09-03 00:54:52.614  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #55 (0xc464…525b), finalized #52 (0x87a2…f18d), ⬇ 0 ⬆ 0    
+2025-09-03 00:54:54.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xc4641aaa708c87c83a8dfe1a943f3b7a34150c91e3e86d218eb2b2654b63525b    
+2025-09-03 00:54:54.014  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 56 (4 ms) [hash: 0x6f1d54434cf2ace7a4986d7cd52637f262d8bc9abc57705ba6767a8040892de0; parent_hash: 0xc464…525b; extrinsics (2): [0xbfbf…6702, 0xba77…e94f]    
+2025-09-03 00:54:54.016  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 56. Hash now 0x54a6ac6c9a1a1aa4eaad3b094a31ea831e63f8425ed5df90cbe38f3e6b4a42eb, previously 0x6f1d54434cf2ace7a4986d7cd52637f262d8bc9abc57705ba6767a8040892de0.    
+2025-09-03 00:54:54.016  INFO tokio-runtime-worker substrate: 🏆 Imported #56 (0xc464…525b → 0x54a6…42eb)    
+2025-09-03 00:54:57.010  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x54a6ac6c9a1a1aa4eaad3b094a31ea831e63f8425ed5df90cbe38f3e6b4a42eb    
+2025-09-03 00:54:57.020 DEBUG tokio-runtime-worker gwasm: [handle(0xfe54..fd51)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.023 DEBUG tokio-runtime-worker gwasm: [handle(0x96c3..cc6f)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.026 DEBUG tokio-runtime-worker gwasm: [handle(0x0e34..420e)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.028 DEBUG tokio-runtime-worker gwasm: [handle(0xb014..355c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.031 DEBUG tokio-runtime-worker gwasm: [handle(0xa811..03d3)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.033 DEBUG tokio-runtime-worker gwasm: [handle(0x8cb5..90fd)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.035 DEBUG tokio-runtime-worker gwasm: [handle(0x0a62..e78f)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.037 DEBUG tokio-runtime-worker gwasm: [handle(0x7437..ffcd)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:54:57.039  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 57 (29 ms) [hash: 0x40b3f15194a59b79d3b4ffd1535c62de79ad682b4a10c22243bbdfe3f798dcb7; parent_hash: 0x54a6…42eb; extrinsics (3): [0xfc94…b2dc, 0xfaa6…dfda, 0xba77…e94f]    
+2025-09-03 00:54:57.040  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 57. Hash now 0xe7b02c0811a9322234c195fb837a3515cb7bc846a7659feb9d705360eef85194, previously 0x40b3f15194a59b79d3b4ffd1535c62de79ad682b4a10c22243bbdfe3f798dcb7.    
+2025-09-03 00:54:57.040  INFO tokio-runtime-worker substrate: 🏆 Imported #57 (0x54a6…42eb → 0xe7b0…5194)    
+2025-09-03 00:54:57.620  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #57 (0xe7b0…5194), finalized #53 (0x5ed8…c694), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:00.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe7b02c0811a9322234c195fb837a3515cb7bc846a7659feb9d705360eef85194    
+2025-09-03 00:55:00.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 58 (5 ms) [hash: 0x368b86b8501583440b16e86f1b1ed1b74a6d7ecbdf085db75deb11808c2d5522; parent_hash: 0xe7b0…5194; extrinsics (2): [0xfeba…0422, 0xba77…e94f]    
+2025-09-03 00:55:00.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 58. Hash now 0xbb5255862aaa4b153fd817a69b7a13cfbd0ff5327156a0de4e3d13f03719ad05, previously 0x368b86b8501583440b16e86f1b1ed1b74a6d7ecbdf085db75deb11808c2d5522.    
+2025-09-03 00:55:00.014  INFO tokio-runtime-worker substrate: 🏆 Imported #58 (0xe7b0…5194 → 0xbb52…ad05)    
+2025-09-03 00:55:02.625  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #58 (0xbb52…ad05), finalized #55 (0xc464…525b), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:03.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xbb5255862aaa4b153fd817a69b7a13cfbd0ff5327156a0de4e3d13f03719ad05    
+2025-09-03 00:55:03.008  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 59 (3 ms) [hash: 0x6d8fc5db251ece7c96b39fb0cac1e5eacc4c6bb406290ddb9e7fb87ced234cdf; parent_hash: 0xbb52…ad05; extrinsics (2): [0xf739…7689, 0xba77…e94f]    
+2025-09-03 00:55:03.009  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 59. Hash now 0x21d29426c0764da27e141432744400f3e929ef8be06723b425ada9a2693d6665, previously 0x6d8fc5db251ece7c96b39fb0cac1e5eacc4c6bb406290ddb9e7fb87ced234cdf.    
+2025-09-03 00:55:03.010  INFO tokio-runtime-worker substrate: 🏆 Imported #59 (0xbb52…ad05 → 0x21d2…6665)    
+2025-09-03 00:55:06.003  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x21d29426c0764da27e141432744400f3e929ef8be06723b425ada9a2693d6665    
+2025-09-03 00:55:06.007  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 60 (4 ms) [hash: 0xff07f43e097c71de9d99134443ae4c0f7760d93fa008b7c9af68289e91588b75; parent_hash: 0x21d2…6665; extrinsics (2): [0x6bf8…a7ad, 0xba77…e94f]    
+2025-09-03 00:55:06.009  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 60. Hash now 0x1321ac4bfaf0c6258bac045c17fa50cda167f856905cc2acf0343ba14e204f81, previously 0xff07f43e097c71de9d99134443ae4c0f7760d93fa008b7c9af68289e91588b75.    
+2025-09-03 00:55:06.009  INFO tokio-runtime-worker substrate: 🏆 Imported #60 (0x21d2…6665 → 0x1321…4f81)    
+2025-09-03 00:55:07.628  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #60 (0x1321…4f81), finalized #56 (0x54a6…42eb), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:09.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x1321ac4bfaf0c6258bac045c17fa50cda167f856905cc2acf0343ba14e204f81    
+2025-09-03 00:55:09.017 DEBUG tokio-runtime-worker gwasm: [handle(0xd5e0..328d)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.020 DEBUG tokio-runtime-worker gwasm: [handle(0x7e06..b2c5)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.022 DEBUG tokio-runtime-worker gwasm: [handle(0x101d..d95c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.025 DEBUG tokio-runtime-worker gwasm: [handle(0x068a..808c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.027 DEBUG tokio-runtime-worker gwasm: [handle(0xe609..0898)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.029 DEBUG tokio-runtime-worker gwasm: [handle(0x37ce..5fd3)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.031 DEBUG tokio-runtime-worker gwasm: [handle(0x34ca..e319)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.033 DEBUG tokio-runtime-worker gwasm: [handle(0x185c..4887)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:09.036  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 61 (29 ms) [hash: 0xcdf53d49a4e2d6ec11fc0f48b4837291120f5853364da899e32d7b7d554e40f4; parent_hash: 0x1321…4f81; extrinsics (3): [0xe948…8cb8, 0xaf60…0750, 0xba77…e94f]    
+2025-09-03 00:55:09.037  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 61. Hash now 0xfde5473273c1f457ec99c1e011be6f9329a6fbaef6c70224d5132a9e0506b7f3, previously 0xcdf53d49a4e2d6ec11fc0f48b4837291120f5853364da899e32d7b7d554e40f4.    
+2025-09-03 00:55:09.037  INFO tokio-runtime-worker substrate: 🏆 Imported #61 (0x1321…4f81 → 0xfde5…b7f3)    
+2025-09-03 00:55:12.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xfde5473273c1f457ec99c1e011be6f9329a6fbaef6c70224d5132a9e0506b7f3    
+2025-09-03 00:55:12.009  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 62 (4 ms) [hash: 0xa525c154a36769665ecfd8670f8b73ae35bc9ea9e8b20573263df4d279c6cd81; parent_hash: 0xfde5…b7f3; extrinsics (2): [0x312e…a6ba, 0xba77…e94f]    
+2025-09-03 00:55:12.011  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 62. Hash now 0xe74dc15804f9f1053294eda1cc2183e9bf3c8a4dfdca9dccb3042c996b8b9cc8, previously 0xa525c154a36769665ecfd8670f8b73ae35bc9ea9e8b20573263df4d279c6cd81.    
+2025-09-03 00:55:12.011  INFO tokio-runtime-worker substrate: 🏆 Imported #62 (0xfde5…b7f3 → 0xe74d…9cc8)    
+2025-09-03 00:55:12.633  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #62 (0xe74d…9cc8), finalized #59 (0x21d2…6665), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:15.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe74dc15804f9f1053294eda1cc2183e9bf3c8a4dfdca9dccb3042c996b8b9cc8    
+2025-09-03 00:55:15.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 63 (3 ms) [hash: 0x82d8dfaf9988e2f8110f1cf88ccd1f28994b0385ae75069a32d61afe855f2946; parent_hash: 0xe74d…9cc8; extrinsics (2): [0x43a6…26a2, 0xba77…e94f]    
+2025-09-03 00:55:15.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 63. Hash now 0x644887f135d09b05444177754c9f48f901a9c1e66f9a84c2af9c90abf736a340, previously 0x82d8dfaf9988e2f8110f1cf88ccd1f28994b0385ae75069a32d61afe855f2946.    
+2025-09-03 00:55:15.014  INFO tokio-runtime-worker substrate: 🏆 Imported #63 (0xe74d…9cc8 → 0x6448…a340)    
+2025-09-03 00:55:17.638  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #63 (0x6448…a340), finalized #60 (0x1321…4f81), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:18.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x644887f135d09b05444177754c9f48f901a9c1e66f9a84c2af9c90abf736a340    
+2025-09-03 00:55:18.012  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 64 (3 ms) [hash: 0xeaeaa0d7ef81d78e6fedeb5bdc4b7a1931574ce6b61d9005b20af20863f44406; parent_hash: 0x6448…a340; extrinsics (2): [0x38e6…2f47, 0xba77…e94f]    
+2025-09-03 00:55:18.013  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 64. Hash now 0xeeadd80acd4269f51f6889b6e5c99d7dc0f7358a7370bf2de11b355244fb931b, previously 0xeaeaa0d7ef81d78e6fedeb5bdc4b7a1931574ce6b61d9005b20af20863f44406.    
+2025-09-03 00:55:18.014  INFO tokio-runtime-worker substrate: 🏆 Imported #64 (0x6448…a340 → 0xeead…931b)    
+2025-09-03 00:55:21.005  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xeeadd80acd4269f51f6889b6e5c99d7dc0f7358a7370bf2de11b355244fb931b    
+2025-09-03 00:55:21.012 DEBUG tokio-runtime-worker gwasm: [handle(0x6512..09f5)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.015 DEBUG tokio-runtime-worker gwasm: [handle(0xeeae..23ad)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.018 DEBUG tokio-runtime-worker gwasm: [handle(0x9640..9dde)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.021 DEBUG tokio-runtime-worker gwasm: [handle(0x0b95..cd50)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.023 DEBUG tokio-runtime-worker gwasm: [handle(0x25ca..e8d3)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.025 DEBUG tokio-runtime-worker gwasm: [handle(0xb696..473c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.027 DEBUG tokio-runtime-worker gwasm: [handle(0xbea9..32c0)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.028 DEBUG tokio-runtime-worker gwasm: [handle(0xab28..5152)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.030 DEBUG tokio-runtime-worker gwasm: [handle(0x3cee..59f9)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:21.031  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 65 (25 ms) [hash: 0xf4d6667b2f34045717dc8acb6d4226453ea3ca8b8a6b5220e705e21be74f7cea; parent_hash: 0xeead…931b; extrinsics (3): [0xd864…c41c, 0x664e…ae84, 0xba77…e94f]    
+2025-09-03 00:55:21.032  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 65. Hash now 0x1ee2d4d6bb3983f21074f0c280399f29bf6b277f7fcf8e980df08e4d203c6772, previously 0xf4d6667b2f34045717dc8acb6d4226453ea3ca8b8a6b5220e705e21be74f7cea.    
+2025-09-03 00:55:21.032  INFO tokio-runtime-worker substrate: 🏆 Imported #65 (0xeead…931b → 0x1ee2…6772)    
+2025-09-03 00:55:22.643  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #65 (0x1ee2…6772), finalized #61 (0xfde5…b7f3), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:24.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x1ee2d4d6bb3983f21074f0c280399f29bf6b277f7fcf8e980df08e4d203c6772    
+2025-09-03 00:55:24.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 66 (3 ms) [hash: 0xe65e44b4dbeb18e935ab5d7bd204ca30d2691612f0637b091d16f58a370b0a80; parent_hash: 0x1ee2…6772; extrinsics (2): [0x0c9d…22f1, 0xba77…e94f]    
+2025-09-03 00:55:24.014  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 66. Hash now 0xe4051bfc9dc380992af959fb8d05bd6e9f7d98ae97ba68ebf1f23b94d5adbd09, previously 0xe65e44b4dbeb18e935ab5d7bd204ca30d2691612f0637b091d16f58a370b0a80.    
+2025-09-03 00:55:24.014  INFO tokio-runtime-worker substrate: 🏆 Imported #66 (0x1ee2…6772 → 0xe405…bd09)    
+2025-09-03 00:55:27.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe4051bfc9dc380992af959fb8d05bd6e9f7d98ae97ba68ebf1f23b94d5adbd09    
+2025-09-03 00:55:27.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 67 (4 ms) [hash: 0xd3762392d71868a08852057e4761176f1dd9589c218faca813d570c0f62e7370; parent_hash: 0xe405…bd09; extrinsics (2): [0xfd69…579e, 0xba77…e94f]    
+2025-09-03 00:55:27.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 67. Hash now 0x9cf7275e520e2ed60336d2806168a017663397d8a076336280cf3b5d0a454ff2, previously 0xd3762392d71868a08852057e4761176f1dd9589c218faca813d570c0f62e7370.    
+2025-09-03 00:55:27.013  INFO tokio-runtime-worker substrate: 🏆 Imported #67 (0xe405…bd09 → 0x9cf7…4ff2)    
+2025-09-03 00:55:27.648  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #67 (0x9cf7…4ff2), finalized #63 (0x6448…a340), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:30.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x9cf7275e520e2ed60336d2806168a017663397d8a076336280cf3b5d0a454ff2    
+2025-09-03 00:55:30.009  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 68 (3 ms) [hash: 0x21b834017ad5e512a88bbb9c86cee453c31e046e9547e3faf38c5df38ee0c476; parent_hash: 0x9cf7…4ff2; extrinsics (2): [0x4bdd…ebc4, 0xba77…e94f]    
+2025-09-03 00:55:30.010  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 68. Hash now 0x86be3196631d7d3427b9aadf6a8b03c2dfa63a4500b00510212c85aa46bd76ab, previously 0x21b834017ad5e512a88bbb9c86cee453c31e046e9547e3faf38c5df38ee0c476.    
+2025-09-03 00:55:30.011  INFO tokio-runtime-worker substrate: 🏆 Imported #68 (0x9cf7…4ff2 → 0x86be…76ab)    
+2025-09-03 00:55:32.649  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #68 (0x86be…76ab), finalized #65 (0x1ee2…6772), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:33.003  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x86be3196631d7d3427b9aadf6a8b03c2dfa63a4500b00510212c85aa46bd76ab    
+2025-09-03 00:55:33.016 DEBUG tokio-runtime-worker gwasm: [handle(0x29e4..d2aa)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.019 DEBUG tokio-runtime-worker gwasm: [handle(0x0a4b..a2f4)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.021 DEBUG tokio-runtime-worker gwasm: [handle(0xe50d..1073)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.024 DEBUG tokio-runtime-worker gwasm: [handle(0x7c4e..56e2)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.026 DEBUG tokio-runtime-worker gwasm: [handle(0xfb74..8b25)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.028 DEBUG tokio-runtime-worker gwasm: [handle(0xbb23..4782)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.031 DEBUG tokio-runtime-worker gwasm: [handle(0x0031..497e)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.033 DEBUG tokio-runtime-worker gwasm: [handle(0xd5a1..5a8d)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:33.036  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 69 (32 ms) [hash: 0x5691465a02fd42d0ff8eb3046df4295bba75899b657bea174866ea69eac981b3; parent_hash: 0x86be…76ab; extrinsics (3): [0x3f5d…4532, 0x6a9d…10ef, 0xba77…e94f]    
+2025-09-03 00:55:33.037  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 69. Hash now 0xe7e6042105cecc20eb6a4f0aa3f60a7a85e5b0555af44156fda4b5a1888a915a, previously 0x5691465a02fd42d0ff8eb3046df4295bba75899b657bea174866ea69eac981b3.    
+2025-09-03 00:55:33.037  INFO tokio-runtime-worker substrate: 🏆 Imported #69 (0x86be…76ab → 0xe7e6…915a)    
+2025-09-03 00:55:36.009  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0xe7e6042105cecc20eb6a4f0aa3f60a7a85e5b0555af44156fda4b5a1888a915a    
+2025-09-03 00:55:36.013  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 70 (4 ms) [hash: 0x56dcc91d01d01124244ae445c5ecc35e7f6782547495b843ac103babd4280b84; parent_hash: 0xe7e6…915a; extrinsics (2): [0x7274…c055, 0xba77…e94f]    
+2025-09-03 00:55:36.015  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 70. Hash now 0x5097e55867b290ca29c0653360e4b9291ae1d5a7e9403f12f3e8bb0edf2b2557, previously 0x56dcc91d01d01124244ae445c5ecc35e7f6782547495b843ac103babd4280b84.    
+2025-09-03 00:55:36.015  INFO tokio-runtime-worker substrate: 🏆 Imported #70 (0xe7e6…915a → 0x5097…2557)    
+2025-09-03 00:55:37.652  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #70 (0x5097…2557), finalized #67 (0x9cf7…4ff2), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:39.007  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x5097e55867b290ca29c0653360e4b9291ae1d5a7e9403f12f3e8bb0edf2b2557    
+2025-09-03 00:55:39.010  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 71 (3 ms) [hash: 0x42cc5edd3d3b7859efe6346906c57f2e05a895f1700192fc00713a26460a3a7b; parent_hash: 0x5097…2557; extrinsics (2): [0xb9e5…c81f, 0xba77…e94f]    
+2025-09-03 00:55:39.012  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 71. Hash now 0x72f149f8c6e83612f6ca605e72b2d39aa097556f4313759bfd5db8e5aeaf8ac6, previously 0x42cc5edd3d3b7859efe6346906c57f2e05a895f1700192fc00713a26460a3a7b.    
+2025-09-03 00:55:39.012  INFO tokio-runtime-worker substrate: 🏆 Imported #71 (0x5097…2557 → 0x72f1…8ac6)    
+2025-09-03 00:55:42.004  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x72f149f8c6e83612f6ca605e72b2d39aa097556f4313759bfd5db8e5aeaf8ac6    
+2025-09-03 00:55:42.005  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 72 (1 ms) [hash: 0x105cd86e9344ea57a9a2a7c62ee16dbed0bf002d8e479c10e254ef5b7df20e44; parent_hash: 0x72f1…8ac6; extrinsics (2): [0x8002…be61, 0xba77…e94f]    
+2025-09-03 00:55:42.006  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 72. Hash now 0x1dad4fc12da60bb1a88a4740fd82fcf1e2c212ec54d0ae48a479dbd0b6485a95, previously 0x105cd86e9344ea57a9a2a7c62ee16dbed0bf002d8e479c10e254ef5b7df20e44.    
+2025-09-03 00:55:42.006  INFO tokio-runtime-worker substrate: 🏆 Imported #72 (0x72f1…8ac6 → 0x1dad…5a95)    
+2025-09-03 00:55:42.660  INFO tokio-runtime-worker substrate: 💤 Idle (0 peers), best: #72 (0x1dad…5a95), finalized #68 (0x86be…76ab), ⬇ 0 ⬆ 0    
+2025-09-03 00:55:45.006  INFO tokio-runtime-worker gear_authorship::authorship: 🙌 Starting consensus session on top of parent 0x1dad4fc12da60bb1a88a4740fd82fcf1e2c212ec54d0ae48a479dbd0b6485a95    
+2025-09-03 00:55:45.015 DEBUG tokio-runtime-worker gwasm: [handle(0x10d5..4a9e)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.018 DEBUG tokio-runtime-worker gwasm: [handle(0x7f6d..4aad)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.020 DEBUG tokio-runtime-worker gwasm: [handle(0x4dfa..dd93)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.022 DEBUG tokio-runtime-worker gwasm: [handle(0x8388..6193)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.025 DEBUG tokio-runtime-worker gwasm: [handle(0x2877..87ef)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.027 DEBUG tokio-runtime-worker gwasm: [handle(0xb4f6..e4de)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.030 DEBUG tokio-runtime-worker gwasm: [handle(0x54da..248c)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.033 DEBUG tokio-runtime-worker gwasm: [handle(0xff00..eaf0)] 0x3662..c07e: GAS SPENT: 240173372    
+2025-09-03 00:55:45.035  INFO tokio-runtime-worker gear_authorship::authorship: 🎁 Prepared block for proposing at 73 (28 ms) [hash: 0xc7259d022a61179a87a7482284c4bac623c5419d7f3e19e5cf99ec3d52f11c64; parent_hash: 0x1dad…5a95; extrinsics (3): [0x5f23…f7f8, 0x4e4f…7646, 0xba77…e94f]    
+2025-09-03 00:55:45.036  INFO tokio-runtime-worker babe: 🔖 Pre-sealed block for proposal at 73. Hash now 0x5af79f93c96e0ea31c95006a0007921a32d010b55b28d1cd6d67785befb10b21, previously 0xc7259d022a61179a87a7482284c4bac623c5419d7f3e19e5cf99ec3d52f11c64.    
+2025-09-03 00:55:45.036  INFO tokio-runtime-worker substrate: 🏆 Imported #73 (0x1dad…5a95 → 0x5af7…0b21)    
