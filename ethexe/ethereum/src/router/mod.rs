@@ -415,20 +415,10 @@ mod tests {
     use crate::deploy::EthereumDeployer;
     use alloy::node_bindings::Anvil;
     use ethexe_signer::Signer;
-    use roast_secp256k1_evm::frost;
 
     #[tokio::test]
     async fn inexistent_code_is_unknown() {
         let anvil = Anvil::new().spawn();
-
-        let (shares, _pubkey_package) = frost::keys::generate_with_dealer(
-            5,
-            3,
-            frost::keys::IdentifierList::Default,
-            rand::thread_rng(),
-        )
-        .unwrap();
-        let first_share = shares.values().next().unwrap();
 
         let signer = Signer::memory();
         let alice = signer
@@ -440,17 +430,13 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum = EthereumDeployer::new(
-            anvil.endpoint_url().as_str(),
-            signer,
-            alice.to_address(),
-            first_share.commitment().clone(),
-        )
-        .await
-        .unwrap()
-        .deploy()
-        .await
-        .unwrap();
+        let ethereum =
+            EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
+                .await
+                .unwrap()
+                .deploy()
+                .await
+                .unwrap();
 
         let router = ethereum.router().query();
 

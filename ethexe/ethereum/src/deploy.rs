@@ -41,39 +41,48 @@ use anyhow::Result;
 use ethexe_common::{Address as LocalAddress, ecdsa::PublicKey, gear::AggregatedPublicKey};
 use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, U256 as GearU256};
+use nonempty::NonEmpty;
 use roast_secp256k1_evm::frost::{
     Identifier,
-    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
+    keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
+use std::collections::BTreeSet;
 
 /// [`EthereumDeployer`] is a builder for deploying smart contracts on Ethereum for testing purposes.
 pub struct EthereumDeployer {
     // Required parameters
     provider: AlloyProvider,
-    verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
-    // Customizable parameters
-    validators: Vec<LocalAddress>,
-}
 
+    // Customizable parameters
+    /// Validators`s addresses. If not provided, will use as vec with one element.
+    validators: NonEmpty<LocalAddress>,
+    /// Verifiable secret sharing commitment generated during key generation.
+    /// If not provided, will be generate with [`keys::generate_with_dealer`] function.
+    verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
+}
 // Public methods
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
-    pub async fn new(
-        rpc: &str,
-        signer: LocalSigner,
-        sender_address: LocalAddress,
-        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
-    ) -> Result<Self> {
+    pub async fn new(rpc: &str, signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
         let provider = create_provider(rpc, signer, sender_address).await?;
         Ok(EthereumDeployer {
             provider,
-            verifiable_secret_sharing_commitment,
-            validators: Default::default(),
+            validators: nonempty::nonempty![LocalAddress([1u8; 20])],
+            verifiable_secret_sharing_commitment: None,
         })
     }
 
     pub fn with_validators(mut self, validators: Vec<LocalAddress>) -> Self {
-        self.validators = validators;
+        self.validators =
+            NonEmpty::from_vec(validators).expect("at least one validator is required");
+        self
+    }
+
+    pub fn with_verifiable_secret_sharing_commitment(
+        mut self,
+        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
+    ) -> Self {
+        self.verifiable_secret_sharing_commitment = Some(verifiable_secret_sharing_commitment);
         self
     }
 
@@ -165,7 +174,7 @@ where
 async fn deploy_router<P>(
     deployer: Address,
     wvara_address: Address,
-    verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
+    maybe_verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
     validators: Vec<Address>,
     with_middleware: bool,
     provider: P,
@@ -173,6 +182,21 @@ async fn deploy_router<P>(
 where
     P: Provider + Clone,
 {
+    let validators_identifiers: Vec<_> = validators
+        .iter()
+        .map(|address| {
+            Identifier::deserialize(&ActorId::from(*address).into_bytes())
+                .expect("conversion failed")
+        })
+        .collect();
+
+    let verifiable_secret_sharing_commitment = match maybe_verifiable_secret_sharing_commitment {
+        Some(commitment) => commitment,
+        None => generate_secret_sharing_commitment(&validators_identifiers),
+    };
+    let identifiers = validators_identifiers.clone().into_iter().collect();
+    let aggregated_public_key =
+        aggregated_public_key(&identifiers, &verifiable_secret_sharing_commitment);
     // Calculate future contracts addresses for mirror and middleware
     let nonce = provider.get_transaction_count(deployer).await?;
     let mirror_address = deployer.create(
@@ -190,9 +214,6 @@ where
         ),
         false => Address::default(),
     };
-
-    let aggregated_public_key =
-        aggregated_public_key(&validators, &verifiable_secret_sharing_commitment)?;
 
     let router_impl = IRouter::deploy(provider.clone()).await?;
     let proxy = ITransparentUpgradeableProxy::deploy(
@@ -321,30 +342,43 @@ where
     Ok(middleware)
 }
 
+fn generate_secret_sharing_commitment(
+    identifiers: &[Identifier],
+) -> VerifiableSecretSharingCommitment {
+    let (mut secret_shares, _) = keys::generate_with_dealer(
+        1,
+        1,
+        IdentifierList::Custom(identifiers),
+        rand::thread_rng(),
+    )
+    .unwrap();
+
+    secret_shares
+        .pop_first()
+        .map(|(_, share)| share.commitment().clone())
+        .unwrap()
+}
+
 fn aggregated_public_key(
-    validators: &[Address],
+    identifiers: &BTreeSet<Identifier>,
     verifiable_secret_sharing_commitment: &VerifiableSecretSharingCommitment,
-) -> Result<AggregatedPublicKey> {
-    let maybe_validator_identifiers: Result<Vec<_>, _> = validators
-        .iter()
-        .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
-        .collect();
-    let validator_identifiers = maybe_validator_identifiers?;
-    let identifiers = validator_identifiers.into_iter().collect();
+) -> AggregatedPublicKey {
     let public_key_package =
-        PublicKeyPackage::from_commitment(&identifiers, verifiable_secret_sharing_commitment)?;
+        PublicKeyPackage::from_commitment(identifiers, verifiable_secret_sharing_commitment)
+            .expect("conversion failed");
     let public_key_compressed: [u8; 33] = public_key_package
         .verifying_key()
-        .serialize()?
+        .serialize()
+        .expect("conversion failed")
         .try_into()
         .unwrap();
     let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
-    Ok(AggregatedPublicKey {
+    AggregatedPublicKey {
         x: GearU256::from_big_endian(public_key_x_bytes),
         y: GearU256::from_big_endian(public_key_y_bytes),
-    })
+    }
 }
 
 #[cfg(test)]
@@ -352,7 +386,6 @@ mod tests {
     use super::*;
 
     use alloy::node_bindings::Anvil;
-    use roast_secp256k1_evm::frost::keys::{self, IdentifierList};
 
     #[tokio::test]
     async fn test_deployment_with_middleware() -> Result<()> {
@@ -365,35 +398,11 @@ mod tests {
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
         )?;
         let sender_address = sender_public_key.to_address();
-        let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
-        let (secret_shares, _) = keys::generate_with_dealer(
-            1,
-            1,
-            IdentifierList::Custom(&[Identifier::deserialize(
-                &ActorId::from(validators[0]).into_bytes(),
-            )
-            .unwrap()]),
-            rand::thread_rng(),
-        )
-        .unwrap();
-
-        let verifiable_secret_sharing_commitment = secret_shares
-            .values()
-            .map(|secret_share| secret_share.commitment().clone())
-            .next()
-            .expect("conversion failed");
-
-        let ethereum = EthereumDeployer::new(
-            &anvil.endpoint(),
-            signer,
-            sender_address,
-            verifiable_secret_sharing_commitment,
-        )
-        .await?
-        .with_validators(validators)
-        .deploy_with_middleware()
-        .await?;
+        let ethereum = EthereumDeployer::new(&anvil.endpoint(), signer, sender_address)
+            .await?
+            .deploy_with_middleware()
+            .await?;
 
         let router = ethereum.router();
         let middleware = ethereum.middleware();

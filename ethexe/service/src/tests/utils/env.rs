@@ -179,22 +179,17 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            EthereumDeployer::new(
-                &rpc_url,
-                signer.clone(),
-                sender_address,
-                verifiable_secret_sharing_commitment,
-            )
-            .await
-            .unwrap()
-            .with_validators(
-                validators
-                    .iter()
-                    .map(|k| k.public_key.to_address())
-                    .collect(),
-            )
-            .deploy()
-            .await?
+            let validators_addresses = validators
+                .iter()
+                .map(|k| k.public_key.to_address())
+                .collect();
+            EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+                .await
+                .unwrap()
+                .with_validators(validators_addresses)
+                .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .deploy()
+                .await?
         };
 
         let router = ethereum.router();
