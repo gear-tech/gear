@@ -470,6 +470,7 @@ contract Base is POCBaseTest {
             networkRegistry: address(networkRegistry),
             middlewareService: address(networkMiddlewareService),
             networkOptIn: address(operatorNetworkOptInService),
+            vaultOptIn: address(operatorVaultOptInService),
             stakerRewardsFactory: address(defaultStakerRewardsFactory)
         });
 

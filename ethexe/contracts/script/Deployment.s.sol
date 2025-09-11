@@ -74,6 +74,7 @@ contract DeploymentScript is Script {
                 networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
                 middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
                 networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
+                vaultOptIn: vm.envAddress("SYMBIOTIC_VAULT_OPT_IN"),
                 stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
             });
 

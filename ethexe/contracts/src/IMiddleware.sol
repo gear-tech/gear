@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Gear} from "./libraries/Gear.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title Gear.exe Middleware Interface
 /// @notice The Middleware contract is responsible for managing the interaction between the Router (Gear.exe) and the Symbiotic Ecosystem.
@@ -112,8 +113,9 @@ interface IMiddleware {
         /// @notice Stores the addresses for Symbiotic Ecosystem contracts.
         /// @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
         Gear.SymbioticRegistries registries;
-        EnumerableMap.AddressToUintMap operators;
-        EnumerableMap.AddressToUintMap vaults;
+        EnumerableSet.AddressSet operators;
+        // Mapping from vault address to its rewards contract.
+        EnumerableMap.AddressToAddressMap vaults;
     }
 
     struct VaultSlashData {
@@ -162,6 +164,12 @@ interface IMiddleware {
     /// @return stake The total stake of the operator in all vaults that was active at the given timestamp.
     function getOperatorStakeAt(address operator, uint48 ts) external view returns (uint256 stake);
 
+    /// @notice Returns the list of active operators and their stakes at the given timestamp.
+    function getActiveOperatorsStakeAt(uint48 ts)
+        external
+        view
+        returns (address[] memory activeOperators, uint256[] memory stakes);
+
     function requestSlash(SlashData[] calldata data) external;
 
     function executeSlash(SlashIdentifier[] calldata slashes) external;
@@ -170,30 +178,18 @@ interface IMiddleware {
 
     /// @notice This function can be called only be operator themselves.
     /// @dev Operator must be registered in operator registry.
-    function registerOperator() external;
+    function registerOperator() external returns (bool registered);
 
     /// @notice This function can be called only be operator themselves.
-    function disableOperator() external;
-
-    /// @notice This function can be called only be operator themselves.
-    function enableOperator() external;
-
-    /// @notice This function can be called only be operator themselves.
-    function unregisterOperator(address operator) external;
+    function unregisterOperator() external returns (bool unregistered);
 
     /* Vaults managing */
 
     /// @notice This function can be called only by the vault owner.
-    function registerVault(address vault, address rewards) external;
+    function registerVault(address vault, address rewards) external returns (bool registered);
 
     /// @notice This function can be called only by the vault owner.
-    function unregisterVault(address vault) external;
-
-    /// @notice This function can be called only by the vault owner.
-    function disableVault(address vault) external;
-
-    /// @notice This function can be called only by the vault owner.
-    function enableVault(address vault) external;
+    function unregisterVault(address vault) external returns (bool unregistered);
 
     /* Rewards distribution */
 
