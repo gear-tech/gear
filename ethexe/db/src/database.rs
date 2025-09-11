@@ -24,7 +24,8 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, RewardsState, Schedule,
+    StakingEraMetadata,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
         CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
@@ -66,7 +67,10 @@ enum Key {
 
     LatestComputedBlock = 11,
     LatestSyncedBlockHeight = 12,
-    ValidatorSet(H256) = 13,
+    LatestSyncedFinalizedBlock = 13,
+    ValidatorSet(H256) = 14,
+    RewardsState(H256) = 15,
+    StakingMetadata(u64) = 16,
 }
 
 impl Key {
@@ -87,6 +91,7 @@ impl Key {
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
             | Self::SignedTransaction(hash)
+            | Self::RewardsState(hash)
             | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
@@ -101,8 +106,11 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+            Self::StakingMetadata(era) => [prefix.as_ref(), era.to_le_bytes().as_ref()].concat(),
 
-            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestComputedBlock
+            | Self::LatestSyncedBlockHeight
+            | Self::LatestSyncedFinalizedBlock => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -624,6 +632,14 @@ impl OnChainStorageRead for Database {
             })
     }
 
+    fn latest_synced_finalized_block(&self) -> Option<H256> {
+        self.kv
+            .get(&Key::LatestSyncedFinalizedBlock.to_bytes())
+            .map(|data| {
+                H256::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+            })
+    }
+
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
@@ -633,6 +649,24 @@ impl OnChainStorageRead for Database {
                         .expect("Failed to decode data into `Vec<Address>`"),
                 )
             })?
+    }
+
+    fn rewards_state(&self, block_hash: H256) -> Option<RewardsState> {
+        self.kv
+            .get(&Key::RewardsState(block_hash).to_bytes())
+            .map(|data| {
+                RewardsState::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `RewardsState` enum")
+            })
+    }
+
+    fn staking_metadata(&self, era: u64) -> Option<StakingEraMetadata> {
+        self.kv
+            .get(&Key::StakingMetadata(era).to_bytes())
+            .map(|data| {
+                StakingEraMetadata::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `StakingEraMetadata`")
+            })
     }
 }
 
@@ -656,11 +690,36 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
+    fn set_latest_synced_finalized_block(&self, block_hash: H256) {
+        self.kv.put(
+            &Key::LatestSyncedFinalizedBlock.to_bytes(),
+            block_hash.encode(),
+        );
+    }
+
     fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
         );
+    }
+
+    fn set_rewards_state(&self, block_hash: H256, state: RewardsState) {
+        self.kv
+            .put(&Key::RewardsState(block_hash).to_bytes(), state.encode());
+    }
+
+    fn mutate_staking_metadata(
+        &self,
+        era: u64,
+        f: impl FnOnce(&mut ethexe_common::StakingEraMetadata),
+    ) {
+        log::trace!("Mutate staking metadata for era {era}");
+        let mut metadata = self.staking_metadata(era).unwrap_or_default();
+        f(&mut metadata);
+
+        self.kv
+            .put(&Key::StakingMetadata(era).to_bytes(), metadata.encode());
     }
 }
 

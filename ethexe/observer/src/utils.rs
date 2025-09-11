@@ -20,7 +20,7 @@
 
 use alloy::{
     network::{Ethereum, Network},
-    providers::{Provider as _, RootProvider},
+    providers::{Provider, RootProvider},
     rpc::{
         client::BatchRequest,
         types::{

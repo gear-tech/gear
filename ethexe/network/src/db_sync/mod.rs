@@ -27,9 +27,9 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::gear::CodeState;
+use ethexe_common::{Address, gear::CodeState};
 use ethexe_db::Database;
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256, U256};
 use libp2p::{
     StreamProtocol,
     core::{Endpoint, transport::PortUse},
@@ -199,11 +199,16 @@ pub struct ValidCodesRequest {
     pub validated_count: u64,
 }
 
+// u64 - era
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, derive_more::From)]
+pub struct RewardsDistributionRequest(pub u64);
+
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
     ValidCodes(ValidCodesRequest),
+    RewardsDistribution(RewardsDistributionRequest),
 }
 
 impl Request {
@@ -221,6 +226,10 @@ impl Request {
             validated_count,
         })
     }
+
+    pub fn rewards_distribution(at_era: u64) -> Self {
+        Self::RewardsDistribution(RewardsDistributionRequest(at_era))
+    }
 }
 
 #[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
@@ -230,6 +239,9 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+    RewardsDistribution(
+        #[debug("{:?}", AlternateCollectionFmt::map(_0, "distribution"))] BTreeMap<Address, U256>,
+    ),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
@@ -243,6 +255,7 @@ pub enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
+    RewardsDistribution(RewardsDistributionRequest),
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
@@ -251,12 +264,16 @@ pub struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
+#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+pub struct InnerRewardsDistributionResponse(BTreeMap<Address, U256>);
+
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
 pub enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
+    RewardsDistribution(InnerRewardsDistributionResponse),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;

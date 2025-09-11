@@ -21,7 +21,7 @@ use crate::{
         Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour, InnerHashesResponse,
         InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest, InnerResponse,
         NewRequestRoundReason, PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId,
-        Response, ValidCodesRequest,
+        Response, RewardsDistributionRequest, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
@@ -345,6 +345,9 @@ enum ResponseHandler {
     ValidCodes {
         request: ValidCodesRequest,
     },
+    RewardsDistribution {
+        request: RewardsDistributionRequest,
+    },
 }
 
 impl ResponseHandler {
@@ -356,6 +359,7 @@ impl ResponseHandler {
             },
             Request::ProgramIds(request) => Self::ProgramIds { request },
             Request::ValidCodes(request) => Self::ValidCodes { request },
+            Request::RewardsDistribution(request) => Self::RewardsDistribution { request },
         }
     }
 
@@ -379,6 +383,9 @@ impl ResponseHandler {
                         validated_count: _,
                     },
             } => InnerRequest::ValidCodes,
+            ResponseHandler::RewardsDistribution { request } => {
+                InnerRequest::RewardsDistribution(RewardsDistributionRequest(request.0))
+            }
         }
     }
 

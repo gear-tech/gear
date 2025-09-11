@@ -25,7 +25,7 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
+    self, BlockData, BlockHeader, CodeBlobInfo, RewardsState,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
@@ -66,7 +66,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, header).await?;
+        self.propagate_onchain_data(block, &header).await?;
 
         Ok(block)
     }
@@ -167,10 +167,12 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
+    async fn propagate_onchain_data(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        let era_first_block = self.era_first_block(&header)?;
+
+        // Propagate validators from the parent block. If start new era, fetch new validators from the router.
         let validators = match self.db.validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
+            Some(validators) if !era_first_block => validators,
             _ => {
                 let fetched_validators = RouterQuery::from_provider(
                     self.config.router_address.0.into(),
@@ -185,6 +187,18 @@ impl<DB: SyncDB> ChainSync<DB> {
             }
         };
         self.db.set_validators(block, validators.clone());
+
+        // propagate information about rewarded era
+        let rewards_state = match self.db.rewards_state(header.parent_hash) {
+            Some(state) => state,
+            None => {
+                // fetch from router
+                let latest_era = 0;
+                RewardsState::LatestDistributed(latest_era)
+            }
+        };
+        self.db.set_rewards_state(block, rewards_state);
+
         Ok(())
     }
 
@@ -203,7 +217,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
     /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
+    fn era_first_block(&self, chain_head: &BlockHeader) -> Result<bool> {
         let chain_head_era = self.block_era_index(chain_head.timestamp);
 
         if chain_head_era.is_zero() {
