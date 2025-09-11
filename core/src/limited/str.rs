@@ -166,8 +166,8 @@ impl LimitedStrError {
     /// Static error message.
     pub const MESSAGE: &str = "string must not be longer than `LimitedStr::MAX_LEN` bytes";
 
-    /// Returns a static error message.
-    pub const fn message(&self) -> &'static str {
+    /// Converts the error into a static error message.
+    pub const fn as_str(&self) -> &'static str {
         Self::MESSAGE
     }
 }

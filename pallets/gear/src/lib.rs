@@ -576,10 +576,10 @@ pub mod pallet {
             let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
-                    .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 init_payload
                     .try_into()
-                    .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1192,10 +1192,10 @@ pub mod pallet {
             let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
-                    .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 init_payload
                     .try_into()
-                    .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1795,7 +1795,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
-                .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?;
+                .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?;
 
             let who = origin;
             let origin = who.clone().into_origin();
@@ -1902,7 +1902,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
-                .map_err(|err: LimitedVecError| DispatchError::Other(err.message()))?;
+                .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?;
 
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();

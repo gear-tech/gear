@@ -119,7 +119,7 @@ where
                     program_id,
                     payload
                         .try_into()
-                        .map_err(|err: LimitedVecError| err.message())?,
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -144,7 +144,7 @@ where
                     program_id,
                     payload
                         .try_into()
-                        .map_err(|err: LimitedVecError| err.message())?,
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -159,7 +159,7 @@ where
                 dest,
                 payload
                     .try_into()
-                    .map_err(|err: LimitedVecError| err.message())?,
+                    .map_err(|err: LimitedVecError| err.as_str())?,
                 Some(u64::MAX),
                 config.value,
                 None,
@@ -176,7 +176,7 @@ where
                     msg.source(),
                     payload
                         .try_into()
-                        .map_err(|err: LimitedVecError| err.message())?,
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     Some(ReplyDetails::new(msg.id(), exit_code).into()),
@@ -194,7 +194,7 @@ where
                     msg.source(),
                     payload
                         .try_into()
-                        .map_err(|err: LimitedVecError| err.message())?,
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     Some(SignalDetails::new(msg.id(), status_code).into()),

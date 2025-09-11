@@ -230,8 +230,8 @@ impl LimitedVecError {
     /// Static error message.
     pub const MESSAGE: &str = "vector length limit is exceeded";
 
-    /// Returns a static error message.
-    pub const fn message(&self) -> &'static str {
+    /// Converts the error into a static error message.
+    pub const fn as_str(&self) -> &'static str {
         Self::MESSAGE
     }
 }
