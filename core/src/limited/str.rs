@@ -158,7 +158,7 @@ impl<'a> TryFrom<String> for LimitedStr<'a> {
 }
 
 /// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
-#[derive(Clone, Debug, derive_more::Display)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[display("string must be less than {} bytes", LimitedStr::MAX_LEN)]
 pub struct LimitedStrError;
 
