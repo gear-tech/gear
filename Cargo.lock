@@ -2314,9 +2314,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.18"
+version = "1.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "525046617d8376e3db1deffb079e91cef90a89fc3ca5c185bbf8c9ecdd15cd5c"
+checksum = "3ee0f8803222ba5a7e2777dd72ca451868909b1ac410621b676adf07280e9b5f"
 dependencies = [
  "jobserver",
  "libc",
@@ -3556,11 +3556,13 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
+ "log",
  "parity-scale-codec",
  "rand 0.8.5",
  "scale-info",
  "statrs",
  "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4252,8 +4254,7 @@ checksum = "86e3bdc80eee6e16b2b6b0f87fbc98c04bee3455e35174c0de1a125d0688c632"
 [[package]]
 name = "dlmalloc"
 version = "0.2.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa3a2dbee57b69fbb5dbe852fa9c0925697fb0c7fbcb1593e90e5ffaedf13d51"
+source = "git+https://github.com/gear-tech/dlmalloc-rs#0e7b9f0f9d59e122f4061ddc91874a07fd7d0cf7"
 dependencies = [
  "cfg-if",
  "libc",
@@ -5963,6 +5964,7 @@ version = "1.9.0"
 dependencies = [
  "dlmalloc",
  "gcore",
+ "gear-dlmalloc",
  "gsys",
 ]
 
@@ -6078,12 +6080,15 @@ dependencies = [
 name = "gcore"
 version = "1.9.0"
 dependencies = [
+ "arrayvec 0.7.4",
+ "cc",
  "galloc",
  "gear-core-errors",
  "gear-stack-buffer",
  "gprimitives",
  "gsys",
  "hex-literal",
+ "paste",
  "thiserror 2.0.12",
 ]
 
@@ -6291,6 +6296,19 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "gear-dlmalloc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b88fcd5524e7ab9f156c17b14e754d6ba122ef9b00586d632d2ae3dbc7bfadb"
+dependencies = [
+ "libc",
+ "libc-print",
+ "page_size",
+ "static_assertions",
+ "str-buf",
 ]
 
 [[package]]
@@ -8768,6 +8786,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
 
 [[package]]
+name = "libc-print"
+version = "0.1.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4a660208db49e35faf57b37484350f1a61072f2a5becf0592af6015d9ddd4b0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "libfuzzer-sys"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11087,6 +11114,16 @@ name = "owo-colors"
 version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
+
+[[package]]
+name = "page_size"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
+dependencies = [
+ "libc",
+ "winapi",
+]
 
 [[package]]
 name = "pallet-authority-discovery"
@@ -17148,6 +17185,12 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
 ]
+
+[[package]]
+name = "str-buf"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ceb97b7225c713c2fd4db0153cb6b3cab244eb37900c3f634ed4d43310d8c34"
 
 [[package]]
 name = "str0m"

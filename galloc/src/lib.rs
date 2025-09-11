@@ -1,4 +1,20 @@
 // This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -24,9 +40,15 @@
 #[global_allocator]
 static mut ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
+#[cfg(feature = "new-allocator")]
 #[cfg(target_arch = "wasm32")]
 #[global_allocator]
 static mut ALLOC: wasm::GlobalGearAlloc = wasm::GlobalGearAlloc;
+
+#[cfg(not(feature = "new-allocator"))]
+#[cfg(target_arch = "wasm32")]
+#[global_allocator]
+static mut ALLOC: gear_dlmalloc::GlobalDlmalloc = gear_dlmalloc::GlobalDlmalloc;
 
 pub mod prelude;
 
@@ -35,9 +57,10 @@ mod wasm {
     use core::{
         alloc::{GlobalAlloc, Layout},
         cell::Cell,
+        num::NonZeroUsize,
         ptr,
     };
-    use dlmalloc::Dlmalloc;
+    use dlmalloc::{Dlmalloc, DlmallocConfig};
     use gcore::debug;
 
     const PAGE_SIZE: usize = 64 * 1024;
@@ -61,7 +84,7 @@ mod wasm {
 
     #[inline]
     fn align_down(ptr: *mut u8) -> *mut u8 {
-        (ptr as usize / PAGE_SIZE * PAGE_SIZE) as *mut u8
+        (ptr as usize & !(PAGE_SIZE - 1)) as *mut u8
     }
 
     fn gr_alloc(size: usize) -> (*mut u8, usize) {
@@ -83,39 +106,45 @@ mod wasm {
         unsafe { gsys::free_range(start as u32, end as u32) == 0 }
     }
 
-    static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::new_with_allocator(GearAlloc::new());
+    static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::with_config(
+        GearAlloc::new(),
+        DlmallocConfig {
+            granularity: NonZeroUsize::new(PAGE_SIZE).unwrap(),
+            trim_threshold: 0,
+            max_release_check_rate: 0,
+        },
+    );
+
+    gcore::dtor! {
+        unsafe extern "C" fn 20() {
+            let alloc = ptr::addr_of_mut!(ALLOC);
+            unsafe { (*alloc).trim(0); }
+        }
+    }
 
     pub struct GlobalGearAlloc;
 
     unsafe impl GlobalAlloc for GlobalGearAlloc {
         #[inline]
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            debug!("GlobalGearAlloc::alloc({layout:?})");
             let alloc = ptr::addr_of_mut!(ALLOC);
-            unsafe {
-                let ptr = (*alloc).malloc(layout.size(), layout.align());
-                (*alloc).trim(0);
-                ptr
-            }
+            unsafe { (*alloc).malloc(layout.size(), layout.align()) }
         }
 
         #[inline]
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            debug!("GlobalGearAlloc::dealloc({ptr:?}, {layout:?})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe { (*alloc).free(ptr, layout.size(), layout.align()) }
         }
 
         #[inline]
         unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-            debug!("GlobalGearAlloc::alloc_zeroed({layout:?})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe { (*alloc).calloc(layout.size(), layout.align()) }
         }
 
         #[inline]
         unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-            debug!("GlobalGearAlloc::realloc({ptr:?}, {layout:?}, {new_size})");
             let alloc = ptr::addr_of_mut!(ALLOC);
             unsafe { (*alloc).realloc(ptr, layout.size(), layout.align(), new_size) }
         }
@@ -162,10 +191,7 @@ mod wasm {
 
     unsafe impl dlmalloc::Allocator for GearAlloc {
         fn alloc(&self, size: usize) -> (*mut u8, usize, u32) {
-            debug!("GearAlloc::alloc({size})");
-
             if let Some((ptr, size)) = self.init_preinstalled_memory(size) {
-                debug!("GearAlloc::init_preinstalled_memory({ptr:?}, {size})");
                 return (ptr, size, 0);
             }
 
@@ -180,13 +206,10 @@ mod wasm {
             _newsize: usize,
             _can_move: bool,
         ) -> *mut u8 {
-            debug!("GearAlloc::remap");
             ptr::null_mut()
         }
 
         fn free_part(&self, ptr: *mut u8, oldsize: usize, newsize: usize) -> bool {
-            debug!("GearAlloc::free_part({ptr:?}, {oldsize}, {newsize})");
-
             if oldsize == newsize {
                 return true;
             }
@@ -195,7 +218,6 @@ mod wasm {
         }
 
         fn free(&self, ptr: *mut u8, size: usize) -> bool {
-            debug!("GearAlloc::free");
             gr_free(ptr, size)
         }
 

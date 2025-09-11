@@ -14,8 +14,10 @@ rust-version.workspace = true
 [dependencies]
 gsys.workspace = true
 gcore.workspace = true
-# add "checks" feature to enable hard checks in allocator
 dlmalloc.workspace = true
+# add "checks" feature to enable hard checks in allocator
+gear-dlmalloc = "0.2.0"
 
 [features]
 debug = ["dlmalloc/debug"]
+new-allocator = []
