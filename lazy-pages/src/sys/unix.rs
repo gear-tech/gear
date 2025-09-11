@@ -272,7 +272,7 @@ mod linux_aarch64 {
 
     const ESR_MAGIC: u32 = u32::from_be_bytes(*b"ESR\x01");
 
-    #[repr(packed)]
+    #[repr(C, packed)]
     #[derive(Clone, Copy)]
     struct Header {
         magic: u32, // Magic number to identify the record type

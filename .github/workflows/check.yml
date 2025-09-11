@@ -34,9 +34,6 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
-      - name: "Check formatting: Doc"
-        run: ./scripts/gear.sh format doc --check
-
   ethexe-contracts:
     runs-on: ubuntu-latest
     steps:
@@ -112,6 +109,9 @@ jobs:
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
+          - name: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
             runs-on: ubuntu-24.04-arm
@@ -142,7 +142,7 @@ jobs:
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
 
-      - name: "Check clippy: Gear"
+      - name: "Check clippy"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
   wasm:
@@ -240,6 +240,9 @@ jobs:
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-latest
+          - name: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
             runs-on: windows-latest

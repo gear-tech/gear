@@ -43,9 +43,6 @@ impl Toolchain {
 
     /// Fetches `Toolchain` via rustup.
     pub fn try_from_rustup() -> Result<Self> {
-        if option_env!("IN_NIX_SHELL").is_some() {
-            return Ok(Self::recommended_nightly());
-        }
         let output = Command::new("rustup")
             .args(["show", "active-toolchain"])
             .output()
