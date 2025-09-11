@@ -77,17 +77,16 @@ impl<'a> LimitedStr<'a> {
         }
     }
 
-    /// Constructs a limited string from a `&str`
+    /// Constructs a limited string from a string
     /// truncating it if it's too long.
-    pub fn truncated(s: &'a str) -> Self {
-        Self(s[..Self::cut_index(s, Self::MAX_LEN)].into())
-    }
-
-    /// Constructs a limited string from a [`String`]
-    /// truncating it if it's too long.
-    pub fn owned_truncated(mut s: String) -> Self {
-        s.truncate(Self::cut_index(&s, Self::MAX_LEN));
-        Self(s.into())
+    pub fn truncated<S: Into<Cow<'a, str>>>(s: S) -> Self {
+        match s.into() {
+            Cow::Borrowed(s) => Self(s[..Self::cut_index(s, Self::MAX_LEN)].into()),
+            Cow::Owned(mut s) => {
+                s.truncate(Self::cut_index(&s, Self::MAX_LEN));
+                Self(s.into())
+            }
+        }
     }
 
     /// Constructs a limited string from a static
