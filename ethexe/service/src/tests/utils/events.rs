@@ -29,6 +29,7 @@ use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
+use ethexe_tx_pool::TxPoolEvent;
 use gprimitives::H256;
 use tokio::sync::{
     broadcast,
@@ -109,6 +110,7 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
+    TxPool(TxPoolEvent),
 }
 
 impl TestingEvent {
@@ -121,6 +123,7 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
+            Event::TxPool(event) => Self::TxPool(event.clone()),
         }
     }
 }
