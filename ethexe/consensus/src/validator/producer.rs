@@ -26,7 +26,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, ProducerBlock, SimpleBlockData,
+    ProducerBlock, SimpleBlockData, ValidatorsVec,
     db::{BlockMetaStorageRead, NextEraValidators, OnChainStorageRead},
     ecdsa::PublicKey,
     end_of_era_timestamp, era_from_ts,
@@ -38,7 +38,6 @@ use ethexe_common::{
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
 use gprimitives::{H256, U256};
-use nonempty::NonEmpty;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
@@ -53,7 +52,7 @@ use std::task::Context;
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
-    validators: NonEmpty<Address>,
+    validators: ValidatorsVec,
     state: State,
 }
 
@@ -113,7 +112,7 @@ impl Producer {
     pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
     ) -> Result<ValidatorState> {
         assert!(
             validators.contains(&ctx.pub_key.to_address()),
@@ -310,7 +309,7 @@ mod tests {
         Digest, ToDigest,
         db::{BlockMetaStorageWrite, OnChainStorageWrite, ValidatorsInfo},
     };
-    use nonempty::{NonEmpty, nonempty};
+    use nonempty::nonempty;
 
     #[tokio::test]
     async fn create() {
@@ -324,7 +323,7 @@ mod tests {
             (),
         )));
 
-        let producer = Producer::create(ctx, block, validators.clone()).unwrap();
+        let producer = Producer::create(ctx, block, validators.into()).unwrap();
 
         let ctx = producer.context();
         assert_eq!(
@@ -337,13 +336,14 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
         ctx.db.set_validators_info(
             block.hash,
             ValidatorsInfo {
-                current: nonempty![Address::default()],
-                next: NextEraValidators::Elected(nonempty![Address::default()]),
+                current: validators.clone(),
+                next: NextEraValidators::Elected(validators.clone()),
             },
         );
 
@@ -362,7 +362,8 @@ mod tests {
     #[tokio::test]
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let batch = prepared_mock_batch_commitment(&ctx.db);
         let block = simple_block_data(&ctx.db, batch.block_hash);
         ctx.db.set_validators_info(
@@ -427,7 +428,8 @@ mod tests {
     #[tokio::test]
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
         ctx.db.set_validators_info(
             block.hash,
@@ -466,7 +468,7 @@ mod tests {
     async fn create_producer_skip_timer(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
     ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert!(producer.is_producer());

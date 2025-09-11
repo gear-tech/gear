@@ -627,7 +627,8 @@ impl OnChainStorageRead for Database {
         self.kv
             .get(&Key::ValidatorsInfo(block_hash).to_bytes())
             .map(|data| {
-                ValidatorsInfo::decode(&data).expect("Failed to decode data into `ValidatorsInfo`")
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ValidatorsInfo`")
             })
     }
 }

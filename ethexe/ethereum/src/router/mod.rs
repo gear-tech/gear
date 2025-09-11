@@ -30,7 +30,7 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address as LocalAddress, Digest,
+    Address as LocalAddress, Digest, ValidatorsVec,
     ecdsa::ContractSignature,
     gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
 };
@@ -304,14 +304,16 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators_at(&self, block: H256) -> Result<Vec<LocalAddress>> {
-        self.instance
+    pub async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+        let validators: Vec<_> = self
+            .instance
             .validators()
             .call()
             .block(B256::from(block.0).into())
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::into)
+            .map_err(Into::<anyhow::Error>::into)?;
+        validators.try_into().map_err(Into::into)
     }
 
     pub async fn threshold(&self) -> Result<u64> {

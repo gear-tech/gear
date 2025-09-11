@@ -35,7 +35,6 @@ use ethexe_common::{
 };
 use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::collections::HashMap;
 
 pub(crate) trait SyncDB:
@@ -192,10 +191,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                     RouterQuery::from_provider(router_address, self.provider.clone());
                 let validators = router_query.validators_at(header.parent_hash).await?;
                 let validators_info = ValidatorsInfo {
-                    current: NonEmpty::from_vec(validators).ok_or(anyhow!(
-                        "Router query `validators_at` returns empty validator set for block {:?}",
-                        header.parent_hash
-                    ))?,
+                    current: validators,
                     next: Default::default(),
                 };
                 self.db
@@ -211,12 +207,9 @@ impl<DB: SyncDB> ChainSync<DB> {
         {
             let middleware_query =
                 MiddlewareQuery::new(self.provider.clone(), self.config.middleware_address);
-            let elected_validators = NonEmpty::from_vec(
-                middleware_query
-                    .make_election_at(era_election_ts, 10)
-                    .await?,
-            )
-            .ok_or(anyhow!("`make_election_at` returns empty validator set"))?;
+            let elected_validators = middleware_query
+                .make_election_at(era_election_ts, 10)
+                .await?;
             validators_info.next = NextEraValidators::Elected(elected_validators);
         }
 

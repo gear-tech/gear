@@ -156,7 +156,8 @@ mod tests {
                 ctx.pub_key.to_address(),
                 keys[0].to_address(),
                 keys[1].to_address(),
-            ],
+            ]
+            .into(),
             next: Default::default(),
         };
 
@@ -182,7 +183,8 @@ mod tests {
                 ctx.pub_key.to_address(),
                 keys[1].to_address(),
                 keys[2].to_address(),
-            ],
+            ]
+            .into(),
             next: Default::default(),
         };
         ctx.db.set_validators_info(block.hash, validators_info);
