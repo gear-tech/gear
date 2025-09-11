@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -156,6 +156,25 @@ impl FungibleToken {
         }
 
         false
+    }
+}
+
+#[cfg(feature = "benchmark")]
+static mut GAS: u64 = 0;
+
+#[cfg(feature = "benchmark")]
+gstd::ctor! {
+    unsafe extern "C" fn() {
+        unsafe { *gstd::static_mut!(GAS) = gstd::exec::gas_available() }
+    }
+}
+
+#[cfg(feature = "benchmark")]
+gstd::dtor! {
+    unsafe extern "C" fn() {
+        let prev_gas = unsafe { *gstd::static_mut!(GAS) };
+        let gas = gstd::exec::gas_available();
+        gstd::debug!("GAS SPENT: {}", prev_gas - gas);
     }
 }
 

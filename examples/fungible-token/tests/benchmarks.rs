@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -73,7 +73,10 @@ async fn send_messages_in_parallel(
 #[ignore]
 #[tokio::test]
 async fn stress_test() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let api = GearApi::dev_from_path(GEAR_PATH).await?;
+    //let api = GearApi::dev().await?.with("//Alice")?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
@@ -193,10 +196,12 @@ async fn stress_test() -> Result<()> {
         .iter()
         .map(|x| (program_id, x.encode(), MAX_GAS_LIMIT, 0))
         .collect();
+    log::info!("Actions prepared: {}", batch.len());
 
     // Sending batch
-    for chunk in batch.chunks_exact(BATCH_CHUNK_SIZE) {
+    for (i, chunk) in batch.chunks_exact(BATCH_CHUNK_SIZE).enumerate() {
         api.send_message_bytes_batch(chunk.to_vec()).await?;
+        log::info!("{}/{} batch done", (i + 1) * BATCH_CHUNK_SIZE, batch.len());
     }
 
     Ok(())

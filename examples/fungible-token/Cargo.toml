@@ -21,6 +21,8 @@ gclient.workspace = true
 futures.workspace = true
 rand.workspace = true
 statrs = "0.17"
+tracing-subscriber.workspace = true
+log.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
@@ -29,3 +31,4 @@ gear-wasm-builder.workspace = true
 debug = ["gstd/debug"]
 std = []
 default = ["std"]
+benchmark = []
