@@ -101,7 +101,7 @@ mod wasm {
         (ptr, size)
     }
 
-    fn gr_free(ptr: *mut u8, size: usize) -> bool {
+    unsafe fn gr_free(ptr: *mut u8, size: usize) -> bool {
         let start = ptr_to_page(ptr);
         let end = unsafe { ptr_to_page(ptr.add(size)) - 1 };
         unsafe { gsys::free_range(start as u32, end as u32) == 0 }
@@ -219,7 +219,7 @@ mod wasm {
         }
 
         fn free(&self, ptr: *mut u8, size: usize) -> bool {
-            gr_free(ptr, size)
+            unsafe { gr_free(ptr, size) }
         }
 
         fn can_release_part(&self, _flags: u32) -> bool {
