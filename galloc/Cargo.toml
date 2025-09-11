@@ -14,10 +14,10 @@ rust-version.workspace = true
 [dependencies]
 gsys.workspace = true
 gcore.workspace = true
-dlmalloc.workspace = true
+dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rs", version = "0.2.10", features = ["global"], optional = true }
 # add "checks" feature to enable hard checks in allocator
 gear-dlmalloc = "0.2.0"
 
 [features]
 debug = ["dlmalloc/debug"]
-new-allocator = []
+new-allocator = ["dlmalloc"]

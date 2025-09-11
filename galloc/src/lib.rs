@@ -36,6 +36,7 @@
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 
+#[cfg(feature = "new-allocator")]
 #[cfg(not(target_arch = "wasm32"))]
 #[global_allocator]
 static mut ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
@@ -46,7 +47,7 @@ static mut ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 static mut ALLOC: wasm::GlobalGearAlloc = wasm::GlobalGearAlloc;
 
 #[cfg(not(feature = "new-allocator"))]
-#[cfg(target_arch = "wasm32")]
+#[cfg(not(windows))]
 #[global_allocator]
 static mut ALLOC: gear_dlmalloc::GlobalDlmalloc = gear_dlmalloc::GlobalDlmalloc;
 
