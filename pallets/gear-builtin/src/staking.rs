@@ -104,6 +104,8 @@ where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
 {
+    const TYPE: BuiltinActorType = BuiltinActorType::Staking;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
