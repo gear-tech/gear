@@ -274,6 +274,8 @@ impl ProgramBuilder {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Failed to create Program from provided code");
 
