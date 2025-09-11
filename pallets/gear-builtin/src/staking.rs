@@ -24,7 +24,10 @@ use core::marker::PhantomData;
 use gbuiltin_staking::*;
 use pallet_staking::{Config as StakingConfig, NominationsQuota, RewardDestination};
 use parity_scale_codec::Decode;
-use sp_runtime::traits::{StaticLookup, UniqueSaturatedInto};
+use sp_runtime::{
+    SaturatedConversion,
+    traits::{StaticLookup, UniqueSaturatedInto},
+};
 
 pub struct Actor<T: Config + StakingConfig>(PhantomData<T>);
 
@@ -95,6 +98,7 @@ where
                 };
                 pallet_staking::Call::<T>::set_payee { payee }.into()
             }
+            _ => unreachable!("ActiveEra is handled separately"),
         }
     }
 }
@@ -128,6 +132,27 @@ where
         // Decode the message payload to derive the desired action
         let request =
             Request::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
+
+        // Handle special cases that return custom response instead of just dispatching calls
+        if let Request::ActiveEra = request {
+            let active_era = pallet_staking::ActiveEra::<T>::get();
+            let payload = if let Some(era_info) = active_era {
+                Response::ActiveEra {
+                    index: era_info.index,
+                    start: era_info.start,
+                    executed_at: frame_system::Pallet::<T>::block_number().saturated_into::<u64>(),
+                }
+                .encode()
+                .try_into()
+                .expect("Small vector")
+            } else {
+                Default::default()
+            };
+            return Ok(BuiltinReply {
+                payload,
+                value: dispatch.value(),
+            });
+        }
 
         // Handle staking requests
         let call = Self::cast(request);
