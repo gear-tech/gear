@@ -4845,8 +4845,6 @@ dependencies = [
  "gprimitives",
  "log",
  "nonempty 0.12.0",
- "rand 0.8.5",
- "roast-secp256k1-evm",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
