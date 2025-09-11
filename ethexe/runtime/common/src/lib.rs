@@ -318,7 +318,6 @@ where
             Err(journal) => return journal,
         };
 
-    // TODO: support normal allocations len #4068
     let allocations = active_state.allocations_hash.map_or_default(|hash| {
         ri.storage()
             .allocations(hash)
