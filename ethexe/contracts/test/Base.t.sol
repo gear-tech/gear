@@ -464,13 +464,17 @@ contract Base is POCBaseTest {
         address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
         defaultOperatorRewardsFactory = new DefaultOperatorRewardsFactory(defaultOperatorRewards_);
 
-        Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+        Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
             vaultRegistry: address(vaultFactory),
             operatorRegistry: address(operatorRegistry),
             networkRegistry: address(networkRegistry),
             middlewareService: address(networkMiddlewareService),
             networkOptIn: address(operatorNetworkOptInService),
-            stakerRewardsFactory: address(defaultStakerRewardsFactory)
+            stakerRewardsFactory: address(defaultStakerRewardsFactory),
+            operatorRewards: defaultOperatorRewardsFactory.create(),
+            roleSlashRequester: admin,
+            roleSlashExecutor: admin,
+            vetoResolver: admin
         });
 
         params = IMiddleware.InitParams({
@@ -486,12 +490,8 @@ contract Base is POCBaseTest {
             maxResolverSetEpochsDelay: type(uint256).max,
             collateral: address(wrappedVara),
             maxAdminFee: 10000,
-            operatorRewards: defaultOperatorRewardsFactory.create(),
             router: address(router),
-            roleSlashRequester: admin,
-            roleSlashExecutor: admin,
-            vetoResolver: admin,
-            registries: registries
+            symbiotic: symbiotic
         });
     }
 }

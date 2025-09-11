@@ -83,6 +83,7 @@ interface IRouter {
 
     function mirrorImpl() external view returns (address);
     function wrappedVara() external view returns (address);
+    function middleware() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
     function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory);
