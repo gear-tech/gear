@@ -25,12 +25,14 @@ use gprimitives::{H160, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
+/// Request payload type sent to the eth-bridge built-in actor.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
 pub enum Request {
     #[codec(index = 0)]
     SendEthMessage { destination: H160, payload: Vec<u8> },
 }
 
+/// Response payload type, received from the eth-bridge built-in actor.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
 pub enum Response {
     #[codec(index = 0)]

@@ -47,7 +47,8 @@ pub const REQUEST_AGGREGATE_G1: u8 = 6;
 /// Constant defines codec index of [`Request::MapToG2Affine`].
 pub const REQUEST_MAP_TO_G2AFFINE: u8 = 7;
 
-/// Type that should be used to create a message to the bls12_381 builtin actor.
+/// Request payload type sent to the bls12-381 built-in actor.
+/// 
 /// Use the following crates to construct a request:
 ///  - `ark-scale`: <https://docs.rs/ark-scale/>;
 ///  - `ark-bls12-381`: <https://docs.rs/ark-bls12-381/>.
@@ -112,7 +113,7 @@ pub enum Request {
     MapToG2Affine { message: Vec<u8> },
 }
 
-/// The enumeration contains result to a request.
+/// Response payload type, received from the bls12-381 built-in actor.
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo)]
 pub enum Response {
     /// Result of the multi Miller loop, encoded: [`ArkScale<Bls12_381::TargetField>`].

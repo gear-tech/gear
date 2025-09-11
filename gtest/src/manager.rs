@@ -19,10 +19,10 @@
 use crate::{
     EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
     ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
+    artifacts::{BlockRunResult, UserMessageEvent},
     builtins::{BLS12_381_ID, ETH_BRIDGE_ID},
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
-    log::{BlockRunResult, CoreLog},
     state::{
         self,
         accounts::Accounts,
@@ -109,7 +109,7 @@ pub(crate) struct ExtManager {
     pub(crate) failed: BTreeSet<MessageId>,
     pub(crate) not_executed: BTreeSet<MessageId>,
     pub(crate) gas_burned: BTreeMap<MessageId, Gas>,
-    pub(crate) log: Vec<StoredMessage>,
+    pub(crate) events: Vec<StoredMessage>,
     pub(crate) no_code_program: BTreeSet<ActorId>,
 }
 
@@ -208,7 +208,7 @@ impl ExtManager {
     fn init_success(&mut self, program_id: ActorId) {
         ProgramsStorageManager::modify_program(program_id, |program| {
             let Program::Active(active_program) = program
-                .unwrap_or_else(|| panic!("Actor id {program_id:?} not found"))
+                .unwrap_or_else(|| panic!("Program id {program_id:?} not found"))
                 .as_primary_program_mut()
             else {
                 unreachable!(
@@ -238,7 +238,7 @@ impl ExtManager {
                 // That's a case if no code exists for the program
                 // requested to be created from another program and
                 // there was not enough gas to get program from storage.
-                log::debug!("Failed init is set for non-existing actor");
+                log::debug!("Failed init is set for non-existing program");
             }
         });
 
@@ -250,10 +250,10 @@ impl ExtManager {
 
     pub(crate) fn update_program<R, F: FnOnce(&mut ActiveProgram<BlockNumber>) -> R>(
         &mut self,
-        id: ActorId,
+        program_id: ActorId,
         op: F,
     ) -> Option<R> {
-        ProgramsStorageManager::modify_program(id, |program| {
+        ProgramsStorageManager::modify_program(program_id, |program| {
             program.and_then(|program| {
                 if let Program::Active(active_program) = program.as_primary_program_mut() {
                     Some(op(active_program))
@@ -294,8 +294,8 @@ impl ExtManager {
         Ok(message)
     }
 
-    pub(crate) fn clean_waitlist(&mut self, id: ActorId) {
-        self.waitlist.drain_key(id).for_each(|entry| {
+    pub(crate) fn clean_waitlist(&mut self, program_id: ActorId) {
+        self.waitlist.drain_key(program_id).for_each(|entry| {
             let message = self.wake_dispatch_requirements(entry);
 
             self.dispatches.push_back(message);

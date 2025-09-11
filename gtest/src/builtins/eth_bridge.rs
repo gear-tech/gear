@@ -83,7 +83,7 @@ fn bridge_call_hash(nonce: U256, source: ActorId, destination: H160, payload: &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_USER_ALICE, Log, Program, System};
+    use crate::{DEFAULT_USER_ALICE, Program, System};
     use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use parity_scale_codec::Encode;
 
@@ -152,20 +152,20 @@ mod tests {
         assert!(res.succeed.contains(&mid));
 
         // Verify that Alice received a response from the proxy
-        assert!(
-            res.contains(
-                &Log::builder()
-                    .source(proxy_program.id())
-                    .dest(alice_actor_id)
-            )
-        );
+        let response = res
+            .events()
+            .iter()
+            .find_map(|event| {
+                if event.source() == proxy_program.id() && event.destination() == alice_actor_id {
+                    event.decode_payload()
+                } else {
+                    None
+                }
+            })
+            .expect("no event found");
+        let EthBridgeResponse::EthMessageQueued { nonce, hash } = response;
 
-        let mut logs = res.decoded_log();
-        let response = logs.pop().expect("no log found");
-
-        let EthBridgeResponse::EthMessageQueued { nonce, hash } = response.payload();
-
-        assert_eq!(nonce, &expected_nonce);
-        assert_eq!(hash, &expected_hash);
+        assert_eq!(nonce, expected_nonce);
+        assert_eq!(hash, expected_hash);
     }
 }

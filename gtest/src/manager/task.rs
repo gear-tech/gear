@@ -137,7 +137,7 @@ impl TaskHandler<ActorId, MessageId, bool> for ExtManager {
             } else {
                 let trap_message =
                     trap_reply.into_stored(program_id, waitlisted.source(), message_id);
-                self.log.push(trap_message);
+                self.events.push(trap_message);
             }
         }
 
