@@ -64,9 +64,8 @@ impl Node {
 
     /// Append arguments to the node
     ///
-    /// NOTE: argument `--dev` or `--chain=vara-dev` is managed by [`Node::chain`]
-    /// and could not be removed, if you are about to run a production node, please
-    /// run the node binary directly.
+    /// NOTE: argument `--dev` is managed by [`Node::spawn`] and could not be removed, if
+    /// you are about to run a production node, please run the node binary directly.
     pub fn args(&mut self, args: &[&str]) -> &mut Self {
         self.command.args(args);
         self

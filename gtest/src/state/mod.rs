@@ -148,7 +148,7 @@ mod tests {
             },
             mailbox::manager::{MailboxStorageWrap, MailboxedMessage},
             nonce::NonceManager,
-            programs::{PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
+            programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
             queue::QueueManager,
             stash::DispatchStashManager,
             task_pool::TaskPoolStorageWrap,
@@ -224,9 +224,18 @@ mod tests {
         let code_id3 = prog3.code_id;
 
         // Fill the actors storage.
-        ProgramsStorageManager::insert_program(predef_acc1, Program::Active(prog1));
-        ProgramsStorageManager::insert_program(predef_acc2, Program::Active(prog2));
-        ProgramsStorageManager::insert_program(predef_acc3, Program::Active(prog3));
+        ProgramsStorageManager::insert_program(
+            predef_acc1,
+            GTestProgram::Default(Program::Active(prog1)),
+        );
+        ProgramsStorageManager::insert_program(
+            predef_acc2,
+            GTestProgram::Default(Program::Active(prog2)),
+        );
+        ProgramsStorageManager::insert_program(
+            predef_acc3,
+            GTestProgram::Default(Program::Active(prog3)),
+        );
 
         // Fill the bank storage.
         let bank = Bank;
@@ -306,9 +315,12 @@ mod tests {
         assert_eq!(new_acc1_balance_overlaid, EXISTENTIAL_DEPOSIT * 1000);
 
         // Adjust actors storage the same way.
-        let acc2_actor_ty = Program::Exited(H256::random().cast());
-        let acc3_actor_ty = Program::Terminated(H256::random().cast());
-        ProgramsStorageManager::insert_program(new_acc, Program::Active(create_active_program()));
+        let acc2_actor_ty = GTestProgram::Default(Program::Exited(H256::random().cast()));
+        let acc3_actor_ty = GTestProgram::Default(Program::Terminated(H256::random().cast()));
+        ProgramsStorageManager::insert_program(
+            new_acc,
+            GTestProgram::Default(Program::Active(create_active_program())),
+        );
         ProgramsStorageManager::modify_program(predef_acc1, |actor| {
             *actor.expect("checked") = acc2_actor_ty;
         });
@@ -380,7 +392,7 @@ mod tests {
 
         // Actors haven't changed.
         let check_actor = |idx, id, code_id_expected| {
-            ProgramsStorageManager::access_program(id, |a| {
+            ProgramsStorageManager::access_primary_program(id, |a| {
                 let Some(Program::Active(active_program)) = a else {
                     panic!("Expected active program for actor {id}");
                 };
