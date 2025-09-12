@@ -22,6 +22,8 @@ anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true
+rand.workspace = true
+roast-secp256k1-evm.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

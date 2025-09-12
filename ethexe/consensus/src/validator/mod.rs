@@ -422,6 +422,7 @@ impl DefaultProcessing {
     }
 }
 
+/// The context shared across all validator states.
 #[derive(Debug)]
 struct ValidatorContext {
     slot_duration: Duration,

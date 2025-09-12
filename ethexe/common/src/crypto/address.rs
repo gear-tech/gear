@@ -19,11 +19,12 @@
 //! Ethereum address.
 
 use super::keys::PublicKey;
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use core::str::FromStr;
 use derive_more::{Debug, Display, Error};
 use gprimitives::{ActorId, H160};
 use hex::FromHexError;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -117,6 +118,67 @@ impl From<u64> for Address {
 impl From<Address> for ActorId {
     fn from(value: Address) -> Self {
         H160(value.0).into()
+    }
+}
+
+/// [`ValidatorsVec`] is a wrapper over non-empty vector of [`Address`].
+/// It is needed because `NonEmpty` does not implement `Encode` and `Decode`.
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::IntoIterator,
+)]
+pub struct ValidatorsVec(NonEmpty<Address>);
+
+// Encode / Decode implementations
+impl Encode for ValidatorsVec {
+    fn encode(&self) -> Vec<u8> {
+        Into::<Vec<_>>::into(self.0.clone()).encode()
+    }
+}
+
+impl Decode for ValidatorsVec {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        let inner: Vec<Address> = Decode::decode(input)?;
+        NonEmpty::from_vec(inner)
+            .map(Self)
+            .ok_or(parity_scale_codec::Error::from(
+                "Failed to decode ValidatorsVec: empty vector",
+            ))
+    }
+}
+
+#[derive(Debug, Display, Error)]
+#[display("{:?}", self)]
+#[debug("ValidatorsVec must be non-empty")]
+pub struct TryFromVecError;
+
+// Usefull conversions from / to `Vec<Address>`
+impl TryFrom<Vec<Address>> for ValidatorsVec {
+    type Error = TryFromVecError;
+
+    fn try_from(value: Vec<Address>) -> Result<Self, Self::Error> {
+        NonEmpty::from_vec(value).map(Self).ok_or(TryFromVecError)
+    }
+}
+
+impl From<NonEmpty<Address>> for ValidatorsVec {
+    fn from(value: NonEmpty<Address>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<ValidatorsVec> for Vec<Address> {
+    fn from(value: ValidatorsVec) -> Self {
+        value.0.into()
     }
 }
 
