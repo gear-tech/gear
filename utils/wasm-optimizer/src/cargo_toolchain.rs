@@ -34,7 +34,7 @@ pub(crate) struct Toolchain(String);
 
 impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-08-26";
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-09-12";
 
     /// Returns `Toolchain` representing the recommended nightly version.
     pub fn recommended_nightly() -> Self {
@@ -63,7 +63,7 @@ impl Toolchain {
             let channels = TOOLCHAIN_CHANNELS.join("|");
             let pattern = format!(r"(?:{channels})(?:-\d{{4}}-\d{{2}}-\d{{2}})?");
             // Note this regex gives you a guaranteed match of the channel[-date] as group 0,
-            // for example: `nightly-2025-08-26`
+            // for example: `nightly-2025-09-12`
             Regex::new(&pattern).unwrap()
         });
 

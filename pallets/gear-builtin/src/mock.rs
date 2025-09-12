@@ -103,6 +103,7 @@ parameter_types! {
 }
 
 #[derive(
+    Default,
     Copy,
     Clone,
     Eq,
@@ -116,18 +117,13 @@ parameter_types! {
     scale_info::TypeInfo,
 )]
 pub enum ProxyType {
+    #[default]
     Any,
     NonTransfer,
     Governance,
     Staking,
     IdentityJudgement,
     CancelProxy,
-}
-
-impl Default for ProxyType {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 impl From<BuiltinProxyType> for ProxyType {

@@ -413,7 +413,7 @@ mod tests {
         db.set_block_codes_queue(parent_hash, VecDeque::new());
         db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
 
-        let events = vec![
+        let events = [
             BlockEvent::Router(
                 ethexe_common::events::RouterEvent::ComputationSettingsChanged {
                     threshold: 100,
@@ -455,7 +455,7 @@ mod tests {
         db.set_code_valid(code_id2, true);
 
         let new_digest = Digest([99; 32]);
-        let events = vec![
+        let events = [
             BlockEvent::Router(ethexe_common::events::RouterEvent::BatchCommitted {
                 digest: new_digest,
             }),
