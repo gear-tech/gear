@@ -26,11 +26,11 @@ use ethexe_common::{
     Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, StateTransition},
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -208,8 +208,6 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {
-    // TODO #4744: improve squashing - removing redundant state transitions
-
     let last_committed_head = db
         .block_meta(from_block_hash)
         .last_committed_head
@@ -251,9 +249,57 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             .parent_hash;
     }
 
+    // Collect all transitions in chronological order
+    let all_transitions: Vec<StateTransition> = transitions.into_iter().flatten().collect();
+
+    // Group transitions by actor_id and squash consecutive transitions for the same actor
+    let mut actor_transitions: std::collections::BTreeMap<ActorId, Vec<StateTransition>> =
+        std::collections::BTreeMap::new();
+    for transition in all_transitions {
+        actor_transitions
+            .entry(transition.actor_id)
+            .or_default()
+            .push(transition);
+    }
+
+    let mut squashed_transitions = Vec::new();
+    for transitions_for_actor in actor_transitions.into_values() {
+        if transitions_for_actor.is_empty() {
+            continue;
+        }
+
+        // Use the last transition in chronological order as the base
+        let mut squashed = transitions_for_actor.last().unwrap().clone();
+
+        if transitions_for_actor.len() > 1 {
+            // Accumulate messages from all transitions for this actor
+            let mut all_messages = Vec::new();
+            let mut all_claims = Vec::new();
+            let mut total_value: u128 = 0;
+
+            // Accumulate from all transitions
+            for t in &transitions_for_actor {
+                all_messages.extend_from_slice(&t.messages);
+                all_claims.extend_from_slice(&t.value_claims);
+                total_value = total_value.saturating_add(t.value_to_receive);
+
+                if t.exited {
+                    // If any transition indicates exit, mark as exited
+                    squashed.exited = true;
+                }
+            }
+
+            squashed.messages = all_messages;
+            squashed.value_claims = all_claims;
+            squashed.value_to_receive = total_value;
+        }
+
+        squashed_transitions.push(squashed);
+    }
+
     Ok(Some((
         ChainCommitment {
-            transitions: transitions.into_iter().rev().flatten().collect(),
+            transitions: squashed_transitions,
             head: from_block_hash,
         },
         counter,
@@ -481,6 +527,107 @@ mod tests {
         );
 
         aggregate_code_commitments(&db, vec![CodeId::from([3; 32])], true).unwrap_err();
+    }
+
+    #[test]
+    fn test_squashing_example() {
+        use crate::mock::*;
+        use ethexe_common::{SimpleBlockData, gear::Message};
+        use gprimitives::{ActorId, MessageId};
+
+        let db = Database::memory();
+
+        // Set up two blocks: block2 (older) -> block1 (head)
+        let block2_hash = H256::from([2; 32]);
+        let block1_hash = H256::from([1; 32]);
+
+        let block2 = SimpleBlockData {
+            hash: block2_hash,
+            header: ethexe_common::BlockHeader {
+                parent_hash: H256::zero(),
+                ..Default::default()
+            },
+        };
+        let block1 = SimpleBlockData {
+            hash: block1_hash,
+            header: ethexe_common::BlockHeader {
+                parent_hash: block2_hash,
+                ..Default::default()
+            },
+        };
+
+        block2.prepare(&db, H256::zero());
+        block1.prepare(&db, H256::zero());
+
+        // Actor A
+        let actor_a = ActorId::from([1; 32]);
+
+        let msg1 = Message {
+            id: MessageId::from([10; 32]),
+            destination: actor_a,
+            payload: vec![1],
+            value: 100,
+            reply_details: None,
+            call: true,
+        };
+
+        let msg2 = Message {
+            id: MessageId::from([20; 32]),
+            destination: actor_a,
+            payload: vec![2],
+            value: 200,
+            reply_details: None,
+            call: false,
+        };
+
+        // Block 1 (newer): actor A: a1 -> a2 + msg1
+        let transition1 = StateTransition {
+            actor_id: actor_a,
+            new_state_hash: H256::from([2; 32]), // a2
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 100,
+            value_claims: vec![],
+            messages: vec![msg1.clone()],
+        };
+        db.set_block_outcome(block1_hash, vec![transition1]);
+
+        // Block 2 (older): actor A: a2 -> a3 + msg2
+        let transition2 = StateTransition {
+            actor_id: actor_a,
+            new_state_hash: H256::from([3; 32]), // a3
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 150,
+            value_claims: vec![],
+            messages: vec![msg2.clone()],
+        };
+        db.set_block_outcome(block2_hash, vec![transition2]);
+
+        // Aggregate from block1
+        let (commitment, counter) = aggregate_chain_commitment(&db, block1_hash, false, None)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(commitment.head, block1_hash);
+        assert_eq!(counter, 2); // 2 blocks
+
+        // Should be 1 squashed transition
+        assert_eq!(commitment.transitions.len(), 1);
+
+        let squashed = &commitment.transitions[0];
+        assert_eq!(squashed.actor_id, actor_a);
+
+        // Final state should be a3
+        assert_eq!(squashed.new_state_hash, H256::from([3; 32]));
+
+        // Messages should be accumulated: [msg1, msg2]
+        assert_eq!(squashed.messages.len(), 2);
+        assert!(squashed.messages.contains(&msg1));
+        assert!(squashed.messages.contains(&msg2));
+
+        // Value should be summed: 100 + 150 = 250
+        assert_eq!(squashed.value_to_receive, 250);
     }
 
     #[test]
