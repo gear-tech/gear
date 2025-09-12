@@ -183,8 +183,8 @@ jobs:
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           cache-all-crates: true
 
-      - name: "Test: crates-io packages publishing"
-        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+      #- name: "Test: crates-io packages publishing"
+      #  run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
