@@ -17,12 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::state::{blocks, programs::PLACEHOLDER_MESSAGE_ID};
-use core_processor::{ContextCharged, ProcessExecutionContext};
+use crate::state::{
+    blocks,
+    programs::{GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID},
+};
+use core_processor::{ContextCharged, ForProgram, ProcessExecutionContext};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
-    message::StoredDispatch,
+    message::{DispatchKind, ReplyPacket, StoredDispatch},
     program::ProgramState,
+    str::LimitedStr,
 };
 
 impl ExtManager {
@@ -303,8 +307,6 @@ impl ExtManager {
             self.gas_allowance,
         );
 
-        let balance = Accounts::reducible_balance(destination_id);
-
         let context = ContextCharged::new(
             destination_id,
             dispatch.into_incoming(gas_limit),
@@ -319,176 +321,279 @@ impl ExtManager {
         };
 
         ProgramsStorageManager::modify_program(destination_id, |program| {
-            let program = match program {
-                Some(Program::Active(active_program)) => active_program,
-                Some(Program::Terminated(_)) => {
+            let Some(program) = program else {
+                log::debug!(
+                    "Message {dispatch_id} is sent to program {destination_id} which does not exist"
+                );
+                return core_processor::process_code_not_exists(context);
+            };
+
+            match program.as_primary_program() {
+                Program::Active(active_program) => {
+                    // Check for invalid init message to already initialized program
+                    if active_program.state == ProgramState::Initialized && dispatch_kind.is_init()
+                    {
+                        unreachable!(
+                            "Got init message for already initialized program. \
+                            Current init message id: {dispatch_id:?}, already initialized program id: {destination_id:?}"
+                        );
+                    }
+
+                    // Handle uninitialized program states
+                    if let ProgramState::Uninitialized { message_id } = active_program.state {
+                        // Check for incomplete user programs (placeholder message ID)
+                        if message_id == PLACEHOLDER_MESSAGE_ID {
+                            unreachable!(
+                                "Got message sent to incomplete user program. First send manually via `Program` API \
+                                message to {destination_id} program, so it's completely created and possibly initialized."
+                            );
+                        }
+
+                        // If the destination program is uninitialized, then we allow
+                        // to process message, if it's a reply (async init case) or init message.
+                        // Otherwise, we return error reply.
+                        if message_id != dispatch_id && !dispatch_kind.is_reply() {
+                            if dispatch_kind.is_init() {
+                                // This should never happen as the protocol doesn't allow second
+                                // init messages
+                                unreachable!(
+                                    "Got init message which is not the first init message to the program. \
+                                    Current init message id: {dispatch_id:?}, original init message id: {message_id:?}, \
+                                    program: {destination_id:?}"
+                                );
+                            }
+
+                            return core_processor::process_uninitialized(context);
+                        }
+                    }
+                }
+                Program::Terminated(_) => {
                     log::debug!(
                         "Message {dispatch_id} is sent to program {destination_id} which is failed to initialize"
                     );
                     return core_processor::process_failed_init(context);
                 }
-                Some(Program::Exited(inheritor)) => {
+                Program::Exited(inheritor) => {
                     log::debug!("Message {dispatch_id} is sent to exited program {destination_id}");
                     return core_processor::process_program_exited(context, *inheritor);
                 }
-                None => {
-                    log::debug!(
-                        "Message {dispatch_id} is sent to program {destination_id} which does not exist"
-                    );
-                    return core_processor::process_code_not_exists(context);
-                }
             };
 
-            // Check for invalid init message to already initialized program
-            if program.state == ProgramState::Initialized && dispatch_kind.is_init() {
-                unreachable!(
-                    "Got init message for already initialized program. \
-                    Current init message id: {dispatch_id:?}, already initialized program id: {destination_id:?}"
-                );
-            }
-
-            // Handle uninitialized program states
-            if let ProgramState::Uninitialized { message_id } = program.state {
-                // Check for incomplete user programs (placeholder message ID)
-                if message_id == PLACEHOLDER_MESSAGE_ID {
-                    unreachable!(
-                        "Got message sent to incomplete user program. First send manually via `Program` API \
-                        message to {destination_id} program, so it's completely created and possibly initialized."
-                    );
-                }
-
-                // If the destination program is uninitialized, then we allow
-                // to process message, if it's a reply (async init case) or init message.
-                // Otherwise, we return error reply.
-                if message_id != dispatch_id && !dispatch_kind.is_reply() {
-                    if dispatch_kind.is_init() {
-                        // This should never happen as the protocol doesn't allow second init
-                        // messages
-                        unreachable!(
-                            "Got init message which is not the first init message to the program. \
-                            Current init message id: {dispatch_id:?}, original init message id: {message_id:?}, \
-                            program: {destination_id:?}"
-                        );
-                    }
-
-                    return core_processor::process_uninitialized(context);
-                }
-            }
-
-            let context = match context.charge_for_code_metadata(block_config) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            let code_id = program.code_id;
-            let code_metadata = self.code_metadata(code_id).cloned().unwrap_or_else(|| {
-                unreachable!(
-                    "Code metadata for program {destination_id:?} with code id {} not found",
-                    program.code_id
-                )
-            });
-
-            // TODO: This is an early check, it should be moved after re-instrumentation, in
-            // case re-instrumentation will change/add exports
-            if !code_metadata.exports().contains(&dispatch_kind) {
-                let (destination_id, dispatch, gas_counter, _) = context.into_parts();
-
-                let notes = core_processor::process_success(
-                    SuccessfulDispatchResultKind::Success,
-                    DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
-                    dispatch,
-                );
-
-                return notes;
-            }
-
-            // No re-instrumentation is needed for test environment,
-            // as `gtest` test runtime doesn't provide an opportunity
-            // to change the Schedule with weights data.
-
-            let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
-                let err_msg = format!(
-                    "Code metadata for the existing program does not contain \
-                    instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}");
-            });
-
-            // Adjust gas counters for fetching instrumented binary code.
-            let context =
-                match context.charge_for_instrumented_code(block_config, instrumented_code_len) {
-                    Ok(context) => context,
-                    Err(journal) => return journal,
-                };
-
-            let instrumented_code = self.instrumented_code(code_id).cloned().unwrap_or_else(|| {
-                let err_msg = format!(
-                    "Failed to get instrumented code for the existing program. \
-                        Program id -'{destination_id:?}', Code id - '{code_id:?}'."
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}");
-            });
-
-            let context =
-                match context.charge_for_allocations(block_config, program.allocations_tree_len) {
-                    Ok(context) => context,
-                    Err(journal) => {
-                        return journal;
-                    }
-                };
-
-            let allocations = if program.allocations_tree_len != 0 {
-                ProgramsStorageManager::allocations(destination_id).unwrap_or_else(||
-                    unreachable!(
-                        "`allocations_tree_len` {} is not zero, so program {destination_id:?} must have allocations",
-                        program.allocations_tree_len,
-                    )
-                )
-            } else {
-                Default::default()
-            };
-
-            let actor_data = ExecutableActorData {
-                allocations,
-                memory_infix: program.memory_infix,
-                gas_reservation_map: program.gas_reservation_map.clone(),
-            };
-
-            let context = match context.charge_for_module_instantiation(
-                block_config,
-                actor_data,
-                instrumented_code.instantiated_section_sizes(),
-                &code_metadata,
-            ) {
-                Ok(context) => context,
-                Err(journal) => {
-                    return journal;
-                }
-            };
-
-            core_processor::process::<Ext<LazyPagesNative>>(
-                block_config,
-                ProcessExecutionContext::new(
+            // Dispatch to mock or regular program based on the type
+            match program {
+                GTestProgram::Default(Program::Active(active_program)) => self.process_program(
+                    block_config,
                     context,
-                    InstrumentedCodeAndMetadata {
-                        instrumented_code,
-                        metadata: code_metadata,
-                    },
-                    balance,
+                    active_program,
+                    dispatch_kind,
+                    destination_id,
                 ),
-                (
-                    blocks::current_epoch_random(),
-                    block_config.block_info.height,
-                ),
-            )
-            .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
+                GTestProgram::Mock(mock_program) => {
+                    self.process_mock_program(context, mock_program)
+                }
+                _ => {
+                    unreachable!("Program {destination_id:?} is in unexpected state - {program:?}");
+                }
+            }
         })
+    }
+
+    fn process_program(
+        &mut self,
+        block_config: &BlockConfig,
+        context: ContextCharged<ForProgram>,
+        active_program: &mut ActiveProgram<BlockNumber>,
+        dispatch_kind: DispatchKind,
+        destination_id: ActorId,
+    ) -> Vec<JournalNote> {
+        let context = match context.charge_for_code_metadata(block_config) {
+            Ok(context) => context,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let code_id = active_program.code_id;
+        let code_metadata = self.code_metadata(code_id).cloned().unwrap_or_else(|| {
+            unreachable!(
+                "Code metadata for program {destination_id:?} with code id {} not found",
+                active_program.code_id
+            )
+        });
+
+        // TODO: This is an early check, it should be moved after re-instrumentation, in
+        // case re-instrumentation will change/add exports
+        if !code_metadata.exports().contains(&dispatch_kind) {
+            let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+
+            let notes = core_processor::process_success(
+                SuccessfulDispatchResultKind::Success,
+                DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount()),
+                dispatch,
+            );
+
+            return notes;
+        }
+
+        // No re-instrumentation is needed for test environment,
+        // as `gtest` test runtime doesn't provide an opportunity
+        // to change the Schedule with weights data.
+        let instrumented_code_len = code_metadata.instrumented_code_len().unwrap_or_else(|| {
+            let err_msg = format!(
+                "Code metadata for the existing program does not contain \
+                instrumented code length. Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
+
+        // Adjust gas counters for fetching instrumented binary code.
+        let context =
+            match context.charge_for_instrumented_code(block_config, instrumented_code_len) {
+                Ok(context) => context,
+                Err(journal) => return journal,
+            };
+
+        let instrumented_code = self.instrumented_code(code_id).cloned().unwrap_or_else(|| {
+            let err_msg = format!(
+                "Failed to get instrumented code for the existing program. \
+                    Program id -'{destination_id:?}', Code id - '{code_id:?}'."
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}");
+        });
+
+        let context = match context
+            .charge_for_allocations(block_config, active_program.allocations_tree_len)
+        {
+            Ok(context) => context,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let allocations = if active_program.allocations_tree_len != 0 {
+            ProgramsStorageManager::allocations(destination_id).unwrap_or_else(||
+                unreachable!(
+                    "`allocations_tree_len` {} is not zero, so program {destination_id:?} must have allocations",
+                    active_program.allocations_tree_len,
+                )
+            )
+        } else {
+            Default::default()
+        };
+
+        let actor_data = ExecutableActorData {
+            allocations,
+            memory_infix: active_program.memory_infix,
+            gas_reservation_map: active_program.gas_reservation_map.clone(),
+        };
+
+        let context = match context.charge_for_module_instantiation(
+            block_config,
+            actor_data,
+            instrumented_code.instantiated_section_sizes(),
+            &code_metadata,
+        ) {
+            Ok(context) => context,
+            Err(journal) => {
+                return journal;
+            }
+        };
+
+        let balance = Accounts::reducible_balance(destination_id);
+
+        core_processor::process::<Ext<LazyPagesNative>>(
+            block_config,
+            ProcessExecutionContext::new(
+                context,
+                InstrumentedCodeAndMetadata {
+                    instrumented_code,
+                    metadata: code_metadata,
+                },
+                balance,
+            ),
+            (
+                blocks::current_epoch_random(),
+                block_config.block_info.height,
+            ),
+        )
+        .unwrap_or_else(|e| unreachable!("core-processor logic violated: {}", e))
+    }
+
+    fn process_mock_program(
+        &mut self,
+        context: ContextCharged<ForProgram>,
+        mock_program: &mut MockWasmProgram,
+    ) -> Vec<JournalNote> {
+        let (destination_id, dispatch, gas_counter, _) = context.into_parts();
+        let payload = dispatch.payload().to_vec();
+        let dispatch_kind = dispatch.kind();
+        let handlers = mock_program.handlers_mut();
+
+        let outcome = match dispatch_kind {
+            DispatchKind::Init => {
+                log::debug!("Calling mock program init for {destination_id:?}");
+                handlers.init(payload)
+            }
+            DispatchKind::Handle => {
+                log::debug!("Calling mock program handle for {destination_id:?}");
+                handlers.handle(payload)
+            }
+            _ => unreachable!("Unsupported dispatch kind for mock program"),
+        };
+
+        match outcome {
+            Ok(maybe_reply) => {
+                let (generated_dispatches, reply_sent) = maybe_reply
+                    .map(|payload| {
+                        let reply_message = ReplyMessage::from_packet(
+                            MessageId::generate_reply(dispatch.id()),
+                            ReplyPacket::new(payload.try_into().expect("too big payload"), 0),
+                        );
+                        let dispatch = reply_message.into_dispatch(
+                            destination_id,
+                            dispatch.source(),
+                            dispatch.id(),
+                        );
+
+                        (vec![(dispatch, 0, None)], true)
+                    })
+                    .unwrap_or_default();
+
+                let dispatch_result = {
+                    let mut dp =
+                        DispatchResult::success(&dispatch, destination_id, gas_counter.to_amount());
+                    dp.generated_dispatches = generated_dispatches;
+                    dp.reply_sent = reply_sent;
+
+                    dp
+                };
+
+                core_processor::process_success(
+                    SuccessfulDispatchResultKind::Success,
+                    dispatch_result,
+                    dispatch,
+                )
+            }
+            Err(error_msg) => {
+                handlers.debug(error_msg);
+
+                let err = ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
+                    LimitedStr::from_small_str(error_msg).into(),
+                ));
+
+                core_processor::process_execution_error(
+                    dispatch,
+                    destination_id,
+                    gas_counter.burned(),
+                    Default::default(),
+                    err,
+                )
+            }
+        }
     }
 
     pub(crate) fn block_config(&self) -> BlockConfig {

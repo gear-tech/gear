@@ -41,39 +41,26 @@ jobs:
           target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      #- name: Setup caching
-      #  uses: ./.github/actions/rust-cache
-      #  with:
-      #    us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-      #    us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
-      #    eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-      #    eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: Setup caching
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      #- name: Test docs
-      #  run: ./scripts/gear.sh test docs
+      - run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+          __GEAR_WASM_BUILDER_NO_BUILD: 1
+          SKIP_WASM_BUILD: 1
 
-      #- name: Build docs
-      #  run: make doc
-      #  shell: bash
-
-      #- name: Deploy
-      #  if: github.event_name == 'push'
-      #  uses: peaceiris/actions-gh-pages@v3
-      #  with:
-      #    github_token: ${{ secrets.GITHUB_TOKEN }}
-      #    publish_dir: ./target/doc
-      #    cname: docs.gear.rs
-      #    force_orphan: true
-      #    user_name: "github-actions[bot]"
-      #    user_email: "github-actions[bot]@users.noreply.github.com"
-
-      #- name: Deploy PR
-      #  if: github.event_name == 'pull_request'
-      #  uses: peaceiris/actions-gh-pages@v3
-      #  with:
-      #    github_token: ${{ secrets.GITHUB_TOKEN }}
-      #    publish_dir: ./target/x86_64-unknown-linux-gnu/doc
-      #    destination_dir: pr-${{ github.event.number }}
+      # TODO: uncomment once caching fixed
+      # - run: ./scripts/gear.sh test docs
+      #   env:
+      #     RUSTFLAGS: "-D warnings"
+      #     __GEAR_WASM_BUILDER_NO_BUILD: 1
+      #     SKIP_WASM_BUILD: 1
 
   workspace:
     runs-on: [ kuberunner, github-runner-02 ]
@@ -103,8 +90,6 @@ jobs:
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly-129bea58b6f141ee8d6c25bd62b9a4f6d0f4d011
 
       - name: "Show: Versioning"
         run: |
@@ -131,6 +116,46 @@ jobs:
 
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lazy-pages-linux-aarch64-tests:
+    runs-on: ubuntu-24.04-arm
+    needs: workspace
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+      fail-fast: false
+    name: linux-aarch64 (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "Build: Init"
+        run: ./scripts/gear.sh init cargo
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo nextest run
+          -p "pallet-*"
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -360,15 +385,15 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir artifact
-          
+
           # examples
           (cd examples-artifact && tar czvf ../artifact/examples.tar.gz *.wasm)
-          
+
           # runtime
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
           cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
-          
+
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/

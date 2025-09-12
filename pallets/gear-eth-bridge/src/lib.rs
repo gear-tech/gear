@@ -19,13 +19,14 @@
 //! Pallet Gear Eth Bridge.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![warn(missing_docs)]
 // TODO: remove on rust update.
 #![allow(unknown_lints)]
 #![allow(clippy::manual_inspect)]
 #![allow(clippy::useless_conversion)]
+#![warn(missing_docs)]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 pub use builtin::Actor;
 pub use pallet::*;
@@ -436,7 +437,7 @@ pub mod pallet {
             let idx = queue.iter().position(|&v| v == hash)?;
 
             // Generating proof.
-            let proof = binary_merkle_tree::merkle_proof::<Keccak256, _, _>(queue, idx);
+            let proof = binary_merkle_tree::merkle_proof_raw::<Keccak256, _>(queue, idx);
 
             // Returning appropriate type.
             Some(proof.into())
@@ -505,7 +506,7 @@ pub mod pallet {
             debug_assert!(!queue.is_empty());
 
             // Calculating new queue merkle root.
-            let root = binary_merkle_tree::merkle_root::<Keccak256, _>(queue);
+            let root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(queue);
 
             // Updating queue merkle root in storage.
             QueueMerkleRoot::<T>::put(root);
