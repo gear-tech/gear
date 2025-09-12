@@ -1556,7 +1556,7 @@ where
                     program_id,
                     exec.context.memory_infix(),
                     page,
-                    PageBuf::from_inner(PageBufInner::filled_with(1)),
+                    PageBuf::from_inner(PageBufInner::repeat(1)),
                 );
             });
         Ok(exec)

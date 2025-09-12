@@ -37,6 +37,7 @@ pub mod env_vars;
 pub mod gas;
 pub mod gas_metering;
 pub mod ids;
+pub mod limited;
 pub mod memory;
 pub mod message;
 pub mod pages;
@@ -44,7 +45,6 @@ pub mod percent;
 pub mod program;
 pub mod reservation;
 pub mod rpc;
-pub mod str;
 pub mod tasks;
 pub mod utils {
     //! Utility functions.

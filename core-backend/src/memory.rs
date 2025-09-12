@@ -30,7 +30,8 @@ use crate::{
 use alloc::{format, vec::Vec};
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
 use gear_core::{
-    buffer::{RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::RuntimeBuffer,
+    limited::LimitedVecError,
     memory::{HostPointer, Memory, MemoryError, MemoryInterval},
     pages::WasmPagesAmount,
 };
@@ -96,7 +97,7 @@ where
 pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
-    RuntimeBuffer(RuntimeBufferSizeError),
+    RuntimeBuffer(LimitedVecError),
     // TODO: remove #2164
     Decode,
 }
@@ -111,12 +112,10 @@ impl BackendSyscallError for MemoryAccessError {
                 )
                 .into()
             }
-            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
-                TrapExplanation::UnrecoverableExt(
-                    UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into(),
-                )
-                .into()
-            }
+            MemoryAccessError::RuntimeBuffer(LimitedVecError) => TrapExplanation::UnrecoverableExt(
+                UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into(),
+            )
+            .into(),
             // TODO: In facts thats legacy from lazy pages V1 implementation,
             // previously it was able to figure out that gas ended up in
             // pre-process charges: now we need actual counter type, so
@@ -142,7 +141,7 @@ impl BackendSyscallError for MemoryAccessError {
             | MemoryAccessError::ProcessAccess(ProcessAccessError::OutOfBounds) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::AccessOutOfBounds.into())
             }
-            MemoryAccessError::RuntimeBuffer(RuntimeBufferSizeError) => {
+            MemoryAccessError::RuntimeBuffer(LimitedVecError) => {
                 RunFallibleError::FallibleExt(FallibleMemoryError::RuntimeAllocOutOfBounds.into())
             }
             e => RunFallibleError::UndefinedTerminationReason(e.into_termination_reason()),
@@ -287,7 +286,7 @@ where
         let buff = if read.size == 0 {
             Vec::new()
         } else {
-            let mut buff = RuntimeBuffer::try_new_default(read.size as usize)?.into_vec();
+            let mut buff = RuntimeBuffer::try_repeat(0, read.size as usize)?.into_vec();
             self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
@@ -330,7 +329,7 @@ where
         let buff = if size == 0 {
             Vec::new()
         } else {
-            let mut buff = RuntimeBuffer::try_new_default(size)?.into_vec();
+            let mut buff = RuntimeBuffer::try_repeat(0, size)?.into_vec();
             self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
