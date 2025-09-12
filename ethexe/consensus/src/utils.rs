@@ -26,11 +26,11 @@ use ethexe_common::{
     Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, StateTransition},
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -208,8 +208,6 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {
-    // TODO #4744: improve squashing - removing redundant state transitions
-
     let last_committed_head = db
         .block_meta(from_block_hash)
         .last_committed_head
@@ -251,9 +249,57 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             .parent_hash;
     }
 
+    // Collect all transitions in chronological order
+    let all_transitions: Vec<StateTransition> = transitions.into_iter().flatten().collect();
+
+    // Group transitions by actor_id and squash consecutive transitions for the same actor
+    let mut actor_transitions: std::collections::BTreeMap<ActorId, Vec<StateTransition>> =
+        std::collections::BTreeMap::new();
+    for transition in all_transitions {
+        actor_transitions
+            .entry(transition.actor_id)
+            .or_insert_with(Vec::new)
+            .push(transition);
+    }
+
+    let mut squashed_transitions = Vec::new();
+    for mut transitions_for_actor in actor_transitions.into_values() {
+        if transitions_for_actor.is_empty() {
+            continue;
+        }
+
+        // Use the last transition in chronological order as the base
+        let mut squashed = transitions_for_actor.last().unwrap().clone();
+
+        if transitions_for_actor.len() > 1 {
+            // Accumulate messages from all transitions for this actor
+            let mut all_messages = Vec::new();
+            let mut all_claims = Vec::new();
+            let mut total_value: u128 = 0;
+
+            // Accumulate from all transitions
+            for t in &transitions_for_actor {
+                all_messages.extend_from_slice(&t.messages);
+                all_claims.extend_from_slice(&t.value_claims);
+                total_value = total_value.saturating_add(t.value_to_receive);
+
+                if t.exited {
+                    // If any transition indicates exit, mark as exited
+                    squashed.exited = true;
+                }
+            }
+
+            squashed.messages = all_messages;
+            squashed.value_claims = all_claims;
+            squashed.value_to_receive = total_value;
+        }
+
+        squashed_transitions.push(squashed);
+    }
+
     Ok(Some((
         ChainCommitment {
-            transitions: transitions.into_iter().rev().flatten().collect(),
+            transitions: squashed_transitions,
             head: from_block_hash,
         },
         counter,
