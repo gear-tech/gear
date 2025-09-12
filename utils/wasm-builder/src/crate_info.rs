@@ -115,19 +115,11 @@ impl CrateInfo {
         let validated_lib = |ty: &CrateType| matches!(ty, CrateType::Lib | CrateType::RLib);
         let pkg_snake_case_name = pkg.name.replace('-', "_");
 
-        // Check for rustc version. See https://github.com/rust-lang/cargo/pull/12783
-        let compatible = rustc_version::version()?.lt(&rustc_version::Version::parse("1.79.0")?);
-
         let _ = pkg
             .targets
             .iter()
             .find(|target| {
-                if compatible {
-                    target.name.eq(&*pkg.name) && target.crate_types.iter().any(validated_lib)
-                } else {
-                    target.name.eq(&pkg_snake_case_name)
-                        && target.crate_types.iter().any(validated_lib)
-                }
+                target.name.eq(&pkg_snake_case_name) && target.crate_types.iter().any(validated_lib)
             })
             .ok_or(BuilderError::CrateTypeInvalid)?;
 
