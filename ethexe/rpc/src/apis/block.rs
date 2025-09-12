@@ -29,15 +29,11 @@ use jsonrpsee::{
     core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
-use std::collections::VecDeque;
 
 #[rpc(server)]
 pub trait Block {
     #[method(name = "block_header")]
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
-
-    #[method(name = "block_commitmentQueue")]
-    async fn block_commitment_queue(&self, hash: Option<H256>) -> RpcResult<VecDeque<H256>>;
 
     #[method(name = "block_events")]
     async fn block_events(&self, block_hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>>;
@@ -63,14 +59,6 @@ impl BlockServer for BlockApi {
         block_header_at_or_latest(&self.db, hash)
     }
 
-    async fn block_commitment_queue(&self, hash: Option<H256>) -> RpcResult<VecDeque<H256>> {
-        let block_hash = block_header_at_or_latest(&self.db, hash)?.0;
-
-        self.db
-            .block_commitment_queue(block_hash)
-            .ok_or_else(|| errors::db("Block commitment queue wasn't found"))
-    }
-
     async fn block_events(&self, hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>> {
         let block_hash = block_header_at_or_latest(&self.db, hash)?.0;
 
@@ -90,6 +78,8 @@ impl BlockServer for BlockApi {
 
         self.db
             .block_outcome(block_hash)
-            .ok_or_else(|| errors::db("Block outcome wasn't found"))
+            .ok_or_else(|| errors::db("Block outcome wasn't found"))?
+            .into_transitions()
+            .ok_or_else(|| errors::db("`block_outcome` is called on forced non-empty outcome"))
     }
 }

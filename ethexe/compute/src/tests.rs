@@ -18,7 +18,7 @@
 
 use super::*;
 use ethexe_common::{
-    BlockHeader, CodeAndIdUnchecked, Digest,
+    Address, BlockHeader, CodeAndIdUnchecked, Digest,
     db::{BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
 };
@@ -26,6 +26,7 @@ use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt;
+use nonempty::nonempty;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, VecDeque},
@@ -119,11 +120,10 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
     db.mutate_block_meta(genesis_hash, |meta| {
         meta.computed = true;
         meta.prepared = true;
+        meta.last_committed_batch = Some(Digest::random());
+        meta.last_committed_head = Some(H256::random());
     });
     db.set_block_outcome(genesis_hash, vec![]);
-    db.set_previous_not_empty_block(genesis_hash, H256::random());
-    db.set_last_committed_batch(genesis_hash, Digest::random());
-    db.set_block_commitment_queue(genesis_hash, Default::default());
     db.set_block_program_states(genesis_hash, Default::default());
     db.set_block_schedule(genesis_hash, Default::default());
     db.set_block_header(
@@ -134,6 +134,7 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
             parent_hash: H256::zero(),
         },
     );
+    db.set_validators(genesis_hash, nonempty![Address::from([0u8; 20])]);
 
     let mut chain = VecDeque::new();
 

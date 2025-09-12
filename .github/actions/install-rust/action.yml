@@ -10,4 +10,8 @@ runs:
         Resolve-Path "~/.cargo/bin" >> $Env:GITHUB_PATH
       if: ${{ runner.os == 'Windows' }}
       shell: powershell
+
     - uses: dsherret/rust-toolchain-file@v1
+
+    - run: rustup default 1.88.0
+      shell: bash

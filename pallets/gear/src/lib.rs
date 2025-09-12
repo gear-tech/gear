@@ -18,10 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "1024")]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicons/favicon.ico")]
 #![allow(clippy::manual_inspect)]
 #![allow(clippy::useless_conversion)]
+#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
+#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 extern crate alloc;
 
@@ -47,10 +48,15 @@ pub mod migrations;
 pub mod pallet_tests;
 
 pub use crate::{
-    builtin::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn},
+    builtin::{
+        BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, BuiltinReply, HandleFn, WeightFn,
+    },
     manager::{ExtManager, HandleKind},
     pallet::*,
-    schedule::{InstructionWeights, Limits, MemoryWeights, Schedule, SyscallWeights},
+    schedule::{
+        DbWeights, InstantiationWeights, InstructionWeights, InstrumentationWeights, Limits,
+        MemoryWeights, RentWeights, Schedule, SyscallWeights, TaskWeights,
+    },
 };
 pub use gear_core::rpc::{GasInfo, ReplyInfo};
 pub use weights::WeightInfo;

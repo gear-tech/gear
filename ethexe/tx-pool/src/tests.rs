@@ -63,9 +63,8 @@ impl BlocksManager {
                     parent_hash,
                 };
 
-                self.db.set_block_header(block_hash, header.clone());
-                self.db
-                    .set_latest_computed_block(block_hash, header.clone());
+                self.db.set_block_header(block_hash, header);
+                self.db.set_latest_computed_block(block_hash, header);
 
                 (block_hash, header)
             }
@@ -76,9 +75,8 @@ impl BlocksManager {
                     parent_hash: H256::zero(),
                 };
 
-                self.db.set_block_header(block_hash, header.clone());
-                self.db
-                    .set_latest_computed_block(block_hash, header.clone());
+                self.db.set_block_header(block_hash, header);
+                self.db.set_latest_computed_block(block_hash, header);
 
                 (block_hash, header)
             }

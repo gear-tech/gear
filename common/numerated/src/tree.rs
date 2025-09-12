@@ -36,7 +36,7 @@ use scale_info::{
 /// continuous sets of this points (the same as interval) as fast as with points.
 /// Insert and remove operations has complexity between `[O(log(n)), O(n)]`,
 /// where `n` is amount of intervals in tree.
-/// So, even if you insert for example points from [`0u64`] to [`u64::MAX`],
+/// So, even if you insert for example points from `0u64` to `u64::MAX`,
 /// then removing all of them or any part of them is as fast as removing one point.
 ///
 /// # Examples
@@ -91,7 +91,7 @@ use scale_info::{
 /// Using `IntervalsTree` for type `T: Numerated` cannot cause panics,
 /// if implementation [`Numerated`], [`Copy`], [`Ord`], [`Eq`] are correct for `T`.
 /// In other cases `IntervalsTree` does not guarantees execution without panics.
-#[derive(Clone, PartialEq, Eq, TypeInfo, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq, Hash, TypeInfo, Encode, Decode)]
 #[codec(crate = scale_info::scale)]
 pub struct IntervalsTree<T> {
     inner: BTreeMap<T, T>,

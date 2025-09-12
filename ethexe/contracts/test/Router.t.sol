@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Vm, console} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Test.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {Gear} from "../src/libraries/Gear.sol";
@@ -11,16 +11,16 @@ contract RouterTest is Base {
     using MessageHashUtils for address;
     using FROSTOffchain for SigningKey;
 
-    address immutable deployer = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
+    address public deployer = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
 
-    address immutable alicePublic = 0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1;
-    uint256 immutable alicePrivate = 0x32816f851b9cc71c4eb956214ded8cf481f7af66c125d1fb9deae366ae4f13a6;
+    address public alicePublic = 0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1;
+    uint256 public alicePrivate = 0x32816f851b9cc71c4eb956214ded8cf481f7af66c125d1fb9deae366ae4f13a6;
 
-    address immutable bobPublic = 0xeFDa593324697918773069E0226dAD49d702f4D8;
-    uint256 immutable bobPrivate = 0x068cc4910d9f5aae82f66d926757fde55a7d2e72b25b2a243606e5147712a450;
+    address public bobPublic = 0xeFDa593324697918773069E0226dAD49d702f4D8;
+    uint256 public bobPrivate = 0x068cc4910d9f5aae82f66d926757fde55a7d2e72b25b2a243606e5147712a450;
 
-    address immutable charliePublic = 0x84de3f115eC548A32CcC9464D14376f888ab49e1;
-    uint256 immutable charliePrivate = 0xa3f79c90a74fd984fd9c2a9c4286c53ad5ac38e32123e06720e9211566378bc4;
+    address public charliePublic = 0x84de3f115eC548A32CcC9464D14376f888ab49e1;
+    uint256 public charliePrivate = 0xa3f79c90a74fd984fd9c2a9c4286c53ad5ac38e32123e06720e9211566378bc4;
 
     SigningKey public signingKey;
     address[] public validators;
@@ -122,6 +122,23 @@ contract RouterTest is Base {
         assertNotEq(wrongValidatorPrivateKeys, validatorsPrivateKeys);
 
         commitValidators(wrongValidatorPrivateKeys, commitment, true);
+    }
+
+    function test_emptyValidatorsCommitment() public {
+        address[] memory _validators = new address[](0);
+
+        SigningKey _signingKey = FROSTOffchain.newSigningKey();
+        Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
+
+        Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
+            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+        );
+
+        rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration) - 2 * blockDuration);
+        rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration));
+
+        // Revert - empty validators list
+        commitValidators(commitment, true);
     }
 
     function test_lateCommitments() public {

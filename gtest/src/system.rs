@@ -33,7 +33,7 @@ use gear_core::{
     },
     message::{Dispatch, DispatchKind, Message, ReplyDetails},
     pages::GearPage,
-    program::Program as InnerProgram,
+    program::Program as PrimaryProgram,
     rpc::ReplyInfo,
 };
 use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
@@ -150,6 +150,11 @@ impl System {
             .without_time()
             .with_thread_names(true)
             .try_init();
+    }
+
+    /// Returns amount of dispatches in the queue.
+    pub fn queue_len(&self) -> usize {
+        self.0.borrow().dispatches.len()
     }
 
     /// Run next block.
@@ -295,9 +300,9 @@ impl System {
     /// Returns [`None`] otherwise.
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
         let program_id = id.into().0;
-        ProgramsStorageManager::access_program(program_id, |program| {
+        ProgramsStorageManager::access_primary_program(program_id, |program| {
             program.and_then(|program| {
-                if let InnerProgram::Exited(inheritor_id) = program {
+                if let PrimaryProgram::Exited(inheritor_id) = program {
                     Some(*inheritor_id)
                 } else {
                     None
@@ -348,7 +353,7 @@ impl System {
         let code_id = CodeId::generate(code.as_ref());
 
         // Save original code
-        self.0.borrow_mut().store_new_code(code_id, code);
+        self.0.borrow_mut().store_code(code_id, code);
 
         code_id
     }

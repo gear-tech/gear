@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Crate for working with [`Numerated`] types and their sets: [`Interval`] and [`IntervalsTree`].
+//! Crate for working with [`Numerated`] types and their sets: [`Interval`](interval::Interval)
+//! and [`IntervalsTree`](tree::IntervalsTree).
 //!
 //! ### Note
-//! In case [`Numerated`] is implemented incorrectly for some type `T`,
-//! then this can cause incorrect behavior of [`IntervalsTree`] and [`Interval`] for `T`.
+//! In case [`Numerated`] is implemented incorrectly for some type `T`, then this can cause
+//! incorrect behavior of [`IntervalsTree`](tree::IntervalsTree) and
+//! [`Interval`](interval::Interval) for `T`.
 
 #![no_std]
 #![deny(missing_docs)]

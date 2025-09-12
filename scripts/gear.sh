@@ -213,13 +213,6 @@ case "$COMMAND" in
         fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
-      doc)
-        if [ "$CHECK" = "true" ]
-          then header "Checking gear doc formatting"
-          else header "Formatting gear doc"
-        fi
-        doc_format "$@"; ;;
-
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         format_usage
@@ -307,7 +300,7 @@ case "$COMMAND" in
 
       lazy-pages-fuzz)
         header "Running lazy pages fuzzer smoke test"
-        run_lazy_pages_fuzzer "$ROOT_DIR" "$1" "$2"; ;;
+        run_lazy_pages_fuzzer "$@"; ;;
 
       fuzzer-tests)
         header "Running runtime-fuzzer crate tests"

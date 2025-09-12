@@ -3,7 +3,7 @@ name: PR
 on:
   pull_request:
     branches: [master]
-    types: [labeled, opened, synchronize]
+    types: [labeled, synchronize]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
