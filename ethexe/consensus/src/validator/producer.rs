@@ -283,6 +283,22 @@ mod tests {
         let batch = prepared_mock_batch_commitment(&ctx.db);
         let block = simple_block_data(&ctx.db, batch.block_hash);
 
+        // For squashed commitments, recompute the batch locally with aggregation
+        let chain_commitment =
+            utils::aggregate_chain_commitment(&ctx.db, batch.block_hash, false, None)
+                .unwrap()
+                .map(|(commitment, _)| commitment);
+        let code_commitments = utils::aggregate_code_commitments(
+            &ctx.db,
+            batch.code_commitments.clone().into_iter().map(|c| c.id),
+            false,
+        )
+        .unwrap();
+        let local_batch =
+            utils::create_batch_commitment(&ctx.db, &block, chain_commitment, code_commitments)
+                .unwrap()
+                .unwrap();
+
         // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
@@ -304,13 +320,13 @@ mod tests {
                 .expect("Expected that batch is committed")
                 .into_parts();
 
-            assert_eq!(committed_batch, batch);
+            assert_eq!(committed_batch, local_batch);
             assert_eq!(signatures.len(), 1);
 
             let (address, signature) = signatures.into_iter().next().unwrap();
             assert_eq!(
                 signature
-                    .validate(ctx.router_address, batch.to_digest())
+                    .validate(ctx.router_address, local_batch.to_digest())
                     .unwrap()
                     .to_address(),
                 address

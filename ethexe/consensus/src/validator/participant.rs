@@ -276,9 +276,28 @@ mod tests {
         let batch = prepared_mock_batch_commitment(&ctx.db);
         let block = simple_block_data(&ctx.db, batch.block_hash);
 
+        // For squashed commitments, recompute the batch locally with aggregation
+        let chain_commitment =
+            utils::aggregate_chain_commitment(&ctx.db, batch.block_hash, false, None)
+                .unwrap()
+                .map(|(commitment, _)| commitment);
+        let code_commitments = utils::aggregate_code_commitments(
+            &ctx.db,
+            batch.code_commitments.clone().into_iter().map(|c| c.id),
+            false,
+        )
+        .unwrap();
+        let local_batch =
+            utils::create_batch_commitment(&ctx.db, &block, chain_commitment, code_commitments)
+                .unwrap()
+                .unwrap();
+
         let signed_request = ctx
             .signer
-            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
+            .signed_data(
+                producer,
+                BatchCommitmentValidationRequest::new(&local_batch),
+            )
             .unwrap();
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
@@ -297,7 +316,7 @@ mod tests {
                 ctx.output[0]
             );
         };
-        assert_eq!(reply.digest, batch.to_digest());
+        assert_eq!(reply.digest, local_batch.to_digest());
         reply
             .signature
             .validate(ctx.router_address, reply.digest)

@@ -486,96 +486,6 @@ mod tests {
     }
 
     #[test]
-    fn test_squash_chain_commitments_removes_redundant_transitions() {
-        use gprimitives::ActorId;
-
-        let block1 = H256::from([1; 32]);
-        let block2 = H256::from([2; 32]);
-
-        let actor1 = ActorId::from([1; 32]);
-        let actor2 = ActorId::from([2; 32]);
-
-        // Create redundant transitions for the same actors
-        let transition1 = StateTransition {
-            actor_id: actor1,
-            new_state_hash: H256::from([10; 32]),
-            exited: false,
-            inheritor: ActorId::zero(),
-            value_to_receive: 100,
-            value_claims: vec![],
-            messages: vec![],
-        };
-
-        // Later transition for actor1 that should override transition1
-        let transition1_updated = StateTransition {
-            actor_id: actor1,
-            new_state_hash: H256::from([11; 32]), // Different state
-            exited: false,
-            inheritor: ActorId::zero(),
-            value_to_receive: 200,
-            value_claims: vec![],
-            messages: vec![],
-        };
-
-        let transition2 = StateTransition {
-            actor_id: actor2,
-            new_state_hash: H256::from([20; 32]),
-            exited: true, // This actor exits
-            inheritor: ActorId::zero(),
-            value_to_receive: 0,
-            value_claims: vec![],
-            messages: vec![],
-        };
-
-        let gb1 = GearBlock {
-            hash: block1,
-            off_chain_transactions_hash: H256::zero(),
-            gas_allowance: 0,
-        };
-        let gb2 = GearBlock {
-            hash: block2,
-            off_chain_transactions_hash: H256::zero(),
-            gas_allowance: 0,
-        };
-
-        // Create chain commitments with redundant transitions
-        let chain_commitment1 = ChainCommitment {
-            // actor1 and actor2 transitions
-            transitions: vec![transition1, transition2.clone()],
-            gear_blocks: vec![gb1.clone()],
-        };
-
-        let chain_commitment2 = ChainCommitment {
-            // Updated actor1 transition
-            transitions: vec![transition1_updated],
-            gear_blocks: vec![gb2.clone()],
-        };
-
-        let squashed =
-            squash_chain_commitments(vec![chain_commitment1, chain_commitment2]).unwrap();
-
-        // Should have 2 transitions (latest for actor1 and actor2)
-        assert_eq!(squashed.transitions.len(), 2);
-        assert_eq!(squashed.gear_blocks, vec![gb1, gb2]);
-
-        // Verify we have the latest transitions
-        let actor1_transition = squashed
-            .transitions
-            .iter()
-            .find(|t| t.actor_id == actor1)
-            .unwrap();
-        assert_eq!(actor1_transition.new_state_hash, H256::from([11; 32]));
-        assert_eq!(actor1_transition.value_to_receive, 200);
-
-        let actor2_transition = squashed
-            .transitions
-            .iter()
-            .find(|t| t.actor_id == actor2)
-            .unwrap();
-        assert!(actor2_transition.exited);
-    }
-
-    #[test]
     fn test_aggregate_code_commitments() {
         let db = Database::memory();
         let codes = vec![CodeId::from([1; 32]), CodeId::from([2; 32])];
@@ -617,6 +527,107 @@ mod tests {
         );
 
         aggregate_code_commitments(&db, vec![CodeId::from([3; 32])], true).unwrap_err();
+    }
+
+    #[test]
+    fn test_squashing_example() {
+        use crate::mock::*;
+        use ethexe_common::{SimpleBlockData, gear::Message};
+        use gprimitives::{ActorId, MessageId};
+
+        let db = Database::memory();
+
+        // Set up two blocks: block2 (older) -> block1 (head)
+        let block2_hash = H256::from([2; 32]);
+        let block1_hash = H256::from([1; 32]);
+
+        let mut block2 = SimpleBlockData {
+            hash: block2_hash,
+            header: ethexe_common::BlockHeader {
+                parent_hash: H256::zero(),
+                ..Default::default()
+            },
+        };
+        let mut block1 = SimpleBlockData {
+            hash: block1_hash,
+            header: ethexe_common::BlockHeader {
+                parent_hash: block2_hash,
+                ..Default::default()
+            },
+        };
+
+        block2.prepare(&db, H256::zero());
+        block1.prepare(&db, H256::zero());
+
+        // Actor A
+        let actor_a = ActorId::from([1; 32]);
+
+        let msg1 = Message {
+            id: MessageId::from([10; 32]),
+            destination: actor_a,
+            payload: vec![1],
+            value: 100,
+            reply_details: None,
+            call: true,
+        };
+
+        let msg2 = Message {
+            id: MessageId::from([20; 32]),
+            destination: actor_a,
+            payload: vec![2],
+            value: 200,
+            reply_details: None,
+            call: false,
+        };
+
+        // Block 1 (newer): actor A: a1 -> a2 + msg1
+        let transition1 = StateTransition {
+            actor_id: actor_a,
+            new_state_hash: H256::from([2; 32]), // a2
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 100,
+            value_claims: vec![],
+            messages: vec![msg1.clone()],
+        };
+        db.set_block_outcome(block1_hash, vec![transition1]);
+
+        // Block 2 (older): actor A: a2 -> a3 + msg2
+        let transition2 = StateTransition {
+            actor_id: actor_a,
+            new_state_hash: H256::from([3; 32]), // a3
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 150,
+            value_claims: vec![],
+            messages: vec![msg2.clone()],
+        };
+        db.set_block_outcome(block2_hash, vec![transition2]);
+
+        // Aggregate from block1
+        let (commitment, counter) = aggregate_chain_commitment(&db, block1_hash, false, None)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(commitment.head, block1_hash);
+        assert_eq!(counter, 2); // 2 blocks
+
+        // Should be 1 squashed transition
+        assert_eq!(commitment.transitions.len(), 1);
+
+        let squashed = &commitment.transitions[0];
+        assert_eq!(squashed.actor_id, actor_a);
+
+        // Final state should be a3
+        assert_eq!(squashed.new_state_hash, H256::from([3; 32]));
+
+        // Messages should be accumulated: [msg1, msg2]
+        assert_eq!(squashed.messages.len(), 2);
+        assert!(squashed.messages.contains(&msg1));
+        assert!(squashed.messages.contains(&msg2));
+
+        // Value should be summed: 100 + 150 = 250
+        assert_eq!(squashed.value_to_receive, 250);
     }
 
     #[test]
