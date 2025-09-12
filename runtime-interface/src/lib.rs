@@ -35,6 +35,7 @@ use sp_runtime_interface::{
     runtime_interface,
 };
 use sp_std::{result::Result, vec::Vec};
+
 #[cfg(feature = "std")]
 use {
     ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
@@ -54,6 +55,11 @@ pub use gear_sandbox_interface::sandbox;
 pub use gear_sandbox_interface::{
     Instantiate, SandboxBackend, detail as sandbox_detail, init as sandbox_init,
 };
+
+getrandom::register_custom_getrandom!(always_fail);
+pub fn always_fail(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
+    Err(getrandom::Error::UNSUPPORTED)
+}
 
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
@@ -407,5 +413,119 @@ pub trait GearBls12_381 {
             .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
 
         Ok(ArkScale::<G2Affine>::from(point).encode())
+    }
+}
+
+/// Describes possible errors for `GearWebpki`.
+#[cfg(feature = "std")]
+#[repr(u32)]
+enum GearWebpkiError {
+    /// Empty cert chain
+    EmptyCertChain,
+    /// Cert leaf parse
+    CertLeafParse,
+    /// SNI parse
+    SniParse,
+    /// DNS parse
+    DnsParse,
+    /// Cert verification failed
+    BadCerts,
+    /// Unsupported Signature Scheme
+    BadScheme,
+    /// Signature invalid
+    BadSignature,
+}
+
+#[cfg(feature = "std")]
+impl From<GearWebpkiError> for u32 {
+    fn from(value: GearWebpkiError) -> Self {
+        value as u32
+    }
+}
+
+#[runtime_interface]
+pub trait GearWebpki {
+    fn verify_certs_chain(
+        ders: &[Vec<u8>],
+        sni: &[u8],
+        timestamp: u64,
+    ) -> Result<(bool, bool), u32> {
+        use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
+        use webpki::{EndEntityCert, KeyUsage};
+
+        if ders.is_empty() {
+            return Err(u32::from(GearWebpkiError::EmptyCertChain));
+        }
+
+        let leaf = CertificateDer::from(ders[0].as_slice());
+        let ee = EndEntityCert::try_from(&leaf)
+            .map_err(|_| u32::from(GearWebpkiError::CertLeafParse))?;
+        let inter_refs: Vec<CertificateDer<'_>> = ders
+            .iter()
+            .skip(1)
+            .map(|d| CertificateDer::from(d.as_slice()))
+            .collect();
+
+        let now = {
+            let dur = sp_std::time::Duration::from_millis(timestamp);
+
+            UnixTime::since_unix_epoch(dur)
+        };
+
+        // Verify chain for server usage (TLS server auth)
+        let _verified_path = ee
+            .verify_for_usage(
+                webpki::ALL_VERIFICATION_ALGS,
+                webpki_roots::TLS_SERVER_ROOTS,
+                &inter_refs,
+                now,
+                KeyUsage::server_auth(),
+                None,
+                None,
+            )
+            .map_err(|_| u32::from(GearWebpkiError::BadCerts))?;
+
+        // DNS
+        let dns_ok = {
+            let host =
+                core::str::from_utf8(sni).map_err(|_| u32::from(GearWebpkiError::SniParse))?;
+            let name =
+                ServerName::try_from(host).map_err(|_| u32::from(GearWebpkiError::DnsParse))?;
+            ee.verify_is_valid_for_subject_name(&name).is_ok()
+        };
+
+        Ok((dns_ok, true))
+    }
+
+    fn verify_signature(
+        der: &[u8],
+        message: &[u8],
+        signature: &[u8],
+        algo: u16,
+    ) -> Result<bool, u32> {
+        use rustls_pki_types::{CertificateDer, SignatureVerificationAlgorithm};
+        use webpki::EndEntityCert;
+
+        // TLS SignatureScheme → rustls-webpki verification algorithm
+        let alg: &'static dyn SignatureVerificationAlgorithm = match algo {
+            0x0403 => webpki::ring::ECDSA_P256_SHA256,
+            0x0503 => webpki::ring::ECDSA_P384_SHA384,
+            0x0804 => webpki::ring::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+            0x0805 => webpki::ring::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+            0x0806 => webpki::ring::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+            0x0807 => webpki::ring::ED25519,
+            0x0401 => webpki::ring::RSA_PKCS1_2048_8192_SHA256,
+            0x0501 => webpki::ring::RSA_PKCS1_2048_8192_SHA384,
+            0x0601 => webpki::ring::RSA_PKCS1_2048_8192_SHA512,
+            _ => return Err(u32::from(GearWebpkiError::BadScheme)),
+        };
+
+        let leaf = CertificateDer::from(der);
+        let ee = EndEntityCert::try_from(&leaf)
+            .map_err(|_| u32::from(GearWebpkiError::CertLeafParse))?;
+        ee.verify_signature(alg, message, signature)
+            .map_err(|_| u32::from(GearWebpkiError::BadSignature))?;
+
+        Ok(true)
     }
 }

@@ -31,6 +31,7 @@ core-processor.workspace = true
 gbuiltin-bls381.workspace = true
 gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
+gbuiltin-webpki.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-runtime-interface.workspace = true
@@ -77,45 +78,45 @@ sha2 = { workspace = true, features = ["std"] }
 [features]
 default = ["std"]
 std = [
-	"common/std",
-	"frame-benchmarking?/std",
-	"frame-support/std",
-	"frame-system/std",
-	"gear-core/std",
-	"gear-runtime-interface/std",
-	"pallet-gear/std",
-	"pallet-staking/std",
-	"pallet-proxy/std",
-	"parity-scale-codec/std",
-	"scale-info/std",
-	"sp-crypto-ec-utils/std",
-	"sp-runtime/std",
-	"sp-std/std",
-	"ark-serialize/std",
-	"ark-scale/std",
-	"ark-bls12-381?/std",
-	"ark-ec?/std",
-	"ark-ff?/std",
-	"ark-std?/std",
-	# To be removed after migrations applied.
-	"pallet-balances/std",
-	"gprimitives/std",
+    "common/std",
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-system/std",
+    "gear-core/std",
+    "gear-runtime-interface/std",
+    "pallet-gear/std",
+    "pallet-staking/std",
+    "pallet-proxy/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
+    "sp-crypto-ec-utils/std",
+    "sp-runtime/std",
+    "sp-std/std",
+    "ark-serialize/std",
+    "ark-scale/std",
+    "ark-bls12-381?/std",
+    "ark-ec?/std",
+    "ark-ff?/std",
+    "ark-std?/std",
+    # To be removed after migrations applied.
+    "pallet-balances/std",
+    "gprimitives/std",
 ]
 runtime-benchmarks = [
-	"common/runtime-benchmarks",
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"pallet-staking/runtime-benchmarks",
-	"ark-bls12-381",
-	"ark-ec",
-	"ark-ff",
-	"ark-std",
-	# To be removed after migrations applied.
-	"pallet-balances/runtime-benchmarks",
+    "common/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-staking/runtime-benchmarks",
+    "ark-bls12-381",
+    "ark-ec",
+    "ark-ff",
+    "ark-std",
+    # To be removed after migrations applied.
+    "pallet-balances/runtime-benchmarks",
 ]
 try-runtime = [
-	"frame-support/try-runtime",
-	# To be removed after migrations applied.
-	"pallet-balances/try-runtime",
+    "frame-support/try-runtime",
+    # To be removed after migrations applied.
+    "pallet-balances/try-runtime",
 ]
