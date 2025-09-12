@@ -85,6 +85,7 @@ members = [
     "examples/waiter",
     "examples/waiting-proxy",
     "examples/wat",
+    "examples/web2-verifier",
     "galloc",
     "gbuiltins/*",
     "gcli",
@@ -225,6 +226,7 @@ gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
 gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }
+gbuiltin-webpki = { path = "gbuiltins/webpki" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -491,6 +493,7 @@ demo-waiter = { path = "examples/waiter", default-features = false }
 demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-wat = { path = "examples/wat" }
+demo-web2-verifier = { path = "examples/web2-verifier" }
 
 # Dependencies that only used in one package
 #

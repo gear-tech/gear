@@ -1,0 +1,44 @@
+
+[package]
+name = "demo-web2-verifier"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+hmac = { version = "0.12", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+hkdf = { version = "0.12", default-features = false }
+aead = { version = "0.5.2", default-features = false }
+aes-gcm = { version = "0.10", default-features = false, features = [
+    "aes",
+    "alloc",
+] }
+chacha20poly1305 = { version = "0.10", default-features = false }
+crypto-common = { version = "0.1", default-features = false }
+digest = { version = "0.10", default-features = false }
+
+gstd.workspace = true
+hashbrown.workspace = true
+hex-literal.workspace = true
+parity-scale-codec.workspace = true
+scale-info.workspace = true
+gbuiltin-webpki.workspace = true
+
+[dev-dependencies]
+gstd = { workspace = true, features = ["debug"] }
+gear-core.workspace = true
+tokio.workspace = true
+gclient.workspace = true
+futures.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[features]
+default = ["std"]
+debug = ["gstd/debug"]
+std = []

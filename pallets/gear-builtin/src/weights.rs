@@ -49,6 +49,8 @@ pub trait WeightInfo {
     fn bls12_381_mul_projective_g2(c: u32, ) -> Weight;
     fn bls12_381_aggregate_g1(c: u32, ) -> Weight;
     fn bls12_381_map_to_g2affine(c: u32, ) -> Weight;
+    fn webpki_verify_cert_chain() -> Weight;
+    fn webpki_verify_signature() -> Weight;
 }
 
 /// Weights for pallet_gear_builtin using the Gear node and recommended hardware.
@@ -155,6 +157,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             // Standard Error: 0
             .saturating_add(Weight::from_parts(1_016, 0).saturating_mul(c.into()))
     }
+    fn webpki_verify_cert_chain() -> Weight {
+        Weight::from_parts(612_000, 0)
+    }
+    fn webpki_verify_signature() -> Weight {
+        Weight::from_parts(612_000, 0)
+    }
 }
 
 // For backwards compatibility and tests
@@ -259,5 +267,11 @@ impl WeightInfo for () {
         Weight::from_parts(714_908_120, 0)
             // Standard Error: 0
             .saturating_add(Weight::from_parts(1_016, 0).saturating_mul(c.into()))
+    }
+    fn webpki_verify_cert_chain() -> Weight {
+        Weight::from_parts(612_000, 0)
+    }
+    fn webpki_verify_signature() -> Weight {
+        Weight::from_parts(612_000, 0)
     }
 }

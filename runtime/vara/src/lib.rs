@@ -1209,6 +1209,7 @@ pub type BuiltinActors = (
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
     // The ID = 3 is for the pallet_gear_eth_bridge::Actor.
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
+    ActorWithId<5, pallet_gear_builtin::webpki::Actor<Runtime>>,
 );
 
 #[cfg(feature = "dev")]
@@ -1224,6 +1225,7 @@ pub type BuiltinActors = (
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
     ActorWithId<{ ETH_BRIDGE_BUILTIN_ID }, pallet_gear_eth_bridge::Actor<Runtime>>,
     ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
+    ActorWithId<5, pallet_gear_builtin::webpki::Actor<Runtime>>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {

@@ -39,6 +39,7 @@ pub mod bls12_381;
 pub mod migration;
 pub mod proxy;
 pub mod staking;
+pub mod webpki;
 pub mod weights;
 
 #[cfg(test)]

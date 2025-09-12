@@ -29,6 +29,7 @@ pub type ExtendHostFunctions = (
     gear_runtime_interface::sandbox::HostFunctions,
     sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     gear_runtime_interface::gear_bls_12_381::HostFunctions,
+    gear_runtime_interface::gear_webpki::HostFunctions,
 );
 
 /// Test client backend.
