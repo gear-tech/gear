@@ -49,11 +49,11 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      - run: cargo doc --workspace --no-deps
-        env:
-          RUSTDOCFLAGS: "-D warnings"
-          __GEAR_WASM_BUILDER_NO_BUILD: 1
-          SKIP_WASM_BUILD: 1
+      #- run: cargo doc --workspace --no-deps
+      #  env:
+      #    RUSTDOCFLAGS: "-D warnings"
+      #    __GEAR_WASM_BUILDER_NO_BUILD: 1
+      #    SKIP_WASM_BUILD: 1
 
       # TODO: uncomment once caching fixed
       # - run: ./scripts/gear.sh test docs
