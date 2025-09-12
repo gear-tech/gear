@@ -26,8 +26,8 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    ProducerBlock, SimpleBlockData, ValidatorsVec,
-    db::{BlockMetaStorageRead, NextEraValidators, OnChainStorageRead},
+    NextEraValidators, ProducerBlock, SimpleBlockData, ValidatorsVec,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     ecdsa::PublicKey,
     end_of_era_timestamp, era_from_ts,
     gear::{
@@ -208,14 +208,14 @@ impl Producer {
         let block_header = ctx.db.block_header(block_hash).ok_or(anyhow!(
             "block header not found in `aggregate validators commitment`"
         ))?;
-        let block_era = era_from_ts(
-            block_header.timestamp,
-            ctx.timelines.genesis_ts,
-            ctx.timelines.era,
-        );
-        let election_ts =
-            end_of_era_timestamp(block_era, ctx.timelines.genesis_ts, ctx.timelines.era)
-                - ctx.timelines.election;
+        let timelines = ctx
+            .db
+            .gear_exe_timelines()
+            .ok_or(anyhow!("GearExe timlines not exists in database"))?;
+
+        let block_era = era_from_ts(block_header.timestamp, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
+            - timelines.election;
 
         // No need to create validators commitment before the election timestamp
         if block_header.timestamp < election_ts {
@@ -306,8 +306,8 @@ mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
     use ethexe_common::{
-        Digest, ToDigest,
-        db::{BlockMetaStorageWrite, OnChainStorageWrite, ValidatorsInfo},
+        Digest, ToDigest, ValidatorsInfo,
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use nonempty::nonempty;
 

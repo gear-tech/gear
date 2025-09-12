@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use ethexe_common::{GearExeTimelines, db::OnChainStorageWrite};
+
 use super::*;
 use std::cell::RefCell;
 
@@ -61,17 +63,18 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         signatures_threshold: 1,
         router_address: 12345.into(),
         pub_key: keys.pop().unwrap(),
-        timelines: ValidatorTimelines {
-            genesis_ts: 0,
-            era: 36,
-            election: 6,
-        },
         signer,
         db: Database::memory(),
         committer: Box::new(DummyCommitter),
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
     };
+
+    ctx.db.set_gear_exe_timelines(GearExeTimelines {
+        genesis_ts: 0,
+        era: 10,
+        election: 7,
+    });
 
     (ctx, keys)
 }

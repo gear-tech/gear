@@ -25,11 +25,8 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    BlockData, BlockHeader, CodeBlobInfo,
-    db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, NextEraValidators, OnChainStorageRead,
-        OnChainStorageWrite, ValidatorsInfo,
-    },
+    BlockData, BlockHeader, CodeBlobInfo, NextEraValidators, ValidatorsInfo,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     end_of_era_timestamp, era_from_ts,
     events::{BlockEvent, RouterEvent},
 };
@@ -130,12 +127,12 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
         let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
-            log::warn!("latest_synced_block_height is not set in the database");
+            tracing::warn!("latest_synced_block_height is not set in the database");
             return Ok(Default::default());
         };
 
         if header.height <= latest_synced_block_height {
-            log::warn!(
+            tracing::warn!(
                 "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
                 latest_synced_block_height
@@ -180,7 +177,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let mut validators_info = match self.db.validators_info(header.parent_hash) {
             Some(validators_info) => validators_info,
             None => {
-                log::trace!(
+                tracing::trace!(
                     "No validators info for parent block({:?}), query from router",
                     header.parent_hash
                 );
@@ -216,11 +213,20 @@ impl<DB: SyncDB> ChainSync<DB> {
         // Switch validators from `next` to `current`
         if self.chain_head_in_next_era(&header)? {
             // Must be committed - handle then no.
-            let NextEraValidators::Committed(next_validators) = validators_info.next.clone() else {
-                return Err(anyhow!(""));
-            };
-            validators_info.next = NextEraValidators::Unknown;
-            validators_info.current = next_validators;
+            match validators_info.next.clone() {
+                // Do nothing. Just propagate current validators.
+                NextEraValidators::Unknown => {}
+
+                // Remove the election state
+                NextEraValidators::Elected(..) => {
+                    validators_info.next = NextEraValidators::Unknown;
+                }
+                // Switch `next_validators` to current
+                NextEraValidators::Committed(next_validators) => {
+                    validators_info.next = NextEraValidators::Unknown;
+                    validators_info.current = next_validators;
+                }
+            }
         }
 
         self.db.set_validators_info(block, validators_info);

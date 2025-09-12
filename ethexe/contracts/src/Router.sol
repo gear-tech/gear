@@ -481,7 +481,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             nextEraStart
         );
 
-        emit NextEraValidatorsCommitted(nextEraStart);
+        emit NextEraValidatorsCommitted(_commitment.eraIndex);
 
         return Gear.validatorsCommitmentHash(_commitment);
     }

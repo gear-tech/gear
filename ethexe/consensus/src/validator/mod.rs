@@ -52,7 +52,7 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, SimpleBlockData, db::OnChainStorageRead, ecdsa::PublicKey};
+use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
@@ -128,25 +128,12 @@ impl ValidatorService {
         .await?;
 
         let router = ethereum.router();
-        let genesis_block = router.query().genesis_block_hash().await?;
-        let genesis_ts = db
-            .block_header(genesis_block)
-            .map(|header| header.timestamp)
-            .unwrap_or_default();
-        let router_timelines = router.query().timelines().await?;
-
-        let validator_timelines = ValidatorTimelines {
-            genesis_ts,
-            era: router_timelines.era,
-            election: router_timelines.election,
-        };
 
         let ctx = ValidatorContext {
             slot_duration: config.slot_duration,
             signatures_threshold: config.signatures_threshold,
             router_address: config.router_address,
             pub_key: config.pub_key,
-            timelines: validator_timelines,
             signer,
             db,
             committer: Box::new(EthereumCommitter { router }),
@@ -435,16 +422,6 @@ impl DefaultProcessing {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ValidatorTimelines {
-    // Timestamp of the genesis block
-    pub genesis_ts: u64,
-    // Duration of one era in seconds
-    pub era: u64,
-    // Duration of the election period in seconds
-    pub election: u64,
-}
-
 /// The context shared across all validator states.
 #[derive(Debug)]
 struct ValidatorContext {
@@ -452,7 +429,6 @@ struct ValidatorContext {
     signatures_threshold: u64,
     router_address: Address,
     pub_key: PublicKey,
-    timelines: ValidatorTimelines,
 
     #[debug(skip)]
     signer: Signer,

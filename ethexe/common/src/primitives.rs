@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Digest, ToDigest, events::BlockEvent};
+use crate::{Digest, ToDigest, ValidatorsVec, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -165,6 +165,46 @@ impl CodeAndId {
             code_id: self.code_id,
         }
     }
+}
+
+/// [`NextEraValidators`] represents the all possible states of the next era validators.
+/// The majority of the era time, the next era validators are not known yet.
+/// The state switches to [`NextEraValidators::Elected`] at the election checkpoint by calling `makeElectionAt` in the middleware.
+/// After the commitment is included in a block, the state switches to [`NextEraValidators::Committed`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
+pub enum NextEraValidators {
+    /// Validators are not known yet.
+    #[default]
+    Unknown,
+    /// Validators are elected, but not yet committed.
+    Elected(ValidatorsVec),
+    // Committed in the Router.
+    Committed(ValidatorsVec),
+}
+/// [`ValidatorsInfo`] stores the current and maybe next set of validators.
+/// The next set of validators will be applied at the beginning of the next era
+/// and will be set to `Some` in the election time.
+///
+/// NOTE: [`Default`] implementation creates a non-empty set with a single zero address.
+/// DO NOT use default in production code.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
+pub struct ValidatorsInfo {
+    pub current: ValidatorsVec,
+    pub next: NextEraValidators,
+}
+
+/// GearExe network timelines configuration. Parameters fetched the Router contract.
+/// This struct stores in the database, because of using in the multiple places.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct GearExeTimelines {
+    // The genesis timestamp of the GearExe network.
+    pub genesis_ts: u64,
+    // The duration of an era in seconds.
+    pub era: u64,
+    // The election duration in seconds before the end of an era when the next set of validators elected.
+    ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
+    ///                                         ^ election
+    pub election: u64,
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)

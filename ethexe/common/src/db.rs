@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule, ValidatorsVec,
-    events::BlockEvent, gear::StateTransition,
+    BlockHeader, BlockMeta, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition, primitives::ValidatorsInfo,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -60,30 +60,12 @@ impl BlockOutcome {
     }
 }
 
-/// [`NextEraValidators`] represents the all possible states of the next era validators.
-/// The majority of the era time, the next era validators are not known yet.
-/// The state switches to [`NextEraValidators::Elected`] at the election checkpoint by calling `makeElectionAt` in the middleware.
-/// After the commitment is included in a block, the state switches to [`NextEraValidators::Committed`].
-#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
-pub enum NextEraValidators {
-    /// Validators are not known yet.
-    #[default]
-    Unknown,
-    /// Validators are elected, but not yet committed.
-    Elected(ValidatorsVec),
-    // Committed in the Router.
-    Committed(ValidatorsVec),
-}
-/// [`ValidatorsInfo`] stores the current and maybe next set of validators.
-/// The next set of validators will be applied at the beginning of the next era
-/// and will be set to `Some` in the election time.
-///
-/// NOTE: [`Default`] implementation creates a non-empty set with a single zero address.
-/// DO NOT use default in production code.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
-pub struct ValidatorsInfo {
-    pub current: ValidatorsVec,
-    pub next: NextEraValidators,
+/// Static data stored in the database.
+/// Expected to be unmutable and set only once.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode)]
+pub struct StaticData {
+    pub gear_exe_timelines: Option<GearExeTimelines>,
+    // Maybe add more static fields in the future.
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -136,6 +118,8 @@ pub trait CodesStorageWrite {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait OnChainStorageRead {
+    fn gear_exe_timelines(&self) -> Option<GearExeTimelines>;
+
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
@@ -145,6 +129,8 @@ pub trait OnChainStorageRead {
 
 #[auto_impl::auto_impl(&)]
 pub trait OnChainStorageWrite {
+    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines);
+
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);

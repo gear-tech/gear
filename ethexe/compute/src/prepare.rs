@@ -139,8 +139,8 @@ fn propagate_data_from_parent<
 mod tests {
     use super::*;
     use ethexe_common::{
-        Address, BlockHeader, Digest,
-        db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite, ValidatorsInfo},
+        Address, BlockHeader, Digest, ValidatorsInfo,
+        db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
     };
     use ethexe_db::Database as DB;

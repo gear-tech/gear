@@ -24,10 +24,11 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, GearExeTimelines, ProgramStates, Schedule,
+    ValidatorsInfo,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
-        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, ValidatorsInfo,
+        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, StaticData,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -62,10 +63,11 @@ enum Key {
     CodeValid(CodeId) = 9,
 
     SignedTransaction(H256) = 10,
+    ValidatorsInfo(H256) = 11,
 
-    LatestComputedBlock = 11,
-    LatestSyncedBlockHeight = 12,
-    ValidatorsInfo(H256) = 13,
+    LatestComputedBlock = 12,
+    LatestSyncedBlockHeight = 13,
+    StaticData = 14,
 }
 
 impl Key {
@@ -101,7 +103,9 @@ impl Key {
             ]
             .concat(),
 
-            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight | Self::StaticData => {
+                prefix.as_ref().to_vec()
+            }
         }
     }
 }
@@ -244,6 +248,27 @@ impl Database {
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
+    }
+
+    fn static_data(&self) -> Option<StaticData> {
+        self.kv.get(&Key::StaticData.to_bytes()).map(|data| {
+            StaticData::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `DbStaticData`")
+        })
+    }
+
+    fn set_static_data(&self, data: StaticData) {
+        self.kv.put(&Key::StaticData.to_bytes(), data.encode());
+    }
+
+    fn with_static_data<R>(&self, f: impl FnOnce(StaticData) -> R) -> Option<R> {
+        self.static_data().map(f)
+    }
+
+    fn mutate_static_data(&self, f: impl FnOnce(&mut StaticData)) {
+        let mut data = self.static_data().unwrap_or_default();
+        f(&mut data);
+        self.set_static_data(data);
     }
 
     /// # Safety
@@ -593,6 +618,10 @@ impl Storage for Database {
 }
 
 impl OnChainStorageRead for Database {
+    fn gear_exe_timelines(&self) -> Option<GearExeTimelines> {
+        self.with_static_data(|data| data.gear_exe_timelines)?
+    }
+
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.with_small_data(block_hash, |data| data.block_header)?
     }
@@ -634,6 +663,10 @@ impl OnChainStorageRead for Database {
 }
 
 impl OnChainStorageWrite for Database {
+    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines) {
+        self.mutate_static_data(|data| data.gear_exe_timelines = Some(timelines));
+    }
+
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }

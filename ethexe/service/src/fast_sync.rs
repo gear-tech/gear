@@ -18,12 +18,13 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
+    ValidatorsInfo,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite, ValidatorsInfo,
+        OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -684,15 +685,29 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
         db.set_latest_computed_block(latest_committed_block, latest_block_header);
 
-        let validators = observer
-            .router_query()
-            .validators_at(latest_committed_block)
-            .await?;
+        let router_query = observer.router_query();
+
         let validators_info = ValidatorsInfo {
-            current: validators,
+            current: router_query.validators_at(latest_committed_block).await?,
             next: Default::default(),
         };
+
+        let genesis_block = router_query.genesis_block_hash().await?;
+
+        let genesis_header = observer
+            .provider()
+            .get_block_by_hash(genesis_block.0.into())
+            .await?
+            .ok_or(anyhow!("Genesis block not found in rpc"))?;
+        let router_timelines = router_query.timelines().await?;
+        let timelines = ethexe_common::GearExeTimelines {
+            genesis_ts: genesis_header.header.timestamp,
+            era: router_timelines.era,
+            election: router_timelines.election,
+        };
+
         db.set_validators_info(latest_committed_block, validators_info);
+        db.set_gear_exe_timelines(timelines);
     }
 
     log::info!("Fast synchronization done");

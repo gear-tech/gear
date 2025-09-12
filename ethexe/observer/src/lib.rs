@@ -27,11 +27,8 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, Digest, SimpleBlockData,
-    db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite,
-        ValidatorsInfo,
-    },
+    Address, BlockData, BlockHeader, Digest, GearExeTimelines, SimpleBlockData, ValidatorsInfo,
+    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     gear::Timelines,
 };
 use ethexe_db::Database;
@@ -272,7 +269,13 @@ impl ObserverService {
             current: genesis_validators,
             next: Default::default(),
         };
-        log::info!("Genesis block: {:?}", genesis_block.header.hash);
+
+        let router_timelines = router_query.timelines().await?;
+        let timelines = GearExeTimelines {
+            genesis_ts: genesis_header.timestamp,
+            era: router_timelines.era,
+            election: router_timelines.election,
+        };
 
         db.set_block_header(genesis_block_hash, genesis_header);
         db.set_block_events(genesis_block_hash, &[]);
@@ -291,6 +294,7 @@ impl ObserverService {
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
         db.set_validators_info(genesis_block_hash, validators_info);
+        db.set_gear_exe_timelines(timelines);
 
         Ok(genesis_header)
     }
