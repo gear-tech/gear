@@ -692,6 +692,7 @@ fn active_era_query_via_contract_works() {
                                 index: test_era_index,
                                 start: Some(test_start_block),
                                 executed_at: 2,
+                                executed_at_gear_block: 2,
                             }
                         );
                         true

@@ -137,5 +137,7 @@ pub enum Response {
         start: Option<u64>,
         // Block number when the request was executed.
         executed_at: u64,
+        // Gear block number when the request was executed.
+        executed_at_gear_block: u64,
     },
 }

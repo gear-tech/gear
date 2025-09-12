@@ -103,7 +103,7 @@ where
     }
 }
 
-impl<T: Config + StakingConfig> BuiltinActor for Actor<T>
+impl<T: Config + StakingConfig + pallet_gear::Config> BuiltinActor for Actor<T>
 where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
@@ -141,6 +141,8 @@ where
                     index: era_info.index,
                     start: era_info.start,
                     executed_at: frame_system::Pallet::<T>::block_number().saturated_into::<u64>(),
+                    executed_at_gear_block: pallet_gear::Pallet::<T>::block_number()
+                        .saturated_into::<u64>(),
                 }
                 .encode()
                 .try_into()
