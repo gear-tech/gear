@@ -170,7 +170,7 @@ jobs:
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust stable toolchain"
-        uses: dtolnay/rust-toolchain@1.88.0
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
 
@@ -184,7 +184,7 @@ jobs:
           cache-all-crates: true
 
       - name: "Test: crates-io packages publishing"
-        run: cargo +1.88.0 run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+        run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
 
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
