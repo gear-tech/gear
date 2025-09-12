@@ -132,7 +132,7 @@ impl PanicBuffer {
 
 impl From<LimitedStr<'_>> for PanicBuffer {
     fn from(value: LimitedStr) -> Self {
-        const _: () = assert!(LimitedStr::MAX_LEN <= MAX_PAYLOAD_SIZE);
+        const _: () = assert!(<LimitedStr<'_>>::MAX_LEN <= MAX_PAYLOAD_SIZE);
         Payload::try_from(value.into_inner().into_owned().into_bytes())
             .map(Self)
             .unwrap_or_else(|LimitedVecError| {

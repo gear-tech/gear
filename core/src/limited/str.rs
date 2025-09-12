@@ -23,12 +23,12 @@ use derive_more::{AsRef, Deref, Display, Into};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Wrapped string to fit [`Self::MAX_LEN`] amount of bytes.
+/// Wrapped string to fit given amount of bytes.
 ///
 /// The [`Cow`] is used to avoid allocating a new `String` when
 /// the `LimitedStr` is created from a `&str`.
 ///
-/// Plain `str` is not used because it can't be properly
+/// Plain [`str`] is not used because it can't be properly
 /// encoded/decoded via scale codec.
 #[derive(
     Debug,
@@ -49,20 +49,20 @@ use scale_info::TypeInfo;
 )]
 #[as_ref(forward)]
 #[deref(forward)]
-pub struct LimitedStr<'a>(Cow<'a, str>);
+pub struct LimitedStr<'a, const N: usize = 1024>(Cow<'a, str>);
 
-impl<'a> LimitedStr<'a> {
+/// Finds the left-nearest UTF-8 character boundary
+/// to given position in the string.
+fn nearest_char_boundary(s: &str, pos: usize) -> usize {
+    (0..=pos.min(s.len()))
+        .rev()
+        .find(|&pos| s.is_char_boundary(pos))
+        .unwrap_or(0)
+}
+
+impl<'a, const N: usize> LimitedStr<'a, N> {
     /// Maximum length of the string.
-    pub const MAX_LEN: usize = 1024;
-
-    /// Calculates safe truncation position to truncate
-    /// a string down to [`Self::MAX_LEN`] bytes or less.
-    fn cut_index(s: &str, pos: usize) -> usize {
-        (0..=pos.min(s.len()))
-            .rev()
-            .find(|&pos| s.is_char_boundary(pos))
-            .unwrap_or(0)
-    }
+    pub const MAX_LEN: usize = N;
 
     /// Constructs a limited string from a string.
     ///
@@ -80,10 +80,13 @@ impl<'a> LimitedStr<'a> {
     /// Constructs a limited string from a string
     /// truncating it if it's too long.
     pub fn truncated<S: Into<Cow<'a, str>>>(s: S) -> Self {
-        match s.into() {
-            Cow::Borrowed(s) => Self(s[..Self::cut_index(s, Self::MAX_LEN)].into()),
+        let s = s.into();
+        let truncation_pos = nearest_char_boundary(&s, Self::MAX_LEN);
+
+        match s {
+            Cow::Borrowed(s) => Self(s[..truncation_pos].into()),
             Cow::Owned(mut s) => {
-                s.truncate(Self::cut_index(&s, Self::MAX_LEN));
+                s.truncate(truncation_pos);
                 Self(s.into())
             }
         }
@@ -138,12 +141,12 @@ impl<'a> TryFrom<String> for LimitedStr<'a> {
 
 /// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
-#[display("string must be less than {} bytes", LimitedStr::MAX_LEN)]
+#[display("{}", Self::MESSAGE)]
 pub struct LimitedStrError;
 
 impl LimitedStrError {
     /// Static error message.
-    pub const MESSAGE: &str = "string must not be longer than `LimitedStr::MAX_LEN` bytes";
+    pub const MESSAGE: &str = "string length limit is exceeded";
 
     /// Converts the error into a static error message.
     pub const fn as_str(&self) -> &'static str {
@@ -157,7 +160,7 @@ mod tests {
     use rand::{Rng, distributions::Standard};
 
     fn assert_result(string: &'static str, max_bytes: usize, expectation: &'static str) {
-        let string = &string[..LimitedStr::cut_index(string, max_bytes)];
+        let string = &string[..nearest_char_boundary(string, max_bytes)];
         assert_eq!(string, expectation);
     }
 
@@ -165,7 +168,7 @@ mod tests {
         let initial_size = initial_string.len();
 
         for max_bytes in 0..=upper_boundary {
-            let string = &initial_string[..LimitedStr::cut_index(initial_string, max_bytes)];
+            let string = &initial_string[..nearest_char_boundary(initial_string, max_bytes)];
 
             // Extra check just for confidence.
             if max_bytes >= initial_size {
@@ -203,6 +206,8 @@ mod tests {
         assert_eq!(cjk.len(), 9);
         // Length in chars.
         assert_eq!(cjk.chars().count(), 3);
+        // Byte length of each char.
+        assert!(cjk.chars().all(|c| c.len_utf8() == 3));
 
         // Check that `smart_truncate` never panics.
         //
@@ -257,6 +262,14 @@ mod tests {
         assert_result(mix, 13, "你he好l吗l");
         assert_result(mix, 14, "你he好l吗lo");
         assert_result(mix, 15, "你he好l吗lo");
+
+        assert_eq!(LimitedStr::<1>::truncated(String::from(mix)).as_str(), "");
+        assert_eq!(LimitedStr::<5>::truncated(mix).as_str(), "你he");
+        assert_eq!(
+            LimitedStr::<9>::truncated(String::from(mix)).as_str(),
+            "你he好l"
+        );
+        assert_eq!(LimitedStr::<13>::truncated(mix).as_str(), "你he好l吗l");
     }
 
     #[test]
@@ -270,7 +283,7 @@ mod tests {
                 .sample_iter::<char, _>(Standard)
                 .take(rand_len)
                 .collect::<String>();
-            string.truncate(LimitedStr::cut_index(&string, max_bytes));
+            string.truncate(nearest_char_boundary(&string, max_bytes));
 
             if string.len() > max_bytes {
                 panic!("String '{}' input invalidated algorithms property", string);
