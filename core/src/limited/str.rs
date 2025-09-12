@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This module provides type for string with statically limited length.
+//! This module provides type for string with limited length.
 
 use alloc::{borrow::Cow, string::String};
 use derive_more::{AsRef, Deref, Display, Into};
