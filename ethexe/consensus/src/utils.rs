@@ -258,12 +258,12 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     for transition in all_transitions {
         actor_transitions
             .entry(transition.actor_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(transition);
     }
 
     let mut squashed_transitions = Vec::new();
-    for mut transitions_for_actor in actor_transitions.into_values() {
+    for transitions_for_actor in actor_transitions.into_values() {
         if transitions_for_actor.is_empty() {
             continue;
         }
@@ -541,14 +541,14 @@ mod tests {
         let block2_hash = H256::from([2; 32]);
         let block1_hash = H256::from([1; 32]);
 
-        let mut block2 = SimpleBlockData {
+        let block2 = SimpleBlockData {
             hash: block2_hash,
             header: ethexe_common::BlockHeader {
                 parent_hash: H256::zero(),
                 ..Default::default()
             },
         };
-        let mut block1 = SimpleBlockData {
+        let block1 = SimpleBlockData {
             hash: block1_hash,
             header: ethexe_common::BlockHeader {
                 parent_hash: block2_hash,
