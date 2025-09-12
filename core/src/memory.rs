@@ -129,7 +129,7 @@ impl Encode for PageBuf {
 impl Decode for PageBuf {
     #[inline]
     fn decode<I: Input>(input: &mut I) -> Result<Self, scale::Error> {
-        let mut buffer = PageBufInner::repeat_default();
+        let mut buffer = PageBufInner::repeat(0);
         input.read(&mut buffer)?;
         Ok(Self(buffer))
     }
@@ -164,7 +164,7 @@ impl DerefMut for PageBuf {
 impl PageBuf {
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
-        Self(PageBufInner::repeat_default())
+        Self(PageBufInner::repeat(0))
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has

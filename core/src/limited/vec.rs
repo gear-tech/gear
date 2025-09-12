@@ -100,15 +100,6 @@ impl<T, const N: usize> LimitedVec<T, N> {
         Self(vec![value; N])
     }
 
-    /// Creates a new full limited vector by
-    /// repeatedly cloning `T::default()`.
-    pub fn repeat_default() -> Self
-    where
-        T: Default + Clone,
-    {
-        Self::repeat(T::default())
-    }
-
     /// Creates a new limited vector with given
     /// length by repeatedly cloning a value.
     pub fn try_repeat(value: T, len: usize) -> Result<Self, LimitedVecError>
@@ -116,15 +107,6 @@ impl<T, const N: usize> LimitedVec<T, N> {
         T: Clone,
     {
         Self::validate_len(len).map(|_| Self(vec![value; len]))
-    }
-
-    /// Creates a new limited vector with given
-    /// length by repeatedly cloning `T::default()`.
-    pub fn try_repeat_default(len: usize) -> Result<Self, LimitedVecError>
-    where
-        T: Clone + Default,
-    {
-        Self::try_repeat(T::default(), len)
     }
 
     /// Extends the vector to its limit by
@@ -265,7 +247,7 @@ mod test {
 
     #[test]
     fn test_repeat() {
-        let x = LimitedVec::<u32, N>::repeat_default();
+        let x = LimitedVec::<u32, N>::repeat(0);
         assert_eq!(x.len(), N);
 
         let y = LimitedVec::<i32, 3>::repeat(-4);
@@ -274,13 +256,13 @@ mod test {
 
     #[test]
     fn test_try_repeat() {
-        let x = LimitedVec::<String, N>::try_repeat_default(N).unwrap();
+        let x = LimitedVec::<String, N>::try_repeat(String::new(), N).unwrap();
         assert!(
-            LimitedVec::<u64, N>::try_repeat_default(N + 1).is_err(),
+            LimitedVec::<u64, N>::try_repeat(0, N + 1).is_err(),
             "Must be error because of size overflow"
         );
         let y = LimitedVec::<char, 7>::try_repeat('@', 5).unwrap();
-        let z = LimitedVec::<Vec<u8>, N>::try_repeat_default(0).unwrap();
+        let z = LimitedVec::<Vec<u8>, N>::try_repeat(vec![], 0).unwrap();
 
         assert_eq!(x.len(), N);
         assert_eq!(z.len(), 0);

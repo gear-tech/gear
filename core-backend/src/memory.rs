@@ -286,7 +286,7 @@ where
         let buff = if read.size == 0 {
             Vec::new()
         } else {
-            let mut buff = RuntimeBuffer::try_repeat_default(read.size as usize)?.into_vec();
+            let mut buff = RuntimeBuffer::try_repeat(0, read.size as usize)?.into_vec();
             self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
@@ -329,7 +329,7 @@ where
         let buff = if size == 0 {
             Vec::new()
         } else {
-            let mut buff = RuntimeBuffer::try_repeat_default(size)?.into_vec();
+            let mut buff = RuntimeBuffer::try_repeat(0, size)?.into_vec();
             self.memory.read(ctx.caller, read.ptr, &mut buff)?;
             buff
         };
