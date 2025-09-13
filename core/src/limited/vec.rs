@@ -23,6 +23,7 @@ use core::fmt::{self, Formatter};
 use alloc::{vec, vec::Vec};
 
 use derive_more::{AsMut, AsRef, Debug, Deref, DerefMut, Display, Error, Into, IntoIterator};
+use gprimitives::utils::ByteSliceFormatter;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -160,46 +161,38 @@ impl<T, const N: usize> LimitedVec<T, N> {
     }
 }
 
-/// Formatter for [`LimitedVec`] will print to precision of 8 by default, to print the whole data, use `{:+}`.
-impl<T, const N: usize> fmt::Debug for LimitedVec<T, N>
-where
-    [T]: AsRef<[u8]>,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let len = self.len();
-        let median = len.div_ceil(2);
-
-        let mut e1 = median;
-        let mut s2 = median;
-
-        if let Some(precision) = f.precision() {
-            if precision < median {
-                e1 = precision;
-                s2 = len - precision;
-            }
-        } else if !f.sign_plus() && median > 8 {
-            e1 = 8;
-            s2 = len - 8;
-        }
-
-        let p1 = hex::encode(&self[..e1]);
-        let p2 = hex::encode(&self[s2..]);
-        let sep = if e1 != s2 { ".." } else { "" };
-
-        if f.alternate() {
-            write!(f, "LimitedVec(0x{p1}{sep}{p2})")
-        } else {
-            write!(f, "0x{p1}{sep}{p2}")
-        }
-    }
-}
-
 impl<T, const N: usize> fmt::Display for LimitedVec<T, N>
 where
     [T]: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
+        let bytes = ByteSliceFormatter::Dynamic(self.0.as_slice().as_ref());
+
+        let precision = f.precision();
+        let sign_plus = f.sign_plus();
+
+        let fmt_bytes: fn(&mut Formatter, fmt::Arguments) -> _ = if f.alternate() {
+            |f, bytes| write!(f, "LimitedVec({bytes})")
+        } else {
+            |f, bytes| write!(f, "{bytes}")
+        };
+
+        if let Some(precision) = precision {
+            fmt_bytes(f, format_args!("{bytes:.precision$}"))
+        } else if sign_plus {
+            fmt_bytes(f, format_args!("{bytes}"))
+        } else {
+            fmt_bytes(f, format_args!("{bytes:.8}"))
+        }
+    }
+}
+
+impl<T, const N: usize> fmt::Debug for LimitedVec<T, N>
+where
+    [T]: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
