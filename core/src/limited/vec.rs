@@ -168,10 +168,12 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let bytes = ByteSliceFormatter::Dynamic(self.0.as_slice().as_ref());
 
-        let fmt_bytes: fn(&mut Formatter, fmt::Arguments) -> _ = if f.alternate() {
-            |f, bytes| write!(f, "LimitedVec({bytes})")
-        } else {
-            |f, bytes| write!(f, "{bytes}")
+        let fmt_bytes = |f: &mut Formatter, bytes| {
+            if f.alternate() {
+                write!(f, "LimitedVec({bytes})")
+            } else {
+                write!(f, "{bytes}")
+            }
         };
 
         if let Some(precision) = f.precision() {
