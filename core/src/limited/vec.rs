@@ -168,6 +168,15 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let bytes = ByteSliceFormatter::Dynamic(self.0.as_slice().as_ref());
 
+        // FIXME: this hacky trick with a function is required
+        //        because of inability to put `format_args!(...)`
+        //        into a variable. It can be replaced with something
+        //        more straightforward when `formatting_options`
+        //        is stabilized.
+        //
+        // See:
+        // - https://doc.rust-lang.org/stable/std/macro.format_args.html#lifetime-limitation
+        // - https://doc.rust-lang.org/stable/std/fmt/struct.Formatter.html#method.with_options
         let fmt_bytes = |f: &mut Formatter, bytes| {
             if f.alternate() {
                 write!(f, "LimitedVec({bytes})")
