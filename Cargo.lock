@@ -19120,7 +19120,7 @@ dependencies = [
 [[package]]
 name = "wasmer"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "bindgen 0.70.1",
  "bytes",
@@ -19151,7 +19151,7 @@ dependencies = [
 [[package]]
 name = "wasmer-cache"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "blake3",
  "hex",
@@ -19162,7 +19162,7 @@ dependencies = [
 [[package]]
 name = "wasmer-compiler"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "backtrace",
  "bytes",
@@ -19192,7 +19192,7 @@ dependencies = [
 [[package]]
 name = "wasmer-compiler-singlepass"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "byteorder",
  "dynasm",
@@ -19209,7 +19209,7 @@ dependencies = [
 [[package]]
 name = "wasmer-derive"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2",
@@ -19220,7 +19220,7 @@ dependencies = [
 [[package]]
 name = "wasmer-types"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "bytecheck 0.6.11",
  "enum-iterator 0.7.0",
@@ -19239,7 +19239,7 @@ dependencies = [
 [[package]]
 name = "wasmer-vm"
 version = "6.1.0-rc.4"
-source = "git+https://github.com/wasmerio/wasmer.git?branch=release-6.1.0-rc.4#afec4653bf933d4cb28d4d0f0fe68d365385f377"
+source = "git+https://github.com/wasmerio/wasmer.git#3301d3a2835fe7a31971ddbb08b54fbfebc5850a"
 dependencies = [
  "backtrace",
  "cc",
