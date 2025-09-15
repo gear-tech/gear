@@ -132,26 +132,12 @@ docker-run:
 
 # Format section
 .PHONY: fmt
-fmt: fmt-gear fmt-doc
-
-.PHONY: fmt-check
-fmt-check: fmt-gear-check fmt-doc-check
-
-.PHONY: fmt-gear
-fmt-gear:
+fmt:
 	@ ./scripts/gear.sh format gear
 
-.PHONY: fmt-gear-check
-fmt-gear-check:
+.PHONY: fmt-check
+fmt-check:
 	@ ./scripts/gear.sh format gear --check
-
-.PHONY: fmt-doc
-fmt-doc:
-	@ ./scripts/gear.sh format doc
-
-.PHONY: fmt-doc-check
-fmt-doc-check:
-	@ ./scripts/gear.sh format doc --check
 
 # Init section
 .PHONY: init
