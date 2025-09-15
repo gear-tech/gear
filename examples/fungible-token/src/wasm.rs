@@ -159,25 +159,6 @@ impl FungibleToken {
     }
 }
 
-#[cfg(feature = "benchmark")]
-static mut GAS: u64 = 0;
-
-#[cfg(feature = "benchmark")]
-gstd::ctor! {
-    unsafe extern "C" fn() {
-        unsafe { *gstd::static_mut!(GAS) = gstd::exec::gas_available() }
-    }
-}
-
-#[cfg(feature = "benchmark")]
-gstd::dtor! {
-    unsafe extern "C" fn() {
-        let prev_gas = unsafe { *gstd::static_mut!(GAS) };
-        let gas = gstd::exec::gas_available();
-        gstd::debug!("GAS SPENT: {}", prev_gas - gas);
-    }
-}
-
 #[unsafe(no_mangle)]
 extern "C" fn state() {
     let state = unsafe {

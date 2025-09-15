@@ -31,4 +31,3 @@ gear-wasm-builder.workspace = true
 debug = ["gstd/debug"]
 std = []
 default = ["std"]
-benchmark = []
