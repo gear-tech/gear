@@ -1056,17 +1056,6 @@ where
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}")
             });
-
-            // Validate that destination is not a zero address
-            if message.destination() == ActorId::zero() {
-                log::warn!(
-                    "send_user_message: attempted to insert message into mailbox with zero destination address. \
-                    Message id - {message_id}, source - {from:?}. Skipping mailbox insertion.",
-                    from = message.source(),
-                );
-                return None;
-            }
-
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message: failed inserting message into mailbox. \
@@ -1218,17 +1207,6 @@ where
                     log::error!("{err_msg}");
                     unreachable!("{err_msg}")
                 });
-
-            // Validate that destination is not a zero address
-            if message.destination() == ActorId::zero() {
-                log::warn!(
-                    "send_user_message_after_delay: attempted to insert message into mailbox with zero destination address. \
-                        Message id - {message_id}, source - {from:?}. Skipping mailbox insertion.",
-                    from = message.source(),
-                );
-                return None;
-            }
-
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message_after_delay: failed inserting message into mailbox. \
