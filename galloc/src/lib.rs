@@ -53,6 +53,7 @@ static mut ALLOC: gear_dlmalloc::GlobalDlmalloc = gear_dlmalloc::GlobalDlmalloc;
 
 pub mod prelude;
 
+#[cfg(feature = "new-allocator")]
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     use core::{
@@ -110,8 +111,8 @@ mod wasm {
     static mut ALLOC: Dlmalloc<GearAlloc> = Dlmalloc::with_config(
         GearAlloc::new(),
         DlmallocConfig {
-            granularity: NonZeroUsize::new(PAGE_SIZE).unwrap(),
-            trim_threshold: 0,
+            granularity: NonZeroUsize::new(PAGE_SIZE / 4).unwrap(),
+            trim_threshold: DlmallocConfig::new().trim_threshold,
             max_release_check_rate: 0,
         },
     );

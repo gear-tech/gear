@@ -19,5 +19,5 @@ dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rs", version = "0.2.10
 gear-dlmalloc = "0.2.0"
 
 [features]
-debug = ["dlmalloc/debug"]
+debug = ["dlmalloc/debug", "gear-dlmalloc/debug"]
 new-allocator = ["dlmalloc"]
