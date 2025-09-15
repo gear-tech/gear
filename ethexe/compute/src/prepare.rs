@@ -139,13 +139,12 @@ fn propagate_data_from_parent<
 mod tests {
     use super::*;
     use ethexe_common::{
-        Address, BlockHeader, Digest, ValidatorsInfo,
+        BlockHeader, Digest,
         db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
         events::BlockEvent,
     };
     use ethexe_db::Database as DB;
     use gprimitives::{CodeId, H256};
-    use nonempty::nonempty;
     use std::collections::VecDeque;
 
     /// Tests propagate_data_from_parent with empty events list
@@ -630,13 +629,7 @@ mod tests {
             meta.last_committed_head = Some(H256::from([43; 32]));
         });
         db.set_block_codes_queue(grandparent_hash, VecDeque::new());
-        db.set_validators_info(
-            parent_hash,
-            ValidatorsInfo {
-                current: nonempty![Address::from([0u8; 20])].into(),
-                next: Default::default(),
-            },
-        );
+        db.set_validators_info(parent_hash, Default::default());
 
         // Configure grandparent as prepared
         db.mutate_block_meta(grandparent_hash, |m| {

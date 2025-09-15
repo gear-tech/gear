@@ -161,7 +161,6 @@ library Gear {
 
     struct Timelines {
         uint256 era;
-        // Before the end of the era, validators allow to be changed.
         uint256 election;
         uint256 validationDelay;
     }

@@ -696,7 +696,7 @@ async fn ping_reorg() {
 
     let code_id = res.code_id;
 
-    log::error!("📗 Abort service to simulate node blocks skipping");
+    log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
 
     let create_program = env

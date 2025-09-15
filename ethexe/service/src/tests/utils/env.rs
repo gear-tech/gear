@@ -383,7 +383,6 @@ impl TestEnv {
             .request_code_validation_with_sidecar(code)
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
-        log::info!("📗 Code uploaded, id {code_id}");
 
         Ok(WaitForUploadCode { listener, code_id })
     }

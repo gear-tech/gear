@@ -25,7 +25,7 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    BlockData, BlockHeader, CodeBlobInfo, NextEraValidators, ValidatorsInfo,
+    BlockData, BlockHeader, CodeBlobInfo, GearExeTimelines, NextEraValidators, ValidatorsInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     end_of_era_timestamp, era_from_ts,
     events::{BlockEvent, RouterEvent},
@@ -173,6 +173,10 @@ impl<DB: SyncDB> ChainSync<DB> {
             "header not found for parent block({:?})",
             header.parent_hash
         ))?;
+        let timelines = self
+            .db
+            .gear_exe_timelines()
+            .ok_or(anyhow!("not fonud gear exe timelines in db"))?;
 
         let mut validators_info = match self.db.validators_info(header.parent_hash) {
             Some(validators_info) => validators_info,
@@ -199,7 +203,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
         // If next validators are already set, no need to fetch them again, because of
         // propagation in chain
-        let era_election_ts = self.era_election_ts(header.timestamp);
+        let era_election_ts = self.era_election_ts(header.timestamp, timelines);
         if validators_info.next == NextEraValidators::Unknown && header.timestamp >= era_election_ts
         {
             let middleware_query =
@@ -211,7 +215,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         }
 
         // Switch validators from `next` to `current`
-        if self.chain_head_in_next_era(&header)? {
+        if self.chain_head_in_next_era(&header, timelines)? {
             // Must be committed - handle then no.
             match validators_info.next.clone() {
                 // Do nothing. Just propagate current validators.
@@ -248,33 +252,26 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
     /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn chain_head_in_next_era(&self, chain_head: &BlockHeader) -> Result<bool> {
+    fn chain_head_in_next_era(
+        &self,
+        chain_head: &BlockHeader,
+        timelines: GearExeTimelines,
+    ) -> Result<bool> {
         let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
             "header not found for block({:?})",
             chain_head.parent_hash
         ))?;
 
-        let chain_head_era = era_from_ts(
-            chain_head.timestamp,
-            self.config.genesis_ts,
-            self.config.timelines.era,
-        );
-        let parent_era_index = era_from_ts(
-            parent.timestamp,
-            self.config.genesis_ts,
-            self.config.timelines.era,
-        );
+        let chain_head_era = era_from_ts(chain_head.timestamp, timelines.genesis_ts, timelines.era);
+        let parent_era_index = era_from_ts(parent.timestamp, timelines.genesis_ts, timelines.era);
 
         Ok(chain_head_era > parent_era_index)
     }
 
     /// Returns the timestamp at which the current election started.
-    fn era_election_ts(&self, block_ts: u64) -> u64 {
-        let block_era = era_from_ts(block_ts, self.config.genesis_ts, self.config.timelines.era);
-
-        let end_of_block_era =
-            end_of_era_timestamp(block_era, self.config.genesis_ts, self.config.timelines.era);
-
-        end_of_block_era - self.config.timelines.election
+    fn era_election_ts(&self, block_ts: u64, timelines: GearExeTimelines) -> u64 {
+        let block_era = era_from_ts(block_ts, timelines.genesis_ts, timelines.era);
+        let end_of_block_era = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
+        end_of_block_era - timelines.election
     }
 }

@@ -27,7 +27,6 @@ use ethexe_common::{
 };
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
-use sp_wasm_interface::anyhow::anyhow;
 use std::cmp::Ordering;
 
 impl ProcessingHandler {
@@ -47,8 +46,14 @@ impl ProcessingHandler {
                 self.transitions.register_new(actor_id);
             }
             RouterRequestEvent::NextEraValidatorsCommitted { era_index } => {
-                let timelines = self.db.gear_exe_timelines().ok_or(anyhow!(""))?;
-                let header = self.db.block_header(self.block_hash).ok_or(anyhow!(""))?;
+                let timelines = self
+                    .db
+                    .gear_exe_timelines()
+                    .ok_or(ProcessorError::GearExeTimelinesNotFound)?;
+                let header = self
+                    .db
+                    .block_header(self.block_hash)
+                    .ok_or(ProcessorError::BlockHeaderNotFound(self.block_hash))?;
                 let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
 
                 match era_index.cmp(&block_era) {
@@ -60,7 +65,10 @@ impl ProcessingHandler {
                         // Iterate through parent blocks and found the elected validators in previous eras.
                         let mut parent_hash = header.parent_hash;
                         loop {
-                            let parent = self.db.block_header(parent_hash).ok_or(anyhow!(""))?;
+                            let parent = self
+                                .db
+                                .block_header(parent_hash)
+                                .ok_or(ProcessorError::BlockHeaderNotFound(parent_hash))?;
                             let parent_era =
                                 era_from_ts(parent.timestamp, timelines.genesis_ts, timelines.era);
 
@@ -71,8 +79,10 @@ impl ProcessingHandler {
                             }
 
                             // In next era.
-                            let parent_validators_info =
-                                self.db.validators_info(parent_hash).ok_or(anyhow!(""))?;
+                            let parent_validators_info = self
+                                .db
+                                .validators_info(parent_hash)
+                                .ok_or(ProcessorError::ValidatorsInfoNotFound(parent_hash))?;
 
                             let NextEraValidators::Elected(elected_validators) =
                                 parent_validators_info.next
@@ -85,7 +95,7 @@ impl ProcessingHandler {
                             let mut validators_info = self
                                 .db
                                 .validators_info(self.block_hash)
-                                .ok_or(anyhow!(""))?;
+                                .ok_or(ProcessorError::ValidatorsInfoNotFound(self.block_hash))?;
                             validators_info.current = elected_validators;
                             self.db
                                 .set_validators_info(self.block_hash, validators_info);
@@ -99,7 +109,7 @@ impl ProcessingHandler {
                         let mut validators_info = self
                             .db
                             .validators_info(self.block_hash)
-                            .ok_or(anyhow!(""))?;
+                            .ok_or(ProcessorError::ValidatorsInfoNotFound(self.block_hash))?;
 
                         match validators_info.next.clone() {
                             NextEraValidators::Elected(elected_validators) => {

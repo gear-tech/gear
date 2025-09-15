@@ -182,6 +182,12 @@ impl From<ValidatorsVec> for Vec<Address> {
     }
 }
 
+impl From<ValidatorsVec> for Vec<ActorId> {
+    fn from(value: ValidatorsVec) -> Self {
+        value.into_iter().map(Into::into).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -181,12 +181,12 @@ pub enum NextEraValidators {
     // Committed in the Router.
     Committed(ValidatorsVec),
 }
-/// [`ValidatorsInfo`] stores the current and maybe next set of validators.
-/// The next set of validators will be applied at the beginning of the next era
-/// and will be set to `Some` in the election time.
+
+/// [`ValidatorsInfo`] stores the current and state of next set of validators.
+/// The next set of validators will be applied at the beginning of the next era.
 ///
 /// NOTE: [`Default`] implementation creates a non-empty set with a single zero address.
-/// DO NOT use default in production code.
+/// DO NOT use default in production code, it is only for tests purposes.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
 pub struct ValidatorsInfo {
     pub current: ValidatorsVec,

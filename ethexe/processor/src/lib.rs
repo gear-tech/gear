@@ -70,6 +70,10 @@ pub enum ProcessorError {
     BlockProgramStatesNotFound(H256),
     #[error("not found block start schedule for processing block ({0})")]
     BlockScheduleNotFound(H256),
+    #[error("Not found validators info for block ({0})")]
+    ValidatorsInfoNotFound(H256),
+    #[error("GearExe timelines not found in database")]
+    GearExeTimelinesNotFound,
 
     // `InstanceWrapper` errors
     #[error("couldn't find 'memory' export")]

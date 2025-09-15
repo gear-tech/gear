@@ -29,7 +29,6 @@ use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, BlockHeader, Digest, GearExeTimelines, SimpleBlockData, ValidatorsInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
-    gear::Timelines,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -86,8 +85,6 @@ struct RuntimeConfig {
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
-    genesis_ts: u64,
-    timelines: Timelines,
 }
 
 // TODO #4552: make tests for observer service
@@ -191,8 +188,7 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        let genesis_header =
-            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+        Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -208,8 +204,6 @@ impl ObserverService {
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
             block_time: *block_time,
-            genesis_ts: genesis_header.timestamp,
-            timelines: router_query.timelines().await?,
         };
 
         let chain_sync = ChainSync {
@@ -241,13 +235,11 @@ impl ObserverService {
         db: &DB,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<BlockHeader> {
+    ) -> Result<()> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_meta(genesis_block_hash).computed {
-            return db
-                .block_header(genesis_block_hash)
-                .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
+            return Ok(());
         }
 
         let genesis_block = provider
@@ -296,7 +288,7 @@ impl ObserverService {
         db.set_validators_info(genesis_block_hash, validators_info);
         db.set_gear_exe_timelines(timelines);
 
-        Ok(genesis_header)
+        Ok(())
     }
 
     pub fn provider(&self) -> &RootProvider {

@@ -217,7 +217,7 @@ impl Producer {
         let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
             - timelines.election;
 
-        // No need to create validators commitment before the election timestamp
+        // Election time is not reached yet
         if block_header.timestamp < election_ts {
             return Ok(None);
         }
@@ -268,7 +268,7 @@ impl Producer {
         Ok(Some(ValidatorsCommitment {
             aggregated_public_key,
             verifiable_secret_sharing_commitment,
-            validators: next_validators.into_iter().map(Into::into).collect(),
+            validators: next_validators.into(),
             // For next era from current block
             era_index: block_era + 1,
         }))
