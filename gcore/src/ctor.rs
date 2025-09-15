@@ -98,6 +98,11 @@ ctor! {
     }
 }
 
+// symbol to force a linker to keep all constructors
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static __gcore_pull_in_symbol: u8 = 0;
+
 #[doc(hidden)]
 pub unsafe extern "C" fn __cxa_atexit_impl(func: Dtor, arg: *mut (), _dso: *mut ()) -> i32 {
     let dtors = unsafe { static_mut!(DTORS) };
