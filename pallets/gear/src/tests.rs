@@ -1,4 +1,20 @@
 // This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -16316,6 +16332,161 @@ fn check_gear_stack_end() {
         assert_eq!(program_static_pages, expected_static_pages);
         assert_eq!(program_persistent_pages, persistent_pages);
     })
+}
+
+#[ignore]
+#[test]
+fn fungible_token_stress_test() {
+    use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            schedule.syscall_weights.gr_debug = Default::default();
+            schedule.syscall_weights.gr_debug_per_byte = Default::default();
+            schedule.syscall_weights.gr_gas_available = Default::default();
+        });
+
+        let init_msg = InitConfig {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+        .encode();
+
+        let balance = Balances::free_balance(USER_1);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            init_msg,
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        log::info!(
+            "Value burned for `init`: {}",
+            balance - Balances::free_balance(USER_1)
+        );
+
+        // Getting basic users and their actor ids.
+        let users = [USER_1, USER_2];
+
+        // Creating batch of transactions for each user.
+        let mut batch: Vec<FTAction> = vec![];
+
+        for user in users {
+            let actor_id: ActorId = user.cast();
+
+            // Mint 1_000_000 tokens to main user
+            let mint_payload = FTAction::Mint(1_000_000);
+            batch.push(mint_payload);
+
+            // Transfer 6_000 tokens to users 1-20
+            for i in 1..=20u64 {
+                let transfer_payload = FTAction::Transfer {
+                    from: actor_id,
+                    to: i.into(),
+                    amount: 6_000,
+                };
+                batch.push(transfer_payload);
+            }
+
+            // Check the balance of `user` and users 1-20
+            let balance_payload = FTAction::BalanceOf(actor_id);
+            batch.push(balance_payload);
+
+            for i in 1..=20u64 {
+                let balance_payload = FTAction::BalanceOf(i.into());
+                batch.push(balance_payload);
+            }
+
+            // Users 1-20 send 1_000 tokens to users 21-40
+            for i in 1..=20u64 {
+                let transfer_payload = FTAction::Transfer {
+                    from: i.into(),
+                    to: (i + 20).into(),
+                    amount: 1_000,
+                };
+                batch.push(transfer_payload);
+            }
+
+            // Check the balance of users 1..20 after transfers
+            for i in 1..=20u64 {
+                let balance_payload = FTAction::BalanceOf(i.into());
+                batch.push(balance_payload);
+            }
+
+            // Mint 10_000_000 tokens to main user
+            let mint_payload = FTAction::Mint(10_000_000);
+            batch.push(mint_payload);
+
+            // Mint 5_000 tokens, transfer them to users 87-120 and check their balance
+            for i in 87..=120u64 {
+                let mint_payload = FTAction::Mint(5_000);
+                batch.push(mint_payload);
+
+                let transfer_payload = FTAction::Transfer {
+                    from: actor_id,
+                    to: i.into(),
+                    amount: 5_000,
+                };
+                batch.push(transfer_payload);
+
+                let balance_payload = FTAction::BalanceOf(i.into());
+                batch.push(balance_payload);
+            }
+
+            // Same as above, but for users 918-1339 and then these users send 1_000 tokens
+            // to user i*2
+            for i in 918..=1339u64 {
+                let mint_payload = FTAction::Mint(5_000);
+                batch.push(mint_payload);
+
+                let transfer_payload = FTAction::Transfer {
+                    from: actor_id,
+                    to: i.into(),
+                    amount: 5_000,
+                };
+                batch.push(transfer_payload);
+
+                let transfer_payload = FTAction::Transfer {
+                    from: i.into(),
+                    to: (i * 2).into(),
+                    amount: i as u128 / 4u128,
+                };
+                batch.push(transfer_payload);
+            }
+        }
+
+        for action in batch {
+            let balance = Balances::free_balance(USER_1);
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            ));
+
+            run_to_next_block(None);
+
+            log::info!(
+                "Value burned for `handle`: {}",
+                balance - Balances::free_balance(USER_1)
+            );
+        }
+    });
 }
 
 pub(crate) mod utils {

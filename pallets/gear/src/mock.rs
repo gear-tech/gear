@@ -1,4 +1,20 @@
 // This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 // Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
@@ -122,21 +138,23 @@ thread_local! {
 pub struct DynamicSchedule;
 
 impl DynamicSchedule {
+    fn with<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut Schedule<Test>) -> R,
+    {
+        SCHEDULE.with_borrow_mut(|schedule| f(schedule.get_or_insert_with(Default::default)))
+    }
+
     pub fn mutate<F>(f: F) -> DynamicScheduleReset
     where
         F: FnOnce(&mut Schedule<Test>),
     {
-        SCHEDULE.with(|schedule| f(schedule.borrow_mut().as_mut().unwrap()));
+        Self::with(f);
         DynamicScheduleReset(())
     }
 
     pub fn get() -> Schedule<Test> {
-        SCHEDULE.with(|schedule| {
-            schedule
-                .borrow_mut()
-                .get_or_insert_with(Default::default)
-                .clone()
-        })
+        Self::with(|schedule| schedule.clone())
     }
 }
 
