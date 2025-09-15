@@ -102,8 +102,8 @@ impl BatchCommitter for EthereumCommitter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*};
-    use ethexe_common::gear::BatchCommitment;
+    use crate::validator::mock::*;
+    use ethexe_common::{gear::BatchCommitment, mock::*};
 
     #[tokio::test]
     async fn submitter() {

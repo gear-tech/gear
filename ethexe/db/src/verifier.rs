@@ -687,7 +687,7 @@ mod tests {
             meta.prepared = true;
             meta.last_committed_batch = Some(Digest::random());
             meta.last_committed_announce = Some(announce_hash);
-            meta.announces = Some(vec![announce_hash]);
+            meta.announces = Some([announce_hash].into());
             meta.codes_queue = Some(Default::default());
         });
         db.set_block_synced(block_hash);
