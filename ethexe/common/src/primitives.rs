@@ -16,13 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Digest, ToDigest, events::BlockEvent};
+use crate::{Address, Digest, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
 use gear_core::ids::prelude::CodeIdExt as _;
-use gprimitives::{ActorId, CodeId, H256, MessageId};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -165,6 +165,40 @@ impl CodeAndId {
             code_id: self.code_id,
         }
     }
+}
+
+/// [`RewardsState`] represents the state of rewards distribution for each block.
+#[derive(Clone, Debug, Encode, Decode)]
+pub enum RewardsState {
+    LatestDistributed(u64),
+    SentToEthereum {
+        /// The hash of the block in which rewards were sent to Ethereum.
+        in_block: H256,
+        /// The era for which rewards were sent.
+        rewarded_era: u64,
+        /// The previous rewarded era before the current one.
+        previous_rewarded_era: u64,
+        /// The updated distribution of rewards for operators.
+        operators_distribution: BTreeMap<Address, U256>,
+    },
+}
+
+/// [`OperatorStakingInfo`] contains staking information for an operator.
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Default)]
+pub struct OperatorStakingInfo {
+    // The current stake of the operator.
+    pub stake: U256,
+    // The vaults staked to the operator and their amounts.
+    pub staked_vaults: Vec<(Address, U256)>,
+}
+
+/// [`StakingEraMetadata`] contains metadata from Ethereum about the current staking era.
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Default)]
+pub struct StakingEraMetadata {
+    // The total amount of rewards distributed to operators up to the current era.
+    pub operators_rewards_distribution: BTreeMap<Address, U256>,
+    // The operators staking information for the current era.
+    pub operators_info: BTreeMap<Address, OperatorStakingInfo>,
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)

@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule, events::BlockEvent,
-    gear::StateTransition,
+    Address, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, RewardsState, Schedule,
+    StakingEraMetadata, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -63,9 +63,8 @@ impl BlockOutcome {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRead {
-    /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
+    /// Returns [`BlockMeta`] for the given block hash. If it doesn't exist, returns a default one.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
-
     fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
     fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
     fn block_outcome(&self, block_hash: H256) -> Option<BlockOutcome>;
@@ -75,8 +74,8 @@ pub trait BlockMetaStorageRead {
 
 #[auto_impl::auto_impl(&)]
 pub trait BlockMetaStorageWrite {
-    /// NOTE: if `BlockMeta` doesn't exist in the database,
-    /// it will be created with default values and then will be mutated.
+    /// Mutates [`BlockMeta`] for the given block hash.
+    /// If it doesn't exist, creates a new one with default values and then applies the mutation.
     fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
     where
         F: FnOnce(&mut BlockMeta);
@@ -115,7 +114,10 @@ pub trait OnChainStorageRead {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
+    fn latest_synced_finalized_block(&self) -> Option<H256>;
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
+    fn rewards_state(&self, block_hash: H256) -> Option<RewardsState>;
+    fn staking_metadata(&self, era: u64) -> Option<StakingEraMetadata>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -124,5 +126,8 @@ pub trait OnChainStorageWrite {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
+    fn set_latest_synced_finalized_block(&self, block_hash: H256);
     fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
+    fn set_rewards_state(&self, block_hash: H256, state: RewardsState);
+    fn mutate_staking_metadata(&self, era: u64, f: impl FnOnce(&mut StakingEraMetadata));
 }

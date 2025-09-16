@@ -18,8 +18,11 @@
 
 use crate::{ComputeError, Result, utils};
 use ethexe_common::{
-    SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
+    RewardsState, SimpleBlockData,
+    db::{
+        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
+        OnChainStorageWrite,
+    },
     events::{BlockEvent, RouterEvent},
 };
 use gprimitives::{CodeId, H256};
@@ -33,7 +36,12 @@ pub(crate) struct PrepareInfo {
 }
 
 pub(crate) fn prepare<
-    DB: OnChainStorageRead + BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
+    DB: OnChainStorageRead
+        + BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + CodesStorageRead
+        // THINK: remove from here (because of use in function next)
+        + OnChainStorageWrite,
 >(
     db: &DB,
     head: H256,
@@ -64,7 +72,12 @@ pub(crate) fn prepare<
 /// (all missing codes, missing codes that have been already validated)
 fn propagate_data_from_parent<
     'a,
-    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
+    DB: BlockMetaStorageRead
+        + BlockMetaStorageWrite
+        + CodesStorageRead
+        + OnChainStorageRead
+        // THINK: remove this from here
+        + OnChainStorageWrite,
 >(
     db: &DB,
     block: H256,
@@ -113,6 +126,35 @@ fn propagate_data_from_parent<
                         });
                     }
                     _ => {}
+                }
+            }
+            BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
+                match db.rewards_state(parent) {
+                    Some(RewardsState::SentToEthereum {
+                        in_block: _,
+                        rewarded_era,
+                        operators_distribution,
+                        ..
+                    }) => {
+                        debug_assert_eq!(
+                            rewarded_era, *era,
+                            "receive rewards event for unexpected era"
+                        );
+
+                        // db.set_operators_rewards_distribution_at(
+                        //     rewarded_era,
+                        //     operators_distribution,
+                        // );
+                        db.mutate_staking_metadata(rewarded_era, |metadata| {
+                            metadata.operators_rewards_distribution = operators_distribution;
+                        });
+
+                        db.set_rewards_state(block, RewardsState::LatestDistributed(*era));
+                    }
+
+                    _ => unreachable!(
+                        "Should be unreachable because of event should be received only after rewards sending"
+                    ),
                 }
             }
             _ => {}
