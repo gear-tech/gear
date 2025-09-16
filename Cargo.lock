@@ -4709,6 +4709,7 @@ dependencies = [
 name = "ethexe-common"
 version = "1.9.1"
 dependencies = [
+ "alloy-primitives",
  "auto_impl",
  "derive_more 2.0.1",
  "gear-core",
@@ -4796,8 +4797,10 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
+ "gear-utils",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
@@ -4842,8 +4845,6 @@ dependencies = [
  "gprimitives",
  "log",
  "nonempty 0.12.0",
- "rand 0.8.5",
- "roast-secp256k1-evm",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",

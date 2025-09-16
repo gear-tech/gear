@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup linker
         uses: ./.github/actions/setup-linker
@@ -72,6 +74,8 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
