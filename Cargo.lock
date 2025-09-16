@@ -3511,6 +3511,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-ctor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+]
+
+[[package]]
 name = "demo-custom"
 version = "0.1.0"
 dependencies = [

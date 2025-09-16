@@ -42,6 +42,7 @@ members = [
     "examples/compose",
     "examples/constructor",
     "examples/create-program-reentrance",
+    "examples/ctor",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
