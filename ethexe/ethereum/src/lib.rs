@@ -51,15 +51,11 @@ use std::time::Duration;
 mod abi;
 mod eip1167;
 
+pub mod deploy;
 pub mod middleware;
 pub mod mirror;
 pub mod router;
 pub mod wvara;
-
-// By design, the deployment module is only needed for testing purposes.
-// Real deployments are done via scripts in the `contracts/scripts/` folder.
-#[cfg(feature = "local-deploy")]
-pub mod deploy;
 
 pub mod primitives {
     pub use alloy::primitives::*;

@@ -34,7 +34,6 @@ log.workspace = true
 nonempty.workspace = true
 
 [dev-dependencies]
-ethexe-ethereum = { workspace = true, features = ["local-deploy"] }
 gear-utils.workspace = true
 wasmparser.workspace = true
 wat.workspace = true

@@ -50,6 +50,3 @@ alloy = { workspace = true, features = [
     "node-bindings",
 ] }
 gear-utils.workspace = true
-
-[features]
-local-deploy = []
