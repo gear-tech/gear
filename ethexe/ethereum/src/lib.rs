@@ -46,7 +46,7 @@ use ethexe_signer::Signer as LocalSigner;
 use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
-use std::{ops::Deref, time::Duration};
+use std::time::Duration;
 
 mod abi;
 mod eip1167;
@@ -77,12 +77,10 @@ pub(crate) type ExeFiller =
 pub struct Ethereum {
     router: Address,
     wvara: Address,
-    provider: AlloyProvider,
-}
-
-pub struct EthereumWithMiddleware {
-    inner: Ethereum,
+    /// NOTE: Middleware address will be zero if `with_middleware` flag was not passed
+    /// for [`deploy::EthereumDeployer`].
     middleware: Address,
+    provider: AlloyProvider,
 }
 
 impl Ethereum {
@@ -97,6 +95,7 @@ impl Ethereum {
         Ok(Self {
             router: router_address,
             wvara: router_query.wvara_address().await?,
+            middleware: router_query.middleware_address().await?,
             provider,
         })
     }
@@ -106,6 +105,7 @@ impl Ethereum {
         Ok(Self {
             router,
             wvara: router_query.wvara_address().await?,
+            middleware: router_query.middleware_address().await?,
             provider,
         })
     }
@@ -123,19 +123,9 @@ impl Ethereum {
     pub fn router(&self) -> Router {
         Router::new(self.router, self.wvara, self.provider())
     }
-}
 
-impl EthereumWithMiddleware {
     pub fn middleware(&self) -> Middleware {
         Middleware::new(self.middleware, self.provider())
-    }
-}
-
-impl Deref for EthereumWithMiddleware {
-    type Target = Ethereum;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
     }
 }
 

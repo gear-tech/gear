@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, Ethereum, EthereumWithMiddleware, TryGetReceipt,
+    AlloyProvider, Ethereum, TryGetReceipt,
     abi::{
         IMiddleware::{
             self, IMiddlewareInstance, InitParams as MiddlewareInitParams,
@@ -40,13 +40,18 @@ use alloy::{
 use anyhow::Result;
 use ethexe_common::{Address as LocalAddress, ecdsa::PublicKey, gear::AggregatedPublicKey};
 use ethexe_signer::Signer as LocalSigner;
-use gprimitives::{ActorId, U256 as GearU256};
+use gprimitives::{ActorId, H160, U256 as GearU256};
 use nonempty::NonEmpty;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::collections::BTreeSet;
+
+// Constants for deployment nonce offsets. Needed to verify the correctness of the deployment order
+// and maintain the validity of address calculations in router deployment.
+const MIRROR_DEPLOYMENT_NONCE_OFFSET: u64 = 2;
+const MIDDLEWARE_DEPLOYMENT_NONCE_OFFSET: u64 = 12;
 
 /// [`EthereumDeployer`] is a builder for deploying smart contracts on Ethereum for testing purposes.
 pub struct EthereumDeployer {
@@ -56,10 +61,13 @@ pub struct EthereumDeployer {
     // Customizable parameters
     /// Validators`s addresses. If not provided, will use as vec with one element.
     validators: NonEmpty<LocalAddress>,
+    /// Whether to deploy middleware contract.
+    with_middleware: bool,
     /// Verifiable secret sharing commitment generated during key generation.
     /// If not provided, will be generate with [`keys::generate_with_dealer`] function.
     verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
 }
+
 // Public methods
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
@@ -68,8 +76,14 @@ impl EthereumDeployer {
         Ok(EthereumDeployer {
             provider,
             validators: nonempty::nonempty![LocalAddress([1u8; 20])],
+            with_middleware: false,
             verifiable_secret_sharing_commitment: None,
         })
+    }
+
+    pub fn with_middleware(mut self) -> Self {
+        self.with_middleware = true;
+        self
     }
 
     pub fn with_validators(mut self, validators: Vec<LocalAddress>) -> Self {
@@ -87,15 +101,8 @@ impl EthereumDeployer {
     }
 
     pub async fn deploy(self) -> Result<Ethereum> {
-        let router = self.deploy_contracts(false).await?;
+        let router = self.deploy_contracts(self.with_middleware).await?;
         Ethereum::from_provider(self.provider.clone(), router).await
-    }
-
-    pub async fn deploy_with_middleware(self) -> Result<EthereumWithMiddleware> {
-        let router = self.deploy_contracts(true).await?;
-        let inner = Ethereum::from_provider(self.provider.clone(), router).await?;
-        let middleware = inner.router().query().middleware_address().await?;
-        Ok(EthereumWithMiddleware { inner, middleware })
     }
 }
 
@@ -108,6 +115,8 @@ impl EthereumDeployer {
 
         // NOTE: The order of deployment is important here because of the future addresses calculation
         // inside `deploy_router`.
+        let nonce = self.provider.get_transaction_count(deployer).await?;
+
         let router = deploy_router(
             deployer,
             *wrapped_vara.address(),
@@ -125,9 +134,21 @@ impl EthereumDeployer {
         let mirror = IMirror::deploy(self.provider.clone(), *router.address()).await?;
         log::debug!("Mirror impl has been deployed at {}", mirror.address());
 
+        debug_assert_eq!(
+            self.provider.get_transaction_count(deployer).await?,
+            nonce + MIRROR_DEPLOYMENT_NONCE_OFFSET + 1,
+            "Nonce mismatch. Check the deployment order in deploy_router()."
+        );
+
         if with_middleware {
             let _ =
                 deploy_middleware(deployer, &router, &wrapped_vara, self.provider.clone()).await?;
+
+            debug_assert_eq!(
+                self.provider.get_transaction_count(deployer).await?,
+                nonce + MIDDLEWARE_DEPLOYMENT_NONCE_OFFSET + 1,
+                "Nonce mismatch. Check the deployment order in deploy_middleware()."
+            );
         }
 
         let builder = wrapped_vara.approve(*router.address(), U256::MAX);
@@ -185,7 +206,7 @@ where
     let validators_identifiers: Vec<_> = validators
         .iter()
         .map(|address| {
-            Identifier::deserialize(&ActorId::from(*address).into_bytes())
+            Identifier::deserialize(&ActorId::from(H160(address.0.0)).into_bytes())
                 .expect("conversion failed")
         })
         .collect();
@@ -197,6 +218,7 @@ where
     let identifiers = validators_identifiers.clone().into_iter().collect();
     let aggregated_public_key =
         aggregated_public_key(&identifiers, &verifiable_secret_sharing_commitment);
+
     // Calculate future contracts addresses for mirror and middleware
     let nonce = provider.get_transaction_count(deployer).await?;
     let mirror_address = deployer.create(
@@ -207,8 +229,8 @@ where
 
     let middleware_address = match with_middleware {
         true => deployer.create(
+            // Add 12 to nonce because of deployment symbiotic contracts
             nonce
-                // Add 12 to nonce because of deployment symbiotic contracts
                 .checked_add(12)
                 .expect("nonce overflow when deploying middleware"),
         ),
@@ -401,7 +423,8 @@ mod tests {
 
         let ethereum = EthereumDeployer::new(&anvil.endpoint(), signer, sender_address)
             .await?
-            .deploy_with_middleware()
+            .with_middleware()
+            .deploy()
             .await?;
 
         let router = ethereum.router();
