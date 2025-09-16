@@ -20,12 +20,13 @@
 
 use crate::{static_mut, static_ref};
 use arrayvec::ArrayVec;
+use core::ffi::c_void;
 use core::{mem, ptr};
 
 #[doc(hidden)]
 pub use paste::paste;
 
-static mut DTORS: ArrayVec<(Dtor, *mut ()), 32> = ArrayVec::new_const();
+static mut DTORS: ArrayVec<(Dtor, *mut c_void), 32> = ArrayVec::new_const();
 
 // a symbol that forces the linker to retain `.init_array` entries
 // so that the linker does not garbage-collect constructors
@@ -34,7 +35,7 @@ static mut DTORS: ArrayVec<(Dtor, *mut ()), 32> = ArrayVec::new_const();
 #[allow(non_upper_case_globals)]
 static __gcore_pull_in_symbol: u8 = 0;
 
-type Dtor = unsafe extern "C" fn(*mut ());
+type Dtor = unsafe extern "C" fn(*mut c_void);
 
 /// Defines a global constructor.
 ///
@@ -189,17 +190,17 @@ macro_rules! dtor {
 /// assert_eq!(rc, 0, "atexit registry is full");
 /// ```
 pub fn atexit(func: fn()) -> i32 {
-    unsafe extern "C" fn call(arg: *mut ()) {
-        let func = unsafe { mem::transmute::<*mut (), fn()>(arg) };
+    unsafe extern "C" fn call(arg: *mut c_void) {
+        let func = unsafe { mem::transmute::<*mut c_void, fn()>(arg) };
         func()
     }
 
-    unsafe { __cxa_atexit_impl(call, func as *mut (), ptr::null_mut()) }
+    unsafe { __cxa_atexit_impl(call, func as *mut c_void, ptr::null_mut()) }
 }
 
 unsafe extern "C" {
     fn __gcore_set_fns(
-        __cxa_atexit_impl: unsafe extern "C" fn(Dtor, *mut (), *mut ()) -> i32,
+        __cxa_atexit_impl: unsafe extern "C" fn(Dtor, *mut c_void, *mut c_void) -> i32,
         dtors: unsafe extern "C" fn(),
     );
 }
@@ -212,7 +213,7 @@ ctor! {
 }
 
 #[doc(hidden)]
-pub unsafe extern "C" fn __cxa_atexit_impl(func: Dtor, arg: *mut (), _dso: *mut ()) -> i32 {
+pub unsafe extern "C" fn __cxa_atexit_impl(func: Dtor, arg: *mut c_void, _dso: *mut c_void) -> i32 {
     let dtors = unsafe { static_mut!(DTORS) };
 
     if dtors.try_push((func, arg)).is_err() {
