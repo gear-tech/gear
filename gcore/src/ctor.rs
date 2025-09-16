@@ -222,7 +222,7 @@ pub unsafe extern "C" fn __cxa_atexit_impl(func: Dtor, arg: *mut (), _dso: *mut 
     0
 }
 
-unsafe extern "C" fn dtors() {
+pub(crate) unsafe extern "C" fn dtors() {
     let dtors = unsafe { static_ref!(DTORS) };
     for &(dtor, arg) in dtors.iter().rev() {
         unsafe { dtor(arg) }
