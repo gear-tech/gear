@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-signer.workspace = true
-ethexe-ethereum = { workspace = true, features = ["local-deploy"] }
+ethexe-ethereum = { workspace = true }
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 
@@ -34,6 +34,7 @@ log.workspace = true
 nonempty.workspace = true
 
 [dev-dependencies]
+ethexe-ethereum = { workspace = true, features = ["local-deploy"] }
 gear-utils.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
