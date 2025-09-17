@@ -27,6 +27,7 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     pkgs.just
 
     # Maintenance tools and script dependencies
+    pkgs.just
     pkgs.jq
     pkgs.typos
 
