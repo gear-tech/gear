@@ -2,6 +2,9 @@
 default:
     @just --list --unsorted
 
+# Run pre-commit checks
+pre-commit: fmt typos clippy test check-runtime-imports
+
 # Remove untracked files and build caches
 [confirm('Remove all untracked files and build caches? (y/n)')]
 clean:
@@ -9,14 +12,17 @@ clean:
 
 # Format code via `rustfmt`
 fmt:
+    # Running `rustfmt` on the workspace
     cargo fmt --all
 
 # Check code formatting via `rustfmt`
 fmt-check:
+    # Running `rustfmt` on the workspace in check mode
     cargo fmt --all --check
 
 # Check code for typos via `typos-cli`
 typos: (ensure-binary "typos" "cargo install typos-cli")
+    # Checking the repository for typos
     typos
 
 # Check code with Clippy
@@ -47,6 +53,16 @@ test: (ensure-cargo "hack") (ensure-cargo "nextest")
         --exclude gring \
         --exclude runtime-fuzzer \
         --exclude runtime-fuzzer-fuzz
+
+# Check runtime imports
+check-runtime-imports:
+    # Checking runtime imports
+    cargo build -p wasm-proc
+    cargo build -p vara-runtime
+    ./target/debug/wasm-proc \
+        --check-runtime-imports \
+        target/debug/wbuild/vara-runtime/vara_runtime.wasm
+
 
 [private]
 ensure-binary binary hint: (
