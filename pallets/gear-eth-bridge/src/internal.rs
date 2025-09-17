@@ -87,7 +87,7 @@ impl<T: Config> Pallet<T> {
         }
 
         // Calculating new root.
-        let root = binary_merkle_tree::merkle_root::<Keccak256, _>(queue);
+        let root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(queue);
 
         // Updating queue merkle root in storage.
         QueueMerkleRoot::<T>::put(root);
@@ -261,7 +261,7 @@ impl EthMessageExt for EthMessage {
     /// Returns hash of the message using `Keccak256` hasher.
     fn hash(&self) -> H256 {
         let mut nonce = [0; 32];
-        self.nonce().to_little_endian(&mut nonce);
+        self.nonce().to_big_endian(&mut nonce);
 
         let bytes = [
             nonce.as_ref(),

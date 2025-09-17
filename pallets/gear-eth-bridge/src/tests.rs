@@ -274,7 +274,7 @@ fn bridge_queue_root_changes() {
             assert!(QueueChanged::get());
         }
 
-        let expected_root = binary_merkle_tree::merkle_root::<Keccak256, _>(Queue::get());
+        let expected_root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(Queue::get());
 
         on_finalize_gear_block(WHEN_INITIALIZED);
 
