@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AlloyProvider, abi::IMiddleware};
+use crate::{
+    AlloyProvider,
+    abi::{IMiddleware, middleware_abi},
+};
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, RootProvider},
@@ -62,17 +65,23 @@ impl MiddlewareQuery {
         ))
     }
 
+    pub async fn router(&self) -> Result<LocalAddress> {
+        Ok(self.0.router().call().await?.into())
+    }
+
+    pub async fn symbiotic_contracts(&self) -> Result<middleware_abi::Gear::SymbioticContracts> {
+        self.0.symbioticContracts().call().await.map_err(Into::into)
+    }
+
     pub async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
-        let vec: Vec<_> = self
-            .0
+        self.0
             .makeElectionAt(
                 alloy::primitives::Uint::from(ts),
                 AlloyU256::from(max_validators),
             )
             .call()
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::<anyhow::Error>::into)?;
-        vec.try_into().map_err(Into::into)
+            .await?
+            .try_into()
+            .map_err(Into::into)
     }
 }

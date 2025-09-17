@@ -4,7 +4,7 @@
   lib ? pkgs.lib,
 
   # FIXME: `rustfilt` was removed in recent Nixpkgs due to
-  #        lack of maintainance, so we need an old one.
+  #        lack of maintenance, so we need an old one.
   oldPkgs ? import pins.nixpkgs-old { },
 }:
 pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
@@ -26,7 +26,7 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     # Command runner
     pkgs.just
 
-    # Maintainance tools and script dependencies
+    # Maintenance tools and script dependencies
     pkgs.jq
     pkgs.typos
 

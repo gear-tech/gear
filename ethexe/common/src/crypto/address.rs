@@ -121,6 +121,19 @@ impl From<Address> for ActorId {
     }
 }
 
+// Type conversions to/from `alloy_primitives::Address`
+impl From<alloy_primitives::Address> for Address {
+    fn from(value: alloy_primitives::Address) -> Self {
+        Self(value.0.0)
+    }
+}
+
+impl From<Address> for alloy_primitives::Address {
+    fn from(value: Address) -> Self {
+        Self(value.0.into())
+    }
+}
+
 /// [`ValidatorsVec`] is a wrapper over non-empty vector of [`Address`].
 /// It is needed because `NonEmpty` does not implement `Encode` and `Decode`.
 #[derive(
@@ -136,7 +149,7 @@ impl From<Address> for ActorId {
 )]
 pub struct ValidatorsVec(NonEmpty<Address>);
 
-// Encode / Decode implementations
+// parity-scale-codec Encode / Decode implementations
 impl Encode for ValidatorsVec {
     fn encode(&self) -> Vec<u8> {
         Into::<Vec<_>>::into(self.0.clone()).encode()
@@ -158,7 +171,7 @@ impl Decode for ValidatorsVec {
 
 #[derive(Debug, Display, Error)]
 #[display("{:?}", self)]
-#[debug("ValidatorsVec must be non-empty")]
+#[debug("Vec must be non-empty")]
 pub struct TryFromVecError;
 
 // Usefull conversions from / to `Vec<Address>`
@@ -167,6 +180,15 @@ impl TryFrom<Vec<Address>> for ValidatorsVec {
 
     fn try_from(value: Vec<Address>) -> Result<Self, Self::Error> {
         NonEmpty::from_vec(value).map(Self).ok_or(TryFromVecError)
+    }
+}
+
+impl TryFrom<Vec<alloy_primitives::Address>> for ValidatorsVec {
+    type Error = TryFromVecError;
+
+    fn try_from(value: Vec<alloy_primitives::Address>) -> Result<Self, Self::Error> {
+        let vec: Vec<Address> = value.into_iter().map(Into::into).collect();
+        NonEmpty::from_vec(vec).map(Self).ok_or(TryFromVecError)
     }
 }
 
