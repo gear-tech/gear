@@ -303,18 +303,6 @@ parameter_types! {
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
 }
 
-pub struct MockBridgeControlAccounts;
-impl SortedMembers<AccountId> for MockBridgeControlAccounts {
-    fn sorted_members() -> Vec<AccountId> {
-        let mut members = vec![
-            MockBridgeAdminAccount::get(),
-            MockBridgePauserAccount::get(),
-        ];
-        members.sort();
-        members
-    }
-}
-
 pub struct MockBridgeAdminAccounts;
 impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
     fn sorted_members() -> Vec<AccountId> {
@@ -323,7 +311,6 @@ impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
 }
 
 impl pallet_gear_eth_bridge::Config for Test {
-    type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
     type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = MockBridgeBuiltinAddress;

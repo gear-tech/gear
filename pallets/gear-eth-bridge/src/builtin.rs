@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
+use crate::{Config, Error, Pallet, QueueId, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
-use frame_support::traits::EnsureOrigin;
-use frame_system::RawOrigin;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
@@ -48,19 +46,16 @@ where
     ) -> Result<BuiltinReply, BuiltinActorError> {
         let source = dispatch.source();
 
-        let is_governance_origin = <T as Config>::ControlOrigin::ensure_origin(
-            RawOrigin::from(Some(source.cast())).into(),
-        )
-        .is_ok();
+        let from_governance = Pallet::<T>::ensure_admin_or_pauser(source).is_ok();
 
         let fee: Value = TransportFee::<T>::get().unique_saturated_into();
 
-        if !is_governance_origin && dispatch.value() < fee {
+        if !from_governance && dispatch.value() < fee {
             return Err(BuiltinActorError::InsufficientValue);
         }
 
         // If the origin is governance, we do not charge a fee and return the full value.
-        let value_refund = if is_governance_origin {
+        let refund = if from_governance {
             dispatch.value()
         } else {
             dispatch.value().saturating_sub(fee)
@@ -74,14 +69,8 @@ where
                 destination,
                 payload,
             } => Ok(BuiltinReply {
-                payload: send_message_request::<T>(
-                    source,
-                    destination,
-                    payload,
-                    context,
-                    is_governance_origin,
-                )?,
-                value: value_refund,
+                payload: send_message_request::<T>(source, destination, payload, context)?,
+                value: refund,
             }),
         }
     }
@@ -96,18 +85,25 @@ fn send_message_request<T: Config>(
     destination: H160,
     payload: Vec<u8>,
     context: &mut BuiltinContext,
-    is_governance_origin: bool,
 ) -> Result<Payload, BuiltinActorError> {
     let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
 
     context.try_charge_gas(gas_cost)?;
 
-    Pallet::<T>::queue_message(source, destination, payload, is_governance_origin)
+    Pallet::<T>::queue_message(source, destination, payload)
         .map(|(nonce, hash)| {
-            Response::EthMessageQueued { nonce, hash }
-                .encode()
-                .try_into()
-                .unwrap_or_else(|_| unreachable!("response max encoded len is less than maximum"))
+            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let queue_id = QueueId::<T>::get();
+
+            Response::EthMessageQueued {
+                block_number,
+                hash,
+                nonce,
+                queue_id,
+            }
+            .encode()
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("response max encoded len is less than maximum"))
         })
         .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))))
 }
@@ -117,7 +113,7 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsNotYetInitialized => "Send message: bridge is not yet initialized",
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
-        Error::QueueCapacityExceeded => "Send message: queue capacity exceeded",
-        _ => unimplemented!(),
+        Error::InsufficientValueApplied => "Send message: insufficient value applied",
+        Error::__Ignore(_, _) => unreachable!("never constructed"),
     }
 }
