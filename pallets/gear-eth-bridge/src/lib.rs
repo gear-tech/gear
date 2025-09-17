@@ -33,6 +33,12 @@ pub use pallet::*;
 pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
 pub use weights::WeightInfo;
 
+/// Pallet migrations.
+pub mod migrations {
+    /// Reset migration.
+    pub mod reset;
+}
+
 pub mod weights;
 
 #[cfg(feature = "runtime-benchmarks")]
