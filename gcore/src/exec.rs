@@ -150,6 +150,10 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// }
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        crate::ctor::dtors()
+    }
     unsafe { gsys::gr_exit(inheritor_id.as_ptr()) }
 }
 
@@ -289,6 +293,10 @@ pub fn gas_available() -> u64 {
 /// }
 /// ```
 pub fn leave() -> ! {
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        crate::ctor::dtors()
+    }
     unsafe { gsys::gr_leave() }
 }
 

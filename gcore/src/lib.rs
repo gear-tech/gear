@@ -69,6 +69,8 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
+#[cfg(target_arch = "wasm32")]
+pub mod ctor;
 pub mod errors;
 pub mod exec;
 pub mod msg;
