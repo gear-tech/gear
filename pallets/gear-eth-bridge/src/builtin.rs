@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
+use crate::{Config, Error, Pallet, QueueId, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
 use gbuiltin_eth_bridge::{Request, Response};
@@ -92,10 +92,18 @@ fn send_message_request<T: Config>(
 
     Pallet::<T>::queue_message(source, destination, payload)
         .map(|(nonce, hash)| {
-            Response::EthMessageQueued { nonce, hash }
-                .encode()
-                .try_into()
-                .unwrap_or_else(|_| unreachable!("response max encoded len is less than maximum"))
+            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let queue_id = QueueId::<T>::get();
+
+            Response::EthMessageQueued {
+                block_number,
+                hash,
+                nonce,
+                queue_id,
+            }
+            .encode()
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("response max encoded len is less than maximum"))
         })
         .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))))
 }

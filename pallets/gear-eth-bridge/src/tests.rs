@@ -15,7 +15,7 @@ use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::{H160, H256};
-use sp_runtime::traits::{BadOrigin, Keccak256};
+use sp_runtime::traits::{BadOrigin, Keccak256, UniqueSaturatedInto};
 use utils::*;
 
 const EPOCH_BLOCKS: u64 = EpochDuration::get();
@@ -227,6 +227,9 @@ fn bridge_send_eth_message_works() {
 
         queue.push(hash);
 
+        let block_number = <frame_system::Pallet<Test>>::block_number().unique_saturated_into();
+        let queue_id = QueueId::<Test>::get();
+
         let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
@@ -242,7 +245,15 @@ fn bridge_send_eth_message_works() {
 
         let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
 
-        assert_eq!(response, Response::EthMessageQueued { nonce, hash });
+        assert_eq!(
+            response,
+            Response::EthMessageQueued {
+                block_number,
+                hash,
+                nonce,
+                queue_id
+            }
+        );
 
         System::assert_has_event(Event::MessageQueued { message, hash }.into());
 
