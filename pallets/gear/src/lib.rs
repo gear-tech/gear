@@ -520,7 +520,7 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Getter for [`BlockNumberFor<T>`] (BlockNumberFor)
-        pub(crate) fn block_number() -> BlockNumberFor<T> {
+        pub fn block_number() -> BlockNumberFor<T> {
             BlockNumber::<T>::get()
         }
     }
