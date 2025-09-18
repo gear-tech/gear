@@ -45,7 +45,7 @@ jobs:
     runs-on: [ kuberunner ]
     steps:
       - name: "Actions: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.inputs.tag_name }}
 
@@ -119,7 +119,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch Multiplatform Build Workflow
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ env.GITHUB_TOKEN }}
           script: |
@@ -139,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch Docker Build Workflow
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ env.GITHUB_TOKEN }}
           script: |
