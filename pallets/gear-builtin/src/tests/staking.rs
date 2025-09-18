@@ -664,14 +664,14 @@ mod util {
         PalletId, assert_ok, construct_runtime,
         pallet_prelude::{DispatchClass, Weight},
         parameter_types,
-        traits::{ConstBool, ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
+        traits::{ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
     };
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
     pub(super) use gear_core::ids::{ActorId, CodeId, prelude::*};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
-    use pallet_session::historical::{self as pallet_session_historical};
+    use pallet_session::historical as pallet_session_historical;
     pub(super) use parity_scale_codec::Encode;
     use sp_core::{H256, crypto::key_types};
     use sp_runtime::{

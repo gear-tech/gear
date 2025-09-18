@@ -29,7 +29,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
 use pallet_gear::GasAllowanceOf;
-use sp_core::{ConstBool, H256};
+use sp_core::H256;
 use sp_runtime::{
     BuildStorage,
     traits::{BlakeTwo256, IdentityLookup},
