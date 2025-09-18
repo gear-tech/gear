@@ -3449,7 +3449,6 @@ dependencies = [
  "gbuiltin-bls381",
  "gear-wasm-builder",
  "gstd",
- "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -3834,7 +3833,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
- "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -11458,8 +11456,8 @@ dependencies = [
  "pallet-staking",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
+ "serde",
  "sha2 0.10.8",
  "sp-core",
  "sp-crypto-ec-utils",
@@ -11476,6 +11474,7 @@ name = "pallet-gear-builtin-rpc"
 version = "1.9.1"
 dependencies = [
  "jsonrpsee 0.24.7",
+ "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
  "sp-api",
  "sp-blockchain",
@@ -11487,8 +11486,10 @@ dependencies = [
 name = "pallet-gear-builtin-rpc-runtime-api"
 version = "1.9.1"
 dependencies = [
+ "pallet-gear-builtin",
  "sp-api",
  "sp-core",
+ "sp-std",
 ]
 
 [[package]]

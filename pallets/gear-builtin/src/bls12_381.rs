@@ -30,6 +30,8 @@ const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 pub struct Actor<T: Config>(PhantomData<T>);
 
 impl<T: Config> BuiltinActor for Actor<T> {
+    const TYPE: BuiltinActorType = BuiltinActorType::BLS12_381;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
