@@ -461,9 +461,6 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::DbResponse { .. } => {
-                            unreachable!("`db-sync` is never used for requests in the main loop")
-                        }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
