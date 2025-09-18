@@ -37,11 +37,12 @@ use alloc::{format, string::String};
 use blake2::{Blake2b, Digest, digest::typenum::U32};
 use core::marker::PhantomData;
 use gear_core::{
-    buffer::{Payload, RuntimeBuffer, RuntimeBufferSizeError},
+    buffer::{Payload, RuntimeBuffer},
     costs::CostToken,
     env::MessageWaitedType,
     gas::CounterType,
     ids::{ActorId, MessageId, ReservationId},
+    limited::LimitedVecError,
     message::{HandlePacket, InitPacket, ReplyPacket},
     pages::WasmPage,
 };
@@ -1018,7 +1019,7 @@ where
                 let data: RuntimeBuffer = data
                     .into_inner()?
                     .try_into()
-                    .map_err(|RuntimeBufferSizeError| {
+                    .map_err(|LimitedVecError| {
                         UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
                     })
                     .map_err(TrapExplanation::UnrecoverableExt)?;

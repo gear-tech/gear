@@ -24,8 +24,8 @@ use frame_system::RawOrigin;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
+    limited::LimitedStr,
     message::{StoredDispatch, Value},
-    str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
 use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext, BuiltinReply};

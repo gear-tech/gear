@@ -128,7 +128,7 @@ impl Message {
 
     /// Message payload bytes.
     pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
+        &self.payload
     }
 
     /// Message optional gas limit.

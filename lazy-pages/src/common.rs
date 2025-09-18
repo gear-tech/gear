@@ -23,7 +23,7 @@ use crate::{
     mprotect::MprotectError,
     pages::{GearPage, SIZES_AMOUNT, SizeManager, SizeNumber, WasmPage, WasmPagesAmount},
 };
-use gear_core::str::LimitedStr;
+use gear_core::limited::LimitedStr;
 use gear_lazy_pages_common::{GlobalsAccessError, Status};
 use numerated::tree::IntervalsTree;
 use std::{fmt, num::NonZero};

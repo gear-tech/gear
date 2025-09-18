@@ -15300,7 +15300,7 @@ fn incorrect_store_context() {
         // Fill until the limit is reached
         while counter < limit + 1 {
             let handle = message_context.send_init().unwrap();
-            let len = (Payload::max_len() as u32).min(limit + 1 - counter);
+            let len = (Payload::MAX_LEN as u32).min(limit + 1 - counter);
             message_context
                 .send_push(handle, &vec![1; len as usize])
                 .unwrap();

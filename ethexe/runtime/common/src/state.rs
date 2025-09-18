@@ -123,7 +123,7 @@ impl PayloadLookup {
 
     pub fn is_empty(&self) -> bool {
         if let Self::Direct(payload) = self {
-            payload.inner().is_empty()
+            payload.is_empty()
         } else {
             false
         }
@@ -1337,7 +1337,7 @@ pub trait Storage {
         let payload =
             Payload::try_from(payload).map_err(|_| anyhow!("payload exceeds size limit"))?;
 
-        let res = if payload.inner().len() < PayloadLookup::STORING_THRESHOLD {
+        let res = if payload.len() < PayloadLookup::STORING_THRESHOLD {
             PayloadLookup::Direct(payload)
         } else {
             PayloadLookup::Stored(self.write_payload(payload))
