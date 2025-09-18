@@ -312,6 +312,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash,
             "invalid previous committed batch hash"
         );
+
         require(
             router.latestCommittedBatch.timestamp <= _batch.blockTimestamp,
             "batch timestamp must be greater or equal to latest committed batch timestamp"
@@ -480,7 +481,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             nextEraStart
         );
 
-        emit NextEraValidatorsCommitted(nextEraStart);
+        emit NextEraValidatorsCommitted(_commitment.eraIndex);
 
         return Gear.validatorsCommitmentHash(_commitment);
     }

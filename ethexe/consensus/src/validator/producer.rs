@@ -26,16 +26,22 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, ProducerBlock, SimpleBlockData,
-    db::BlockMetaStorageRead,
+    NextEraValidators, ProducerBlock, SimpleBlockData, ValidatorsVec,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
+    ecdsa::PublicKey,
+    end_of_era_timestamp, era_from_ts,
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
+        ValidatorsCommitment,
     },
 };
 use ethexe_service_utils::Timer;
 use futures::FutureExt;
-use gprimitives::H256;
-use nonempty::NonEmpty;
+use gprimitives::{H256, U256};
+use roast_secp256k1_evm::frost::{
+    Identifier,
+    keys::{self, IdentifierList},
+};
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -46,7 +52,7 @@ use std::task::Context;
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
-    validators: NonEmpty<Address>,
+    validators: ValidatorsVec,
     state: State,
 }
 
@@ -106,7 +112,7 @@ impl Producer {
     pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
     ) -> Result<ValidatorState> {
         assert!(
             validators.contains(&ctx.pub_key.to_address()),
@@ -196,10 +202,76 @@ impl Producer {
 
     // TODO #4741
     fn aggregate_validators_commitment(
-        _ctx: &ValidatorContext,
-        _block_hash: H256,
+        ctx: &ValidatorContext,
+        block_hash: H256,
     ) -> Result<Option<ValidatorsCommitment>> {
-        Ok(None)
+        let block_header = ctx.db.block_header(block_hash).ok_or(anyhow!(
+            "block header not found in `aggregate validators commitment`"
+        ))?;
+        let timelines = ctx
+            .db
+            .gear_exe_timelines()
+            .ok_or(anyhow!("GearExe timlines not exists in database"))?;
+
+        let block_era = era_from_ts(block_header.timestamp, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
+            - timelines.election;
+
+        // Election time is not reached yet
+        if block_header.timestamp < election_ts {
+            return Ok(None);
+        }
+
+        let validators_info = ctx.db.validators_info(block_hash).ok_or(anyhow!(
+            "Validators info must be in storage for block {block_hash}"
+        ))?;
+
+        let next_validators = match validators_info.next {
+            NextEraValidators::Unknown => {
+                log::warn!("Validators are not elected in Observer, but should be");
+                return Ok(None);
+            }
+            NextEraValidators::Elected(validators) => validators,
+            NextEraValidators::Committed(_v) => {
+                // No need to continue because of validators are already committed
+                return Ok(None);
+            }
+        };
+
+        let validators_identifiers = next_validators
+            .iter()
+            .map(|validator| Identifier::deserialize(&validator.0).unwrap())
+            .collect::<Vec<_>>();
+        let identifiers = IdentifierList::Custom(&validators_identifiers);
+
+        let (mut secret_shares, public_key_package) =
+            keys::generate_with_dealer(1, 1, identifiers, rand::thread_rng()).unwrap();
+
+        let verifiable_secret_sharing_commitment = secret_shares
+            .pop_first()
+            .map(|(_key, value)| value.commitment().clone())
+            .expect("Expect at least one identifier");
+
+        let public_key_compressed: [u8; 33] = public_key_package
+            .verifying_key()
+            .serialize()?
+            .try_into()
+            .unwrap();
+        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
+        let aggregated_public_key = AggregatedPublicKey {
+            x: U256::from_big_endian(public_key_x_bytes),
+            y: U256::from_big_endian(public_key_y_bytes),
+        };
+
+        Ok(Some(ValidatorsCommitment {
+            aggregated_public_key,
+            verifiable_secret_sharing_commitment,
+            validators: next_validators.into(),
+            // For next era from current block
+            era_index: block_era + 1,
+        }))
     }
 
     // TODO #4742
@@ -233,8 +305,11 @@ impl Producer {
 mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
-    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
-    use nonempty::{NonEmpty, nonempty};
+    use ethexe_common::{
+        Digest, ToDigest, ValidatorsInfo,
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
+    };
+    use nonempty::nonempty;
 
     #[tokio::test]
     async fn create() {
@@ -248,7 +323,7 @@ mod tests {
             (),
         )));
 
-        let producer = Producer::create(ctx, block, validators.clone()).unwrap();
+        let producer = Producer::create(ctx, block, validators.into()).unwrap();
 
         let ctx = producer.context();
         assert_eq!(
@@ -261,8 +336,16 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
+        ctx.db.set_validators_info(
+            block.hash,
+            ValidatorsInfo {
+                current: validators.clone(),
+                next: NextEraValidators::Elected(validators.clone()),
+            },
+        );
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -279,11 +362,18 @@ mod tests {
     #[tokio::test]
     async fn complex() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let batch = prepared_mock_batch_commitment(&ctx.db);
         let block = simple_block_data(&ctx.db, batch.block_hash);
+        ctx.db.set_validators_info(
+            block.hash,
+            ValidatorsInfo {
+                current: validators.clone(),
+                next: NextEraValidators::Elected(validators.clone()),
+            },
+        );
 
-        // If threshold is 1, we should not emit any events and goes to submitter (thru coordinator)
         let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
@@ -338,8 +428,16 @@ mod tests {
     #[tokio::test]
     async fn code_commitments_only() {
         let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![ctx.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
+        ctx.db.set_validators_info(
+            block.hash,
+            ValidatorsInfo {
+                current: validators.clone(),
+                next: NextEraValidators::Elected(validators.clone()),
+            },
+        );
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
@@ -370,7 +468,7 @@ mod tests {
     async fn create_producer_skip_timer(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
     ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert!(producer.is_producer());

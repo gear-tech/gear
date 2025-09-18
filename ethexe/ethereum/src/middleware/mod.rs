@@ -25,7 +25,7 @@ use alloy::{
     providers::{Provider, RootProvider},
 };
 use anyhow::Result;
-use ethexe_common::Address as LocalAddress;
+use ethexe_common::{Address as LocalAddress, ValidatorsVec};
 
 type Instance = IMiddleware::IMiddlewareInstance<AlloyProvider>;
 type QueryInstance = IMiddleware::IMiddlewareInstance<RootProvider>;
@@ -73,19 +73,15 @@ impl MiddlewareQuery {
         self.0.symbioticContracts().call().await.map_err(Into::into)
     }
 
-    pub async fn make_election_at(
-        &self,
-        ts: u64,
-        max_validators: u128,
-    ) -> Result<Vec<LocalAddress>> {
+    pub async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
         self.0
             .makeElectionAt(
                 alloy::primitives::Uint::from(ts),
                 AlloyU256::from(max_validators),
             )
             .call()
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .await?
+            .try_into()
             .map_err(Into::into)
     }
 }

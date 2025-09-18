@@ -24,10 +24,11 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use ethexe_common::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    BlockHeader, BlockMeta, CodeBlobInfo, Digest, GearExeTimelines, ProgramStates, Schedule,
+    ValidatorsInfo,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
-        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, StaticData,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -44,7 +45,6 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -63,10 +63,11 @@ enum Key {
     CodeValid(CodeId) = 9,
 
     SignedTransaction(H256) = 10,
+    ValidatorsInfo(H256) = 11,
 
-    LatestComputedBlock = 11,
-    LatestSyncedBlockHeight = 12,
-    ValidatorSet(H256) = 13,
+    LatestComputedBlock = 12,
+    LatestSyncedBlockHeight = 13,
+    StaticData = 14,
 }
 
 impl Key {
@@ -87,7 +88,7 @@ impl Key {
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
             | Self::SignedTransaction(hash)
-            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::ValidatorsInfo(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -102,7 +103,9 @@ impl Key {
             ]
             .concat(),
 
-            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight | Self::StaticData => {
+                prefix.as_ref().to_vec()
+            }
         }
     }
 }
@@ -245,6 +248,27 @@ impl Database {
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
+    }
+
+    fn static_data(&self) -> Option<StaticData> {
+        self.kv.get(&Key::StaticData.to_bytes()).map(|data| {
+            StaticData::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `DbStaticData`")
+        })
+    }
+
+    fn set_static_data(&self, data: StaticData) {
+        self.kv.put(&Key::StaticData.to_bytes(), data.encode());
+    }
+
+    fn with_static_data<R>(&self, f: impl FnOnce(StaticData) -> R) -> Option<R> {
+        self.static_data().map(f)
+    }
+
+    fn mutate_static_data(&self, f: impl FnOnce(&mut StaticData)) {
+        let mut data = self.static_data().unwrap_or_default();
+        f(&mut data);
+        self.set_static_data(data);
     }
 
     /// # Safety
@@ -594,6 +618,10 @@ impl Storage for Database {
 }
 
 impl OnChainStorageRead for Database {
+    fn gear_exe_timelines(&self) -> Option<GearExeTimelines> {
+        self.with_static_data(|data| data.gear_exe_timelines)?
+    }
+
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.with_small_data(block_hash, |data| data.block_header)?
     }
@@ -624,19 +652,21 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+    fn validators_info(&self, block_hash: H256) -> Option<ValidatorsInfo> {
         self.kv
-            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .get(&Key::ValidatorsInfo(block_hash).to_bytes())
             .map(|data| {
-                NonEmpty::from_vec(
-                    Vec::<Address>::decode(&mut data.as_slice())
-                        .expect("Failed to decode data into `Vec<Address>`"),
-                )
-            })?
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ValidatorsInfo`")
+            })
     }
 }
 
 impl OnChainStorageWrite for Database {
+    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines) {
+        self.mutate_static_data(|data| data.gear_exe_timelines = Some(timelines));
+    }
+
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }
@@ -656,10 +686,10 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo) {
         self.kv.put(
-            &Key::ValidatorSet(block_hash).to_bytes(),
-            Into::<Vec<Address>>::into(validator_set).encode(),
+            &Key::ValidatorsInfo(block_hash).to_bytes(),
+            validators_info.encode(),
         );
     }
 }

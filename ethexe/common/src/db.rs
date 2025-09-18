@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, ProgramStates, Schedule, events::BlockEvent,
-    gear::StateTransition,
+    BlockHeader, BlockMeta, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition, primitives::ValidatorsInfo,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -33,7 +33,6 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(
@@ -59,6 +58,14 @@ impl BlockOutcome {
             BlockOutcome::ForcedNonEmpty => None,
         }
     }
+}
+
+/// Static data stored in the database.
+/// Expected to be unmutable and set only once.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode)]
+pub struct StaticData {
+    pub gear_exe_timelines: Option<GearExeTimelines>,
+    // Maybe add more static fields in the future.
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -111,18 +118,22 @@ pub trait CodesStorageWrite {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait OnChainStorageRead {
+    fn gear_exe_timelines(&self) -> Option<GearExeTimelines>;
+
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
-    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
+    fn validators_info(&self, block_hash: H256) -> Option<ValidatorsInfo>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait OnChainStorageWrite {
+    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines);
+
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
+    fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo);
 }
