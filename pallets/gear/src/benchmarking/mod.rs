@@ -432,7 +432,7 @@ benchmarks! {
 
     // `t`: Size of the type section in kilobytes.
     instantiate_module_type_section_per_kb {
-        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let t in 0 .. T::Schedule::get().limits.type_section_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
