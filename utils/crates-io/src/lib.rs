@@ -83,8 +83,8 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-sandbox-interface",
     "gear-sandbox",
     "gear-core-backend",
-    "gear-core-processor",
     "gear-lazy-pages-native-interface",
+    "gear-core-processor",
 ];
 
 /// Packages need to be published.
