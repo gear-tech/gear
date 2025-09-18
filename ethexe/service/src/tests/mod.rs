@@ -1282,12 +1282,10 @@ async fn fast_sync() {
     );
 }
 
-// #[tokio::test(flavor = "multi_thread")]
-// #[ntest::timeout(60_000)]
-// async fn validators_election() {
-//     init_logger();
-
-//     let anvil = Anvil::new().block_time_f64(0.5);
-
-//     let mut config = TestEnvConfig::default();
-// }
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn validators_election() {
+    init_logger();
+    let config = Default::default();
+    let mut _env = TestEnv::new(config).await.unwrap();
+}

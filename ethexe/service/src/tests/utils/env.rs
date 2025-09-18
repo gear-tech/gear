@@ -188,6 +188,7 @@ impl TestEnv {
                 .unwrap()
                 .with_validators(validators_addresses)
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .with_middleware()
                 .deploy()
                 .await?
         };

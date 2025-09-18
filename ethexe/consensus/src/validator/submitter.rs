@@ -93,7 +93,7 @@ impl BatchCommitter for EthereumCommitter {
         let (commitment, signatures) = batch.into_parts();
         let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
-        log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
+        tracing::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
 
         self.router.commit_batch(commitment, signatures).await
     }

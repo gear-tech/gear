@@ -49,12 +49,13 @@ use crate::{
         submitter::Submitter, subordinate::Subordinate,
     },
 };
+use alloy::providers::Provider;
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{Ethereum, middleware::MiddlewareQuery};
 use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -136,6 +137,7 @@ impl ValidatorService {
             pub_key: config.pub_key,
             signer,
             db,
+            middleware: ethereum.middleware().query(),
             committer: Box::new(EthereumCommitter { router }),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
@@ -417,7 +419,7 @@ impl DefaultProcessing {
         s: impl Into<ValidatorState>,
         reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
-        log::trace!("Skip validation reply: {reply:?}");
+        tracing::trace!("Skip validation reply: {reply:?}");
         Ok(s.into())
     }
 }
@@ -436,6 +438,8 @@ struct ValidatorContext {
     db: Database,
     #[debug(skip)]
     committer: Box<dyn BatchCommitter>,
+    #[debug(skip)]
+    middleware: MiddlewareQuery,
 
     /// Pending events that are saved for later processing.
     ///

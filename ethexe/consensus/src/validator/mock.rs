@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloy::providers::RootProvider;
 use ethexe_common::{GearExeTimelines, db::OnChainStorageWrite};
 
 use super::*;
@@ -66,14 +67,18 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         signer,
         db: Database::memory(),
         committer: Box::new(DummyCommitter),
+        middleware: MiddlewareQuery::new(
+            RootProvider::new_http("https://mock.org".parse().unwrap()),
+            12345.into(),
+        ),
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
     };
 
     ctx.db.set_gear_exe_timelines(GearExeTimelines {
         genesis_ts: 0,
-        era: 10,
-        election: 7,
+        era: 12 * 60 * 60,
+        election: 10 * 60,
     });
 
     (ctx, keys)
@@ -93,6 +98,7 @@ async fn wait_for_event_inner(s: ValidatorState) -> Result<(ValidatorState, Cons
                 .pop_front()
                 .map(|event| Poll::Ready(Ok(event)))
                 .unwrap_or(Poll::Pending);
+            println!("polled event: {:?}", res);
             self.0 = Some(s);
             res
         }

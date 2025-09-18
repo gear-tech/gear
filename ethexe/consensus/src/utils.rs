@@ -23,10 +23,11 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
+    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest, ValidatorsVec,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    end_of_era_timestamp, era_from_ts,
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, ValidatorsCommitment},
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
@@ -258,6 +259,12 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
         },
         counter,
     )))
+}
+
+pub fn aggregate_validators_commitment<DB: OnChainStorageRead>(
+    db: &DB,
+) -> Result<Option<ValidatorsCommitment>> {
+    todo!()
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRead>(

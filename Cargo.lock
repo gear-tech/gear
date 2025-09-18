@@ -4748,6 +4748,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.9.1"
 dependencies = [
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
@@ -4758,12 +4759,12 @@ dependencies = [
  "ethexe-signer",
  "futures",
  "gprimitives",
- "log",
  "nonempty 0.12.0",
  "parity-scale-codec",
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

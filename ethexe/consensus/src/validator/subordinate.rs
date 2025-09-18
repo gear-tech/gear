@@ -111,7 +111,9 @@ impl StateHandler for Subordinate {
         request: SignedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
-            log::trace!("Receive validation request from producer: {request:?}, saved for later.");
+            tracing::trace!(
+                "Receive validation request from producer: {request:?}, saved for later."
+            );
             self.ctx.pending(request);
 
             Ok(self.into())
@@ -151,7 +153,7 @@ impl Subordinate {
                     ctx.pending_events.push_back(event);
                 }
                 _ => {
-                    log::trace!("Skipping pending event: {event:?}");
+                    tracing::trace!("Skipping pending event: {event:?}");
                 }
             }
         }

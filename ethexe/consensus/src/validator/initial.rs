@@ -68,17 +68,17 @@ impl StateHandler for Initial {
                 let my_address = self.ctx.pub_key.to_address();
 
                 if my_address == producer {
-                    log::info!("👷 Start to work as a producer for block: {}", block.hash);
+                    tracing::info!(block= %block.hash, "👷 Start to work as a producer");
 
                     Producer::create(self.ctx, block.clone(), validators)
                 } else {
                     // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
                     let is_validator_for_current_block = validators.contains(&my_address);
 
-                    log::info!(
-                        "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
+                    tracing::info!(
+                        block = %block.hash,
+                        "👷 Start to work as a subordinate, producer is {producer}, \
                         I'm validator for current block: {is_validator_for_current_block}",
-                        block.hash
                     );
 
                     Subordinate::create(

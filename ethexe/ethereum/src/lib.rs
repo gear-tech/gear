@@ -108,7 +108,7 @@ impl Ethereum {
 }
 
 impl Ethereum {
-    fn provider(&self) -> AlloyProvider {
+    pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 

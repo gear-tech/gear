@@ -36,7 +36,7 @@ use ethexe_common::{
     },
 };
 use ethexe_service_utils::Timer;
-use futures::FutureExt;
+use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{H256, U256};
 use roast_secp256k1_evm::frost::{
     Identifier,
@@ -63,6 +63,10 @@ enum State {
         timer: Timer,
     },
     WaitingBlockComputed,
+    BatchAggregation {
+        #[debug(skip)]
+        election_future: Option<BoxFuture<'static, Result<(u64, ValidatorsVec)>>>,
+    },
 }
 
 impl StateHandler for Producer {
@@ -86,12 +90,30 @@ impl StateHandler for Producer {
             return Ok(self.into());
         }
 
-        let batch = match Self::aggregate_batch_commitment(&self.ctx, &self.block)? {
-            Some(batch) => batch,
-            None => return Initial::create(self.ctx),
-        };
+        let timelines = self
+            .ctx
+            .db
+            .gear_exe_timelines()
+            .ok_or(anyhow!("GearExe timlines not exists in database"))?;
+        let block_timestamp = self.block.header.timestamp;
+        let block_era = era_from_ts(block_timestamp, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
+            - timelines.election;
 
-        Coordinator::create(self.ctx, self.validators, batch)
+        let election_future = (block_timestamp >= election_ts).then(|| {
+            let middleware = self.ctx.middleware.clone();
+            let max_validators = self.validators.len() as u128;
+            async move {
+                middleware
+                    .make_election_at(election_ts, max_validators)
+                    .await
+                    .map(|validators| (block_era, validators))
+            }
+            .boxed()
+        });
+        println!("election_future: {:?}", election_future.is_some());
+        self.state = State::BatchAggregation { election_future };
+        Ok(self.into())
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
@@ -101,9 +123,44 @@ impl StateHandler for Producer {
                     self.create_producer_block()?
                 }
             }
-            State::WaitingBlockComputed => {}
-        }
+            State::WaitingBlockComputed => {
+                println!("WaitingBlockComputed state in producer, should not poll it");
+            }
+            // Now we waiting for the block to be computed and then start election.
+            // In future it can be done in parallel.
+            State::BatchAggregation { election_future } => {
+                // If `election_future` is None, then election is not needed for this block
+                if let Some(future) = election_future {
+                    match future.poll_unpin(cx) {
+                        std::task::Poll::Ready(result) => {
+                            let (era, validators) = result?;
+                            todo!()
+                        }
 
+                        // Go back to waiting if election is not ready yet
+                        std::task::Poll::Pending => return Ok(self.into()),
+                    }
+                }
+
+                self.state = State::WaitingBlockComputed;
+                println!("Aggregating batch commitment for block {}", self.block.hash);
+                match Self::aggregate_batch_commitment(&self.ctx, &self.block)? {
+                    Some(batch) => {
+                        tracing::trace!(block = %self.block.hash, "Batch commitment is ready, move to coordinator state");
+                        println!(
+                            "switched to coordinator state, validators: {:?}",
+                            self.validators
+                        );
+                        return Coordinator::create(self.ctx, self.validators, batch);
+                    }
+                    None => {
+                        tracing::warn!(block = %self.block.hash,  "batch commitment is empty, skip submission");
+                        println!("switched to initial state because of empty batch");
+                        return Initial::create(self.ctx);
+                    }
+                }
+            }
+        }
         Ok(self.into())
     }
 }
@@ -147,9 +204,9 @@ impl Producer {
             && validators_commitment.is_none()
             && rewards_commitment.is_none()
         {
-            log::debug!(
-                "No commitments for block {} - skip batch commitment",
-                block.hash
+            tracing::debug!(
+                block = %block.hash,
+                "No commitments for block - skip batch commitment",
             );
             return Ok(None);
         }
@@ -205,73 +262,64 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let block_header = ctx.db.block_header(block_hash).ok_or(anyhow!(
-            "block header not found in `aggregate validators commitment`"
-        ))?;
-        let timelines = ctx
-            .db
-            .gear_exe_timelines()
-            .ok_or(anyhow!("GearExe timlines not exists in database"))?;
+        return Ok(None);
+        // let header = ctx
+        //     .db
+        //     .block_header(block_hash)
+        //     .ok_or_else(|| anyhow!("Block header {block_hash} is not in storage"))?;
+        // println!("aggregate_validators_commitment for block {block_hash}, {header:?}");
+        // tracing::info!(header.timestamp = %header.timestamp, "aggregate_validators_commitment");
+        // let validators_info = ctx.db.validators_info(block_hash).ok_or(anyhow!(
+        //     "Validators info must be in storage for block {block_hash}"
+        // ))?;
 
-        let block_era = era_from_ts(block_header.timestamp, timelines.genesis_ts, timelines.era);
-        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
-            - timelines.election;
+        // let next_validators = match validators_info.next {
+        //     NextEraValidators::Unknown => {
+        //         tracing::warn!("Validators are not elected in Observer, but should be");
+        //         return Ok(None);
+        //     }
+        //     NextEraValidators::Elected(validators) => validators,
+        //     NextEraValidators::Committed(_v) => {
+        //         // No need to continue because of validators are already committed
+        //         return Ok(None);
+        //     }
+        // };
 
-        // Election time is not reached yet
-        if block_header.timestamp < election_ts {
-            return Ok(None);
-        }
+        // let validators_identifiers = next_validators
+        //     .iter()
+        //     .map(|validator| Identifier::deserialize(&validator.0).unwrap())
+        //     .collect::<Vec<_>>();
+        // let identifiers = IdentifierList::Custom(&validators_identifiers);
 
-        let validators_info = ctx.db.validators_info(block_hash).ok_or(anyhow!(
-            "Validators info must be in storage for block {block_hash}"
-        ))?;
+        // let (mut secret_shares, public_key_package) =
+        //     keys::generate_with_dealer(1, 1, identifiers, rand::thread_rng()).unwrap();
 
-        let next_validators = match validators_info.next {
-            NextEraValidators::Unknown => {
-                log::warn!("Validators are not elected in Observer, but should be");
-                return Ok(None);
-            }
-            NextEraValidators::Elected(validators) => validators,
-            NextEraValidators::Committed(_v) => {
-                // No need to continue because of validators are already committed
-                return Ok(None);
-            }
-        };
+        // let _verifiable_secret_sharing_commitment = secret_shares
+        //     .pop_first()
+        //     .map(|(_key, value)| value.commitment().clone())
+        //     .expect("Expect at least one identifier");
 
-        let validators_identifiers = next_validators
-            .iter()
-            .map(|validator| Identifier::deserialize(&validator.0).unwrap())
-            .collect::<Vec<_>>();
-        let identifiers = IdentifierList::Custom(&validators_identifiers);
+        // let public_key_compressed: [u8; 33] = public_key_package
+        //     .verifying_key()
+        //     .serialize()?
+        //     .try_into()
+        //     .unwrap();
+        // let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+        // let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
-        let (mut secret_shares, public_key_package) =
-            keys::generate_with_dealer(1, 1, identifiers, rand::thread_rng()).unwrap();
+        // let _aggregated_public_key = AggregatedPublicKey {
+        //     x: U256::from_big_endian(public_key_x_bytes),
+        //     y: U256::from_big_endian(public_key_y_bytes),
+        // };
 
-        let verifiable_secret_sharing_commitment = secret_shares
-            .pop_first()
-            .map(|(_key, value)| value.commitment().clone())
-            .expect("Expect at least one identifier");
-
-        let public_key_compressed: [u8; 33] = public_key_package
-            .verifying_key()
-            .serialize()?
-            .try_into()
-            .unwrap();
-        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
-        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
-
-        let aggregated_public_key = AggregatedPublicKey {
-            x: U256::from_big_endian(public_key_x_bytes),
-            y: U256::from_big_endian(public_key_y_bytes),
-        };
-
-        Ok(Some(ValidatorsCommitment {
-            aggregated_public_key,
-            verifiable_secret_sharing_commitment,
-            validators: next_validators.into(),
-            // For next era from current block
-            era_index: block_era + 1,
-        }))
+        // Ok(Some(ValidatorsCommitment {
+        //     aggregated_public_key,
+        //     verifiable_secret_sharing_commitment,
+        //     validators: next_validators.into(),
+        //     // For next era from current block
+        //     era_index: block_era + 1,
+        // }))
+        // Ok(None)
     }
 
     // TODO #4742
@@ -448,12 +496,19 @@ mod tests {
             meta.last_committed_head = Some(H256::random());
         });
 
-        let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
+        let producer = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
             .process_computed_block(block.hash)
             .unwrap();
+
+        // Create a waker and context to poll the next state
+        let waker = std::task::Waker::noop();
+        let mut cx = std::task::Context::from_waker(&waker);
+        let submitter = producer.poll_next_state(&mut cx).unwrap();
+
+        assert!(submitter.is_submitter(), "Expected submitter state");
 
         let initial = submitter.wait_for_event().await.unwrap().0;
         assert!(initial.is_initial());
