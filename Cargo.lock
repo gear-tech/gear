@@ -4854,6 +4854,7 @@ dependencies = [
 name = "ethexe-processor"
 version = "1.9.1"
 dependencies = [
+ "anyhow",
  "demo-async",
  "demo-ping",
  "ethexe-common",
@@ -4987,7 +4988,6 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "roast-secp256k1-evm",
- "serde_json",
  "tempfile",
  "tokio",
  "tracing",
