@@ -19,19 +19,10 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{
-    ConsensusEvent, utils,
-    validator::{CHAIN_DEEPNESS_THRESHOLD, MAX_CHAIN_DEEPNESS, ValidatorCore},
-};
-use anyhow::{Result, anyhow};
+use crate::ConsensusEvent;
+use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{
-    Address, ProducerBlock, SimpleBlockData,
-    db::BlockMetaStorageRead,
-    gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
-    },
-};
+use ethexe_common::{Address, ProducerBlock, SimpleBlockData, gear::BatchCommitment};
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
@@ -172,94 +163,12 @@ impl Producer {
     }
 }
 
-impl ValidatorCore {
-    async fn aggregate_batch_commitment(
-        mut self,
-        block: SimpleBlockData,
-    ) -> Result<Option<BatchCommitment>> {
-        let chain_commitment = self.aggregate_chain_commitment(block.hash)?;
-        let code_commitments = self.aggregate_code_commitments(block.hash)?;
-        let validators_commitment = self.aggregate_validators_commitment(&block).await?;
-        let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
-
-        if chain_commitment.is_none()
-            && code_commitments.is_empty()
-            && validators_commitment.is_none()
-            && rewards_commitment.is_none()
-        {
-            log::debug!(
-                "No commitments for block {} - skip batch commitment",
-                block.hash
-            );
-            return Ok(None);
-        }
-
-        utils::create_batch_commitment(
-            &self.db,
-            &block,
-            chain_commitment,
-            code_commitments,
-            validators_commitment,
-            rewards_commitment,
-        )
-    }
-
-    fn aggregate_chain_commitment(&self, block_hash: H256) -> Result<Option<ChainCommitment>> {
-        let Some((commitment, deepness)) = utils::aggregate_chain_commitment(
-            &self.db,
-            block_hash,
-            false,
-            Some(MAX_CHAIN_DEEPNESS),
-        )?
-        else {
-            return Ok(None);
-        };
-
-        if commitment.transitions.is_empty() && deepness <= CHAIN_DEEPNESS_THRESHOLD {
-            // No transitions and chain is not deep enough, skip chain commitment
-            Ok(None)
-        } else {
-            Ok(Some(commitment))
-        }
-    }
-
-    fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {
-        let queue = self
-            .db
-            .block_codes_queue(block_hash)
-            .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
-
-        utils::aggregate_code_commitments(&self.db, queue, false)
-    }
-
-    // TODO #4741
-    pub async fn aggregate_validators_commitment(
-        &mut self,
-        _block: &SimpleBlockData,
-    ) -> Result<Option<ValidatorsCommitment>> {
-        // self.middleware.make_election_at(ElectionRequest {
-        //     at_block_hash: todo!(),
-        //     at_timestamp: todo!(),
-        //     max_validators: todo!(),
-        // });
-        Ok(None)
-    }
-
-    // TODO #4742
-    pub async fn aggregate_rewards_commitment(
-        &mut self,
-        _block: &SimpleBlockData,
-    ) -> Result<Option<RewardsCommitment>> {
-        Ok(None)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
     use async_trait::async_trait;
-    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite};
+    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite, gear::CodeCommitment};
     use nonempty::{NonEmpty, nonempty};
 
     #[tokio::test]

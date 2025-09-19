@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::*;
+use super::{core::*, *};
+use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
+use async_trait::async_trait;
 use std::cell::RefCell;
 
 thread_local! {
@@ -117,6 +119,8 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
             db: Database::memory(),
             committer: Box::new(DummyCommitter),
             middleware: Some(Box::new(DummyMiddleware) as Box<dyn MiddlewareExt>),
+            validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
+            chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),

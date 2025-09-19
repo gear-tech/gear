@@ -22,14 +22,13 @@ use super::{
 };
 use crate::{
     BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    SignedValidationRequest, utils,
-    validator::{MAX_CHAIN_DEEPNESS, ValidatorCore},
+    SignedValidationRequest,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, Digest, SimpleBlockData, ToDigest, db::BlockMetaStorageRead};
+use ethexe_common::{Address, Digest, SimpleBlockData};
 use futures::{FutureExt, future::BoxFuture};
-use std::{collections::HashSet, task::Poll};
+use std::task::Poll;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
 /// which are sent by the current block producer (from the coordinator state).
@@ -169,94 +168,6 @@ impl Participant {
     }
 }
 
-impl ValidatorCore {
-    async fn validate_batch_commitment_request(
-        mut self,
-        block: SimpleBlockData,
-        request: BatchCommitmentValidationRequest,
-    ) -> Result<Digest> {
-        let BatchCommitmentValidationRequest {
-            digest,
-            head,
-            codes,
-            validators,
-            rewards,
-        } = request;
-
-        ensure!(
-            !(head.is_none() && codes.is_empty()),
-            "Empty batch (change when other commitments are supported)"
-        );
-
-        ensure!(
-            !utils::has_duplicates(codes.as_slice()),
-            "Duplicate codes in validation request"
-        );
-
-        // Check requested codes wait for commitment
-        let waiting_codes = self
-            .db
-            .block_codes_queue(block.hash)
-            .ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block codes queue for block {}",
-                    block.hash
-                )
-            })?
-            .into_iter()
-            .collect::<HashSet<_>>();
-        ensure!(
-            codes.iter().all(|code| waiting_codes.contains(code)),
-            "Not all requested codes are waiting for commitment"
-        );
-
-        let chain_commitment = if let Some(head) = head {
-            // TODO #4791: support head != current block hash, have to check head is predecessor of current block
-            ensure!(
-                head == block.hash,
-                "Head cannot be different from current block hash"
-            );
-
-            utils::aggregate_chain_commitment(&self.db, head, true, Some(MAX_CHAIN_DEEPNESS))?
-                .map(|(commitment, _)| commitment)
-        } else {
-            None
-        };
-
-        let code_commitments = utils::aggregate_code_commitments(&self.db, codes, true)?;
-
-        let validators_commitment = if validators {
-            Self::aggregate_validators_commitment(&mut self, &block).await?
-        } else {
-            None
-        };
-
-        let rewards_commitment = if rewards {
-            Self::aggregate_rewards_commitment(&mut self, &block).await?
-        } else {
-            None
-        };
-
-        let batch = utils::create_batch_commitment(
-            &self.db,
-            &block,
-            chain_commitment,
-            code_commitments,
-            validators_commitment,
-            rewards_commitment,
-        )?
-        .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
-
-        if batch.to_digest() != digest {
-            Err(anyhow!(
-                "Requested and local batch commitment digests mismatch"
-            ))
-        } else {
-            Ok(digest)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,7 +176,7 @@ mod tests {
         utils::{SignedProducerBlock, SignedValidationRequest},
         validator::mock::*,
     };
-    use ethexe_common::{Digest, gear::CodeCommitment};
+    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment};
     use gprimitives::H256;
 
     #[test]

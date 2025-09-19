@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{BatchCommitter, StateHandler, ValidatorContext, ValidatorState, initial::Initial};
-use crate::{ConsensusEvent, utils::MultisignedBatchCommitment};
+use super::{StateHandler, ValidatorContext, ValidatorState, initial::Initial};
+use crate::{ConsensusEvent, utils::MultisignedBatchCommitment, validator::core::BatchCommitter};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
