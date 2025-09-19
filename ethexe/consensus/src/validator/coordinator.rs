@@ -67,7 +67,7 @@ impl StateHandler for Coordinator {
             self.warning(format!("validation reply rejected: {err}"));
         }
 
-        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.signatures_threshold {
+        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
             Submitter::create(self.ctx, self.multisigned_batch)
         } else {
             Ok(self.into())
@@ -82,24 +82,28 @@ impl Coordinator {
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
         ensure!(
-            validators.len() as u64 >= ctx.signatures_threshold,
+            validators.len() as u64 >= ctx.core.signatures_threshold,
             "Number of validators is less than threshold"
         );
 
         ensure!(
-            ctx.signatures_threshold > 0,
+            ctx.core.signatures_threshold > 0,
             "Threshold should be greater than 0"
         );
 
-        let multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)?;
+        let multisigned_batch = MultisignedBatchCommitment::new(
+            batch,
+            &ctx.core.signer,
+            ctx.core.router_address,
+            ctx.core.pub_key,
+        )?;
 
-        if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
+        if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        let validation_request = ctx.signer.signed_data(
-            ctx.pub_key,
+        let validation_request = ctx.core.signer.signed_data(
+            ctx.core.pub_key,
             BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
         )?;
 
@@ -125,7 +129,7 @@ mod tests {
     #[test]
     fn coordinator_create_success() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 2;
+        ctx.core.signatures_threshold = 2;
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
@@ -141,7 +145,7 @@ mod tests {
     #[test]
     fn coordinator_create_insufficient_validators() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 3;
+        ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
@@ -155,7 +159,7 @@ mod tests {
     #[test]
     fn coordinator_create_zero_threshold() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 0;
+        ctx.core.signatures_threshold = 0;
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
@@ -169,7 +173,7 @@ mod tests {
     #[test]
     fn process_validation_reply() {
         let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 3;
+        ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
 
@@ -177,30 +181,30 @@ mod tests {
         let digest = batch.to_digest();
 
         let reply1 = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             keys[0],
-            ctx.router_address,
+            ctx.core.router_address,
             digest,
         ));
 
         let reply2_invalid = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             keys[4],
-            ctx.router_address,
+            ctx.core.router_address,
             digest,
         ));
 
         let reply3_invalid = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             keys[1],
-            ctx.router_address,
+            ctx.core.router_address,
             H256::random().0.into(),
         ));
 
         let reply4 = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             keys[2],
-            ctx.router_address,
+            ctx.core.router_address,
             digest,
         ));
 

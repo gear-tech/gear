@@ -54,15 +54,16 @@ use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{Ethereum, middleware::Middleware};
 use ethexe_signer::Signer;
-use futures::{Stream, stream::FusedStream};
+use futures::{Stream, lock::Mutex, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
     collections::VecDeque,
     fmt,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -130,13 +131,22 @@ impl ValidatorService {
         let router = ethereum.router();
 
         let ctx = ValidatorContext {
-            slot_duration: config.slot_duration,
-            signatures_threshold: config.signatures_threshold,
-            router_address: config.router_address,
-            pub_key: config.pub_key,
-            signer,
-            db,
-            committer: Box::new(EthereumCommitter { router }),
+            core: ValidatorCore {
+                slot_duration: config.slot_duration,
+                signatures_threshold: config.signatures_threshold,
+                router_address: config.router_address,
+                pub_key: config.pub_key,
+                signer,
+                db: db.clone(),
+                committer: Box::new(EthereumCommitter { router }),
+                middleware: ethereum.middleware().map(|inner| {
+                    Box::new(MiddlewareWrapper {
+                        inner,
+                        db,
+                        cached_election_result: Arc::new(Mutex::new(None)),
+                    }) as Box<dyn MiddlewareExt>
+                }),
+            },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
@@ -170,7 +180,7 @@ impl ValidatorService {
 
 impl ConsensusService for ValidatorService {
     fn role(&self) -> String {
-        format!("Validator ({:?})", self.context().pub_key.to_address())
+        format!("Validator ({:?})", self.context().core.pub_key.to_address())
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
@@ -203,10 +213,17 @@ impl Stream for ValidatorService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut event = None;
-        self.update_inner(|inner| {
-            let mut inner = inner.poll_next_state(cx)?;
+        self.update_inner(|mut inner| {
+            // Waits until some event is available or inner futures are not ready.
+            loop {
+                let (poll, state) = inner.poll_next_state(cx)?;
+                inner = state;
+                event = inner.context_mut().output.pop_front();
 
-            event = inner.context_mut().output.pop_front();
+                if poll.is_pending() || event.is_some() {
+                    break;
+                }
+            }
 
             Ok(inner)
         })?;
@@ -224,7 +241,7 @@ impl FusedStream for ValidatorService {
 }
 
 /// An event that can be saved for later processing.
-#[derive(Clone, Debug, From, PartialEq, Eq)]
+#[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
 enum PendingEvent {
     /// A block from the producer
     ProducerBlock(SignedProducerBlock),
@@ -282,8 +299,8 @@ where
         DefaultProcessing::validation_reply(self, reply)
     }
 
-    fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<ValidatorState> {
-        Ok(self.into())
+    fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
+        Ok((Poll::Pending, self.into()))
     }
 }
 
@@ -362,7 +379,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
-    fn poll_next_state(self, cx: &mut Context<'_>) -> Result<ValidatorState> {
+    fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
     }
 }
@@ -423,7 +440,7 @@ impl DefaultProcessing {
 }
 
 #[derive(Debug)]
-struct ValidatorContext {
+struct ValidatorCore {
     slot_duration: Duration,
     signatures_threshold: u64,
     router_address: Address,
@@ -435,7 +452,41 @@ struct ValidatorContext {
     db: Database,
     #[debug(skip)]
     committer: Box<dyn BatchCommitter>,
+    #[debug(skip)]
+    middleware: Option<Box<dyn MiddlewareExt>>,
+}
 
+impl Clone for ValidatorCore {
+    fn clone(&self) -> Self {
+        Self {
+            slot_duration: self.slot_duration,
+            signatures_threshold: self.signatures_threshold,
+            router_address: self.router_address,
+            pub_key: self.pub_key,
+            signer: self.signer.clone(),
+            db: self.db.clone(),
+            committer: self.committer.clone_boxed(),
+            middleware: self.middleware.as_ref().map(|x| x.clone_boxed()),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ValidatorContext {
+    core: ValidatorCore,
+    // slot_duration: Duration,
+    // signatures_threshold: u64,
+    // router_address: Address,
+    // pub_key: PublicKey,
+
+    // #[debug(skip)]
+    // signer: Signer,
+    // #[debug(skip)]
+    // db: Database,
+    // #[debug(skip)]
+    // committer: Box<dyn BatchCommitter>,
+    // #[debug(skip)]
+    // middleware: Box<dyn MiddlewareExt>,
     /// Pending events that are saved for later processing.
     ///
     /// ## Important
@@ -474,4 +525,66 @@ pub trait BatchCommitter: Send {
     /// # Returns
     /// The hash of the transaction that was sent to the blockchain
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
+}
+
+#[derive(Debug)]
+struct ElectionRequest {
+    #[allow(unused)]
+    at_block_hash: H256,
+    #[allow(unused)]
+    at_timestamp: u64,
+    #[allow(unused)]
+    max_validators: u32,
+}
+
+#[async_trait]
+trait MiddlewareExt: Send {
+    /// Creates a boxed clone.
+    fn clone_boxed(&self) -> Box<dyn MiddlewareExt>;
+
+    /// +_+_+
+    #[allow(unused)]
+    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>>;
+}
+
+struct MiddlewareWrapper {
+    inner: Middleware,
+    db: Database,
+    #[allow(clippy::type_complexity)]
+    cached_election_result: Arc<Mutex<Option<(ElectionRequest, Vec<Address>)>>>,
+}
+
+#[async_trait]
+impl MiddlewareExt for MiddlewareWrapper {
+    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
+        Box::new(Self {
+            inner: self.inner.clone(),
+            db: self.db.clone(),
+            cached_election_result: self.cached_election_result.clone(),
+        })
+    }
+
+    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>> {
+        let mut cached = self.cached_election_result.lock().await;
+
+        if let Some((_cached_request, _cached_result)) = &*cached {
+            // TODO: implement this. If cached_request has same at_timestamp and max_validators and
+            // new request at_block_hash is a successor of cached one, then we can reuse cached.
+            Ok(vec![])
+        } else {
+            log::debug!("Making new election request to rpc: {request:?}");
+
+            let result = self
+                .inner
+                .query()
+                .make_election_at(request.at_timestamp, request.max_validators as u128)
+                .await?;
+
+            let result: Vec<Address> = result.into_iter().collect();
+
+            *cached = Some((request, result.clone()));
+
+            Ok(result)
+        }
+    }
 }
