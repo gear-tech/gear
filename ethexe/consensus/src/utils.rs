@@ -51,10 +51,9 @@ pub struct BatchCommitmentValidationRequest {
     pub head: Option<H256>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
-
-    /// +_+_+
+    /// Whether validators commitment is part of the batch
     pub validators: bool,
-    /// +_+_+
+    /// Whether rewards commitment is part of the batch
     pub rewards: bool,
 }
 

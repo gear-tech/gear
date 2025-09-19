@@ -73,7 +73,30 @@ pub trait WaitFor {
 #[async_trait]
 impl WaitFor for ValidatorState {
     async fn wait_for_event(self) -> Result<(ValidatorState, ConsensusEvent)> {
-        wait_for_event_inner(self).await
+        struct Dummy(Option<ValidatorState>);
+
+        impl Future for Dummy {
+            type Output = Result<ConsensusEvent>;
+
+            fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                let mut event;
+                loop {
+                    let (poll, mut state) = self.0.take().unwrap().poll_next_state(cx)?;
+                    event = state.context_mut().output.pop_front();
+                    self.0 = Some(state);
+
+                    if poll.is_pending() || event.is_some() {
+                        break;
+                    }
+                }
+
+                event.map(|e| Poll::Ready(Ok(e))).unwrap_or(Poll::Pending)
+            }
+        }
+
+        let mut dummy = Dummy(Some(self));
+        let event = (&mut dummy).await?;
+        Ok((dummy.0.unwrap(), event))
     }
 
     async fn wait_for_initial(self) -> Result<ValidatorState> {
@@ -127,31 +150,4 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
     };
 
     (ctx, keys)
-}
-
-async fn wait_for_event_inner(s: ValidatorState) -> Result<(ValidatorState, ConsensusEvent)> {
-    struct Dummy(Option<ValidatorState>);
-
-    impl Future for Dummy {
-        type Output = Result<ConsensusEvent>;
-
-        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            let mut event;
-            loop {
-                let (poll, mut state) = self.0.take().unwrap().poll_next_state(cx)?;
-                event = state.context_mut().output.pop_front();
-                self.0 = Some(state);
-
-                if poll.is_pending() || event.is_some() {
-                    break;
-                }
-            }
-
-            event.map(|e| Poll::Ready(Ok(e))).unwrap_or(Poll::Pending)
-        }
-    }
-
-    let mut dummy = Dummy(Some(s));
-    let event = (&mut dummy).await?;
-    Ok((dummy.0.unwrap(), event))
 }

@@ -279,7 +279,7 @@ pub trait MiddlewareExt: Send {
     /// Creates a boxed clone.
     fn clone_boxed(&self) -> Box<dyn MiddlewareExt>;
 
-    /// +_+_+
+    /// Requests the election of validators at a specific block and timestamp.
     #[allow(unused)]
     async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>>;
 }
