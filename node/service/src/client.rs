@@ -53,7 +53,6 @@ pub type ExtendHostFunctions = (
     gear_ri::sandbox::HostFunctions,
     sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     gear_ri::gear_bls_12_381::HostFunctions,
-    gear_ri::gear_webpki::HostFunctions,
 );
 /// Otherwise we only use the default Substrate host functions.
 #[cfg(not(feature = "runtime-benchmarks"))]
@@ -62,7 +61,6 @@ pub type ExtendHostFunctions = (
     gear_ri::sandbox::HostFunctions,
     sp_crypto_ec_utils::bls12_381::host_calls::HostFunctions,
     gear_ri::gear_bls_12_381::HostFunctions,
-    gear_ri::gear_webpki::HostFunctions,
 );
 
 /// A set of APIs that polkadot-like runtimes must implement.

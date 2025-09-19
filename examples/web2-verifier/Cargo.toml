@@ -20,13 +20,21 @@ aes-gcm = { version = "0.10", default-features = false, features = [
 chacha20poly1305 = { version = "0.10", default-features = false }
 crypto-common = { version = "0.1", default-features = false }
 digest = { version = "0.10", default-features = false }
+rustls-pki-types = { version = "1.12", default-features = false }
+rustls-webpki = { version = "0.103", default-features = false, features = [
+    "ring",
+    "alloc",
+] }
+webpki-roots = { version = "1.0", default-features = false }
+ring = { version = "0.17", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.2", default-features = false, features = ["custom"] }
 
 gstd.workspace = true
 hashbrown.workspace = true
 hex-literal.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
-gbuiltin-webpki.workspace = true
+
 
 [dev-dependencies]
 gstd = { workspace = true, features = ["debug"] }

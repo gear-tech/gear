@@ -226,7 +226,6 @@ gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
 gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }
-gbuiltin-webpki = { path = "gbuiltins/webpki" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
 gclient = { path = "gclient" }
@@ -605,3 +604,5 @@ wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-
 
 # there are patches to disable `memory.grow` and to add offset of reserved memory
 wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }
+
+ring = { version = "0.17.14", git = "https://github.com/Lazark0x/ring", rev = "03e2484" }

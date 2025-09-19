@@ -27,16 +27,6 @@ ark-ff = { workspace = true, optional = true }
 ark-scale = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 
-rustls-pki-types = { version = "1.12", default-features = false, features = [
-    "alloc",
-] }
-rustls-webpki = { version = "0.103", default-features = false, features = [
-    "ring",
-    "alloc",
-] }
-webpki-roots = { version = "1.0", default-features = false }
-getrandom = { version = "0.2", default-features = false, features = ["custom"] }
-
 [features]
 default = ["std"]
 std = [

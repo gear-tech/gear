@@ -18,7 +18,6 @@
 
 use super::*;
 
-use gbuiltin_webpki::{Request, Response};
 use gstd::{ActorId, Vec, msg, prelude::*};
 use hashbrown::HashMap;
 use hex_literal::hex;
@@ -31,10 +30,6 @@ use sha2::{Digest, Sha256, Sha384};
 use aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes128Gcm, Aes256Gcm, Key as GcmKey, Nonce as GcmNonce};
 use chacha20poly1305::{ChaCha20Poly1305, Key as ChaKey, Nonce as ChaNonce};
-
-const BUILTIN_WEBPKI: ActorId = ActorId::new(hex!(
-    "13483c43cc2e4ebc4e7f79ac1f8e66c149a41ad11e483a6e2de2c12f535af06e"
-));
 
 static mut VERIFICATIONS: Option<Verifications> = None;
 
@@ -448,38 +443,60 @@ fn parse_hs(buf: &[u8]) -> Vec<(u8, Vec<u8>)> {
     out
 }
 
-async fn validate_chain(ders: &[Vec<u8>], sni: &[u8]) -> Result<(bool, bool), String> {
-    let request = Request::VerifyCertsChain {
-        ders: ders.to_vec(),
-        sni: sni.to_vec(),
-        timestamp: gstd::exec::block_timestamp(),
+fn validate_chain(ders: &[Vec<u8>], sni: &[u8]) -> Result<(bool, bool), String> {
+    use rustls_pki_types::{CertificateDer, ServerName, UnixTime};
+    use webpki::{EndEntityCert, KeyUsage};
+
+    if ders.is_empty() {
+        return Err("no certs".into());
     }
-    .encode();
 
-    let reply = msg::send_bytes_for_reply(BUILTIN_WEBPKI, &request, 0, 0)
-        .map_err(|_| "Failed to send message")?
-        .await
-        .map_err(|_| "Failed to receive reply")?;
+    let leaf = CertificateDer::from(ders[0].as_slice());
+    let ee = EndEntityCert::try_from(&leaf).map_err(|e| format!("leaf parse: {:?}", e))?;
+    let inter_refs: Vec<CertificateDer<'_>> = ders
+        .iter()
+        .skip(1)
+        .map(|d| CertificateDer::from(d.as_slice()))
+        .collect();
 
-    let response = Response::decode(&mut reply.as_slice()).unwrap();
+    let now = {
+        let dur = gstd::time::Duration::from_millis(gstd::exec::block_timestamp());
 
-    let out = match response {
-        Response::VerifyCertsChain {
-            certs_chain_ok,
-            dns_ok,
-        } => (certs_chain_ok, dns_ok),
-        _ => return Err("Unexpected response".into()),
+        UnixTime::since_unix_epoch(dur)
     };
 
-    Ok(out)
+    // Verify chain for server usage (TLS server auth)
+    let _verified_path = ee
+        .verify_for_usage(
+            webpki::ALL_VERIFICATION_ALGS,
+            webpki_roots::TLS_SERVER_ROOTS,
+            &inter_refs,
+            now,
+            KeyUsage::server_auth(),
+            None,
+            None,
+        )
+        .map_err(|e| format!("path: {:?}", e))?;
+
+    // DNS
+    let dns_ok = {
+        let host = core::str::from_utf8(sni).map_err(|_| "bad dns utf8")?;
+        let name = ServerName::try_from(host).map_err(|_| "bad dns")?;
+        ee.verify_is_valid_for_subject_name(&name).is_ok()
+    };
+
+    Ok((true, dns_ok))
 }
 
-async fn validate_server_certificate_verify(
+fn validate_server_certificate_verify(
     suite_hash: HashType,
     transcript_upto_cv: &[u8],
     cv_body: &[u8],
     leaf_der: &[u8],
 ) -> Result<(), String> {
+    use rustls_pki_types::{CertificateDer, SignatureVerificationAlgorithm};
+    use webpki::EndEntityCert;
+
     if cv_body.len() < 4 {
         return Err("CertificateVerify too short".into());
     }
@@ -510,25 +527,26 @@ async fn validate_server_certificate_verify(
     signed.push(0);
     signed.extend_from_slice(&th);
 
-    let request = Request::VerifySignature {
-        der: leaf_der.to_vec(),
-        message: signed,
-        signature: sig.to_vec(),
-        algo: sig_scheme,
-    }
-    .encode();
+    // TLS SignatureScheme → rustls-webpki verification algorithm
+    let alg: &'static dyn SignatureVerificationAlgorithm = match sig_scheme {
+        0x0403 => webpki::ring::ECDSA_P256_SHA256,
+        0x0503 => webpki::ring::ECDSA_P384_SHA384,
+        0x0804 => webpki::ring::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
+        0x0805 => webpki::ring::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
+        0x0806 => webpki::ring::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        0x0807 => webpki::ring::ED25519,
+        0x0401 => webpki::ring::RSA_PKCS1_2048_8192_SHA256,
+        0x0501 => webpki::ring::RSA_PKCS1_2048_8192_SHA384,
+        0x0601 => webpki::ring::RSA_PKCS1_2048_8192_SHA512,
+        other => return Err(format!("unsupported SignatureScheme: 0x{:04x}", other)),
+    };
 
-    let reply = msg::send_bytes_for_reply(BUILTIN_WEBPKI, &request, 0, 0)
-        .map_err(|_| "Failed to send message")?
-        .await
-        .map_err(|_| "Failed to receive reply")?;
+    let leaf = CertificateDer::from(leaf_der);
+    let ee = EndEntityCert::try_from(&leaf).map_err(|e| format!("leaf parse: {:?}", e))?;
+    ee.verify_signature(alg, &signed, sig)
+        .map_err(|e| format!("CertificateVerify signature invalid: {:?}", e))?;
 
-    let response = Response::decode(&mut reply.as_slice()).unwrap();
-
-    match response {
-        Response::VerifySignature { signature_ok: _ } => Ok(()),
-        _ => Err("Unexpected response".into()),
-    }
+    Ok(())
 }
 
 #[gstd::async_main]
@@ -640,7 +658,7 @@ async fn main() {
     }
 
     // Certificate chain
-    match validate_chain(&art.info.peer_cert_chain, &art.info.sni).await {
+    match validate_chain(&art.info.peer_cert_chain, &art.info.sni) {
         Ok((chain_ok, dns_ok)) => {
             cert_report.chain_valid = chain_ok;
             cert_report.dns_name_valid = dns_ok;
@@ -662,9 +680,7 @@ async fn main() {
         &transcript[..pre_len_before_cv],
         &cv_body,
         leaf_der,
-    )
-    .await
-    {
+    ) {
         Ok(()) => {
             cert_report.cert_verify_valid = true;
         }

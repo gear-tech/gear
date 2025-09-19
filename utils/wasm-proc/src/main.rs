@@ -25,7 +25,7 @@ use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 
-const RT_ALLOWED_IMPORTS: [&str; 78] = [
+const RT_ALLOWED_IMPORTS: [&str; 76] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
@@ -115,9 +115,6 @@ const RT_ALLOWED_IMPORTS: [&str; 78] = [
     // From `GearBls12_381`
     "ext_gear_bls_12_381_aggregate_g1_version_1",
     "ext_gear_bls_12_381_map_to_g2affine_version_1",
-    // From GearWebpki
-    "ext_gear_webpki_verify_certs_chain_version_1",
-    "ext_gear_webpki_verify_signature_version_1",
 ];
 
 #[derive(Debug, clap::Parser)]
