@@ -33,7 +33,7 @@ use gprimitives::{ActorId, H160, H256};
 use std::{
     collections::VecDeque,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 use validation::TxValidator;
 
@@ -48,6 +48,7 @@ pub enum TxPoolEvent {
 pub struct TxPoolService {
     db: Database,
     events: VecDeque<TxPoolEvent>,
+    waker: Option<Waker>,
 }
 
 impl TxPoolService {
@@ -55,6 +56,13 @@ impl TxPoolService {
         Self {
             db,
             events: VecDeque::new(),
+            waker: None,
+        }
+    }
+
+    fn wake(&mut self) {
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
         }
     }
 
@@ -85,6 +93,7 @@ impl TxPoolService {
         // Propagate transaction
         self.events
             .push_back(TxPoolEvent::PublishOffchainTransaction(validated_tx));
+        self.wake();
 
         // TODO (breathx) Execute transaction
         log::info!("Unimplemented tx execution");
@@ -96,11 +105,12 @@ impl TxPoolService {
 impl Stream for TxPoolService {
     type Item = TxPoolEvent;
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.events.pop_front() {
             return Poll::Ready(Some(event));
         }
 
+        self.waker = Some(cx.waker().clone());
         Poll::Pending
     }
 }
