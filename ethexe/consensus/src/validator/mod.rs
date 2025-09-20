@@ -121,7 +121,7 @@ impl ValidatorService {
     pub async fn new(signer: Signer, db: Database, config: ValidatorConfig) -> Result<Self> {
         let ethereum = Ethereum::new(
             &config.ethereum_rpc,
-            config.router_address,
+            config.router_address.into(),
             signer.clone(),
             config.pub_key.to_address(),
         )
