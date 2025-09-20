@@ -113,14 +113,21 @@ time_consuming_tests() {
   LOOM_MAX_PREEMPTIONS=3 RUSTFLAGS="--cfg loom" cargo test -p gear-wasmer-cache --no-fail-fast --release -- --nocapture
 }
 
-typo_tests() {
-  readonly COMMAND="typos"
-  readonly VERSION='typos-cli 1.20.3'
+ensure_binary() {
+  BINARY="$1"
+  HINT="$2"
 
-  # Install typos-cli if not exist or outdated.
-  if ! [ -x "$(command -v ${COMMAND})" ] || [ "$($COMMAND --version)" != "$VERSION" ]; then
-    cargo install typos-cli
+  if ! command -v "${BINARY}" >/dev/null; then
+    echo "You need \`${BINARY}\` program to run this script." >&2
+    echo >&2
+    echo "To install it, run following command:" >&2
+    echo "> ${HINT}" >&2
+    echo >&2
+    exit 1
   fi
+}
+typo_tests() {
+  ensure_binary "typos" "cargo install typos-cli"
 
   typos
 }

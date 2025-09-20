@@ -58,7 +58,7 @@ fn literal_to_actor_id(literal: syn::LitStr) -> syn::Result<TokenStream> {
 ///
 /// # Example
 /// ```
-/// use gstd::{actor_id, ActorId};
+/// use gstd::{ActorId, actor_id};
 ///
 /// # fn main() {
 /// //polkadot address

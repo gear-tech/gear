@@ -1,0 +1,25 @@
+{
+  "pins": {
+    "nixpkgs": {
+      "type": "Channel",
+      "name": "nixpkgs-unstable",
+      "url": "https://releases.nixos.org/nixpkgs/nixpkgs-25.11pre855922.c6a788f552b7/nixexprs.tar.xz",
+      "hash": "0p9aa19hw2xlr5d951yr7z6gdbwqmnff2m2pj5bysirnr8fq1apn"
+    },
+    "nixpkgs-old": {
+      "type": "Git",
+      "repository": {
+        "type": "GitHub",
+        "owner": "NixOS",
+        "repo": "nixpkgs"
+      },
+      "branch": "nixpkgs-unstable",
+      "submodules": false,
+      "revision": "1af4a23658f1795bad5c210ba7fd0f962bb22d8a",
+      "url": "https://github.com/NixOS/nixpkgs/archive/1af4a23658f1795bad5c210ba7fd0f962bb22d8a.tar.gz",
+      "hash": "1kw6rm90dl0kvyx561z82chrirvqixs0hk9vjd07ykinil28vrwp",
+      "frozen": true
+    }
+  },
+  "version": 5
+}
