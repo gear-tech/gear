@@ -21,5 +21,6 @@ utils/**/fuzz/fuzz/*
 .ethexe.toml
 fuzz_run
 lazy_pages_fuzz_run
-seed.bin
 .direnv/
+.ipynb_checkpoints
+.jupyter
