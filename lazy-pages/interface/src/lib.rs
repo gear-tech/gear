@@ -112,7 +112,7 @@ impl LazyPagesInterface for LazyPagesRuntimeInterface {
             log::debug!(
                 "backend executor has changed wasm mem buff: from {:?} to {:?}",
                 old_mem_addr.map(PointerDisplay),
-                new_mem_addr
+                PointerDisplay(new_mem_addr)
             );
 
             Some(new_mem_addr)
