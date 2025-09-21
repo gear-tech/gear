@@ -53,13 +53,13 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
-    - id: biweek
-      run: echo "value=$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
+    - id: date
+      run: echo "value=$(date +%Y)-$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
       shell: bash
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/biweek-${{ steps.biweek.outputs.value }}'
+        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}'
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
