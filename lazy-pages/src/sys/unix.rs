@@ -30,12 +30,12 @@ use nix::{
 use std::{io, sync::OnceLock};
 
 /// Signal handler which has been set before lazy-pages initialization.
-/// Currently use to support wasmer signal handler.
-/// Wasmer protects memory around wasm memory and for stack limits.
+/// Currently use to support wasmtime signal handler.
+/// Wasmtime protects memory around wasm memory and for stack limits.
 /// It makes it only in `store` initialization when executor is created,
-/// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmer_backend.rs
-/// and https://github.com/wasmerio/wasmer/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
-/// So, if we receive signal from unknown memory we should try to use old (wasmer) signal handler.
+/// see https://github.com/gear-tech/substrate/blob/gear-stable/client/executor/common/src/sandbox/wasmtime_backend.rs
+/// and https://github.com/wasmtimeio/wasmtime/blob/e6857d116134bdc9ab6a1dabc3544cf8e6aee22b/lib/vm/src/trap/traphandlers.rs#L548
+/// So, if we receive signal from unknown memory we should try to use old (wasmtime) signal handler.
 static OLD_SIG_HANDLER: OnceLock<SigHandler> = OnceLock::new();
 
 cfg_if! {
@@ -215,7 +215,7 @@ where
     H: UserSignalHandler,
 {
     let handler = signal::SigHandler::SigAction(handle_sigsegv::<H>);
-    // Set additional SA_ONSTACK and SA_NODEFER to avoid problems with wasmer executor.
+    // Set additional SA_ONSTACK and SA_NODEFER to avoid problems with wasmtime executor.
     // See comment from shorturl.at/KMO68 :
     // ```
     //  SA_ONSTACK allows us to handle signals on an alternate stack,

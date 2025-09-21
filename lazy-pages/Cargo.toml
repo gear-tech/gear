@@ -17,7 +17,7 @@ cfg-if.workspace = true
 region.workspace = true
 derive_more.workspace = true
 numerated.workspace = true
-wasmer-vm.workspace = true
+wasmtime.workspace = true
 
 gear-sandbox-host.workspace = true
 gear-core.workspace = true

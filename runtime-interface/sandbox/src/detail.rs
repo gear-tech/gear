@@ -64,7 +64,7 @@ impl Sandboxes {
 
 // Global sandbox backend type selector
 static SANDBOX_BACKEND_TYPE: sandbox_env::AtomicSandboxBackend =
-    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmer);
+    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmtime);
 
 thread_local! {
     static SANDBOXES: RefCell<Sandboxes> = {
@@ -74,7 +74,7 @@ thread_local! {
 }
 
 /// Sets the global sandbox backend type.
-/// Buy default, it's set to `Wasmer`, so in case of `Wasmer` it's not necessary to call this function.
+/// Buy default, it's set to `Wasmtime`, so in case of `Wasmtime` it's not necessary to call this function.
 /// Also sets the store clear counter limit, which is used to clear the store after reaching a certain limit.
 pub fn init(sandbox_backend: sandbox_env::SandboxBackend, store_clear_counter_limit: Option<u32>) {
     SANDBOX_BACKEND_TYPE.store(sandbox_backend, Ordering::SeqCst);
@@ -477,7 +477,7 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            // HACK: It was discovered that starting with version 4.0, Wasmer experiences a slowdown
+            // HACK: It was discovered that starting with version 4.0, Wasmtime experiences a slowdown
             // when creating a large number of memory/instances beyond a certain threshold.
             // The usual method to clear the store doesn't work for benchmarks (see `Sandboxes::get`)
             // or when too many instances/memories are created **within a single block**, as the store

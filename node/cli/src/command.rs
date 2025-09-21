@@ -136,7 +136,7 @@ pub fn run() -> sc_cli::Result<()> {
 
     gear_runtime_interface::sandbox_init(
         match cli.run.sandbox_backend {
-            SandboxBackend::Wasmer => gear_runtime_interface::SandboxBackend::Wasmer,
+            SandboxBackend::Wasmtime => gear_runtime_interface::SandboxBackend::Wasmtime,
             SandboxBackend::Wasmi => gear_runtime_interface::SandboxBackend::Wasmi,
         },
         cli.run.sandbox_store_clear_counter_limit.into(),

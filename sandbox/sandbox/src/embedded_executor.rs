@@ -16,29 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! An embedded WASM executor utilizing `wasmer`.
+//! An embedded WASM executor utilizing `wasmtime`.
 
 use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore, Value,
 };
 use alloc::string::String;
+use anyhow::{Context, anyhow};
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
 use std::{
-    collections::btree_map::BTreeMap, env, fs, marker::PhantomData, path::PathBuf, ptr::NonNull,
-    sync::OnceLock,
+    collections::btree_map::BTreeMap, env, fs, marker::PhantomData, path::PathBuf, sync::OnceLock,
 };
-use wasmer::{
-    Engine, FunctionEnv, Global, GlobalType, Imports, MemoryError, MemoryType, NativeEngineExt,
-    RuntimeError, StoreMut, StoreObjects, StoreRef, TableType, Target, Tunables,
-    Value as RuntimeValue,
-    sys::{BaseTunables, VMConfig},
-    vm::{
-        LinearMemory, MemoryStyle, TableStyle, VMGlobal, VMMemory, VMMemoryDefinition, VMTable,
-        VMTableDefinition,
-    },
+use wasmtime::{
+    Config, Engine, ExternType, Global, Linker, MemoryType, Module, StoreContext, StoreContextMut,
 };
-use wasmer_types::ExternType;
 
 /// The target used for logging.
 const TARGET: &str = "runtime::sandbox";
@@ -75,145 +67,18 @@ fn cache_base_path() -> PathBuf {
             let out_dir = pathdiff::diff_paths(out_dir, compiled_workspace_dir).unwrap();
             let out_dir = runtime_workspace_dir.join(out_dir);
 
-            let cache = out_dir.join("wasmer-cache");
+            let cache = out_dir.join("wasmtime-cache");
             fs::create_dir_all(&cache).unwrap();
             cache
         })
         .into()
 }
 
-struct CustomTunables {
-    inner: BaseTunables,
-    vmconfig: VMConfig,
-}
-
-impl CustomTunables {
-    fn for_target(target: &Target) -> Self {
-        Self {
-            inner: BaseTunables::for_target(target),
-            vmconfig: VMConfig {
-                wasm_stack_size: None,
-            },
-        }
-    }
-
-    fn with_wasm_stack_size(mut self, wasm_stack_size: impl Into<Option<usize>>) -> Self {
-        self.vmconfig.wasm_stack_size = wasm_stack_size.into();
-        self
-    }
-}
-
-impl Tunables for CustomTunables {
-    fn memory_style(&self, memory: &MemoryType) -> MemoryStyle {
-        self.inner.memory_style(memory)
-    }
-
-    fn table_style(&self, table: &TableType) -> TableStyle {
-        self.inner.table_style(table)
-    }
-
-    fn create_host_memory(
-        &self,
-        ty: &MemoryType,
-        style: &MemoryStyle,
-    ) -> Result<VMMemory, MemoryError> {
-        self.inner.create_host_memory(ty, style)
-    }
-
-    unsafe fn create_vm_memory(
-        &self,
-        ty: &MemoryType,
-        style: &MemoryStyle,
-        vm_definition_location: NonNull<VMMemoryDefinition>,
-    ) -> Result<VMMemory, MemoryError> {
-        unsafe {
-            self.inner
-                .create_vm_memory(ty, style, vm_definition_location)
-        }
-    }
-
-    fn create_host_table(&self, ty: &TableType, style: &TableStyle) -> Result<VMTable, String> {
-        self.inner.create_host_table(ty, style)
-    }
-
-    unsafe fn create_vm_table(
-        &self,
-        ty: &TableType,
-        style: &TableStyle,
-        vm_definition_location: NonNull<VMTableDefinition>,
-    ) -> Result<VMTable, String> {
-        unsafe {
-            self.inner
-                .create_vm_table(ty, style, vm_definition_location)
-        }
-    }
-
-    fn create_global(&self, ty: GlobalType) -> Result<VMGlobal, String> {
-        self.inner.create_global(ty)
-    }
-
-    unsafe fn create_memories(
-        &self,
-        context: &mut StoreObjects,
-        module: &wasmer_types::ModuleInfo,
-        memory_styles: &wasmer_types::entity::PrimaryMap<wasmer_types::MemoryIndex, MemoryStyle>,
-        memory_definition_locations: &[NonNull<VMMemoryDefinition>],
-    ) -> Result<
-        wasmer_types::entity::PrimaryMap<
-            wasmer_types::LocalMemoryIndex,
-            wasmer_vm::InternalStoreHandle<VMMemory>,
-        >,
-        wasmer_compiler::LinkError,
-    > {
-        unsafe {
-            self.inner
-                .create_memories(context, module, memory_styles, memory_definition_locations)
-        }
-    }
-
-    unsafe fn create_tables(
-        &self,
-        context: &mut StoreObjects,
-        module: &wasmer_types::ModuleInfo,
-        table_styles: &wasmer_types::entity::PrimaryMap<wasmer_types::TableIndex, TableStyle>,
-        table_definition_locations: &[NonNull<VMTableDefinition>],
-    ) -> Result<
-        wasmer_types::entity::PrimaryMap<
-            wasmer_types::LocalTableIndex,
-            wasmer_vm::InternalStoreHandle<VMTable>,
-        >,
-        wasmer_compiler::LinkError,
-    > {
-        unsafe {
-            self.inner
-                .create_tables(context, module, table_styles, table_definition_locations)
-        }
-    }
-
-    fn create_globals(
-        &self,
-        context: &mut StoreObjects,
-        module: &wasmer_types::ModuleInfo,
-    ) -> Result<
-        wasmer_types::entity::PrimaryMap<
-            wasmer_types::LocalGlobalIndex,
-            wasmer_vm::InternalStoreHandle<VMGlobal>,
-        >,
-        wasmer_compiler::LinkError,
-    > {
-        self.inner.create_globals(context, module)
-    }
-
-    fn vmconfig(&self) -> &VMConfig {
-        &self.vmconfig
-    }
-}
-
 /// [`AsContextExt`] extension.
-pub trait AsContext: wasmer::AsStoreRef + wasmer::AsStoreMut {}
+pub trait AsContext: wasmtime::AsContextMut {}
 
 #[derive(Debug)]
-struct InnerState<T> {
+pub struct InnerState<T> {
     inner: T,
     gas_global: Option<Global>,
 }
@@ -227,11 +92,10 @@ impl<T> InnerState<T> {
     }
 }
 
-/// wasmer store wrapper.
+/// wasmtime store wrapper.
 #[derive(Debug)]
-pub struct Store<T> {
-    inner: wasmer::Store,
-    state: FunctionEnv<InnerState<T>>,
+pub struct Store<T: 'static> {
+    inner: wasmtime::Store<InnerState<T>>,
 }
 
 impl<T> Store<T> {
@@ -242,35 +106,30 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let mut engine = Engine::from(wasmer::Singlepass::new());
-        let tunables = CustomTunables::for_target(engine.target())
+        let mut config = Config::new();
+        config
             // make stack size bigger for fuzzer
-            .with_wasm_stack_size(16 * 1024 * 1024);
-        engine.set_tunables(tunables);
-        let mut store = wasmer::Store::new(engine);
+            .max_wasm_stack(16 * 1024 * 1024)
+            .strategy(wasmtime::Strategy::Winch);
+        // TODO: return, don't unwrap
+        let engine = Engine::new(&config).expect("TODO");
+        let store = wasmtime::Store::new(&engine, InnerState::new(state));
 
-        let state = FunctionEnv::new(&mut store, InnerState::new(state));
-
-        Self {
-            inner: store,
-            state,
-        }
+        Self { inner: store }
     }
 }
 
-impl<T> wasmer::AsStoreRef for Store<T> {
-    fn as_store_ref(&self) -> StoreRef<'_> {
-        self.inner.as_store_ref()
+impl<T> wasmtime::AsContext for Store<T> {
+    type Data = InnerState<T>;
+
+    fn as_context(&self) -> StoreContext<'_, Self::Data> {
+        self.inner.as_context()
     }
 }
 
-impl<T> wasmer::AsStoreMut for Store<T> {
-    fn as_store_mut(&mut self) -> StoreMut<'_> {
-        self.inner.as_store_mut()
-    }
-
-    fn objects_mut(&mut self) -> &mut StoreObjects {
-        self.inner.objects_mut()
+impl<T> wasmtime::AsContextMut for Store<T> {
+    fn as_context_mut(&mut self) -> StoreContextMut<'_, Self::Data> {
+        self.inner.as_context_mut()
     }
 }
 
@@ -278,28 +137,26 @@ impl<T: Send + 'static> AsContextExt for Store<T> {
     type State = T;
 
     fn data_mut(&mut self) -> &mut Self::State {
-        &mut self.state.as_mut(&mut self.inner).inner
+        &mut self.inner.data_mut().inner
     }
 }
 
 impl<T> AsContext for Store<T> {}
 
-/// wasmer function env wrapper.
-pub struct Caller<'a, T>(wasmer::FunctionEnvMut<'a, InnerState<T>>);
+/// wasmtime function env wrapper.
+pub struct Caller<'a, T: 'static>(wasmtime::Caller<'a, InnerState<T>>);
 
-impl<T> wasmer::AsStoreRef for Caller<'_, T> {
-    fn as_store_ref(&self) -> StoreRef<'_> {
-        self.0.as_store_ref()
+impl<T> wasmtime::AsContext for Caller<'_, T> {
+    type Data = InnerState<T>;
+
+    fn as_context(&self) -> StoreContext<'_, Self::Data> {
+        self.0.as_context()
     }
 }
 
-impl<T> wasmer::AsStoreMut for Caller<'_, T> {
-    fn as_store_mut(&mut self) -> StoreMut<'_> {
-        self.0.as_store_mut()
-    }
-
-    fn objects_mut(&mut self) -> &mut StoreObjects {
-        self.0.objects_mut()
+impl<T> wasmtime::AsContextMut for Caller<'_, T> {
+    fn as_context_mut(&mut self) -> StoreContextMut<'_, Self::Data> {
+        self.0.as_context_mut()
     }
 }
 
@@ -316,22 +173,18 @@ impl<T> AsContext for Caller<'_, T> {}
 /// The linear memory used by the sandbox.
 #[derive(Clone)]
 pub struct Memory {
-    memref: wasmer::Memory,
+    memref: wasmtime::Memory,
     base: usize,
 }
 
 impl<T> super::SandboxMemory<T> for Memory {
     fn new(store: &mut Store<T>, initial: u32, maximum: Option<u32>) -> Result<Memory, Error> {
-        let ty = MemoryType::new(initial, maximum, false);
-        let memory_style = store.engine().tunables().memory_style(&ty);
-        let memref = VMMemory::new(&ty, &memory_style).map_err(|e| {
+        let ty = MemoryType::new(initial, maximum);
+        let memref = wasmtime::Memory::new(&mut *store, ty).map_err(|e| {
             log::trace!("Failed to create memory: {e}");
             Error::Module
         })?;
-        // SAFETY: `vmmemory()` returns `NonNull` so pointer is valid
-        let memory_definition = unsafe { memref.vmmemory().as_ref() };
-        let base = memory_definition.base as usize;
-        let memref = wasmer::Memory::new_from_existing(store, memref);
+        let base = memref.data_ptr(&mut *store) as usize;
         Ok(Memory { memref, base })
     }
 
@@ -340,8 +193,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         Context: AsContextExt<State = T>,
     {
         self.memref
-            .view(ctx)
-            .read(ptr as u64, buf)
+            .read(ctx, ptr as usize, buf)
             .map_err(|_| Error::OutOfBounds)?;
         Ok(())
     }
@@ -351,8 +203,7 @@ impl<T> super::SandboxMemory<T> for Memory {
         Context: AsContextExt<State = T>,
     {
         self.memref
-            .view(ctx)
-            .write(ptr as u64, value)
+            .write(ctx, ptr as usize, value)
             .map_err(|_| Error::OutOfBounds)?;
         Ok(())
     }
@@ -362,8 +213,8 @@ impl<T> super::SandboxMemory<T> for Memory {
         Context: AsContextExt<State = T>,
     {
         self.memref
-            .grow(ctx, pages)
-            .map(|pages| pages.0)
+            .grow(ctx, pages as u64)
+            .map(|pages| pages as u32)
             .map_err(|_| Error::MemoryGrow)
     }
 
@@ -371,7 +222,7 @@ impl<T> super::SandboxMemory<T> for Memory {
     where
         Context: AsContextExt<State = T>,
     {
-        self.memref.view(ctx).size().0
+        self.memref.size(ctx) as u32
     }
 
     unsafe fn get_buff<Context>(&self, _ctx: &Context) -> u64
@@ -382,7 +233,7 @@ impl<T> super::SandboxMemory<T> for Memory {
     }
 }
 
-enum ExternVal<T> {
+enum ExternVal<T: 'static> {
     HostFunc(HostFuncType<T>),
     Memory(Memory),
 }
@@ -413,7 +264,7 @@ impl<T> Clone for ExternVal<T> {
 }
 
 /// A builder for the environment of the sandboxed WASM module.
-pub struct EnvironmentDefinitionBuilder<T> {
+pub struct EnvironmentDefinitionBuilder<T: 'static> {
     map: BTreeMap<(String, String), ExternVal<T>>,
 }
 
@@ -445,14 +296,14 @@ impl<T> super::SandboxEnvironmentBuilder<T, Memory> for EnvironmentDefinitionBui
 
 /// Sandboxed instance of a WASM module.
 pub struct Instance<State> {
-    instance: wasmer::Instance,
+    instance: wasmtime::Instance,
     _marker: PhantomData<State>,
 }
 
 impl<State> Clone for Instance<State> {
     fn clone(&self) -> Self {
         Self {
-            instance: self.instance.clone(),
+            instance: self.instance,
             _marker: PhantomData,
         }
     }
@@ -467,10 +318,11 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         code: &[u8],
         env_def_builder: &Self::EnvironmentBuilder,
     ) -> Result<Instance<State>, Error> {
-        let module = gear_wasmer_cache::get(store.engine(), code, cache_base_path())
+        let module = Module::new(store.engine(), code)
             .inspect_err(|e| log::trace!(target: TARGET, "Failed to create module: {e}"))
             .map_err(|_e| Error::Module)?;
-        let mut imports = Imports::new();
+
+        let mut linker = Linker::new(store.engine());
 
         for import in module.imports() {
             let module = import.module().to_string();
@@ -478,7 +330,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
             let key = (module.clone(), name.clone());
 
             match import.ty() {
-                ExternType::Global(_) | ExternType::Table(_) => {}
+                ExternType::Global(_) | ExternType::Table(_) | ExternType::Tag(_) => {}
                 ExternType::Memory(_mem_ty) => {
                     let mem = env_def_builder
                         .map
@@ -490,9 +342,12 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                             Error::Module
                         })?
                         .memref;
-                    imports.define(&module, &name, mem);
+                    linker.define(&store, &module, &name, mem).map_err(|e| {
+                        log::trace!("Failed to define `{module}::{name}`: {e}");
+                        Error::Module
+                    })?;
                 }
-                ExternType::Function(func_ty) => {
+                ExternType::Func(func_ty) => {
                     let func_ptr = env_def_builder
                         .map
                         .get(&key)
@@ -505,54 +360,46 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
 
                     let func_ty = func_ty.clone();
 
-                    let func = wasmer::Function::new_with_env(
+                    let func = wasmtime::Func::new(
                         &mut store.inner,
-                        &store.state,
                         func_ty.clone(),
-                        move |mut env, params| {
-                            let (inner_state, mut store) = env.data_and_store_mut();
-                            let gas = inner_state
-                                .gas_global
-                                .as_ref()
-                                .unwrap_or_else(|| {
-                                    unreachable!(
-                                        "`{GLOBAL_NAME_GAS}` global should be set to `Some(...)`"
-                                    )
-                                })
-                                .clone();
+                        move |mut caller, params, results| {
+                            let gas = *caller.data_mut().gas_global.as_ref().unwrap_or_else(|| {
+                                unreachable!(
+                                    "`{GLOBAL_NAME_GAS}` global should be set to `Some(...)`"
+                                )
+                            });
 
-                            let params: Vec<_> = Some(gas.get(&mut store))
+                            let params: Vec<_> = Some(gas.get(&mut caller))
                                 .into_iter()
                                 .chain(params.iter().cloned())
                                 .map(to_interface)
                                 .map(|val| {
-                                    val.ok_or_else(|| {
-                                        RuntimeError::new(
-                                            "`externref` or `funcref` are not supported",
-                                        )
-                                    })
+                                    val.context("`externref` or `funcref` are not supported")
                                 })
                                 .collect::<Result<_, _>>()?;
 
-                            let mut caller = Caller(env);
+                            let mut caller = Caller(caller);
                             let val = (func_ptr)(&mut caller, &params)
-                                .map_err(|HostError| RuntimeError::new("function error"))?;
+                                .map_err(|HostError| anyhow!("function error"))?;
 
-                            let return_val = match (val.inner, func_ty.results()) {
+                            let func_results: Vec<wasmtime::ValType> = func_ty.results().collect();
+                            let return_val = match (val.inner, func_results.as_slice()) {
                                 (ReturnValue::Unit, []) => None,
                                 (ReturnValue::Value(val), [ret]) => {
-                                    let val = to_wasmer(val);
-
-                                    if val.ty() != *ret {
-                                        return Err(RuntimeError::new("mismatching return types"));
-                                    }
+                                    let val = to_wasmtime(val);
+                                    let val_ty = val.ty(&caller).expect("GC is disabled");
+                                    anyhow::ensure!(
+                                        wasmtime::ValType::eq(&val_ty, ret),
+                                        "mismatching return types"
+                                    );
 
                                     Some(val)
                                 }
-                                _results => {
+                                results => {
                                     let err_msg = format!(
                                         "Instance::new: embedded executor doesn't support multi-value return. \
-                                        Function name - {key:?}, params - {params:?}, results - {_results:?}"
+                                        Function name - {key:?}, params - {params:?}, results - {results:?}"
                                     );
 
                                     log::error!("{err_msg}");
@@ -560,32 +407,33 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                                 }
                             };
 
-                            gas.set(&mut caller.0, RuntimeValue::I64(val.gas))
-                                .map_err(|e| {
-                                    RuntimeError::new(format!(
-                                        "failed to set `{GLOBAL_NAME_GAS}` global: {e}"
-                                    ))
+                            gas.set(&mut caller.0, wasmtime::Val::I64(val.gas))
+                                .with_context(|| {
+                                    format!("failed to set `{GLOBAL_NAME_GAS}` global")
                                 })?;
 
-                            Ok(Vec::from_iter(return_val))
+                            if let Some(return_val) = return_val {
+                                results[0] = return_val;
+                            }
+
+                            Ok(())
                         },
                     );
-                    imports.define(&module, &name, func);
+                    linker.define(&store, &module, &name, func).map_err(|e| {
+                        log::trace!("Failed to define `{module}::{name}`: {e}");
+                        Error::Module
+                    })?;
                 }
             }
         }
 
-        let instance = wasmer::Instance::new(store, &module, &imports).map_err(|e| {
+        let instance = linker.instantiate(&mut *store, &module).map_err(|e| {
             log::trace!(target: TARGET, "Error instantiating module: {e:?}");
             Error::Module
         })?;
 
-        store.state.as_mut(&mut store.inner).gas_global = instance
-            .exports
-            .get_global(GLOBAL_NAME_GAS)
-            // gas global is optional during some benchmarks
-            .ok()
-            .cloned();
+        // gas global is optional during some benchmarks
+        store.inner.data_mut().gas_global = instance.get_global(&mut *store, GLOBAL_NAME_GAS);
 
         Ok(Instance {
             instance,
@@ -599,22 +447,24 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
         name: &str,
         args: &[Value],
     ) -> Result<ReturnValue, Error> {
-        let args = args.iter().cloned().map(to_wasmer).collect::<Vec<_>>();
+        let args = args.iter().cloned().map(to_wasmtime).collect::<Vec<_>>();
 
-        let func = self.instance.exports.get_function(name).map_err(|e| {
-            log::trace!(target: TARGET, "function `{name}` not found: {e}");
+        let func = self.instance.get_func(&mut store, name).ok_or_else(|| {
+            log::trace!(target: TARGET, "function `{name}` not found");
             Error::Execution
         })?;
+        let func_ty = func.ty(&store);
+        let mut results = vec![wasmtime::Val::ExternRef(None); func_ty.results().len()];
 
-        let results = func.call(&mut store, &args).map_err(|e| {
+        func.call(&mut store, &args, &mut results).map_err(|e| {
             log::trace!(target: TARGET, "invocation error: {e}");
             Error::Execution
         })?;
 
-        match results.as_ref() {
+        match results.as_slice() {
             [] => Ok(ReturnValue::Unit),
             [val] => {
-                let val = to_interface(val.clone()).ok_or_else(|| {
+                let val = to_interface(*val).ok_or_else(|| {
                     log::trace!(target: TARGET, "error converting return value to interface: {val:?}");
                     Error::Execution
                 })?;
@@ -633,24 +483,23 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     }
 
     fn get_global_val(&self, store: &mut Store<State>, name: &str) -> Option<Value> {
-        let global = self.instance.exports.get_global(name).ok()?;
+        let global = self.instance.get_global(&mut *store, name)?;
         let global = global.get(store);
         to_interface(global)
     }
 
     fn set_global_val(
         &self,
-        mut store: &mut Store<State>,
+        store: &mut Store<State>,
         name: &str,
         value: Value,
     ) -> Result<(), GlobalsSetError> {
         let global = self
             .instance
-            .exports
-            .get_global(name)
-            .map_err(|_| GlobalsSetError::NotFound)?;
+            .get_global(&mut *store, name)
+            .ok_or(GlobalsSetError::NotFound)?;
         global
-            .set(&mut store, to_wasmer(value))
+            .set(store, to_wasmtime(value))
             .map_err(|_| GlobalsSetError::Other)?;
         Ok(())
     }
@@ -663,24 +512,29 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
     }
 }
 
-/// Convert the substrate value type to the wasmer value type.
-fn to_wasmer(value: Value) -> RuntimeValue {
+/// Convert the substrate value type to the wasmtime value type.
+fn to_wasmtime(value: Value) -> wasmtime::Val {
     match value {
-        Value::I32(val) => RuntimeValue::I32(val),
-        Value::I64(val) => RuntimeValue::I64(val),
-        Value::F32(val) => RuntimeValue::F32(f32::from_bits(val)),
-        Value::F64(val) => RuntimeValue::F64(f64::from_bits(val)),
+        Value::I32(val) => wasmtime::Val::I32(val),
+        Value::I64(val) => wasmtime::Val::I64(val),
+        Value::F32(val) => wasmtime::Val::F32(val),
+        Value::F64(val) => wasmtime::Val::F64(val),
     }
 }
 
-/// Convert the wasmer value type to the substrate value type.
-fn to_interface(value: RuntimeValue) -> Option<Value> {
+/// Convert the wasmtime value type to the substrate value type.
+fn to_interface(value: wasmtime::Val) -> Option<Value> {
     match value {
-        RuntimeValue::I32(val) => Some(Value::I32(val)),
-        RuntimeValue::I64(val) => Some(Value::I64(val)),
-        RuntimeValue::F32(val) => Some(Value::F32(val.to_bits())),
-        RuntimeValue::F64(val) => Some(Value::F64(val.to_bits())),
-        RuntimeValue::V128(_) | RuntimeValue::FuncRef(_) | RuntimeValue::ExternRef(_) => None,
+        wasmtime::Val::I32(val) => Some(Value::I32(val)),
+        wasmtime::Val::I64(val) => Some(Value::I64(val)),
+        wasmtime::Val::F32(val) => Some(Value::F32(val)),
+        wasmtime::Val::F64(val) => Some(Value::F64(val)),
+        wasmtime::Val::V128(_)
+        | wasmtime::Val::FuncRef(_)
+        | wasmtime::Val::ExternRef(_)
+        | wasmtime::Val::AnyRef(_)
+        | wasmtime::Val::ContRef(_)
+        | wasmtime::Val::ExnRef(_) => None,
     }
 }
 

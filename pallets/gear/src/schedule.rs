@@ -54,7 +54,7 @@ pub const API_BENCHMARK_BATCH_SIZE: u32 = 80;
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 500;
 
 /// Constant for `stack_height` is calculated via `calc-stack-height` utility to be small enough
-/// to avoid stack overflow in wasmer and wasmi executors.
+/// to avoid stack overflow in wasmtime and wasmi executors.
 /// To avoid potential stack overflow problems we have a panic in sandbox in case,
 /// execution is ended with stack overflow error. So, process queue execution will be
 /// stopped and we will be able to investigate the problem and decrease this constant if needed.
@@ -869,9 +869,9 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
-        // # Wasmer's compiler optimization (relevant for version 4.3.5 single-pass compiler for x86-64 target)
+        // # Wasmtime's compiler optimization (relevant for version 4.3.5 single-pass compiler for x86-64 target)
         //
-        // Wasmer's single-pass compiler implements an optimization for certain wasm i32 instructions where
+        // Wasmtime's single-pass compiler implements an optimization for certain wasm i32 instructions where
         // `i64const`/`i32const` parameters can be embedded into native x86-64 instructions.
         //
         // This optimization works for the following types of instructions:

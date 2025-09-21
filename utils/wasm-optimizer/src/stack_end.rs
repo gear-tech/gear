@@ -338,8 +338,8 @@ mod test {
         STACK_END_EXPORT_NAME, insert_stack_end_export, insert_start_call_in_export_funcs,
         move_mut_globals_to_static,
     };
-    use wasmer::{Imports, Instance, Memory, MemoryType, Module, Store, Value};
     use wasmparser::ExternalKind;
+    use wasmtime::{Instance, Linker, Memory, MemoryType, Module, Store, Val};
 
     fn wat2wasm(source: &str) -> Vec<u8> {
         let code = wat::parse_str(source).expect("failed to parse module");
@@ -399,17 +399,17 @@ mod test {
         let binary = wat2wasm(wat);
 
         let check = |binary, expected| {
-            let mut store: Store = Store::default();
+            let mut store: Store<()> = Store::default();
             let module = Module::new(store.engine(), binary).unwrap();
-            let instance = Instance::new(&mut store, &module, &Imports::new()).unwrap();
+            let instance = Instance::new(&mut store, &module, &[]).unwrap();
 
-            let outputs = instance
-                .exports
-                .get_function("handle")
+            let mut outputs = [Val::FuncRef(None)];
+            instance
+                .get_func(&mut store, "handle")
                 .unwrap()
-                .call(&mut store, &[Value::I32(1)])
+                .call(&mut store, &[Val::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(outputs[0], Value::I32(expected));
+            assert_eq!(outputs[0].unwrap_i32(), expected);
         };
 
         // Check that works without changes
@@ -447,35 +447,32 @@ mod test {
         let binary = wat2wasm(wat);
 
         let check = |binary, expected1, expected2| {
-            let mut store: Store = Store::default();
+            let mut store: Store<()> = Store::default();
             let module = Module::new(store.engine(), binary).unwrap();
-            let memory = Memory::new(&mut store, MemoryType::new(1, None, false)).unwrap();
-            let imports = wasmer::imports! {
-                "env" => {
-                    "memory" => memory.clone(),
-                }
-            };
-            let instance = Instance::new(&mut store, &module, &imports).unwrap();
+            let memory = Memory::new(&mut store, MemoryType::new(1, None)).unwrap();
+            let mut linker = Linker::new(store.engine());
+            linker.define(&store, "env", "memory", memory).unwrap();
+            let instance = linker.instantiate(&mut store, &module).unwrap();
 
-            let outputs = instance
-                .exports
-                .get_function("handle")
+            let mut outputs = [Val::FuncRef(None)];
+            instance
+                .get_func(&mut store, "handle")
                 .unwrap()
-                .call(&mut store, &[Value::I32(1)])
+                .call(&mut store, &[Val::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(outputs[0], Value::I32(expected1));
+            assert_eq!(outputs[0].unwrap_i32(), expected1);
 
             let mut data = vec![0u8; 0x10000];
-            memory.view(&store).read(0, data.as_mut_slice()).unwrap();
-            let instance = Instance::new(&mut store, &module, &imports).unwrap();
-            memory.view(&store).write(0, &data).unwrap();
-            let outputs = instance
-                .exports
-                .get_function("handle")
+            memory.read(&store, 0, data.as_mut_slice()).unwrap();
+            let instance = linker.instantiate(&mut store, &module).unwrap();
+            memory.write(&mut store, 0, &data).unwrap();
+            let mut outputs = [Val::FuncRef(None)];
+            instance
+                .get_func(&mut store, "handle")
                 .unwrap()
-                .call(&mut store, &[Value::I32(1)])
+                .call(&mut store, &[Val::I32(1)], &mut outputs)
                 .unwrap();
-            assert_eq!(outputs[0], Value::I32(expected2));
+            assert_eq!(outputs[0].unwrap_i32(), expected2);
         };
 
         // First check that it works correct without changes.

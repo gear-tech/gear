@@ -95,7 +95,7 @@ pub enum SystemEnvironmentError {
 /// Environment to run one module at a time providing Ext.
 pub struct Environment<Ext, EntryPoint = DispatchKind>
 where
-    Ext: BackendExternalities,
+    Ext: BackendExternalities + 'static,
     EntryPoint: WasmEntryPoint,
 {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
@@ -117,7 +117,7 @@ where
 
 // A helping wrapper for `EnvironmentDefinitionBuilder` and `forbidden_funcs`.
 // It makes adding functions to `EnvironmentDefinitionBuilder` shorter.
-struct EnvBuilder<Ext: BackendExternalities> {
+struct EnvBuilder<Ext: BackendExternalities + 'static> {
     env_def_builder: EnvironmentDefinitionBuilder<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     funcs_count: usize,
 }
@@ -230,7 +230,7 @@ where
 }
 
 #[cfg(feature = "std")]
-struct GlobalsAccessProvider<Ext: Externalities> {
+struct GlobalsAccessProvider<Ext: Externalities + 'static> {
     instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
     store: Option<Store<HostState<Ext, BackendMemory<ExecutorMemory>>>>,
 }

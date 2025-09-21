@@ -24,11 +24,7 @@ use gear_core::{
 use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use tracing_subscriber::EnvFilter;
-use wasmer::{
-    Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
-    RuntimeError, Singlepass, Store,
-};
-use wasmer_types::{FunctionType, TrapCode, Type};
+use wasmtime::{Engine, Linker, Memory, MemoryType, Module, Store, Trap, ValType};
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -56,54 +52,58 @@ fn main() -> anyhow::Result<()> {
     )
     .context("Code error")?;
 
-    let compiler = Singlepass::default();
-    let mut store = Store::new(compiler);
-    let module = Module::new(&store, code.instrumented_code().bytes())
+    let mut config = wasmtime::Config::default();
+    config.strategy(wasmtime::Strategy::Winch);
+    let engine = Engine::new(&config).context("Failed to create engine")?;
+    let mut store = Store::new(&engine, ());
+    let module = Module::new(store.engine(), code.instrumented_code().bytes())
         .context("Failed to create initial module")?;
 
-    let mut imports = Imports::new();
-    let mut exports = Exports::new();
+    let mut linker = Linker::new(store.engine());
 
-    let memory = Memory::new(&mut store, MemoryType::new(0, None, false))
-        .context("Failed to create memory")?;
-    exports.insert("memory", Extern::Memory(memory));
+    let memory =
+        Memory::new(&mut store, MemoryType::new(0, None)).context("Failed to create memory")?;
+    linker
+        .define(&store, "env", "memory", memory)
+        .context("Failed to define memory")?;
 
     // Here we need to repeat the code from
-    // `gear_sandbox_host::sandbox::wasmer_backend::dispatch_function_v2`, as we
+    // `gear_sandbox_host::sandbox::wasmtime_backend::dispatch_function_v2`, as we
     // want to be as close as possible to how the executor uses the stack in the
     // node.
 
-    let env = FunctionEnv::new(&mut store, ());
-    let ty = FunctionType::new(vec![Type::I32], vec![]);
-    let func =
-        Function::new_with_env(
-            &mut store,
-            &env,
-            &ty,
-            |_, args| match SystemBreakCode::try_from(args[0].unwrap_i32()) {
+    let func_ty = wasmtime::FuncType::new(store.engine(), [ValType::I32], []);
+    let func = wasmtime::Func::new(
+        &mut store,
+        func_ty.clone(),
+        move |_caller, params, _results| -> Result<(), wasmtime::Error> {
+            match SystemBreakCode::try_from(params[0].unwrap_i32()) {
                 Ok(SystemBreakCode::StackLimitExceeded) => {
-                    Err(RuntimeError::new("stack limit exceeded"))
+                    Err(anyhow::anyhow!("stack limit exceeded"))
                 }
-                _ => Ok(vec![]),
-            },
-        );
+                _ => Ok(()),
+            }
+        },
+    );
 
-    exports.insert("gr_system_break", func);
+    linker
+        .define(&mut store, "env", "gr_system_break", func)
+        .context("Failed to define gr_system_break")?;
 
-    imports.register_namespace("env", exports);
-
-    let instance = Instance::new(&mut store, &module, &imports)
+    let instance = linker
+        .instantiate(&mut store, &module)
         .context("Failed to instantiate initial module")?;
     let init = instance
-        .exports
-        .get_function("init")
+        .get_func(&mut store, "init")
         .context("Failed to get initial `init` function export")?;
-    let err = init.call(&mut store, &[]).unwrap_err();
-    assert_eq!(err.to_trap(), Some(TrapCode::StackOverflow));
+    let err = init.call(&mut store, &[], &mut []).unwrap_err();
+    assert_eq!(
+        err.root_cause().downcast_ref::<Trap>().copied(),
+        Some(Trap::StackOverflow)
+    );
 
     let stack_height = instance
-        .exports
-        .get_global(STACK_HEIGHT_EXPORT_NAME)
+        .get_global(&mut store, STACK_HEIGHT_EXPORT_NAME)
         .context("Failed to get global")?
         .get(&mut store)
         .i32()
@@ -129,17 +129,17 @@ fn main() -> anyhow::Result<()> {
         )
         .context("Code error")?;
 
-        let module = Module::new(&store, code.instrumented_code().bytes())
+        let module = Module::new(store.engine(), code.instrumented_code().bytes())
             .context("Failed to create module")?;
-        let instance =
-            Instance::new(&mut store, &module, &imports).context("Failed to instantiate module")?;
+        let instance = linker
+            .instantiate(&mut store, &module)
+            .context("Failed to instantiate module")?;
         let init = instance
-            .exports
-            .get_function("init")
+            .get_func(&mut store, "init")
             .context("Failed to get `init` function export")?;
-        let err = init.call(&mut store, &[]).unwrap_err();
+        let err = init.call(&mut store, &[], &mut []).unwrap_err();
 
-        match err.to_trap() {
+        match err.root_cause().downcast_ref::<Trap>() {
             None => {
                 low = mid + 1;
 
@@ -147,7 +147,7 @@ fn main() -> anyhow::Result<()> {
 
                 log::info!("Unreachable at {mid} height");
             }
-            Some(TrapCode::StackOverflow) => {
+            Some(Trap::StackOverflow) => {
                 high = mid - 1;
 
                 log::info!("Overflow at {mid} height");

@@ -32,7 +32,7 @@ fn main() {
 
         if major >= 1 && minor >= 89 && commit_date != Some("2025-06-05".into()) {
             panic!(
-                "Rust >= 1.89 is not supported, use Rust 1.88: https://github.com/wasmerio/wasmer/issues/5610"
+                "Rust >= 1.89 is not supported, use Rust 1.88: https://github.com/wasmtimeio/wasmtime/issues/5610"
             );
         }
     }

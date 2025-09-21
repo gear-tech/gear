@@ -18,7 +18,7 @@
 
 //! # Description
 //!
-//! Custom implementation of `RefCell` for the `wasmer::Store`/`wasmi::Store` types,
+//! Custom implementation of `RefCell` for the `wasmtime::Store`/`wasmi::Store` types,
 //! enabling safe repeated mutable borrowing of `StoreRefCell` higher up the call stack
 //! when the mutable borrow of `StoreRefCell` still exists.
 //!
@@ -69,9 +69,9 @@
 //!   -----------------------------------
 //!   | runtime executes syscall        |
 //!   --------runtime boundary-----------
-//!   | syscall_callback                | Wasmer/Wasmi calls syscall callback from inside its VM
+//!   | syscall_callback                | Wasmtime/Wasmi calls syscall callback from inside its VM
 //!   -----------------------------------
-//!   | Wasmer's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
+//!   | Wasmtime's Func::call             | Sandbox starts to executes program function (Borrows Store mutably)
 //!   -------native boundary----------- |
 //!   | sandbox::invoke                 | Runtime interface call
 //!   -----------------------------------
@@ -108,7 +108,7 @@ pub struct StoreRefCell<S> {
 
 trait GenericAsStoreMut {}
 
-impl GenericAsStoreMut for &mut wasmer::StoreMut<'_> {}
+impl<T> GenericAsStoreMut for wasmtime::StoreContextMut<'_, T> {}
 impl<T> GenericAsStoreMut for wasmi::StoreContextMut<'_, T> {}
 
 #[derive(Debug)]

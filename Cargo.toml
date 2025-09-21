@@ -182,14 +182,6 @@ tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
 wat = "1.0.71"
-wasmer = { version = "4.3.4", default-features = false, features = [
-    "singlepass",
-] }
-wasmer-cache = "4.3.4"
-wasmer-types = "4.3.4"
-wasmer-vm = "4.3.4"
-wasmer-compiler = "4.3.4"
-gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "37.0.0"
 wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
 which = "4.4.2"
@@ -535,15 +527,11 @@ directories = "5.0.1"                                        # utils/key-finder
 num-traits = { version = "0.2", default-features = false }   # gear-core
 glob = "0.3.1"                                               # cargo-gbuild
 smallvec = "1.13.2"                                          # utils/node-wrapper
-fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
-bytes = "1.8.0"                                              # utils/gear-wasmer-cache
-loom = "0.7.2"                                               # utils/gear-wasmer-cache
 wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
 wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(loom)',
     'cfg(fuzz)',
     'cfg(substrate_runtime)',
 ] }
@@ -560,9 +548,6 @@ ignored = [
     "pallet-authorship",
     "pallet-timestamp",
 ]
-
-[profile.dev.package.corosensei]
-opt-level = 3
 
 [profile.release]
 panic = "unwind"

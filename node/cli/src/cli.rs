@@ -22,8 +22,8 @@ use std::str::FromStr;
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Parser, derive_more::Display)]
 pub enum SandboxBackend {
-    #[display("wasmer")]
-    Wasmer,
+    #[display("wasmtime")]
+    Wasmtime,
     #[display("wasmi")]
     Wasmi,
 }
@@ -34,7 +34,7 @@ impl FromStr for SandboxBackend {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "wasmer" => Ok(SandboxBackend::Wasmer),
+            "wasmtime" => Ok(SandboxBackend::Wasmtime),
             "wasmi" => Ok(SandboxBackend::Wasmi),
             _ => Err(format!("Unknown sandbox executor: {s}")),
         }
@@ -50,10 +50,10 @@ pub struct RunCmd {
     pub base: sc_cli::RunCmd,
 
     /// The Wasm host executor to use in program sandbox.
-    #[arg(long, default_value_t = SandboxBackend::Wasmer)]
+    #[arg(long, default_value_t = SandboxBackend::Wasmtime)]
     pub sandbox_backend: SandboxBackend,
 
-    /// Sets a limit at which the underlying sandbox store will be cleared (applies only to the Wasmer sandbox backend),
+    /// Sets a limit at which the underlying sandbox store will be cleared (applies only to the Wasmtime sandbox backend),
     /// potentially altering performance characteristics.
     ///
     /// See <https://github.com/gear-tech/gear/pull/4420> for more context.

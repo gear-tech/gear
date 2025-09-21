@@ -443,10 +443,10 @@ pub fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
             })
     });
 
-    // TODO: remove after usage of `wasmer::Store::set_trap_handler` for lazy-pages
+    // TODO: remove after usage of `wasmtime::Store::set_trap_handler` for lazy-pages
     // we capture executor signal handler first to call it later
     // if our handler is not effective
-    wasmer_vm::init_traps();
+    let _engine = wasmtime::Engine::default();
 
     unsafe { init_for_process::<H>()? }
 

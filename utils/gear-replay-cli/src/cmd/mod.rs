@@ -66,7 +66,10 @@ pub enum Command {
 
 impl Command {
     pub async fn run(&self, shared: &SharedParams) -> sc_cli::Result<()> {
-        gear_runtime_interface::sandbox_init(gear_runtime_interface::SandboxBackend::Wasmer, None);
+        gear_runtime_interface::sandbox_init(
+            gear_runtime_interface::SandboxBackend::Wasmtime,
+            None,
+        );
 
         match &self {
             Command::ReplayBlock(cmd) => {

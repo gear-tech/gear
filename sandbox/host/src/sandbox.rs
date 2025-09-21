@@ -18,10 +18,10 @@
 
 //! This module implements sandboxing support in the runtime.
 //!
-//! Sandboxing is backed by wasmi and wasmer, depending on the configuration.
+//! Sandboxing is backed by wasmi and wasmtime, depending on the configuration.
 
-mod wasmer_backend;
 mod wasmi_backend;
+mod wasmtime_backend;
 
 use std::{collections::HashMap, pin::Pin, rc::Rc};
 
@@ -36,17 +36,17 @@ use crate::{
 };
 
 use self::{
-    wasmer_backend::{
-        Backend as WasmerBackend, MemoryWrapper as WasmerMemoryWrapper,
-        StoreRefCell as WasmerStoreRefCell, get_global as wasmer_get_global,
-        instantiate as wasmer_instantiate, invoke as wasmer_invoke,
-        new_memory as wasmer_new_memory, set_global as wasmer_set_global,
-    },
     wasmi_backend::{
         Backend as WasmiBackend, MemoryWrapper as WasmiMemoryWrapper,
         StoreRefCell as WasmiStoreRefCell, get_global as wasmi_get_global,
         instantiate as wasmi_instantiate, invoke as wasmi_invoke, new_memory as wasmi_new_memory,
         set_global as wasmi_set_global,
+    },
+    wasmtime_backend::{
+        Backend as WasmtimeBackend, MemoryWrapper as WasmtimeMemoryWrapper,
+        StoreRefCell as WasmtimeStoreRefCell, get_global as wasmtime_get_global,
+        instantiate as wasmtime_instantiate, invoke as wasmtime_invoke,
+        new_memory as wasmtime_new_memory, set_global as wasmtime_set_global,
     },
 };
 
@@ -170,18 +170,18 @@ pub trait SupervisorContext {
 enum BackendInstanceBundle {
     /// Wasmi module instance
     Wasmi {
-        /// Wasmer module instance
+        /// Wasmtime module instance
         instance: wasmi::Instance,
-        /// Wasmer store
+        /// Wasmtime store
         store: Rc<WasmiStoreRefCell>,
     },
 
-    /// Wasmer module instance and store
-    Wasmer {
-        /// Wasmer module instance
-        instance: wasmer::Instance,
-        /// Wasmer store
-        store: Rc<WasmerStoreRefCell>,
+    /// Wasmtime module instance and store
+    Wasmtime {
+        /// Wasmtime module instance
+        instance: wasmtime::Instance,
+        /// Wasmtime store
+        store: Rc<WasmtimeStoreRefCell>,
     },
 }
 
@@ -219,8 +219,8 @@ impl SandboxInstance {
                 wasmi_invoke(instance, store, export_name, args, supervisor_context)
             }
 
-            BackendInstanceBundle::Wasmer { instance, store } => {
-                wasmer_invoke(instance, store, export_name, args, supervisor_context)
+            BackendInstanceBundle::Wasmtime { instance, store } => {
+                wasmtime_invoke(instance, store, export_name, args, supervisor_context)
             }
         }
     }
@@ -234,8 +234,8 @@ impl SandboxInstance {
                 wasmi_get_global(instance, &store.borrow(), name)
             }
 
-            BackendInstanceBundle::Wasmer { instance, store } => {
-                wasmer_get_global(instance, &mut store.borrow_mut(), name)
+            BackendInstanceBundle::Wasmtime { instance, store } => {
+                wasmtime_get_global(instance, &mut store.borrow_mut(), name)
             }
         }
     }
@@ -253,8 +253,8 @@ impl SandboxInstance {
                 wasmi_set_global(instance, &mut store.borrow_mut(), name, value)
             }
 
-            BackendInstanceBundle::Wasmer { instance, store } => {
-                wasmer_set_global(instance, &mut store.borrow_mut(), name, value)
+            BackendInstanceBundle::Wasmtime { instance, store } => {
+                wasmtime_set_global(instance, &mut store.borrow_mut(), name, value)
             }
         }
     }
@@ -272,9 +272,9 @@ impl SandboxInstance {
                 wasmi_get_global(instance, &*store.as_ptr(), name)
             },
 
-            BackendInstanceBundle::Wasmer { instance, store } => unsafe {
+            BackendInstanceBundle::Wasmtime { instance, store } => unsafe {
                 // We cannot use `store.borrow_mut()` in signal handler context because it's already borrowed during `invoke` call.
-                wasmer_get_global(instance, &mut *store.as_ptr(), name)
+                wasmtime_get_global(instance, &mut *store.as_ptr(), name)
             },
         }
     }
@@ -297,9 +297,9 @@ impl SandboxInstance {
                 wasmi_set_global(instance, &mut *store.as_ptr(), name, value)
             },
 
-            BackendInstanceBundle::Wasmer { instance, store } => unsafe {
+            BackendInstanceBundle::Wasmtime { instance, store } => unsafe {
                 // We cannot use `store.borrow_mut()` in signal handler context because it's already borrowed during `invoke` call.
-                wasmer_set_global(instance, &mut *store.as_ptr(), name, value)
+                wasmtime_set_global(instance, &mut *store.as_ptr(), name, value)
             },
         }
     }
@@ -318,8 +318,6 @@ pub enum InstantiationError {
     /// Module is well-formed, instantiated and linked, but while executing the start function
     /// a trap was generated.
     StartTrapped,
-    /// The code was compiled with a CPU feature not available on the host.
-    CpuFeature,
 }
 
 fn decode_environment_definition(
@@ -411,8 +409,8 @@ pub enum SandboxBackend {
     /// Wasm interpreter
     Wasmi,
 
-    /// Wasmer environment
-    Wasmer,
+    /// Wasmtime environment
+    Wasmtime,
 }
 
 /// Memory reference in terms of a selected backend
@@ -421,8 +419,8 @@ pub enum Memory {
     /// Wasmi memory reference
     Wasmi(WasmiMemoryWrapper),
 
-    /// Wasmer memory reference
-    Wasmer(WasmerMemoryWrapper),
+    /// Wasmtime memory reference
+    Wasmtime(WasmtimeMemoryWrapper),
 }
 
 impl Memory {
@@ -431,14 +429,14 @@ impl Memory {
         match self {
             Memory::Wasmi(memory) => Some(memory.clone()),
 
-            Memory::Wasmer(_) => None,
+            Memory::Wasmtime(_) => None,
         }
     }
 
-    /// View as wasmer memory
-    pub fn as_wasmer(&self) -> Option<WasmerMemoryWrapper> {
+    /// View as wasmtime memory
+    pub fn as_wasmtime(&self) -> Option<WasmtimeMemoryWrapper> {
         match self {
-            Memory::Wasmer(memory) => Some(memory.clone()),
+            Memory::Wasmtime(memory) => Some(memory.clone()),
             Memory::Wasmi(_) => None,
         }
     }
@@ -449,7 +447,7 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
+            Memory::Wasmtime(sandboxed_memory) => sandboxed_memory.read(source_addr, size),
         }
     }
 
@@ -457,7 +455,7 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.read_into(source_addr, destination),
 
-            Memory::Wasmer(sandboxed_memory) => {
+            Memory::Wasmtime(sandboxed_memory) => {
                 sandboxed_memory.read_into(source_addr, destination)
             }
         }
@@ -467,7 +465,7 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
+            Memory::Wasmtime(sandboxed_memory) => sandboxed_memory.write_from(dest_addr, source),
         }
     }
 
@@ -475,7 +473,7 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
+            Memory::Wasmtime(sandboxed_memory) => sandboxed_memory.memory_grow(pages),
         }
     }
 
@@ -483,7 +481,7 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.memory_size(),
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.memory_size(),
+            Memory::Wasmtime(sandboxed_memory) => sandboxed_memory.memory_size(),
         }
     }
 
@@ -491,7 +489,7 @@ impl util::MemoryTransfer for Memory {
         match self {
             Memory::Wasmi(sandboxed_memory) => sandboxed_memory.get_buff(),
 
-            Memory::Wasmer(sandboxed_memory) => sandboxed_memory.get_buff(),
+            Memory::Wasmtime(sandboxed_memory) => sandboxed_memory.get_buff(),
         }
     }
 }
@@ -501,8 +499,8 @@ enum BackendContext {
     /// Wasmi specific context
     Wasmi(WasmiBackend),
 
-    /// Wasmer specific context
-    Wasmer(WasmerBackend),
+    /// Wasmtime specific context
+    Wasmtime(WasmtimeBackend),
 }
 
 impl BackendContext {
@@ -510,7 +508,7 @@ impl BackendContext {
         match backend {
             SandboxBackend::Wasmi => BackendContext::Wasmi(WasmiBackend::new()),
 
-            SandboxBackend::Wasmer => BackendContext::Wasmer(WasmerBackend::new()),
+            SandboxBackend::Wasmtime => BackendContext::Wasmtime(WasmtimeBackend::new()),
         }
     }
 }
@@ -549,8 +547,8 @@ impl<DT: Clone> SandboxComponents<DT> {
             BackendContext::Wasmi(_) => {
                 self.backend_context = BackendContext::Wasmi(WasmiBackend::new());
             }
-            BackendContext::Wasmer(_) => {
-                self.backend_context = BackendContext::Wasmer(WasmerBackend::new());
+            BackendContext::Wasmtime(_) => {
+                self.backend_context = BackendContext::Wasmtime(WasmtimeBackend::new());
             }
         }
     }
@@ -573,9 +571,7 @@ impl<DT: Clone> SandboxComponents<DT> {
         let memory = match backend_context {
             BackendContext::Wasmi(backend) => wasmi_new_memory(backend, initial, maximum)?,
 
-            BackendContext::Wasmer(backend) => {
-                wasmer_new_memory(backend.store().clone(), initial, maximum)?
-            }
+            BackendContext::Wasmtime(backend) => wasmtime_new_memory(backend, initial, maximum)?,
         };
 
         let mem_idx = memories.len();
@@ -686,8 +682,8 @@ impl<DT: Clone> SandboxComponents<DT> {
                 wasmi_instantiate(version, context, wasm, guest_env, supervisor_context)?
             }
 
-            BackendContext::Wasmer(ref context) => {
-                wasmer_instantiate(version, context, wasm, guest_env, supervisor_context)?
+            BackendContext::Wasmtime(ref context) => {
+                wasmtime_instantiate(version, context, wasm, guest_env, supervisor_context)?
             }
         };
 

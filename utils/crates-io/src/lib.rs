@@ -76,7 +76,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-core",
     "gear-utils",
     "gear-common",
-    "gear-wasmer-cache",
+    "gear-wasmtime-cache",
     "gear-sandbox-host",
     "gear-lazy-pages-common",
     "gear-lazy-pages",

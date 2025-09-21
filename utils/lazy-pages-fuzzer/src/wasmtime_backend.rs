@@ -24,9 +24,9 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{GLOBAL_NAME_GAS, Module};
-use wasmer::{
-    Exports, Extern, Function, FunctionType, Imports, Instance, Memory, MemoryType,
-    Module as WasmerModule, RuntimeError, Singlepass, Store, Type, Value,
+use wasmtime::{
+    Config, Engine, Extern, Func, Instance, Linker, Memory, MemoryType, Module as WasmtimeModule,
+    Store, Strategy, Val,
 };
 
 #[derive(Clone)]
@@ -37,20 +37,26 @@ struct InstanceBundle {
     // to use it within the lazy pages' signal handler context.
     //
     // We consider it relatively safe because we rely on the fact that during an external function call,
-    // Wasmer does not access globals mutably, allowing us to access them mutably from the lazy pages' signal handler.
-    store: *mut Store,
+    // Wasmtime does not access globals mutably, allowing us to access them mutably from the lazy pages' signal handler.
+    store: *mut Store<()>,
 }
 
 impl InstanceAccessGlobal for InstanceBundle {
     fn set_global(&self, name: &str, value: i64) -> Result<()> {
-        let global = self.instance.exports.get_global(name)?;
-        global.set(unsafe { &mut *self.store }, Value::I64(value))?;
+        let global = self
+            .instance
+            .get_global(unsafe { &mut *self.store }, name)
+            .context("missing global")?;
+        global.set(unsafe { &mut *self.store }, Val::I64(value))?;
         Ok(())
     }
 
     fn get_global(&self, name: &str) -> Result<i64> {
-        let global = self.instance.exports.get_global(name)?;
-        let Value::I64(v) = global.get(unsafe { &mut *self.store }) else {
+        let global = self
+            .instance
+            .get_global(unsafe { &mut *self.store }, name)
+            .context("missing global")?;
+        let Val::I64(v) = global.get(unsafe { &mut *self.store }) else {
             bail!("global is not an i64")
         };
 
@@ -58,43 +64,45 @@ impl InstanceAccessGlobal for InstanceBundle {
     }
 }
 
-pub struct WasmerRunner;
+pub struct WasmtimeRunner;
 
-impl Runner for WasmerRunner {
+impl Runner for WasmtimeRunner {
     fn run(module: &Module) -> Result<RunResult> {
-        let compiler = Singlepass::default();
-        let mut store = Store::new(compiler);
+        let mut config = Config::new();
+        config.strategy(Strategy::Winch);
+        let engine = Engine::new(&config).context("failed to create engine")?;
+        let mut store = Store::new(&engine, ());
 
-        let wasmer_module =
-            WasmerModule::new(&store, module.serialize().map_err(anyhow::Error::msg)?)?;
+        let wasmtime_module = WasmtimeModule::new(
+            store.engine(),
+            module.serialize().map_err(anyhow::Error::msg)?,
+        )?;
 
-        let ty = MemoryType::new(INITIAL_PAGES, None, false);
+        let ty = MemoryType::new(INITIAL_PAGES, None);
         let m = Memory::new(&mut store, ty).context("memory allocated")?;
-        let mem_view = m.view(&store);
-        let mem_ptr = mem_view.data_ptr() as usize;
-        let mem_size = mem_view.data_size() as usize;
+        let mem_ptr = m.data_ptr(&store) as usize;
+        let mem_size = m.data_size(&store);
         let memory = Extern::Memory(m);
 
-        let mut exports = Exports::new();
-        exports.insert("memory".to_string(), memory.clone());
+        let mut linker = Linker::new(&engine);
+        linker
+            .define(&store, "env", "memory", memory.clone())
+            .context("failed to define memory")?;
 
-        let host_function_signature = FunctionType::new(vec![Type::I32], vec![]);
-        let host_function = Function::new(&mut store, &host_function_signature, |_args| {
-            Err(RuntimeError::user("out of gas".into()))
+        let host_function = Func::wrap(&mut store, |_arg: i32| {
+            Err::<(), _>(anyhow::anyhow!("out of gas"))
         });
 
-        exports.insert(
-            SyscallName::SystemBreak.to_str(),
-            Extern::Function(host_function),
-        );
+        linker
+            .define(
+                &store,
+                "env",
+                SyscallName::SystemBreak.to_str(),
+                host_function,
+            )
+            .context("failed to define func")?;
 
-        let mut imports = Imports::new();
-        imports.register_namespace(MODULE_ENV, exports);
-
-        let instance = match Instance::new(&mut store, &wasmer_module, &imports) {
-            Ok(instance) => instance,
-            err @ Err(_) => err?,
-        };
+        let instance = linker.instantiate(&mut store, &wasmtime_module)?;
 
         let instance_bundle = InstanceBundle {
             instance: instance.clone(),
@@ -113,14 +121,13 @@ impl Runner for WasmerRunner {
             .context("failed to set gas")?;
 
         let init_fn = instance
-            .exports
-            .get_function("init")
+            .get_func(&mut store, "init")
             .context("init function")?;
 
-        match init_fn.call(&mut store, &[]) {
+        match init_fn.call(&mut store, &[], &mut []) {
             Ok(_) => {}
             Err(e) => {
-                if e.message().contains("out of gas") {
+                if e.to_string().contains("out of gas") {
                     log::debug!("out of gas");
                 } else {
                     Err(e)?

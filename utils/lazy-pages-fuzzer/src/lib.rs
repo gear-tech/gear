@@ -30,8 +30,8 @@ mod globals;
 use lazy_pages::{HostPageAddr, TouchedPage};
 mod lazy_pages;
 
-use wasmer_backend::WasmerRunner;
-mod wasmer_backend;
+use wasmtime_backend::WasmtimeRunner;
+mod wasmtime_backend;
 
 use wasmi_backend::WasmiRunner;
 mod wasmi_backend;
@@ -59,10 +59,10 @@ pub fn run(generated_module: GeneratedModule) -> Result<()> {
         }
     };
 
-    let wasmer_res = unwrap_error_chain(WasmerRunner::run(&module).context("wasmer"));
+    let wasmtime_res = unwrap_error_chain(WasmtimeRunner::run(&module).context("wasmtime"));
     let wasmi_res = unwrap_error_chain(WasmiRunner::run(&module).context("wasmi"));
 
-    RunResult::verify_equality(wasmer_res, wasmi_res);
+    RunResult::verify_equality(wasmtime_res, wasmi_res);
 
     Ok(())
 }
@@ -74,29 +74,29 @@ struct RunResult {
 }
 
 impl RunResult {
-    fn verify_equality(wasmer_res: Self, wasmi_res: Self) {
-        assert_eq!(wasmer_res.gas_global, wasmi_res.gas_global);
-        assert_eq!(wasmer_res.pages.len(), wasmi_res.pages.len());
+    fn verify_equality(wasmtime_res: Self, wasmi_res: Self) {
+        assert_eq!(wasmtime_res.gas_global, wasmi_res.gas_global);
+        assert_eq!(wasmtime_res.pages.len(), wasmi_res.pages.len());
 
         for (
-            (wasmer_addr, (wasmer_page_info, wasmer_page_mem)),
+            (wasmtime_addr, (wasmtime_page_info, wasmtime_page_mem)),
             (wasmi_addr, (wasmi_page_info, wasmi_page_mem)),
-        ) in wasmer_res
+        ) in wasmtime_res
             .pages
             .into_iter()
             .zip(wasmi_res.pages.into_iter())
         {
             assert_eq!(
-                wasmer_page_info, wasmi_page_info,
-                "wasmer page mem 0x{wasmer_addr:X?} wasmi page mem 0x{wasmi_addr:X?}",
+                wasmtime_page_info, wasmi_page_info,
+                "wasmtime page mem 0x{wasmtime_addr:X?} wasmi page mem 0x{wasmi_addr:X?}",
             );
             assert_eq!(
-                wasmer_page_mem, wasmi_page_mem,
-                "wasmer page mem 0x{wasmer_addr:X?} wasmi page mem 0x{wasmi_addr:X?} \
-                with content: 0x{wasmer_page_mem:X?} 0x{wasmi_page_mem:X?}",
+                wasmtime_page_mem, wasmi_page_mem,
+                "wasmtime page mem 0x{wasmtime_addr:X?} wasmi page mem 0x{wasmi_addr:X?} \
+                with content: 0x{wasmtime_page_mem:X?} 0x{wasmi_page_mem:X?}",
             );
         }
 
-        assert_eq!(wasmer_res.globals, wasmi_res.globals);
+        assert_eq!(wasmtime_res.globals, wasmi_res.globals);
     }
 }
