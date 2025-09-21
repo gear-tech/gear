@@ -98,7 +98,7 @@ impl sandbox_env::SupervisorContext for SupervisorContext<'_, '_> {
         invoke_args_len: WordSize,
         func_idx: sandbox_env::SupervisorFuncIndex,
     ) -> gear_sandbox_host::error::Result<i64> {
-        let mut ret_vals = [Val::null()];
+        let mut ret_vals = [Val::null_func_ref()];
         let result = self.dispatch_thunk.call(
             &mut *self.caller,
             &[
@@ -270,11 +270,11 @@ pub fn instantiate(
                 .data()
                 .table
                 .expect("Runtime doesn't have a table; sandbox is unavailable");
-            let table_item = table.get(caller.as_context_mut(), dispatch_thunk_id);
+            let table_item = table.get(caller.as_context_mut(), dispatch_thunk_id as u64);
 
             *table_item
                 .expect("dispatch_thunk_id is out of bounds")
-                .funcref()
+                .as_func()
                 .expect("dispatch_thunk_idx should be a funcref")
                 .expect("dispatch_thunk_idx should point to actual func")
         };

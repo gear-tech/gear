@@ -58,7 +58,8 @@ pub(crate) struct InstanceCreator {
 impl InstanceCreator {
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
-        config.cache_config_load_default()?;
+        let cache = wasmtime::Cache::new(wasmtime::CacheConfig::default())?;
+        config.cache(Some(cache));
         let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;
