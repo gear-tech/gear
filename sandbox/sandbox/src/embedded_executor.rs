@@ -29,7 +29,8 @@ use std::{
     collections::btree_map::BTreeMap, env, fs, marker::PhantomData, path::PathBuf, sync::OnceLock,
 };
 use wasmtime::{
-    Config, Engine, ExternType, Global, Linker, MemoryType, Module, StoreContext, StoreContextMut,
+    Cache, CacheConfig, Config, Engine, ExternType, Global, Linker, MemoryType, Module,
+    StoreContext, StoreContextMut,
 };
 
 /// The target used for logging.
@@ -106,11 +107,16 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
+        let mut cache = CacheConfig::new();
+        cache.with_directory(cache_base_path());
+        // TODO: return, don't unwrap
+        let cache = Cache::new(cache).expect("Failed to create cache memory");
+
         let mut config = Config::new();
         config
-            // make stack size bigger for fuzzer
-            .max_wasm_stack(16 * 1024 * 1024)
-            .strategy(wasmtime::Strategy::Winch);
+            .max_wasm_stack(16 * 1024 * 1024) // make stack size bigger for fuzzer
+            .strategy(wasmtime::Strategy::Winch)
+            .cache(Some(cache));
         // TODO: return, don't unwrap
         let engine = Engine::new(&config).expect("TODO");
         let store = wasmtime::Store::new(&engine, InnerState::new(state));
@@ -364,7 +370,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                         &mut store.inner,
                         func_ty.clone(),
                         move |mut caller, params, results| {
-                            let gas = *caller.data_mut().gas_global.as_ref().unwrap_or_else(|| {
+                            let gas = caller.data_mut().gas_global.unwrap_or_else(|| {
                                 unreachable!(
                                     "`{GLOBAL_NAME_GAS}` global should be set to `Some(...)`"
                                 )
