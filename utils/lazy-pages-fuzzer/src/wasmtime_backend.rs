@@ -86,7 +86,7 @@ impl Runner for WasmtimeRunner {
 
         let mut linker = Linker::new(&engine);
         linker
-            .define(&store, "env", "memory", memory.clone())
+            .define(&store, MODULE_ENV, "memory", memory.clone())
             .context("failed to define memory")?;
 
         let host_function = Func::wrap(&mut store, |_arg: i32| {
