@@ -39,7 +39,7 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::mirror::MirrorQuery;
-use ethexe_network::{NetworkEvent, NetworkService, db_sync};
+use ethexe_network::{NetworkService, db_sync};
 use ethexe_observer::ObserverService;
 use ethexe_runtime_common::{
     ScheduleRestorer,
@@ -139,25 +139,18 @@ async fn net_fetch(
     network: &mut NetworkService,
     request: db_sync::Request,
 ) -> Result<db_sync::Response> {
-    let request_id = network.db_sync().request(request);
+    let mut fut = network.db_sync_handle().request(request);
     loop {
-        let event = network
-            .next()
-            .await
-            .expect("network service stream is infinite");
-
-        if let NetworkEvent::DbResponse {
-            request_id: rid,
-            result,
-        } = event
-        {
-            debug_assert_eq!(rid, request_id, "unknown request id");
-            match result {
-                Ok(response) => break Ok(response),
-                Err((request, err)) => {
-                    log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
-                    network.db_sync().retry(request);
-                    continue;
+        tokio::select! {
+            _ = network.select_next_some() => {},
+            res = &mut fut => {
+                match res {
+                    Ok(response) => break Ok(response),
+                    Err((err, request)) => {
+                        log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
+                        fut = network.db_sync_handle().retry(request);
+                        continue;
+                    }
                 }
             }
         }
