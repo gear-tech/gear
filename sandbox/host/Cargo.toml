@@ -28,9 +28,6 @@ sp-wasm-interface-common = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
 region.workspace = true
 
-[build-dependencies]
-rustc_version.workspace = true
-
 [features]
 # See wasmi/extra-checks for more information.
 wasmi-extra-checks = ["wasmi/extra-checks"]
