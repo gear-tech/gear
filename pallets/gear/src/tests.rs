@@ -16128,8 +16128,8 @@ fn check_changed_pages_in_storage() {
                 i32.store
             )
 
-            (data $.rodata (i32.const 0x10000) "0123456789")
-            (data $.rodata (i32.const 0x70001) "GEAR TECH")
+            (data $.rodata.00001 (i32.const 0x10000) "0123456789")
+            (data $.rodata.00002 (i32.const 0x70001) "GEAR TECH")
         )
     "#;
 
@@ -17357,7 +17357,7 @@ pub(crate) mod utils {
     }
 
     pub(super) fn parse_wat(source: &str) -> Vec<u8> {
-        let code = wat::parse_str(source).expect("failed to parse module");
+        let code = wat::parse_str(source).unwrap_or_else(|e| panic!("failed to parse module: {e}"));
         wasmparser::validate(&code).expect("failed to validate module");
         code
     }
