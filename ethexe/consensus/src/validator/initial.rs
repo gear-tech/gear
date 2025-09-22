@@ -122,8 +122,8 @@ impl Initial {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::db::*;
+    use crate::{ConsensusEvent, validator::mock::*};
+    use ethexe_common::{db::*, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
@@ -151,10 +151,10 @@ mod tests {
             keys[1].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(H256::random());
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators(block.hash, validators.clone());
+        ctx.db.set_block_validators(block.hash, validators.clone());
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -170,10 +170,10 @@ mod tests {
             keys[2].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(H256::random());
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 1;
 
-        ctx.db.set_validators(block.hash, validators);
+        ctx.db.set_block_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn process_synced_block_rejected() {
         let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         let initial = Initial::create(ctx)
             .unwrap()
