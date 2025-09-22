@@ -43,7 +43,7 @@ use ethexe_common::{
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
@@ -179,17 +179,17 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            Ethereum::deploy(
-                &rpc_url,
-                validators
-                    .iter()
-                    .map(|k| k.public_key.to_address())
-                    .collect(),
-                signer.clone(),
-                sender_address,
-                verifiable_secret_sharing_commitment,
-            )
-            .await?
+            let validators_addresses = validators
+                .iter()
+                .map(|k| k.public_key.to_address())
+                .collect();
+            EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+                .await
+                .unwrap()
+                .with_validators(validators_addresses)
+                .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .deploy()
+                .await?
         };
 
         let router = ethereum.router();
