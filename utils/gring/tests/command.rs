@@ -68,7 +68,7 @@ fn sign_and_verify() -> Result<()> {
     let signature = sign
         .lines()
         .find(|line| line.contains("Signature"))
-        .ok_or_else(|| anyhow!("Signature not found in output: {}", sign))?
+        .ok_or_else(|| anyhow!("Signature not found in output: {sign}"))?
         .split("Signature:")
         .collect::<Vec<&str>>()[1]
         .trim();

@@ -41,7 +41,7 @@ pub async fn list() -> Result<Vec<String>> {
     let mut rb = Client::builder()
         .user_agent("gcli")
         .build()
-        .map_err(|e| anyhow!("Failed to build http client: {}", e))?
+        .map_err(|e| anyhow!("Failed to build http client: {e}"))?
         .get(GEAR_DAPPS_GH_API);
 
     if let Ok(tk) = env::var(GITHUB_TOKEN) {
@@ -51,12 +51,12 @@ pub async fn list() -> Result<Vec<String>> {
     let resp = rb
         .send()
         .await
-        .map_err(|e| anyhow!("Failed to get examples: {}", e))?;
+        .map_err(|e| anyhow!("Failed to get examples: {e}"))?;
 
     let repos = resp
         .json::<Vec<Repo>>()
         .await
-        .map_err(|e| anyhow!("Failed to deserialize example list: {}", e))?
+        .map_err(|e| anyhow!("Failed to deserialize example list: {e}"))?
         .into_iter()
         .map(|repo| repo.name)
         .collect();

@@ -103,7 +103,7 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
     log::info!("Starting lazy pages fuzzer");
 
     if let Some(duration_seconds) = duration_seconds {
-        log::info!("Fuzzer will run for {} seconds", duration_seconds);
+        log::info!("Fuzzer will run for {duration_seconds} seconds");
     }
 
     let _ = generate_or_read_seed(false);
@@ -132,7 +132,7 @@ fn run_fuzzer(duration_seconds: Option<u64>) {
         if let Some(duration_seconds) = duration_seconds
             && start_ts.elapsed().as_secs() >= duration_seconds
         {
-            log::info!("Fuzzer run completed after {} seconds", duration_seconds);
+            log::info!("Fuzzer run completed after {duration_seconds} seconds");
             process::exit(0);
         }
     });

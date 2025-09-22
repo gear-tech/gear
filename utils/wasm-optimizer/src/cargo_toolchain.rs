@@ -92,12 +92,9 @@ impl Toolchain {
         let toolchain = Self::PINNED_NIGHTLY_TOOLCHAIN;
         ensure!(
             self.raw_toolchain_str() == toolchain,
-            anyhow!(
-                "recommended toolchain `{x}` not found, install it using the command:\n\
-        rustup toolchain install {x} --target wasm32v1-none\n\n\
-        after installation, do not forget to set `channel = \"{x}\"` in `rust-toolchain.toml` file",
-                x = toolchain
-            )
+            "recommended toolchain `{toolchain}` not found, install it using the command:\n\
+        rustup toolchain install {toolchain} --target wasm32v1-none\n\n\
+        after installation, do not forget to set `channel = \"{toolchain}\"` in `rust-toolchain.toml` file"
         );
         Ok(())
     }

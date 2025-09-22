@@ -105,7 +105,7 @@ impl Runner for WasmtimeRunner {
         let instance = linker.instantiate(&mut store, &wasmtime_module)?;
 
         let instance_bundle = InstanceBundle {
-            instance: instance.clone(),
+            instance,
             store: &mut store,
         };
 

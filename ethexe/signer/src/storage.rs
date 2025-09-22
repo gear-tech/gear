@@ -100,7 +100,7 @@ impl KeyStorage for FSKeyStorage {
         let bytes = fs::read(key_path)?;
 
         if bytes.len() != 32 {
-            bail!("Invalid key length: {:?}", bytes);
+            bail!("Invalid key length: {bytes:?}");
         }
 
         buf.copy_from_slice(&bytes);

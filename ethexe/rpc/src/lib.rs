@@ -166,11 +166,11 @@ impl RpcService {
                         async move {
                             log::info!("WebSocket connection accepted");
 
-                            svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e))
+                            svc.call(req).await.map_err(|e| anyhow!("Error: {e:?}"))
                         }
                         .boxed()
                     } else {
-                        async move { svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e)) }
+                        async move { svc.call(req).await.map_err(|e| anyhow!("Error: {e:?}")) }
                             .boxed()
                     }
                 });
