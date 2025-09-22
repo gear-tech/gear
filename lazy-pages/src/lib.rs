@@ -332,7 +332,7 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         // When SIGBUS appears lldb will stuck on it forever, without this code.
         // See also: https://github.com/mono/mono/commit/8e75f5a28e6537e56ad70bf870b86e22539c2fb7.
 
-        use mach::{
+        use mach2::{
             exception_types::*, kern_return::*, mach_types::*, port::*, thread_status::*, traps::*,
         };
 
@@ -350,21 +350,21 @@ unsafe fn init_for_process<H: UserSignalHandler>() -> Result<(), InitError> {
         #[cfg(target_arch = "x86_64")]
         static MACHINE_THREAD_STATE: i32 = x86_THREAD_STATE64;
 
-        // Took const value from https://opensource.apple.com/source/cctools/cctools-870/include/mach/arm/thread_status.h
-        // ```
-        // #define ARM_THREAD_STATE64		6
-        // ```
         #[cfg(target_arch = "aarch64")]
-        static MACHINE_THREAD_STATE: i32 = 6;
+        static MACHINE_THREAD_STATE: i32 = ARM_THREAD_STATE64;
 
         unsafe {
-            task_set_exception_ports(
+            let kr = task_set_exception_ports(
                 mach_task_self(),
                 EXC_MASK_BAD_ACCESS,
                 MACH_PORT_NULL,
                 EXCEPTION_STATE_IDENTITY as exception_behavior_t,
                 MACHINE_THREAD_STATE,
-            )
+            );
+
+            if kr != KERN_SUCCESS {
+                log::warn!("Failed to set task exception ports for debugger");
+            }
         };
     }
 
@@ -446,7 +446,7 @@ pub fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
     // TODO: remove after usage of `wasmtime::Store::set_trap_handler` for lazy-pages
     // we capture executor signal handler first to call it later
     // if our handler is not effective
-    let _engine = wasmtime::Engine::default();
+    let _engine = wasmtime::Engine::new(wasmtime::Config::new().macos_use_mach_ports(false));
 
     unsafe { init_for_process::<H>()? }
 

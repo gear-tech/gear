@@ -59,7 +59,7 @@ impl InstanceCreator {
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
         let cache = wasmtime::Cache::new(wasmtime::CacheConfig::default())?;
-        config.cache(Some(cache));
+        config.cache(Some(cache)).macos_use_mach_ports(false);
         let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;

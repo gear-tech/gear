@@ -53,7 +53,9 @@ fn main() -> anyhow::Result<()> {
     .context("Code error")?;
 
     let mut config = wasmtime::Config::default();
-    config.strategy(wasmtime::Strategy::Winch);
+    config
+        .strategy(wasmtime::Strategy::Winch)
+        .macos_use_mach_ports(false);
     let engine = Engine::new(&config).context("Failed to create engine")?;
     let mut store = Store::new(&engine, ());
     let module = Module::new(store.engine(), code.instrumented_code().bytes())

@@ -116,7 +116,8 @@ impl<T: Send + 'static> SandboxStore for Store<T> {
         config
             .max_wasm_stack(16 * 1024 * 1024) // make stack size bigger for fuzzer
             .strategy(wasmtime::Strategy::Winch)
-            .cache(Some(cache));
+            .cache(Some(cache))
+            .macos_use_mach_ports(false);
         // TODO: return, don't unwrap
         let engine = Engine::new(&config).expect("TODO");
         let store = wasmtime::Store::new(&engine, InnerState::new(state));

@@ -69,7 +69,7 @@ pub struct WasmtimeRunner;
 impl Runner for WasmtimeRunner {
     fn run(module: &Module) -> Result<RunResult> {
         let mut config = Config::new();
-        config.strategy(Strategy::Winch);
+        config.strategy(Strategy::Winch).macos_use_mach_ports(false);
         let engine = Engine::new(&config).context("failed to create engine")?;
         let mut store = Store::new(&engine, ());
 
