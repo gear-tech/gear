@@ -106,10 +106,13 @@ impl Drop for Backend {
 
 impl Backend {
     pub fn new() -> Self {
+        let cache = wasmtime::CacheConfig::new();
+        let cache = wasmtime::Cache::new(cache).expect("invalid cache configuration");
         let mut config = wasmtime::Config::default();
         config
             .strategy(wasmtime::Strategy::Winch)
-            .macos_use_mach_ports(false);
+            .macos_use_mach_ports(false)
+            .cache(Some(cache));
         // TODO: return, don't unwrap
         let engine = Engine::new(&config).expect("TODO");
         let store = Store::new(&engine, None);
