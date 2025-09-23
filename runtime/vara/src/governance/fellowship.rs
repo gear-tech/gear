@@ -26,7 +26,7 @@ use frame_support::traits::{MapSuccess, TryMapSuccess};
 use sp_arithmetic::traits::CheckedSub;
 use sp_runtime::{
     morph_types,
-    traits::{ConstU16, Replace, TypedGet},
+    traits::{ConstU16, Replace, ReplaceWithDefault, TypedGet},
 };
 
 use super::*;
@@ -334,7 +334,7 @@ morph_types! {
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
     type WeightInfo = pallet_ranked_collective::weights::SubstrateWeight<Self>;
     type RuntimeEvent = RuntimeEvent;
-    type AddOrigin = EnsureRoot<AccountId>;
+    type AddOrigin = MapSuccess<Self::PromoteOrigin, ReplaceWithDefault<()>>;
     type RemoveOrigin = Self::DemoteOrigin;
     // Promotion is by any of:
     // - Root can demote arbitrarily.
