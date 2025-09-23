@@ -1,0 +1,17 @@
+src=./src
+test=./test
+script=./script
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+@symbioticfi/core/=lib/symbiotic-rewards/lib/core/
+core/=lib/symbiotic-rewards/lib/core/
+ds-test/=lib/symbiotic-core/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test/src/
+erc4626-tests/=lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/
+forge-std/=lib/forge-std/src/
+frost-secp256k1-evm/=lib/frost-secp256k1-evm/src/
+halmos-cheatcodes/=lib/openzeppelin-contracts-upgradeable/lib/halmos-cheatcodes/src/
+openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/
+openzeppelin-contracts/=lib/openzeppelin-contracts/
+openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/src/
+symbiotic-core/=lib/symbiotic-core/
+symbiotic-rewards/=lib/symbiotic-rewards/

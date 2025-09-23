@@ -18,16 +18,11 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{
-    IMirror,
-    IRouter::{self, initializeCall as RouterInitializeCall},
-    ITransparentUpgradeableProxy,
-    IWrappedVara::{self, initializeCall as WrappedVaraInitializeCall},
-};
+use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, B256, Bytes, ChainId, Signature, SignatureError, U256},
+    primitives::{Address, B256, ChainId, Signature, SignatureError},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -41,25 +36,22 @@ use alloy::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
         sign_transaction_with_chain_id,
     },
-    sol_types::{SolCall, SolEvent},
+    sol_types::SolEvent,
     transports::RpcError,
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey, gear::AggregatedPublicKey};
+use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
 use ethexe_signer::Signer as LocalSigner;
-use gprimitives::{ActorId, U256 as GearU256};
+use middleware::Middleware;
 use mirror::Mirror;
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{PublicKeyPackage, VerifiableSecretSharingCommitment},
-};
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
 mod abi;
 mod eip1167;
 
+pub mod deploy;
 pub mod middleware;
 pub mod mirror;
 pub mod router;
@@ -79,162 +71,66 @@ pub(crate) type ExeFiller =
     JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
-    router_address: Address,
-    wvara_address: Address,
+    router: Address,
+    wvara: Address,
+    /// NOTE: Middleware address will be zero if `with_middleware` flag was not passed
+    /// for [`deploy::EthereumDeployer`].
+    middleware: Address,
     provider: AlloyProvider,
 }
 
 impl Ethereum {
     pub async fn new(
-        rpc_url: &str,
-        router_address: LocalAddress,
+        rpc: &str,
+        router_address: Address,
         signer: LocalSigner,
         sender_address: LocalAddress,
-    ) -> Result<Self> {
-        let router_query = RouterQuery::new(rpc_url, router_address).await?;
-        let wvara_address = router_query.wvara_address().await?;
-
-        let router_address = Address::new(router_address.0);
-
-        let provider = create_provider(rpc_url, signer, sender_address).await?;
-
+    ) -> Result<Ethereum> {
+        let provider = create_provider(rpc, signer, sender_address).await?;
+        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         Ok(Self {
-            router_address,
-            wvara_address,
+            router: router_address,
+            wvara: router_query.wvara_address().await?,
+            middleware: router_query.middleware_address().await?,
             provider,
         })
     }
 
-    pub async fn deploy(
-        rpc_url: &str,
-        validators: Vec<LocalAddress>,
-        signer: LocalSigner,
-        sender_address: LocalAddress,
-        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
-    ) -> Result<Self> {
-        let maybe_validator_identifiers: Result<Vec<_>, _> = validators
-            .iter()
-            .map(|address| Identifier::deserialize(&ActorId::from(*address).into_bytes()))
-            .collect();
-        let validator_identifiers = maybe_validator_identifiers?;
-        let identifiers = validator_identifiers.into_iter().collect();
-        let public_key_package =
-            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)?;
-        let public_key_compressed: [u8; 33] = public_key_package
-            .verifying_key()
-            .serialize()?
-            .try_into()
-            .unwrap();
-        let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
-        let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
-
-        let provider = create_provider(rpc_url, signer, sender_address).await?;
-        let validators: Vec<_> = validators
-            .into_iter()
-            .map(|validator_address| Address::new(validator_address.0))
-            .collect();
-        let deployer_address = Address::new(sender_address.0);
-
-        let wrapped_vara_impl = IWrappedVara::deploy(provider.clone()).await?;
-        let proxy = ITransparentUpgradeableProxy::deploy(
-            provider.clone(),
-            *wrapped_vara_impl.address(),
-            deployer_address,
-            Bytes::copy_from_slice(
-                &WrappedVaraInitializeCall {
-                    initialOwner: deployer_address,
-                }
-                .abi_encode(),
-            ),
-        )
-        .await?;
-        let wrapped_vara = IWrappedVara::new(*proxy.address(), provider.clone());
-        let wvara_address = *wrapped_vara.address();
-
-        let nonce = provider.get_transaction_count(deployer_address).await?;
-        let mirror_address = deployer_address.create(
-            nonce
-                .checked_add(2)
-                .ok_or_else(|| anyhow!("failed to add 2"))?,
-        );
-
-        let router_impl = IRouter::deploy(provider.clone()).await?;
-        let proxy = ITransparentUpgradeableProxy::deploy(
-            provider.clone(),
-            *router_impl.address(),
-            deployer_address,
-            Bytes::copy_from_slice(
-                &RouterInitializeCall {
-                    _owner: deployer_address,
-                    _mirror: mirror_address,
-                    _wrappedVara: wvara_address,
-                    _middleware: Address::ZERO,
-                    _eraDuration: U256::from(24 * 60 * 60),
-                    _electionDuration: U256::from(2 * 60 * 60),
-                    _validationDelay: U256::from(60),
-                    _aggregatedPublicKey: (AggregatedPublicKey {
-                        x: GearU256::from_big_endian(public_key_x_bytes),
-                        y: GearU256::from_big_endian(public_key_y_bytes),
-                    })
-                    .into(),
-                    _verifiableSecretSharingCommitment: Bytes::copy_from_slice(
-                        &verifiable_secret_sharing_commitment.serialize()?.concat(),
-                    ),
-                    _validators: validators,
-                }
-                .abi_encode(),
-            ),
-        )
-        .await?;
-        let router_address = *proxy.address();
-        let router = IRouter::new(router_address, provider.clone());
-
-        let mirror = IMirror::deploy(provider.clone(), router_address).await?;
-
-        let builder = wrapped_vara.approve(router_address, U256::MAX);
-        builder.send().await?.try_get_receipt().await?;
-
-        assert_eq!(router.mirrorImpl().call().await?, *mirror.address());
-
-        let builder = router.lookupGenesisHash();
-        builder.send().await?.try_get_receipt().await?;
-
-        log::debug!("Router impl has been deployed at {}", router_impl.address());
-        log::debug!("Router proxy has been deployed at {router_address}");
-
-        log::debug!(
-            "WrappedVara impl has been deployed at {}",
-            wrapped_vara_impl.address()
-        );
-        log::debug!("WrappedVara deployed at {wvara_address}");
-
-        log::debug!("Mirror impl has been deployed at {}", mirror.address());
-
+    pub async fn from_provider(provider: AlloyProvider, router: Address) -> Result<Self> {
+        let router_query = RouterQuery::from_provider(router, provider.root().clone());
         Ok(Self {
-            router_address,
-            wvara_address,
+            router,
+            wvara: router_query.wvara_address().await?,
+            middleware: router_query.middleware_address().await?,
             provider,
         })
-    }
-
-    pub fn provider(&self) -> AlloyProvider {
-        self.provider.clone()
-    }
-
-    pub fn router(&self) -> Router {
-        Router::new(
-            self.router_address,
-            self.wvara_address,
-            self.provider.clone(),
-        )
-    }
-
-    pub fn mirror(&self, address: LocalAddress) -> Mirror {
-        Mirror::new(address.0.into(), self.provider.clone())
     }
 }
 
-async fn create_provider(
+impl Ethereum {
+    fn provider(&self) -> AlloyProvider {
+        self.provider.clone()
+    }
+
+    pub fn mirror(&self, address: LocalAddress) -> Mirror {
+        Mirror::new(address.0.into(), self.provider())
+    }
+
+    pub fn router(&self) -> Router {
+        Router::new(self.router, self.wvara, self.provider())
+    }
+
+    pub fn middleware(&self) -> Middleware {
+        debug_assert_ne!(
+            self.middleware,
+            Address::ZERO,
+            "Middleware address is zero. Make sure to deploy the middleware contract and pass `with_middleware` flag to `EthereumDeployer`."
+        );
+        Middleware::new(self.middleware, self.provider())
+    }
+}
+
+pub(crate) async fn create_provider(
     rpc_url: &str,
     signer: LocalSigner,
     sender_address: LocalAddress,

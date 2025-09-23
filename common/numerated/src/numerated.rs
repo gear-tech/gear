@@ -29,29 +29,35 @@ use num_traits::{One, PrimInt, Unsigned};
 ///
 /// # Examples
 /// 1) For any `T`, which max value can be get by calling some static live time function,
-///    `Option<T>`` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
+///    `Option<T>` can be used as `Bound<T>`. `None` is __upper__. Mapping: Some(t) -> t, t -> Some(t).
 ///
 /// 2) When `inner` field max value is always smaller than `inner` type max value, then we can use this variant:
 /// ```
 /// use numerated::Bound;
 ///
 /// /// `inner` is a value from 0 to 99.
-/// struct Number { inner: u32 }
+/// struct Number {
+///     inner: u32,
+/// }
 ///
 /// /// `inner` is a value from 0 to 100.
 /// #[derive(Clone, Copy)]
-/// struct BoundForNumber { inner: u32 }
+/// struct BoundForNumber {
+///     inner: u32,
+/// }
 ///
 /// impl From<Option<Number>> for BoundForNumber {
-///    fn from(t: Option<Number>) -> Self {
-///       Self { inner: t.map(|t| t.inner).unwrap_or(100) }
-///    }
+///     fn from(t: Option<Number>) -> Self {
+///         Self {
+///             inner: t.map(|t| t.inner).unwrap_or(100),
+///         }
+///     }
 /// }
 ///
 /// impl Bound<Number> for BoundForNumber {
-///    fn unbound(self) -> Option<Number> {
-///        (self.inner < 100).then_some(Number { inner: self.inner })
-///    }
+///     fn unbound(self) -> Option<Number> {
+///         (self.inner < 100).then_some(Number { inner: self.inner })
+///     }
 /// }
 /// ```
 pub trait Bound<T: Sized>: From<Option<T>> + Copy {

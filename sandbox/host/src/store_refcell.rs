@@ -82,7 +82,6 @@
 //!
 //! Therefore, since it is not possible to pass a reference to Store through nested runtime interface call
 //! or cancel previous mutable borrow, it is necessary to use `StoreRefCell` for safe repeated mutable borrowing of `Store`.
-//!
 use std::{
     cell::{Cell, UnsafeCell},
     num::NonZeroUsize,
