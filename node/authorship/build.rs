@@ -22,6 +22,6 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_dir = PathBuf::from(out_dir);
     // create placeholder in `OUT_DIR`
-    // so `env!("OUT_DIR")` can be used in embedded executor module caching
+    // so `env!("OUT_DIR")` can be used for executor module caching
     fs::write(out_dir.join("placeholder"), "placeholder file").unwrap();
 }
