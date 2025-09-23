@@ -6,13 +6,13 @@ runs:
     - if: ${{ runner.os == 'Linux' && (runner.arch == 'X64' || runner.arch == 'ARM64') }}
       env:
         HACK_ARCH: ${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}
-        NEXTEST_SUFFIX: ${{ runner.arch == 'X64' && '' || '-arm' }}
+        NEXTEST_PLATFORM: ${{ runner.arch == 'X64' && 'linux' || 'linux-arm' }}
       shell: bash
       run: |
         curl -L "https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-${HACK_ARCH}-unknown-linux-gnu.tar.gz" |
           tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-        curl -LsSf "https://get.nexte.st/latest/linux${NEXTEST_SUFFIX}" |
+        curl -LsSf "https://get.nexte.st/latest/${NEXTEST_PLATFORM}" |
           tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
     - if: ${{ !(runner.os == 'Linux' && (runner.arch == 'X64' || runner.arch == 'ARM64')) }}
       shell: bash
