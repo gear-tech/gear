@@ -7,6 +7,7 @@ runs:
       env:
         HACK_ARCH: ${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}
         NEXTEST_SUFFIX: ${{ runner.arch == 'X64' && '' || '-arm' }}
+      shell: bash
       run: |
         curl -L "https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-${HACK_ARCH}-unknown-linux-gnu.tar.gz" |
           tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
@@ -14,6 +15,7 @@ runs:
         curl -LsSf "https://get.nexte.st/latest/linux${NEXTEST_SUFFIX}" |
           tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
     - if: ${{ !(runner.os == 'Linux' && (runner.arch == 'X64' || runner.arch == 'ARM64')) }}
+      shell: bash
       run: |
         echo 'Unsupported OS or architecture for `cargo hack` and `cargo nextest` installation'
         exit 1
