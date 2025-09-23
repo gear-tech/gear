@@ -1,7 +1,7 @@
-#[derive(Debug, Clone)]
-pub enum OperatorVaultType {
-    Shared,
-    Personal,
-}
+// #[derive(Debug, Clone)]
+// pub enum OperatorVaultType {
+//     Shared,
+//     Personal,
+// }
 
-pub struct SymbioticEnv {}
+// pub struct SymbioticEnv {}

@@ -1368,7 +1368,7 @@ async fn validators_election() {
             BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted { era_index })
         )
         .then_some(()))
-    });
+    }).await.unwrap();
 
     tracing::info!("📗 Next validators successfully commited");
 }

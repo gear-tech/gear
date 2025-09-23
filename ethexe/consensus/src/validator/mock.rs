@@ -21,11 +21,11 @@ use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{GearExeTimelines, db::OnChainStorageWrite};
-use std::cell::RefCell;
+use std::{cell::RefCell, io::Read, sync::Arc};
+use tokio::sync::RwLock;
 
 thread_local! {
     static BATCH: RefCell<Option<MultisignedBatchCommitment>> = const { RefCell::new(None) };
-    static ELECTION_RESULT: RefCell<Option<Vec<Address>>> = const { RefCell::new(None) };
 }
 
 pub fn with_batch(f: impl FnOnce(Option<&MultisignedBatchCommitment>)) {
@@ -46,22 +46,18 @@ impl BatchCommitter for DummyCommitter {
     }
 }
 
-struct DummyMiddleware;
+#[derive(Clone)]
+pub struct MockMiddleware {
+    predefined_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
+}
 
 #[async_trait]
-impl MiddlewareExt for DummyMiddleware {
-    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
-        Box::new(DummyMiddleware)
-    }
-
-    async fn make_election_at(self: Box<Self>, _request: ElectionRequest) -> Result<Vec<Address>> {
-        ELECTION_RESULT.with_borrow_mut(|storage| {
-            if let Some(result) = &*storage {
-                Ok(result.clone())
-            } else {
-                Err(anyhow!("No cached election result"))
-            }
-        })
+impl MiddlewareExt for MockMiddleware {
+    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+        match self.predefined_elections.read().await.get(&request) {
+            Some(election_result) => Ok(election_result.clone()),
+            None => Err(anyhow!("election result not found for the request")),
+        }
     }
 }
 
