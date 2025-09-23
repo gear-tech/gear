@@ -5022,8 +5022,10 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "futures",
  "gear-utils",
  "gprimitives",
+ "log",
  "parity-scale-codec",
  "tokio",
 ]
