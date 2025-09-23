@@ -25,7 +25,7 @@ use crate::{
 use anyhow::{Result, bail};
 use ethexe_common::{
     BlockHeader, BlockMeta, CodeBlobInfo, Digest, GearExeTimelines, ProgramStates, Schedule,
-    ValidatorsInfo,
+    ValidatorsVec,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
         CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, StaticData,
@@ -63,7 +63,7 @@ enum Key {
     CodeValid(CodeId) = 9,
 
     SignedTransaction(H256) = 10,
-    ValidatorsInfo(H256) = 11,
+    Validators(H256) = 11,
 
     LatestComputedBlock = 12,
     LatestSyncedBlockHeight = 13,
@@ -88,7 +88,7 @@ impl Key {
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
             | Self::SignedTransaction(hash)
-            | Self::ValidatorsInfo(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::Validators(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -652,12 +652,12 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn validators_info(&self, block_hash: H256) -> Option<ValidatorsInfo> {
+    fn validators(&self, block_hash: H256) -> Option<ValidatorsVec> {
         self.kv
-            .get(&Key::ValidatorsInfo(block_hash).to_bytes())
+            .get(&Key::Validators(block_hash).to_bytes())
             .map(|data| {
                 Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `ValidatorsInfo`")
+                    .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
 }
@@ -686,11 +686,9 @@ impl OnChainStorageWrite for Database {
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
     }
 
-    fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo) {
-        self.kv.put(
-            &Key::ValidatorsInfo(block_hash).to_bytes(),
-            validators_info.encode(),
-        );
+    fn set_validators(&self, block_hash: H256, validators: ValidatorsVec) {
+        self.kv
+            .put(&Key::Validators(block_hash).to_bytes(), validators.encode());
     }
 }
 

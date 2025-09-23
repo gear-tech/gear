@@ -21,7 +21,6 @@ use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
-    ValidatorsInfo,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
         OnChainStorageRead, OnChainStorageWrite,
@@ -687,10 +686,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
         let router_query = observer.router_query();
 
-        let validators_info = ValidatorsInfo {
-            current: router_query.validators_at(latest_committed_block).await?,
-            next: Default::default(),
-        };
+        let validators = router_query.validators_at(latest_committed_block).await?;
 
         let genesis_block = router_query.genesis_block_hash().await?;
 
@@ -706,7 +702,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             election: router_timelines.election,
         };
 
-        db.set_validators_info(latest_committed_block, validators_info);
+        db.set_validators(latest_committed_block, validators);
         db.set_gear_exe_timelines(timelines);
     }
 

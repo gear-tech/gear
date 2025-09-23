@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    BlockHeader, BlockMeta, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule,
-    events::BlockEvent, gear::StateTransition, primitives::ValidatorsInfo,
+    BlockHeader, BlockMeta, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule, ValidatorsVec,
+    events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -118,22 +118,20 @@ pub trait CodesStorageWrite {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait OnChainStorageRead {
-    fn gear_exe_timelines(&self) -> Option<GearExeTimelines>;
-
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn latest_synced_block_height(&self) -> Option<u32>;
-    fn validators_info(&self, block_hash: H256) -> Option<ValidatorsInfo>;
+    fn validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
+    fn gear_exe_timelines(&self) -> Option<GearExeTimelines>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait OnChainStorageWrite {
-    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines);
-
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_latest_synced_block_height(&self, height: u32);
-    fn set_validators_info(&self, block_hash: H256, validators_info: ValidatorsInfo);
+    fn set_validators(&self, block_hash: H256, validators: ValidatorsVec);
+    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines);
 }

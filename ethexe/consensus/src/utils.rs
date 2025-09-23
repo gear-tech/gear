@@ -23,16 +23,22 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, Digest, ProducerBlock, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest, ValidatorsVec,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    end_of_era_timestamp, era_from_ts,
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, ValidatorsCommitment},
+    era_from_ts,
+    gear::{
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, ValidatorsCommitment,
+    },
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256};
+use gprimitives::{CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
+use roast_secp256k1_evm::frost::{
+    Identifier,
+    keys::{self, IdentifierList},
+};
 use std::{
     collections::{BTreeMap, HashSet},
     hash::Hash,
@@ -261,10 +267,53 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     )))
 }
 
-pub fn aggregate_validators_commitment<DB: OnChainStorageRead>(
+pub fn validators_commitment<DB: OnChainStorageRead>(
     db: &DB,
+    block_hash: H256,
+    elected_validators: ValidatorsVec,
 ) -> Result<Option<ValidatorsCommitment>> {
-    todo!()
+    let header = db
+        .block_header(block_hash)
+        .ok_or_else(|| anyhow!("Block header {block_hash} is not in storage"))?;
+
+    let timelines = db
+        .gear_exe_timelines()
+        .ok_or(anyhow!("gear-exe timelines not set"))?;
+    let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
+
+    let validators_identifiers = elected_validators
+        .iter()
+        .map(|validator| Identifier::deserialize(&validator.0).unwrap())
+        .collect::<Vec<_>>();
+    let identifiers = IdentifierList::Custom(&validators_identifiers);
+
+    let (mut secret_shares, public_key_package) =
+        keys::generate_with_dealer(1, 1, identifiers, rand::thread_rng()).unwrap();
+
+    let verifiable_secret_sharing_commitment = secret_shares
+        .pop_first()
+        .map(|(_key, value)| value.commitment().clone())
+        .expect("Expect at least one identifier");
+
+    let public_key_compressed: [u8; 33] = public_key_package
+        .verifying_key()
+        .serialize()?
+        .try_into()
+        .unwrap();
+    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
+    let aggregated_public_key = AggregatedPublicKey {
+        x: U256::from_big_endian(public_key_x_bytes),
+        y: U256::from_big_endian(public_key_y_bytes),
+    };
+
+    Ok(Some(ValidatorsCommitment {
+        aggregated_public_key,
+        verifiable_secret_sharing_commitment,
+        validators: elected_validators.clone().into(),
+        era_index: block_era + 1,
+    }))
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRead>(

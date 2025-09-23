@@ -19,15 +19,13 @@
 use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
-    NextEraValidators, ScheduledTask,
-    db::{CodesStorageRead, CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite},
-    era_from_ts,
+    ScheduledTask,
+    db::{CodesStorageRead, CodesStorageWrite},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
 };
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
-use std::cmp::Ordering;
 
 impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
@@ -45,93 +43,8 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterRequestEvent::NextEraValidatorsCommitted { era_index } => {
-                let timelines = self
-                    .db
-                    .gear_exe_timelines()
-                    .ok_or(ProcessorError::GearExeTimelinesNotFound)?;
-                let header = self
-                    .db
-                    .block_header(self.block_hash)
-                    .ok_or(ProcessorError::BlockHeaderNotFound(self.block_hash))?;
-                let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
-
-                match era_index.cmp(&block_era) {
-                    Ordering::Less => {
-                        unimplemented!("Receive an outdated validators commitment")
-                    }
-                    Ordering::Equal => {
-                        // This case happen, when commitment applies on Ethereum in the next era, but sent in previous.
-                        // Iterate through parent blocks and found the elected validators in previous eras.
-                        let mut parent_hash = header.parent_hash;
-                        loop {
-                            let parent = self
-                                .db
-                                .block_header(parent_hash)
-                                .ok_or(ProcessorError::BlockHeaderNotFound(parent_hash))?;
-                            let parent_era =
-                                era_from_ts(parent.timestamp, timelines.genesis_ts, timelines.era);
-
-                            if parent_era == block_era {
-                                // Still in current era, go next
-                                parent_hash = parent.parent_hash;
-                                continue;
-                            }
-
-                            // In next era.
-                            let parent_validators_info = self
-                                .db
-                                .validators_info(parent_hash)
-                                .ok_or(ProcessorError::ValidatorsInfoNotFound(parent_hash))?;
-
-                            let NextEraValidators::Elected(elected_validators) =
-                                parent_validators_info.next
-                            else {
-                                // Skip block if `next` validators not in `Elected` state
-                                parent_hash = parent.parent_hash;
-                                continue;
-                            };
-                            // Found elected validators. Update the old propagated validators set.
-                            let mut validators_info = self
-                                .db
-                                .validators_info(self.block_hash)
-                                .ok_or(ProcessorError::ValidatorsInfoNotFound(self.block_hash))?;
-                            validators_info.current = elected_validators;
-                            self.db
-                                .set_validators_info(self.block_hash, validators_info);
-                            break;
-                        }
-                    }
-                    Ordering::Greater => {
-                        debug_assert!(era_index == block_era + 1);
-
-                        // The successful variant.
-                        let mut validators_info = self
-                            .db
-                            .validators_info(self.block_hash)
-                            .ok_or(ProcessorError::ValidatorsInfoNotFound(self.block_hash))?;
-
-                        match validators_info.next.clone() {
-                            NextEraValidators::Elected(elected_validators) => {
-                                // Switch from `Elected` state to `Committed`
-                                validators_info.next =
-                                    NextEraValidators::Committed(elected_validators);
-                                self.db
-                                    .set_validators_info(self.block_hash, validators_info);
-                            }
-                            NextEraValidators::Committed(..) => {
-                                log::warn!(
-                                    "Validators in {block_era} are already committed, but receive another commitment"
-                                );
-                            }
-                            NextEraValidators::Unknown => {
-                                log::error!("Receive validators commitment without election");
-                            }
-                        }
-                    }
-                };
-            }
-            RouterRequestEvent::CodeValidationRequested { .. }
+            RouterRequestEvent::NextEraValidatorsCommitted { .. }
+            | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
             | RouterRequestEvent::StorageSlotChanged => {
                 log::debug!("Handler not yet implemented: {event:?}");

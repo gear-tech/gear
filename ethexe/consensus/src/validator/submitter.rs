@@ -51,6 +51,7 @@ impl StateHandler for Submitter {
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
+        tracing::debug!("Submitting batch commitment to Ethereum");
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
                 self.output(ConsensusEvent::CommitmentSubmitted(tx));
@@ -73,6 +74,7 @@ impl Submitter {
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
+        tracing::debug!("Submitter::create");
         let future = ctx.committer.clone_boxed().commit_batch(batch);
         Ok(Self { ctx, future }.into())
     }

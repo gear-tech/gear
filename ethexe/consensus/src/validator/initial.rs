@@ -22,9 +22,8 @@ use super::{
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData, db::OnChainStorageRead};
+use ethexe_common::{Address, SimpleBlockData, ValidatorsVec, db::OnChainStorageRead};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -61,9 +60,8 @@ impl StateHandler for Initial {
                 let validators = self
                     .ctx
                     .db
-                    .validators_info(block_hash)
-                    .ok_or(anyhow!("validators not found for block({block_hash})"))?
-                    .current;
+                    .validators(block_hash)
+                    .ok_or(anyhow!("validators not found for block({block_hash})"))?;
                 let producer = self.producer_for(block.header.timestamp, &validators);
                 let my_address = self.ctx.pub_key.to_address();
 
@@ -115,7 +113,7 @@ impl Initial {
         .into())
     }
 
-    fn producer_for(&self, timestamp: u64, validators: &NonEmpty<Address>) -> Address {
+    fn producer_for(&self, timestamp: u64, validators: &ValidatorsVec) -> Address {
         let slot = timestamp / self.ctx.slot_duration.as_secs();
         let index = crate::block_producer_index(validators.len(), slot);
         validators
@@ -129,9 +127,9 @@ impl Initial {
 mod tests {
     use super::*;
     use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::{ValidatorsInfo, db::OnChainStorageWrite};
+    use ethexe_common::db::OnChainStorageWrite;
     use gprimitives::H256;
-    use nonempty::nonempty;
+    use nonempty::{NonEmpty, nonempty};
 
     #[test]
     fn create_initial_success() {
@@ -151,20 +149,17 @@ mod tests {
     #[tokio::test]
     async fn switch_to_producer() {
         let (ctx, keys) = mock_validator_context();
-        let validators_info = ValidatorsInfo {
-            current: nonempty![
-                ctx.pub_key.to_address(),
-                keys[0].to_address(),
-                keys[1].to_address(),
-            ]
-            .into(),
-            next: Default::default(),
-        };
+        let validators = nonempty![
+            ctx.pub_key.to_address(),
+            keys[0].to_address(),
+            keys[1].to_address(),
+        ]
+        .into();
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators_info(block.hash, validators_info);
+        ctx.db.set_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -178,16 +173,13 @@ mod tests {
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 1;
 
-        let validators_info = ValidatorsInfo {
-            current: nonempty![
-                ctx.pub_key.to_address(),
-                keys[1].to_address(),
-                keys[2].to_address(),
-            ]
-            .into(),
-            next: Default::default(),
-        };
-        ctx.db.set_validators_info(block.hash, validators_info);
+        let validators: ValidatorsVec = nonempty![
+            ctx.pub_key.to_address(),
+            keys[1].to_address(),
+            keys[2].to_address(),
+        ]
+        .into();
+        ctx.db.set_validators(block.hash, validators.clone());
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -225,7 +217,9 @@ mod tests {
     #[test]
     fn producer_for_calculates_correct_producer() {
         let (ctx, keys) = mock_validator_context();
-        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
+        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect())
+            .unwrap()
+            .into();
         let timestamp = 10;
 
         let producer = Initial {

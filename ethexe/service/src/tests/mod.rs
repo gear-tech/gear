@@ -27,7 +27,7 @@ use crate::{
         EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
     },
 };
-use alloy::providers::{Provider as _, ext::AnvilApi};
+use alloy::providers::{Provider as _, RootProvider, ext::AnvilApi};
 use ethexe_common::{
     ScheduledTask,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
@@ -35,6 +35,9 @@ use ethexe_common::{
     gear::Origin,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_ethereum::{
+    deploy::ContractsDeploymentParams, middleware::MiddlewareQuery, router::RouterQuery,
+};
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -50,6 +53,7 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
+    ops::Mul,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -1286,6 +1290,75 @@ async fn fast_sync() {
 #[ntest::timeout(60_000)]
 async fn validators_election() {
     init_logger();
-    let config = Default::default();
-    let mut _env = TestEnv::new(config).await.unwrap();
+
+    let block_time = Duration::from_secs(1);
+    let deploy_params = ContractsDeploymentParams {
+        with_middleware: true,
+        era_duration: block_time.mul(30).as_secs(),
+        election_duration: block_time.mul(10).as_secs(),
+    };
+    let env_config = TestEnvConfig {
+        block_time,
+        deploy_params,
+        validators: ValidatorsConfig::PreDefined(3),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        tracing::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let init_res = env
+        .send_message(res.program_id, b"", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Force new block until the election happens
+    for _ in 0..18 {
+        env.force_new_block().await;
+    }
+
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    listener.apply_until_block_event(|event| {
+        Ok(matches!(
+            event,
+            BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted { era_index })
+        )
+        .then_some(()))
+    });
+
+    tracing::info!("📗 Next validators successfully commited");
 }

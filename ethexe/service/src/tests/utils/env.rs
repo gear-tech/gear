@@ -43,7 +43,11 @@ use ethexe_common::{
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{
+    Ethereum,
+    deploy::{ContractsDeploymentParams, EthereumDeployer},
+    router::RouterQuery,
+};
 use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
@@ -110,6 +114,7 @@ impl TestEnv {
             router_address,
             continuous_block_generation,
             network,
+            deploy_params,
         } = config;
 
         log::info!(
@@ -188,7 +193,7 @@ impl TestEnv {
                 .unwrap()
                 .with_validators(validators_addresses)
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
-                .with_middleware()
+                .with_params(deploy_params)
                 .deploy()
                 .await?
         };
@@ -632,6 +637,8 @@ pub struct TestEnvConfig {
     pub continuous_block_generation: bool,
     /// Network service configuration, disabled by default.
     pub network: EnvNetworkConfig,
+    /// Smart contracts deploy configuration.
+    pub deploy_params: ContractsDeploymentParams,
 }
 
 impl Default for TestEnvConfig {
@@ -650,6 +657,7 @@ impl Default for TestEnvConfig {
             router_address: None,
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
+            deploy_params: Default::default(),
         }
     }
 }

@@ -48,9 +48,9 @@ use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
-mod abi;
 mod eip1167;
 
+pub mod abi;
 pub mod deploy;
 pub mod middleware;
 pub mod mirror;

@@ -49,11 +49,10 @@ use crate::{
         submitter::Submitter, subordinate::Subordinate,
     },
 };
-use alloy::providers::Provider;
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{Address, SimpleBlockData, ValidatorsVec, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, middleware::MiddlewareQuery};
 use ethexe_signer::Signer;
@@ -61,13 +60,15 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fmt,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
 use submitter::EthereumCommitter;
+use tokio::sync::RwLock;
 
 mod coordinator;
 mod initial;
@@ -137,7 +138,7 @@ impl ValidatorService {
             pub_key: config.pub_key,
             signer,
             db,
-            middleware: ethereum.middleware().query(),
+            middleware: MiddlewareWrapper::from_inner(ethereum.middleware().query()),
             committer: Box::new(EthereumCommitter { router }),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
@@ -439,7 +440,7 @@ struct ValidatorContext {
     #[debug(skip)]
     committer: Box<dyn BatchCommitter>,
     #[debug(skip)]
-    middleware: MiddlewareQuery,
+    middleware: MiddlewareWrapper,
 
     /// Pending events that are saved for later processing.
     ///
@@ -462,6 +463,46 @@ impl ValidatorContext {
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
+    }
+}
+#[async_trait]
+pub trait MiddlewareExt: Send + Sync {
+    async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec>;
+}
+
+#[derive(Clone)]
+struct MiddlewareWrapper {
+    inner: Arc<dyn MiddlewareExt + 'static>,
+    election_cache: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
+}
+
+impl MiddlewareWrapper {
+    pub fn from_inner<M: MiddlewareExt + 'static>(middleware: M) -> Self {
+        Self {
+            inner: Arc::new(middleware),
+            election_cache: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
+        match self.election_cache.read().await.get(&ts) {
+            Some(elected) => Ok(elected.clone()),
+            None => {
+                let elected_validators = self.inner.make_election_at(ts, max_validators).await?;
+                self.election_cache
+                    .write()
+                    .await
+                    .insert(ts, elected_validators.clone());
+                Ok(elected_validators)
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl MiddlewareExt for MiddlewareQuery {
+    async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
+        self.make_election_at(ts, max_validators).await
     }
 }
 

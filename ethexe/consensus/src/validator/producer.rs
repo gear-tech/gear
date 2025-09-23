@@ -26,22 +26,16 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    NextEraValidators, ProducerBlock, SimpleBlockData, ValidatorsVec,
+    ProducerBlock, SimpleBlockData, ValidatorsVec,
     db::{BlockMetaStorageRead, OnChainStorageRead},
-    ecdsa::PublicKey,
     end_of_era_timestamp, era_from_ts,
     gear::{
-        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
-        ValidatorsCommitment,
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
-use gprimitives::{H256, U256};
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{self, IdentifierList},
-};
+use gprimitives::H256;
 use std::task::Context;
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -111,7 +105,6 @@ impl StateHandler for Producer {
             }
             .boxed()
         });
-        println!("election_future: {:?}", election_future.is_some());
         self.state = State::BatchAggregation { election_future };
         Ok(self.into())
     }
@@ -120,21 +113,23 @@ impl StateHandler for Producer {
         match &mut self.state {
             State::CollectCodes { timer } => {
                 if timer.poll_unpin(cx).is_ready() {
+                    tracing::debug!(block = %self.block.hash, "Codes collection timer is expired, create producer block");
                     self.create_producer_block()?
                 }
             }
             State::WaitingBlockComputed => {
-                println!("WaitingBlockComputed state in producer, should not poll it");
+                cx.waker().wake_by_ref();
             }
+
             // Now we waiting for the block to be computed and then start election.
             // In future it can be done in parallel.
             State::BatchAggregation { election_future } => {
-                // If `election_future` is None, then election is not needed for this block
                 if let Some(future) = election_future {
                     match future.poll_unpin(cx) {
                         std::task::Poll::Ready(result) => {
-                            let (era, validators) = result?;
-                            todo!()
+                            let (_era, validators) = result?;
+                            tracing::debug!(block = %self.block.hash, "election is done, save in context");
+                            // self.ctx.elected_validators = Some(validators);
                         }
 
                         // Go back to waiting if election is not ready yet
@@ -142,20 +137,14 @@ impl StateHandler for Producer {
                     }
                 }
 
-                self.state = State::WaitingBlockComputed;
-                println!("Aggregating batch commitment for block {}", self.block.hash);
                 match Self::aggregate_batch_commitment(&self.ctx, &self.block)? {
                     Some(batch) => {
-                        tracing::trace!(block = %self.block.hash, "Batch commitment is ready, move to coordinator state");
-                        println!(
-                            "switched to coordinator state, validators: {:?}",
-                            self.validators
-                        );
+                        tracing::info!(block = %self.block.hash, "successfully aggregated batch commitment, switch to coordinator state");
+                        cx.waker().wake_by_ref();
                         return Coordinator::create(self.ctx, self.validators, batch);
                     }
                     None => {
                         tracing::warn!(block = %self.block.hash,  "batch commitment is empty, skip submission");
-                        println!("switched to initial state because of empty batch");
                         return Initial::create(self.ctx);
                     }
                 }
@@ -262,64 +251,12 @@ impl Producer {
         ctx: &ValidatorContext,
         block_hash: H256,
     ) -> Result<Option<ValidatorsCommitment>> {
-        return Ok(None);
-        // let header = ctx
-        //     .db
-        //     .block_header(block_hash)
-        //     .ok_or_else(|| anyhow!("Block header {block_hash} is not in storage"))?;
-        // println!("aggregate_validators_commitment for block {block_hash}, {header:?}");
-        // tracing::info!(header.timestamp = %header.timestamp, "aggregate_validators_commitment");
-        // let validators_info = ctx.db.validators_info(block_hash).ok_or(anyhow!(
-        //     "Validators info must be in storage for block {block_hash}"
-        // ))?;
+        // match ctx.elected_validators.clone() {
+        //     Some(validators) => utils::validators_commitment(&ctx.db, block_hash, validators),
+        //     None => return Ok(None),
+        // }
 
-        // let next_validators = match validators_info.next {
-        //     NextEraValidators::Unknown => {
-        //         tracing::warn!("Validators are not elected in Observer, but should be");
-        //         return Ok(None);
-        //     }
-        //     NextEraValidators::Elected(validators) => validators,
-        //     NextEraValidators::Committed(_v) => {
-        //         // No need to continue because of validators are already committed
-        //         return Ok(None);
-        //     }
-        // };
-
-        // let validators_identifiers = next_validators
-        //     .iter()
-        //     .map(|validator| Identifier::deserialize(&validator.0).unwrap())
-        //     .collect::<Vec<_>>();
-        // let identifiers = IdentifierList::Custom(&validators_identifiers);
-
-        // let (mut secret_shares, public_key_package) =
-        //     keys::generate_with_dealer(1, 1, identifiers, rand::thread_rng()).unwrap();
-
-        // let _verifiable_secret_sharing_commitment = secret_shares
-        //     .pop_first()
-        //     .map(|(_key, value)| value.commitment().clone())
-        //     .expect("Expect at least one identifier");
-
-        // let public_key_compressed: [u8; 33] = public_key_package
-        //     .verifying_key()
-        //     .serialize()?
-        //     .try_into()
-        //     .unwrap();
-        // let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
-        // let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
-
-        // let _aggregated_public_key = AggregatedPublicKey {
-        //     x: U256::from_big_endian(public_key_x_bytes),
-        //     y: U256::from_big_endian(public_key_y_bytes),
-        // };
-
-        // Ok(Some(ValidatorsCommitment {
-        //     aggregated_public_key,
-        //     verifiable_secret_sharing_commitment,
-        //     validators: next_validators.into(),
-        //     // For next era from current block
-        //     era_index: block_era + 1,
-        // }))
-        // Ok(None)
+        Ok(None)
     }
 
     // TODO #4742
@@ -354,7 +291,7 @@ mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
     use ethexe_common::{
-        Digest, ToDigest, ValidatorsInfo,
+        Digest, ToDigest,
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
     };
     use nonempty::nonempty;
@@ -387,13 +324,7 @@ mod tests {
         let validators: ValidatorsVec =
             nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
-        ctx.db.set_validators_info(
-            block.hash,
-            ValidatorsInfo {
-                current: validators.clone(),
-                next: NextEraValidators::Elected(validators.clone()),
-            },
-        );
+        ctx.db.set_validators(block.hash, validators.clone());
 
         let producer = create_producer_skip_timer(ctx, block.clone(), validators)
             .await
@@ -401,7 +332,11 @@ mod tests {
             .0;
 
         // No commitments - no batch and goes to initial state
-        let initial = producer.process_computed_block(block.hash).unwrap();
+        let initial = producer
+            .process_computed_block(block.hash)
+            .unwrap()
+            .poll_next_state(&mut Context::from_waker(&std::task::Waker::noop()))
+            .unwrap();
         assert!(initial.is_initial());
         assert_eq!(initial.context().output.len(), 0);
         with_batch(|batch| assert!(batch.is_none()));
@@ -414,20 +349,18 @@ mod tests {
             nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let batch = prepared_mock_batch_commitment(&ctx.db);
         let block = simple_block_data(&ctx.db, batch.block_hash);
-        ctx.db.set_validators_info(
-            block.hash,
-            ValidatorsInfo {
-                current: validators.clone(),
-                next: NextEraValidators::Elected(validators.clone()),
-            },
-        );
+        ctx.db.set_validators(block.hash, validators.clone());
 
-        let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
+        let producer = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
             .process_computed_block(block.hash)
             .unwrap();
+        let submitter = producer
+            .poll_next_state(&mut Context::from_waker(std::task::Waker::noop()))
+            .unwrap();
+
         assert!(submitter.is_submitter());
         assert_eq!(submitter.context().output.len(), 0);
 
@@ -479,13 +412,7 @@ mod tests {
         let validators: ValidatorsVec =
             nonempty![ctx.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
-        ctx.db.set_validators_info(
-            block.hash,
-            ValidatorsInfo {
-                current: validators.clone(),
-                next: NextEraValidators::Elected(validators.clone()),
-            },
-        );
+        ctx.db.set_validators(block.hash, validators.clone());
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.db, ());
@@ -504,9 +431,11 @@ mod tests {
             .unwrap();
 
         // Create a waker and context to poll the next state
-        let waker = std::task::Waker::noop();
-        let mut cx = std::task::Context::from_waker(&waker);
-        let submitter = producer.poll_next_state(&mut cx).unwrap();
+        let submitter = producer
+            .poll_next_state(&mut std::task::Context::from_waker(
+                &std::task::Waker::noop(),
+            ))
+            .unwrap();
 
         assert!(submitter.is_submitter(), "Expected submitter state");
 

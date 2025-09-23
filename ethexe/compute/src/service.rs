@@ -270,7 +270,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
-        db.set_validators_info(parent_hash, Default::default());
+        db.set_validators(parent_hash, Default::default());
 
         // Request block preparation
         service.prepare_block(block_hash);

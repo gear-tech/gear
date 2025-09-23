@@ -15,8 +15,8 @@ ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 gprimitives = { workspace = true, features = ["codec", "std"] }
 
-alloy.workspace = true
 async-trait.workspace = true
+tokio.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tracing.workspace = true
 anyhow.workspace = true
@@ -28,3 +28,4 @@ roast-secp256k1-evm.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+alloy.workspace = true

@@ -25,12 +25,11 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    BlockData, BlockHeader, CodeBlobInfo, GearExeTimelines, NextEraValidators, ValidatorsInfo,
+    BlockData, BlockHeader, CodeBlobInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
-    end_of_era_timestamp, era_from_ts,
     events::{BlockEvent, RouterEvent},
 };
-use ethexe_ethereum::{middleware::MiddlewareQuery, router::RouterQuery};
+use ethexe_ethereum::{ router::RouterQuery};
 use gprimitives::H256;
 use std::collections::HashMap;
 
@@ -64,8 +63,8 @@ impl<DB: SyncDB> ChainSync<DB> {
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
 
+        self.propagate_validators(block, &header).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators_info(block, &header).await?;
 
         Ok(block)
     }
@@ -166,74 +165,29 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    /// Propagate validators info. If block in the election period - make election if it not done.
-    /// If block in the next era from parent, then make `next` era validators current.
-    async fn propagate_validators_info(&self, block: H256, header: &BlockHeader) -> Result<()> {
-        let header = self.db.block_header(header.parent_hash).ok_or(anyhow!(
-            "header not found for parent block({:?})",
-            header.parent_hash
-        ))?;
-        let timelines = self
-            .db
-            .gear_exe_timelines()
-            .ok_or(anyhow!("not fonud gear exe timelines in db"))?;
-
-        let mut validators_info = match self.db.validators_info(header.parent_hash) {
-            Some(validators_info) => validators_info,
+    /// Propagate validators from parent block to the current. If parent block doesn't have validators
+    /// then fetch them from router.
+    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        match self.db.validators(header.parent_hash) {
+            Some(validators) => {
+                self.db.set_validators(block, validators);
+            }
             None => {
                 tracing::trace!(
-                    "No validators info for parent block({:?}), query from router",
-                    header.parent_hash
+                    parent_block = %header.parent_hash,
+                    "No validators info for parent block, query from router",
                 );
 
-                let router_address =
-                    alloy::primitives::Address(self.config.router_address.0.into());
-                let router_query =
-                    RouterQuery::from_provider(router_address, self.provider.clone());
+                let router_query = RouterQuery::from_provider(
+                    self.config.router_address.into(),
+                    self.provider.clone(),
+                );
+
                 let validators = router_query.validators_at(header.parent_hash).await?;
-                let validators_info = ValidatorsInfo {
-                    current: validators,
-                    next: Default::default(),
-                };
-                self.db
-                    .set_validators_info(header.parent_hash, validators_info.clone());
-                validators_info
+                self.db.set_validators(block, validators);
             }
         };
 
-        // If next validators are already set, no need to fetch them again, because of
-        // propagation in chain
-        let era_election_ts = self.era_election_ts(header.timestamp, timelines);
-        if validators_info.next == NextEraValidators::Unknown && header.timestamp >= era_election_ts
-        {
-            let middleware_query =
-                MiddlewareQuery::new(self.provider.clone(), self.config.middleware_address);
-            let elected_validators = middleware_query
-                .make_election_at(era_election_ts, 10)
-                .await?;
-            validators_info.next = NextEraValidators::Elected(elected_validators);
-        }
-
-        // Switch validators from `next` to `current`
-        if self.chain_head_in_next_era(&header, timelines)? {
-            // Must be committed - handle then no.
-            match validators_info.next.clone() {
-                // Do nothing. Just propagate current validators.
-                NextEraValidators::Unknown => {}
-
-                // Remove the election state
-                NextEraValidators::Elected(..) => {
-                    validators_info.next = NextEraValidators::Unknown;
-                }
-                // Switch `next_validators` to current
-                NextEraValidators::Committed(next_validators) => {
-                    validators_info.next = NextEraValidators::Unknown;
-                    validators_info.current = next_validators;
-                }
-            }
-        }
-
-        self.db.set_validators_info(block, validators_info);
         Ok(())
     }
 
@@ -248,30 +202,5 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
-    }
-
-    /// NOTE: we don't need to fetch validators for block from zero era, because of
-    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn chain_head_in_next_era(
-        &self,
-        chain_head: &BlockHeader,
-        timelines: GearExeTimelines,
-    ) -> Result<bool> {
-        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
-            "header not found for block({:?})",
-            chain_head.parent_hash
-        ))?;
-
-        let chain_head_era = era_from_ts(chain_head.timestamp, timelines.genesis_ts, timelines.era);
-        let parent_era_index = era_from_ts(parent.timestamp, timelines.genesis_ts, timelines.era);
-
-        Ok(chain_head_era > parent_era_index)
-    }
-
-    /// Returns the timestamp at which the current election started.
-    fn era_election_ts(&self, block_ts: u64, timelines: GearExeTimelines) -> u64 {
-        let block_era = era_from_ts(block_ts, timelines.genesis_ts, timelines.era);
-        let end_of_block_era = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
-        end_of_block_era - timelines.election
     }
 }

@@ -94,7 +94,7 @@ impl Coordinator {
             MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)?;
 
         if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
-            println!("create as submitter from coordinator");
+            tracing::debug!("signatures threshold already met, move to submitter state");
             return Submitter::create(ctx, multisigned_batch);
         }
 

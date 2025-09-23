@@ -44,6 +44,33 @@ impl BatchCommitter for DummyCommitter {
     }
 }
 
+#[derive(Clone)]
+pub struct MockMiddleware {
+    predefined_elections: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
+}
+
+impl MockMiddleware {
+    pub fn new() -> MockMiddleware {
+        Self {
+            predefined_elections: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub async fn set_election_result(&self, validators: ValidatorsVec, for_ts: u64) {
+        self.predefined_elections
+            .write()
+            .await
+            .insert(for_ts, validators);
+    }
+}
+
+#[async_trait]
+impl MiddlewareExt for MockMiddleware {
+    async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
+        Ok(Default::default())
+    }
+}
+
 #[async_trait]
 pub trait WaitForEvent {
     async fn wait_for_event(self) -> Result<(ValidatorState, ConsensusEvent)>;
@@ -67,10 +94,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         signer,
         db: Database::memory(),
         committer: Box::new(DummyCommitter),
-        middleware: MiddlewareQuery::new(
-            RootProvider::new_http("https://mock.org".parse().unwrap()),
-            12345.into(),
-        ),
+        middleware: MiddlewareWrapper::from_inner(MockMiddleware::new()),
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
     };
