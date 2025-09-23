@@ -4710,6 +4710,7 @@ name = "ethexe-common"
 version = "1.9.1"
 dependencies = [
  "alloy-primitives",
+ "anyhow",
  "auto_impl",
  "derive_more 2.0.1",
  "gear-core",

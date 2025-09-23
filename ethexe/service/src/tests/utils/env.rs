@@ -37,7 +37,7 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, CodeAndId,
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -824,13 +824,14 @@ impl Node {
                             router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
+                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                         },
                     )
                     .await
                     .unwrap(),
                 )
             } else {
-                Box::pin(SimpleConnectService::new())
+                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
             };
 
         let (sender, receiver) = broadcast::channel(2048);
@@ -870,7 +871,7 @@ impl Node {
                 .run()
                 .instrument(tracing::info_span!("node", name))
                 .await
-                .unwrap()
+                .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
 
@@ -926,6 +927,7 @@ impl Node {
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
+            db: self.db.clone(),
         }
     }
 
