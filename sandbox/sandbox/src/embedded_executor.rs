@@ -25,9 +25,7 @@ use alloc::string::String;
 use anyhow::{Context, anyhow};
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
-use std::{
-    collections::btree_map::BTreeMap, env, fs, marker::PhantomData, path::PathBuf, sync::OnceLock,
-};
+use std::{collections::btree_map::BTreeMap, marker::PhantomData};
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, ExternType, Global, Linker, MemoryType, Module,
     StoreContext, StoreContextMut,
@@ -35,45 +33,6 @@ use wasmtime::{
 
 /// The target used for logging.
 const TARGET: &str = "runtime::sandbox";
-
-fn cache_base_path() -> PathBuf {
-    static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
-    CACHE_DIR
-        .get_or_init(|| {
-            // We acquire workspace root dir during runtime and compile-time.
-            //
-            // During development, runtime workspace dir equals to compile-time one,
-            // so all compiled WASMs are cached in the usual ` OUT_DIR `
-            // like we don't rewrite it.
-            //
-            // During cross-compilation, the runtime workspace dir differs from the compile-time one,
-            // and accordingly, `OUT_DIR` beginning differs too,
-            // so we change its beginning to successfully run tests.
-            //
-            // `OUT_DIR` is used for caching instead of some platform-specific project folder to
-            // not maintain the ever-growing number of cached WASMs
-
-            let out_dir = PathBuf::from(env!("OUT_DIR"));
-
-            let runtime_workspace_dir = env::var_os("GEAR_WORKSPACE_DIR").map(PathBuf::from);
-            let compiled_workspace_dir = option_env!("GEAR_WORKSPACE_DIR").map(PathBuf::from);
-            let (Some(runtime_workspace_dir), Some(compiled_workspace_dir)) =
-                (runtime_workspace_dir, compiled_workspace_dir)
-            else {
-                // `GEAR_WORKSPACE_DIR` is not present in user code,
-                // so we return `OUT_DIR` without any changes
-                return out_dir;
-            };
-
-            let out_dir = pathdiff::diff_paths(out_dir, compiled_workspace_dir).unwrap();
-            let out_dir = runtime_workspace_dir.join(out_dir);
-
-            let cache = out_dir.join("wasmtime-cache");
-            fs::create_dir_all(&cache).unwrap();
-            cache
-        })
-        .into()
-}
 
 /// [`AsContextExt`] extension.
 pub trait AsContext: wasmtime::AsContextMut {}
@@ -107,10 +66,8 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        let mut cache = CacheConfig::new();
-        cache.with_directory(cache_base_path());
         // TODO: return, don't unwrap
-        let cache = Cache::new(cache).expect("Failed to create cache memory");
+        let cache = Cache::new(CacheConfig::new()).expect("Failed to create cache memory");
 
         let mut config = Config::new();
         config

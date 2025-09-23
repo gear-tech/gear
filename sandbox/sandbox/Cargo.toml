@@ -25,7 +25,6 @@ gear-sandbox-env.workspace = true
 
 # embedded executor only
 wasmtime = { workspace = true, optional = true }
-pathdiff = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -43,7 +42,6 @@ std = [
 	"gear-sandbox-interface/std",
 	"gear-sandbox-env/std",
 	"wasmtime",
-	"pathdiff",
 	"anyhow"
 ]
 strict = []
