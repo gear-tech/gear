@@ -59,11 +59,12 @@ impl StateHandler for Initial {
             State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
                 let validators = self
                     .ctx
+                    .core
                     .db
                     .validators(block_hash)
                     .ok_or(anyhow!("validators not found for block({block_hash})"))?;
                 let producer = self.producer_for(block.header.timestamp, &validators);
-                let my_address = self.ctx.pub_key.to_address();
+                let my_address = self.ctx.core.pub_key.to_address();
 
                 if my_address == producer {
                     tracing::info!(block= %block.hash, "👷 Start to work as a producer");
@@ -114,7 +115,7 @@ impl Initial {
     }
 
     fn producer_for(&self, timestamp: u64, validators: &ValidatorsVec) -> Address {
-        let slot = timestamp / self.ctx.slot_duration.as_secs();
+        let slot = timestamp / self.ctx.core.slot_duration.as_secs();
         let index = crate::block_producer_index(validators.len(), slot);
         validators
             .get(index)
@@ -150,7 +151,7 @@ mod tests {
     async fn switch_to_producer() {
         let (ctx, keys) = mock_validator_context();
         let validators = nonempty![
-            ctx.pub_key.to_address(),
+            ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
         ]
@@ -159,7 +160,7 @@ mod tests {
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators(block.hash, validators);
+        ctx.core.db.set_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -174,12 +175,12 @@ mod tests {
         block.header.timestamp = 1;
 
         let validators: ValidatorsVec = nonempty![
-            ctx.pub_key.to_address(),
+            ctx.core.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),
         ]
         .into();
-        ctx.db.set_validators(block.hash, validators.clone());
+        ctx.core.db.set_validators(block.hash, validators.clone());
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();

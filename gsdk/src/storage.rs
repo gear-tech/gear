@@ -82,7 +82,6 @@ impl Api {
     /// {
     ///     let bn = api.number().await?;
     /// }
-    ///
     /// ```
     #[storage_fetch]
     pub async fn fetch_storage_at<'a, Addr, Value>(

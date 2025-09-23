@@ -206,8 +206,8 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
-        let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
+        let pb1 = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
+        let pb2 = SignedProducerBlock::mock((ctx.core.signer.clone(), keys[1], block.hash));
 
         ctx.pending(pb1.clone());
         ctx.pending(pb2.clone());
@@ -232,8 +232,8 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let request1 = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
-        let request2 = SignedValidationRequest::mock((ctx.signer.clone(), keys[1], ()));
+        let request1 = SignedValidationRequest::mock((ctx.core.signer.clone(), producer, ()));
+        let request2 = SignedValidationRequest::mock((ctx.core.signer.clone(), keys[1], ()));
 
         ctx.pending(request1.clone());
         ctx.pending(request2.clone());
@@ -256,13 +256,13 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let pb = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
 
         ctx.pending(pb.clone());
 
         // Fill with fake blocks
         for _ in 0..10 * MAX_PENDING_EVENTS {
-            let pb = SignedProducerBlock::mock((ctx.signer.clone(), keys[0], block.hash));
+            let pb = SignedProducerBlock::mock((ctx.core.signer.clone(), keys[0], block.hash));
             ctx.pending(pb);
         }
 
@@ -278,7 +278,7 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let pb = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
@@ -306,7 +306,7 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
+        let pb = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
         assert!(s.is_subordinate());
@@ -334,8 +334,8 @@ mod tests {
         let (mut ctx, keys) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let pb1 = SignedProducerBlock::mock((ctx.signer.clone(), producer, block.hash));
-        let pb2 = SignedProducerBlock::mock((ctx.signer.clone(), keys[1], block.hash));
+        let pb1 = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
+        let pb2 = SignedProducerBlock::mock((ctx.core.signer.clone(), keys[1], block.hash));
 
         ctx.pending(pb1.clone());
         ctx.pending(pb2.clone());
@@ -351,7 +351,8 @@ mod tests {
         let (ctx, pub_keys) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let invalid_pb = SignedProducerBlock::mock((ctx.signer.clone(), pub_keys[1], block.hash));
+        let invalid_pb =
+            SignedProducerBlock::mock((ctx.core.signer.clone(), pub_keys[1], block.hash));
 
         let mut s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 

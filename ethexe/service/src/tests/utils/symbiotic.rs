@@ -5,9 +5,3 @@ pub enum OperatorVaultType {
 }
 
 pub struct SymbioticEnv {}
-
-pub struct RpcService<P: Provider + Clone> {
-    rpc: String,
-    inner: P,
-}
-
