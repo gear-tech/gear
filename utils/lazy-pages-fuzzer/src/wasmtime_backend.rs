@@ -25,8 +25,8 @@ use anyhow::{Context, Result, bail};
 use gear_wasm_gen::SyscallName;
 use gear_wasm_instrument::{GLOBAL_NAME_GAS, Module};
 use wasmtime::{
-    Config, Engine, Extern, Func, Instance, Linker, Memory, MemoryType, Module as WasmtimeModule,
-    Store, Strategy, Val,
+    Cache, CacheConfig, Config, Engine, Extern, Func, Instance, Linker, Memory, MemoryType,
+    Module as WasmtimeModule, Store, Strategy, Val,
 };
 
 #[derive(Clone)]
@@ -68,8 +68,12 @@ pub struct WasmtimeRunner;
 
 impl Runner for WasmtimeRunner {
     fn run(module: &Module) -> Result<RunResult> {
+        let cache = Cache::new(CacheConfig::new()).expect("invalid cache configuration");
         let mut config = Config::new();
-        config.strategy(Strategy::Winch).macos_use_mach_ports(false);
+        config
+            .strategy(Strategy::Winch)
+            .cache(Some(cache))
+            .macos_use_mach_ports(false);
         let engine = Engine::new(&config).context("failed to create engine")?;
         let mut store = Store::new(&engine, ());
 

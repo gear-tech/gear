@@ -111,8 +111,8 @@ impl Backend {
         let mut config = wasmtime::Config::default();
         config
             .strategy(wasmtime::Strategy::Winch)
-            .macos_use_mach_ports(false)
-            .cache(Some(cache));
+            .cache(Some(cache))
+            .macos_use_mach_ports(false);
         // TODO: return, don't unwrap
         let engine = Engine::new(&config).expect("TODO");
         let store = Store::new(&engine, None);
