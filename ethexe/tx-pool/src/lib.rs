@@ -28,24 +28,47 @@ pub use ethexe_common::tx_pool::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction,
 };
 use ethexe_db::Database;
-use gprimitives::{ActorId, H160};
+use futures::{Stream, stream::FusedStream};
+use gprimitives::{ActorId, H160, H256};
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    task::{Context, Poll, Waker},
+};
 use validation::TxValidator;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TxPoolEvent {
+    PublishOffchainTransaction(SignedOffchainTransaction),
+}
 
 /// Transaction pool service.
 ///
 /// Serves as an interface for the transaction pool core.
 pub struct TxPoolService {
     db: Database,
+    events: VecDeque<TxPoolEvent>,
+    waker: Option<Waker>,
 }
 
 impl TxPoolService {
     pub fn new(db: Database) -> Self {
-        Self { db }
+        Self {
+            db,
+            events: VecDeque::new(),
+            waker: None,
+        }
+    }
+
+    fn wake(&mut self) {
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
     }
 
     /// Basically validates the transaction and includes the transaction
     /// to the ready queue, so it's returned by the service stream.
-    pub fn validate(
+    fn validate(
         &self,
         transaction: SignedOffchainTransaction,
     ) -> Result<SignedOffchainTransaction> {
@@ -53,6 +76,48 @@ impl TxPoolService {
             .with_all_checks()
             .validate()
             .context("Tx validation failed")
+    }
+
+    pub fn process_offchain_transaction(
+        &mut self,
+        transaction: SignedOffchainTransaction,
+    ) -> Result<H256> {
+        let validated_tx = self
+            .validate(transaction)
+            .context("Failed to validate offchain transaction")?;
+        let tx_hash = validated_tx.tx_hash();
+
+        // Set valid transaction
+        self.db.set_offchain_transaction(validated_tx.clone());
+
+        // Propagate transaction
+        self.events
+            .push_back(TxPoolEvent::PublishOffchainTransaction(validated_tx));
+        self.wake();
+
+        // TODO (breathx) Execute transaction
+        log::info!("Unimplemented tx execution");
+
+        Ok(tx_hash)
+    }
+}
+
+impl Stream for TxPoolService {
+    type Item = TxPoolEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(event) = self.events.pop_front() {
+            return Poll::Ready(Some(event));
+        }
+
+        self.waker = Some(cx.waker().clone());
+        Poll::Pending
+    }
+}
+
+impl FusedStream for TxPoolService {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 
