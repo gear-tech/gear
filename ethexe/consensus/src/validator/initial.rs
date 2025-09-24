@@ -135,14 +135,14 @@ mod tests {
 
     #[test]
     fn create_initial_success() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let initial = Initial::create(ctx).unwrap();
         assert!(initial.is_initial());
     }
 
     #[test]
     fn create_with_chain_head_success() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let block = SimpleBlockData::mock(H256::random());
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
@@ -150,7 +150,7 @@ mod tests {
 
     #[tokio::test]
     async fn switch_to_producer() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn switch_to_subordinate() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn process_synced_block_rejected() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let block = SimpleBlockData::mock(H256::random());
 
         let initial = Initial::create(ctx)
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn producer_for_calculates_correct_producer() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
         let timestamp = 10;
 

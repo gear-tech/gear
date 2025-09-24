@@ -173,7 +173,7 @@ mod tests {
 
     #[tokio::test]
     async fn create() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(H256::random());
 
@@ -195,7 +195,7 @@ mod tests {
 
     #[tokio::test]
     async fn simple() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
 
@@ -213,12 +213,12 @@ mod tests {
         // No commitments - no batch and goes to initial state
         assert!(state.is_initial());
         assert_eq!(state.context().output.len(), 0);
-        with_batch(|batch| assert!(batch.is_none()));
+        assert!(eth.committed_batch.lock().await.is_none());
     }
 
     #[tokio::test]
     async fn complex() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
@@ -238,26 +238,26 @@ mod tests {
         assert!(state.is_initial());
         assert!(event.is_commitment_submitted());
 
-        // Check that we have a batch with commitments after submitting
         let mut ctx = state.into_context();
-        with_batch(|multisigned_batch| {
-            let (committed_batch, signatures) = multisigned_batch
-                .cloned()
-                .expect("Expected that batch is committed")
-                .into_parts();
 
-            assert_eq!(committed_batch, batch);
-            assert_eq!(signatures.len(), 1);
-
-            let (address, signature) = signatures.into_iter().next().unwrap();
-            assert_eq!(
-                signature
-                    .validate(ctx.core.router_address, batch.to_digest())
-                    .unwrap()
-                    .to_address(),
-                address
-            );
-        });
+        // Check that we have a batch with commitments after submitting
+        let (committed_batch, signatures) = eth
+            .committed_batch
+            .lock()
+            .await
+            .clone()
+            .expect("Expected that batch is committed")
+            .into_parts();
+        assert_eq!(committed_batch, batch);
+        assert_eq!(signatures.len(), 1);
+        let (address, signature) = signatures.into_iter().next().unwrap();
+        assert_eq!(
+            signature
+                .validate(ctx.core.router_address, batch.to_digest())
+                .unwrap()
+                .to_address(),
+            address
+        );
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
         ctx.core.signatures_threshold = 2;
@@ -277,7 +277,7 @@ mod tests {
 
     #[tokio::test]
     async fn code_commitments_only() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
 
@@ -300,12 +300,16 @@ mod tests {
 
         let initial = submitter.wait_for_event().await.unwrap().0;
         assert!(initial.is_initial());
-        with_batch(|batch| {
-            let batch = batch.expect("Expected that batch is committed");
-            assert_eq!(batch.signatures().len(), 1);
-            assert!(batch.batch().chain_commitment.is_none());
-            assert_eq!(batch.batch().code_commitments.len(), 2);
-        });
+
+        let batch = eth
+            .committed_batch
+            .lock()
+            .await
+            .clone()
+            .expect("Expected that batch is committed");
+        assert_eq!(batch.signatures().len(), 1);
+        assert!(batch.batch().chain_commitment.is_none());
+        assert_eq!(batch.batch().code_commitments.len(), 2);
     }
 
     #[async_trait]

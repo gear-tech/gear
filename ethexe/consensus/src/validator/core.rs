@@ -53,7 +53,7 @@ pub struct ValidatorCore {
     #[debug(skip)]
     pub committer: Box<dyn BatchCommitter>,
     #[debug(skip)]
-    pub middleware: Option<Box<dyn MiddlewareExt>>,
+    pub middleware: MiddlewareWrapper,
 
     /// Maximum deepness for chain commitment validation.
     pub validate_chain_deepness_limit: u32,
@@ -71,7 +71,7 @@ impl Clone for ValidatorCore {
             signer: self.signer.clone(),
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
-            middleware: self.middleware.as_ref().map(|x| x.clone_boxed()),
+            middleware: self.middleware.clone(),
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
         }
@@ -264,13 +264,10 @@ pub trait BatchCommitter: Send {
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ElectionRequest {
-    #[allow(unused)]
     at_block_hash: H256,
-    #[allow(unused)]
     at_timestamp: u64,
-    #[allow(unused)]
     max_validators: u32,
 }
 
@@ -280,38 +277,37 @@ pub trait MiddlewareExt: Send {
     fn clone_boxed(&self) -> Box<dyn MiddlewareExt>;
 
     /// Requests the election of validators at a specific block and timestamp.
-    #[allow(unused)]
     async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>>;
 }
 
 pub struct MiddlewareWrapper {
-    inner: Middleware,
+    inner: Box<dyn MiddlewareExt>,
     db: Database,
     #[allow(clippy::type_complexity)]
     cached_election_result: Arc<Mutex<Option<(ElectionRequest, Vec<Address>)>>>,
 }
 
+impl Clone for MiddlewareWrapper {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone_boxed(),
+            db: self.db.clone(),
+            cached_election_result: self.cached_election_result.clone(),
+        }
+    }
+}
+
 impl MiddlewareWrapper {
-    pub fn new(inner: Middleware, db: Database) -> Self {
+    pub fn new(inner: Box<dyn MiddlewareExt>, db: Database) -> Self {
         Self {
             inner,
             db,
             cached_election_result: Arc::new(Mutex::new(None)),
         }
     }
-}
 
-#[async_trait]
-impl MiddlewareExt for MiddlewareWrapper {
-    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
-        Box::new(Self {
-            inner: self.inner.clone(),
-            db: self.db.clone(),
-            cached_election_result: self.cached_election_result.clone(),
-        })
-    }
-
-    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>> {
+    #[allow(unused)]
+    pub async fn make_election_at(&self, request: ElectionRequest) -> Result<Vec<Address>> {
         let mut cached = self.cached_election_result.lock().await;
 
         if let Some((_cached_request, _cached_result)) = &*cached {
@@ -323,8 +319,8 @@ impl MiddlewareExt for MiddlewareWrapper {
 
             let result = self
                 .inner
-                .query()
-                .make_election_at(request.at_timestamp, request.max_validators as u128)
+                .clone_boxed()
+                .make_election_at(request.clone())
                 .await?;
 
             let result: Vec<Address> = result.into_iter().collect();
@@ -333,5 +329,36 @@ impl MiddlewareExt for MiddlewareWrapper {
 
             Ok(result)
         }
+    }
+}
+
+#[async_trait]
+impl MiddlewareExt for Middleware {
+    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
+        Box::new(self.clone())
+    }
+
+    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>> {
+        let ElectionRequest {
+            // TODO #4741: use at_block_hash in rpc call
+            at_block_hash: _,
+            at_timestamp,
+            max_validators,
+        } = request;
+
+        self.query()
+            .make_election_at(at_timestamp, max_validators as u128)
+            .await
+    }
+}
+
+#[async_trait]
+impl MiddlewareExt for () {
+    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
+        Box::new(())
+    }
+
+    async fn make_election_at(self: Box<Self>, _request: ElectionRequest) -> Result<Vec<Address>> {
+        Err(anyhow!("Middleware is not configured"))
     }
 }
