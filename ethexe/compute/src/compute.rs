@@ -165,7 +165,7 @@ mod tests {
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
-    async fn test_compute() {
+    async fn test_compute_and_include() {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
