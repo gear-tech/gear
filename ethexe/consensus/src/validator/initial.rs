@@ -60,11 +60,12 @@ impl StateHandler for Initial {
             State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
                 let validators = self
                     .ctx
+                    .core
                     .db
                     .validators(block_hash)
                     .ok_or(anyhow!("validators not found for block({block_hash})"))?;
                 let producer = self.producer_for(block.header.timestamp, &validators);
-                let my_address = self.ctx.pub_key.to_address();
+                let my_address = self.ctx.core.pub_key.to_address();
 
                 if my_address == producer {
                     log::info!("👷 Start to work as a producer for block: {}", block.hash);
@@ -115,7 +116,7 @@ impl Initial {
     }
 
     fn producer_for(&self, timestamp: u64, validators: &NonEmpty<Address>) -> Address {
-        let slot = timestamp / self.ctx.slot_duration.as_secs();
+        let slot = timestamp / self.ctx.core.slot_duration.as_secs();
         let index = crate::block_producer_index(validators.len(), slot);
         validators
             .get(index)
@@ -134,14 +135,14 @@ mod tests {
 
     #[test]
     fn create_initial_success() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let initial = Initial::create(ctx).unwrap();
         assert!(initial.is_initial());
     }
 
     #[test]
     fn create_with_chain_head_success() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let block = SimpleBlockData::mock(H256::random());
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
@@ -149,9 +150,9 @@ mod tests {
 
     #[tokio::test]
     async fn switch_to_producer() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
-            ctx.pub_key.to_address(),
+            ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
         ];
@@ -159,7 +160,7 @@ mod tests {
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators(block.hash, validators.clone());
+        ctx.core.db.set_validators(block.hash, validators.clone());
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -168,9 +169,9 @@ mod tests {
 
     #[test]
     fn switch_to_subordinate() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
-            ctx.pub_key.to_address(),
+            ctx.core.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),
         ];
@@ -178,7 +179,7 @@ mod tests {
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 1;
 
-        ctx.db.set_validators(block.hash, validators);
+        ctx.core.db.set_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -187,7 +188,7 @@ mod tests {
 
     #[test]
     fn process_synced_block_rejected() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let block = SimpleBlockData::mock(H256::random());
 
         let initial = Initial::create(ctx)
@@ -215,7 +216,7 @@ mod tests {
 
     #[test]
     fn producer_for_calculates_correct_producer() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
         let timestamp = 10;
 
