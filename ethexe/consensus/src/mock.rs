@@ -234,12 +234,15 @@ pub fn prepared_mock_batch_commitment(db: &Database) -> BatchCommitment {
         From::from([code_commitment1.id, code_commitment2.id]),
     );
 
+    let mut transitions = [cc1.transitions, cc2.transitions].concat();
+    transitions.sort_by_key(|t| t.actor_id);
+
     BatchCommitment {
         block_hash: block0.hash,
         timestamp: block0.header.timestamp,
         previous_batch: last_committed_batch,
         chain_commitment: Some(ChainCommitment {
-            transitions: [cc2.transitions, cc1.transitions].concat(),
+            transitions,
             head: block0.hash,
         }),
         code_commitments: vec![code_commitment1, code_commitment2],

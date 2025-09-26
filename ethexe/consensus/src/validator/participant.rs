@@ -176,6 +176,7 @@ mod tests {
         utils::{SignedProducerBlock, SignedValidationRequest},
         validator::mock::*,
     };
+    use crate::utils;
     use ethexe_common::{Digest, ToDigest, gear::CodeCommitment};
     use gprimitives::H256;
 
@@ -252,17 +253,17 @@ mod tests {
 
         // For squashed commitments, recompute the batch locally with aggregation
         let chain_commitment =
-            utils::aggregate_chain_commitment(&ctx.db, batch.block_hash, false, None)
+            utils::aggregate_chain_commitment(&ctx.core.db, batch.block_hash, false, None)
                 .unwrap()
                 .map(|(commitment, _)| commitment);
         let code_commitments = utils::aggregate_code_commitments(
-            &ctx.db,
+            &ctx.core.db,
             batch.code_commitments.clone().into_iter().map(|c| c.id),
             false,
         )
         .unwrap();
         let local_batch =
-            utils::create_batch_commitment(&ctx.db, &block, chain_commitment, code_commitments)
+            utils::create_batch_commitment(&ctx.core.db, &block, chain_commitment, code_commitments, None, None)
                 .unwrap()
                 .unwrap();
 
