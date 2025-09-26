@@ -75,6 +75,8 @@ use core_processor::{
     common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActorData, JournalNote},
     configs::{BlockConfig, BlockInfo},
 };
+#[cfg(feature = "try-runtime")]
+use frame_support::storage::{KeyPrefixIterator, storage_prefix};
 use frame_support::{
     dispatch::{DispatchResultWithPostInfo, PostDispatchInfo},
     ensure,
@@ -101,6 +103,8 @@ use gear_core::{
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
+#[cfg(feature = "try-runtime")]
+use hex_literal::hex;
 use manager::QueuePostProcessingData;
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -515,6 +519,78 @@ pub mod pallet {
             }
 
             log::debug!(target: "gear::runtime", "⚙️  Finalization of block #{bn:?} (gear #{:?})", Self::block_number());
+        }
+
+        #[cfg(feature = "try-runtime")]
+        fn try_state(_n: BlockNumberFor<T>) -> Result<(), sp_runtime::TryRuntimeError> {
+            // Testnet incompatibility codes to be ignored during reinstrumentation check
+            let ignore_code_ids: [[u8; 32]; 16] = [
+                hex!("10d92d804fc4d42341d5eb2ca04b59e8534fd196621bd3908e1eda0a54f00ab9"),
+                hex!("164dfe52b1438c7e38d010bc28efc85bd307128859d745e801c9099cbd82bd4f"),
+                hex!("2477bc4f927a3ae8c3534a824d6c5aec9fa9b0f4747a1f1d4ae5fabbe885b111"),
+                hex!("4a0bd89b42de7071a527c13ed52527e941dcda92578585e1139562cdf8a1063e"),
+                hex!("4dd9c141603a668127b98809742cf9f0819d591fe6f44eff63edf2b529a556bd"),
+                hex!("75e61ed8f08379ff9ea7f69d542dceabf5f30bfcdf95db55eb6cab77ab3ddb56"),
+                hex!("7ae2b90c96fd65439cd3c72d0c1de985b42400c5ad376d34d1a4cb070191ed2c"),
+                hex!("7daa1b4f3a4891bda3c6b669ca896fa12b83ce4c4e840cf1d88d473a330c35fc"),
+                hex!("8990159f0730dfed622031af63c453d2bcd5644482cac651796bf229f25d23b6"),
+                hex!("90b021503f01db60d0ba00eac970d5d6845f1a757c667232615b5d6c0ff800cc"),
+                hex!("c88b00cfd30d1668ebb50283b4785fd945ac36a4783f8eab39dec2819e06a6c9"),
+                hex!("d483a0e542ad20996b38a2efb1f41e8d863cc1659f1ceb89a79065849fadfeb5"),
+                hex!("d815332c3980386e58d0d191c5161d33824d8a6356a355ccb3528e6428551ab3"),
+                hex!("e8378f125ec82bb7f399d81b3481d5d62bb5d65749f47fea6cd65f7a48e9c24c"),
+                hex!("ec0cc5d401606415c8ed31bfd347865d19fd277eec7d7bc62c164070eb8c241a"),
+                hex!("f92585a339751d7ba9da70a0536936cd8659df29bad777db13e1c7b813c1a301"),
+            ];
+            let ignore_code_ids = ignore_code_ids
+                .into_iter()
+                .map(CodeId::from)
+                .collect::<BTreeSet<_>>();
+
+            // Check that all codes can be instrumented with the current schedule
+            let prefix = storage_prefix(b"GearProgram", b"OriginalCodeStorage");
+            let schedule = T::Schedule::get();
+
+            let mut err = false;
+            for code_id in KeyPrefixIterator::<gear_core::ids::CodeId>::new(
+                prefix.to_vec(),
+                prefix.to_vec(),
+                |key: &[u8]| {
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(key);
+                    Ok(arr.into())
+                },
+            ) {
+                if let Some(original_code) = T::CodeStorage::get_original_code(code_id) {
+                    // Try to instrument the code with the current schedule without updating storage
+                    if gear_core::code::Code::try_new(
+                        original_code,
+                        schedule.instruction_weights.version,
+                        |module| schedule.rules(module),
+                        schedule.limits.stack_height,
+                        schedule.limits.data_segments_amount.into(),
+                    )
+                    .is_err()
+                    {
+                        if ignore_code_ids.contains(&code_id) {
+                            log::warn!("Ignoring the error for {code_id}");
+                        } else {
+                            log::error!(
+                                "Code {code_id} is not compatible with the current schedule"
+                            );
+                            err = true;
+                        }
+                    }
+                }
+            }
+
+            if err {
+                return Err(sp_runtime::TryRuntimeError::from(
+                    "Some codes are not compatible with the current schedule",
+                ));
+            }
+
+            Ok(())
         }
     }
 
