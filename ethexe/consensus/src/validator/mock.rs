@@ -24,47 +24,38 @@ use ethexe_common::{GearExeTimelines, db::OnChainStorageWrite};
 use std::{cell::RefCell, io::Read, sync::Arc};
 use tokio::sync::RwLock;
 
-thread_local! {
-    static BATCH: RefCell<Option<MultisignedBatchCommitment>> = const { RefCell::new(None) };
+#[derive(Default, Clone)]
+pub struct MockEthereum {
+    pub committed_batch: Arc<RwLock<Option<MultisignedBatchCommitment>>>,
+    pub predefined_election_at: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
-
-pub fn with_batch(f: impl FnOnce(Option<&MultisignedBatchCommitment>)) {
-    BATCH.with_borrow(|storage| f(storage.as_ref()));
-}
-
-struct DummyCommitter;
 
 #[async_trait]
-impl BatchCommitter for DummyCommitter {
+impl BatchCommitter for MockEthereum {
     fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
-        Box::new(DummyCommitter)
+        Box::new(self.clone())
     }
 
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
-        BATCH.with_borrow_mut(|storage| storage.replace(batch));
+        self.committed_batch.lock().await.replace(batch);
         Ok(H256::random())
     }
 }
 
-#[derive(Clone)]
-pub struct MockMiddleware {
-    predefined_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
-}
-
-impl MockMiddleware {
-    pub fn new() -> Self {
-        Self {
-            predefined_elections: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-}
-
 #[async_trait]
-impl MiddlewareExt for MockMiddleware {
-    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
-        match self.predefined_elections.read().await.get(&request) {
-            Some(election_result) => Ok(election_result.clone()),
-            None => Err(anyhow!("election result not found for the request")),
+impl MiddlewareExt for MockEthereum {
+    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<ValidatorsVec> {
+        match self
+            .predefined_election_at
+            .read()
+            .await
+            .get(&request)
+            .cloned()
+        {
+            Some(election_result) => Ok(election_result),
+            None => Err(anyhow!(
+                "No predefined election result for the given request"
+            )),
         }
     }
 }
@@ -134,8 +125,9 @@ impl WaitFor for ValidatorState {
     }
 }
 
-pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
+pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
+    let ethereum = MockEthereum::default();
 
     let ctx = ValidatorContext {
         core: ValidatorCore {
@@ -146,7 +138,8 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
             signer,
             db: Database::memory(),
             committer: Box::new(DummyCommitter),
-            middleware: MiddlewareWrapper::from_inner(MockMiddleware::new()),
+            committer: Box::new(ethereum.clone()),
+            middleware: MiddlewareWrapper::from_inner(ethereum),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },
@@ -160,5 +153,5 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
         election: 10 * 60,
     });
 
-    (ctx, keys)
+    (ctx, keys, ethereum)
 }

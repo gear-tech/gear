@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn coordinator_create_success() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
         let validators = keys
             .iter()
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn coordinator_create_insufficient_validators() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn coordinator_create_zero_threshold() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 0;
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn process_validation_reply() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();

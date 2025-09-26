@@ -107,7 +107,7 @@ mod tests {
 
     #[tokio::test]
     async fn submitter() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, eth) = mock_validator_context();
         let batch = BatchCommitment::mock(());
         let multisigned_batch = MultisignedBatchCommitment::new(
             batch,
@@ -124,6 +124,7 @@ mod tests {
         assert!(initial.is_initial());
         assert!(matches!(event, ConsensusEvent::CommitmentSubmitted(_)));
 
-        with_batch(|submitted_batch| assert_eq!(submitted_batch, Some(&multisigned_batch)));
+        let batch = eth.committed_batch.lock().await.clone();
+        assert_eq!(batch, Some(multisigned_batch));
     }
 }

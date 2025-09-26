@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn create() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
 
@@ -193,7 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn create_with_pending_events() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(H256::random());
@@ -245,7 +245,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_validation_request_success() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
@@ -279,7 +279,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_validation_request_failure() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
         let signed_request = SignedValidationRequest::mock((ctx.core.signer.clone(), producer, ()));
@@ -299,7 +299,7 @@ mod tests {
 
     #[tokio::test]
     async fn codes_not_waiting_for_commitment_error() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let mut batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
@@ -326,7 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_batch_error() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
 
@@ -356,7 +356,7 @@ mod tests {
 
     #[tokio::test]
     async fn duplicate_codes_warning() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
@@ -385,7 +385,7 @@ mod tests {
 
     #[tokio::test]
     async fn digest_mismatch_warning() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
