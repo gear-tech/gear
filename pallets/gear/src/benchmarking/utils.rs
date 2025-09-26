@@ -96,6 +96,8 @@ where
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.type_section_len.into(),
+                schedule.limits.parameters.into(),
             )
             .map_err(|_| "Code failed to load")?;
 

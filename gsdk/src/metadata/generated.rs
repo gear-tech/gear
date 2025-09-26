@@ -3192,6 +3192,7 @@ pub mod runtime_types {
                     pub payload_len: ::core::primitive::u32,
                     pub code_len: ::core::primitive::u32,
                     pub data_segments_amount: ::core::primitive::u32,
+                    pub type_section_len: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct MemoryWeights {
