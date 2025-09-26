@@ -78,24 +78,24 @@ pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
 /// public and can therefore be modified. For example in order to change some of the limits
 /// and set a custom instruction weight version the following code could be used:
 /// ```rust
-/// use pallet_gear::{Schedule, Limits, InstructionWeights, Config};
+/// use pallet_gear::{Config, InstructionWeights, Limits, Schedule};
 ///
 /// fn create_schedule<T: Config>() -> Schedule<T> {
 ///     Schedule {
 ///         limits: Limits {
-///                 globals: 3,
-///                 locals: 3,
-///                 parameters: 3,
-///                 memory_pages: 16,
-///                 table_size: 3,
-///                 br_table_size: 3,
-///                 .. Default::default()
-///             },
-///         instruction_weights: InstructionWeights {
-///                 version: 5,
-///             .. Default::default()
+///             globals: 3,
+///             locals: 3,
+///             parameters: 3,
+///             memory_pages: 16,
+///             table_size: 3,
+///             br_table_size: 3,
+///             ..Default::default()
 ///         },
-///             .. Default::default()
+///         instruction_weights: InstructionWeights {
+///             version: 5,
+///             ..Default::default()
+///         },
+///         ..Default::default()
 ///     }
 /// }
 /// ```

@@ -109,6 +109,9 @@ jobs:
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
+          - name: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
             runs-on: ubuntu-24.04-arm
@@ -117,6 +120,8 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -237,6 +242,9 @@ jobs:
           - name: linux-x86_64
             target: x86_64-unknown-linux-gnu
             runs-on: ubuntu-latest
+          - name: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-24.04-arm
           - name: windows-x86_64
             target: x86_64-pc-windows-msvc
             runs-on: windows-latest

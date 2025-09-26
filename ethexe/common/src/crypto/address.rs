@@ -120,6 +120,19 @@ impl From<Address> for ActorId {
     }
 }
 
+// Type conversions to/from `alloy_primitives::Address`
+impl From<alloy_primitives::Address> for Address {
+    fn from(value: alloy_primitives::Address) -> Self {
+        Self(value.0.0)
+    }
+}
+
+impl From<Address> for alloy_primitives::Address {
+    fn from(value: Address) -> Self {
+        Self(value.0.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
