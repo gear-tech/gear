@@ -27,7 +27,8 @@ use ethexe_common::{
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment, StateTransition,
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition,
+        ValidatorsCommitment,
     },
     sha3::{self, digest::Digest as _},
 };
@@ -261,8 +262,8 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             .parent_hash;
     }
 
-    // Collect all transitions in chronological order
-    let all_transitions: Vec<StateTransition> = transitions.into_iter().flatten().collect();
+    // Collect all transitions in true chronological order (oldest -> newest)
+    let all_transitions: Vec<StateTransition> = transitions.into_iter().rev().flatten().collect();
 
     // Group transitions by actor_id and squash consecutive transitions for the same actor
     let mut actor_transitions: std::collections::BTreeMap<ActorId, Vec<StateTransition>> =
@@ -280,25 +281,33 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             continue;
         }
 
-        // Use the last transition in chronological order as the base
+        // Pick the newest transition
         let mut squashed = transitions_for_actor.last().unwrap().clone();
 
         if transitions_for_actor.len() > 1 {
-            // Accumulate messages from all transitions for this actor
+            // Accumulate messages/claims/value in chronological order for determinism.
             let mut all_messages = Vec::new();
             let mut all_claims = Vec::new();
             let mut total_value: u128 = 0;
+            let mut exit_inheritor: Option<ActorId> = None;
 
-            // Accumulate from all transitions
             for t in &transitions_for_actor {
                 all_messages.extend_from_slice(&t.messages);
                 all_claims.extend_from_slice(&t.value_claims);
                 total_value = total_value.saturating_add(t.value_to_receive);
 
                 if t.exited {
-                    // If any transition indicates exit, mark as exited
+                    // If any transition indicates exit, mark as exited and remember the newest inheritor
                     squashed.exited = true;
+                    // This will end up set to the newest exiting inheritor
+                    exit_inheritor = Some(t.inheritor);
                 }
+            }
+
+            if squashed.exited
+                && let Some(inheritor) = exit_inheritor
+            {
+                squashed.inheritor = inheritor;
             }
 
             squashed.messages = all_messages;

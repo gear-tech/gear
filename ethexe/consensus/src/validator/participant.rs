@@ -173,10 +173,10 @@ mod tests {
     use super::*;
     use crate::{
         mock::*,
+        utils,
         utils::{SignedProducerBlock, SignedValidationRequest},
         validator::mock::*,
     };
-    use crate::utils;
     use ethexe_common::{Digest, ToDigest, gear::CodeCommitment};
     use gprimitives::H256;
 
@@ -262,10 +262,16 @@ mod tests {
             false,
         )
         .unwrap();
-        let local_batch =
-            utils::create_batch_commitment(&ctx.core.db, &block, chain_commitment, code_commitments, None, None)
-                .unwrap()
-                .unwrap();
+        let local_batch = utils::create_batch_commitment(
+            &ctx.core.db,
+            &block,
+            chain_commitment,
+            code_commitments,
+            None,
+            None,
+        )
+        .unwrap()
+        .unwrap();
 
         let signed_request = ctx
             .core
