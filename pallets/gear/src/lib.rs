@@ -551,7 +551,12 @@ pub mod pallet {
             let prefix = storage_prefix(b"GearProgram", b"OriginalCodeStorage");
             let schedule = T::Schedule::get();
 
-            let mut err = false;
+            let mut total_checked = 0;
+            let mut failed_codes = Vec::new();
+            let mut ignored_count = 0;
+
+            log::info!("Starting try-state code compatibility check");
+
             for code_id in KeyPrefixIterator::<gear_core::ids::CodeId>::new(
                 prefix.to_vec(),
                 prefix.to_vec(),
@@ -562,29 +567,42 @@ pub mod pallet {
                 },
             ) {
                 if let Some(original_code) = T::CodeStorage::get_original_code(code_id) {
+                    total_checked += 1;
+
                     // Try to instrument the code with the current schedule without updating storage
-                    if gear_core::code::Code::try_new(
+                    match gear_core::code::Code::try_new(
                         original_code,
                         schedule.instruction_weights.version,
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
                         schedule.limits.data_segments_amount.into(),
-                    )
-                    .is_err()
-                    {
-                        if ignore_code_ids.contains(&code_id) {
-                            log::warn!("Ignoring the error for {code_id}");
-                        } else {
-                            log::error!(
-                                "Code {code_id} is not compatible with the current schedule"
-                            );
-                            err = true;
+                    ) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            if ignore_code_ids.contains(&code_id) {
+                                log::warn!(
+                                    "Ignoring incompatible code {code_id} (testnet legacy): {e}"
+                                );
+                                ignored_count += 1;
+                            } else {
+                                log::error!("Code {code_id} instrumentation failed: {e}");
+                                failed_codes.push((code_id, e));
+                            }
                         }
                     }
                 }
             }
 
-            if err {
+            log::info!(
+                "Try-state check completed: {total_checked} codes checked, {} failed, {ignored_count} ignored",
+                failed_codes.len()
+            );
+
+            if !failed_codes.is_empty() {
+                log::error!("Failed codes with errors:");
+                for (code_id, error) in &failed_codes {
+                    log::error!("  Code {code_id}: {error}");
+                }
                 return Err(sp_runtime::TryRuntimeError::from(
                     "Some codes are not compatible with the current schedule",
                 ));
