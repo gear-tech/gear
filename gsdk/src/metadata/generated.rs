@@ -687,16 +687,6 @@ pub mod runtime_types {
         }
         pub mod gear_core {
             use super::runtime_types;
-            pub mod buffer {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct LimitedVec<_0, _1>(
-                    pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
-                    #[codec(skip)] pub ::core::marker::PhantomData<_1>,
-                );
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct PayloadSizeError;
-            }
             pub mod code {
                 use super::runtime_types;
                 pub mod instrumented {
@@ -753,16 +743,21 @@ pub mod runtime_types {
                     }
                 }
             }
+            pub mod limited {
+                use super::runtime_types;
+                pub mod vec {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct LimitedVec<_0>(pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>);
+                }
+            }
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct IntoPageBufError;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub  runtime_types::gear_core::buffer::LimitedVec<
-                        ::core::primitive::u8,
-                        runtime_types::gear_core::memory::IntoPageBufError,
-                    >,
+                    pub runtime_types::gear_core::limited::vec::LimitedVec<::core::primitive::u8>,
                 );
             }
             pub mod message {
@@ -834,9 +829,8 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                        pub payload: runtime_types::gear_core::limited::vec::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -854,9 +848,8 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                        pub payload: runtime_types::gear_core::limited::vec::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -871,9 +864,8 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                        pub payload: runtime_types::gear_core::limited::vec::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
