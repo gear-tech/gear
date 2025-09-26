@@ -1362,13 +1362,16 @@ async fn validators_election() {
 
     let mut listener = env.observer_events_publisher().subscribe().await;
 
-    listener.apply_until_block_event(|event| {
-        Ok(matches!(
-            event,
-            BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted { era_index })
-        )
-        .then_some(()))
-    }).await.unwrap();
+    listener
+        .apply_until_block_event(|event| {
+            Ok(matches!(
+                event,
+                BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted { era_index })
+            )
+            .then_some(()))
+        })
+        .await
+        .unwrap();
 
     tracing::info!("📗 Next validators successfully commited");
 }

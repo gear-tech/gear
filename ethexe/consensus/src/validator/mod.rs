@@ -143,7 +143,7 @@ impl ValidatorService {
                 signer,
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),
-                middleware: MiddlewareWrapper::new(ethereum.middleware().query(), db.clone()),
+                middleware: MiddlewareWrapper::from_inner(ethereum.middleware().query()),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
             },

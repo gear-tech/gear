@@ -26,8 +26,9 @@ use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Digest, SimpleBlockData, ToDigest, ValidatorsVec,
-    db::BlockMetaStorageRead,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     ecdsa::PublicKey,
+    end_of_era_timestamp, era_from_ts,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -142,14 +143,32 @@ impl ValidatorCore {
     // TODO #4741
     pub async fn aggregate_validators_commitment(
         &mut self,
-        _block: &SimpleBlockData,
+        block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        // self.middleware.make_election_at(ElectionRequest {
-        //     at_block_hash: todo!(),
-        //     at_timestamp: todo!(),
-        //     max_validators: todo!(),
-        // });
-        Ok(None)
+        let SimpleBlockData { hash, header } = block;
+        let timelines = self
+            .db
+            .gear_exe_timelines()
+            .ok_or(anyhow!("gear exe timelines not found"))?;
+
+        let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
+
+        if header.timestamp < election_ts {
+            tracing::debug!(block = %hash, "no election in this block, election not reached yet");
+            return Ok(None);
+        }
+
+        let election_block = utils::election_block_in_era(self.db, block, election_ts)?;
+        let request = ElectionRequest {
+            at_block_hash: election_block,
+            at_timestamp: election_ts,
+            max_validators: 10,
+        };
+
+        let elected_validators = self.middleware.make_election_at(request).await?;
+        let commitment = utils::validators_commitment(self.db, block_era + 1, elected_validators)?;
+        Ok(Some(commitment))
     }
 
     // TODO #4742
@@ -288,20 +307,18 @@ pub trait MiddlewareExt: Send + Sync {
 #[derive(Clone)]
 pub struct MiddlewareWrapper {
     inner: Arc<dyn MiddlewareExt + 'static>,
-    db: Database,
     cached_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
 impl MiddlewareWrapper {
-    pub fn new<M: MiddlewareExt + 'static>(inner: M, db: Database) -> Self {
+    pub fn from_inner<M: MiddlewareExt + 'static>(inner: M) -> Self {
         Self {
             inner: Arc::new(inner),
-            db,
             cached_elections: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub async fn election(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+    pub async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
         match self.cached_elections.read().await.get(&request) {
             Some(cached_result) => Ok(cached_result.clone()),
             None => {

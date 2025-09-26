@@ -51,6 +51,14 @@ pub struct MockMiddleware {
     predefined_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
+impl MockMiddleware {
+    pub fn new() -> Self {
+        Self {
+            predefined_elections: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+}
+
 #[async_trait]
 impl MiddlewareExt for MockMiddleware {
     async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
@@ -138,7 +146,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>) {
             signer,
             db: Database::memory(),
             committer: Box::new(DummyCommitter),
-            middleware: Some(Box::new(DummyMiddleware) as Box<dyn MiddlewareExt>),
+            middleware: MiddlewareWrapper::from_inner(MockMiddleware::new()),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },

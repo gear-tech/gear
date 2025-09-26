@@ -487,7 +487,7 @@ mod tests {
             .await?;
 
         let router = ethereum.router();
-        let middleware = ethereum.middleware().unwrap();
+        let middleware = ethereum.middleware();
 
         assert_eq!(
             middleware.query().router().await?,

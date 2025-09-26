@@ -28,7 +28,8 @@ use ethexe_common::{
     ecdsa::{ContractSignature, PublicKey, SignedData},
     era_from_ts,
     gear::{
-        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, ValidatorsCommitment, RewardsCommitment,
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
+        ValidatorsCommitment,
     },
     sha3::{self, digest::Digest as _},
 };
@@ -279,18 +280,9 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
 
 pub fn validators_commitment<DB: OnChainStorageRead>(
     db: &DB,
-    block_hash: H256,
+    era: u64,
     elected_validators: ValidatorsVec,
-) -> Result<Option<ValidatorsCommitment>> {
-    let header = db
-        .block_header(block_hash)
-        .ok_or_else(|| anyhow!("Block header {block_hash} is not in storage"))?;
-
-    let timelines = db
-        .gear_exe_timelines()
-        .ok_or(anyhow!("gear-exe timelines not set"))?;
-    let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
-
+) -> Result<ValidatorsCommitment> {
     let validators_identifiers = elected_validators
         .iter()
         .map(|validator| Identifier::deserialize(&validator.0).unwrap())
@@ -318,12 +310,12 @@ pub fn validators_commitment<DB: OnChainStorageRead>(
         y: U256::from_big_endian(public_key_y_bytes),
     };
 
-    Ok(Some(ValidatorsCommitment {
+    Ok(ValidatorsCommitment {
         aggregated_public_key,
         verifiable_secret_sharing_commitment,
-        validators: elected_validators.clone().into(),
-        era_index: block_era + 1,
-    }))
+        validators: elected_validators.into(),
+        era_index: era,
+    })
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
@@ -362,6 +354,33 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
 pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
+}
+
+/// Finds the block with the earliest timestamp that is still within the specified election period.
+pub fn election_block_in_era<DB: OnChainStorageRead>(
+    db: &DB,
+    block_data: SimpleBlockData,
+    election_ts: u64,
+) -> Result<H256> {
+    let SimpleBlockData {
+        mut hash,
+        mut header,
+    } = block_data;
+    if header.timestamp < election_ts {
+        anyhow::bail!("election not reached yet");
+    }
+
+    loop {
+        let parent_header = db.block_header(header.parent_hash).ok_or(anyhow!(""))?;
+        if parent_header.timestamp < election_ts {
+            break;
+        }
+
+        hash = header.parent_hash;
+        header = parent_header;
+    }
+
+    Ok(block)
 }
 
 #[cfg(test)]

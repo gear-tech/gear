@@ -54,10 +54,7 @@ enum State {
         timer: Timer,
     },
     WaitingBlockComputed,
-    AggregateBatchCommitment {
-        #[debug(skip)]
-        future: BoxFuture<'static, Result<Option<BatchCommitment>>>,
-    },
+    AggregateBatchCommitment(#[debug(skip)] BoxFuture<'static, Result<Option<BatchCommitment>>>),
 }
 
 impl StateHandler for Producer {
@@ -81,14 +78,13 @@ impl StateHandler for Producer {
             return Ok(self.into());
         }
 
-        self.state = State::AggregateBatchCommitment {
-            future: self
-                .ctx
+        self.state = State::AggregateBatchCommitment(
+            self.ctx
                 .core
                 .clone()
                 .aggregate_batch_commitment(self.block.clone())
                 .boxed(),
-        };
+        );
 
         Ok(self.into())
     }
@@ -102,7 +98,7 @@ impl StateHandler for Producer {
                 }
             }
             State::WaitingBlockComputed => {}
-            State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
+            State::AggregateBatchCommitment(future) => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
                     return Coordinator::create(self.ctx, self.validators, batch)
                         .map(|s| (Poll::Ready(()), s));
