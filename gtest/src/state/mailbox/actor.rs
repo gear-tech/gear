@@ -84,6 +84,11 @@ impl<'a> ActorMailbox<'a> {
             .read_mailbox_message(self.user_id, reply_to_id)?;
 
         let destination = mailboxed.source();
+
+        // No need to check the mailbox message source being builtin actor,
+        // because builtins only send replies, which goes only to log.
+        assert!(!self.manager.borrow().is_builtin(destination));
+
         let reply_id = MessageId::generate_reply(mailboxed.id());
 
         // Set zero gas limit if reply deposit exists.
@@ -143,7 +148,13 @@ impl<'a> ActorMailbox<'a> {
             .borrow_mut()
             .read_mailbox_message(self.user_id, message_id)?;
 
-        if ProgramsStorageManager::is_active_program(mailboxed.source()) {
+        let destination = mailboxed.source();
+
+        // No need to check the mailbox message source being builtin actor,
+        // because builtins only send replies, which goes only to log.
+        assert!(!self.manager.borrow().is_builtin(destination));
+
+        if ProgramsStorageManager::is_active_program(destination) {
             let message = ReplyMessage::auto(mailboxed.id());
 
             self.manager
@@ -152,8 +163,7 @@ impl<'a> ActorMailbox<'a> {
                 .create(self.user_id, message.id(), 0, true)
                 .unwrap_or_else(|e| unreachable!("GasTree corrupted! {:?}", e));
 
-            let dispatch =
-                message.into_stored_dispatch(self.user_id, mailboxed.source(), mailboxed.id());
+            let dispatch = message.into_stored_dispatch(self.user_id, destination, mailboxed.id());
 
             self.manager.borrow_mut().dispatches.push_back(dispatch);
         }
