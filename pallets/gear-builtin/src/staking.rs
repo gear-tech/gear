@@ -140,9 +140,9 @@ where
                 Response::ActiveEra {
                     index: era_info.index,
                     start: era_info.start,
-                    executed_at: frame_system::Pallet::<T>::block_number().saturated_into::<u64>(),
+                    executed_at: frame_system::Pallet::<T>::block_number().saturated_into::<u32>(),
                     executed_at_gear_block: pallet_gear::Pallet::<T>::block_number()
-                        .saturated_into::<u64>(),
+                        .saturated_into::<u32>(),
                 }
                 .encode()
                 .try_into()

@@ -136,8 +136,8 @@ pub enum Response {
         // Block number when the era started. `None` if the era has not started yet.
         start: Option<u64>,
         // Block number when the request was executed.
-        executed_at: u64,
+        executed_at: u32,
         // Gear block number when the request was executed.
-        executed_at_gear_block: u64,
+        executed_at_gear_block: u32,
     },
 }
