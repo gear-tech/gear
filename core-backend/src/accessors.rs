@@ -22,16 +22,19 @@ use crate::{
     BackendExternalities,
     memory::{
         BackendMemory, ExecutorMemory, MemoryAccessError, MemoryAccessRegistry, WasmMemoryRead,
-        WasmMemoryReadAs, WasmMemoryReadDecoded, WasmMemoryWrite, WasmMemoryWriteAs,
+        WasmMemoryReadAs, WasmMemoryWrite, WasmMemoryWriteAs,
     },
     runtime::MemoryCallerContext,
     state::HostState,
 };
 use alloc::vec::Vec;
-use gear_core::{buffer::Payload, limited::LimitedVecError};
+use bytemuck::Pod;
+use gear_core::{
+    buffer::{Payload, PayloadSizeError},
+    limited::LimitedVecError,
+};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
-use parity_scale_codec::{Decode, MaxEncodedLen};
 
 const PTR_SPECIAL: u32 = u32::MAX;
 
@@ -117,12 +120,8 @@ pub(crate) struct ReadAs<T> {
     result: Result<T, MemoryAccessError>,
 }
 
-pub(crate) struct ReadDecoded<T: Decode + MaxEncodedLen> {
-    result: Result<T, MemoryAccessError>,
-}
-
-pub(crate) struct ReadDecodedSpecial<T: Decode + MaxEncodedLen + Default> {
-    result: Result<T, MemoryAccessError>,
+pub(crate) struct ReadAsOption<T> {
+    result: Result<Option<T>, MemoryAccessError>,
 }
 
 pub(crate) struct WriteInGrRead {
@@ -276,7 +275,7 @@ impl<const N: usize> SyscallArg for ReadPayloadLimited<N> {
     }
 }
 
-impl<T> SyscallArg for ReadAs<T> {
+impl<T: Pod> SyscallArg for ReadAs<T> {
     type Output = WasmMemoryReadAs<T>;
     const REQUIRED_ARGS: usize = 1;
 
@@ -312,44 +311,8 @@ impl<T> SyscallArg for ReadAs<T> {
     }
 }
 
-impl<T: Decode + MaxEncodedLen> SyscallArg for ReadDecoded<T> {
-    type Output = WasmMemoryReadDecoded<T>;
-    const REQUIRED_ARGS: usize = 1;
-
-    fn pre_process<Caller, Ext>(
-        registry: &mut Option<MemoryAccessRegistry<Caller>>,
-        args: &[Value],
-    ) -> Result<Self::Output, HostError>
-    where
-        Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
-        Ext: BackendExternalities + 'static,
-    {
-        debug_assert_eq!(args.len(), Self::REQUIRED_ARGS);
-
-        let ptr = SyscallValue(args[0]).try_into()?;
-
-        Ok(registry.get_or_insert_default().register_read_decoded(ptr))
-    }
-
-    fn post_process<Caller, Ext>(
-        output: Self::Output,
-        ctx: &mut MemoryCallerContext<Caller>,
-    ) -> Self
-    where
-        Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
-        Ext: BackendExternalities + 'static,
-    {
-        Self {
-            result: ctx
-                .memory_wrap
-                .io_mut_ref()
-                .and_then(|io| io.read_decoded(&mut ctx.caller_wrap, output)),
-        }
-    }
-}
-
-impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
-    type Output = Option<WasmMemoryReadDecoded<T>>;
+impl<T: Pod> SyscallArg for ReadAsOption<T> {
+    type Output = Option<WasmMemoryReadAs<T>>;
     const REQUIRED_ARGS: usize = 1;
 
     fn pre_process<Caller, Ext>(
@@ -365,9 +328,7 @@ impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
         let ptr = SyscallValue(args[0]).try_into()?;
 
         if ptr != PTR_SPECIAL {
-            Ok(Some(
-                registry.get_or_insert_default().register_read_decoded(ptr),
-            ))
+            Ok(Some(registry.get_or_insert_default().register_read_as(ptr)))
         } else {
             Ok(None)
         }
@@ -381,16 +342,14 @@ impl<T: Decode + MaxEncodedLen + Default> SyscallArg for ReadDecodedSpecial<T> {
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
         Ext: BackendExternalities + 'static,
     {
-        match output {
-            Some(output) => Self {
-                result: ctx
-                    .memory_wrap
-                    .io_mut_ref()
-                    .and_then(|io| io.read_decoded(&mut ctx.caller_wrap, output)),
-            },
-            None => Self {
-                result: Ok(Default::default()),
-            },
+        Self {
+            result: output
+                .map(|read| {
+                    ctx.memory_wrap
+                        .io_mut_ref()
+                        .and_then(|io| io.read_as(&mut ctx.caller_wrap, read))
+                })
+                .transpose(),
         }
     }
 }
@@ -476,14 +435,8 @@ impl<T> ReadAs<T> {
     }
 }
 
-impl<T: Decode + MaxEncodedLen> ReadDecoded<T> {
-    pub fn into_inner(self) -> Result<T, MemoryAccessError> {
-        self.result
-    }
-}
-
-impl<T: Decode + MaxEncodedLen + Default> ReadDecodedSpecial<T> {
-    pub fn into_inner(self) -> Result<T, MemoryAccessError> {
+impl<T> ReadAsOption<T> {
+    pub fn into_inner(self) -> Result<Option<T>, MemoryAccessError> {
         self.result
     }
 }

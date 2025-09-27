@@ -21,8 +21,8 @@
 use crate::{
     BackendExternalities,
     accessors::{
-        Read, ReadAs, ReadDecoded, ReadDecodedSpecial, ReadPayloadLimited, SyscallArg,
-        SyscallValue, WriteAs, WriteInGrRead,
+        Read, ReadAs, ReadAsOption, ReadPayloadLimited, SyscallArg, SyscallValue, WriteAs,
+        WriteInGrRead,
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -553,7 +553,7 @@ where
         )
     }
 
-    pub fn exit(inheritor_id: ReadDecoded<ActorId>) -> impl Syscall<Caller> {
+    pub fn exit(inheritor_id: ReadAs<ActorId>) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Exit,
             move |_ctx: &mut MemoryCallerContext<Caller>| {
@@ -706,7 +706,7 @@ where
     }
 
     pub fn random(
-        subject_ptr: ReadDecoded<Hash>,
+        subject_ptr: ReadAs<Hash>,
         bn_random_ptr: WriteAs<BlockNumberWithHash>,
     ) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
@@ -731,9 +731,9 @@ where
         ctx: &mut MemoryCallerContext<Caller>,
         payload: ReadPayloadLimited,
         gas_limit: Option<u64>,
-        value: ReadDecodedSpecial<u128>,
+        value: ReadAsOption<u128>,
     ) -> Result<MessageId, RunFallibleError> {
-        let value = value.into_inner()?;
+        let value = value.into_inner()?.unwrap_or(0);
         let payload = Self::read_payload(payload)?;
 
         ctx.caller_wrap
@@ -742,10 +742,7 @@ where
             .map_err(Into::into)
     }
 
-    pub fn reply(
-        payload: ReadPayloadLimited,
-        value: ReadDecodedSpecial<u128>,
-    ) -> impl Syscall<Caller> {
+    pub fn reply(payload: ReadPayloadLimited, value: ReadAsOption<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::Reply(payload.size().into()),
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -757,7 +754,7 @@ where
     pub fn reply_wgas(
         payload: ReadPayloadLimited,
         gas_limit: u64,
-        value: ReadDecodedSpecial<u128>,
+        value: ReadAsOption<u128>,
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyWGas(payload.size().into()),
@@ -770,9 +767,9 @@ where
     fn reply_commit_inner(
         ctx: &mut MemoryCallerContext<Caller>,
         gas_limit: Option<u64>,
-        value: ReadDecodedSpecial<u128>,
+        value: ReadAsOption<u128>,
     ) -> Result<MessageId, RunFallibleError> {
-        let value = value.into_inner()?;
+        let value = value.into_inner()?.unwrap_or(0);
 
         ctx.caller_wrap
             .ext_mut()
@@ -784,17 +781,14 @@ where
             .map_err(Into::into)
     }
 
-    pub fn reply_commit(value: ReadDecodedSpecial<u128>) -> impl Syscall<Caller> {
+    pub fn reply_commit(value: ReadAsOption<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyCommit,
             move |ctx: &mut MemoryCallerContext<Caller>| Self::reply_commit_inner(ctx, None, value),
         )
     }
 
-    pub fn reply_commit_wgas(
-        gas_limit: u64,
-        value: ReadDecodedSpecial<u128>,
-    ) -> impl Syscall<Caller> {
+    pub fn reply_commit_wgas(gas_limit: u64, value: ReadAsOption<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyCommitWGas,
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -881,9 +875,9 @@ where
         offset: u32,
         len: u32,
         gas_limit: Option<u64>,
-        value: ReadDecodedSpecial<u128>,
+        value: ReadAsOption<u128>,
     ) -> Result<MessageId, RunFallibleError> {
-        let value = value.into_inner()?;
+        let value = value.into_inner()?.unwrap_or(0);
 
         // Charge for `len` is inside `reply_push_input`
         ctx.caller_wrap.ext_mut().reply_push_input(offset, len)?;
@@ -898,11 +892,7 @@ where
             .map_err(Into::into)
     }
 
-    pub fn reply_input(
-        offset: u32,
-        len: u32,
-        value: ReadDecodedSpecial<u128>,
-    ) -> impl Syscall<Caller> {
+    pub fn reply_input(offset: u32, len: u32, value: ReadAsOption<u128>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyInput,
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -915,7 +905,7 @@ where
         offset: u32,
         len: u32,
         gas_limit: u64,
-        value: ReadDecodedSpecial<u128>,
+        value: ReadAsOption<u128>,
     ) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithHash>(
             CostToken::ReplyInputWGas,
@@ -1065,10 +1055,7 @@ where
         )
     }
 
-    pub fn reply_deposit(
-        message_id: ReadDecoded<MessageId>,
-        gas_value: u64,
-    ) -> impl Syscall<Caller> {
+    pub fn reply_deposit(message_id: ReadAs<MessageId>, gas_value: u64) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::ReplyDeposit,
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -1082,7 +1069,7 @@ where
         )
     }
 
-    pub fn unreserve_gas(reservation_id: ReadDecoded<ReservationId>) -> impl Syscall<Caller> {
+    pub fn unreserve_gas(reservation_id: ReadAs<ReservationId>) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorWithGas>(
             CostToken::UnreserveGas,
             move |ctx: &mut MemoryCallerContext<Caller>| {
@@ -1215,7 +1202,7 @@ where
         )
     }
 
-    pub fn wake(message_id: ReadDecoded<MessageId>, delay: u32) -> impl Syscall<Caller> {
+    pub fn wake(message_id: ReadAs<MessageId>, delay: u32) -> impl Syscall<Caller> {
         FallibleSyscall::new::<ErrorBytes>(
             CostToken::Wake,
             move |ctx: &mut MemoryCallerContext<Caller>| {

@@ -20,6 +20,8 @@
 
 #![no_std]
 
+use bytemuck::{Pod, Zeroable};
+
 /// Represents error code type.
 pub type ErrorCode = u32;
 
@@ -80,7 +82,7 @@ impl BlockNumberWithHash {
 
 /// Represents type defining concatenated hash with value. 48 bytes.
 #[repr(C, packed)]
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,
@@ -288,7 +290,7 @@ impl TwoHashes {
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
 #[repr(C, packed)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,
     pub hash2: Hash,
