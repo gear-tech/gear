@@ -49,7 +49,7 @@ use frame_system::{
 };
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
-use pallet_gear_builtin::ActorWithId;
+use pallet_gear_builtin::{BuiltinActorId, BuiltinActorType};
 use pallet_grandpa::{
     AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList, fg_primitives,
 };
@@ -66,7 +66,7 @@ use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
     traits::{
-        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
+        AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, ConvertInto,
         DispatchInfoOf, Dispatchable, IdentityLookup, NumberFor, One, SignedExtension,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -76,6 +76,9 @@ use sp_std::{
     prelude::*,
 };
 use sp_version::RuntimeVersion;
+
+#[cfg(feature = "dev")]
+use pallet_gear_builtin::BuiltinActor;
 
 #[cfg(not(feature = "dev"))]
 use sp_runtime::traits::OpaqueKeys;
@@ -786,7 +789,6 @@ parameter_types! {
     pub const MaxPointsToBalance: u8 = 10;
 }
 
-use sp_runtime::traits::Convert;
 pub struct BalanceToU256;
 impl Convert<Balance, sp_core::U256> for BalanceToU256 {
     fn convert(balance: Balance) -> sp_core::U256 {
@@ -1205,14 +1207,10 @@ impl pallet_gear_messenger::Config for Runtime {
 /// Make sure to mint ED for each new builtin actor added to the tuple.
 #[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
-    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
-    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    // The ID = 3 is for the pallet_gear_eth_bridge::Actor.
-    ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
+    pallet_gear_builtin::bls12_381::Actor<Runtime>,
+    pallet_gear_builtin::staking::Actor<Runtime>,
+    pallet_gear_builtin::proxy::Actor<Runtime>,
 );
-
-#[cfg(feature = "dev")]
-const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
 /// Builtin actors arranged in a tuple.
 ///
@@ -1220,10 +1218,10 @@ const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 /// Make sure to mint ED for each new builtin actor added to the tuple.
 #[cfg(feature = "dev")]
 pub type BuiltinActors = (
-    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
-    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    ActorWithId<{ ETH_BRIDGE_BUILTIN_ID }, pallet_gear_eth_bridge::Actor<Runtime>>,
-    ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
+    pallet_gear_builtin::bls12_381::Actor<Runtime>,
+    pallet_gear_builtin::staking::Actor<Runtime>,
+    pallet_gear_eth_bridge::Actor<Runtime>,
+    pallet_gear_builtin::proxy::Actor<Runtime>,
 );
 
 impl pallet_gear_builtin::Config for Runtime {
@@ -1243,7 +1241,7 @@ parameter_types! {
 #[cfg(feature = "dev")]
 parameter_types! {
     pub GearEthBridgeBuiltinAddress: AccountId
-        = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
+        = GearBuiltin::builtin_id_into_actor_id(<pallet_gear_eth_bridge::builtin::Actor<Runtime> as BuiltinActor>::TYPE.id()).into_bytes().into();
 }
 
 /// Provides the set of accounts allowed to control the Gear ETH Bridge (admin and pauser).
@@ -1883,8 +1881,33 @@ impl_runtime_apis_plus_common! {
     }
 
     impl pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi<Block> for Runtime {
-        fn query_actor_id(builtin_id: u64) -> H256 {
-            GearBuiltin::generate_actor_id(builtin_id).into_bytes().into()
+        fn query_actor_id(builtin_id: u64) -> Option<H256> {
+            Some(GearBuiltin::builtin_id_into_actor_id(BuiltinActorType::from_index(builtin_id)?.id()).into_bytes().into())
+        }
+
+        fn list_actors() -> Vec<(BuiltinActorType, u16, H256)> {
+            GearBuiltin::list_builtin_info().into_iter()
+                .map(|(actor_type, version, id)| (actor_type, version, id.into_bytes().into()))
+                .collect()
+        }
+
+        fn get_actor_id(actor_type: BuiltinActorType, version: u16) -> Option<H256> {
+            if version == 0 || actor_type == BuiltinActorType::Unknown {
+                return None;
+            }
+
+            let list = GearBuiltin::list_builtin_info();
+
+            list.into_iter()
+                .find(|(t, v, _)| *t == actor_type && *v >= version)
+                .map(|(_, v, id)| {
+                    if v == version {
+                        id.into_bytes().into()
+                    }
+                    else {
+                        GearBuiltin::builtin_id_into_actor_id(BuiltinActorId::new(&actor_type.id().name, version)).into_bytes().into()
+                    }
+                })
         }
     }
 
