@@ -71,6 +71,7 @@ demo-signal-entry = { workspace = true, optional = true }
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]
+hex.workspace = true
 wat.workspace = true
 wasmparser.workspace = true
 blake2.workspace = true
