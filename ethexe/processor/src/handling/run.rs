@@ -117,13 +117,14 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
-    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController, state::Storage,
+    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
+#[derive(Clone)]
 pub struct RunnerConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
@@ -136,9 +137,89 @@ pub async fn run_new(
     in_block_transitions: &mut InBlockTransitions,
     config: RunnerConfig,
 ) {
+    let handle_chunk_data = |execution_chunks: &mut chunks_splitting::ExecutionChunks, actor_state: chunks_splitting::ActorStateHashWithQueueSize| {
+        let (actor_id, hash, queue_size) = actor_state.into_inner();
+        let chunk_idx = execution_chunks.chunk_idx(queue_size);
+        execution_chunks.insert_into(chunk_idx, actor_id, hash);
+    };
+
+    run_impl(
+        db,
+        instance_creator,
+        in_block_transitions,
+        config.clone(),
+        config.block_gas_limit,
+        handle_chunk_data,
+        None,
+        None,
+    )
+    .await;
+}
+
+pub async fn run_overlaid(
+    db: Database,
+    instance_creator: InstanceCreator,
+    in_block_transitions: &mut InBlockTransitions,
+    config: RunnerConfig,
+    base_program: ActorId,
+) {
+    let mut overlaid_ctx = OverlaidContext::new(base_program, db.clone(), in_block_transitions);
+    let gas_limit = config
+        .block_gas_limit
+        .saturating_mul(config.gas_limit_multiplier);
+
+    let handle_chunk_data = |execution_chunks: &mut chunks_splitting::ExecutionChunks, actor_state: chunks_splitting::ActorStateHashWithQueueSize| {
+        let (actor_id, hash, queue_size) = actor_state.into_inner();
+        if base_program == actor_id {
+            // Insert base program into heaviest chunk, which is going to be executed first.
+            // This is done to get faster reply from the target dispatch for which overlaid
+            // executor was created.
+            execution_chunks.insert_into_heaviest(actor_id, hash);
+        } else {
+            let chunk_idx = execution_chunks.chunk_idx(queue_size);
+            execution_chunks.insert_into(chunk_idx, actor_id, hash);
+        }
+    };
+
+    let check_task_run = |program_id: ActorId| -> bool {
+        // If the queue wasn't nullified, the following call will nullify it and skip job spawning.
+        overlaid_ctx.nullify_queue(program_id, in_block_transitions)
+    };
+
+    let early_break = |journal: &Vec<JournalNote>, transitions: &mut InBlockTransitions| -> bool {
+        overlaid_ctx.nullify_or_break_early(journal, transitions)
+    };
+
+    run_impl(
+        db,
+        instance_creator,
+        in_block_transitions,
+        config,
+        gas_limit,
+        handle_chunk_data,
+        Some(check_task_run),
+        Some(early_break),
+    )
+    .await;
+}
+
+async fn run_impl<HandleChunkData, CheckTaskRun, EarlyBreak>(
+    db: Database,
+    instance_creator: InstanceCreator,
+    in_block_transitions: &mut InBlockTransitions,
+    config: RunnerConfig,
+    gas_limit: u64,
+    mut handle_chunk_data: HandleChunkData,
+    mut check_task_run: Option<CheckTaskRun>,
+    mut early_break: Option<EarlyBreak>,
+) where
+    HandleChunkData: FnMut(&mut chunks_splitting::ExecutionChunks, chunks_splitting::ActorStateHashWithQueueSize),
+    CheckTaskRun: FnMut(ActorId) -> bool,
+    EarlyBreak: FnMut(&Vec<JournalNote>, &mut InBlockTransitions) -> bool,
+{
     let mut join_set = JoinSet::new();
     let chunk_size = config.chunk_processing_threads;
-    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let mut allowance_counter = GasAllowanceCounter::new(gas_limit);
     let mut is_out_of_gas_for_block = false;
 
     loop {
@@ -158,11 +239,7 @@ pub async fn run_new(
         let chunks = chunks_splitting::prepare_execution_chunks(
             chunk_size,
             states,
-            |execution_chunks, actor_state| {
-                let (actor_id, hash, queue_size) = actor_state.into_inner();
-                let chunk_idx = execution_chunks.chunk_idx(queue_size);
-                execution_chunks.insert_into(chunk_idx, actor_id, hash);
-            },
+            &mut handle_chunk_data,
         );
 
         if chunks.is_empty() {
@@ -177,7 +254,7 @@ pub async fn run_new(
                 &instance_creator,
                 &mut allowance_counter,
                 &mut join_set,
-                None::<fn(ActorId) -> bool>,
+                check_task_run,
             );
 
             let (chunk_journals, max_gas_spent_in_chunk) =
@@ -193,7 +270,7 @@ pub async fn run_new(
                 &allowance_counter,
                 in_block_transitions,
                 &mut is_out_of_gas_for_block,
-                None::<fn(&Vec<JournalNote>, &mut InBlockTransitions) -> bool>,
+                early_break,
             );
             match output {
                 ChunkJournalsProcessingOutput::Processed => {}
@@ -209,105 +286,6 @@ pub async fn run_new(
         }
     }
 }
-
-pub async fn run_overlaid(
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-    config: RunnerConfig,
-    base_program: ActorId,
-) {
-    let mut join_set = JoinSet::new();
-    let chunk_size = config.chunk_processing_threads;
-    let mut allowance_counter = GasAllowanceCounter::new(
-        config
-            .block_gas_limit
-            .saturating_mul(config.gas_limit_multiplier),
-    );
-    let mut is_out_of_gas_for_block = false;
-    let mut overlaid_ctx = OverlaidContext::new(base_program, db.clone(), in_block_transitions);
-
-    loop {
-        let states = in_block_transitions
-            .states_iter()
-            .filter_map(|(&actor_id, &state)| {
-                if state.cached_queue_size == 0 {
-                    return None;
-                }
-                let actor_state =
-                    chunks_splitting::ActorStateHashWithQueueSize::new(actor_id, state);
-
-                Some(actor_state)
-            })
-            .collect();
-
-        let chunks =
-            chunks_splitting::prepare_execution_chunks(chunk_size, states, |chunk, actor_state| {
-                let (actor_id, hash, queue_size) = actor_state.into_inner();
-                if base_program == actor_id {
-                    // Insert base program into heaviest chunk, which is going to be executed first.
-                    // This is done to get faster reply from the target dispatch for which overlaid
-                    // executor was created.
-                    chunk.insert_into_heaviest(actor_id, hash);
-                } else {
-                    let chunk_idx = chunk.chunk_idx(queue_size);
-                    chunk.insert_into(chunk_idx, actor_id, hash);
-                }
-            });
-
-        if chunks.is_empty() {
-            // No more chunks to process. Stopping.
-            break;
-        }
-
-        for chunk in chunks {
-            chunk_execution_spawn::spawn_chunk_execution(
-                chunk,
-                db.clone(),
-                &instance_creator,
-                &mut allowance_counter,
-                &mut join_set,
-                Some(|program_id| {
-                    // If the queue wasn't nullified, the following call will nullify it and skip job spawning.
-                    overlaid_ctx.nullify_queue(program_id, in_block_transitions)
-                }),
-            );
-
-            let (chunk_journals, max_gas_spent_in_chunk) =
-                chunk_execution_processing::collect_chunk_journals(
-                    &mut join_set,
-                    in_block_transitions,
-                )
-                .await;
-
-            let output = chunk_execution_processing::process_chunk_execution_journals(
-                chunk_journals,
-                &db,
-                &allowance_counter,
-                in_block_transitions,
-                &mut is_out_of_gas_for_block,
-                Some(
-                    |journal: &Vec<JournalNote>, in_block_transitions: &mut InBlockTransitions| {
-                        overlaid_ctx.nullify_or_break_early(journal, in_block_transitions)
-                    },
-                ),
-            );
-
-            match output {
-                ChunkJournalsProcessingOutput::Processed => {}
-                ChunkJournalsProcessingOutput::EarlyBreak => break,
-            }
-
-            allowance_counter.charge(max_gas_spent_in_chunk);
-
-            if is_out_of_gas_for_block {
-                // Ran out of gas for the block, stopping processing.
-                break;
-            }
-        }
-    }
-}
-
 
 mod chunks_splitting {
     use super::*;
