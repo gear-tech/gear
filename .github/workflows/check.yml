@@ -31,8 +31,11 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Just"
+        uses: extractions/setup-just@v3
+
       - name: "Check formatting: Gear"
-        run: ./scripts/gear.sh format gear --check
+        run: just fmt-check
 
   ethexe-contracts:
     runs-on: ubuntu-latest
@@ -135,6 +138,9 @@ jobs:
           target: "${{ matrix.target }}"
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: "Install: Just"
+        uses: extractions/setup-just@v3
+
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
@@ -145,7 +151,7 @@ jobs:
           key: "${{ matrix.name }}"
 
       - name: "Check clippy"
-        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+        run: just clippy native
 
   wasm:
     runs-on: ubuntu-latest
@@ -164,6 +170,9 @@ jobs:
         with:
           targets: wasm32v1-none
 
+      - name: "Install: Just"
+        uses: extractions/setup-just@v3
+
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
@@ -181,11 +190,8 @@ jobs:
             exit 1
           fi
 
-      - name: "Check clippy: Examples"
-        run: ./scripts/gear.sh clippy examples --all-targets --locked
-
-      - name: "Check clippy: no_std crates"
-        run: ./scripts/gear.sh clippy no_std --locked
+      - name: "Check clippy: WebAssembly crates"
+        run: just clippy wasm
 
       - run: cargo +1.88.0 check -p gstd --target wasm32v1-none
       - run: cargo +1.88.0 check --manifest-path utils/wasm-builder/test-program/Cargo.toml
@@ -203,6 +209,9 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
+
+      - name: "Install: Just"
+        uses: extractions/setup-just@v3
 
       - name: "Install: Compilation environment"
         uses: ./.github/actions/setup-compilation-env

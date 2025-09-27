@@ -25,11 +25,11 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Build: Init"
-        run: ./scripts/gear.sh init cargo
+      - name: "Install: Cargo extensions"
+        uses: ./.github/actions/install-cargo-extensions
 
       - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
+        run: cargo build -p gear-cli --release --locked
 
       - name: "Test: Time consuming tests"
         run: ./scripts/gear.sh test time-consuming

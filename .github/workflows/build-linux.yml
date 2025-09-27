@@ -95,13 +95,13 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: "Install: Cargo extensions"
+        uses: ./.github/actions/install-cargo-extensions
+
       - name: "Show: Versioning"
         run: |
-          ./scripts/gear.sh show
+          rustup show
           forge --version
-
-      - name: "Build: Init"
-        run: ./scripts/gear.sh init cargo
 
       - name: "Build: Workspace"
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
@@ -141,6 +141,9 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Cargo extensions"
+        uses: ./.github/actions/install-cargo-extensions
+
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
@@ -149,9 +152,6 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
-
-      - name: "Build: Init"
-        run: ./scripts/gear.sh init cargo
 
       - name: "Test: Lazy pages"
         run: >-
