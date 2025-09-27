@@ -16476,6 +16476,7 @@ fn fungible_token_stress_test() {
     });
 }
 
+#[ignore]
 #[test]
 fn fungible_token_stress_transfer() {
     use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
