@@ -258,8 +258,7 @@ mod chunk_execution_spawn {
             let mut executor = instance_creator
                 .instantiate()
                 .expect("Failed to instantiate executor");
-            let gas_allowance_for_chunk =
-                allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+            let gas_allowance_for_chunk = allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
 
             join_set.spawn_blocking(move || {
                 let (jn, new_state_hash, gas_spent) = run_runtime(
