@@ -29,12 +29,13 @@ use std::collections::HashSet;
 ///
 /// The nullification is an optimization for RPC overlay mode execution of the target dispatch.
 /// It allows not to empty unnecessary queues processing of not concerned programs.
-pub(crate) struct OverlaidContext {
+pub(crate) struct OverlaidState {
+    base_program: ActorId,
     db: Database,
     nullified_queue_programs: HashSet<ActorId>,
 }
 
-impl OverlaidContext {
+impl OverlaidState {
     /// Creates a new `OverlaidContext`.
     ///
     /// Overlaid context is created with the base program's queue nullified retaining only the last
@@ -67,9 +68,14 @@ impl OverlaidContext {
         nullified_queue_programs.insert(base_program);
 
         Self {
+            base_program,
             db,
             nullified_queue_programs,
         }
+    }
+
+    pub(crate) fn base_program(&self) -> ActorId {
+        self.base_program
     }
 
     /// Nullifies queues of dispatches receivers in case there is no reply to the base message.
