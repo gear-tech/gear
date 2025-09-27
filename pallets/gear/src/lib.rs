@@ -584,6 +584,8 @@ pub mod pallet {
                         |module| schedule.rules(module),
                         schedule.limits.stack_height,
                         schedule.limits.data_segments_amount.into(),
+                        schedule.limits.type_section_len.into(),
+                        schedule.limits.parameters.into(),
                     ) {
                         Ok(_) => {}
                         Err(e) => {
