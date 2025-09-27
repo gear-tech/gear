@@ -31,9 +31,6 @@ gear-wasmer-cache = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 region.workspace = true
 
-[build-dependencies]
-rustc_version.workspace = true
-
 [features]
 default = ["wasmer-cache"]
 wasmer-cache = ["gear-wasmer-cache", "tempfile"]
