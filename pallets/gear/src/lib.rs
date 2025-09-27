@@ -104,8 +104,6 @@ use gear_core::{
 };
 use gear_lazy_pages_common::LazyPagesInterface;
 use gear_lazy_pages_interface::LazyPagesRuntimeInterface;
-#[cfg(feature = "try-runtime")]
-use hex_literal::hex;
 use manager::QueuePostProcessingData;
 use pallet_gear_voucher::{PrepaidCall, PrepaidCallsDispatcher, VoucherId, WeightInfo as _};
 use primitive_types::H256;
@@ -524,36 +522,48 @@ pub mod pallet {
 
         #[cfg(feature = "try-runtime")]
         fn try_state(_n: BlockNumberFor<T>) -> Result<(), sp_runtime::TryRuntimeError> {
-            use gear_core::code::{ExportError, ImportError};
+            use gear_core::code::{ExportError, ImportError, TypeSectionError};
 
             // Testnet incompatibility codes to be ignored during reinstrumentation check
             #[rustfmt::skip]
             let ignore_code_ids = [
                 // `gr_leave` somehow imported twice
-                (hex!("4dd9c141603a668127b98809742cf9f0819d591fe6f44eff63edf2b529a556bd"), CodeError::Import(ImportError::UnknownImport(0))),
-                (hex!("90b021503f01db60d0ba00eac970d5d6845f1a757c667232615b5d6c0ff800cc"), CodeError::Import(ImportError::UnknownImport(0))),
+                ("4dd9c141603a668127b98809742cf9f0819d591fe6f44eff63edf2b529a556bd", CodeError::Import(ImportError::DuplicateImport(2))),
+                ("90b021503f01db60d0ba00eac970d5d6845f1a757c667232615b5d6c0ff800cc", CodeError::Import(ImportError::DuplicateImport(2))),
                 // `handle` entrypoint has invalid signature
-                (hex!("e8378f125ec82bb7f399d81b3481d5d62bb5d65749f47fea6cd65f7a48e9c24c"), CodeError::Export(ExportError::InvalidExportFnSignature(2))),
-                (hex!("d815332c3980386e58d0d191c5161d33824d8a6356a355ccb3528e6428551ab3"), CodeError::Export(ExportError::InvalidExportFnSignature(2))),
+                ("e8378f125ec82bb7f399d81b3481d5d62bb5d65749f47fea6cd65f7a48e9c24c", CodeError::Export(ExportError::InvalidExportFnSignature(2))),
+                ("d815332c3980386e58d0d191c5161d33824d8a6356a355ccb3528e6428551ab3", CodeError::Export(ExportError::InvalidExportFnSignature(2))),
                 // `gr_error` has been removed
-                (hex!("10d92d804fc4d42341d5eb2ca04b59e8534fd196621bd3908e1eda0a54f00ab9"), CodeError::Import(ImportError::UnknownImport(0))),
-                (hex!("7ae2b90c96fd65439cd3c72d0c1de985b42400c5ad376d34d1a4cb070191ed2c"), CodeError::Import(ImportError::UnknownImport(0))),
+                ("10d92d804fc4d42341d5eb2ca04b59e8534fd196621bd3908e1eda0a54f00ab9", CodeError::Import(ImportError::InvalidImportFnSignature(4))),
+                ("7ae2b90c96fd65439cd3c72d0c1de985b42400c5ad376d34d1a4cb070191ed2c", CodeError::Import(ImportError::UnknownImport(4))),
                 // `delay` argument in `gr_reply` was removed
-                (hex!("2477bc4f927a3ae8c3534a824d6c5aec9fa9b0f4747a1f1d4ae5fabbe885b111"), CodeError::Import(ImportError::UnknownImport(0))),
-                (hex!("7daa1b4f3a4891bda3c6b669ca896fa12b83ce4c4e840cf1d88d473a330c35fc"), CodeError::Import(ImportError::UnknownImport(0))),
+                ("2477bc4f927a3ae8c3534a824d6c5aec9fa9b0f4747a1f1d4ae5fabbe885b111", CodeError::Import(ImportError::InvalidImportFnSignature(6))),
+                ("7daa1b4f3a4891bda3c6b669ca896fa12b83ce4c4e840cf1d88d473a330c35fc", CodeError::Import(ImportError::InvalidImportFnSignature(1))),
                 // `gr_pay_program_rent` has been removed
-                (hex!("4a0bd89b42de7071a527c13ed52527e941dcda92578585e1139562cdf8a1063e"), CodeError::Import(ImportError::UnknownImport(0))),
-                (hex!("d483a0e542ad20996b38a2efb1f41e8d863cc1659f1ceb89a79065849fadfeb5"), CodeError::Import(ImportError::UnknownImport(53))),
+                ("4a0bd89b42de7071a527c13ed52527e941dcda92578585e1139562cdf8a1063e", CodeError::Import(ImportError::UnknownImport(53))),
+                ("d483a0e542ad20996b38a2efb1f41e8d863cc1659f1ceb89a79065849fadfeb5", CodeError::Import(ImportError::UnknownImport(53))),
                 // `ext_logging_log_version_1` import somehow occurred
-                (hex!("75e61ed8f08379ff9ea7f69d542dceabf5f30bfcdf95db55eb6cab77ab3ddb56"), CodeError::Import(ImportError::UnknownImport(0))),
-                (hex!("164dfe52b1438c7e38d010bc28efc85bd307128859d745e801c9099cbd82bd4f"), CodeError::Import(ImportError::UnknownImport(0))),
-                (hex!("f92585a339751d7ba9da70a0536936cd8659df29bad777db13e1c7b813c1a301"), CodeError::Import(ImportError::UnknownImport(8))),
+                ("75e61ed8f08379ff9ea7f69d542dceabf5f30bfcdf95db55eb6cab77ab3ddb56", CodeError::Import(ImportError::UnknownImport(8))),
+                ("164dfe52b1438c7e38d010bc28efc85bd307128859d745e801c9099cbd82bd4f", CodeError::Import(ImportError::UnknownImport(8))),
+                ("f92585a339751d7ba9da70a0536936cd8659df29bad777db13e1c7b813c1a301", CodeError::Import(ImportError::UnknownImport(8))),
                 // `init` entrypoint has invalid signature
-                (hex!("8990159f0730dfed622031af63c453d2bcd5644482cac651796bf229f25d23b6"), CodeError::Export(ExportError::InvalidExportFnSignature(0))),
-                (hex!("c88b00cfd30d1668ebb50283b4785fd945ac36a4783f8eab39dec2819e06a6c9"), CodeError::Import(ImportError::UnknownImport(0))),
+                ("8990159f0730dfed622031af63c453d2bcd5644482cac651796bf229f25d23b6", CodeError::Export(ExportError::InvalidExportFnSignature(0))),
+                ("c88b00cfd30d1668ebb50283b4785fd945ac36a4783f8eab39dec2819e06a6c9", CodeError::Import(ImportError::UnknownImport(3))),
                 // `init` export directly references `gr_leave` import
-                (hex!("ec0cc5d401606415c8ed31bfd347865d19fd277eec7d7bc62c164070eb8c241a"), CodeError::Export(ExportError::ExportReferencesToImportFunction(0, 0))),
-            ].into_iter().map(|(bytes, error)| (CodeId::from(bytes), error)).collect::<BTreeMap<_, _>>();
+                ("ec0cc5d401606415c8ed31bfd347865d19fd277eec7d7bc62c164070eb8c241a", CodeError::Export(ExportError::ExportReferencesToImportFunction(0, 0))),
+                // Additional failing codes from latest try-state check
+                ("1a52db2c8f26a5a91b887e124fddb0a695e2db1bad36760e7a2a33990ad7829e", CodeError::TypeSection(TypeSectionError::ParametersPerTypeLimitExceeded{limit: 128, actual: 960})),
+                ("4372306ca8c3d2d4274852607320eb0f00f0ce61717e30a7ca9ed3d783460072", CodeError::TypeSection(TypeSectionError::ParametersPerTypeLimitExceeded{limit: 128, actual: 256})),
+                ("59e2f46b9b24a1514c7a6952ab8926d125b6b939c5bd8d0b27002b652b8b0685", CodeError::TypeSection(TypeSectionError::ParametersPerTypeLimitExceeded{limit: 128, actual: 1000})),
+                ("f4f752e6bc9aea8597a1658ed317af546810c7e6d143096919a6d93fd6448340", CodeError::TypeSection(TypeSectionError::ParametersPerTypeLimitExceeded{limit: 128, actual: 896})),
+            ]
+            .into_iter()
+            .map(|(codeid, error)| {
+                let mut arr = [0u8; 32];
+                hex::decode_to_slice(codeid, &mut arr).unwrap();
+                (CodeId::from(arr), error)
+            })
+            .collect::<BTreeMap<_, _>>();
 
             // Check that all codes can be instrumented with the current schedule
             let prefix = storage_prefix(b"GearProgram", b"OriginalCodeStorage");
@@ -578,7 +588,7 @@ pub mod pallet {
                     total_checked += 1;
 
                     // Try to instrument the code with the current schedule without updating storage
-                    match gear_core::code::Code::try_new(
+                    if let Err(e) = gear_core::code::Code::try_new(
                         original_code,
                         schedule.instruction_weights.version,
                         |module| schedule.rules(module),
@@ -587,26 +597,21 @@ pub mod pallet {
                         schedule.limits.type_section_len.into(),
                         schedule.limits.parameters.into(),
                     ) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            if let Some(expected_error) = ignore_code_ids.get(&code_id) {
-                                if core::mem::discriminant(expected_error)
-                                    == core::mem::discriminant(&e)
-                                {
-                                    log::warn!(
-                                        "Ignoring incompatible code {code_id} (testnet legacy): {e}"
-                                    );
-                                    ignored_count += 1;
-                                } else {
-                                    log::error!(
-                                        "Code {code_id} instrumentation failed with unexpected error: {e} (expected: {expected_error})"
-                                    );
-                                    failed_codes.push((code_id, e));
-                                }
+                        if let Some(expected_error) = ignore_code_ids.get(&code_id) {
+                            if expected_error == &e {
+                                log::warn!(
+                                    "Ignoring incompatible code {code_id} (testnet legacy): {e}"
+                                );
+                                ignored_count += 1;
                             } else {
-                                log::error!("Code {code_id} instrumentation failed: {e}");
+                                log::error!(
+                                    "Code {code_id} instrumentation failed with unexpected error: {e} (expected: {expected_error})"
+                                );
                                 failed_codes.push((code_id, e));
                             }
+                        } else {
+                            log::error!("Code {code_id} instrumentation failed: {e}");
+                            failed_codes.push((code_id, e));
                         }
                     }
                 }

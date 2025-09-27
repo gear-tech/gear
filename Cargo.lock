@@ -11368,7 +11368,6 @@ dependencies = [
  "gstd",
  "gsys",
  "hex",
- "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
