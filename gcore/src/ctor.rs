@@ -20,8 +20,7 @@
 
 use crate::{static_mut, static_ref};
 use arrayvec::ArrayVec;
-use core::ffi::c_void;
-use core::{mem, ptr};
+use core::{ffi::c_void, mem, ptr};
 
 #[doc(hidden)]
 pub use paste::paste;
