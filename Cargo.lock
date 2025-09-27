@@ -5022,8 +5022,10 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "futures",
  "gear-utils",
  "gprimitives",
+ "log",
  "parity-scale-codec",
  "tokio",
 ]
@@ -11412,7 +11414,6 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -11650,7 +11651,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11658,13 +11658,11 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
 ]
 
 [[package]]

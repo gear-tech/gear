@@ -406,6 +406,8 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -4947,6 +4949,8 @@ fn test_code_submission_pass() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Error creating Code");
         assert_eq!(
@@ -6875,6 +6879,8 @@ fn test_create_program_works() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Code failed to load");
 
@@ -10438,6 +10444,8 @@ fn test_mad_big_prog_instrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13432,6 +13440,8 @@ fn wrong_entry_type() {
                 |_| CustomConstantCostRules::default(),
                 None,
                 None,
+                None,
+                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -15300,7 +15310,7 @@ fn incorrect_store_context() {
         // Fill until the limit is reached
         while counter < limit + 1 {
             let handle = message_context.send_init().unwrap();
-            let len = (Payload::max_len() as u32).min(limit + 1 - counter);
+            let len = (Payload::MAX_LEN as u32).min(limit + 1 - counter);
             message_context
                 .send_push(handle, &vec![1; len as usize])
                 .unwrap();
