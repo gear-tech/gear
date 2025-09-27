@@ -282,6 +282,20 @@ jobs:
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
+      - name: "Test: Download Vara Testnet snapshot"
+        run: curl -o vara_ci_testnet.snap -L https://snapshots.vara-network.io/vara-testnet.snap
+
+      - name: "Test: on-runtime-upgrade try-state (Testnet)"
+        run: >-
+          ./try-runtime
+          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          on-runtime-upgrade
+          --blocktime 3000
+          --checks try-state
+          --disable-spec-version-check
+          --no-weight-warnings
+          snap -p vara_ci_testnet.snap
+
       - name: "Test: Download Vara Mainnet snapshot"
         run: curl -o vara_ci.snap -L https://snapshots.vara-network.io/vara-mainnet.snap
 
