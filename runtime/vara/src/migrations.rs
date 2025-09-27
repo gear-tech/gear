@@ -16,5 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// All migrations that will run on the next runtime upgrade.
+/// All migrations that will run on the next runtime upgrade for dev chain.
+#[cfg(feature = "dev")]
+pub type Migrations = (pallet_gear_eth_bridge::migrations::reset::ResetMigration<crate::Runtime>,);
+
+/// All migrations that will run on the next runtime upgrade for prod chain.
+#[cfg(not(feature = "dev"))]
 pub type Migrations = ();
