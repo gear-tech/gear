@@ -19,7 +19,8 @@
 use core_processor::common::JournalNote;
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
-use gprimitives::ActorId;
+use gear_core::message::ReplyDetails;
+use gprimitives::{ActorId, MessageId};
 use std::collections::HashSet;
 
 /// Overlay execution context.
@@ -71,18 +72,71 @@ impl OverlaidContext {
         }
     }
 
+    /// Nullifies queues of dispatches receivers in case there is no reply to the base message.
+    /// Otherwise, flags for early break.
+    ///
+    /// Returns `true` if early break is needed, `false` otherwise.
+    ///
+    /// Reply to the base message is checked by looking for a reply message to the message with `MessageId::zero()`.
+    /// By contract, a message with `MessageId::zero()` is the one sent in overlay execution
+    /// to calculate the reply for the program's `handle` function.
+    pub(crate) fn nullify_or_break_early(
+        &mut self,
+        journal: &[JournalNote],
+        in_block_transitions: &mut InBlockTransitions,
+    ) -> bool {
+        let mut ret = false;
+
+        // Possibly flag for early break.
+        for note in journal {
+            if let JournalNote::SendDispatch { dispatch, .. } = note
+                && let Some((mid, _)) = dispatch.reply_details().map(ReplyDetails::into_parts)
+                && mid == MessageId::zero()
+            {
+                ret = true;
+            }
+        }
+
+        if !ret {
+            self.nullify_receivers_queues(journal, in_block_transitions);
+        }
+
+        ret
+    }
+
+    /// Nullifies queues of all programs that are going to receive messages from the sender.
+    ///
+    /// The receiver program is obtained from `JournalNote::SendDispatch` of the journal,
+    /// which belongs to the sender. More precisely, it's a journal created after executing
+    /// one if dispatches of the sender's queue.
+    fn nullify_receivers_queues(
+        &mut self,
+        journal: &[JournalNote],
+        in_block_transitions: &mut InBlockTransitions,
+    ) {
+        for note in journal {
+            let JournalNote::SendDispatch { dispatch, .. } = note else {
+                continue;
+            };
+
+            let _ = self.nullify_queue(dispatch.destination(), in_block_transitions);
+        }
+    }
+
     /// Possibly nullifies the queue for the given program.
     ///
     /// The nullification is done only once per program.
     ///
     /// Returns `true` if the procedure successfully nullified the queue.
-    /// If program's queue was already nullified, returns `false`.
+    /// If program's queue was already nullified or `program_id` is user, returns `false`.
     pub(crate) fn nullify_queue(
         &mut self,
         program_id: ActorId,
         transitions: &mut InBlockTransitions,
     ) -> bool {
-        if self.nullified_queue_programs.contains(&program_id) {
+        if self.nullified_queue_programs.contains(&program_id)
+            || !transitions.is_program(&program_id)
+        {
             return false;
         }
 
@@ -102,24 +156,5 @@ impl OverlaidContext {
         self.nullified_queue_programs.insert(program_id);
 
         true
-    }
-
-    /// Nullifies queues of all programs that are going to receive messages from the sender.
-    ///
-    /// The receiver program is obtained from `JournalNote::SendDispatch` of the journal,
-    /// which belongs to the sender. More precisely, it's a journal created after executing
-    /// one if dispatches of the sender's queue.
-    pub(crate) fn nullify_receivers_queues(
-        &mut self,
-        journal: &[JournalNote],
-        in_block_transitions: &mut InBlockTransitions,
-    ) {
-        for note in journal {
-            let JournalNote::SendDispatch { dispatch, .. } = note else {
-                continue;
-            };
-
-            let _ = self.nullify_queue(dispatch.destination(), in_block_transitions);
-        }
     }
 }

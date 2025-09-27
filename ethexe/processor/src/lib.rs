@@ -36,8 +36,6 @@ use host::InstanceCreator;
 
 pub use common::LocalOutcome;
 
-use crate::handling::run::ExecutionMode;
-
 pub mod host;
 
 mod common;
@@ -239,7 +237,7 @@ impl Processor {
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
-        run::run(
+        run::run_new(
             self.db.clone(),
             self.creator.clone(),
             &mut handler.transitions,
@@ -249,7 +247,6 @@ impl Processor {
                 // No overlay execution is done, so no need for a multiplication.
                 gas_limit_multiplier: 1,
             },
-            ExecutionMode::Normal,
         )
         .await;
     }
@@ -301,7 +298,7 @@ impl OverlaidProcessor {
             },
         )?;
 
-        run::run(
+        run::run_overlaid(
             self.0.db.clone(),
             self.0.creator.clone(),
             &mut handler.transitions,
@@ -310,7 +307,7 @@ impl OverlaidProcessor {
                 block_gas_limit: self.0.config().block_gas_limit,
                 gas_limit_multiplier: self.0.config().gas_limit_multiplier,
             },
-            ExecutionMode::Overlaid(program_id),
+            program_id,
         )
         .await;
 
