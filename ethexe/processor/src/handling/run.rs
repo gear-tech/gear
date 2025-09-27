@@ -117,7 +117,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
-    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController, state::Storage,
 };
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
@@ -251,26 +251,26 @@ mod chunk_execution_spawn {
             if let Some(checker) = check_task_no_run.as_mut()
                 && checker(program_id)
             {
-                join_set.spawn_blocking(move || (chunk_pos, program_id, state_hash, vec![], 0));
-            } else {
-                let db = db.clone();
-                let mut executor = instance_creator
-                    .instantiate()
-                    .expect("Failed to instantiate executor");
-                let gas_allowance_for_chunk =
-                    allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+                continue;
+            }
 
-                join_set.spawn_blocking(move || {
-                    let (jn, new_state_hash, gas_spent) = run_runtime(
-                        db,
-                        &mut executor,
-                        program_id,
-                        state_hash,
-                        gas_allowance_for_chunk,
-                    );
-                    (chunk_pos, program_id, new_state_hash, jn, gas_spent)
-                });
-            };
+            let db = db.clone();
+            let mut executor = instance_creator
+                .instantiate()
+                .expect("Failed to instantiate executor");
+            let gas_allowance_for_chunk =
+                allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+
+            join_set.spawn_blocking(move || {
+                let (jn, new_state_hash, gas_spent) = run_runtime(
+                    db,
+                    &mut executor,
+                    program_id,
+                    state_hash,
+                    gas_allowance_for_chunk,
+                );
+                (chunk_pos, program_id, new_state_hash, jn, gas_spent)
+            });
         }
     }
 
@@ -318,11 +318,10 @@ mod chunk_execution_processing {
 
     pub(super) async fn collect_chunk_journals(
         join_set: &mut chunk_execution_spawn::ChunksJoinSet,
-        chunk_len: usize,
         in_block_transitions: &mut InBlockTransitions,
     ) -> (Vec<MaybeProgramChunkJournals>, u64) {
         let mut max_gas_spent_in_chunk = 0u64;
-        let mut chunk_journals = vec![None; chunk_len];
+        let mut chunk_journals = vec![None; join_set.len()];
 
         while let Some(result) = join_set
             .join_next()
@@ -361,6 +360,7 @@ mod chunk_execution_processing {
             };
 
             for (journal, dispatch_origin, call_reply) in program_journals {
+                log::warn!("Checking journal {journal:#?}");
                 let break_flag = early_break
                     .as_mut()
                     .map(|f| f(&journal, in_block_transitions));
@@ -430,8 +430,6 @@ pub async fn run_new(
         }
 
         for chunk in chunks {
-            let chunk_len = chunk.len();
-
             chunk_execution_spawn::spawn_chunk_execution(
                 chunk,
                 db.clone(),
@@ -444,7 +442,6 @@ pub async fn run_new(
             let (chunk_journals, max_gas_spent_in_chunk) =
                 chunk_execution_processing::collect_chunk_journals(
                     &mut join_set,
-                    chunk_len,
                     in_block_transitions,
                 )
                 .await;
@@ -523,8 +520,6 @@ pub async fn run_overlaid(
         }
 
         for chunk in chunks {
-            let chunk_len = chunk.len();
-
             chunk_execution_spawn::spawn_chunk_execution(
                 chunk,
                 db.clone(),
@@ -532,8 +527,7 @@ pub async fn run_overlaid(
                 &mut allowance_counter,
                 &mut join_set,
                 Some(|program_id| {
-                    // If we are in overlaid execution mode, nullify queues for all programs except for the base one.
-                    // If the queue was already nullified, skip job spawning.
+                    // If the queue wasn't nullified, the following call will nullify it and skip job spawning.
                     overlaid_ctx.nullify_queue(program_id, in_block_transitions)
                 }),
             );
@@ -541,7 +535,6 @@ pub async fn run_overlaid(
             let (chunk_journals, max_gas_spent_in_chunk) =
                 chunk_execution_processing::collect_chunk_journals(
                     &mut join_set,
-                    chunk_len,
                     in_block_transitions,
                 )
                 .await;

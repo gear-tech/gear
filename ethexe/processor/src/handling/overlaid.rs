@@ -134,9 +134,7 @@ impl OverlaidContext {
         program_id: ActorId,
         transitions: &mut InBlockTransitions,
     ) -> bool {
-        if self.nullified_queue_programs.contains(&program_id)
-            || !transitions.is_program(&program_id)
-        {
+        if self.nullified_queue_programs.contains(&program_id) {
             return false;
         }
 
