@@ -1064,7 +1064,7 @@ where
                     Message id - {message_id}, source - {from:?}. Skipping mailbox insertion.",
                     from = message.source(),
                 );
-                return None;
+                return;
             }
 
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
@@ -1226,7 +1226,7 @@ where
                         Message id - {message_id}, source - {from:?}. Skipping mailbox insertion.",
                     from = message.source(),
                 );
-                return None;
+                return;
             }
 
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
