@@ -173,6 +173,7 @@ mod tests {
     use super::*;
     use crate::{
         mock::*,
+        utils,
         utils::{SignedProducerBlock, SignedValidationRequest},
         validator::mock::*,
     };
@@ -250,10 +251,35 @@ mod tests {
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
 
+        // For squashed commitments, recompute the batch locally with aggregation
+        let chain_commitment =
+            utils::aggregate_chain_commitment(&ctx.core.db, batch.block_hash, false, None)
+                .unwrap()
+                .map(|(commitment, _)| commitment);
+        let code_commitments = utils::aggregate_code_commitments(
+            &ctx.core.db,
+            batch.code_commitments.clone().into_iter().map(|c| c.id),
+            false,
+        )
+        .unwrap();
+        let local_batch = utils::create_batch_commitment(
+            &ctx.core.db,
+            &block,
+            chain_commitment,
+            code_commitments,
+            None,
+            None,
+        )
+        .unwrap()
+        .unwrap();
+
         let signed_request = ctx
             .core
             .signer
-            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
+            .signed_data(
+                producer,
+                BatchCommitmentValidationRequest::new(&local_batch),
+            )
             .unwrap();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
@@ -270,7 +296,7 @@ mod tests {
         let ConsensusEvent::PublishValidationReply(reply) = event else {
             panic!("Expected PublishValidationReply event, got {event:?}");
         };
-        assert_eq!(reply.digest, batch.to_digest());
+        assert_eq!(reply.digest, local_batch.to_digest());
         reply
             .signature
             .validate(state.context().core.router_address, reply.digest)
