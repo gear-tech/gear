@@ -36,10 +36,11 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
-pub mod migration;
 pub mod proxy;
 pub mod staking;
 pub mod weights;
+
+pub mod migrations {}
 
 #[cfg(test)]
 mod mock;

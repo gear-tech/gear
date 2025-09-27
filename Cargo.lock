@@ -11410,7 +11410,6 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -11648,7 +11647,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11656,13 +11654,11 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
 ]
 
 [[package]]
