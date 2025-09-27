@@ -3550,17 +3550,11 @@ dependencies = [
 name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
- "futures",
- "gclient",
- "gear-core",
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
  "parity-scale-codec",
- "rand 0.8.5",
  "scale-info",
- "statrs",
- "tokio",
 ]
 
 [[package]]
@@ -5022,8 +5016,10 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-db",
+ "futures",
  "gear-utils",
  "gprimitives",
+ "log",
  "parity-scale-codec",
  "tokio",
 ]
@@ -10533,8 +10529,6 @@ dependencies = [
  "num-complex",
  "num-rational",
  "num-traits",
- "rand 0.8.5",
- "rand_distr",
  "simba",
  "typenum",
 ]
@@ -11411,7 +11405,6 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
@@ -11649,7 +11642,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11657,13 +11649,11 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -17172,18 +17162,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "statrs"
-version = "0.17.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f697a07e4606a0a25c044de247e583a330dbb1731d11bc7350b81f48ad567255"
-dependencies = [
- "approx",
- "nalgebra",
- "num-traits",
- "rand 0.8.5",
 ]
 
 [[package]]

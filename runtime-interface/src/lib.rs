@@ -25,8 +25,8 @@ extern crate alloc;
 
 use gear_core::{
     gas::GasLeft,
+    limited::LimitedStr,
     memory::{HostPointer, MemoryInterval},
-    str::LimitedStr,
 };
 use gear_lazy_pages_common::{GlobalsAccessConfig, Status};
 use parity_scale_codec::{Decode, Encode};
