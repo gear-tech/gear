@@ -3362,6 +3362,19 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_eth_bridge {
             use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum QueueInfo {
+                    #[codec(index = 0)]
+                    Empty,
+                    #[codec(index = 1)]
+                    NonEmpty {
+                        highest_root: ::subxt::ext::subxt_core::utils::H256,
+                        latest_nonce_used: runtime_types::primitive_types::U256,
+                    },
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3400,10 +3413,6 @@ pub mod runtime_types {
                     #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
                     #[codec(index = 3)]
-                    #[doc = "The error happens when bridging queue capacity exceeded,"]
-                    #[doc = "so message couldn't be sent."]
-                    QueueCapacityExceeded,
-                    #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
                     InsufficientValueApplied,
@@ -3416,8 +3425,10 @@ pub mod runtime_types {
                     #[doc = "first block of the last session in the era."]
                     AuthoritySetHashChanged(::subxt::ext::subxt_core::utils::H256),
                     #[codec(index = 1)]
-                    #[doc = "Bridge got cleared on initialization of the second block in a new era."]
-                    BridgeCleared,
+                    #[doc = "Authority set hash was reset."]
+                    #[doc = ""]
+                    #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
+                    AuthoritySetReset,
                     #[codec(index = 2)]
                     #[doc = "Optimistically, single-time called event defining that pallet"]
                     #[doc = "got initialized and started processing session changes,"]
@@ -3437,7 +3448,15 @@ pub mod runtime_types {
                     },
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
-                    QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
+                    QueueMerkleRootChanged {
+                        queue_id: ::core::primitive::u64,
+                        root: ::subxt::ext::subxt_core::utils::H256,
+                    },
+                    #[codec(index = 7)]
+                    #[doc = "Queue was reset."]
+                    #[doc = ""]
+                    #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
+                    QueueReset,
                 }
             }
         }
@@ -11576,10 +11595,13 @@ pub mod storage {
         AuthoritySetHash,
         QueueMerkleRoot,
         Queue,
+        QueueId,
+        QueuesInfo,
         SessionsTimer,
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        ResetQueueOnInit,
         TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
@@ -11591,10 +11613,13 @@ pub mod storage {
                 Self::AuthoritySetHash => "AuthoritySetHash",
                 Self::QueueMerkleRoot => "QueueMerkleRoot",
                 Self::Queue => "Queue",
+                Self::QueueId => "QueueId",
+                Self::QueuesInfo => "QueuesInfo",
                 Self::SessionsTimer => "SessionsTimer",
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::ResetQueueOnInit => "ResetQueueOnInit",
                 Self::TransportFee => "TransportFee",
             }
         }
