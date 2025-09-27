@@ -25,14 +25,12 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
+    BlockData, BlockHeader, CodeBlobInfo,
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
-    gear_core::pages::num_traits::Zero,
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{ router::RouterQuery};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::collections::HashMap;
 
 pub(crate) trait SyncDB:
@@ -65,8 +63,8 @@ impl<DB: SyncDB> ChainSync<DB> {
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
 
+        self.propagate_validators(block, &header).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, header).await?;
 
         Ok(block)
     }
@@ -128,12 +126,12 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
         let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
-            log::warn!("latest_synced_block_height is not set in the database");
+            tracing::warn!("latest_synced_block_height is not set in the database");
             return Ok(Default::default());
         };
 
         if header.height <= latest_synced_block_height {
-            log::warn!(
+            tracing::warn!(
                 "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
                 latest_synced_block_height
@@ -167,24 +165,29 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
-            _ => {
-                let fetched_validators = RouterQuery::from_provider(
-                    self.config.router_address.0.into(),
-                    self.provider.clone(),
-                )
-                .validators_at(block)
-                .await?;
+    /// Propagate validators from parent block to the current. If parent block doesn't have validators
+    /// then fetch them from router.
+    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
+        match self.db.validators(header.parent_hash) {
+            Some(validators) => {
+                self.db.set_validators(block, validators);
+            }
+            None => {
+                tracing::trace!(
+                    parent_block = %header.parent_hash,
+                    "No validators info for parent block, query from router",
+                );
 
-                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
-                    "validator set is empty on router for block({block})"
-                ))?
+                let router_query = RouterQuery::from_provider(
+                    self.config.router_address.into(),
+                    self.provider.clone(),
+                );
+
+                let validators = router_query.validators_at(header.parent_hash).await?;
+                self.db.set_validators(block, validators);
             }
         };
-        self.db.set_validators(block, validators.clone());
+
         Ok(())
     }
 
@@ -199,27 +202,5 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_latest_synced_block_height(block_header.height);
         }
-    }
-
-    /// NOTE: we don't need to fetch validators for block from zero era, because of
-    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
-        let chain_head_era = self.block_era_index(chain_head.timestamp);
-
-        if chain_head_era.is_zero() {
-            return Ok(false);
-        }
-
-        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
-            "header not found for block({:?})",
-            chain_head.parent_hash
-        ))?;
-
-        let parent_era_index = self.block_era_index(parent.timestamp);
-        Ok(chain_head_era > parent_era_index)
-    }
-
-    fn block_era_index(&self, block_ts: u64) -> u64 {
-        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
     }
 }

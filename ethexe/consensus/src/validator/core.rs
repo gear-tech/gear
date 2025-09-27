@@ -25,19 +25,24 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Address, Digest, SimpleBlockData, ToDigest,
-    db::BlockMetaStorageRead,
+    Address, Digest, SimpleBlockData, ToDigest, ValidatorsVec,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
     ecdsa::PublicKey,
+    end_of_era_timestamp, era_from_ts,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
 };
 use ethexe_db::Database;
-use ethexe_ethereum::middleware::Middleware;
+use ethexe_ethereum::middleware::{Middleware, MiddlewareQuery};
 use ethexe_signer::Signer;
-use futures::lock::Mutex;
 use gprimitives::H256;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
+use tokio::sync::RwLock;
 
 #[derive(derive_more::Debug)]
 pub struct ValidatorCore {
@@ -93,7 +98,7 @@ impl ValidatorCore {
             && validators_commitment.is_none()
             && rewards_commitment.is_none()
         {
-            log::debug!(
+            tracing::debug!(
                 "No commitments for block {} - skip batch commitment",
                 block.hash
             );
@@ -138,14 +143,32 @@ impl ValidatorCore {
     // TODO #4741
     pub async fn aggregate_validators_commitment(
         &mut self,
-        _block: &SimpleBlockData,
+        block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        // self.middleware.make_election_at(ElectionRequest {
-        //     at_block_hash: todo!(),
-        //     at_timestamp: todo!(),
-        //     max_validators: todo!(),
-        // });
-        Ok(None)
+        let SimpleBlockData { hash, header } = block;
+        let timelines = self
+            .db
+            .gear_exe_timelines()
+            .ok_or(anyhow!("gear exe timelines not found"))?;
+
+        let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
+
+        if header.timestamp < election_ts {
+            tracing::debug!(block = %hash, "no election in this block, election not reached yet");
+            return Ok(None);
+        }
+
+        let election_block = utils::election_block_in_era(self.db, block, election_ts)?;
+        let request = ElectionRequest {
+            at_block_hash: election_block,
+            at_timestamp: election_ts,
+            max_validators: 10,
+        };
+
+        let elected_validators = self.middleware.make_election_at(request).await?;
+        let commitment = utils::validators_commitment(self.db, block_era + 1, elected_validators)?;
+        Ok(Some(commitment))
     }
 
     // TODO #4742
@@ -264,101 +287,56 @@ pub trait BatchCommitter: Send {
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// [`ElectionRequest`] determines the moment when validators election happen.
+/// If requests are equal result can be reused by [`MiddlewareWrapper`] to reduce the amount of rpc calls.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ElectionRequest {
     at_block_hash: H256,
     at_timestamp: u64,
     max_validators: u32,
 }
 
+/// Trait for executing elections in the blockchain
 #[async_trait]
-pub trait MiddlewareExt: Send {
-    /// Creates a boxed clone.
-    fn clone_boxed(&self) -> Box<dyn MiddlewareExt>;
-
-    /// Requests the election of validators at a specific block and timestamp.
-    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>>;
+pub trait MiddlewareExt: Send + Sync {
+    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec>;
 }
 
+/// [`MiddlewareWrapper`] is a wrapper around the dyn [`MiddlewareExt`] trait.
+/// It caches the elections results to reduce the number of rpc calls.
+#[derive(Clone)]
 pub struct MiddlewareWrapper {
-    inner: Box<dyn MiddlewareExt>,
-    db: Database,
-    #[allow(clippy::type_complexity)]
-    cached_election_result: Arc<Mutex<Option<(ElectionRequest, Vec<Address>)>>>,
-}
-
-impl Clone for MiddlewareWrapper {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone_boxed(),
-            db: self.db.clone(),
-            cached_election_result: self.cached_election_result.clone(),
-        }
-    }
+    inner: Arc<dyn MiddlewareExt + 'static>,
+    cached_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
 impl MiddlewareWrapper {
-    pub fn new(inner: Box<dyn MiddlewareExt>, db: Database) -> Self {
+    pub fn from_inner<M: MiddlewareExt + 'static>(inner: M) -> Self {
         Self {
-            inner,
-            db,
-            cached_election_result: Arc::new(Mutex::new(None)),
+            inner: Arc::new(inner),
+            cached_elections: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    #[allow(unused)]
-    pub async fn make_election_at(&self, request: ElectionRequest) -> Result<Vec<Address>> {
-        let mut cached = self.cached_election_result.lock().await;
-
-        if let Some((_cached_request, _cached_result)) = &*cached {
-            // TODO: implement this. If cached_request has same at_timestamp and max_validators and
-            // new request at_block_hash is a successor of cached one, then we can reuse cached.
-            Ok(vec![])
-        } else {
-            log::debug!("Making new election request to rpc: {request:?}");
-
-            let result = self
-                .inner
-                .clone_boxed()
-                .make_election_at(request.clone())
-                .await?;
-
-            let result: Vec<Address> = result.into_iter().collect();
-
-            *cached = Some((request, result.clone()));
-
-            Ok(result)
+    pub async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+        match self.cached_elections.read().await.get(&request) {
+            Some(cached_result) => Ok(cached_result.clone()),
+            None => {
+                let elected_validators = self.inner.make_election_at(request).await?;
+                self.cached_elections
+                    .write()
+                    .await
+                    .insert(request, elected_validators.clone());
+                Ok(elected_validators)
+            }
         }
     }
 }
 
 #[async_trait]
-impl MiddlewareExt for Middleware {
-    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
-        Box::new(self.clone())
-    }
-
-    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>> {
-        let ElectionRequest {
-            // TODO #4741: use at_block_hash in rpc call
-            at_block_hash: _,
-            at_timestamp,
-            max_validators,
-        } = request;
-
-        self.query()
-            .make_election_at(at_timestamp, max_validators as u128)
+impl MiddlewareExt for MiddlewareQuery {
+    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+        self.make_election_at(request.at_timestamp, request.max_validators as u128)
             .await
-    }
-}
-
-#[async_trait]
-impl MiddlewareExt for () {
-    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
-        Box::new(())
-    }
-
-    async fn make_election_at(self: Box<Self>, _request: ElectionRequest) -> Result<Vec<Address>> {
-        Err(anyhow!("Middleware is not configured"))
     }
 }

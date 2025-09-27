@@ -43,10 +43,10 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterRequestEvent::CodeValidationRequested { .. }
+            RouterRequestEvent::NextEraValidatorsCommitted { .. }
+            | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged
-            | RouterRequestEvent::NextEraValidatorsCommitted { .. } => {
+            | RouterRequestEvent::StorageSlotChanged => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
