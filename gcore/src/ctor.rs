@@ -189,10 +189,12 @@ macro_rules! dtor {
 /// let rc = gcore::atexit(cleanup);
 /// assert_eq!(rc, 0, "atexit registry is full");
 /// ```
-pub fn atexit(func: fn()) -> i32 {
+pub fn atexit(func: unsafe fn()) -> i32 {
     unsafe extern "C" fn call(arg: *mut c_void) {
-        let func = unsafe { mem::transmute::<*mut c_void, fn()>(arg) };
-        func()
+        unsafe {
+            let func = mem::transmute::<*mut c_void, unsafe fn()>(arg);
+            func()
+        }
     }
 
     unsafe { __cxa_atexit_impl(call, func as *mut c_void, ptr::null_mut()) }
