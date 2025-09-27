@@ -18,9 +18,9 @@ use sp_core::{H160, H256};
 use sp_runtime::traits::{BadOrigin, Keccak256, UniqueSaturatedInto};
 use utils::*;
 
-const EPOCH_BLOCKS: u64 = EpochDuration::get();
-const ERA_BLOCKS: u64 = EPOCH_BLOCKS * SessionsPerEra::get() as u64;
-const WHEN_INITIALIZED: u64 = 42;
+const EPOCH_BLOCKS: u32 = EpochDuration::get() as u32;
+const ERA_BLOCKS: u32 = EPOCH_BLOCKS * SessionsPerEra::get();
+const WHEN_INITIALIZED: u32 = 42;
 
 type AuthoritySetHash = crate::AuthoritySetHash<Test>;
 type MessageNonce = crate::MessageNonce<Test>;
@@ -838,7 +838,7 @@ mod utils {
     #[track_caller]
     pub(crate) fn do_events_assertion<const N: usize>(
         session: u32,
-        block_number: u64,
+        block_number: u32,
         events: impl Into<Option<[RuntimeEvent; N]>>,
     ) {
         assert_eq!(Session::current_index(), session);
