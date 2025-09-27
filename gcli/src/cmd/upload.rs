@@ -57,7 +57,7 @@ impl Upload {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let signer: Signer = app.signer().await?.into();
 
-        let code = if self.code == PathBuf::from("-") {
+        let code = if *self.code == *"-" {
             let mut stdin = io::stdin();
             let mut code = Vec::new();
             stdin
