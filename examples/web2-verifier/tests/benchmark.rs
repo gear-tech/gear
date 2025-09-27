@@ -18,8 +18,8 @@
 
 #![cfg(test)]
 
-mod payloads;
-use payloads::PAYLOAD;
+pub mod utils;
+use utils::*;
 
 use demo_web2_verifier::{Report, WASM_BINARY};
 use gclient::{EventProcessor, GearApi, Result};
@@ -31,7 +31,24 @@ const GEAR_PATH: &str = "../../target/release/gear";
 const MAX_GAS_LIMIT: u64 = 250_000_000_000;
 
 #[tokio::test]
-async fn artifact_verification_test() -> Result<()> {
+async fn make_request_and_verify_result_test() -> Result<()> {
+    let request_opts = [
+        ("gear.com", collector::Opts {
+            url: "https://gear.com".into(),
+            ..Default::default()
+        }),
+        ("gear.com", collector::Opts {
+            url: "https://gear.com".into(),
+            ..Default::default()
+        }),
+        ("sandbox-api.coinmarketcap.com", collector::Opts {
+            url: "https://sandbox-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?start=1&limit=5000&convert=USD".into(),
+            headers: vec!["X-CMC_PRO_API_KEY: b54bcf4d-1bca-4e8e-9a24-22ff2c3d462c".into(), "Accept: application/json".into()],
+            method: "GET".into(),
+            ..Default::default()
+        })
+    ];
+
     let api = GearApi::dev_from_path(GEAR_PATH).await?;
 
     // Subscribing for events.
@@ -47,26 +64,31 @@ async fn artifact_verification_test() -> Result<()> {
 
     assert!(listener.message_processed(message_id).await?.succeed());
 
-    // Calculating gas info.
-    let gas_info = api
-        .calculate_handle_gas(None, program_id, PAYLOAD.to_vec(), 0, true)
-        .await?;
+    for (sni, opts) in request_opts {
+        let artifact = collector::collect_request(opts).await?;
+        let payload = artifact.encode();
 
-    println!("Gas: {gas_info:?}");
+        // Calculating gas info.
+        let gas_info = api
+            .calculate_handle_gas(None, program_id, payload.clone(), 0, true)
+            .await?;
 
-    // Sending message with prepeared payload
-    let (message_id, _hash) = api
-        .send_message_bytes(program_id, PAYLOAD.to_vec(), MAX_GAS_LIMIT, 0)
-        .await?;
+        println!("Gas: {gas_info:?}");
 
-    assert!(listener.message_processed(message_id).await?.succeed());
+        // Sending message with prepeared payload
+        let (message_id, _hash) = api
+            .send_message_bytes(program_id, payload, MAX_GAS_LIMIT, 0)
+            .await?;
 
-    let sni = "sandbox-api.coinmarketcap.com".as_bytes().to_vec().encode();
+        assert!(listener.message_processed(message_id).await?.succeed());
 
-    // Reading state with prepeared sni for payload
-    let res: Vec<Report> = api.read_state(program_id, sni).await?;
+        let sni = sni.as_bytes().to_vec().encode();
 
-    println!("Result: {res:?}");
+        // Reading state with prepeared sni for payload
+        let res: Vec<Report> = api.read_state(program_id, sni).await?;
+
+        println!("Result: {res:?}");
+    }
 
     Ok(())
 }

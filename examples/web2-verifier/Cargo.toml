@@ -43,6 +43,20 @@ tokio.workspace = true
 gclient.workspace = true
 futures.workspace = true
 
+# collector
+anyhow.workspace = true
+time = { version = "0.3", features = ["formatting"] }
+tokio-rustls = { version = "0.26", default-features = false, features = [
+    "ring",
+] }
+rustls = { version = "0.23", default-features = false, features = [
+    "logging",
+    "ring",
+] }
+rustls-platform-verifier = "0.6"
+url = "2.5"
+memmem = "0.1"
+
 [build-dependencies]
 gear-wasm-builder.workspace = true
 

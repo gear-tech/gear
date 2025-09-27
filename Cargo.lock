@@ -3967,6 +3967,7 @@ version = "0.1.0"
 dependencies = [
  "aead",
  "aes-gcm",
+ "anyhow",
  "chacha20poly1305",
  "crypto-common",
  "digest 0.10.7",
@@ -3980,13 +3981,19 @@ dependencies = [
  "hex-literal",
  "hkdf 0.12.4",
  "hmac 0.12.1",
+ "memmem",
  "parity-scale-codec",
  "ring 0.17.14",
+ "rustls 0.23.32",
  "rustls-pki-types",
+ "rustls-platform-verifier 0.6.1",
  "rustls-webpki 0.103.6",
  "scale-info",
  "sha2 0.10.9",
+ "time",
  "tokio",
+ "tokio-rustls 0.26.3",
+ "url",
  "webpki-roots 1.0.2",
 ]
 
@@ -10229,6 +10236,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "memmem"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a64a92489e2744ce060c349162be1c5f33c6969234104dbd99ddb5feb08b8c15"
+
+[[package]]
 name = "memoffset"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14325,6 +14338,27 @@ dependencies = [
  "security-framework 3.4.0",
  "security-framework-sys",
  "webpki-root-certs 0.26.11",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "rustls-platform-verifier"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be59af91596cac372a6942530653ad0c3a246cdd491aaa9dcaee47f88d67d5a0"
+dependencies = [
+ "core-foundation 0.10.1",
+ "core-foundation-sys",
+ "jni 0.21.1",
+ "log",
+ "once_cell",
+ "rustls 0.23.32",
+ "rustls-native-certs 0.8.1",
+ "rustls-platform-verifier-android",
+ "rustls-webpki 0.103.6",
+ "security-framework 3.4.0",
+ "security-framework-sys",
+ "webpki-root-certs 1.0.2",
  "windows-sys 0.59.0",
 ]
 
