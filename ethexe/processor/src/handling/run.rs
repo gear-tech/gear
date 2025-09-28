@@ -124,17 +124,85 @@ use gprimitives::{ActorId, H256};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
-#[derive(Clone)]
-pub struct RunnerConfig {
-    pub chunk_processing_threads: usize,
-    pub block_gas_limit: u64,
-    pub gas_limit_multiplier: u64,
+/// Runs programs queues in chunks.
+pub async fn run(
+    db: Database,
+    instance_creator: InstanceCreator,
+    chunk_size: usize,
+    gas_limit: u64,
+    mut run_ctx: impl RunContext,
+) {
+    let mut join_set = JoinSet::new();
+    let mut allowance_counter = GasAllowanceCounter::new(gas_limit);
+    let mut is_out_of_gas_for_block = false;
+
+    loop {
+        // Get actual states from transitions, stored in `run_ctx`.
+        let states = run_ctx.states();
+
+        // Prepare chunks for execution, by splitting states into chunks of the specified size.
+        let chunks = chunks_splitting::prepare_execution_chunks(chunk_size, states, &run_ctx);
+
+        if chunks.is_empty() {
+            // No more chunks to process. Stopping.
+            break;
+        }
+
+        for chunk in chunks {
+            // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
+            chunk_execution_spawn::spawn_chunk_execution(
+                chunk,
+                db.clone(),
+                &instance_creator,
+                &mut allowance_counter,
+                &mut join_set,
+                &mut run_ctx,
+            );
+
+            // Collect journals from all executed programs in the chunk.
+            let (chunk_journals, max_gas_spent_in_chunk) =
+                chunk_execution_processing::collect_chunk_journals(&mut join_set, &mut run_ctx)
+                    .await;
+
+            // Process journals of all executed programs in the chunk.
+            let output = chunk_execution_processing::process_chunk_execution_journals(
+                chunk_journals,
+                &db,
+                &allowance_counter,
+                &mut is_out_of_gas_for_block,
+                &mut run_ctx,
+            );
+            match output {
+                ChunkJournalsProcessingOutput::Processed => {}
+                ChunkJournalsProcessingOutput::EarlyBreak => break,
+            }
+
+            // Charge global gas allowance counter with the maximum gas spent in the chunk.
+            allowance_counter.charge(max_gas_spent_in_chunk);
+
+            if is_out_of_gas_for_block {
+                // Ran out of gas for the block, stopping processing.
+                break;
+            }
+        }
+    }
 }
 
-trait RunContext {
+/// Context for running program queues in chunks.
+///
+/// Main responsibility of the trait is to maintain DRY principle
+/// between common and overlaid execution contexts. It's not meant
+/// to emphasize any particular trait/feature/abstraction.
+pub(crate) trait RunContext {
     fn transitions(&mut self) -> &mut InBlockTransitions;
     fn states(&self) -> Vec<chunks_splitting::ActorStateHashWithQueueSize>;
 
+    /// Handle chunk data for a specific actor state.
+    ///
+    /// In common execution, the actor state is inserted into the chunk based on its queue size.
+    /// In overlaid execution, the base program is always inserted into the heaviest chunk.
+    ///
+    /// The trait method provides a default implementation for a common execution.
     fn handle_chunk_data(
         &self,
         execution_chunks: &mut chunks_splitting::ExecutionChunks,
@@ -145,18 +213,35 @@ trait RunContext {
         execution_chunks.insert_into(chunk_idx, actor_id, hash);
     }
 
-    // Always run the task.
+    /// Checks whether queues for specified program must not be executed in the current run.
+    ///
+    /// In common execution, all program queues are executed as usual.
+    /// In overlaid execution, the method is intended to nullify queues of programs and
+    /// skip spawning jobs for them if their queues were newly nullified.
     fn check_task_no_run(&mut self, _program_id: ActorId) -> bool {
         false
     }
 
+    /// Checks whether the run must be stopped early without executing the rest chunks.
+    ///
+    /// In common execution, the run is never stopped early.
+    /// In overlaid execution, the method stops the run early if the expected reply is found in the journal.
     fn break_early(&mut self, _journal: &[JournalNote]) -> bool {
         false
     }
 }
 
-struct CommonRunContext<'a> {
+/// Common run context.
+pub(crate) struct CommonRunContext<'a> {
     in_block_transitions: &'a mut InBlockTransitions,
+}
+
+impl<'a> CommonRunContext<'a> {
+    pub(crate) fn new(in_block_transitions: &'a mut InBlockTransitions) -> Self {
+        CommonRunContext {
+            in_block_transitions,
+        }
+    }
 }
 
 impl<'a> RunContext for CommonRunContext<'a> {
@@ -169,9 +254,23 @@ impl<'a> RunContext for CommonRunContext<'a> {
     }
 }
 
-struct OverlaidRunContext<'a> {
+/// Overlaid run context.
+pub(crate) struct OverlaidRunContext<'a> {
     overlaid_ctx: OverlaidState,
     in_block_transitions: &'a mut InBlockTransitions,
+}
+
+impl<'a> OverlaidRunContext<'a> {
+    pub(crate) fn new(
+        base_program: ActorId,
+        db: Database,
+        in_block_transitions: &'a mut InBlockTransitions,
+    ) -> Self {
+        Self {
+            overlaid_ctx: OverlaidState::new(base_program, db, in_block_transitions),
+            in_block_transitions,
+        }
+    }
 }
 
 impl<'a> RunContext for OverlaidRunContext<'a> {
@@ -228,100 +327,6 @@ fn states(
         .collect()
 }
 
-pub async fn run_new(
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-    config: RunnerConfig,
-) {
-    run_impl(
-        db,
-        instance_creator,
-        config.clone(),
-        config.block_gas_limit,
-        CommonRunContext {
-            in_block_transitions,
-        },
-    )
-    .await;
-}
-
-pub async fn run_overlaid(
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: &mut InBlockTransitions,
-    config: RunnerConfig,
-    base_program: ActorId,
-) {
-    let gas_limit = config
-        .block_gas_limit
-        .saturating_mul(config.gas_limit_multiplier);
-    let run_ctx = OverlaidRunContext {
-        overlaid_ctx: OverlaidState::new(base_program, db.clone(), in_block_transitions),
-        in_block_transitions,
-    };
-
-    run_impl(db, instance_creator, config, gas_limit, run_ctx).await;
-}
-
-async fn run_impl(
-    db: Database,
-    instance_creator: InstanceCreator,
-    config: RunnerConfig,
-    gas_limit: u64,
-    mut run_ctx: impl RunContext,
-) {
-    let mut join_set = JoinSet::new();
-    let chunk_size = config.chunk_processing_threads;
-    let mut allowance_counter = GasAllowanceCounter::new(gas_limit);
-    let mut is_out_of_gas_for_block = false;
-
-    loop {
-        let states = run_ctx.states();
-
-        let chunks = chunks_splitting::prepare_execution_chunks(chunk_size, states, &run_ctx);
-
-        if chunks.is_empty() {
-            // No more chunks to process. Stopping.
-            break;
-        }
-
-        for chunk in chunks {
-            chunk_execution_spawn::spawn_chunk_execution(
-                chunk,
-                db.clone(),
-                &instance_creator,
-                &mut allowance_counter,
-                &mut join_set,
-                &mut run_ctx,
-            );
-
-            let (chunk_journals, max_gas_spent_in_chunk) =
-                chunk_execution_processing::collect_chunk_journals(&mut join_set, &mut run_ctx)
-                    .await;
-
-            let output = chunk_execution_processing::process_chunk_execution_journals(
-                chunk_journals,
-                &db,
-                &allowance_counter,
-                &mut is_out_of_gas_for_block,
-                &mut run_ctx,
-            );
-            match output {
-                ChunkJournalsProcessingOutput::Processed => {}
-                ChunkJournalsProcessingOutput::EarlyBreak => break,
-            }
-
-            allowance_counter.charge(max_gas_spent_in_chunk);
-
-            if is_out_of_gas_for_block {
-                // Ran out of gas for the block, stopping processing.
-                break;
-            }
-        }
-    }
-}
-
 mod chunks_splitting {
     use super::*;
 
@@ -346,7 +351,7 @@ mod chunks_splitting {
 
     /// A helper  struct to bundle actor id, state hash and queue size together
     /// for easier handling in chunk preparation.
-    pub(super) struct ActorStateHashWithQueueSize {
+    pub(crate) struct ActorStateHashWithQueueSize {
         actor_id: ActorId,
         hash: H256,
         cached_queue_size: usize,
@@ -367,7 +372,7 @@ mod chunks_splitting {
     }
 
     /// A helper struct to manage execution chunks during their preparation.
-    pub(super) struct ExecutionChunks {
+    pub(crate) struct ExecutionChunks {
         chunk_size: usize,
         chunks: Chunks,
     }

@@ -30,7 +30,7 @@ use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{
     ProcessingHandler,
-    run::{self, RunnerConfig},
+    run::{self, CommonRunContext, OverlaidRunContext},
 };
 use host::InstanceCreator;
 
@@ -237,16 +237,16 @@ impl Processor {
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
-        run::run_new(
+        let chunk_size = self.config.chunk_processing_threads;
+        let gas_limit = self.config.block_gas_limit;
+        let ctx = CommonRunContext::new(&mut handler.transitions);
+
+        run::run(
             self.db.clone(),
             self.creator.clone(),
-            &mut handler.transitions,
-            RunnerConfig {
-                chunk_processing_threads: self.config().chunk_processing_threads,
-                block_gas_limit: self.config().block_gas_limit,
-                // No overlay execution is done, so no need for a multiplication.
-                gas_limit_multiplier: 1,
-            },
+            chunk_size,
+            gas_limit,
+            ctx,
         )
         .await;
     }
@@ -298,16 +298,21 @@ impl OverlaidProcessor {
             },
         )?;
 
-        run::run_overlaid(
+        let ProcessorConfig {
+            chunk_processing_threads,
+            block_gas_limit,
+            gas_limit_multiplier,
+        } = self.0.config();
+        let chunk_size = *chunk_processing_threads;
+        let gas_limit = block_gas_limit.saturating_mul(*gas_limit_multiplier);
+        let ctx = OverlaidRunContext::new(program_id, self.0.db.clone(), &mut handler.transitions);
+
+        run::run(
             self.0.db.clone(),
             self.0.creator.clone(),
-            &mut handler.transitions,
-            RunnerConfig {
-                chunk_processing_threads: self.0.config().chunk_processing_threads,
-                block_gas_limit: self.0.config().block_gas_limit,
-                gas_limit_multiplier: self.0.config().gas_limit_multiplier,
-            },
-            program_id,
+            chunk_size,
+            gas_limit,
+            ctx,
         )
         .await;
 
