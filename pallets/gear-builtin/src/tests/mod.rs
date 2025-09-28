@@ -23,5 +23,6 @@ pub const DEFAULT_GAS_LIMIT: u64 = 20_000_000_000;
 mod bad_builtin_ids;
 mod basic;
 mod bls381;
+mod gas;
 mod proxy;
 mod staking;

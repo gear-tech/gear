@@ -53,6 +53,7 @@ pub use weights::WeightInfo;
 use alloc::{
     collections::{BTreeMap, btree_map::Entry},
     format,
+    vec::Vec,
 };
 use common::{BlockLimiter, storage::Limiter};
 use core::marker::PhantomData;
@@ -136,11 +137,17 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
 pub struct BuiltinContext {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
+    /// Tracks pre-validated gas amounts so we can enforce the minimum limit accurately.
+    pending_precharges: Vec<u64>,
+    /// Maximum gas amount that has been pre-validated for the current builtin execution.
+    pub(crate) max_precharge: u64,
 }
 
 impl BuiltinContext {
     // Tries to charge the gas amount from the gas counters.
     pub fn try_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
+        let prechecked = self.pending_precharges.pop();
+
         if self.gas_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
             return Err(BuiltinActorError::InsufficientGas);
         }
@@ -149,11 +156,21 @@ impl BuiltinContext {
             return Err(BuiltinActorError::GasAllowanceExceeded);
         }
 
+        if let Some(required) = prechecked {
+            if let Some(diff) = required.checked_sub(amount) {
+                if diff != 0 {
+                    // `can_charge_gas` already verified the counters so the reduction must succeed.
+                    let reduce_result = self.gas_counter.reduce(diff);
+                    debug_assert_eq!(reduce_result, ChargeResult::Enough);
+                }
+            }
+        }
+
         Ok(())
     }
 
     // Checks if an amount of gas can be charged without actually modifying the inner counters.
-    pub fn can_charge_gas(&self, amount: u64) -> Result<(), BuiltinActorError> {
+    pub fn can_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
         if self.gas_counter.left() < amount {
             return Err(BuiltinActorError::InsufficientGas);
         }
@@ -161,6 +178,9 @@ impl BuiltinContext {
         if self.gas_allowance_counter.left() < amount {
             return Err(BuiltinActorError::GasAllowanceExceeded);
         }
+
+        self.pending_precharges.push(amount);
+        self.max_precharge = self.max_precharge.max(amount);
 
         Ok(())
     }
@@ -418,17 +438,20 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let mut context = BuiltinContext {
             gas_counter: GasCounter::new(gas_limit),
             gas_allowance_counter: GasAllowanceCounter::new(current_gas_allowance),
+            pending_precharges: Vec::new(),
+            max_precharge: 0,
         };
 
         // Actual call to the builtin actor
         let res = handle(&dispatch, &mut context);
 
+        let message_id = dispatch.id();
         let dispatch = dispatch.into_incoming(gas_limit);
 
         // Consume the context and extract the amount of gas spent.
         let gas_amount = context.to_gas_amount();
 
-        match res {
+        let mut journal = match res {
             Ok(reply) => {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
@@ -484,6 +507,15 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     err,
                 )
             }
+        };
+
+        if context.max_precharge > 0 {
+            journal.push(JournalNote::BuiltinPrecharge {
+                message_id,
+                amount: context.max_precharge,
+            });
         }
+
+        journal
     }
 }

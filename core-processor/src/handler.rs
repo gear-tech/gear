@@ -36,6 +36,9 @@ pub fn handle_journal(
                 outcome,
             } => handler.message_dispatched(message_id, source, outcome),
             JournalNote::GasBurned { message_id, amount } => handler.gas_burned(message_id, amount),
+            JournalNote::BuiltinPrecharge { message_id, amount } => {
+                handler.builtin_precharge(message_id, amount)
+            }
             JournalNote::ExitDispatch {
                 id_exited,
                 value_destination,

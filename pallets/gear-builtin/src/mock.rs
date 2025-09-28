@@ -18,16 +18,18 @@
 
 use crate::{
     self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
-    BuiltinReply, GasAllowanceOf, bls12_381, proxy,
+    BuiltinReply, CallOf, GasAllowanceOf, bls12_381, proxy,
 };
-use common::{GasProvider, GasTree, storage::Limiter};
+use common::{GasProvider, GasTree, Origin, storage::Limiter};
 use core::cell::RefCell;
 use frame_support::{
     PalletId, construct_runtime,
+    dispatch::DispatchResultWithPostInfo,
     pallet_prelude::{DispatchClass, Weight},
     parameter_types,
     traits::{
-        ConstBool, ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize,
+        ConstBool, ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, IsType, OnFinalize,
+        OnInitialize,
     },
 };
 use frame_support_test::TestRandomness;
@@ -40,7 +42,10 @@ use sp_runtime::{
     BuildStorage, Perbill, Permill, RuntimeDebug,
     traits::{BlakeTwo256, IdentityLookup},
 };
-use sp_std::convert::{TryFrom, TryInto};
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    marker::PhantomData,
+};
 
 type AccountId = u64;
 type BlockNumber = u32;
@@ -63,6 +68,8 @@ pub(crate) const ENDOWMENT: u128 = 1_000 * UNITS;
 
 pub(crate) const UNITS: u128 = 1_000_000_000_000; // 10^(-12) precision
 pub(crate) const MILLISECS_PER_BLOCK: u64 = 2_400;
+pub(crate) const DUMMY_DECLARED_WEIGHT: u64 = 200_000;
+pub(crate) const DUMMY_ACTUAL_WEIGHT: u64 = 100_000;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) struct ExecutionTraceFrame {
@@ -77,6 +84,42 @@ thread_local! {
     static IN_TRANSACTION: RefCell<bool> = const { RefCell::new(false) };
 }
 
+#[frame_support::pallet]
+pub mod pallet_dummy {
+    use super::*;
+    #[allow(unused_imports)]
+    use frame_support::pallet_prelude::*;
+    use frame_system::pallet_prelude::*;
+
+    #[pallet::pallet]
+    #[pallet::without_storage_info]
+    pub struct Pallet<T>(_);
+
+    #[pallet::config]
+    pub trait Config: frame_system::Config {
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+    }
+
+    #[pallet::event]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        HeavyCallExecuted,
+    }
+
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        #[pallet::weight(Weight::from_parts(super::DUMMY_DECLARED_WEIGHT, 0))]
+        #[pallet::call_index(0)]
+        pub fn heavy_call(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+            let _ = ensure_signed(origin)?;
+
+            Self::deposit_event(Event::HeavyCallExecuted);
+
+            Ok(Some(Weight::from_parts(super::DUMMY_ACTUAL_WEIGHT, 0)).into())
+        }
+    }
+}
+
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
     pub enum Test
@@ -87,6 +130,7 @@ construct_runtime!(
         Timestamp: pallet_timestamp,
         Staking: pallet_staking,
         Proxy: pallet_proxy,
+        Dummy: pallet_dummy,
         GearProgram: pallet_gear_program,
         GearMessenger: pallet_gear_messenger,
         GearScheduler: pallet_gear_scheduler,
@@ -199,6 +243,10 @@ impl pallet_proxy::Config for Test {
     type CallHasher = BlakeTwo256;
     type AnnouncementDepositBase = AnnouncementDepositBase;
     type AnnouncementDepositFactor = AnnouncementDepositBase;
+}
+
+impl pallet_dummy::Config for Test {
+    type RuntimeEvent = RuntimeEvent;
 }
 
 parameter_types! {
@@ -329,6 +377,34 @@ impl BuiltinActor for HonestBuiltinActor {
 const HONEST_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/hon");
 const SUCCESS_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/suc");
 const ERROR_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/err");
+pub(crate) const DUMMY_CALL_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/dmy");
+
+pub struct DummyCallActor<T>(PhantomData<T>);
+
+impl<T> BuiltinActor for DummyCallActor<T>
+where
+    T: crate::Config + pallet_dummy::Config,
+    T::AccountId: Origin,
+    CallOf<T>: From<pallet_dummy::Call<T>>,
+{
+    fn handle(
+        dispatch: &StoredDispatch,
+        context: &mut BuiltinContext,
+    ) -> Result<BuiltinReply, BuiltinActorError> {
+        let call: CallOf<T> = pallet_dummy::Call::<T>::heavy_call {}.into();
+
+        crate::Pallet::<T>::dispatch_call(dispatch.source(), call, context)?;
+
+        Ok(BuiltinReply {
+            payload: Default::default(),
+            value: dispatch.value(),
+        })
+    }
+
+    fn max_gas() -> u64 {
+        Default::default()
+    }
+}
 
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
@@ -336,6 +412,7 @@ impl pallet_gear_builtin::Config for Test {
         ActorWithId<SUCCESS_ACTOR_ID, SuccessBuiltinActor>,
         ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
         ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
+        ActorWithId<DUMMY_CALL_ACTOR_ID, DummyCallActor<Self>>,
         ActorWithId<1, bls12_381::Actor<Self>>,
         ActorWithId<4, proxy::Actor<Self>>,
     );

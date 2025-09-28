@@ -323,6 +323,13 @@ pub enum JournalNote {
         /// Amount of gas for reply.
         amount: u64,
     },
+    /// Builtin execution requested a minimum precharge amount.
+    BuiltinPrecharge {
+        /// Message id the precharge applies to.
+        message_id: MessageId,
+        /// The gas amount that must be supplied for successful execution.
+        amount: u64,
+    },
 }
 
 /// Journal handler.
@@ -410,6 +417,9 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
+
+    /// Optional hook for builtin-specific precharge information.
+    fn builtin_precharge(&mut self, _message_id: MessageId, _amount: u64) {}
 }
 
 actor_system_error! {
