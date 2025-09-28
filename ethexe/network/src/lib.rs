@@ -49,7 +49,7 @@ use libp2p::{
 use libp2p_swarm_test::SwarmExt;
 use std::{
     collections::HashSet,
-    fmt, fs,
+    fs,
     hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
     pin::Pin,
@@ -67,48 +67,19 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, derive_more::Debug)]
 pub enum NetworkEvent {
     DbResponse {
         request_id: db_sync::RequestId,
         result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
     },
     Message {
+        #[debug("{:.8} ({} bytes)", ByteSliceFormatter::Dynamic(data), data.len())]
         data: Vec<u8>,
         source: Option<PeerId>,
     },
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
-}
-
-impl fmt::Debug for NetworkEvent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NetworkEvent::DbResponse { request_id, result } => f
-                .debug_struct("DbResponse")
-                .field("request_id", request_id)
-                .field("result", result)
-                .finish(),
-            NetworkEvent::Message { data, source } => f
-                .debug_struct("Message")
-                .field(
-                    "data",
-                    &format_args!(
-                        "{:.8} ({} bytes)",
-                        ByteSliceFormatter::Dynamic(data),
-                        data.len()
-                    ),
-                )
-                .field("source", source)
-                .finish(),
-            NetworkEvent::PeerBlocked(peer_id) => {
-                f.debug_tuple("PeerBlocked").field(peer_id).finish()
-            }
-            NetworkEvent::PeerConnected(peer_id) => {
-                f.debug_tuple("PeerConnected").field(peer_id).finish()
-            }
-        }
-    }
 }
 
 #[derive(Default, Debug, Clone)]
