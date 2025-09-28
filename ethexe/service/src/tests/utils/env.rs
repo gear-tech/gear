@@ -46,7 +46,10 @@ use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
-use ethexe_processor::Processor;
+use ethexe_processor::{
+    DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS,
+    Processor, ProcessorConfig,
+};
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
@@ -692,6 +695,11 @@ impl NodeConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
             dev: false,
+            processor_config: ProcessorConfig::overlay(
+                DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+                DEFAULT_BLOCK_GAS_LIMIT,
+                DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+            ),
         };
         self.rpc = Some(service_rpc_config);
 

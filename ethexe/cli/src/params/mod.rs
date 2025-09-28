@@ -76,20 +76,21 @@ impl Params {
     pub fn into_config(self) -> Result<Config> {
         let node = self.node.ok_or_else(|| anyhow!("missing node params"))?;
         let net_dir = node.net_dir();
-        let dev = node.dev;
 
         let ethereum = self
             .ethereum
             .ok_or_else(|| anyhow!("missing ethereum params"))?;
 
+        let node = node.into_config()?;
+        let rpc = self.rpc.and_then(|p| p.into_config(&node));
         Ok(Config {
-            node: node.into_config()?,
+            node,
+            rpc,
             ethereum: ethereum.into_config()?,
             network: self
                 .network
                 .and_then(|p| p.into_config(net_dir).transpose())
                 .transpose()?,
-            rpc: self.rpc.and_then(|p| p.into_config(dev)),
             prometheus: self.prometheus.and_then(|p| p.into_config()),
         })
     }

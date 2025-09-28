@@ -185,10 +185,10 @@ impl Service {
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let processor = Processor::with_config(
-            ProcessorConfig {
-                chunk_processing_threads: config.node.chunk_processing_threads,
-                block_gas_limit: config.node.block_gas_limit,
-            },
+            ProcessorConfig::common(
+                config.node.chunk_processing_threads,
+                config.node.block_gas_limit,
+            ),
             db.clone(),
         )
         .with_context(|| "failed to create processor")?;
