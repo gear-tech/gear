@@ -22,11 +22,10 @@ use super::{
 use crate::ConsensusEvent;
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, ProducerBlock, SimpleBlockData, gear::BatchCommitment};
+use ethexe_common::{ProducerBlock, SimpleBlockData, ValidatorsVec, gear::BatchCommitment};
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -37,7 +36,7 @@ use std::task::{Context, Poll};
 pub struct Producer {
     ctx: ValidatorContext,
     block: SimpleBlockData,
-    validators: NonEmpty<Address>,
+    validators: ValidatorsVec,
     state: State,
 }
 
@@ -48,10 +47,7 @@ enum State {
         timer: Timer,
     },
     WaitingBlockComputed,
-    AggregateBatchCommitment {
-        #[debug(skip)]
-        future: BoxFuture<'static, Result<Option<BatchCommitment>>>,
-    },
+    AggregateBatchCommitment(#[debug(skip)] BoxFuture<'static, Result<Option<BatchCommitment>>>),
 }
 
 impl StateHandler for Producer {
@@ -75,14 +71,13 @@ impl StateHandler for Producer {
             return Ok(self.into());
         }
 
-        self.state = State::AggregateBatchCommitment {
-            future: self
-                .ctx
+        self.state = State::AggregateBatchCommitment(
+            self.ctx
                 .core
                 .clone()
                 .aggregate_batch_commitment(self.block.clone())
                 .boxed(),
-        };
+        );
 
         Ok(self.into())
     }
@@ -91,17 +86,18 @@ impl StateHandler for Producer {
         match &mut self.state {
             State::CollectCodes { timer } => {
                 if timer.poll_unpin(cx).is_ready() {
+                    tracing::debug!(block = %self.block.hash, "Codes collection timer is expired, create producer block");
                     self.create_producer_block()?
                 }
             }
             State::WaitingBlockComputed => {}
-            State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
+            State::AggregateBatchCommitment(future) => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
                     return Coordinator::create(self.ctx, self.validators, batch)
                         .map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Ok(None)) => {
-                    log::info!("No commitments - skip batch commitment");
+                    tracing::info!("No commitments - skip batch commitment");
                     return Initial::create(self.ctx).map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Err(err)) => {
@@ -119,7 +115,7 @@ impl Producer {
     pub fn create(
         mut ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
     ) -> Result<ValidatorState> {
         assert!(
             validators.contains(&ctx.core.pub_key.to_address()),
@@ -168,8 +164,12 @@ mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
     use async_trait::async_trait;
-    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite, gear::CodeCommitment};
-    use nonempty::{NonEmpty, nonempty};
+    use ethexe_common::{
+        Digest, ToDigest,
+        db::{BlockMetaStorageWrite, OnChainStorageWrite},
+        gear::CodeCommitment,
+    };
+    use nonempty::nonempty;
 
     #[tokio::test]
     async fn create() {
@@ -183,7 +183,7 @@ mod tests {
             (),
         )));
 
-        let producer = Producer::create(ctx, block, validators.clone()).unwrap();
+        let producer = Producer::create(ctx, block, validators.into()).unwrap();
 
         let ctx = producer.context();
         assert_eq!(
@@ -196,7 +196,8 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
 
         let state = Producer::create(ctx, block.clone(), validators)
@@ -213,13 +214,14 @@ mod tests {
         // No commitments - no batch and goes to initial state
         assert!(state.is_initial());
         assert_eq!(state.context().output.len(), 0);
-        assert!(eth.committed_batch.lock().await.is_none());
+        assert!(eth.committed_batch.read().await.is_none());
     }
 
     #[tokio::test]
     async fn complex() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
         let block = simple_block_data(&ctx.core.db, batch.block_hash);
 
@@ -243,7 +245,7 @@ mod tests {
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
             .committed_batch
-            .lock()
+            .read()
             .await
             .clone()
             .expect("Expected that batch is committed")
@@ -278,8 +280,10 @@ mod tests {
     #[tokio::test]
     async fn code_commitments_only() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators: ValidatorsVec =
+            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
+        ctx.core.db.set_validators(block.hash, validators.clone());
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.core.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.core.db, ());
@@ -291,19 +295,18 @@ mod tests {
             meta.last_committed_head = Some(H256::random());
         });
 
-        let submitter = create_producer_skip_timer(ctx, block.clone(), validators.clone())
+        let initial = create_producer_skip_timer(ctx, block.clone(), validators.clone())
             .await
             .unwrap()
             .0
             .process_computed_block(block.hash)
             .unwrap();
 
-        let initial = submitter.wait_for_event().await.unwrap().0;
         assert!(initial.is_initial());
 
         let batch = eth
             .committed_batch
-            .lock()
+            .read()
             .await
             .clone()
             .expect("Expected that batch is committed");
@@ -337,7 +340,7 @@ mod tests {
     async fn create_producer_skip_timer(
         ctx: ValidatorContext,
         block: SimpleBlockData,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
     ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
         let producer = Producer::create(ctx, block.clone(), validators)?;
         assert!(producer.is_producer());

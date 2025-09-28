@@ -20,14 +20,15 @@ use super::{core::*, *};
 use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use ethexe_ethereum::primitives::map::HashMap;
-use futures::lock::Mutex;
+use ethexe_common::{GearExeTimelines, ValidatorsVec, db::OnChainStorageWrite};
+use hashbrown::HashMap;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Default, Clone)]
 pub struct MockEthereum {
-    pub committed_batch: Arc<Mutex<Option<MultisignedBatchCommitment>>>,
-    pub predefined_election_at: Arc<Mutex<HashMap<ElectionRequest, Vec<Address>>>>,
+    pub committed_batch: Arc<RwLock<Option<MultisignedBatchCommitment>>>,
+    pub predefined_election_at: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
 #[async_trait]
@@ -37,24 +38,20 @@ impl BatchCommitter for MockEthereum {
     }
 
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
-        self.committed_batch.lock().await.replace(batch);
+        self.committed_batch.write().await.replace(batch);
         Ok(H256::random())
     }
 }
 
 #[async_trait]
 impl MiddlewareExt for MockEthereum {
-    fn clone_boxed(&self) -> Box<dyn MiddlewareExt> {
-        Box::new(self.clone())
-    }
-
-    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<Vec<Address>> {
-        self.predefined_election_at
-            .lock()
-            .await
-            .get(&request)
-            .cloned()
-            .ok_or_else(|| anyhow!("No predefined election result for the given request"))
+    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+        match self.predefined_election_at.read().await.get(&request) {
+            Some(election_result) => Ok(election_result.clone()),
+            None => Err(anyhow!(
+                "No predefined election result for the given request"
+            )),
+        }
     }
 }
 
@@ -125,7 +122,6 @@ impl WaitFor for ValidatorState {
 
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
-    let db = Database::memory();
     let ethereum = MockEthereum::default();
 
     let ctx = ValidatorContext {
@@ -135,15 +131,21 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             router_address: 12345.into(),
             pub_key: keys.pop().unwrap(),
             signer,
-            db: db.clone(),
+            db: Database::memory(),
             committer: Box::new(ethereum.clone()),
-            middleware: MiddlewareWrapper::new(Box::new(ethereum.clone()), db),
+            middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
     };
+
+    ctx.core.db.set_gear_exe_timelines(GearExeTimelines {
+        genesis_ts: 0,
+        era: 12 * 60 * 60,
+        election: 10 * 60,
+    });
 
     (ctx, keys, ethereum)
 }

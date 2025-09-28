@@ -22,9 +22,8 @@ use super::{
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData, db::OnChainStorageRead};
+use ethexe_common::{Address, SimpleBlockData, ValidatorsVec, db::OnChainStorageRead};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -68,17 +67,17 @@ impl StateHandler for Initial {
                 let my_address = self.ctx.core.pub_key.to_address();
 
                 if my_address == producer {
-                    log::info!("👷 Start to work as a producer for block: {}", block.hash);
+                    tracing::info!(block= %block.hash, "👷 Start to work as a producer");
 
                     Producer::create(self.ctx, block.clone(), validators)
                 } else {
                     // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
                     let is_validator_for_current_block = validators.contains(&my_address);
 
-                    log::info!(
-                        "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
+                    tracing::info!(
+                        block = %block.hash,
+                        "👷 Start to work as a subordinate, producer is {producer}, \
                         I'm validator for current block: {is_validator_for_current_block}",
-                        block.hash
                     );
 
                     Subordinate::create(
@@ -115,7 +114,7 @@ impl Initial {
         .into())
     }
 
-    fn producer_for(&self, timestamp: u64, validators: &NonEmpty<Address>) -> Address {
+    fn producer_for(&self, timestamp: u64, validators: &ValidatorsVec) -> Address {
         let slot = timestamp / self.ctx.core.slot_duration.as_secs();
         let index = crate::block_producer_index(validators.len(), slot);
         validators
@@ -131,7 +130,7 @@ mod tests {
     use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use ethexe_common::db::OnChainStorageWrite;
     use gprimitives::H256;
-    use nonempty::nonempty;
+    use nonempty::{NonEmpty, nonempty};
 
     #[test]
     fn create_initial_success() {
@@ -155,12 +154,13 @@ mod tests {
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
-        ];
+        ]
+        .into();
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
 
-        ctx.core.db.set_validators(block.hash, validators.clone());
+        ctx.core.db.set_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -170,15 +170,16 @@ mod tests {
     #[test]
     fn switch_to_subordinate() {
         let (ctx, keys, _) = mock_validator_context();
-        let validators = nonempty![
-            ctx.core.pub_key.to_address(),
-            keys[1].to_address(),
-            keys[2].to_address(),
-        ];
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 1;
 
+        let validators: ValidatorsVec = nonempty![
+            ctx.core.pub_key.to_address(),
+            keys[1].to_address(),
+            keys[2].to_address(),
+        ]
+        .into();
         ctx.core.db.set_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
@@ -216,8 +217,9 @@ mod tests {
 
     #[test]
     fn producer_for_calculates_correct_producer() {
-        let (ctx, keys, _) = mock_validator_context();
-        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
+        let (ctx, keys, _) = mock_validator_context(); let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect())
+            .unwrap()
+            .into();
         let timestamp = 10;
 
         let producer = Initial {

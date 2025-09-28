@@ -24,11 +24,14 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
-        init_logger,
+        EnvNetworkConfig, Node, NodeConfig, OperatorWithStake, SymbioticEnv, SymbioticEnvConfig,
+        TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig, VaultConfig, init_logger,
     },
 };
-use alloy::providers::{Provider as _, ext::AnvilApi};
+use alloy::{
+    primitives::U256,
+    providers::{Provider as _, RootProvider, ext::AnvilApi},
+};
 use ethexe_common::{
     ScheduledTask,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
@@ -36,6 +39,9 @@ use ethexe_common::{
     gear::Origin,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_ethereum::{
+    deploy::ContractsDeploymentParams, middleware::MiddlewareQuery, router::RouterQuery,
+};
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -51,7 +57,9 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
+    ops::Mul,
     time::Duration,
+    u128,
 };
 use tempfile::tempdir;
 
@@ -708,7 +716,9 @@ async fn ping_reorg() {
         .send_message(create_program.program_id, b"PING", 0)
         .await
         .unwrap();
+
     // Mine some blocks to check missed blocks support
+    log::error!("📗 Skip some blocks to simulate long time without service");
     env.skip_blocks(10).await;
 
     // Start new service
@@ -1287,4 +1297,70 @@ async fn fast_sync() {
         &alice,
         &bob,
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn validators_election() {
+    init_logger();
+
+    let election_ts = 20 * 60 * 60;
+    let era_duration = 24 * 60 * 60;
+    let block_time = Duration::from_secs(1);
+    let deploy_params = ContractsDeploymentParams {
+        with_middleware: true,
+        era_duration,
+        election_duration: era_duration - election_ts,
+    };
+
+    let env_config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(3),
+        block_time,
+        deploy_params,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let validators = env.ethereum.router().query().validators().await.unwrap();
+    tracing::info!("📗 Current validators: {validators:?}");
+
+    let vaults = vec![VaultConfig {
+        operators: validators
+            .iter()
+            .map(|validator| OperatorWithStake((*validator).into(), U256::from(1_000_000)))
+            .collect(),
+        total_vault_stake: U256::from(u128::MAX),
+    }];
+    let symbiotic_config = SymbioticEnvConfig { vaults };
+    let symbiotic_env = SymbioticEnv::new(symbiotic_config, &env.ethereum).await;
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    // Force creation new block with given timestamp.
+    env.provider
+        .anvil_set_next_block_timestamp(election_ts + 10)
+        .await
+        .unwrap();
+    env.force_new_block().await;
+
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    listener
+        .apply_until_block_event(|event| {
+            Ok(matches!(
+                event,
+                BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted { era_index: _ })
+            )
+            .then_some(()))
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("📗 Next validators successfully commited");
 }

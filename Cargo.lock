@@ -4742,6 +4742,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.9.2"
 dependencies = [
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
@@ -4752,10 +4753,13 @@ dependencies = [
  "ethexe-signer",
  "futures",
  "gprimitives",
- "log",
+ "hashbrown 0.14.5",
  "nonempty 0.12.0",
  "parity-scale-codec",
+ "rand 0.8.5",
+ "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4771,7 +4775,6 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "parity-scale-codec",
  "paste",
  "rocksdb",
@@ -4840,6 +4843,7 @@ dependencies = [
  "log",
  "nonempty 0.12.0",
  "tokio",
+ "tracing",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]

@@ -43,7 +43,11 @@ use ethexe_common::{
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{
+    Ethereum,
+    deploy::{ContractsDeploymentParams, EthereumDeployer},
+    router::RouterQuery,
+};
 use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
@@ -110,6 +114,7 @@ impl TestEnv {
             router_address,
             continuous_block_generation,
             network,
+            deploy_params,
         } = config;
 
         log::info!(
@@ -124,18 +129,29 @@ impl TestEnv {
             EnvRpcConfig::CustomAnvil {
                 slots_in_epoch,
                 genesis_timestamp,
+                blocks_type,
             } => {
                 let mut anvil = Anvil::new();
 
-                if continuous_block_generation {
-                    anvil = anvil.block_time(block_time.as_secs())
-                }
+                // if continuous_block_generation {
+                //     anvil = anvil.block_time(block_time.as_secs())
+                // }
+
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
                 if let Some(genesis_timestamp) = genesis_timestamp {
                     anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                 }
+
+                // match blocks_type {
+                //     AnvilBlockGenerationType::Continuous(duration) => {
+                //         anvil = anvil.block_time(duration.as_secs())
+                //     }
+                //     AnvilBlockGenerationType::AutoMine => {
+                //         // nothing to do, anvil is in automine mode by default
+                //     }
+                // }
 
                 let anvil = anvil.spawn();
 
@@ -188,6 +204,7 @@ impl TestEnv {
                 .unwrap()
                 .with_validators(validators_addresses)
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .with_params(deploy_params)
                 .deploy()
                 .await?
         };
@@ -605,12 +622,20 @@ pub enum EnvNetworkConfig {
     EnabledWithCustomAddress(String),
 }
 
+pub enum AnvilBlockGenerationType {
+    // Blocks are created in constant time intervals.
+    Continuous(Duration),
+    // Blocks are created only when tx are sent.
+    AutoMine,
+}
+
 pub enum EnvRpcConfig {
     #[allow(unused)]
     ProvidedURL(String),
     CustomAnvil {
         slots_in_epoch: Option<u64>,
         genesis_timestamp: Option<u64>,
+        blocks_type: AnvilBlockGenerationType,
     },
 }
 
@@ -631,6 +656,8 @@ pub struct TestEnvConfig {
     pub continuous_block_generation: bool,
     /// Network service configuration, disabled by default.
     pub network: EnvNetworkConfig,
+    /// Smart contracts deploy configuration.
+    pub deploy_params: ContractsDeploymentParams,
 }
 
 impl Default for TestEnvConfig {
@@ -643,12 +670,14 @@ impl Default for TestEnvConfig {
                 // when the next finalized block is produced, which is convenient for tests
                 slots_in_epoch: Some(1),
                 // For deterministic tests we need to set fixed genesis timestamp
-                genesis_timestamp: Some(1_000_000_000),
+                genesis_timestamp: Some(1),
+                blocks_type: AnvilBlockGenerationType::Continuous(Duration::from_secs(1)),
             },
             wallets: None,
             router_address: None,
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
+            deploy_params: Default::default(),
         }
     }
 }

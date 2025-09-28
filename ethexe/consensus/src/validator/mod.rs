@@ -45,7 +45,7 @@ use crate::{
     SignedValidationRequest,
     validator::{
         coordinator::Coordinator,
-        core::{MiddlewareExt, MiddlewareWrapper, ValidatorCore},
+        core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
         producer::Producer,
         submitter::Submitter,
@@ -141,13 +141,7 @@ impl ValidatorService {
                 signer,
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),
-                middleware: MiddlewareWrapper::new(
-                    ethereum
-                        .middleware()
-                        .map(|m| Box::new(m) as Box<dyn MiddlewareExt>)
-                        .unwrap_or_else(|| Box::new(())),
-                    db,
-                ),
+                middleware: MiddlewareWrapper::from_inner(ethereum.middleware().query()),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
             },
@@ -438,11 +432,12 @@ impl DefaultProcessing {
         s: impl Into<ValidatorState>,
         reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
-        log::trace!("Skip validation reply: {reply:?}");
+        tracing::trace!("Skip validation reply: {reply:?}");
         Ok(s.into())
     }
 }
 
+/// The context shared across all validator states.
 #[derive(Debug)]
 struct ValidatorContext {
     /// Core validator parameters and utilities.
