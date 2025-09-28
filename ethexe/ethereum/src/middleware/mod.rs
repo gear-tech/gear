@@ -74,14 +74,17 @@ impl MiddlewareQuery {
     }
 
     pub async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
-        self.0
+        let validators = self
+            .0
             .makeElectionAt(
                 alloy::primitives::Uint::from(ts),
                 AlloyU256::from(max_validators),
             )
             .call()
-            .await?
-            .try_into()
-            .map_err(Into::into)
+            .await?;
+
+        validators.try_into().map_err(|err| {
+            Into::<anyhow::Error>::into(err).context("MiddlewareQuery make_election_at failed")
+        })
     }
 }

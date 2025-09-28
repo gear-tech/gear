@@ -171,7 +171,7 @@ impl Decode for ValidatorsVec {
 
 #[derive(Debug, Display, Error)]
 #[display("{:?}", self)]
-#[debug("Vec must be non-empty")]
+#[debug("ValidatorsVec cannot be created from empty vector")]
 pub struct TryFromVecError;
 
 // Usefull conversions from / to `Vec<Address>`

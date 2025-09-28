@@ -34,14 +34,11 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
-use ethexe_ethereum::middleware::{Middleware, MiddlewareQuery};
+use ethexe_ethereum::middleware::MiddlewareQuery;
 use ethexe_signer::Signer;
 use gprimitives::H256;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::Duration,
-};
+use hashbrown::{HashMap, HashSet};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 #[derive(derive_more::Debug)]
@@ -152,22 +149,28 @@ impl ValidatorCore {
             .ok_or(anyhow!("gear exe timelines not found"))?;
 
         let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
-        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
+            - timelines.election;
 
         if header.timestamp < election_ts {
-            tracing::debug!(block = %hash, "no election in this block, election not reached yet");
+            tracing::debug!(
+                block = %hash,
+                block.timestamp = %header.timestamp,
+                election_ts = %election_ts,
+                "no election in this block, election not reached yet"
+            );
             return Ok(None);
         }
 
-        let election_block = utils::election_block_in_era(self.db, block, election_ts)?;
+        let election_block = utils::election_block_in_era(&self.db, *block, election_ts)?;
         let request = ElectionRequest {
-            at_block_hash: election_block,
+            at_block_hash: election_block.hash,
             at_timestamp: election_ts,
             max_validators: 10,
         };
 
         let elected_validators = self.middleware.make_election_at(request).await?;
-        let commitment = utils::validators_commitment(self.db, block_era + 1, elected_validators)?;
+        let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
         Ok(Some(commitment))
     }
 

@@ -119,8 +119,26 @@ pub mod symbiotic_abi {
 
     alloy::sol!(
         #[sol(rpc)]
+        FullRestakeDelegator,
+        "../contracts/lib/symbiotic-core/out/FullRestakeDelegator.sol/FullRestakeDelegator.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
         SlasherFactory,
         "../contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        Slasher,
+        "../contracts/lib/symbiotic-core/out/Slasher.sol/Slasher.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        VetoSlasher,
+        "../contracts/lib/symbiotic-core/out/VetoSlasher.sol/VetoSlasher.json"
     );
 
     pub mod staker_rewards_factory {

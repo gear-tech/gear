@@ -326,6 +326,8 @@ where
 
     // Deploy Symbiotic contracts
     let vault_factory = VaultFactory::deploy(provider.clone(), deployer).await?;
+    let delegator_factory = DelegatorFactory::deploy(provider.clone(), deployer).await?;
+    let slasher_factory = SlasherFactory::deploy(provider.clone(), deployer).await?;
     let operator_registry = OperatorRegistry::deploy(provider.clone()).await?;
     let network_registry = NetworkRegistry::deploy(provider.clone()).await?;
     let network_middleware_service =
@@ -338,6 +340,7 @@ where
     )
     .await?;
 
+    // Whitelisting deployed contracts in registries
     let staker_rewards_impl = DefaultStakerRewards::deploy(
         provider.clone(),
         *vault_factory.address(),
@@ -351,8 +354,6 @@ where
         DefaultOperatorRewards::deploy(provider.clone(), *network_middleware_service.address())
             .await?;
 
-    let delegator_factory = DelegatorFactory::deploy(provider.clone(), deployer).await?;
-    let slasher_factory = SlasherFactory::deploy(provider.clone(), deployer).await?;
     let vault_impl = Vault::deploy(
         provider.clone(),
         *delegator_factory.address(),
@@ -364,9 +365,11 @@ where
     let _receipt = vault_factory
         .whitelist(*vault_impl.address())
         .send()
-        .await?
+        .await
+        .unwrap()
         .try_get_receipt()
-        .await?;
+        .await
+        .unwrap();
 
     // Prepare initialization parameters for middleware
     let symbiotic = SymbioticContracts {
@@ -392,7 +395,10 @@ where
         minVetoDuration: Uint::from(2 * 60 * 60),       // 2 h
         minSlashExecutionDelay: Uint::from(5 * 60),     // 5 min
         allowedVaultImplVersion: vault_factory.lastVersion().call().await?,
-        vetoSlasherImplType: 1,
+
+        // TODO (kuzmin-dev): remove this constant and use slasher type from slasher factory
+        // TODO (kuzmin-dev): add delegator type also (means that we will support only one type of delegator)
+        vetoSlasherImplType: 0,
         maxResolverSetEpochsDelay: Uint::from(5 * 60), // 5 min
         collateral: *wrapped_vara.address(),
         maxAdminFee: Uint::from(3), // 3%
@@ -487,7 +493,7 @@ mod tests {
             .await?;
 
         let router = ethereum.router();
-        let middleware = ethereum.middleware().unwrap();
+        let middleware = ethereum.middleware();
 
         assert_eq!(
             middleware.query().router().await?,

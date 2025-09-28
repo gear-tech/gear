@@ -124,7 +124,7 @@ mod tests {
         assert!(initial.is_initial());
         assert!(matches!(event, ConsensusEvent::CommitmentSubmitted(_)));
 
-        let batch = eth.committed_batch.lock().await.clone();
+        let batch = eth.committed_batch.read().await.clone();
         assert_eq!(batch, Some(multisigned_batch));
     }
 }

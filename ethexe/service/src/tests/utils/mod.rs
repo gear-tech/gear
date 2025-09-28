@@ -23,6 +23,7 @@ pub use symbiotic::*;
 mod env;
 mod events;
 mod symbiotic;
+
 use tracing_subscriber::EnvFilter;
 
 pub fn init_logger() {

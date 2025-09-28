@@ -26,7 +26,6 @@ use ethexe_common::{
     Address, Digest, ProducerBlock, SimpleBlockData, ToDigest, ValidatorsVec,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    era_from_ts,
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         ValidatorsCommitment,
@@ -278,12 +277,8 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
     )))
 }
 
-pub fn validators_commitment<DB: OnChainStorageRead>(
-    db: &DB,
-    era: u64,
-    elected_validators: ValidatorsVec,
-) -> Result<ValidatorsCommitment> {
-    let validators_identifiers = elected_validators
+pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
+    let validators_identifiers = validators
         .iter()
         .map(|validator| Identifier::deserialize(&validator.0).unwrap())
         .collect::<Vec<_>>();
@@ -313,7 +308,7 @@ pub fn validators_commitment<DB: OnChainStorageRead>(
     Ok(ValidatorsCommitment {
         aggregated_public_key,
         verifiable_secret_sharing_commitment,
-        validators: elected_validators.into(),
+        validators: validators.into(),
         era_index: era,
     })
 }
@@ -361,7 +356,7 @@ pub fn election_block_in_era<DB: OnChainStorageRead>(
     db: &DB,
     block_data: SimpleBlockData,
     election_ts: u64,
-) -> Result<H256> {
+) -> Result<SimpleBlockData> {
     let SimpleBlockData {
         mut hash,
         mut header,
@@ -380,7 +375,7 @@ pub fn election_block_in_era<DB: OnChainStorageRead>(
         header = parent_header;
     }
 
-    Ok(block)
+    Ok(SimpleBlockData { hash, header })
 }
 
 #[cfg(test)]

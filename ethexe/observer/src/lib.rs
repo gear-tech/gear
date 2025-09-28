@@ -59,7 +59,6 @@ pub struct EthereumConfig {
     pub router_address: Address,
     pub block_time: Duration,
 }
-
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
@@ -83,7 +82,7 @@ struct RuntimeConfig {
     wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    block_time: Duration,
+    // block_time: Duration,
 }
 
 // TODO #4552: make tests for observer service
@@ -174,7 +173,7 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
-            block_time,
+            // block_time,
             ..
         } = eth_cfg;
 
@@ -200,7 +199,7 @@ impl ObserverService {
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            block_time: *block_time,
+            // block_time: *block_time,
         };
 
         let chain_sync = ChainSync {
@@ -291,9 +290,9 @@ impl ObserverService {
         self.last_block_number
     }
 
-    pub fn block_time_secs(&self) -> u64 {
-        self.config.block_time.as_secs()
-    }
+    // pub fn block_time_secs(&self) -> u64 {
+    //     self.config.block_time.as_secs()
+    // }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
         load_block_data(

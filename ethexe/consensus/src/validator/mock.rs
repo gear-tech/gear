@@ -20,8 +20,9 @@ use super::{core::*, *};
 use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use ethexe_common::{GearExeTimelines, db::OnChainStorageWrite};
-use std::{cell::RefCell, io::Read, sync::Arc};
+use ethexe_common::{GearExeTimelines, ValidatorsVec, db::OnChainStorageWrite};
+use hashbrown::HashMap;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Default, Clone)]
@@ -37,22 +38,16 @@ impl BatchCommitter for MockEthereum {
     }
 
     async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
-        self.committed_batch.lock().await.replace(batch);
+        self.committed_batch.write().await.replace(batch);
         Ok(H256::random())
     }
 }
 
 #[async_trait]
 impl MiddlewareExt for MockEthereum {
-    async fn make_election_at(self: Box<Self>, request: ElectionRequest) -> Result<ValidatorsVec> {
-        match self
-            .predefined_election_at
-            .read()
-            .await
-            .get(&request)
-            .cloned()
-        {
-            Some(election_result) => Ok(election_result),
+    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+        match self.predefined_election_at.read().await.get(&request) {
+            Some(election_result) => Ok(election_result.clone()),
             None => Err(anyhow!(
                 "No predefined election result for the given request"
             )),
@@ -137,9 +132,8 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             pub_key: keys.pop().unwrap(),
             signer,
             db: Database::memory(),
-            committer: Box::new(DummyCommitter),
             committer: Box::new(ethereum.clone()),
-            middleware: MiddlewareWrapper::from_inner(ethereum),
+            middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },

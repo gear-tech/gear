@@ -129,18 +129,29 @@ impl TestEnv {
             EnvRpcConfig::CustomAnvil {
                 slots_in_epoch,
                 genesis_timestamp,
+                blocks_type,
             } => {
                 let mut anvil = Anvil::new();
 
-                if continuous_block_generation {
-                    anvil = anvil.block_time(block_time.as_secs())
-                }
+                // if continuous_block_generation {
+                //     anvil = anvil.block_time(block_time.as_secs())
+                // }
+
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
                 if let Some(genesis_timestamp) = genesis_timestamp {
                     anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                 }
+
+                // match blocks_type {
+                //     AnvilBlockGenerationType::Continuous(duration) => {
+                //         anvil = anvil.block_time(duration.as_secs())
+                //     }
+                //     AnvilBlockGenerationType::AutoMine => {
+                //         // nothing to do, anvil is in automine mode by default
+                //     }
+                // }
 
                 let anvil = anvil.spawn();
 
@@ -611,12 +622,20 @@ pub enum EnvNetworkConfig {
     EnabledWithCustomAddress(String),
 }
 
+pub enum AnvilBlockGenerationType {
+    // Blocks are created in constant time intervals.
+    Continuous(Duration),
+    // Blocks are created only when tx are sent.
+    AutoMine,
+}
+
 pub enum EnvRpcConfig {
     #[allow(unused)]
     ProvidedURL(String),
     CustomAnvil {
         slots_in_epoch: Option<u64>,
         genesis_timestamp: Option<u64>,
+        blocks_type: AnvilBlockGenerationType,
     },
 }
 
@@ -651,7 +670,8 @@ impl Default for TestEnvConfig {
                 // when the next finalized block is produced, which is convenient for tests
                 slots_in_epoch: Some(1),
                 // For deterministic tests we need to set fixed genesis timestamp
-                genesis_timestamp: Some(1_000_000_000),
+                genesis_timestamp: Some(1),
+                blocks_type: AnvilBlockGenerationType::Continuous(Duration::from_secs(1)),
             },
             wallets: None,
             router_address: None,

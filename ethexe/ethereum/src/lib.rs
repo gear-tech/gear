@@ -120,6 +120,10 @@ impl Ethereum {
         Router::new(self.router, self.wvara, self.provider())
     }
 
+    pub fn wrapped_vara(&self) -> WVara {
+        WVara::new(self.wvara, self.provider())
+    }
+
     pub fn middleware(&self) -> Middleware {
         assert_ne!(
             self.middleware,
@@ -271,3 +275,5 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
+
+use crate::wvara::WVara;

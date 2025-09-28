@@ -45,7 +45,7 @@ use crate::{
     SignedValidationRequest,
     validator::{
         coordinator::Coordinator,
-        core::{MiddlewareExt, MiddlewareWrapper, ValidatorCore},
+        core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
         producer::Producer,
         submitter::Submitter,
@@ -54,23 +54,21 @@ use crate::{
 };
 use anyhow::Result;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, SimpleBlockData, ValidatorsVec, ecdsa::PublicKey};
+use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, middleware::MiddlewareQuery};
+use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     fmt,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
 use submitter::EthereumCommitter;
-use tokio::sync::RwLock;
 
 mod coordinator;
 mod core;

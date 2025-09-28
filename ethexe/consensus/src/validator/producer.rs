@@ -22,14 +22,7 @@ use super::{
 use crate::ConsensusEvent;
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{
-    ProducerBlock, SimpleBlockData, ValidatorsVec,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
-    end_of_era_timestamp, era_from_ts,
-    gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
-    },
-};
+use ethexe_common::{ProducerBlock, SimpleBlockData, ValidatorsVec, gear::BatchCommitment};
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
@@ -176,7 +169,7 @@ mod tests {
         db::{BlockMetaStorageWrite, OnChainStorageWrite},
         gear::CodeCommitment,
     };
-    use nonempty::{NonEmpty, nonempty};
+    use nonempty::nonempty;
 
     #[tokio::test]
     async fn create() {
@@ -221,7 +214,7 @@ mod tests {
         // No commitments - no batch and goes to initial state
         assert!(state.is_initial());
         assert_eq!(state.context().output.len(), 0);
-        assert!(eth.committed_batch.lock().await.is_none());
+        assert!(eth.committed_batch.read().await.is_none());
     }
 
     #[tokio::test]
@@ -252,7 +245,7 @@ mod tests {
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
             .committed_batch
-            .lock()
+            .read()
             .await
             .clone()
             .expect("Expected that batch is committed")
@@ -313,35 +306,13 @@ mod tests {
 
         let batch = eth
             .committed_batch
-            .lock()
+            .read()
             .await
             .clone()
             .expect("Expected that batch is committed");
         assert_eq!(batch.signatures().len(), 1);
         assert!(batch.batch().chain_commitment.is_none());
         assert_eq!(batch.batch().code_commitments.len(), 2);
-    }
-
-    #[async_trait]
-    trait SkipTimer: Sized {
-        async fn skip_timer(self) -> Result<Self>;
-    }
-
-    #[async_trait]
-    impl SkipTimer for ValidatorState {
-        async fn skip_timer(self) -> Result<Self> {
-            assert!(self.is_producer(), "Works only for producer state");
-
-            let (state, event) = self.wait_for_event().await?;
-            assert!(state.is_producer());
-            assert!(event.is_publish_producer_block());
-
-            let (state, event) = state.wait_for_event().await?;
-            assert!(state.is_producer());
-            assert!(event.is_compute_producer_block());
-
-            Ok(state)
-        }
     }
 
     #[async_trait]

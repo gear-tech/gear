@@ -139,7 +139,7 @@ impl Service {
             let consensus_config = ConsensusLayerConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-                beacon_block_time: config.ethereum.block_time,
+                beacon_block_time: alloy::eips::merge::SLOT_DURATION,
             };
             let blob_loader = BlobLoader::new(db.clone(), consensus_config)
                 .await
