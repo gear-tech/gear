@@ -19,7 +19,7 @@
 use crate::{
     AccountIdOf, BlockGasLimitOf, Config, CostsPerBlockOf, CurrencyOf, DbWeightOf, DispatchStashOf,
     Error, Event, ExtManager, GasAllowanceOf, GasBalanceOf, GasHandlerOf, GasInfo, GearBank,
-    Limits, MailboxOf, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
+    Limits, MailboxOf, Pallet, ProgramStorageOf, QueueOf, Schedule, TaskPoolOf, WaitlistOf,
     builtin::BuiltinDispatcherFactory,
     internal::{HoldBound, HoldBoundBuilder, InheritorForError},
     manager::HandleKind,
@@ -49,17 +49,18 @@ use gear_core::{
         self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
     },
     gas_metering::CustomConstantCostRules,
-    ids::{ActorId, CodeId, MessageId, prelude::*},
+    ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::PageBuf,
     message::{
-        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext,
+        ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, Message, MessageContext,
         StoredDispatch, UserStoredMessage,
     },
     pages::{
         WasmPage, WasmPagesAmount,
         numerated::{self, tree::IntervalsTree},
     },
-    program::ActiveProgram,
+    program::{ActiveProgram, MemoryInfix, ProgramState},
+    reservation::GasReservationSlot,
     rpc::ReplyInfo,
     tasks::ScheduledTask,
 };
@@ -256,6 +257,102 @@ fn auto_reply_on_exit_exists() {
                 code: ReplyCode::Success(SuccessReplyReason::Auto)
             }
         );
+    });
+}
+
+#[test]
+fn send_user_message_skips_zero_destination_without_side_effects() {
+    new_test_ext().execute_with(|| {
+        let threshold = <Test as Config>::MailboxThreshold::get();
+        let origin_msg = MessageId::from([9u8; 32]);
+        let message_id = MessageId::from([7u8; 32]);
+        let source: ActorId = USER_1.into();
+        let payload = Payload::try_from(Vec::<u8>::new()).expect("empty payload");
+
+        let message = Message::new(
+            message_id,
+            source,
+            ActorId::zero(),
+            payload,
+            Some(threshold),
+            0,
+            None,
+        );
+
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
+
+        Pallet::<Test>::send_user_message(origin_msg, message, None);
+
+        assert_eq!(GearBank::<Test>::account_total(&USER_1), 0);
+        assert_eq!(GasHandlerOf::<Test>::total_supply(), 0);
+        let zero_account: AccountIdOf<Test> = ActorId::zero().cast();
+        assert!(MailboxOf::<Test>::is_empty(&zero_account));
+        assert!(System::events().is_empty());
+    });
+}
+
+#[test]
+fn send_user_message_zero_destination_cleans_reservation_state() {
+    new_test_ext().execute_with(|| {
+        let program_account = USER_1;
+        let program_actor: ActorId = program_account.into();
+        let origin_msg = MessageId::from([1u8; 32]);
+        let reservation_id = ReservationId::from([2u8; 32]);
+        let slot = GasReservationSlot {
+            amount: 0,
+            start: 0,
+            finish: 5,
+        };
+
+        let mut gas_reservations = BTreeMap::new();
+        gas_reservations.insert(reservation_id, slot.clone());
+
+        let active_program = ActiveProgram {
+            allocations_tree_len: 0,
+            memory_infix: MemoryInfix::default(),
+            gas_reservation_map: gas_reservations,
+            code_id: CodeId::from([3u8; 32]),
+            state: ProgramState::Initialized,
+            expiration_block: BlockNumberFor::<Test>::from(10u32),
+        };
+
+        ProgramStorageOf::<Test>::add_program(program_actor, active_program)
+            .expect("failed to seed program");
+
+        let removal_task = ScheduledTask::RemoveGasReservation(program_actor, reservation_id);
+        let removal_at = BlockNumberFor::<Test>::from(slot.finish);
+        TaskPoolOf::<Test>::add(removal_at, removal_task).expect("task inserted");
+
+        let multiplier = <Test as pallet_gear_bank::Config>::GasMultiplier::get();
+        GasHandlerOf::<Test>::create(program_account, multiplier, origin_msg, 0)
+            .expect("origin node created");
+        GasHandlerOf::<Test>::reserve(origin_msg, reservation_id, 0)
+            .expect("reservation node created");
+
+        let threshold = <Test as Config>::MailboxThreshold::get();
+        let payload = Payload::try_from(Vec::<u8>::new()).expect("empty payload");
+        let message = Message::new(
+            MessageId::from([4u8; 32]),
+            program_actor,
+            ActorId::zero(),
+            payload,
+            Some(threshold),
+            0,
+            None,
+        );
+
+        Pallet::<Test>::send_user_message(origin_msg, message, Some(reservation_id));
+
+        assert!(System::events().is_empty());
+        let zero_account: AccountIdOf<Test> = ActorId::zero().cast();
+        assert!(MailboxOf::<Test>::is_empty(&zero_account));
+        assert!(GasHandlerOf::<Test>::get_origin_node(reservation_id).is_err());
+        assert!(!TaskPoolOf::<Test>::contains(&removal_at, &removal_task));
+
+        let program = ProgramStorageOf::<Test>::get_program(program_actor).expect("program");
+        let active = ActiveProgram::try_from(program).expect("active program");
+        assert!(active.gas_reservation_map.is_empty());
     });
 }
 
@@ -951,7 +1048,8 @@ fn value_counter_set_correctly_for_interruptions() {
     //
     // So for the first run we expect source to receive
     // `value_available` == `init_value` + msg value.
-    // For second run we expect just `init_value`.
+    // After the guard against zero-destination messages, the second run keeps
+    // the original value available, so we expect `init_value` + msg value again.
     let handle = Calls::builder()
         .source("source_store")
         .value("value_store")
@@ -993,7 +1091,7 @@ fn value_counter_set_correctly_for_interruptions() {
         let msg = maybe_last_message(USER_1).expect("Message should be");
         let value_available =
             u128::decode(&mut msg.payload_bytes()).expect("Failed to decode value available");
-        assert_eq!(value_available, INIT_VALUE);
+        assert_eq!(value_available, INIT_VALUE + VALUE);
     });
 }
 
