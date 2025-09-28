@@ -235,6 +235,7 @@ impl ObserverService {
         })
     }
 
+    // TODO #4563: this is a temporary solution
     /// If genesis block is not yet fully setup in the database, we need to do it
     /// Populates database with genesis block data.
     ///

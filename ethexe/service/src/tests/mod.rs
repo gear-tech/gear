@@ -37,6 +37,10 @@ use ethexe_common::{
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
+use ethexe_processor::{
+    DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS,
+    ProcessorConfig,
+};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
@@ -73,7 +77,6 @@ async fn basics() {
         blocking_threads: None,
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
-        gas_limit_multiplier: 10,
         dev: true,
         fast_sync: false,
     };
@@ -106,6 +109,11 @@ async fn basics() {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
         dev: true,
+        processor_config: ProcessorConfig::overlay(
+            DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+        ),
     });
 
     config.prometheus = Some(PrometheusConfig::new(

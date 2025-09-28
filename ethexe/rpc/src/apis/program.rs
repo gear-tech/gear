@@ -19,7 +19,7 @@
 use crate::{common::block_header_at_or_latest, errors};
 use ethexe_common::db::{BlockMetaStorageRead, CodesStorageRead};
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_runtime_common::state::{
     DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
     Waitlist,
@@ -90,11 +90,15 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
+    processor_config: ProcessorConfig,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database, processor_config: ProcessorConfig) -> Self {
+        Self {
+            db,
+            processor_config,
+        }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -128,8 +132,10 @@ impl ProgramServer for ProgramApi {
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor = Processor::new(self.db.clone()).map_err(|_| errors::internal())?;
-
+        // let processor = Processor::with_config(
+        // )
+        let processor = Processor::with_config(self.processor_config.clone(), self.db.clone())
+            .map_err(|_| errors::internal())?;
         let mut overlaid_processor = processor.overlaid();
 
         overlaid_processor

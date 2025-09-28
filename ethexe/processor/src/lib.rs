@@ -130,7 +130,26 @@ pub struct BlockProcessingResult {
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
-    pub gas_limit_multiplier: u64,
+}
+
+impl ProcessorConfig {
+    pub fn common(chunk_processing_threads: usize, block_gas_limit: u64) -> Self {
+        Self {
+            chunk_processing_threads,
+            block_gas_limit,
+        }
+    }
+
+    pub fn overlay(
+        chunk_processing_threads: usize,
+        block_gas_limit: u64,
+        gas_limit_multiplier: u64,
+    ) -> Self {
+        Self {
+            chunk_processing_threads,
+            block_gas_limit: block_gas_limit.saturating_mul(gas_limit_multiplier),
+        }
+    }
 }
 
 impl Default for ProcessorConfig {
@@ -138,7 +157,6 @@ impl Default for ProcessorConfig {
         Self {
             chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
-            gas_limit_multiplier: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
         }
     }
 }
@@ -237,18 +255,9 @@ impl Processor {
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
         self.creator.set_chain_head(handler.block_hash);
 
-        let chunk_size = self.config.chunk_processing_threads;
-        let gas_limit = self.config.block_gas_limit;
         let ctx = CommonRunContext::new(&mut handler.transitions);
 
-        run::run(
-            self.db.clone(),
-            self.creator.clone(),
-            chunk_size,
-            gas_limit,
-            ctx,
-        )
-        .await;
+        run::run(self.db.clone(), self.creator.clone(), self.config(), ctx).await;
     }
 }
 
@@ -298,20 +307,12 @@ impl OverlaidProcessor {
             },
         )?;
 
-        let ProcessorConfig {
-            chunk_processing_threads,
-            block_gas_limit,
-            gas_limit_multiplier,
-        } = self.0.config();
-        let chunk_size = *chunk_processing_threads;
-        let gas_limit = block_gas_limit.saturating_mul(*gas_limit_multiplier);
         let ctx = OverlaidRunContext::new(program_id, self.0.db.clone(), &mut handler.transitions);
 
         run::run(
             self.0.db.clone(),
             self.0.creator.clone(),
-            chunk_size,
-            gas_limit,
+            self.0.config(),
             ctx,
         )
         .await;

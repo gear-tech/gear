@@ -105,6 +105,7 @@
 //! This weight multiplier could be calculated based on program execution time statistics.
 
 use crate::{
+    ProcessorConfig,
     handling::overlaid::OverlaidState,
     host::{InstanceCreator, InstanceWrapper},
 };
@@ -128,12 +129,12 @@ use tokio::task::JoinSet;
 pub async fn run(
     db: Database,
     instance_creator: InstanceCreator,
-    chunk_size: usize,
-    gas_limit: u64,
+    config: &ProcessorConfig,
     mut run_ctx: impl RunContext,
 ) {
+    let chunk_size = config.chunk_processing_threads;
     let mut join_set = JoinSet::new();
-    let mut allowance_counter = GasAllowanceCounter::new(gas_limit);
+    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
     let mut is_out_of_gas_for_block = false;
 
     loop {
@@ -199,7 +200,8 @@ pub(crate) trait RunContext {
 
     /// Handle chunk data for a specific actor state.
     ///
-    /// In common execution, the actor state is inserted into the chunk based on its queue size.
+    /// In common execution, the actor state is inserted into the chunks collection based
+    /// on its queue size.
     /// In overlaid execution, the base program is always inserted into the heaviest chunk.
     ///
     /// The trait method provides a default implementation for a common execution.

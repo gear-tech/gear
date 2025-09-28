@@ -58,7 +58,7 @@ impl ProcessingHandler {
 }
 
 impl Processor {
-    /// Creates a new [`ProcessingHandler`] for the given block hash.
+    /// Creates a new processing handler for the given block hash.
     ///
     /// The [`InBlockTransitions`] is created using states of the parent of the block with `block_hash` hash.
     /// That's done because the parent actually has the latest view on program states. Also program states
