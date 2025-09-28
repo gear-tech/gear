@@ -110,6 +110,7 @@ pub mod pallet_dummy {
     impl<T: Config> Pallet<T> {
         #[pallet::weight(Weight::from_parts(super::DUMMY_DECLARED_WEIGHT, 0))]
         #[pallet::call_index(0)]
+        #[allow(clippy::useless_conversion)]
         pub fn heavy_call(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             let _ = ensure_signed(origin)?;
 

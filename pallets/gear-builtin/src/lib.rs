@@ -156,14 +156,13 @@ impl BuiltinContext {
             return Err(BuiltinActorError::GasAllowanceExceeded);
         }
 
-        if let Some(required) = prechecked {
-            if let Some(diff) = required.checked_sub(amount) {
-                if diff != 0 {
-                    // `can_charge_gas` already verified the counters so the reduction must succeed.
-                    let reduce_result = self.gas_counter.reduce(diff);
-                    debug_assert_eq!(reduce_result, ChargeResult::Enough);
-                }
-            }
+        if let Some(required) = prechecked
+            && let Some(diff) = required.checked_sub(amount)
+            && diff != 0
+        {
+            // `can_charge_gas` already verified the counters so the reduction must succeed.
+            let reduce_result = self.gas_counter.reduce(diff);
+            debug_assert_eq!(reduce_result, ChargeResult::Enough);
         }
 
         Ok(())
