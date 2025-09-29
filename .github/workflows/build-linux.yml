@@ -286,7 +286,7 @@ jobs:
           echo "Top space hogs:" && du -h -d1 /home/runner | sort -h | tail -20
 
       - name: "Build: Vara mainnet runtime"
-        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
+        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }} --target x86_64-unknown-linux-gnu
 
       - name: "Test: Download Vara Testnet snapshot"
         run: |
