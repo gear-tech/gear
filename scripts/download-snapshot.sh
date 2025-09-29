@@ -19,7 +19,7 @@ fi
 aria2c \
   --retry-wait=10 \
   --max-tries=15 \
-  --timeout=10800 \
+  --timeout=60 \
   --connect-timeout=60 \
   --max-connection-per-server=8 \
   --split=8 \
