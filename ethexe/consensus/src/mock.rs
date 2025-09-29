@@ -89,6 +89,8 @@ impl Mock for BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
             head: Some(AnnounceHash(H256::random())),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
+            validators: false,
+            rewards: false,
         }
     }
 }

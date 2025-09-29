@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn create_empty() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
 
@@ -228,14 +228,21 @@ mod tests {
 
     #[test]
     fn earlier_received_announces() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, AnnounceHash::random());
-        let announce_hash = ctx.db.announce_hash(block.hash);
-        let announce1 =
-            SignedAnnounce::mock((ctx.signer.clone(), producer, (block.hash, announce_hash)));
-        let announce2 =
-            SignedAnnounce::mock((ctx.signer.clone(), keys[1], (block.hash, announce_hash)));
+        let block =
+            SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, AnnounceHash::random());
+        let announce_hash = ctx.core.db.announce_hash(block.hash);
+        let announce1 = SignedAnnounce::mock((
+            ctx.core.signer.clone(),
+            producer,
+            (block.hash, announce_hash),
+        ));
+        let announce2 = SignedAnnounce::mock((
+            ctx.core.signer.clone(),
+            keys[1],
+            (block.hash, announce_hash),
+        ));
 
         ctx.pending(announce1.clone());
         ctx.pending(announce2.clone());
@@ -261,12 +268,12 @@ mod tests {
     }
 
     #[test]
-    fn earlier_received_validation_requests() {
-        let (mut ctx, keys) = mock_validator_context();
+    fn create_with_validation_requests() {
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
-        let request1 = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
-        let request2 = SignedValidationRequest::mock((ctx.signer.clone(), keys[1], ()));
+        let request1 = SignedValidationRequest::mock((ctx.core.signer.clone(), producer, ()));
+        let request2 = SignedValidationRequest::mock((ctx.core.signer.clone(), keys[1], ()));
 
         ctx.pending(request1.clone());
         ctx.pending(request2.clone());
@@ -283,11 +290,11 @@ mod tests {
 
     #[test]
     fn create_with_many_pending_events() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
         let announce = SignedAnnounce::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             producer,
             (block.hash, AnnounceHash::random()),
         ));
@@ -297,7 +304,7 @@ mod tests {
         // Fill with fake blocks
         for _ in 0..10 * MAX_PENDING_EVENTS {
             let announce = SignedAnnounce::mock((
-                ctx.signer.clone(),
+                ctx.core.signer.clone(),
                 keys[1],
                 (block.hash, AnnounceHash::random()),
             ));
@@ -317,11 +324,11 @@ mod tests {
 
     #[test]
     fn simple() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
         let announce = SignedAnnounce::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             producer,
             (block.hash, AnnounceHash::random()),
         ));
@@ -349,11 +356,11 @@ mod tests {
 
     #[test]
     fn simple_not_validator() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
         let announce = SignedAnnounce::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             producer,
             (block.hash, AnnounceHash::random()),
         ));
@@ -380,16 +387,16 @@ mod tests {
 
     #[test]
     fn create_with_multiple_announces() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let block = SimpleBlockData::mock(H256::random());
         let announce1 = SignedAnnounce::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             producer,
             (block.hash, AnnounceHash::random()),
         ));
         let announce2 = SignedAnnounce::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             keys[1],
             (block.hash, AnnounceHash::random()),
         ));
@@ -407,11 +414,11 @@ mod tests {
 
     #[test]
     fn process_external_event_with_invalid_announce() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
         let invalid_announce = SignedAnnounce::mock((
-            ctx.signer.clone(),
+            ctx.core.signer.clone(),
             pub_keys[1],
             (block.hash, AnnounceHash::random()),
         ));
@@ -427,7 +434,7 @@ mod tests {
 
     #[test]
     fn process_computed_block_with_unexpected_hash() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
 
