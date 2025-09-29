@@ -68,7 +68,7 @@ use core_processor::{
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::ActorId,
+    ids::{ActorId, MessageId},
     limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     utils::hash,
@@ -80,6 +80,40 @@ use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
 pub use pallet_gear::BuiltinReply;
+
+/// RPC-only cache for the strongest `can_charge_gas` observed in a builtin.
+/// Uses thread-local storage, so it exists only for the native `std` build.
+#[cfg(feature = "std")]
+mod precharge_hint {
+    use super::*;
+    use std::{cell::RefCell, collections::BTreeMap};
+
+    thread_local! {
+        static HINTS: RefCell<BTreeMap<MessageId, u64>> = const { RefCell::new(BTreeMap::new()) };
+    }
+
+    /// Store the biggest check for `message_id`.
+    pub fn record(message_id: MessageId, amount: u64) {
+        HINTS.with(|map| {
+            map.borrow_mut().insert(message_id, amount);
+        });
+    }
+
+    /// Take and remove the stored hint for `message_id`.
+    pub fn take(message_id: MessageId) -> Option<u64> {
+        HINTS.with(|map| map.borrow_mut().remove(&message_id))
+    }
+}
+
+#[cfg(not(feature = "std"))]
+mod precharge_hint {
+    use super::*;
+
+    pub fn record(_message_id: MessageId, _amount: u64) {}
+    pub fn take(_message_id: MessageId) -> Option<u64> {
+        None
+    }
+}
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
@@ -364,6 +398,14 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
             <T as Config>::WeightInfo::create_dispatcher().ref_time(),
         )
     }
+
+    fn record_precharge_hint(message_id: MessageId, amount: u64) {
+        precharge_hint::record(message_id, amount);
+    }
+
+    fn take_precharge_hint(message_id: MessageId) -> Option<u64> {
+        precharge_hint::take(message_id)
+    }
 }
 
 pub struct BuiltinRegistry<T: Config> {
@@ -450,7 +492,15 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         // Consume the context and extract the amount of gas spent.
         let gas_amount = context.to_gas_amount();
 
-        let mut journal = match res {
+        // Keep the declared limit for the RPC estimator (no-op in WASM runtime).
+        if context.max_precharge > 0 {
+            <Pallet<T> as BuiltinDispatcherFactory>::record_precharge_hint(
+                message_id,
+                context.max_precharge,
+            );
+        }
+
+        match res {
             Ok(reply) => {
                 // Builtin actor call was successful and returned some payload.
                 log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
@@ -506,15 +556,6 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     err,
                 )
             }
-        };
-
-        if context.max_precharge > 0 {
-            journal.push(JournalNote::BuiltinPrecharge {
-                message_id,
-                amount: context.max_precharge,
-            });
         }
-
-        journal
     }
 }
