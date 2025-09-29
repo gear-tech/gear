@@ -300,7 +300,7 @@ jobs:
             --continue=true \
             --file-allocation=none \
             --console-log-level=notice \
-            --summary-interval=30 \
+            --summary-interval=5 \
             --out=vara_ci_testnet.snap \
             https://snapshots.vara-network.io/vara-testnet.snap
 
@@ -330,7 +330,7 @@ jobs:
             --continue=true \
             --file-allocation=none \
             --console-log-level=notice \
-            --summary-interval=30 \
+            --summary-interval=5 \
             --out=vara_ci.snap \
             https://snapshots.vara-network.io/vara-mainnet.snap
 
