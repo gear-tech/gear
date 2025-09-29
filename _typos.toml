@@ -7,8 +7,8 @@ extend-ignore-re = [
 [files]
 extend-exclude = [
   "gsdk/src/metadata/generated.rs",
-  "ethexe/ethereum/*.json",
-  "ethexe/contracts/lib/*"
+  "gearexe/ethereum/*.json",
+  "gearexe/contracts/lib/*"
 ]
 
 [default.extend-words]

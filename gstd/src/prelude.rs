@@ -21,7 +21,7 @@
 
 // Reexports from Rust's libraries
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub use crate::ReservationIdExt;
 pub use crate::{dbg, static_mut, static_ref};
 pub use ::alloc::{

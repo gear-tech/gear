@@ -1,0 +1,72 @@
+[package]
+name = "gearexe-service"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gearexe-compute.workspace = true
+gearexe-service-utils.workspace = true
+gearexe-db.workspace = true
+gearexe-network.workspace = true
+gearexe-observer.workspace = true
+gearexe-blob-loader.workspace = true
+gearexe-processor.workspace = true
+gearexe-signer.workspace = true
+gearexe-consensus.workspace = true
+gearexe-ethereum.workspace = true
+gearexe-common = { workspace = true, features = ["std"] }
+gearexe-runtime-common.workspace = true
+gearexe-prometheus.workspace = true
+gearexe-rpc.workspace = true
+gearexe-tx-pool.workspace = true
+gear-core.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
+log.workspace = true
+anyhow.workspace = true
+alloy.workspace = true
+tokio = { workspace = true, features = [
+    "signal",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "time",
+] }
+futures.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+rand.workspace = true
+tempfile.workspace = true
+derive_more.workspace = true
+async-trait.workspace = true
+nonempty.workspace = true
+
+[dev-dependencies]
+alloy = { workspace = true, features = [
+    "consensus",
+    "eips",
+    "node-bindings",
+    "provider-http",
+    "provider-ws",
+    "provider-anvil-api",
+    "pubsub",
+    "rpc-client",
+    "rpc-types-eth",
+    "rpc-types-beacon",
+    "signer-local",
+] }
+ntest = "0.9.3"
+gear-core-errors.workspace = true
+serde_json.workspace = true
+gearexe-network.workspace = true
+roast-secp256k1-evm.workspace = true
+gearexe-rpc = { workspace = true, features = ["test-utils"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+demo-ping = { workspace = true, features = ["debug", "gearexe"] }
+demo-async = { workspace = true, features = ["debug", "gearexe"] }
+demo-async-init = { workspace = true, features = ["debug", "gearexe"] }
+demo-mul-by-const = { workspace = true, features = ["debug"] }

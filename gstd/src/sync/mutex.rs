@@ -192,9 +192,9 @@ impl<T> MutexGuard<'_, T> {
 impl<T> Drop for MutexGuard<'_, T> {
     fn drop(&mut self) {
         let is_holder_msg_signal_handler = match () {
-            #[cfg(not(feature = "ethexe"))]
+            #[cfg(not(feature = "gearexe"))]
             () => msg::signal_from() == Ok(self.holder_msg_id),
-            #[cfg(feature = "ethexe")]
+            #[cfg(feature = "gearexe")]
             () => false,
         };
 

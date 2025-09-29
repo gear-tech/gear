@@ -18,7 +18,7 @@
 
 //! Module for future-management.
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 use crate::critical;
 use crate::{MessageId, prelude::Box};
 use core::{
@@ -69,7 +69,7 @@ where
 {
     let msg_id = crate::msg::id();
     let task = super::futures().entry(msg_id).or_insert_with(|| {
-        #[cfg(not(feature = "ethexe"))]
+        #[cfg(not(feature = "gearexe"))]
         {
             let system_reserve_amount = crate::Config::system_reserve();
             crate::exec::system_reserve_gas(system_reserve_amount)
@@ -92,7 +92,7 @@ where
     if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
         super::futures().remove(&msg_id);
         super::locks().remove_message_entry(msg_id);
-        #[cfg(not(feature = "ethexe"))]
+        #[cfg(not(feature = "gearexe"))]
         let _ = critical::take_hook();
     } else {
         super::locks().wait(msg_id);

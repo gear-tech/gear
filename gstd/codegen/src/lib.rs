@@ -36,10 +36,10 @@ mod utils;
 static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 
 /// A global flag, determining if `handle_signal` already was generated.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 static mut HANDLE_SIGNAL_FLAG: Flag = Flag(false);
 
-#[cfg(feature = "ethexe")]
+#[cfg(feature = "gearexe")]
 static mut HANDLE_SIGNAL_FLAG: Flag = Flag(true);
 
 fn literal_to_actor_id(literal: syn::LitStr) -> syn::Result<TokenStream> {
@@ -135,15 +135,15 @@ impl Parse for MainAttrs {
                 "handle_reply" => {
                     attrs.handle_reply = Some(path);
                 }
-                #[cfg(not(feature = "ethexe"))]
+                #[cfg(not(feature = "gearexe"))]
                 "handle_signal" => {
                     attrs.handle_signal = Some(path);
                 }
-                #[cfg(feature = "ethexe")]
+                #[cfg(feature = "gearexe")]
                 "handle_signal" => {
                     return Err(syn::Error::new_spanned(
                         name,
-                        "`handle_signal` is forbidden with `ethexe` feature on",
+                        "`handle_signal` is forbidden with `gearexe` feature on",
                     ));
                 }
                 _ => return Err(syn::Error::new_spanned(name, "unknown parameter")),
@@ -466,12 +466,12 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     let (for_reply_docs, for_reply_as_docs) = utils::wait_for_reply_docs(ident.to_string(), style);
 
     // Generate arguments.
-    #[cfg_attr(feature = "ethexe", allow(unused_mut))]
+    #[cfg_attr(feature = "gearexe", allow(unused_mut))]
     let (mut inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
     // Add `reply_deposit` argument.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     inputs.push(syn::parse_quote!(reply_deposit: u64));
 
     // Generate generics.
@@ -499,7 +499,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     match () {
-        #[cfg(not(feature = "ethexe"))]
+        #[cfg(not(feature = "gearexe"))]
         () => quote! {
             #function
 
@@ -535,7 +535,7 @@ pub fn wait_for_reply(attr: TokenStream, item: TokenStream) -> TokenStream {
                 Ok(crate::msg::CodecMessageFuture::<D> { waiting_reply_to, reply_deposit, _marker: Default::default() })
             }
         },
-        #[cfg(feature = "ethexe")]
+        #[cfg(feature = "gearexe")]
         () => quote! {
             #function
 
@@ -601,12 +601,12 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
         utils::wait_for_reply_docs(function_ident.to_string(), style);
 
     // Generate arguments.
-    #[cfg_attr(feature = "ethexe", allow(unused_mut))]
+    #[cfg_attr(feature = "gearexe", allow(unused_mut))]
     let (mut inputs, variadic) = (function.sig.inputs.clone(), function.sig.variadic.clone());
     let args = utils::get_args(&inputs);
 
     // Add `reply_deposit` argument.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     inputs.push(syn::parse_quote!(reply_deposit: u64));
 
     // Generate generics.
@@ -622,7 +622,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
     );
 
     match () {
-        #[cfg(not(feature = "ethexe"))]
+        #[cfg(not(feature = "gearexe"))]
         () => quote! {
             #function
 
@@ -658,7 +658,7 @@ pub fn wait_create_program_for_reply(attr: TokenStream, item: TokenStream) -> To
                 Ok(crate::msg::CodecCreateProgramFuture::<D> { waiting_reply_to, program_id, reply_deposit, _marker: Default::default() })
             }
         },
-        #[cfg(feature = "ethexe")]
+        #[cfg(feature = "gearexe")]
         () => quote! {
             #function
 
@@ -693,7 +693,7 @@ mod tests {
     fn ui() {
         let t = trybuild::TestCases::new();
 
-        #[cfg(not(feature = "ethexe"))]
+        #[cfg(not(feature = "gearexe"))]
         {
             t.pass("tests/ui/async_init_works.rs");
             t.pass("tests/ui/async_main_works.rs");
@@ -701,9 +701,9 @@ mod tests {
             t.compile_fail("tests/ui/reply_double_definition_not_work.rs");
         }
 
-        #[cfg(feature = "ethexe")]
+        #[cfg(feature = "gearexe")]
         {
-            t.compile_fail("tests/ui/signal_doesnt_work_with_ethexe.rs");
+            t.compile_fail("tests/ui/signal_doesnt_work_with_gearexe.rs");
         }
     }
 }

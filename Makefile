@@ -1,25 +1,25 @@
-# Ethexe section
-.PHONY: ethexe-pre-commit
-ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
+# Gearexe section
+.PHONY: gearexe-pre-commit
+gearexe-pre-commit: gearexe-contracts-pre-commit gearexe-pre-commit-no-contracts
 
-.PHONY: ethexe-pre-commit-no-contracts
-ethexe-pre-commit-no-contracts:
-	@ echo " > Formatting ethexe" && cargo fmt --all
-	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
-	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
+.PHONY: gearexe-pre-commit-no-contracts
+gearexe-pre-commit-no-contracts:
+	@ echo " > Formatting gearexe" && cargo fmt --all
+	@ echo " >> Clippy checking gearexe" && cargo clippy -p "gearexe-*" --all-targets --all-features -- --no-deps -D warnings
+	@ echo " >>> Testing gearexe" && cargo nextest run -p "gearexe-*" --no-fail-fast
 
-# Building ethexe contracts
-.PHONY: ethexe-contracts-pre-commit
-ethexe-contracts-pre-commit:
-	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
-	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
-	@ echo " > Building contracts" && forge build --root ethexe/contracts
-	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
-	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
-	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-	@ echo " > Copying TransparentUpgradeableProxy artifact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
-	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+# Building gearexe contracts
+.PHONY: gearexe-contracts-pre-commit
+gearexe-contracts-pre-commit:
+	@ echo " > Cleaning contracts" && forge clean --root gearexe/contracts
+	@ echo " > Formatting contracts" && forge fmt --root gearexe/contracts
+	@ echo " > Building contracts" && forge build --root gearexe/contracts
+	@ echo " > Testing contracts" && forge test --root gearexe/contracts -vvv
+	@ echo " > Copying Middleware artifact" && cp ./gearexe/contracts/out/Middleware.sol/Middleware.json ./gearexe/ethereum
+	@ echo " > Copying Mirror artifact" && cp ./gearexe/contracts/out/Mirror.sol/Mirror.json ./gearexe/ethereum
+	@ echo " > Copying Router artifact" && cp ./gearexe/contracts/out/Router.sol/Router.json ./gearexe/ethereum
+	@ echo " > Copying TransparentUpgradeableProxy artifact" && cp ./gearexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./gearexe/ethereum
+	@ echo " > Copying WrappedVara artifact" && cp ./gearexe/contracts/out/WrappedVara.sol/WrappedVara.json ./gearexe/ethereum
 
 # Common section
 .PHONY: show

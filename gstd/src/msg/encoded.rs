@@ -20,7 +20,7 @@
 //! with messages arguments as with data structure instead of bytes array
 //! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 use crate::ReservationId;
 use crate::{
     ActorId, MessageId, errors::Error, msg::utils, prelude::ops::RangeBounds,
@@ -154,7 +154,7 @@ pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
 ///
 /// - [`send_from_reservation`] function sends a new message to the program or
 ///   user by using gas from a reservation.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_from_reservation<E: Encode>(
     id: ReservationId,
     payload: E,
@@ -189,7 +189,7 @@ pub fn reply_from_reservation<E: Encode>(
 ///     msg::reply_with_gas(payload, exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
 /// ```
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_with_gas<E: Encode>(payload: E, gas_limit: u64, value: u128) -> Result<MessageId> {
     with_optimized_encode(payload, |buffer| {
         super::reply_bytes_with_gas(buffer, gas_limit, value)
@@ -230,7 +230,7 @@ pub fn reply_input(value: u128, range: impl RangeBounds<usize>) -> Result<Messag
 }
 
 /// Same as [`reply_input`], but with an explicit gas limit.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_input_with_gas(
     gas_limit: u64,
     value: u128,
@@ -291,7 +291,7 @@ pub fn send_input_delayed(
 }
 
 /// Same as [`send_input`], but with an explicit gas limit.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 #[wait_for_reply]
 pub fn send_input_with_gas(
     program: ActorId,
@@ -306,7 +306,7 @@ pub fn send_input_with_gas(
 
 /// Same as [`send_input_with_gas`], but sends the message after the `delay`
 /// expressed in block count.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn send_input_with_gas_delayed(
     program: ActorId,
     gas_limit: u64,
@@ -386,7 +386,7 @@ pub fn send_delayed<E: Encode>(
 }
 
 /// Same as [`send`], but with an explicit gas limit.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 #[wait_for_reply]
 pub fn send_with_gas<E: Encode>(
     program: ActorId,
@@ -401,7 +401,7 @@ pub fn send_with_gas<E: Encode>(
 
 /// Same as [`send_with_gas`], but sends the message after the `delay` expressed
 /// in block count.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn send_with_gas_delayed<E: Encode>(
     program: ActorId,
     payload: E,
@@ -460,7 +460,7 @@ pub fn send_with_gas_delayed<E: Encode>(
 ///   [`MessageHandle::push`](super::MessageHandle::init), and
 ///   [`MessageHandle::commit`](super::MessageHandle::commit) functions allow
 ///   forming a message to send in parts.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 #[wait_for_reply]
 pub fn send_from_reservation<E: Encode>(
     id: ReservationId,
@@ -475,7 +475,7 @@ pub fn send_from_reservation<E: Encode>(
 
 /// Same as [`send_from_reservation`], but sends the message after the `delay`
 /// expressed in block count.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn send_delayed_from_reservation<E: Encode>(
     id: ReservationId,
     program: ActorId,

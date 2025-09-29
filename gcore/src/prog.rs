@@ -121,7 +121,7 @@ pub fn create_program(
 }
 
 /// Same as [`create_program`], but with an explicit gas limit.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn create_program_with_gas(
     code_id: CodeId,
     salt: &[u8],
@@ -170,7 +170,7 @@ pub fn create_program_delayed(
 
 /// Same as [`create_program_with_gas`], but creates a new program after the
 /// `delay` expressed in block count.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn create_program_with_gas_delayed(
     code_id: CodeId,
     salt: &[u8],

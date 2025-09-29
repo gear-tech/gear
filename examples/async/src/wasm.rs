@@ -29,9 +29,9 @@ extern "C" fn init() {
 }
 
 async fn ping() -> Vec<u8> {
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     let fut = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0, 0);
-    #[cfg(feature = "ethexe")]
+    #[cfg(feature = "gearexe")]
     let fut = msg::send_bytes_for_reply(unsafe { DESTINATION }, "PING", 0);
 
     fut.expect("Failed to send message")

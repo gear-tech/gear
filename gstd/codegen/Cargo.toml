@@ -22,8 +22,8 @@ proc-macro2.workspace = true
 gprimitives.workspace = true
 
 [dev-dependencies]
-gstd = { path = "..", features = ["ethexe"] }
+gstd = { path = "..", features = ["gearexe"] }
 trybuild.workspace = true
 
 [features]
-ethexe = ["gprimitives/ethexe"]
+gearexe = ["gprimitives/gearexe"]

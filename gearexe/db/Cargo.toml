@@ -1,0 +1,38 @@
+[package]
+name = "gearexe-db"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gearexe-common = { workspace = true, features = ["std"] }
+gearexe-runtime-common = { workspace = true, features = ["std"] }
+gear-core = { workspace = true, features = ["std"] }
+gprimitives = { workspace = true, features = ["std"] }
+
+anyhow.workspace = true
+dashmap = "5.5.3"
+parity-scale-codec.workspace = true
+log = { workspace = true, features = ["std"] }
+nonempty.workspace = true
+paste.workspace = true
+derive_more.workspace = true
+auto_impl.workspace = true
+
+# TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
+[target.'cfg(target_env = "msvc")'.dependencies.rocksdb]
+default-features = false
+features = ["snappy"]
+version = "0.21"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies.rocksdb]
+default-features = false
+features = ["snappy", "jemalloc"]
+version = "0.21"
+
+[dev-dependencies]
+scopeguard.workspace = true
+tempfile.workspace = true

@@ -74,7 +74,7 @@ pub mod exec;
 pub mod msg;
 pub mod prog;
 pub use gear_stack_buffer as stack_buffer;
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub use gprimitives::ReservationId;
 pub use gprimitives::{ActorId, CodeId, MessageHandle, MessageId, Ss58Address};
 

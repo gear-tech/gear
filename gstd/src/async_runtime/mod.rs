@@ -20,14 +20,14 @@ mod futures;
 mod locks;
 mod signals;
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 mod reply_hooks;
 
 pub use self::futures::message_loop;
 pub(crate) use locks::Lock;
 pub(crate) use signals::ReplyPoll;
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub(crate) use reply_hooks::HooksMap;
 
 use self::futures::FuturesMap;
@@ -35,7 +35,7 @@ use hashbrown::HashMap;
 use locks::LocksMap;
 use signals::WakeSignals;
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 use crate::critical;
 
 static mut FUTURES: Option<FuturesMap> = None;
@@ -56,10 +56,10 @@ pub(crate) fn locks() -> &'static mut LocksMap {
     unsafe { crate::static_mut!(LOCKS).get_or_insert_with(LocksMap::default) }
 }
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 static mut REPLY_HOOKS: Option<HooksMap> = None;
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub(crate) fn reply_hooks() -> &'static mut HooksMap {
     unsafe { crate::static_mut!(REPLY_HOOKS).get_or_insert_with(HooksMap::new) }
 }
@@ -72,15 +72,15 @@ pub fn handle_reply_with_hook() {
     let replied_to =
         crate::msg::reply_to().expect("`gstd::handle_reply_with_hook()` called in wrong context");
 
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     reply_hooks().execute_and_remove(replied_to);
 
-    #[cfg(feature = "ethexe")]
+    #[cfg(feature = "gearexe")]
     let _ = replied_to;
 }
 
 /// Default signal handler.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn handle_signal() {
     let msg_id = crate::msg::signal_from().expect(
         "`gstd::async_runtime::handle_signal()` must be called only in `handle_signal` entrypoint",

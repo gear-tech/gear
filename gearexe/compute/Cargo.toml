@@ -1,0 +1,29 @@
+[package]
+name = "gearexe-compute"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gearexe-processor.workspace = true
+gearexe-common.workspace = true
+gearexe-db.workspace = true
+gearexe-runtime-common.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
+thiserror.workspace = true
+futures.workspace = true
+tokio.workspace = true
+derive_more.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+gear-core.workspace = true
+gear-utils.workspace = true
+wat.workspace = true
+wasmparser.workspace = true
+nonempty.workspace = true

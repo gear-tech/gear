@@ -80,8 +80,8 @@ oom-handler = []
 
 #! ## Additional features
 
-## Disables unsupported syscalls and their calls for executing on ethexe.
-ethexe = ["gcore/ethexe", "gstd-codegen/ethexe"]
+## Disables unsupported syscalls and their calls for executing on gearexe.
+gearexe = ["gcore/gearexe", "gstd-codegen/gearexe"]
 
 ## Enables debug logging; this heavily impacts gas cost
 ## and is therefore disabled by default.

@@ -102,7 +102,7 @@ macro_rules! impl_futures {
             /// # Panics
             ///
             /// Panics if this is called second time.
-            #[cfg(not(feature = "ethexe"))]
+            #[cfg(not(feature = "gearexe"))]
             pub fn handle_reply<F: FnOnce() + 'static>(self, f: F) -> Result<Self> {
                 if self.reply_deposit == 0 {
                     return Err(Error::Gstd(crate::errors::UsageError::ZeroReplyDeposit));

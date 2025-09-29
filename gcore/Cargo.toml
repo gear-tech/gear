@@ -31,4 +31,4 @@ galloc.workspace = true
 [features]
 codec = ["gear-core-errors/codec", "gprimitives/codec"]
 debug = []
-ethexe = ["gsys/ethexe"]
+gearexe = ["gsys/gearexe"]

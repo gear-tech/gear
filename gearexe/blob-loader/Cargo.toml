@@ -1,0 +1,23 @@
+[package]
+name = "gearexe-blob-loader"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gearexe-common.workspace = true
+gprimitives = { workspace = true, features = ["std"] }
+
+alloy = { workspace = true, features = ["rpc", "rpc-types", "rpc-types-beacon"] }
+thiserror.workspace = true
+reqwest = { workspace = true, features = ["default-tls", "json"] }
+futures.workspace = true
+log.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
+
+[lints]
+workspace = true

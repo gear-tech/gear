@@ -4659,11 +4659,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
-name = "ethexe-blob-loader"
+name = "gearexe-blob-loader"
 version = "1.9.2"
 dependencies = [
  "alloy",
- "ethexe-common",
+ "gearexe-common",
  "futures",
  "gprimitives",
  "log",
@@ -4673,21 +4673,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-cli"
+name = "gearexe-cli"
 version = "1.9.2"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
  "directories",
- "ethexe-common",
- "ethexe-ethereum",
- "ethexe-network",
- "ethexe-observer",
- "ethexe-processor",
- "ethexe-prometheus",
- "ethexe-rpc",
- "ethexe-service",
- "ethexe-signer",
+ "gearexe-common",
+ "gearexe-ethereum",
+ "gearexe-network",
+ "gearexe-observer",
+ "gearexe-processor",
+ "gearexe-prometheus",
+ "gearexe-rpc",
+ "gearexe-service",
+ "gearexe-signer",
  "gprimitives",
  "hex",
  "log",
@@ -4700,7 +4700,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-common"
+name = "gearexe-common"
 version = "1.9.2"
 dependencies = [
  "alloy-primitives",
@@ -4718,14 +4718,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-compute"
+name = "gearexe-compute"
 version = "1.9.2"
 dependencies = [
  "derive_more 2.0.1",
- "ethexe-common",
- "ethexe-db",
- "ethexe-processor",
- "ethexe-runtime-common",
+ "gearexe-common",
+ "gearexe-db",
+ "gearexe-processor",
+ "gearexe-runtime-common",
  "futures",
  "gear-core",
  "gear-utils",
@@ -4739,17 +4739,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-consensus"
+name = "gearexe-consensus"
 version = "1.9.2"
 dependencies = [
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
- "ethexe-common",
- "ethexe-db",
- "ethexe-ethereum",
- "ethexe-service-utils",
- "ethexe-signer",
+ "gearexe-common",
+ "gearexe-db",
+ "gearexe-ethereum",
+ "gearexe-service-utils",
+ "gearexe-signer",
  "futures",
  "gprimitives",
  "log",
@@ -4759,15 +4759,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-db"
+name = "gearexe-db"
 version = "1.9.2"
 dependencies = [
  "anyhow",
  "auto_impl",
  "dashmap 5.5.3",
  "derive_more 2.0.1",
- "ethexe-common",
- "ethexe-runtime-common",
+ "gearexe-common",
+ "gearexe-runtime-common",
  "gear-core",
  "gprimitives",
  "log",
@@ -4780,14 +4780,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-ethereum"
+name = "gearexe-ethereum"
 version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
- "ethexe-common",
- "ethexe-signer",
+ "gearexe-common",
+ "gearexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -4801,17 +4801,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-network"
+name = "gearexe-network"
 version = "1.9.2"
 dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
  "derive_more 2.0.1",
- "ethexe-common",
- "ethexe-db",
- "ethexe-service-utils",
- "ethexe-signer",
+ "gearexe-common",
+ "gearexe-db",
+ "gearexe-service-utils",
+ "gearexe-signer",
  "futures",
  "gprimitives",
  "itertools 0.13.0",
@@ -4825,15 +4825,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-observer"
+name = "gearexe-observer"
 version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
- "ethexe-common",
- "ethexe-db",
- "ethexe-ethereum",
- "ethexe-signer",
+ "gearexe-common",
+ "gearexe-db",
+ "gearexe-ethereum",
+ "gearexe-signer",
  "futures",
  "gear-utils",
  "gprimitives",
@@ -4845,15 +4845,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-processor"
+name = "gearexe-processor"
 version = "1.9.2"
 dependencies = [
  "demo-async",
  "demo-ping",
- "ethexe-common",
- "ethexe-db",
- "ethexe-runtime",
- "ethexe-runtime-common",
+ "gearexe-common",
+ "gearexe-db",
+ "gearexe-runtime",
+ "gearexe-runtime-common",
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages",
@@ -4874,7 +4874,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-prometheus"
+name = "gearexe-prometheus"
 version = "1.9.2"
 dependencies = [
  "anyhow",
@@ -4886,15 +4886,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-rpc"
+name = "gearexe-rpc"
 version = "1.9.2"
 dependencies = [
  "anyhow",
- "ethexe-blob-loader",
- "ethexe-common",
- "ethexe-db",
- "ethexe-processor",
- "ethexe-runtime-common",
+ "gearexe-blob-loader",
+ "gearexe-common",
+ "gearexe-db",
+ "gearexe-processor",
+ "gearexe-runtime-common",
  "futures",
  "gear-core",
  "gprimitives",
@@ -4912,10 +4912,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-runtime"
+name = "gearexe-runtime"
 version = "1.9.2"
 dependencies = [
- "ethexe-runtime-common",
+ "gearexe-runtime-common",
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages-interface",
@@ -4926,13 +4926,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-runtime-common"
+name = "gearexe-runtime-common"
 version = "1.9.2"
 dependencies = [
  "anyhow",
  "auto_impl",
  "derive_more 2.0.1",
- "ethexe-common",
+ "gearexe-common",
  "gear-core",
  "gear-core-errors",
  "gear-core-processor",
@@ -4945,7 +4945,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-service"
+name = "gearexe-service"
 version = "1.9.2"
 dependencies = [
  "alloy",
@@ -4956,21 +4956,21 @@ dependencies = [
  "demo-mul-by-const",
  "demo-ping",
  "derive_more 2.0.1",
- "ethexe-blob-loader",
- "ethexe-common",
- "ethexe-compute",
- "ethexe-consensus",
- "ethexe-db",
- "ethexe-ethereum",
- "ethexe-network",
- "ethexe-observer",
- "ethexe-processor",
- "ethexe-prometheus",
- "ethexe-rpc",
- "ethexe-runtime-common",
- "ethexe-service-utils",
- "ethexe-signer",
- "ethexe-tx-pool",
+ "gearexe-blob-loader",
+ "gearexe-common",
+ "gearexe-compute",
+ "gearexe-consensus",
+ "gearexe-db",
+ "gearexe-ethereum",
+ "gearexe-network",
+ "gearexe-observer",
+ "gearexe-processor",
+ "gearexe-prometheus",
+ "gearexe-rpc",
+ "gearexe-runtime-common",
+ "gearexe-service-utils",
+ "gearexe-signer",
+ "gearexe-tx-pool",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -4989,7 +4989,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-service-utils"
+name = "gearexe-service-utils"
 version = "1.9.2"
 dependencies = [
  "futures",
@@ -4998,24 +4998,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-signer"
+name = "gearexe-signer"
 version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
  "derive_more 2.0.1",
- "ethexe-common",
+ "gearexe-common",
  "parity-scale-codec",
  "tempfile",
 ]
 
 [[package]]
-name = "ethexe-tx-pool"
+name = "gearexe-tx-pool"
 version = "1.9.2"
 dependencies = [
  "anyhow",
- "ethexe-common",
- "ethexe-db",
+ "gearexe-common",
+ "gearexe-db",
  "futures",
  "gear-utils",
  "gprimitives",

@@ -42,7 +42,7 @@
 
 pub use gcore::msg::{id, reply_code, reply_to, size, source, value, with_read_on_stack_or_heap};
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub use gcore::msg::{signal_code, signal_from};
 
 #[macro_use]

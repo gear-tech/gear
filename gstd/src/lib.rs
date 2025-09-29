@@ -150,14 +150,14 @@ extern crate galloc;
 mod async_runtime;
 mod common;
 mod config;
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub mod critical;
 pub mod exec;
 mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod prog;
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 mod reservations;
 pub mod sync;
 pub mod util;
@@ -172,7 +172,7 @@ pub use gcore::{
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub use {
     async_runtime::handle_signal, common::primitives_ext::*, gcore::ReservationId, reservations::*,
 };

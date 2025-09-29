@@ -28,7 +28,7 @@ use crate::{
 };
 use core::mem::MaybeUninit;
 use gsys::BlockNumberWithHash;
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 use {
     crate::ReservationId,
     gsys::{ErrorWithGas, ErrorWithHash},
@@ -119,7 +119,7 @@ pub fn block_timestamp() -> u64 {
 ///     // I will be executed for pre-defined (deposited) 100_000 of gas!
 /// }
 /// ```
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
     let mut error_code = 0u32;
     unsafe { gsys::gr_reply_deposit(message_id.as_ptr(), amount, &mut error_code) };
@@ -184,7 +184,7 @@ pub fn exit(inheritor_id: ActorId) -> ! {
 ///
 /// - [`unreserve_gas`] function unreserves gas identified by [`ReservationId`].
 /// - [`system_reserve_gas`] function reserves gas for system usage.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
     let mut res: ErrorWithHash = Default::default();
 
@@ -216,7 +216,7 @@ pub fn reserve_gas(amount: u64, duration: u32) -> Result<ReservationId> {
 /// # See also
 ///
 /// - [`reserve_gas`] function reserves gas for further usage.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn system_reserve_gas(amount: u64) -> Result<()> {
     let mut error_code = 0u32;
     unsafe { gsys::gr_system_reserve_gas(amount, &mut error_code) };
@@ -234,7 +234,7 @@ pub fn system_reserve_gas(amount: u64) -> Result<()> {
 /// # See also
 ///
 /// - [`reserve_gas`] function reserves gas for further usage.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn unreserve_gas(id: ReservationId) -> Result<u64> {
     let mut res: ErrorWithGas = Default::default();
 

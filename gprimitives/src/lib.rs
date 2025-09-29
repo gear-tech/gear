@@ -34,7 +34,7 @@ pub mod utils;
 
 mod macros;
 mod nonzero_u256;
-#[cfg(feature = "ethexe")]
+#[cfg(feature = "gearexe")]
 mod sol_types;
 
 use core::{
@@ -232,7 +232,7 @@ impl FromStr for ActorId {
     }
 }
 
-#[cfg(all(feature = "serde", not(feature = "ethexe")))]
+#[cfg(all(feature = "serde", not(feature = "gearexe")))]
 impl Serialize for ActorId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -245,7 +245,7 @@ impl Serialize for ActorId {
     }
 }
 
-#[cfg(all(feature = "serde", feature = "ethexe"))]
+#[cfg(all(feature = "serde", feature = "gearexe"))]
 impl Serialize for ActorId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

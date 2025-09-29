@@ -1,0 +1,38 @@
+[package]
+name = "gearexe-runtime"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+## Gear deps.
+gearexe-runtime-common.workspace = true
+core-processor.workspace = true
+gear-core.workspace = true
+gear-lazy-pages-interface.workspace = true
+gprimitives.workspace = true
+
+## Operational deps.
+log.workspace = true
+parity-scale-codec.workspace = true
+
+[build-dependencies]
+substrate-wasm-builder = { workspace = true, optional = true }
+
+[features]
+default = ["std"]
+std = [
+    "gearexe-runtime-common/std",
+    "core-processor/std",
+    "gear-core/std",
+    "gear-lazy-pages-interface/std",
+    "gprimitives/std",
+    #
+    "log/std",
+    "parity-scale-codec/std",
+    #
+    "dep:substrate-wasm-builder",
+]

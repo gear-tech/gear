@@ -1,0 +1,27 @@
+[package]
+name = "gearexe-consensus"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gearexe-db.workspace = true
+gearexe-service-utils.workspace = true
+gearexe-signer.workspace = true
+gearexe-ethereum.workspace = true
+gearexe-common.workspace = true
+gprimitives = { workspace = true, features = ["codec", "std"] }
+
+async-trait.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+log.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+derive_more.workspace = true
+nonempty.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

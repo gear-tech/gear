@@ -1,0 +1,35 @@
+[package]
+name = "gearexe-rpc"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { workspace = true, features = ["sync"] }
+anyhow.workspace = true
+futures.workspace = true
+gprimitives = { workspace = true, features = ["serde", "gearexe"] }
+gearexe-db.workspace = true
+gearexe-processor.workspace = true
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["cors"] }
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+hyper = { workspace = true, features = ["server"] }
+log.workspace = true
+parity-scale-codec.workspace = true
+gearexe-common = { workspace = true, features = ["std"] }
+gearexe-runtime-common = { workspace = true, features = ["std"] }
+sp-core = { workspace = true, features = ["serde"] }
+gear-core = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std"] }
+gearexe-blob-loader.workspace = true
+reqwest = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[features]
+test-utils = ["reqwest", "serde_json"]

@@ -12,7 +12,7 @@ resolver = "3"
 
 default-members = ["node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
+exclude = ["gearexe/contracts", "gearexe/docker", "gearexe/scripts"]
 
 members = [
     "common",
@@ -108,9 +108,9 @@ members = [
     "utils/*",
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/runner",
-    "ethexe/*",
-    "ethexe/runtime/common",
-    "ethexe/service/utils",
+    "gearexe/*",
+    "gearexe/runtime/common",
+    "gearexe/service/utils",
 ]
 
 [workspace.dependencies]
@@ -292,24 +292,24 @@ service = { package = "gear-service", path = "node/service", default-features = 
 testing = { package = "gear-node-testing", path = "node/testing" }
 vara-runtime = { path = "runtime/vara", default-features = false }
 
-# ethexe deps
-ethexe-observer = { path = "ethexe/observer", default-features = false }
-ethexe-db = { path = "ethexe/db", default-features = false }
-ethexe-network = { path = "ethexe/network", default-features = false }
-ethexe-processor = { path = "ethexe/processor", default-features = false }
-ethexe-runtime = { path = "ethexe/runtime", default-features = false }
-ethexe-signer = { path = "ethexe/signer", default-features = false }
-ethexe-service = { path = "ethexe/service", default-features = false }
-ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
-ethexe-consensus = { path = "ethexe/consensus", default-features = false }
-ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
-ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
-ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
-ethexe-rpc = { path = "ethexe/rpc", default-features = false }
-ethexe-common = { path = "ethexe/common", default-features = false }
-ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
-ethexe-compute = { path = "ethexe/compute", default-features = false }
-ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
+# gearexe deps
+gearexe-observer = { path = "gearexe/observer", default-features = false }
+gearexe-db = { path = "gearexe/db", default-features = false }
+gearexe-network = { path = "gearexe/network", default-features = false }
+gearexe-processor = { path = "gearexe/processor", default-features = false }
+gearexe-runtime = { path = "gearexe/runtime", default-features = false }
+gearexe-signer = { path = "gearexe/signer", default-features = false }
+gearexe-service = { path = "gearexe/service", default-features = false }
+gearexe-service-utils = { path = "gearexe/service/utils", default-features = false }
+gearexe-consensus = { path = "gearexe/consensus", default-features = false }
+gearexe-ethereum = { path = "gearexe/ethereum", default-features = false }
+gearexe-runtime-common = { path = "gearexe/runtime/common", default-features = false }
+gearexe-prometheus = { path = "gearexe/prometheus", default-features = false }
+gearexe-rpc = { path = "gearexe/rpc", default-features = false }
+gearexe-common = { path = "gearexe/common", default-features = false }
+gearexe-tx-pool = { path = "gearexe/tx-pool", default-features = false }
+gearexe-compute = { path = "gearexe/compute", default-features = false }
+gearexe-blob-loader = { path = "gearexe/blob-loader", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
@@ -516,12 +516,12 @@ rand_pcg = "0.3.1"                                           # pallets/gear
 rustc_version = "0.4.1"                                      # utils/wasm-builder, sandbox, sandbox/host
 schnorrkel = "0.11.4"                                        # gcli
 scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
-hyper = "1.4.1"                                              # ethexe/rpc
+hyper = "1.4.1"                                              # gearexe/rpc
 tabled = "0.10.0"                                            # utils/regression-analysis
 thousands = "0.2.0"                                          # utils/regression-analysis
 toml = "0.8.14"                                              # utils/wasm-builder
-tower = "0.4.13"                                             # ethexe/rpc
-tower-http = "0.5.2"                                         # ethexe/rpc
+tower = "0.4.13"                                             # gearexe/rpc
+tower-http = "0.5.2"                                         # gearexe/rpc
 tracing-appender = "0.2"                                     # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
 wasmprinter = "0.230"                                        # utils/wasm-gen

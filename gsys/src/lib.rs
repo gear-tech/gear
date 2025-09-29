@@ -468,7 +468,7 @@ syscalls! {
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid_pid`: `mut ptr` for concatenated error code, message id
     ///   and program id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_create_program_wgas(
         cid_value: *const HashWithValue,
         salt: *const SizedBufferStart,
@@ -507,7 +507,7 @@ syscalls! {
     /// - `message_id`: `const ptr` for message id.
     /// - `gas`: `u64` defining gas limit to deposit.
     /// - `err`: `mut ptr` for error code.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reply_deposit(message_id: *const Hash, gas: Gas, err: *mut ErrorCode);
 
     /// Infallible `gr_debug` info syscall.
@@ -539,7 +539,7 @@ syscalls! {
     ///
     /// Arguments type:
     /// - `err_code`: `mut ptr` for concatenated error code and signal code.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_signal_code(err_code: *mut ErrorWithSignalCode);
 
     /// Infallible `gr_exit` control syscall.
@@ -593,7 +593,7 @@ syscalls! {
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reply_commit_wgas(gas_limit: Gas, value: *const Value, err_mid: *mut ErrorWithHash);
 
     /// Fallible `gr_reply_commit` send syscall.
@@ -630,7 +630,7 @@ syscalls! {
     ///
     /// Arguments type:
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_signal_from(err_mid: *mut ErrorWithHash);
 
     /// Fallible `gr_reply_input_wgas` send syscall.
@@ -642,7 +642,7 @@ syscalls! {
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reply_input_wgas(
         offset: Offset,
         len: Length,
@@ -660,7 +660,7 @@ syscalls! {
     /// - `value`: `const ptr` for `u128` defining amount of value to apply.
     ///   Ignored if equals u32::MAX (use this for zero value for optimization).
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reply_wgas(
         payload: *const SizedBufferStart,
         len: Length,
@@ -704,7 +704,7 @@ syscalls! {
     /// Arguments type:
     /// - `rid_value`: `const ptr` for concatenated reservation id and value.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reservation_reply_commit(
         rid_value: *const HashWithValue,
         err_mid: *mut ErrorWithHash,
@@ -717,7 +717,7 @@ syscalls! {
     /// - `payload`: `const ptr` for the begging of the payload buffer.
     /// - `len`: `u32` length of the payload buffer.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reservation_reply(
         rid_value: *const HashWithValue,
         payload: *const SizedBufferStart,
@@ -733,7 +733,7 @@ syscalls! {
     ///   program id and value.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reservation_send_commit(
         handle: Handle,
         rid_pid_value: *const TwoHashesWithValue,
@@ -750,7 +750,7 @@ syscalls! {
     /// - `len`: `u32` length of the payload buffer.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reservation_send(
         rid_pid_value: *const TwoHashesWithValue,
         payload: *const SizedBufferStart,
@@ -765,7 +765,7 @@ syscalls! {
     /// - `gas`: `u64` defining amount of gas to reserve.
     /// - `duration`: `u32` reservation duration.
     /// - `err_rid`: `mut ptr` for concatenated error code and reservation id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_reserve_gas(gas: Gas, duration: BlockNumber, err_rid: *mut ErrorWithHash);
 
     /// Fallible `gr_send_commit_wgas` send syscall.
@@ -776,7 +776,7 @@ syscalls! {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_send_commit_wgas(
         handle: Handle,
         pid_value: *const HashWithValue,
@@ -837,7 +837,7 @@ syscalls! {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_send_input_wgas(
         pid_value: *const HashWithValue,
         offset: Offset,
@@ -856,7 +856,7 @@ syscalls! {
     /// - `gas_limit`: `u64` defining gas limit for sending.
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid`: `mut ptr` for concatenated error code and message id.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_send_wgas(
         pid_value: *const HashWithValue,
         payload: *const SizedBufferStart,
@@ -915,7 +915,7 @@ syscalls! {
     /// Arguments type:
     /// - `gas`: `u64` defining amount of gas to reserve.
     /// - `err`: `mut ptr` for error code.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_system_reserve_gas(gas: Gas, err: *mut ErrorCode);
 
     /// Fallible `gr_unreserve_gas` control syscall.
@@ -924,7 +924,7 @@ syscalls! {
     /// - `reservation_id`: `const ptr` for reservation id.
     /// - `err_unreserved`: `mut ptr` for concatenated error code and
     ///   unreserved gas amount.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn gr_unreserve_gas(reservation_id: *const Hash, err_unreserved: *mut ErrorWithGas);
 
     /// Infallible `gr_value_available` get syscall.

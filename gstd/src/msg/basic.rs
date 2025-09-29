@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 use crate::ReservationId;
 use crate::{
     ActorId, MessageId,
@@ -151,7 +151,7 @@ impl MessageHandle {
     ///         .expect("Unable to commit");
     /// }
     /// ```
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     #[wait_for_reply(self)]
     pub fn commit_with_gas(
         self,
@@ -164,7 +164,7 @@ impl MessageHandle {
 
     /// Same as [`commit_with_gas`](Self::commit_with_gas), but sends
     /// the message after the `delay` expressed in block count.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn commit_with_gas_delayed(
         self,
         program: ActorId,
@@ -199,7 +199,7 @@ impl MessageHandle {
     ///         .expect("Unable to commit");
     /// }
     /// ```
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     #[wait_for_reply(self)]
     pub fn commit_from_reservation(
         self,
@@ -212,7 +212,7 @@ impl MessageHandle {
 
     /// Same as [`commit_from_reservation`](Self::commit_from_reservation), but
     /// sends the message after the `delay` expressed in block count.
-    #[cfg(not(feature = "ethexe"))]
+    #[cfg(not(feature = "gearexe"))]
     pub fn commit_delayed_from_reservation(
         self,
         id: ReservationId,
@@ -334,7 +334,7 @@ pub fn reply_bytes(payload: impl AsRef<[u8]>, value: u128) -> Result<MessageId> 
 ///
 /// - [`send_bytes_from_reservation`] function sends a new message to the
 ///   program or user by using gas from a reservation.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_bytes_from_reservation(
     id: ReservationId,
     payload: impl AsRef<[u8]>,
@@ -355,7 +355,7 @@ pub fn reply_bytes_from_reservation(
 ///     msg::reply_bytes_with_gas(b"PING", exec::gas_available() / 2, 0).expect("Unable to reply");
 /// }
 /// ```
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_bytes_with_gas(
     payload: impl AsRef<[u8]>,
     gas_limit: u64,
@@ -425,7 +425,7 @@ pub fn reply_commit(value: u128) -> Result<MessageId> {
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
 /// - [`ReservationId`] struct allows reserve gas for later use.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_from_reservation(id, value)
 }
@@ -448,7 +448,7 @@ pub fn reply_commit_from_reservation(id: ReservationId, value: u128) -> Result<M
 /// # See also
 ///
 /// - [`reply_push`] function allows forming a reply message in parts.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn reply_commit_with_gas(gas_limit: u64, value: u128) -> Result<MessageId> {
     gcore::msg::reply_commit_with_gas(gas_limit, value)
 }
@@ -583,7 +583,7 @@ pub fn send_bytes_delayed<T: AsRef<[u8]>>(
 /// - [`MessageHandle::init`], [`MessageHandle::push`], and
 ///   [`MessageHandle::commit`] functions allow forming a message to send in
 ///   parts.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 #[wait_for_reply]
 pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     program: ActorId,
@@ -596,7 +596,7 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 
 /// Same as [`send_bytes_with_gas`], but sends the message after the `delay`
 /// expressed in block count.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -640,7 +640,7 @@ pub fn send_bytes_with_gas_delayed<T: AsRef<[u8]>>(
 /// - [`MessageHandle::init`], [`MessageHandle::push`], and
 ///   [`MessageHandle::commit`] functions allow forming a message to send in
 ///   parts.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 #[wait_for_reply]
 pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
@@ -653,7 +653,7 @@ pub fn send_bytes_from_reservation<T: AsRef<[u8]>>(
 
 /// Same as [`send_bytes_from_reservation`], but sends the message after the
 /// `delay` expressed in block count.
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 pub fn send_bytes_delayed_from_reservation<T: AsRef<[u8]>>(
     id: ReservationId,
     program: ActorId,

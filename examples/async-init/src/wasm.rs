@@ -39,12 +39,12 @@ static mut ARGUMENTS: InputArgs = InputArgs {
 
 static mut RESPONSES: u8 = 0;
 
-#[cfg(feature = "ethexe")]
+#[cfg(feature = "gearexe")]
 fn ping_reply_fut(addr: ActorId) -> msg::MessageFuture {
     msg::send_bytes_for_reply(addr, "PING", 0).expect("Failed to send message")
 }
 
-#[cfg(not(feature = "ethexe"))]
+#[cfg(not(feature = "gearexe"))]
 fn ping_reply_fut(addr: ActorId) -> msg::MessageFuture {
     msg::send_bytes_for_reply(addr, "PING", 0, 0).expect("Failed to send message")
 }
