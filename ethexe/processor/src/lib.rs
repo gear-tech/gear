@@ -65,9 +65,9 @@ pub enum ProcessorError {
     BlockHeaderNotFound(H256),
     #[error("not found program states for processing announce ({0})")]
     AnnounceProgramStatesNotFound(AnnounceHash),
-    #[error("not found block start schedule for processing block ({0})")]
+    #[error("not found block start schedule for processing announce ({0})")]
     AnnounceScheduleNotFound(AnnounceHash),
-    #[error("not found announces for processing block ({0})")]
+    #[error("not found announces for processing announce ({0})")]
     AnnouncesNotFound(H256),
     #[error("not found announce by hash ({0})")]
     AnnounceNotFound(AnnounceHash),
