@@ -275,7 +275,7 @@ where
     ) -> Result<T, MemoryAccessError> {
         let mut value = bytemuck::zeroed();
 
-        if std::mem::size_of::<T>() != 0 {
+        if core::mem::size_of::<T>() != 0 {
             self.memory
                 .read(ctx.caller, read.ptr, bytemuck::bytes_of_mut(&mut value))?;
         }
@@ -317,7 +317,7 @@ where
         write: WasmMemoryWriteAs<T>,
         obj: &T,
     ) -> Result<(), MemoryAccessError> {
-        if std::mem::size_of::<T>() != 0 {
+        if core::mem::size_of::<T>() != 0 {
             self.memory
                 .write(ctx.caller, write.ptr, bytemuck::bytes_of(obj))?
         }
@@ -798,7 +798,7 @@ mod tests {
         assert_eq!(registry.reads[0].offset, 0);
         assert_eq!(
             registry.reads[0].size,
-            std::mem::size_of::<TestStruct>() as u32
+            core::mem::size_of::<TestStruct>() as u32
         );
     }
 
@@ -814,7 +814,7 @@ mod tests {
         assert_eq!(registry.reads[0].offset, 0);
         assert_eq!(
             registry.reads[0].size,
-            std::mem::size_of::<TestStruct>() as u32
+            core::mem::size_of::<TestStruct>() as u32
         );
     }
 
