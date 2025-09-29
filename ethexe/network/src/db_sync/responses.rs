@@ -92,10 +92,11 @@ impl OngoingResponses {
                 max_chain_len,
             }) => {
                 if max_chain_len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE {
-                    log::warn!(
+                    log::trace!(
                         "Request for announces with too large max_chain_len: {max_chain_len}, \
                          max is {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE} instead"
                     );
+                    // TODO #4874: use peer score to punish the peer for such requests
                     return InnerResponse::Announces(vec![]);
                 }
 
@@ -106,19 +107,18 @@ impl OngoingResponses {
                 };
                 let mut announces = vec![];
                 let mut announce_hash = head;
-                let mut counter = max_chain_len;
-                while counter > 0 && announce_hash != start_announce_hash {
+                let mut counter = 0;
+                while counter < max_chain_len && announce_hash != start_announce_hash {
                     let Some(announce) = db.announce(announce_hash) else {
                         log::warn!(
                             "Cannot complete request: announce {announce_hash} not found in database"
                         );
-                        announces = vec![];
-                        break;
+                        return InnerResponse::Announces(vec![]);
                     };
 
                     announce_hash = announce.parent;
                     announces.push(announce);
-                    counter -= 1;
+                    counter += 1;
                 }
                 InnerResponse::Announces(announces)
             }

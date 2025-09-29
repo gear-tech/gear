@@ -144,7 +144,7 @@ mod mock;
 
 pub mod pallet_tests;
 
-pub mod migrations;
+pub mod migrations {}
 
 #[frame_support::pallet]
 pub mod pallet {

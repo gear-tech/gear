@@ -72,7 +72,7 @@ pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStor
     Ok(meta.prepared
         && meta
             .announces
-            .ok_or(ComputeError::AnnouncesNotFound(block_hash))?
+            .ok_or(ComputeError::PreparedBlockAnnouncesSetMissing(block_hash))?
             .contains(&announce_hash))
 }
 

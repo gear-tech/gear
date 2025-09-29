@@ -445,7 +445,7 @@ impl Storage for Database {
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
-        unsafe { HashOf::new(self.cas.write(payload.inner())) }
+        unsafe { HashOf::new(self.cas.write(&payload)) }
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
@@ -672,7 +672,7 @@ mod tests {
             off_chain_transactions: vec![],
         };
         let announce_hash = db.set_announce(announce.clone());
-        assert_eq!(announce_hash, announce.hash());
+        assert_eq!(announce_hash, announce.to_hash());
         assert_eq!(db.announce(announce_hash), Some(announce));
     }
 

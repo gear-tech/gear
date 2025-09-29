@@ -36,12 +36,19 @@ use gprimitives::H256;
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 
+/// Ethexe metadata associated with an on-chain block.
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
+    /// Block has been prepared, meaning:
+    /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
+    /// Set of announces included in the block.
     pub announces: Option<BTreeSet<AnnounceHash>>,
+    /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
+    /// Last committed on-chain batch hash.
     pub last_committed_batch: Option<Digest>,
+    /// Last committed on-chain announce hash.
     pub last_committed_announce: Option<AnnounceHash>,
 }
 

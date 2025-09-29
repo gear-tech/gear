@@ -26,7 +26,9 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, Digest, SimpleBlockData, ToDigest,
     db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
     ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    gear::{
+        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+    },
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
@@ -50,6 +52,10 @@ pub struct BatchCommitmentValidationRequest {
     pub head: Option<AnnounceHash>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
+    /// Whether validators commitment is part of the batch
+    pub validators: bool,
+    /// Whether rewards commitment is part of the batch
+    pub rewards: bool,
 }
 
 impl BatchCommitmentValidationRequest {
@@ -64,6 +70,8 @@ impl BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
             head: batch.chain_commitment.as_ref().map(|cc| cc.head_announce),
             codes,
+            rewards: batch.rewards_commitment.is_some(),
+            validators: batch.validators_commitment.is_some(),
         }
     }
 }
@@ -74,6 +82,8 @@ impl ToDigest for BatchCommitmentValidationRequest {
             digest,
             head,
             codes,
+            rewards,
+            validators,
         } = self;
 
         hasher.update(digest);
@@ -84,6 +94,8 @@ impl ToDigest for BatchCommitmentValidationRequest {
                 .flat_map(|h| h.into_bytes())
                 .collect::<Vec<u8>>(),
         );
+        hasher.update([*rewards as u8]);
+        hasher.update([*validators as u8]);
     }
 }
 
@@ -270,6 +282,8 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
     code_commitments: Vec<CodeCommitment>,
+    validators_commitment: Option<ValidatorsCommitment>,
+    rewards_commitment: Option<RewardsCommitment>,
 ) -> Result<Option<BatchCommitment>> {
     if chain_commitment.is_none() && code_commitments.is_empty() {
         return Ok(None);
@@ -291,8 +305,8 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
         previous_batch: last_committed,
         chain_commitment,
         code_commitments,
-        validators_commitment: None,
-        rewards_commitment: None,
+        validators_commitment,
+        rewards_commitment,
     }))
 }
 

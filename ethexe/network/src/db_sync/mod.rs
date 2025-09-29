@@ -1236,7 +1236,7 @@ pub(crate) mod tests {
         right_db.mutate_block_meta(H256::zero(), |meta| {
             assert!(meta.announces.is_none());
             let announce = Announce::base(H256::zero(), AnnounceHash::zero());
-            announce_hash = announce.hash();
+            announce_hash = announce.to_hash();
             meta.announces = Some([announce_hash].into());
         });
 

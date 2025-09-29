@@ -38,7 +38,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
     mut processor: P,
     announce: Announce,
 ) -> Result<ComputationStatus> {
-    let announce_hash = announce.hash();
+    let announce_hash = announce.to_hash();
     let block_hash = announce.block_hash;
 
     if !db.block_meta(block_hash).prepared {
@@ -161,7 +161,7 @@ mod tests {
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };
-        let announce_hash = announce.hash();
+        let announce_hash = announce.to_hash();
 
         // Create non-empty processor result with transitions
         let non_empty_result = BlockProcessingResult {
@@ -175,7 +175,7 @@ mod tests {
         };
 
         // Set the PROCESSOR_RESULT to return non-empty result
-        PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
+        PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
         let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
         assert_eq!(status, ComputationStatus::Computed);
 
