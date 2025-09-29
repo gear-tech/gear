@@ -20,6 +20,7 @@ use super::{core::*, *};
 use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
+use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 use ethexe_ethereum::primitives::map::HashMap;
 use futures::lock::Mutex;
 use std::sync::Arc;
@@ -134,6 +135,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             signatures_threshold: 1,
             router_address: 12345.into(),
             pub_key: keys.pop().unwrap(),
+            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
             signer,
             db: db.clone(),
             committer: Box::new(ethereum.clone()),

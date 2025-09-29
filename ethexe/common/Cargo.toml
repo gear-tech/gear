@@ -17,6 +17,7 @@ serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true
+anyhow.workspace = true
 auto_impl.workspace = true
 
 sha3 = { version = "0.10", default-features = false }
