@@ -222,9 +222,9 @@ impl PartialEq for CodeError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             // Can't compare BinaryReaderError
-            (CodeError::Validation(_), CodeError::Validation(_)) => false,
+            (CodeError::Validation(_), CodeError::Validation(_)) => true,
             // Can't compare ModuleError
-            (CodeError::Module(_), CodeError::Module(_)) => false,
+            (CodeError::Module(_), CodeError::Module(_)) => true,
             (CodeError::Section(a), CodeError::Section(b)) => a == b,
             (CodeError::Memory(a), CodeError::Memory(b)) => a == b,
             (CodeError::StackEnd(a), CodeError::StackEnd(b)) => a == b,
@@ -232,8 +232,7 @@ impl PartialEq for CodeError {
             (CodeError::TypeSection(a), CodeError::TypeSection(b)) => a == b,
             (CodeError::Export(a), CodeError::Export(b)) => a == b,
             (CodeError::Import(a), CodeError::Import(b)) => a == b,
-            // Can't compare InstrumentationError
-            (CodeError::Instrumentation(_), CodeError::Instrumentation(_)) => false,
+            (CodeError::Instrumentation(a), CodeError::Instrumentation(b)) => a == b,
             // Different variants
             _ => false,
         }
