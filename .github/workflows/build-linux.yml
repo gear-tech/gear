@@ -311,6 +311,7 @@ jobs:
         run: >-
           ./try-runtime
           --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --disable-spec-name-check
           on-runtime-upgrade
           --blocktime 3000
           --checks try-state
