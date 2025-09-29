@@ -29,7 +29,7 @@ use crate::{
 };
 use alloc::{format, vec::Vec};
 use bytemuck::Pod;
-use core::{marker::PhantomData, slice};
+use core::marker::PhantomData;
 use gear_core::{
     buffer::RuntimeBuffer,
     limited::LimitedVecError,
@@ -311,32 +311,18 @@ where
         }
     }
 
-    pub(crate) fn write_as<T: Sized>(
+    pub(crate) fn write_as<T: Pod>(
         &mut self,
         ctx: &mut CallerWrap<Context>,
         write: WasmMemoryWriteAs<T>,
-        obj: T,
+        obj: &T,
     ) -> Result<(), MemoryAccessError> {
-        let size = size_of::<T>();
-        if size > 0 {
-            // # Safety:
-            //
-            // A given object is `Sized` and we own them in the context of calling this
-            // function (it's on stack), it's safe to take ptr on the object and
-            // represent it as slice.
-            // Object will be dropped after `memory.write`
-            // finished execution, and no one will rely on this slice.
-            //
-            // Bytes in memory are always stored continuously and without paddings, properly
-            // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-            let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
-
+        if std::mem::size_of::<T>() != 0 {
             self.memory
-                .write(ctx.caller, write.ptr, slice)
-                .map_err(Into::into)
-        } else {
-            Ok(())
+                .write(ctx.caller, write.ptr, bytemuck::bytes_of(obj))?
         }
+
+        Ok(())
     }
 }
 
@@ -627,7 +613,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<ZeroSizeStruct>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, ZeroSizeStruct)
+        io.write_as(&mut caller_wrap, write, &ZeroSizeStruct)
             .unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
@@ -683,7 +669,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<u32>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, 0).unwrap();
+        io.write_as(&mut caller_wrap, write, &0).unwrap();
     }
 
     #[test]
@@ -701,7 +687,7 @@ mod tests {
                 ptr: 0,
                 _phantom: PhantomData,
             },
-            1u8,
+            &1u8,
         )
         .unwrap();
     }
@@ -721,7 +707,7 @@ mod tests {
                 ptr: WasmPage::SIZE,
                 _phantom: PhantomData,
             },
-            7u8,
+            &7u8,
         )
         .unwrap_err();
     }

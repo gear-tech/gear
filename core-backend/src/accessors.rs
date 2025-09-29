@@ -29,10 +29,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use bytemuck::Pod;
-use gear_core::{
-    buffer::{Payload, PayloadSizeError},
-    limited::LimitedVecError,
-};
+use gear_core::{buffer::Payload, limited::LimitedVecError};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 
@@ -461,11 +458,11 @@ impl WriteInGrRead {
     }
 }
 
-impl<T> WriteAs<T> {
+impl<T: Pod> WriteAs<T> {
     pub fn write<Caller, Ext>(
         self,
         ctx: &mut MemoryCallerContext<Caller>,
-        obj: T,
+        obj: &T,
     ) -> Result<(), MemoryAccessError>
     where
         Caller: AsContextExt<State = HostState<Ext, BackendMemory<ExecutorMemory>>>,
