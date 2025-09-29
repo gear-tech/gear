@@ -424,9 +424,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
 
-        // TODO #4740: check that it is for previous eras (have some problems with rewards for 0 era)
         require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
         require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
+        require(_commitment.timestamp >= router.genesisBlock.timestamp, "rewards commitment timestamp predates genesis");
+
+        uint256 commitmentEraIndex = Gear.eraIndexAt(router, _commitment.timestamp);
+        uint256 batchEraIndex = Gear.eraIndexAt(router, _batch.blockTimestamp);
+
+        require(commitmentEraIndex < batchEraIndex, "rewards commitment must target previous era");
 
         address _middleware = router.implAddresses.middleware;
         IERC20(router.implAddresses.wrappedVara).approve(
