@@ -523,10 +523,10 @@ impl ResponseHandler {
             return Err(AnnouncesResponseError::Empty);
         };
 
-        if request.head != head.hash() {
+        if request.head != head.to_hash() {
             return Err(AnnouncesResponseError::HeadMismatch {
                 expected: request.head,
-                received: head.hash(),
+                received: head.to_hash(),
             });
         }
 

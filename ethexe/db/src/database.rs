@@ -679,7 +679,7 @@ mod tests {
             off_chain_transactions: vec![],
         };
         let announce_hash = db.set_announce(announce.clone());
-        assert_eq!(announce_hash, announce.hash());
+        assert_eq!(announce_hash, announce.to_hash());
         assert_eq!(db.announce(announce_hash), Some(announce));
     }
 

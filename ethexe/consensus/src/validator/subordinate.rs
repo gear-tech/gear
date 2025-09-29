@@ -90,7 +90,7 @@ impl StateHandler for Subordinate {
 
                 if let Some(announce) = received_announce.take() {
                     // If we have an announce, we can compute it.
-                    let announce_hash = announce.hash();
+                    let announce_hash = announce.to_hash();
                     self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
                     self.state = State::WaitingAnnounceComputed { announce_hash };
                 }
@@ -130,7 +130,7 @@ impl StateHandler for Subordinate {
                 && signed_announce.data().block_hash == self.block.hash =>
             {
                 let (announce, _sign) = signed_announce.into_parts();
-                let announce_hash = announce.hash();
+                let announce_hash = announce.to_hash();
 
                 if *block_prepared {
                     self.output(ConsensusEvent::ComputeAnnounce(announce));
@@ -349,7 +349,9 @@ mod tests {
         assert_eq!(s.context().output, vec![announce.data().clone().into()]);
 
         // After announce is computed, subordinate switches to participant state.
-        let s = s.process_computed_announce(announce.data().hash()).unwrap();
+        let s = s
+            .process_computed_announce(announce.data().to_hash())
+            .unwrap();
         assert!(s.is_participant());
         assert_eq!(s.context().output, vec![announce.data().clone().into()]);
     }
@@ -381,7 +383,9 @@ mod tests {
         assert_eq!(s.context().output, vec![announce.data().clone().into()]);
 
         // After announce is computed, not-validator subordinate switches to initial state.
-        let s = s.process_computed_announce(announce.data().hash()).unwrap();
+        let s = s
+            .process_computed_announce(announce.data().to_hash())
+            .unwrap();
         assert!(s.is_initial());
     }
 

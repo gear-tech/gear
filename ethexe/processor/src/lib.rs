@@ -63,8 +63,6 @@ pub enum ProcessorError {
     StatePartiallyPresentsInStorage,
     #[error("not found header for processing block ({0})")]
     BlockHeaderNotFound(H256),
-    #[error("not found events for processing block ({0})")]
-    BlockEventsNotFound(H256),
     #[error("not found program states for processing block ({0})")]
     AnnounceProgramStatesNotFound(AnnounceHash),
     #[error("not found block start schedule for processing block ({0})")]

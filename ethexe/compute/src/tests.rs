@@ -53,9 +53,9 @@ impl ProcessorExt for MockProcessor {
         _announce: Announce,
         _events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        let result = PROCESSOR_RESULT.with(|r| r.borrow().clone());
-        PROCESSOR_RESULT.with(|r| {
-            *r.borrow_mut() = BlockProcessingResult {
+        let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
+        PROCESSOR_RESULT.with_borrow_mut(|r| {
+            *r = BlockProcessingResult {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
@@ -197,7 +197,7 @@ impl WrappedComputeService {
     }
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
-        let announce_hash = announce.hash();
+        let announce_hash = announce.to_hash();
         self.inner.compute_announce(announce);
 
         let event = self

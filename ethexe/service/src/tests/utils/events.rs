@@ -134,7 +134,7 @@ pub struct ServiceEventsListener<'a> {
 }
 
 #[derive(Debug, Default, Clone, Copy, derive_more::From)]
-pub enum AnnounceID {
+pub enum AnnounceId {
     /// Wait for any next computed announce
     #[default]
     Any,
@@ -154,7 +154,7 @@ impl ServiceEventsListener<'_> {
             .await
     }
 
-    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceID>) {
+    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
         let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
@@ -163,15 +163,15 @@ impl ServiceEventsListener<'_> {
             };
 
             match id {
-                AnnounceID::Any => {
+                AnnounceId::Any => {
                     return;
                 }
-                AnnounceID::AnnounceHash(waited_announce_hash)
+                AnnounceId::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
                     return;
                 }
-                AnnounceID::BlockHash(waited_block_hash) => {
+                AnnounceId::BlockHash(waited_block_hash) => {
                     if self
                         .db
                         .announce(announce_hash)

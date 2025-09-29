@@ -79,15 +79,10 @@ impl StateHandler for Producer {
 
         match &mut self.state {
             State::Preparing {
-                codes_timer: timer,
+                codes_timer,
                 block_prepared,
-            } => {
-                if *block_prepared {
-                    self.ctx
-                        .warning(format!("Block {block} is already prepared, ignoring"));
-                }
-
-                if timer.is_none() {
+            } if !*block_prepared => {
+                if codes_timer.is_none() {
                     // Timer is already expired, we can create announce immediately
                     self.create_announce()?;
                 } else {
@@ -97,11 +92,15 @@ impl StateHandler for Producer {
 
                 Ok(self.into())
             }
-            _ => {
+            State::Preparing { codes_timer, .. } if codes_timer.is_some() => {
                 self.warning(format!("Receiving {block} prepared twice or more"));
 
                 Ok(self.into())
             }
+            State::Preparing { .. } => {
+                unreachable!("Impossible, announce must be already created inside polling");
+            }
+            _ => DefaultProcessing::prepared_block(self, block),
         }
     }
 
@@ -201,7 +200,9 @@ impl Producer {
 
     fn create_announce(&mut self) -> Result<()> {
         if !self.ctx.core.db.block_meta(self.block.hash).prepared {
-            unreachable!("Impossible, block must be prepared before creating announce");
+            return Err(anyhow!(
+                "Impossible, block must be prepared before creating announce"
+            ));
         }
 
         let parent_announce = self

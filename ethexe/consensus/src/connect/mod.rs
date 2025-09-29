@@ -147,8 +147,8 @@ impl ConsensusService for SimpleConnectService {
 
     fn receive_announce(&mut self, announce: SignedAnnounce) -> Result<()> {
         debug_assert!(
-            self.pending_announces.len() < MAX_PENDING_ANNOUNCES,
-            "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces"
+            self.pending_announces.len() <= MAX_PENDING_ANNOUNCES,
+            "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces because oldest ones are dropped"
         );
 
         if let State::WaitingForAnnounce { block, producer } = &self.state
@@ -164,7 +164,7 @@ impl ConsensusService for SimpleConnectService {
 
         if self.pending_announces.len() == MAX_PENDING_ANNOUNCES {
             let old_announce = self.pending_announces.pop_front().unwrap();
-            log::warn!(
+            log::trace!(
                 "Pending announces limit reached, dropping oldest announce: {:?} from {}",
                 old_announce.data(),
                 old_announce.address()

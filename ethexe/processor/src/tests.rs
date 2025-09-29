@@ -85,8 +85,8 @@ async fn process_observer_event() {
         .expect("failed to upload code");
     assert!(valid);
 
-    let block1_announce = Announce::new_default_gas(block1, AnnounceHash::zero());
-    let block1_announce_hash = block1_announce.hash();
+    let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
+    let block1_announce_hash = block1_announce.to_hash();
 
     // Process and save results
     let BlockProcessingResult {
@@ -126,8 +126,8 @@ async fn process_observer_event() {
         ),
     ];
 
-    let block2_announce = Announce::new_default_gas(block2, block1_announce_hash);
-    let block2_announce_hash = block2_announce.hash();
+    let block2_announce = Announce::with_default_gas(block2, block1_announce_hash);
+    let block2_announce_hash = block2_announce.to_hash();
 
     // Process block2 announce and save results
     let BlockProcessingResult {
@@ -156,7 +156,7 @@ async fn process_observer_event() {
         },
     );
 
-    let block3_announce = Announce::new_default_gas(block3, block2_announce_hash);
+    let block3_announce = Announce::with_default_gas(block3, block2_announce_hash);
 
     // Process block3 announce
     processor
@@ -267,7 +267,7 @@ async fn ping_pong() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::new_default_gas(block, AnnounceHash::zero());
+    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -348,7 +348,7 @@ async fn async_and_ping() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::new_default_gas(block, AnnounceHash::zero());
+    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
 
     let ping_id = ActorId::from(0x10000000);
     let async_id = ActorId::from(0x20000000);
@@ -489,8 +489,8 @@ async fn many_waits() {
 
     let genesis = init_genesis_block(&mut processor);
     let block1 = init_new_block_from_parent(&mut processor, genesis);
-    let block1_announce = Announce::new_default_gas(block1, AnnounceHash::zero());
-    let block1_announce_hash = block1_announce.hash();
+    let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
+    let block1_announce_hash = block1_announce.to_hash();
 
     let code_id = processor
         .handle_new_code(code)
@@ -576,9 +576,9 @@ async fn many_waits() {
     let mut block_announce_hash = block1_announce_hash;
     for _ in 0..9 {
         block = init_new_block_from_parent(&mut processor, block);
-        let block_announce = Announce::new_default_gas(block, block_announce_hash);
+        let block_announce = Announce::with_default_gas(block, block_announce_hash);
         let parent_announce_hash = block_announce_hash;
-        block_announce_hash = block_announce.hash();
+        block_announce_hash = block_announce.to_hash();
 
         let states = processor
             .db
@@ -597,7 +597,7 @@ async fn many_waits() {
     }
 
     let block12 = init_new_block_from_parent(&mut processor, block);
-    let block12_announce = Announce::new_default_gas(block12, block_announce_hash);
+    let block12_announce = Announce::with_default_gas(block12, block_announce_hash);
 
     let states = processor
         .db

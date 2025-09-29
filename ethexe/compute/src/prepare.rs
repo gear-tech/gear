@@ -142,7 +142,7 @@ async fn prepare_one_block(
 
     let parent_announces = parent_meta
         .announces
-        .ok_or(ComputeError::AnnouncesNotFound(parent))?;
+        .ok_or(ComputeError::PreparedBlockAnnouncesSetMissing(parent))?;
     if parent_announces.len() != 1 {
         todo!("TODO #4813: Currently supporting exactly one announce per block only");
     }
@@ -228,8 +228,8 @@ async fn propagate_from_parent_announce(
 
     // TODO #4814: hack - use here base with gas to avoid unknown announces in tests,
     // this can be fixed by unknown announces handling later
-    let new_base_announce = Announce::new_default_gas(block_hash, parent_announce_hash);
-    let new_base_announce_hash = new_base_announce.hash();
+    let new_base_announce = Announce::with_default_gas(block_hash, parent_announce_hash);
+    let new_base_announce_hash = new_base_announce.to_hash();
 
     if db.announce_meta(new_base_announce_hash).computed {
         // One possible case is:
@@ -300,7 +300,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             db.announce(announce_hash).unwrap(),
-            Announce::new_default_gas(block_hash, parent_announce_hash),
+            Announce::with_default_gas(block_hash, parent_announce_hash),
             "incorrect announce was stored"
         );
         assert_eq!(db.announce_outcome(announce_hash), Some(Default::default()));
@@ -335,14 +335,14 @@ mod tests {
 
         let parent_announce = Announce::base(parent_hash, last_committed_announce);
         db.set_announce(parent_announce.clone());
-        db.set_announce_outcome(parent_announce.hash(), Default::default());
-        db.set_announce_schedule(parent_announce.hash(), Default::default());
-        db.set_announce_program_states(parent_announce.hash(), Default::default());
+        db.set_announce_outcome(parent_announce.to_hash(), Default::default());
+        db.set_announce_schedule(parent_announce.to_hash(), Default::default());
+        db.set_announce_program_states(parent_announce.to_hash(), Default::default());
 
         db.mutate_block_meta(parent_hash, |meta| {
             *meta = BlockMeta {
                 prepared: true,
-                announces: Some(vec![parent_announce.hash()]),
+                announces: Some(vec![parent_announce.to_hash()]),
                 codes_queue: Some(vec![code1_id].into()),
                 last_committed_batch: Some(Digest::random()),
                 last_committed_announce: Some(AnnounceHash::random()),
@@ -358,7 +358,7 @@ mod tests {
             BlockEvent::Router(RouterEvent::BatchCommitted {
                 digest: batch_committed,
             }),
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(parent_announce.hash())),
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(parent_announce.to_hash())),
             BlockEvent::Router(RouterEvent::CodeGotValidated {
                 code_id: code1_id,
                 valid: true,
@@ -382,14 +382,17 @@ mod tests {
         assert!(meta.prepared);
         assert_eq!(meta.codes_queue, Some(vec![code2_id].into()),);
         assert_eq!(meta.last_committed_batch, Some(batch_committed),);
-        assert_eq!(meta.last_committed_announce, Some(parent_announce.hash()));
+        assert_eq!(
+            meta.last_committed_announce,
+            Some(parent_announce.to_hash())
+        );
         assert_eq!(meta.announces.as_ref().map(|a| a.len()), Some(1));
 
         let announce_hash = meta.announces.unwrap()[0];
         let announce = db.announce(announce_hash).unwrap();
         assert_eq!(
             announce,
-            Announce::new_default_gas(block.hash, parent_announce.hash())
+            Announce::with_default_gas(block.hash, parent_announce.to_hash())
         );
         assert!(db.announce_meta(announce_hash).computed);
         assert_eq!(db.announce_outcome(announce_hash), Some(Default::default()));
