@@ -244,23 +244,21 @@ jobs:
 
   try-runtime:
     runs-on: ubuntu-latest
+    container:
+      image: rust:slim-bookworm
+      options: --init
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
-
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          android: false
-          dotnet: true
-          haskell: true
-          large-packages: false
-          docker-images: false
-          swap-storage: false
-
+      - name: Base deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git aria2 build-essential clang lld pkg-config libssl-dev
+            
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
