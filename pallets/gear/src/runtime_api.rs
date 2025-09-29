@@ -248,7 +248,7 @@ where
         let from_main_chain = |msg_id| {
             GasHandlerOf::<T>::get_origin_key(msg_id)
                 .map(|v| v == main_message_id.into())
-                .unwrap_or_else(|_| msg_id == main_message_id.into())
+                .map_err(|_| Self::internal_err_string("Failed to get origin key"))
         };
 
         // Result to be returned.
@@ -307,7 +307,7 @@ where
                             ref dispatch,
                             ..
                         } = note
-                            && from_main_chain(dispatch.id())
+                            && from_main_chain(dispatch.id())?
                         {
                             gas_info.min_limit = initial_gas;
                         }
@@ -327,7 +327,7 @@ where
                         // NOTE: to pass `from_main_chain` call, message should
                         // exist in system: at least in `Mailbox`.
                         if MailboxOf::<T>::contains(&destination, &dispatch.id())
-                            && from_main_chain(dispatch.id())
+                            && from_main_chain(dispatch.id())?
                         {
                             // Querying reserved balance for mailbox storing.
                             //
@@ -349,7 +349,7 @@ where
 
                     // Burning gas from main messages chain.
                     JournalNote::GasBurned { amount, message_id } => {
-                        if from_main_chain(message_id) {
+                        if from_main_chain(message_id)? {
                             gas_info.burned = gas_info.burned.saturating_add(amount);
                         }
                     }
