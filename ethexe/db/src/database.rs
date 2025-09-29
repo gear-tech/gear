@@ -445,7 +445,7 @@ impl Storage for Database {
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
-        unsafe { HashOf::new(self.cas.write(payload.inner())) }
+        unsafe { HashOf::new(self.cas.write(&payload)) }
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {

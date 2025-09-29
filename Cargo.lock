@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "actor-system-error"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "derive_more 2.0.1",
 ]
@@ -2204,7 +2204,7 @@ dependencies = [
 
 [[package]]
 name = "calc-stack-height"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "gear-core",
@@ -2227,7 +2227,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-gbuild"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -2972,7 +2972,7 @@ dependencies = [
 
 [[package]]
 name = "crates-io"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
@@ -3433,7 +3433,7 @@ dependencies = [
 
 [[package]]
 name = "demo-big-data-section"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -3502,7 +3502,7 @@ dependencies = [
 
 [[package]]
 name = "demo-create-program-reentrance"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -3550,17 +3550,11 @@ dependencies = [
 name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
- "futures",
- "gclient",
- "gear-core",
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
  "parity-scale-codec",
- "rand 0.8.5",
  "scale-info",
- "statrs",
- "tokio",
 ]
 
 [[package]]
@@ -4666,7 +4660,7 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
 name = "ethexe-blob-loader"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy",
  "ethexe-common",
@@ -4680,7 +4674,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-cli"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -4707,7 +4701,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-common"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4726,7 +4720,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-compute"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "derive_more 2.0.1",
  "ethexe-common",
@@ -4747,7 +4741,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-consensus"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4767,7 +4761,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-db"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "auto_impl",
@@ -4788,7 +4782,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-ethereum"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4809,7 +4803,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-network"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -4833,7 +4827,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-observer"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4853,7 +4847,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-processor"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "demo-async",
  "demo-ping",
@@ -4882,7 +4876,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-prometheus"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "futures",
@@ -4894,7 +4888,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-rpc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "ethexe-blob-loader",
@@ -4920,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "ethexe-runtime-common",
  "gear-core",
@@ -4934,7 +4928,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime-common"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "auto_impl",
@@ -4953,7 +4947,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4997,7 +4991,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service-utils"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "futures",
  "log",
@@ -5006,7 +5000,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-signer"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5018,7 +5012,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-tx-pool"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "ethexe-common",
@@ -5957,14 +5951,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-dlmalloc",
 ]
 
 [[package]]
 name = "gbuiltin-bls381"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -5977,7 +5971,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-eth-bridge"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -5986,7 +5980,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-proxy"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -5995,7 +5989,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-staking"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -6004,7 +5998,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6036,7 +6030,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -6072,7 +6066,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "galloc",
  "gear-core-errors",
@@ -6085,7 +6079,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "demo-constructor",
  "frame-support",
@@ -6160,7 +6154,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "clap 4.5.23",
  "derive_more 2.0.1",
@@ -6193,7 +6187,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "enum-iterator 1.5.0",
  "fail",
@@ -6217,7 +6211,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "quote",
  "syn 2.0.100",
@@ -6225,7 +6219,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "blake2 0.10.6",
  "byteorder",
@@ -6253,7 +6247,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
@@ -6272,7 +6266,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "enum-iterator 1.5.0",
  "parity-scale-codec",
@@ -6283,7 +6277,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "actor-system-error",
  "derive_more 2.0.1",
@@ -6313,7 +6307,7 @@ dependencies = [
 
 [[package]]
 name = "gear-key-finder"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "directories",
  "hex",
@@ -6321,7 +6315,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "cfg-if",
  "derive_more 2.0.1",
@@ -6344,7 +6338,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-core",
  "num_enum 0.6.1",
@@ -6353,7 +6347,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "byteorder",
  "gear-core",
@@ -6365,7 +6359,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-native-interface"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-core",
  "gear-lazy-pages",
@@ -6375,7 +6369,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -6402,7 +6396,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-metadata-hash-extension",
  "frame-system",
@@ -6422,7 +6416,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-wrapper"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -6459,7 +6453,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6477,7 +6471,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -6497,7 +6491,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "sp-core",
  "sp-runtime",
@@ -6505,7 +6499,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "assert_matches",
  "gear-sandbox-env",
@@ -6527,7 +6521,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-env"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "parity-scale-codec",
  "sp-debug-derive",
@@ -6537,7 +6531,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "atomic_enum",
  "defer",
@@ -6559,7 +6553,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-interface"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-sandbox-host",
  "log",
@@ -6570,7 +6564,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -6641,7 +6635,7 @@ dependencies = [
 
 [[package]]
 name = "gear-ss58"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "blake2 0.10.6",
  "bs58 0.5.1",
@@ -6650,14 +6644,14 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "gear-utils"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-core",
  "hex",
@@ -6688,7 +6682,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-builder"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6734,7 +6728,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "arbitrary",
  "derive_more 2.0.1",
@@ -6751,7 +6745,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-optimizer"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "colored",
@@ -6766,7 +6760,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasmer-cache"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "bytes",
  "demo-constructor",
@@ -6989,7 +6983,7 @@ dependencies = [
 
 [[package]]
 name = "gprimitives"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -7004,7 +6998,7 @@ dependencies = [
 
 [[package]]
 name = "gring"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7035,7 +7029,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7089,7 +7083,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7098,7 +7092,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "arrayvec 0.7.4",
  "const_format",
@@ -7119,7 +7113,7 @@ dependencies = [
 
 [[package]]
 name = "gstd-codegen"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gprimitives",
  "gstd",
@@ -7131,11 +7125,11 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.9.1"
+version = "1.9.2"
 
 [[package]]
 name = "gtest"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "cargo_toml",
  "colored",
@@ -10536,8 +10530,6 @@ dependencies = [
  "num-complex",
  "num-rational",
  "num-traits",
- "rand 0.8.5",
- "rand_distr",
  "simba",
  "typenum",
 ]
@@ -10945,7 +10937,7 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "derive_more 2.0.1",
  "log",
@@ -11302,7 +11294,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "blake2 0.10.6",
  "demo-async",
@@ -11400,7 +11392,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11414,12 +11406,11 @@ dependencies = [
  "scale-info",
  "sp-io",
  "sp-runtime",
- "sp-std",
 ]
 
 [[package]]
 name = "pallet-gear-builtin"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -11476,7 +11467,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "jsonrpsee 0.24.7",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -11488,7 +11479,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc-runtime-api"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -11496,7 +11487,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "binary-merkle-tree",
  "frame-benchmarking",
@@ -11535,7 +11526,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-primitives"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "binary-merkle-tree",
  "gprimitives",
@@ -11546,7 +11537,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "jsonrpsee 0.24.7",
  "pallet-gear-eth-bridge-rpc-runtime-api",
@@ -11558,7 +11549,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "pallet-gear-eth-bridge",
  "sp-api",
@@ -11567,7 +11558,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11587,7 +11578,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11608,7 +11599,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11637,7 +11628,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11646,13 +11637,12 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11660,18 +11650,16 @@ dependencies = [
  "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
 ]
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "gear-common",
  "gear-core",
@@ -11686,7 +11674,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "pallet-gear",
  "sp-api",
@@ -11697,7 +11685,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11726,7 +11714,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11758,7 +11746,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "jsonrpsee 0.24.7",
  "pallet-gear-staking-rewards-rpc-runtime-api",
@@ -11769,7 +11757,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "pallet-gear-staking-rewards",
  "sp-api",
@@ -11777,7 +11765,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "derive_more 2.0.1",
  "frame-benchmarking",
@@ -17178,18 +17166,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "statrs"
-version = "0.17.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f697a07e4606a0a25c044de247e583a330dbb1731d11bc7350b81f48ad567255"
-dependencies = [
- "approx",
- "nalgebra",
- "num-traits",
- "rand 0.8.5",
-]
-
-[[package]]
 name = "str-buf"
 version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18749,7 +18725,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "const-str",
  "frame-benchmarking",
@@ -19128,7 +19104,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-proc"
-version = "1.9.1"
+version = "1.9.2"
 dependencies = [
  "clap 4.5.23",
  "gear-wasm-builder",
