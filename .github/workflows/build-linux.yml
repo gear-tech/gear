@@ -286,7 +286,23 @@ jobs:
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: Download Vara Testnet snapshot"
-        run: ./scripts/download-snapshot.sh https://snapshots.vara-network.io/vara-testnet.snap vara_ci_testnet.snap
+        run: |
+          aria2c \
+            --retry-wait=10 \
+            --max-tries=15 \
+            --timeout=60 \
+            --connect-timeout=60 \
+            --max-connection-per-server=8 \
+            --split=8 \
+            --min-split-size=64M \
+            --allow-overwrite=true \
+            --auto-file-renaming=false \
+            --continue=true \
+            --file-allocation=none \
+            --console-log-level=notice \
+            --summary-interval=30 \
+            --out=vara_ci_testnet.snap \
+            https://snapshots.vara-network.io/vara-testnet.snap
 
       - name: "Test: on-runtime-upgrade try-state (Testnet)"
         run: >-
@@ -300,7 +316,23 @@ jobs:
           snap -p vara_ci_testnet.snap
 
       - name: "Test: Download Vara Mainnet snapshot"
-        run: ./scripts/download-snapshot.sh https://snapshots.vara-network.io/vara-mainnet.snap vara_ci.snap
+        run: |
+          aria2c \
+            --retry-wait=10 \
+            --max-tries=15 \
+            --timeout=60 \
+            --connect-timeout=60 \
+            --max-connection-per-server=8 \
+            --split=8 \
+            --min-split-size=64M \
+            --allow-overwrite=true \
+            --auto-file-renaming=false \
+            --continue=true \
+            --file-allocation=none \
+            --console-log-level=notice \
+            --summary-interval=30 \
+            --out=vara_ci.snap \
+            https://snapshots.vara-network.io/vara-mainnet.snap
 
       - name: "Test: on-runtime-upgrade"
         run: >-
