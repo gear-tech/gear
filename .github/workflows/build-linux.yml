@@ -254,12 +254,12 @@ jobs:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
-          android: true
+          android: false
           dotnet: true
           haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
+          large-packages: false
+          docker-images: false
+          swap-storage: false
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
