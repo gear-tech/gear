@@ -68,7 +68,7 @@ pub enum ProcessorError {
     #[error("not found block start schedule for processing announce ({0})")]
     AnnounceScheduleNotFound(AnnounceHash),
     #[error("not found announces for processing announce ({0})")]
-    AnnouncesNotFound(H256),
+    PreparedBlockAnnouncesMissing(H256),
     #[error("not found announce by hash ({0})")]
     AnnounceNotFound(AnnounceHash),
 
@@ -265,7 +265,7 @@ impl OverlaidProcessor {
             .into_iter()
             .flat_map(IntoIterator::into_iter)
             .next()
-            .ok_or(ProcessorError::AnnouncesNotFound(block_hash))?;
+            .ok_or(ProcessorError::PreparedBlockAnnouncesMissing(block_hash))?;
 
         let announce = self
             .0
