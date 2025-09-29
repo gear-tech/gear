@@ -320,7 +320,9 @@ where
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, derive_more::Display, derive_more::From, derive_more::IsVariant)]
+#[derive(
+    Debug, derive_more::Display, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
+)]
 enum ValidatorState {
     Initial(Initial),
     Producer(Producer),
