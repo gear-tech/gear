@@ -257,7 +257,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates curl git aria2 build-essential clang lld pkg-config libssl-dev wget
+            ca-certificates curl git aria2 build-essential clang lld pkg-config libssl-dev wget protobuf-compiler binaryen
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -267,12 +267,6 @@ jobs:
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
-
-      - name: "Install: Compilation environment"
-        uses: ./.github/actions/setup-compilation-env
-        with:
-          target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
@@ -287,9 +281,6 @@ jobs:
         run: |
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
-
-      - name: "Install: aria2"
-        run: sudo apt-fast install -y aria2
         
       - name: Show disk headroom
         run: |
