@@ -526,7 +526,7 @@ pub mod pallet {
 
             // Testnet incompatibility codes to be ignored during reinstrumentation check
             #[rustfmt::skip]
-            let ignore_code_ids = [
+            let expected_code_id_errs = [
                 // `gr_leave` somehow imported twice
                 ("4dd9c141603a668127b98809742cf9f0819d591fe6f44eff63edf2b529a556bd", CodeError::Import(ImportError::DuplicateImport(2))),
                 ("90b021503f01db60d0ba00eac970d5d6845f1a757c667232615b5d6c0ff800cc", CodeError::Import(ImportError::DuplicateImport(2))),
@@ -570,7 +570,7 @@ pub mod pallet {
             let schedule = T::Schedule::get();
 
             let mut total_checked = 0;
-            let mut failed_codes = Vec::new();
+            let mut failed_codes: Vec<(CodeId, String)> = Vec::new();
             let mut ignored_count = 0;
 
             log::info!("Starting try-state code compatibility check");
@@ -587,6 +587,17 @@ pub mod pallet {
                 if let Some(original_code) = T::CodeStorage::get_original_code(code_id) {
                     total_checked += 1;
 
+                    let original_code_len = original_code.len() as u32;
+                    if original_code_len > schedule.limits.code_len {
+                        let error_message = format!(
+                            "original code length {original_code_len} exceeds limit {}",
+                            schedule.limits.code_len
+                        );
+                        log::error!("Code {code_id} instrumentation failed: {error_message}");
+                        failed_codes.push((code_id, error_message));
+                        continue;
+                    }
+
                     // Try to instrument the code with the current schedule without updating storage
                     if let Err(e) = gear_core::code::Code::try_new(
                         original_code,
@@ -597,21 +608,23 @@ pub mod pallet {
                         schedule.limits.type_section_len.into(),
                         schedule.limits.parameters.into(),
                     ) {
-                        if let Some(expected_error) = ignore_code_ids.get(&code_id) {
+                        if let Some(expected_error) = expected_code_id_errs.get(&code_id) {
                             if expected_error == &e {
                                 log::warn!(
                                     "Ignoring incompatible code {code_id} (testnet legacy): {e}"
                                 );
                                 ignored_count += 1;
                             } else {
+                                let error_message = format!("{e} (expected: {expected_error})");
                                 log::error!(
-                                    "Code {code_id} instrumentation failed with unexpected error: {e} (expected: {expected_error})"
+                                    "Code {code_id} instrumentation failed with unexpected error: {error_message}"
                                 );
-                                failed_codes.push((code_id, e));
+                                failed_codes.push((code_id, error_message));
                             }
                         } else {
-                            log::error!("Code {code_id} instrumentation failed: {e}");
-                            failed_codes.push((code_id, e));
+                            let error_message = e.to_string();
+                            log::error!("Code {code_id} instrumentation failed: {error_message}");
+                            failed_codes.push((code_id, error_message));
                         }
                     }
                 }
