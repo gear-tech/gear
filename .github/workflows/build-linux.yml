@@ -304,7 +304,6 @@ jobs:
 
       - name: "Test: Download Vara Testnet snapshot"
         run: |
-          mkdir -p /mnt/vara_snapshots
           aria2c \
             --retry-wait=10 \
             --max-tries=15 \
@@ -319,7 +318,6 @@ jobs:
             --file-allocation=none \
             --console-log-level=notice \
             --summary-interval=5 \
-            -d /mnt/vara_snapshots \
             --out=vara_ci_testnet.snap \
             https://snapshots.vara-network.io/vara-testnet.snap
 
@@ -332,7 +330,7 @@ jobs:
           --checks try-state
           --disable-spec-version-check
           --no-weight-warnings
-          snap -p /mnt/vara/vara_ci_testnet.snap
+          snap -p vara_ci_testnet.snap
 
       - name: "Test: Download Vara Mainnet snapshot"
         run: |
