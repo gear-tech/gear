@@ -42,21 +42,6 @@ typos: (ensure-binary "typos" "cargo install typos-cli")
     # Checking the repository for typos
     typos
 
-# Check code with `cargo check`
-[group('checks')]
-check:
-    # Checking the workspace
-    __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 \
-        cargo check --workspace
-
-    # Check crates that use `cfg(fuzz)`
-    RUSTFLAGS="--cfg fuzz" \
-        cargo check "$@" \
-        -p gear-common \
-        -p vara-runtime \
-        -p runtime-fuzzer \
-        -p runtime-fuzzer-fuzz
-
 # Run tests
 [group('checks')]
 test: (ensure-cargo "hack") (ensure-cargo "nextest")
