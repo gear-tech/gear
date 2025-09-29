@@ -133,7 +133,10 @@ pub enum Response {
     ActiveEra {
         // Current active era index.
         index: u32,
-        // Block number when the era started. `None` if the era has not started yet.
+        /// Moment of start expressed as millisecond from `$UNIX_EPOCH`.
+        ///
+        /// Start can be none if start hasn't been set for the era yet,
+        /// Start is set on the first on_finalize of the era to guarantee usage of `Time`.
         start: Option<u64>,
         // Block number when the request was executed.
         executed_at: u32,
