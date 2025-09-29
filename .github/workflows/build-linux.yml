@@ -262,9 +262,6 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
-
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
