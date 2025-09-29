@@ -266,7 +266,7 @@ impl TestEnv {
             let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
-            let mut config = NetworkConfig::new_test(config_path);
+            let mut config = NetworkConfig::new_test(config_path, router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
             let mut service = NetworkService::new(
@@ -794,7 +794,7 @@ impl Node {
             let config_path = tempfile::tempdir().unwrap().keep();
             let multiaddr: Multiaddr = addr.parse().unwrap();
 
-            let mut config = NetworkConfig::new_test(config_path);
+            let mut config = NetworkConfig::new_test(config_path, self.eth_cfg.router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
             if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {

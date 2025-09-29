@@ -99,6 +99,7 @@ async fn basics() {
     // Enable all optional services
     config.network = Some(ethexe_network::NetworkConfig::new_local(
         tmp_dir.join("net"),
+        config.ethereum.router_address,
     ));
 
     config.rpc = Some(RpcConfig {

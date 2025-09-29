@@ -19,6 +19,7 @@
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
+use ethexe_common::Address;
 use ethexe_network::{
     NetworkConfig,
     export::{Multiaddr, Protocol},
@@ -66,7 +67,11 @@ impl NetworkParams {
     pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
     /// Convert self into a proper `NetworkConfig` object, if network is enabled.
-    pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkConfig>> {
+    pub fn into_config(
+        self,
+        config_dir: PathBuf,
+        router_address: Address,
+    ) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
         }
@@ -116,6 +121,7 @@ impl NetworkParams {
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
+            router_address,
         }))
     }
 }

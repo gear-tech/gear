@@ -74,23 +74,33 @@ impl Params {
 
     /// Convert self into a proper services `Config` object.
     pub fn into_config(self) -> Result<Config> {
-        let node = self.node.ok_or_else(|| anyhow!("missing node params"))?;
+        let Params {
+            node,
+            ethereum,
+            network,
+            rpc,
+            prometheus,
+        } = self;
+
+        let node = node.ok_or_else(|| anyhow!("missing node params"))?;
         let net_dir = node.net_dir();
         let dev = node.dev;
 
-        let ethereum = self
-            .ethereum
-            .ok_or_else(|| anyhow!("missing ethereum params"))?;
+        let ethereum = ethereum.ok_or_else(|| anyhow!("missing ethereum params"))?;
+        let node = node.into_config()?;
+        let ethereum = ethereum.into_config()?;
+        let network = network
+            .and_then(|p| p.into_config(net_dir, ethereum.router_address).transpose())
+            .transpose()?;
+        let rpc = rpc.and_then(|p| p.into_config(dev));
+        let prometheus = prometheus.and_then(|p| p.into_config());
 
         Ok(Config {
-            node: node.into_config()?,
-            ethereum: ethereum.into_config()?,
-            network: self
-                .network
-                .and_then(|p| p.into_config(net_dir).transpose())
-                .transpose()?,
-            rpc: self.rpc.and_then(|p| p.into_config(dev)),
-            prometheus: self.prometheus.and_then(|p| p.into_config()),
+            node,
+            ethereum,
+            network,
+            rpc,
+            prometheus,
         })
     }
 }
