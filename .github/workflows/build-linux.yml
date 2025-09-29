@@ -257,8 +257,8 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            ca-certificates curl git aria2 build-essential clang lld pkg-config libssl-dev
-            
+            ca-certificates curl git aria2 build-essential clang lld pkg-config libssl-dev wget
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
