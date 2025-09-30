@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use builtins_common::{BuiltinContext, BuiltinActorError};
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
+use builtins_common::{BuiltinActorError, BuiltinContext};
 use common::Origin;
 use core::marker::PhantomData;
 use frame_support::traits::EnsureOrigin;

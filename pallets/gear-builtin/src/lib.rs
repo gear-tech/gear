@@ -90,11 +90,9 @@ fn builtin_error_into_actor_error(err: BuiltinActorError) -> ActorExecutionError
         BuiltinActorError::InsufficientGas => {
             ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
         }
-        BuiltinActorError::InsufficientValue => {
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                LimitedStr::from_small_str("Not enough value supplied").into(),
-            ))
-        }
+        BuiltinActorError::InsufficientValue => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Not enough value supplied").into()),
+        ),
         BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
             TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
         ),
@@ -257,9 +255,7 @@ pub mod pallet {
             context.try_charge_gas(actual_gas)?;
 
             res.inspect(|_| {
-                log::debug!(
-                    "Call dispatched successfully",
-                );
+                log::debug!("Call dispatched successfully",);
             })
             .map(|_| ())
             .inspect_err(|e| {

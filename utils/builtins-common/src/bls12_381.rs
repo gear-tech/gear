@@ -22,17 +22,19 @@ use ark_ec::pairing::Pairing;
 pub use ark_ff;
 pub use ark_scale::{self, ark_serialize};
 
-use super::{BuiltinContext, BuiltinActorError};
+use super::{BuiltinActorError, BuiltinContext};
 use alloc::{vec, vec::Vec};
+use ark_bls12_381::Bls12_381;
 use ark_scale::{
-    ArkScale,
     HOST_CALL,
     rw::InputAsRead,
-    scale::{Input, Encode, Decode, Compact}
+    scale::{Compact, Decode, Encode, Input},
 };
-use ark_bls12_381::Bls12_381;
-use ark_serialize::{CanonicalSerialize, CanonicalDeserialize, Compress, Validate};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use gear_core::str::LimitedStr;
+
+const SCALE_USAGE: u8 = ark_scale::make_usage(Compress::No, Validate::No);
+type ArkScaleLocal<T> = ark_scale::ArkScale<T, SCALE_USAGE>;
 
 const IS_COMPRESSED: Compress = ark_scale::is_compressed(HOST_CALL);
 const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
@@ -63,25 +65,20 @@ pub trait BlsOpsGasCost {
 pub struct Bls12_381Ops;
 
 impl Bls12_381Ops {
-    pub fn multi_miller_loop(g1: &[u8], g2: &[u8]) -> Result<Vec<u8>, ()> {
-        let a = Self::decode::<Vec<<Bls12_381 as Pairing>::G1Affine>>(g1);
-        log::warn!("Bls12_381Ops, Decoded a: {:x?}", a);
-        let b = Self::decode::<Vec<<Bls12_381 as Pairing>::G2Affine>>(g2);
-        log::warn!("Bls12_381Ops, Decoded b: {:x?}", b);
-
-        let a = a?;
-        let b = b?;
+    pub fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, ()> {
+        let a = Self::decode::<Vec<<Bls12_381 as Pairing>::G1Affine>>(g1)?;
+        let b = Self::decode::<Vec<<Bls12_381 as Pairing>::G2Affine>>(g2)?;
 
         let res = Bls12_381::multi_miller_loop(a, b);
         Ok(Self::encode(res.0))
     }
 
     pub fn encode<T: CanonicalSerialize>(val: T) -> Vec<u8> {
-        ArkScale::<T>::from(val).encode()
+        ArkScaleLocal::from(val).encode()
     }
 
-    fn decode<T: CanonicalDeserialize>(mut buf: &[u8]) -> Result<T, ()> {
-        ArkScale::<T>::decode(&mut buf)
+    fn decode<T: CanonicalDeserialize>(buf: Vec<u8>) -> Result<T, ()> {
+        ArkScaleLocal::<T>::decode(&mut &buf[..])
             .map(|v| v.0)
             .map_err(|_| ())
     }
@@ -97,20 +94,15 @@ pub fn multi_miller_loop<T: BlsOpsGasCost, E: Into<BuiltinActorError>>(
     let a = decode_vec::<T, _>(&mut payload, context)?;
     let b = decode_vec::<T, _>(&mut payload, context)?;
 
-    log::warn!("Decoded multi Miller loop inputs: a.len() = {}, b.len() = {}", a.len(), b.len());
-    log::warn!("Decoded a: {:x?}", a);
-    log::warn!("Decoded b: {:x?}", b);
-
     // Decode the items count from 'a'
     let mut slice = a.as_slice();
     let mut reader = InputAsRead(&mut slice);
-    let count = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED).map_err(|_| {
-        log::debug!(
-            "Failed to decode items count in a",
-        );
+    let count =
+        u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED).map_err(|_| {
+            log::debug!("Failed to decode items count in a",);
 
-        BuiltinActorError::DecodingError
-    })?;
+            BuiltinActorError::DecodingError
+        })?;
 
     // Decode the items count from 'b' and verify they match
     let mut slice = b.as_slice();
@@ -126,7 +118,7 @@ pub fn multi_miller_loop<T: BlsOpsGasCost, E: Into<BuiltinActorError>>(
     }
 
     let gas_cost = T::bls12_381_multi_miller_loop(count as u32);
-    context.try_charge_gas(gas_cost).map_err(|_| BuiltinActorError::DecodingError)?;
+    context.try_charge_gas(gas_cost)?;
 
     multi_miller_loop_impl(a, b).map_err(|e| e.into())
 }
@@ -136,14 +128,10 @@ fn decode_vec<T: BlsOpsGasCost, I: Input>(
     input: &mut I,
     context: &mut BuiltinContext,
 ) -> Result<Vec<u8>, BuiltinActorError> {
-    let len = Compact::<u32>::decode(input)
-        .map(u32::from)
-        .map_err(|_| {
-            log::debug!(
-                "Failed to scale-decode length of the vector",
-            );
-            BuiltinActorError::DecodingError
-        })?;
+    let len = Compact::<u32>::decode(input).map(u32::from).map_err(|_| {
+        log::debug!("Failed to scale-decode length of the vector",);
+        BuiltinActorError::DecodingError
+    })?;
 
     let to_spend = T::decode_bytes(len);
     context.try_charge_gas(to_spend)?;
@@ -152,9 +140,7 @@ fn decode_vec<T: BlsOpsGasCost, I: Input>(
     let bytes_slice = items.as_mut_slice();
 
     input.read(bytes_slice).map(|_| items).map_err(|_| {
-        log::debug!(
-            "Failed to scale-decode vector data",
-        );
+        log::debug!("Failed to scale-decode vector data",);
         BuiltinActorError::DecodingError
     })
 }

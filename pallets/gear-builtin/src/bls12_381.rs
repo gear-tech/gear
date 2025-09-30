@@ -20,10 +20,10 @@ use super::*;
 // todo [sab] remove this deps
 use ark_scale::HOST_CALL;
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
+use builtins_common::bls12_381::{self as gear_bls_12_381_ops, BlsOpsGasCost};
 use core::marker::PhantomData;
 use gbuiltin_bls381::*;
 use gear_runtime_interface::gear_bls_12_381 as ri_gear_bls_12_381;
-use builtins_common::bls12_381::{self as gear_bls_12_381_ops, BlsOpsGasCost};
 use parity_scale_codec::{Compact, Input};
 use sp_crypto_ec_utils::bls12_381 as ri_sp_bls12_381;
 
@@ -39,20 +39,14 @@ impl From<RiGearBls12_381ErrorCodeConverter> for BuiltinActorError {
         match err.0.into() {
             GearBls12_381Error::Decode => BuiltinActorError::DecodingError,
             GearBls12_381Error::EmptyPointList => {
-                BuiltinActorError::Custom(LimitedStr::from_small_str(
-                    "BLS12-381: empty point list",
-                ))
+                BuiltinActorError::Custom(LimitedStr::from_small_str("BLS12-381: empty point list"))
             }
-            GearBls12_381Error::MapperCreation => {
-                BuiltinActorError::Custom(LimitedStr::from_small_str(
-                    "BLS12-381: mapper creation error",
-                ))
-            }
-            GearBls12_381Error::MessageMapping => {
-                BuiltinActorError::Custom(LimitedStr::from_small_str(
-                    "BLS12-381: message mapping error",
-                ))
-            }
+            GearBls12_381Error::MapperCreation => BuiltinActorError::Custom(
+                LimitedStr::from_small_str("BLS12-381: mapper creation error"),
+            ),
+            GearBls12_381Error::MessageMapping => BuiltinActorError::Custom(
+                LimitedStr::from_small_str("BLS12-381: message mapping error"),
+            ),
         }
     }
 }
@@ -65,7 +59,9 @@ impl RiGearBls12_381Call {
     fn execute<T: Config>(self) -> Result<Vec<u8>, BuiltinActorError> {
         match self {
             RiGearBls12_381Call::MultiMillerLoop(a, b) => {
-                ri_gear_bls_12_381::multi_miller_loop(&a, &b)
+                // ri_sp_bls12_381::host_calls::bls12_381_multi_miller_loop(a, b)
+                //     .map_err(|_| RiGearBls12_381ErrorCodeConverter(0).into())
+                ri_gear_bls_12_381::multi_miller_loop(a, b)
                     .map_err(|e| RiGearBls12_381ErrorCodeConverter(e).into())
             }
         }
@@ -121,7 +117,6 @@ impl<T: Config> BuiltinActor for Actor<T> {
     ) -> Result<BuiltinReply, BuiltinActorError> {
         let message = dispatch.message();
         let payload = message.payload_bytes();
-        log::warn!("Received payload: {:?}", payload);
         match payload.first().copied() {
             Some(REQUEST_MULTI_MILLER_LOOP) => multi_miller_loop::<T>(&payload[1..], context),
             Some(REQUEST_FINAL_EXPONENTIATION) => final_exponentiation::<T>(&payload[1..], context),
@@ -161,12 +156,9 @@ fn multi_miller_loop<T: Config>(
     mut payload: &[u8],
     context: &mut BuiltinContext,
 ) -> Result<Response, BuiltinActorError> {
-    log::warn!("Received multi-miller payload: {:?}", payload);
-    gear_bls_12_381_ops::multi_miller_loop::<Bls12_381OpsImpl<T>, _>(
-        payload,
-        context,
-        |a, b| RiGearBls12_381Call::MultiMillerLoop(a, b).execute::<T>()
-    )
+    gear_bls_12_381_ops::multi_miller_loop::<Bls12_381OpsImpl<T>, _>(payload, context, |a, b| {
+        RiGearBls12_381Call::MultiMillerLoop(a, b).execute::<T>()
+    })
     .map(Response::MultiMillerLoop)
 }
 
@@ -175,9 +167,7 @@ fn decode_vec<T: Config, I: Input>(
     context: &mut BuiltinContext,
 ) -> Result<Vec<u8>, BuiltinActorError> {
     let len = Compact::<u32>::decode(input).map(u32::from).map_err(|_| {
-        log::debug!(
-            "Failed to scale-decode vector length"
-        );
+        log::debug!("Failed to scale-decode vector length");
         BuiltinActorError::DecodingError
     })?;
 
@@ -188,9 +178,7 @@ fn decode_vec<T: Config, I: Input>(
     let bytes_slice = items.as_mut_slice();
 
     input.read(bytes_slice).map(|_| items).map_err(|_| {
-        log::debug!(
-            "Failed to scale-decode vector data",
-        );
+        log::debug!("Failed to scale-decode vector data",);
 
         BuiltinActorError::DecodingError
     })
@@ -226,9 +214,7 @@ fn msm<T: Config>(
     let mut slice = bases.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            "Failed to decode items count in bases",
-        );
+        log::debug!("Failed to decode items count in bases",);
 
         return Err(BuiltinActorError::DecodingError);
     };
@@ -242,9 +228,7 @@ fn msm<T: Config>(
             )));
         }
         Err(_) => {
-            log::debug!(
-                "Failed to decode items count in scalars",
-            );
+            log::debug!("Failed to decode items count in scalars",);
 
             return Err(BuiltinActorError::DecodingError);
         }
@@ -305,9 +289,7 @@ fn projective_multiplication<T: Config>(
     let mut slice = scalar.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            "Failed to decode items count in scalar",
-        );
+        log::debug!("Failed to decode items count in scalar",);
 
         return Err(BuiltinActorError::DecodingError);
     };
@@ -362,9 +344,7 @@ fn aggregate_g1<T: Config>(
     let mut slice = points.as_slice();
     let mut reader = ark_scale::rw::InputAsRead(&mut slice);
     let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            "Failed to decode items count in points",
-        );
+        log::debug!("Failed to decode items count in points",);
 
         return Err(BuiltinActorError::DecodingError);
     };
@@ -375,9 +355,7 @@ fn aggregate_g1<T: Config>(
     gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points)
         .map(Response::AggregateG1)
         .map_err(|e| {
-            log::debug!(
-                "Failed to aggregate G1-points: {e}"
-            );
+            log::debug!("Failed to aggregate G1-points: {e}");
 
             BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Aggregate G1-points: computation error",
@@ -392,16 +370,12 @@ fn map_to_g2affine<T: Config>(
     let len = Compact::<u32>::decode(&mut payload)
         .map(u32::from)
         .map_err(|_| {
-            log::debug!(
-                "Failed to scale-decode vector length"
-            );
+            log::debug!("Failed to scale-decode vector length");
             BuiltinActorError::DecodingError
         })?;
 
     if len != payload.len() as u32 {
-        log::debug!(
-            "Failed to scale-decode vector length"
-        );
+        log::debug!("Failed to scale-decode vector length");
 
         return Err(BuiltinActorError::DecodingError);
     }
@@ -412,9 +386,7 @@ fn map_to_g2affine<T: Config>(
     gear_runtime_interface::gear_bls_12_381::map_to_g2affine(payload)
         .map(Response::MapToG2Affine)
         .map_err(|e| {
-            log::debug!(
-                "Failed to map a message: {e}"
-            );
+            log::debug!("Failed to map a message: {e}");
 
             BuiltinActorError::Custom(LimitedStr::from_small_str(
                 "Mapping message: computation error",

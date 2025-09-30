@@ -23,8 +23,11 @@ extern crate alloc;
 #[cfg(any(feature = "bls12-381", feature = "bls12-381-std"))]
 pub mod bls12_381;
 
+use gear_core::{
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
+    str::LimitedStr,
+};
 use parity_scale_codec::{Decode, Encode};
-use gear_core::{gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter}, str::LimitedStr};
 
 /// A builtin actor execution context. Primarily used to track gas usage.
 #[derive(Debug)]

@@ -44,10 +44,10 @@ use {
     },
     ark_ff::fields::field_hashers::DefaultFieldHasher,
     ark_scale::ArkScale,
+    builtins_common::bls12_381::Bls12_381Ops,
     gear_lazy_pages::LazyPagesStorage,
     gear_lazy_pages_common::ProcessAccessError,
     sp_std::convert::TryFrom,
-    builtins_common::bls12_381::Bls12_381Ops,
 };
 
 pub use gear_sandbox_interface::sandbox;
@@ -388,27 +388,27 @@ impl From<u32> for GearBls12_381Error {
 #[runtime_interface]
 pub trait GearBls12_381 {
     /// Computes the multi Miller loop for BLS12-381 pairing operations.
-    /// 
+    ///
     /// The Miller loop is the first phase of pairing computation in bilinear cryptography.
     /// This function performs Miller loops for multiple point pairs simultaneously,
     /// computing ∏ᵢ f(Pᵢ, Qᵢ) where f is the Miller function for the BLS12-381 curve.
-    /// 
+    ///
     /// # Parameters
-    /// 
+    ///
     /// * `g1` - SCALE-encoded `ArkScale<Vec<G1Affine>>` containing G1 points
     /// * `g2` - SCALE-encoded `ArkScale<Vec<G2Affine>>` containing G2 points
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Vec<u8>)` - SCALE-encoded `ArkScale<Fq12>` Miller loop result
     /// * `Err(u32)` - Error code if decoding fails or invalid input
-    /// 
+    ///
     /// # Requirements
-    /// 
+    ///
     /// - Both arrays must have equal length and non-zero size
     /// - Points must be valid curve points in their respective groups
     /// - For complete pairing, follow with [`final_exponentiation`]
-    fn multi_miller_loop(g1: &[u8], g2: &[u8]) -> Result<Vec<u8>, u32> {
+    fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, u32> {
         Bls12_381Ops::multi_miller_loop(g1, g2).map_err(|_| u32::from(GearBls12_381Error::Decode))
     }
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.

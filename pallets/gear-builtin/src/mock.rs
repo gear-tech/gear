@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, ActorWithId, BuiltinActor,
-    BuiltinReply, GasAllowanceOf, bls12_381, proxy,
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinReply, GasAllowanceOf,
+    bls12_381, proxy,
 };
 use builtins_common::{BuiltinActorError, BuiltinContext};
 use common::{GasProvider, GasTree, storage::Limiter};
