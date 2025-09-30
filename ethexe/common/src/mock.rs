@@ -32,7 +32,7 @@ use itertools::Itertools;
 use nonempty::{NonEmpty, nonempty};
 use std::collections::{BTreeSet, VecDeque};
 
-// TODO +_+_+: use `proptest::Arbitrary` instead
+// TODO #4881: use `proptest::Arbitrary` instead
 pub trait Mock<Args> {
     fn mock(args: Args) -> Self;
 }
