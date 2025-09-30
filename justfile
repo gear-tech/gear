@@ -66,8 +66,7 @@ test-doc:
 [group('checks')]
 check-runtime-imports:
     # Checking runtime imports
-    cargo build -p wasm-proc
     cargo build -p vara-runtime
-    ./target/debug/wasm-proc \
+    cargo run -p wasm-proc -- \
         --check-runtime-imports \
         target/debug/wbuild/vara-runtime/vara_runtime.wasm
