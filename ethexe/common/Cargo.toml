@@ -39,4 +39,4 @@ std = [
     "k256/std",
     "alloy-primitives/std",
 ]
-mock = ["std", "itertools", "itertools/use_std", "tap"]
+mock = ["std", "itertools/use_std", "tap"]
