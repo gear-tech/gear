@@ -49,16 +49,9 @@ test: (ensure-cargo "hack") (ensure-cargo "nextest")
     cargo nextest run \
         --workspace \
         --no-fail-fast \
-        --exclude gclient \
-        --exclude gcli \
-        --exclude gsdk \
-        --exclude gear-authorship \
-        --exclude pallet-gear-staking-rewards \
-        --exclude gear-wasm-gen \
-        --exclude demo-stack-allocations \
-        --exclude gring \
-        --exclude runtime-fuzzer \
-        --exclude runtime-fuzzer-fuzz
+        --all-features \
+        --all-targets \
+        -E 'not package(/fuzz/)'
 
 # Run documentation tests
 [group('checks')]
