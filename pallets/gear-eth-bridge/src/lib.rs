@@ -33,7 +33,11 @@ pub use pallet::*;
 pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
 pub use weights::WeightInfo;
 
-use internal::EthMessageExt;
+/// Pallet migrations.
+pub mod migrations {
+    /// Reset migration.
+    pub mod reset;
+}
 
 pub mod weights;
 
@@ -52,9 +56,10 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+    use crate::internal::QueueInfo;
     use common::Origin;
     use frame_support::{
-        PalletId, StorageHasher,
+        PalletId,
         pallet_prelude::*,
         traits::{
             ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
@@ -62,21 +67,21 @@ pub mod pallet {
         },
     };
     use frame_system::{
-        ensure_signed,
+        ensure_root, ensure_signed,
         pallet_prelude::{BlockNumberFor, OriginFor},
     };
-    use gprimitives::{ActorId, H160, H256, U256};
+    use gprimitives::{H160, H256, U256};
     use sp_runtime::{
-        BoundToRuntimeAppPublic, RuntimeAppPublic,
+        BoundToRuntimeAppPublic,
         traits::{Keccak256, One, Saturating, Zero},
     };
     use sp_std::vec::Vec;
 
-    type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
     type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
     pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
+    pub(crate) type QueueCapacityOf<T> = <T as Config>::QueueCapacity;
 
     /// Pallet Gear Eth Bridge's storage version.
     pub const ETH_BRIDGE_STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
@@ -96,9 +101,6 @@ pub mod pallet {
         /// Account ID of the bridge builtin.
         #[pallet::constant]
         type BuiltinAddress: Get<Self::AccountId>;
-
-        /// Privileged origin for bridge management operations.
-        type ControlOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Privileged origin for administrative operations.
         type AdminOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -131,14 +133,16 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's event.
     #[pallet::event]
-    #[pallet::generate_deposit(fn deposit_event)]
+    #[pallet::generate_deposit(pub(crate) fn deposit_event)]
     pub enum Event<T> {
         /// Grandpa validator's keys set was hashed and set in storage at
         /// first block of the last session in the era.
         AuthoritySetHashChanged(H256),
 
-        /// Bridge got cleared on initialization of the second block in a new era.
-        BridgeCleared,
+        /// Authority set hash was reset.
+        ///
+        /// Related to bridge clearing on initialization of the second block in a new era.
+        AuthoritySetReset,
 
         /// Optimistically, single-time called event defining that pallet
         /// got initialized and started processing session changes,
@@ -160,7 +164,17 @@ pub mod pallet {
         },
 
         /// Merkle root of the queue changed: new messages queued within the block.
-        QueueMerkleRootChanged(H256),
+        QueueMerkleRootChanged {
+            /// Queue identifier.
+            queue_id: u64,
+            /// Merkle root of the queue.
+            root: H256,
+        },
+
+        /// Queue was reset.
+        ///
+        /// Related to bridge clearing on initialization of the second block in a new era.
+        QueueReset,
     }
 
     /// Pallet Gear Eth Bridge's error.
@@ -176,10 +190,6 @@ pub mod pallet {
 
         /// The error happens when bridging message sent with too big payload.
         MaxPayloadSizeExceeded,
-
-        /// The error happens when bridging queue capacity exceeded,
-        /// so message couldn't be sent.
-        QueueCapacityExceeded,
 
         /// The error happens when bridging thorough builtin and message value
         /// is inapplicable to operation or insufficient.
@@ -223,6 +233,18 @@ pub mod pallet {
     #[pallet::unbounded]
     pub(crate) type Queue<T> = StorageValue<_, Vec<H256>, ValueQuery>;
 
+    /// Primary storage.
+    ///
+    /// Keeps the monotonic identifier of a bridge message queue.
+    #[pallet::storage]
+    pub(crate) type QueueId<T> = StorageValue<_, u64, ValueQuery>;
+
+    /// Helper storage.
+    ///
+    /// Keeps queue infos to their ids. For details on info, see [`QueueInfo`].
+    #[pallet::storage]
+    pub(crate) type QueuesInfo<T> = StorageMap<_, Identity, u64, QueueInfo>;
+
     /// Operational storage.
     ///
     /// Declares timer of the session changes (`on_new_session` calls),
@@ -260,6 +282,13 @@ pub mod pallet {
 
     /// Operational storage.
     ///
+    /// Defines if queue should be reset in the next block initialization.
+    /// Intended to support unlimited queue capacity.
+    #[pallet::storage]
+    pub(crate) type ResetQueueOnInit<T> = StorageValue<_, bool, ValueQuery>;
+
+    /// Operational storage.
+    ///
     /// Defines the amount of fee to be paid for the transport of messages.
     #[pallet::storage]
     pub type TransportFee<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
@@ -279,8 +308,11 @@ pub mod pallet {
         #[pallet::call_index(0)]
         #[pallet::weight(<T as Config>::WeightInfo::pause())]
         pub fn pause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by `ControlOrigin` or root.
-            T::ControlOrigin::ensure_origin_or_root(origin)?;
+            // Root or governance admin/pauser.
+            if ensure_root(origin.clone()).is_err() {
+                let origin = ensure_signed(origin)?;
+                Self::ensure_admin_or_pauser(origin.clone().cast())?;
+            }
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -303,8 +335,11 @@ pub mod pallet {
         #[pallet::call_index(1)]
         #[pallet::weight(<T as Config>::WeightInfo::unpause())]
         pub fn unpause(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            // Ensuring called by `ControlOrigin` or root.
-            T::ControlOrigin::ensure_origin_or_root(origin)?;
+            // Root or governance admin/pauser.
+            if ensure_root(origin.clone()).is_err() {
+                let origin = ensure_signed(origin)?;
+                Self::ensure_admin_or_pauser(origin.clone().cast())?;
+            }
 
             // Ensuring that pallet is initialized.
             ensure!(
@@ -337,22 +372,23 @@ pub mod pallet {
         where
             T::AccountId: Origin,
         {
-            let source: ActorId = ensure_signed(origin.clone())?.cast();
-            let is_governance_origin = T::ControlOrigin::ensure_origin(origin).is_ok();
+            let origin = ensure_signed(origin)?;
+
+            let from_governance = Self::ensure_admin_or_pauser(origin.clone().cast()).is_ok();
 
             // Transfer fee or skip it if it's zero or governance origin.
             let fee = TransportFee::<T>::get();
-            if !(fee.is_zero() || is_governance_origin) {
+            if !(fee.is_zero() || from_governance) {
                 let builtin_id = T::BuiltinAddress::get();
                 CurrencyOf::<T>::transfer(
-                    &source.cast(),
+                    &origin,
                     &builtin_id,
                     fee,
                     ExistenceRequirement::AllowDeath,
                 )?;
             }
 
-            Self::queue_message(source, destination, payload, is_governance_origin)?;
+            Self::queue_message(origin.cast(), destination, payload)?;
 
             Ok(().into())
         }
@@ -373,59 +409,26 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub(crate) fn queue_message(
-            source: ActorId,
-            destination: H160,
-            payload: Vec<u8>,
-            is_governance_origin: bool,
-        ) -> Result<(U256, H256), Error<T>> {
-            // Ensuring that pallet is initialized.
-            ensure!(
-                Initialized::<T>::get(),
-                Error::<T>::BridgeIsNotYetInitialized
-            );
+        /// Returns pallet prefix, storage prefix and resulting prefix hash for `AuthoritySetHash` storage.
+        pub fn authority_set_hash_storage_info() -> (&'static str, &'static str, [u8; 32]) {
+            type Storage<T> = _GeneratedPrefixForStorageAuthoritySetHash<T>;
 
-            // Ensuring that pallet isn't paused.
-            ensure!(!Paused::<T>::get(), Error::<T>::BridgeIsPaused);
+            (
+                Storage::<T>::pallet_prefix(),
+                Storage::<T>::STORAGE_PREFIX,
+                Storage::<T>::prefix_hash(),
+            )
+        }
 
-            // Creating new message from given data.
-            //
-            // Inside goes query and bump of nonce,
-            // as well as checking payload size.
-            let message = EthMessage::try_new(source, destination, payload)?;
+        /// Returns pallet prefix, storage prefix and resulting prefix hash for `QueueMerkleRoot` storage.
+        pub fn queue_merkle_root_storage_info() -> (&'static str, &'static str, [u8; 32]) {
+            type Storage<T> = _GeneratedPrefixForStorageQueueMerkleRoot<T>;
 
-            // Appending hash of the message into the queue,
-            // checks whether the queue capacity is exceeded,
-            // or skips the check when the origin is governance.
-            let hash = Queue::<T>::mutate(|v| {
-                (is_governance_origin || v.len() < QueueCapacityOf::<T>::get() as usize)
-                    .then(|| {
-                        let hash = message.hash();
-                        v.push(hash);
-                        hash
-                    })
-                    .ok_or(Error::<T>::QueueCapacityExceeded)
-            })
-            .inspect_err(|_| {
-                // In case of error, reverting increase of `MessageNonce` performed
-                // in message creation to keep builtin interactions transactional.
-                MessageNonce::<T>::mutate_exists(|nonce| {
-                    *nonce = nonce.and_then(|inner| {
-                        inner.checked_sub(U256::one()).filter(|new| !new.is_zero())
-                    });
-                });
-            })?;
-
-            // Marking queue as changed, so root will be updated later.
-            QueueChanged::<T>::put(true);
-
-            // Extracting nonce to return.
-            let nonce = message.nonce();
-
-            // Depositing event about message being queued for bridging.
-            Self::deposit_event(Event::<T>::MessageQueued { message, hash });
-
-            Ok((nonce, hash))
+            (
+                Storage::<T>::pallet_prefix(),
+                Storage::<T>::STORAGE_PREFIX,
+                Storage::<T>::prefix_hash(),
+            )
         }
 
         /// Returns merkle inclusion proof of the message hash in the queue.
@@ -449,70 +452,46 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Resulting weight of the hook.
             //
-            // Initially consists of one read of `ClearTimer` storage.
-            let mut weight = T::DbWeight::get().reads(1);
+            // Initially consists of one read of `ClearTimer` and one write to `ResetQueueOnInit` storages.
+            let mut weight = T::DbWeight::get().reads_writes(1, 1);
+
+            // Flag defining if queue was reset within the hook.
+            let mut was_reset = false;
 
             // Querying timer and checking its value if some.
             if let Some(timer) = ClearTimer::<T>::get() {
                 // Asserting invariant that in case of key existence, it's non-zero.
-                debug_assert!(!timer.is_zero());
+                if timer.is_zero() {
+                    log::error!("Zero timer in storage on initialization");
+                }
 
                 // Decreasing timer.
                 let new_timer = timer.saturating_sub(1);
 
+                // Checking if it's time to clear.
                 if new_timer.is_zero() {
-                    // Removing timer for the next session hook.
-                    ClearTimer::<T>::kill();
-
-                    // Removing grandpa set hash from storage.
-                    AuthoritySetHash::<T>::kill();
-
-                    // Removing queued messages from storage.
-                    Queue::<T>::kill();
-
-                    // Setting zero queue root, keeping invariant of this key existence.
-                    QueueMerkleRoot::<T>::put(H256::zero());
-
-                    // Depositing event about clearing the bridge.
-                    Self::deposit_event(Event::<T>::BridgeCleared);
-
-                    // Increasing resulting weight by 3 writes of above keys removal.
-                    weight = weight.saturating_add(T::DbWeight::get().writes(4));
+                    // Clearing the bridge, including queue.
+                    let clear_weight = Self::clear_bridge();
+                    was_reset = true;
+                    weight = weight.saturating_add(clear_weight);
                 } else {
-                    // Put back non-zero timer to schedule clearing.
+                    // Rescheduling clearing by putting back non-zero timer.
                     ClearTimer::<T>::put(new_timer);
-
-                    // Increasing resulting weight by 1 writes of above keys insertion.
                     weight = weight.saturating_add(T::DbWeight::get().writes(1));
                 }
             }
 
-            // Returning weight.
+            // Resetting queue on request from previous block if there wasn't reset.
+            if ResetQueueOnInit::<T>::take() && !was_reset {
+                let reset_weight = Self::reset_queue();
+                weight = weight.saturating_add(reset_weight);
+            }
+
             weight
         }
 
         fn on_finalize(_bn: BlockNumberFor<T>) {
-            // If queue wasn't changed, than nothing to do here.
-            if !QueueChanged::<T>::take() {
-                return;
-            }
-
-            // Querying actual queue.
-            let queue = Queue::<T>::get();
-
-            // Checking invariant.
-            //
-            // If queue was changed within the block, it couldn't be empty.
-            debug_assert!(!queue.is_empty());
-
-            // Calculating new queue merkle root.
-            let root = binary_merkle_tree::merkle_root_raw::<Keccak256, _>(queue);
-
-            // Updating queue merkle root in storage.
-            QueueMerkleRoot::<T>::put(root);
-
-            // Depositing event about queue root being updated.
-            Self::deposit_event(Event::<T>::QueueMerkleRootChanged(root));
+            Self::update_queue_merkle_root_if_changed();
         }
     }
 
@@ -524,6 +503,8 @@ pub mod pallet {
         type Key = <Self as BoundToRuntimeAppPublic>::Public;
 
         fn on_genesis_session<'a, I: 'a>(_validators: I) {}
+
+        fn on_disabled(_validator_index: u32) {}
 
         // TODO: consider support of `Stalled` changes of grandpa (#4113).
         fn on_new_session<'a, I>(changed: bool, _validators: I, queued_validators: I)
@@ -580,54 +561,15 @@ pub mod pallet {
             } else {
                 // Reducing timer. If became zero, it means we're at the last
                 // session of the era and queued keys must be kept.
-                let to_set_grandpa_keys = SessionsTimer::<T>::mutate(|timer| {
+                let needs_authorities_update = SessionsTimer::<T>::mutate(|timer| {
                     timer.saturating_dec();
                     timer.is_zero()
                 });
 
-                // Setting future keys hash, if needed.
-                if to_set_grandpa_keys {
-                    // Collecting all keys into `Vec<u8>`.
-                    let keys_bytes = queued_validators
-                        .flat_map(|(_, key)| key.to_raw_vec())
-                        .collect::<Vec<_>>();
-
-                    // Hashing keys bytes with `Blake2`.
-                    let grandpa_set_hash = Blake2_256::hash(&keys_bytes).into();
-
-                    // Setting new grandpa set hash into storage.
-                    AuthoritySetHash::<T>::put(grandpa_set_hash);
-
-                    // Depositing event about update in the set.
-                    Self::deposit_event(Event::<T>::AuthoritySetHashChanged(grandpa_set_hash));
+                if needs_authorities_update {
+                    Self::update_authority_set_hash(queued_validators);
                 }
             }
-        }
-
-        fn on_disabled(_validator_index: u32) {}
-    }
-
-    /// Prefix alias of the `pallet_gear_eth_bridge::AuthoritySetHash` storage.
-    pub struct AuthoritySetHashPrefix<T>(PhantomData<T>);
-
-    impl<T: Config> StorageInstance for AuthoritySetHashPrefix<T> {
-        const STORAGE_PREFIX: &'static str =
-            <_GeneratedPrefixForStorageAuthoritySetHash<T> as StorageInstance>::STORAGE_PREFIX;
-
-        fn pallet_prefix() -> &'static str {
-            <_GeneratedPrefixForStorageAuthoritySetHash<T> as StorageInstance>::pallet_prefix()
-        }
-    }
-
-    /// Prefix alias of the `pallet_gear_eth_bridge::QueueMerkleRoot` storage.
-    pub struct QueueMerkleRootPrefix<T>(PhantomData<T>);
-
-    impl<T: Config> StorageInstance for QueueMerkleRootPrefix<T> {
-        const STORAGE_PREFIX: &'static str =
-            <_GeneratedPrefixForStorageQueueMerkleRoot<T> as StorageInstance>::STORAGE_PREFIX;
-
-        fn pallet_prefix() -> &'static str {
-            <_GeneratedPrefixForStorageQueueMerkleRoot<T> as StorageInstance>::pallet_prefix()
         }
     }
 }

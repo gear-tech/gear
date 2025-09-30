@@ -28,6 +28,7 @@ use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
+// TODO #4875: use HashOf here
 #[derive(
     Debug,
     Clone,
@@ -112,7 +113,7 @@ pub struct Announce {
 }
 
 impl Announce {
-    pub fn hash(&self) -> AnnounceHash {
+    pub fn to_hash(&self) -> AnnounceHash {
         AnnounceHash(H256(utils::hash(&self.encode())))
     }
 
@@ -125,7 +126,7 @@ impl Announce {
         }
     }
 
-    pub fn default_gas(block_hash: H256, parent: AnnounceHash) -> Self {
+    pub fn with_default_gas(block_hash: H256, parent: AnnounceHash) -> Self {
         Self {
             block_hash,
             parent,
@@ -297,10 +298,10 @@ impl CheckedAnnouncesResponse {
             return Err(AnnouncesResponseError::Empty);
         };
 
-        if request.head != last.hash() {
+        if request.head != last.to_hash() {
             return Err(AnnouncesResponseError::HeadMismatch {
                 expected: request.head,
-                received: last.hash(),
+                received: last.to_hash(),
             });
         }
 
@@ -321,12 +322,12 @@ impl CheckedAnnouncesResponse {
         }
 
         // Check chain correctness
-        let mut expected_parent_hash = first.hash();
+        let mut expected_parent_hash = first.to_hash();
         for announce in response.announces.iter().skip(1) {
             if announce.parent != expected_parent_hash {
                 return Err(AnnouncesResponseError::ChainIsNotLinked);
             }
-            expected_parent_hash = announce.hash();
+            expected_parent_hash = announce.to_hash();
         }
 
         Ok(CheckedAnnouncesResponse {

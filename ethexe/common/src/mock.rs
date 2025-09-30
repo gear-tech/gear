@@ -437,7 +437,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
             .iter_mut()
             .map(|block| {
                 let announce = Announce::base(block.hash, parent_announce_hash);
-                let announce_hash = announce.hash();
+                let announce_hash = announce.to_hash();
                 let genesis_announce_hash = genesis_announce_hash.get_or_insert(announce_hash);
                 let prepared_data = block.prepared.as_mut().unwrap();
                 prepared_data.announces.insert(announce_hash);

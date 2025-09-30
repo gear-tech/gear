@@ -29,6 +29,7 @@ use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
+use ethexe_tx_pool::TxPoolEvent;
 use gprimitives::H256;
 use tokio::sync::{
     broadcast,
@@ -109,6 +110,7 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
+    TxPool(TxPoolEvent),
 }
 
 impl TestingEvent {
@@ -121,6 +123,7 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
+            Event::TxPool(event) => Self::TxPool(event.clone()),
         }
     }
 }
@@ -131,7 +134,7 @@ pub struct ServiceEventsListener<'a> {
 }
 
 #[derive(Debug, Default, Clone, Copy, derive_more::From)]
-pub enum AnnounceID {
+pub enum AnnounceId {
     /// Wait for any next computed announce
     #[default]
     Any,
@@ -151,7 +154,7 @@ impl ServiceEventsListener<'_> {
             .await
     }
 
-    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceID>) {
+    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
         let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
@@ -160,15 +163,15 @@ impl ServiceEventsListener<'_> {
             };
 
             match id {
-                AnnounceID::Any => {
+                AnnounceId::Any => {
                     return;
                 }
-                AnnounceID::AnnounceHash(waited_announce_hash)
+                AnnounceId::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
                     return;
                 }
-                AnnounceID::BlockHash(waited_block_hash) => {
+                AnnounceId::BlockHash(waited_block_hash) => {
                     if self
                         .db
                         .announce(announce_hash)

@@ -43,14 +43,16 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest,
-    utils::MultisignedBatchCommitment,
     validator::{
-        coordinator::Coordinator, participant::Participant, producer::Producer,
-        submitter::Submitter, subordinate::Subordinate,
+        coordinator::Coordinator,
+        core::{MiddlewareExt, MiddlewareWrapper, ValidatorCore},
+        participant::Participant,
+        producer::Producer,
+        submitter::Submitter,
+        subordinate::Subordinate,
     },
 };
 use anyhow::Result;
-use async_trait::async_trait;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
@@ -69,6 +71,7 @@ use std::{
 use submitter::EthereumCommitter;
 
 mod coordinator;
+mod core;
 mod initial;
 mod participant;
 mod producer;
@@ -132,14 +135,25 @@ impl ValidatorService {
         let router = ethereum.router();
 
         let ctx = ValidatorContext {
-            slot_duration: config.slot_duration,
-            signatures_threshold: config.signatures_threshold,
-            router_address: config.router_address,
-            pub_key: config.pub_key,
-            block_gas_limit: config.block_gas_limit,
-            signer,
-            db,
-            committer: Box::new(EthereumCommitter { router }),
+            core: ValidatorCore {
+                slot_duration: config.slot_duration,
+                signatures_threshold: config.signatures_threshold,
+                router_address: config.router_address,
+                pub_key: config.pub_key,
+                signer,
+                db: db.clone(),
+                committer: Box::new(EthereumCommitter { router }),
+                middleware: MiddlewareWrapper::new(
+                    ethereum
+                        .middleware()
+                        .map(|m| Box::new(m) as Box<dyn MiddlewareExt>)
+                        .unwrap_or_else(|| Box::new(())),
+                    db,
+                ),
+                validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
+                chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
+                block_gas_limit: config.block_gas_limit,
+            },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
@@ -173,7 +187,7 @@ impl ValidatorService {
 
 impl ConsensusService for ValidatorService {
     fn role(&self) -> String {
-        format!("Validator ({:?})", self.context().pub_key.to_address())
+        format!("Validator ({:?})", self.context().core.pub_key.to_address())
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
@@ -210,10 +224,17 @@ impl Stream for ValidatorService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut event = None;
-        self.update_inner(|inner| {
-            let mut inner = inner.poll_next_state(cx)?;
+        self.update_inner(|mut inner| {
+            // Waits until some event is available or inner futures are not ready.
+            loop {
+                let (poll, state) = inner.poll_next_state(cx)?;
+                inner = state;
+                event = inner.context_mut().output.pop_front();
 
-            event = inner.context_mut().output.pop_front();
+                if poll.is_pending() || event.is_some() {
+                    break;
+                }
+            }
 
             Ok(inner)
         })?;
@@ -231,7 +252,7 @@ impl FusedStream for ValidatorService {
 }
 
 /// An event that can be saved for later processing.
-#[derive(Clone, Debug, From, PartialEq, Eq)]
+#[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
 enum PendingEvent {
     /// A block from the producer
     Announce(SignedAnnounce),
@@ -293,13 +314,15 @@ where
         DefaultProcessing::validation_reply(self, reply)
     }
 
-    fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<ValidatorState> {
-        Ok(self.into())
+    fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
+        Ok((Poll::Pending, self.into()))
     }
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, derive_more::Display, derive_more::From, derive_more::IsVariant)]
+#[derive(
+    Debug, derive_more::Display, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
+)]
 enum ValidatorState {
     Initial(Initial),
     Producer(Producer),
@@ -377,7 +400,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
-    fn poll_next_state(self, cx: &mut Context<'_>) -> Result<ValidatorState> {
+    fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
     }
 }
@@ -445,21 +468,9 @@ impl DefaultProcessing {
 
 #[derive(Debug)]
 struct ValidatorContext {
-    slot_duration: Duration,
-    signatures_threshold: u64,
-    router_address: Address,
-    pub_key: PublicKey,
-    block_gas_limit: u64,
+    /// Core validator parameters and utilities.
+    core: ValidatorCore,
 
-    #[debug(skip)]
-    signer: Signer,
-    #[debug(skip)]
-    db: Database,
-    #[debug(skip)]
-    committer: Box<dyn BatchCommitter>,
-
-    /// Pending events that are saved for later processing.
-    ///
     /// ## Important
     /// New events are pushed-front, in order to process the most recent event first.
     /// So, actually it is a stack.
@@ -480,20 +491,4 @@ impl ValidatorContext {
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
     }
-}
-
-/// Trait for committing batch commitments to the blockchain.
-#[async_trait]
-pub trait BatchCommitter: Send {
-    /// Creates a boxed clone of the committer.
-    fn clone_boxed(&self) -> Box<dyn BatchCommitter>;
-
-    /// Commits a batch of signed commitments to the blockchain.
-    ///
-    /// # Arguments
-    /// * `batch` - The batch of commitments to commit
-    ///
-    /// # Returns
-    /// The hash of the transaction that was sent to the blockchain
-    async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
 }

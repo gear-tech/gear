@@ -46,6 +46,8 @@ impl Mock<()> for BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
             head: Some(AnnounceHash(H256::random())),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
+            validators: false,
+            rewards: false,
         }
     }
 }
@@ -61,8 +63,8 @@ impl Mock<()> for BatchCommitmentValidationRequest {
 pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     let mut chain = BlockChain::mock(3);
 
-    let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.hash());
-    let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.hash());
+    let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.to_hash());
+    let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.to_hash());
     chain.block_top_announce_mut(1).as_computed_mut().outcome =
         chain_commitment1.transitions.clone();
     chain.block_top_announce_mut(2).as_computed_mut().outcome =

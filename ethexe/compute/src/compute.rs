@@ -39,7 +39,7 @@ pub(crate) async fn compute_and_include<P: ProcessorExt>(
     mut processor: P,
     announce: Announce,
 ) -> Result<ComputationStatus> {
-    let announce_hash = announce.hash();
+    let announce_hash = announce.to_hash();
     let block_hash = announce.block_hash;
 
     if !db.block_meta(block_hash).prepared {
@@ -95,7 +95,7 @@ pub async fn compute_block_announces<P: ProcessorExt>(
 
     for announce_hash in meta
         .announces
-        .ok_or(ComputeError::AnnouncesNotFound(block_hash))?
+        .ok_or(ComputeError::PreparedBlockAnnouncesSetMissing(block_hash))?
     {
         compute_chain(db.clone(), &mut processor, announce_hash).await?;
     }
@@ -114,7 +114,7 @@ async fn compute_chain<P: ProcessorExt>(
     );
 
     for announce in utils::not_computed_chain(&db, head_announce_hash)? {
-        let announce_hash = announce.hash();
+        let announce_hash = announce.to_hash();
         let result = compute_one(&db, processor, announce).await?;
         set_computation_result(&db, announce_hash, result);
     }
@@ -177,7 +177,7 @@ mod tests {
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };
-        let announce_hash = announce.hash();
+        let announce_hash = announce.to_hash();
 
         // Create non-empty processor result with transitions
         let non_empty_result = BlockProcessingResult {
@@ -191,7 +191,7 @@ mod tests {
         };
 
         // Set the PROCESSOR_RESULT to return non-empty result
-        PROCESSOR_RESULT.with(|r| *r.borrow_mut() = non_empty_result.clone());
+        PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
         let status = compute_and_include(db.clone(), MockProcessor, announce)
             .await
             .unwrap();
@@ -219,7 +219,7 @@ mod tests {
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };
-        let announce_hash = announce.hash();
+        let announce_hash = announce.to_hash();
         let status = compute_and_include(db.clone(), MockProcessor, announce)
             .await
             .unwrap();

@@ -25,7 +25,10 @@ use crate::{
 };
 use ethexe_common::{
     AnnouncesRequest, AnnouncesResponse,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite},
+    db::{
+        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, LatestData,
+        LatestDataStorageRead,
+    },
 };
 use ethexe_db::Database;
 use libp2p::request_response;
@@ -93,12 +96,27 @@ impl OngoingResponses {
                 tail,
                 max_chain_len,
             }) => {
-                let max_chain_len1 = max_chain_len.min(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE);
+                // +_+_+ change this to until
+                let max_chain_len = max_chain_len.min(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE);
+
+                let Some(LatestData {
+                    genesis_announce_hash,
+                    start_announce_hash,
+                    ..
+                }) = db.latest_data()
+                else {
+                    log::warn!("Cannot complete request: latest data not found in database");
+
+                    return AnnouncesResponse::default().into();
+                };
 
                 let mut announces = vec![];
                 let mut announce_hash = head;
-                let mut counter = max_chain_len1;
-                while counter > 0 && Some(announce_hash) != tail {
+                let mut counter = 0;
+                while counter < max_chain_len
+                    && announce_hash != start_announce_hash
+                    && Some(announce_hash) != tail
+                {
                     let Some(announce) = db.announce(announce_hash) else {
                         log::warn!(
                             "Cannot complete request: announce {announce_hash} not found in database"
@@ -109,7 +127,19 @@ impl OngoingResponses {
 
                     announce_hash = announce.parent;
                     announces.push(announce);
-                    counter -= 1;
+                    counter += 1;
+                }
+
+                if let Some(tail) = tail
+                    && announce_hash != tail
+                    && announce_hash != start_announce_hash
+                {
+                    // TODO #4874: use peer score to punish the peer for such requests
+                    log::trace!(
+                        "Cannot complete request: announce tail {tail} not found in the chain starting from head {head} within {max_chain_len} announces"
+                    );
+
+                    return AnnouncesResponse::default().into();
                 }
 
                 AnnouncesResponse { announces }.into()

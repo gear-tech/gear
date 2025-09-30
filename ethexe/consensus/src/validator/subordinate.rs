@@ -90,7 +90,7 @@ impl StateHandler for Subordinate {
 
                 if let Some(announce) = received_announce.take() {
                     // If we have an announce, we can compute it.
-                    let announce_hash = announce.hash();
+                    let announce_hash = announce.to_hash();
                     self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
                     self.state = State::WaitingAnnounceComputed { announce_hash };
                 }
@@ -130,7 +130,7 @@ impl StateHandler for Subordinate {
                 && signed_announce.data().block_hash == self.block.hash =>
             {
                 let (announce, _sign) = signed_announce.into_parts();
-                let announce_hash = announce.hash();
+                let announce_hash = announce.to_hash();
 
                 if *block_prepared {
                     self.output(ConsensusEvent::ComputeAnnounce(announce));
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn create_empty() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
 
@@ -229,14 +229,16 @@ mod tests {
 
     #[test]
     fn earlier_received_announces() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
-        let block = BlockChain::mock(1).setup(&ctx.db).blocks[1].to_simple();
-        let announce_hash = ctx.db.top_announce_hash(block.hash);
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let announce_hash = ctx.core.db.top_announce_hash(block.hash);
         let announce1 = ctx
+            .core
             .signer
             .mock_signed_data(producer, (block.hash, announce_hash));
         let announce2 = ctx
+            .core
             .signer
             .mock_signed_data(keys[1], (block.hash, announce_hash));
 
@@ -264,13 +266,13 @@ mod tests {
     }
 
     #[test]
-    fn earlier_received_validation_requests() {
-        let (mut ctx, keys) = mock_validator_context();
+    fn create_with_validation_requests() {
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let request1 = ctx.signer.mock_signed_data(producer, ());
-        let request2 = ctx.signer.mock_signed_data(alice, ());
+        let request1 = ctx.core.signer.mock_signed_data(producer, ());
+        let request2 = ctx.core.signer.mock_signed_data(alice, ());
 
         ctx.pending(PendingEvent::ValidationRequest(request1.clone()));
         ctx.pending(PendingEvent::ValidationRequest(request2.clone()));
@@ -287,17 +289,17 @@ mod tests {
 
     #[test]
     fn create_with_many_pending_events() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let announce: SignedAnnounce = ctx.signer.mock_signed_data(producer, block.hash);
+        let announce: SignedAnnounce = ctx.core.signer.mock_signed_data(producer, block.hash);
 
         ctx.pending(announce.clone());
 
         // Fill with fake blocks
         for _ in 0..10 * MAX_PENDING_EVENTS {
-            let announce = ctx.signer.mock_signed_data(alice, block.hash);
+            let announce = ctx.core.signer.mock_signed_data(alice, block.hash);
             ctx.pending(PendingEvent::Announce(announce));
         }
 
@@ -314,10 +316,10 @@ mod tests {
 
     #[test]
     fn simple() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
-        let announce = ctx.signer.mock_signed_data(producer, block.hash);
+        let announce = ctx.core.signer.mock_signed_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
@@ -335,17 +337,19 @@ mod tests {
         assert_eq!(s.context().output, vec![announce.data().clone().into()]);
 
         // After announce is computed, subordinate switches to participant state.
-        let s = s.process_computed_announce(announce.data().hash()).unwrap();
+        let s = s
+            .process_computed_announce(announce.data().to_hash())
+            .unwrap();
         assert!(s.is_participant());
         assert_eq!(s.context().output, vec![announce.data().clone().into()]);
     }
 
     #[test]
     fn simple_not_validator() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
-        let announce = ctx.signer.mock_signed_data(producer, block.hash);
+        let announce = ctx.core.signer.mock_signed_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
@@ -363,18 +367,20 @@ mod tests {
         assert_eq!(s.context().output, vec![announce.data().clone().into()]);
 
         // After announce is computed, not-validator subordinate switches to initial state.
-        let s = s.process_computed_announce(announce.data().hash()).unwrap();
+        let s = s
+            .process_computed_announce(announce.data().to_hash())
+            .unwrap();
         assert!(s.is_initial());
     }
 
     #[test]
     fn create_with_multiple_announces() {
-        let (mut ctx, keys) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let announce1 = ctx.signer.mock_signed_data(producer, block.hash);
-        let announce2 = ctx.signer.mock_signed_data(alice, block.hash);
+        let announce1 = ctx.core.signer.mock_signed_data(producer, block.hash);
+        let announce2 = ctx.core.signer.mock_signed_data(alice, block.hash);
 
         ctx.pending(PendingEvent::Announce(announce1.clone()));
         ctx.pending(PendingEvent::Announce(announce2.clone()));
@@ -389,13 +395,11 @@ mod tests {
 
     #[test]
     fn process_external_event_with_invalid_announce() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let invalid_announce = ctx
-            .signer
-            .mock_signed_data(alice, (block.hash, AnnounceHash::random()));
+        let invalid_announce = ctx.core.signer.mock_signed_data(alice, block.hash);
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
             .unwrap()
@@ -408,7 +412,7 @@ mod tests {
 
     #[test]
     fn process_computed_block_with_unexpected_hash() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
 

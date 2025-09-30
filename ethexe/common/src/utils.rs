@@ -54,7 +54,7 @@ pub fn setup_start_block_in_db<
     start_announce_data: FullAnnounceData,
 ) {
     let height = start_block_data.header.height;
-    let announce_hash = start_announce_data.announce.hash();
+    let announce_hash = start_announce_data.announce.to_hash();
 
     assert_eq!(
         start_block_data.announces,
@@ -155,7 +155,7 @@ pub fn setup_announce_in_db<DB: AnnounceStorageWrite>(
     db: &DB,
     announce_data: FullAnnounceData,
 ) -> AnnounceHash {
-    let announce_hash = announce_data.announce.hash();
+    let announce_hash = announce_data.announce.to_hash();
     db.set_announce(announce_data.announce);
     db.set_announce_program_states(announce_hash, announce_data.program_states);
     db.set_announce_outcome(announce_hash, announce_data.outcome);

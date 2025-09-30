@@ -89,12 +89,12 @@ pub fn include_one<DB: BlockMetaStorageWrite + AnnounceStorageWrite>(
     announce: Announce,
 ) -> Result<AnnounceHash> {
     let block_hash = announce.block_hash;
-    let announce_hash = announce.hash();
+    let announce_hash = announce.to_hash();
 
     let mut announces = db
         .block_meta(block_hash)
         .announces
-        .ok_or(ComputeError::AnnouncesNotFound(block_hash))?;
+        .ok_or(ComputeError::PreparedBlockAnnouncesSetMissing(block_hash))?;
 
     if announces.iter().any(|&h| h == announce_hash) {
         log::error!("{announce_hash} is already included in block {block_hash}");
@@ -111,7 +111,7 @@ pub fn include_one<DB: BlockMetaStorageWrite + AnnounceStorageWrite>(
                 // TODO +_+_+: decide what to do in that case, currently we include both
                 log::warn!(
                     "Double announcement detected!!! old {}, new {announce_hash}",
-                    neighbor_announce.hash()
+                    neighbor_announce.to_hash()
                 );
                 break;
             }

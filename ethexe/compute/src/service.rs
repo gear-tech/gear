@@ -330,11 +330,11 @@ mod tests {
         // Request computation
         let announce = Announce {
             block_hash,
-            parent: parent_announce.hash(),
+            parent: parent_announce.to_hash(),
             gas_allowance: Some(42),
             off_chain_transactions: vec![],
         };
-        let announce_hash = announce.hash();
+        let announce_hash = announce.to_hash();
         service.compute_announce(announce);
 
         // Poll service to process the block

@@ -66,8 +66,8 @@ pub enum ComputeError {
     LastCommittedHeadNotFound(H256),
     #[error("Announce {0:?} not found in db")]
     AnnounceNotFound(AnnounceHash),
-    #[error("Announces for block {0:?} not found in db")]
-    AnnouncesNotFound(H256),
+    #[error("Announces for prepared block {0:?} not found in db")]
+    PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
 

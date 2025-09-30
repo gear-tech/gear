@@ -24,7 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
+        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
+        init_logger,
     },
 };
 use alloy::providers::{Provider as _, ext::AnvilApi};
@@ -40,7 +41,7 @@ use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction};
+use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, TxPoolEvent};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -1081,9 +1082,17 @@ async fn tx_pool_gossip() {
         .expect("failed to deserialize json response from rpc");
     assert!(resp.get("result").is_some());
 
-    // Tx executable validation takes time.
-    // Sleep for a while so tx is processed by both nodes.
-    tokio::time::sleep(Duration::from_secs(12)).await;
+    // Tx executable validation takes time, so wait for event.
+    node1
+        .listener()
+        .wait_for(|event| {
+            Ok(matches!(
+                event,
+                TestingEvent::TxPool(TxPoolEvent::PublishOffchainTransaction(_))
+            ))
+        })
+        .await
+        .unwrap();
 
     // Check that node-1 received the message
     let tx_hash = signed_ethexe_tx.tx_hash();

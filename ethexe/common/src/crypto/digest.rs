@@ -45,7 +45,7 @@ use sha3::Digest as _;
 pub struct Digest(pub [u8; 32]);
 
 impl Digest {
-    pub fn zero() -> Self {
+    pub const fn zero() -> Self {
         Digest([0; 32])
     }
 
