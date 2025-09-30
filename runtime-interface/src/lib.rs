@@ -47,6 +47,7 @@ use {
     gear_lazy_pages::LazyPagesStorage,
     gear_lazy_pages_common::ProcessAccessError,
     sp_std::convert::TryFrom,
+    builtins_common::bls12_381::Bls12_381Ops,
 };
 
 pub use gear_sandbox_interface::sandbox;
@@ -351,7 +352,7 @@ pub trait GearDebug {
 /// Describes possible errors for `GearBls12_381`.
 #[cfg(feature = "std")]
 #[repr(u32)]
-enum GearBls12_381Error {
+pub enum GearBls12_381Error {
     /// Failed to decode an array of G1-points.
     Decode,
     /// The array of G1-points is empty.
@@ -362,6 +363,8 @@ enum GearBls12_381Error {
     MessageMapping,
 }
 
+// todo [sab] make it into builtin-error
+
 #[cfg(feature = "std")]
 impl From<GearBls12_381Error> for u32 {
     fn from(value: GearBls12_381Error) -> Self {
@@ -369,8 +372,45 @@ impl From<GearBls12_381Error> for u32 {
     }
 }
 
+#[cfg(feature = "std")]
+impl From<u32> for GearBls12_381Error {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => GearBls12_381Error::Decode,
+            1 => GearBls12_381Error::EmptyPointList,
+            2 => GearBls12_381Error::MapperCreation,
+            3 => GearBls12_381Error::MessageMapping,
+            _ => panic!("Unknown GearBls12_381Error code: {value}"),
+        }
+    }
+}
+
 #[runtime_interface]
 pub trait GearBls12_381 {
+    /// Computes the multi Miller loop for BLS12-381 pairing operations.
+    /// 
+    /// The Miller loop is the first phase of pairing computation in bilinear cryptography.
+    /// This function performs Miller loops for multiple point pairs simultaneously,
+    /// computing ∏ᵢ f(Pᵢ, Qᵢ) where f is the Miller function for the BLS12-381 curve.
+    /// 
+    /// # Parameters
+    /// 
+    /// * `g1` - SCALE-encoded `ArkScale<Vec<G1Affine>>` containing G1 points
+    /// * `g2` - SCALE-encoded `ArkScale<Vec<G2Affine>>` containing G2 points
+    /// 
+    /// # Returns
+    /// 
+    /// * `Ok(Vec<u8>)` - SCALE-encoded `ArkScale<Fq12>` Miller loop result
+    /// * `Err(u32)` - Error code if decoding fails or invalid input
+    /// 
+    /// # Requirements
+    /// 
+    /// - Both arrays must have equal length and non-zero size
+    /// - Points must be valid curve points in their respective groups
+    /// - For complete pairing, follow with [`final_exponentiation`]
+    fn multi_miller_loop(g1: &[u8], g2: &[u8]) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::multi_miller_loop(g1, g2).map_err(|_| u32::from(GearBls12_381Error::Decode))
+    }
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
     /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
     /// Result is scale-encoded `ArkScale<G1Projective>`.

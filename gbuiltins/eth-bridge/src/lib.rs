@@ -36,3 +36,12 @@ pub enum Response {
     #[codec(index = 0)]
     EthMessageQueued { nonce: U256, hash: H256 },
 }
+
+/*
+possibly move pallet_gear_eth_bridge_primitives here (discuss) it
+
+Thi crate needs EthMessage struct and a substitute for EthMessageExt trait:
+- trait CreateEthMessage { type Error; fn create_eth_message() -> Result<EthMessage, Self::Error>; }
+- EthMessageExt::hash can be moved to be EthMessage method.
+
+*/

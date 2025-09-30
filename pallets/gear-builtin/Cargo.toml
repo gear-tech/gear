@@ -31,6 +31,7 @@ core-processor.workspace = true
 gbuiltin-bls381.workspace = true
 gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
+builtins-common = { workspace = true, features = ["bls12-381"] }
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-runtime-interface.workspace = true
@@ -78,6 +79,7 @@ sha2 = { workspace = true, features = ["std"] }
 default = ["std"]
 std = [
 	"common/std",
+	"builtins-common/bls12-381-std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",

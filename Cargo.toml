@@ -218,6 +218,7 @@ dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # Internal deps
 numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
+builtins-common = { path = "utils/builtins-common", default-features = false }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }

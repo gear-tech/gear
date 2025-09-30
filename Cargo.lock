@@ -2091,6 +2091,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "builtins-common"
+version = "1.9.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff 0.4.2",
+ "ark-scale",
+ "derive_more 2.0.1",
+ "gear-core",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-crypto-ec-utils",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6470,6 +6486,7 @@ dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
  "ark-scale",
+ "builtins-common",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
@@ -11427,6 +11444,7 @@ dependencies = [
  "ark-scale",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "builtins-common",
  "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
@@ -11499,6 +11517,7 @@ name = "pallet-gear-eth-bridge"
 version = "1.9.0"
 dependencies = [
  "binary-merkle-tree",
+ "builtins-common",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",

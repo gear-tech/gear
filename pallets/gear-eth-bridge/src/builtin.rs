@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use builtins_common::{BuiltinContext, BuiltinActorError};
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
@@ -28,7 +29,7 @@ use gear_core::{
     str::LimitedStr,
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext, BuiltinReply};
+use pallet_gear_builtin::{BuiltinActor, BuiltinReply};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;

@@ -1,0 +1,47 @@
+[package]
+name = "builtins-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+gear-core.workspace = true
+derive_more.workspace = true
+log.workspace = true
+
+# bls12-381 related deps
+sp-crypto-ec-utils = { workspace = true, optional = true, features = ["bls12-381"] }
+ark-bls12-381 = { workspace = true, optional = true, features = ["curve"] }
+ark-ec = { workspace = true, optional = true }
+ark-ff = { workspace = true, optional = true }
+ark-scale = { workspace = true, optional = true, features = ["hazmat"] }
+
+[lints]
+workspace = true
+
+[features]
+# todo [sab] is it proper?
+default = ["bls12-381-std", "eth-bridge-std"]
+eth-bridge = []
+eth-bridge-std = []
+bls12-381 = [
+    "ark-bls12-381",
+    "ark-ec",
+    "ark-ff",
+    "ark-scale",
+    "sp-crypto-ec-utils",
+]
+bls12-381-std = [
+    "ark-bls12-381/std",
+    "ark-ec/std",
+    "ark-ff/std",
+    "ark-scale/std",
+    "sp-crypto-ec-utils/std"
+]
+

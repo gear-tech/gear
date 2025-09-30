@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinActorError, BuiltinContext,
+    self as pallet_gear_builtin, ActorWithId, BuiltinActor,
     BuiltinReply,
 };
+use builtins_common::{BuiltinActorError, BuiltinContext};
 use frame_support::{
     PalletId, construct_runtime, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},

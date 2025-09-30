@@ -10,6 +10,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+builtins-common = { workspace = true, optional = true }
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
@@ -40,6 +41,7 @@ std = [
 	"parity-scale-codec/std",
 	"log",
 
+	"builtins-common/bls12-381-std",
 	"ark-bls12-381/std",
 	"ark-ec/std",
 	"ark-ff/std",
