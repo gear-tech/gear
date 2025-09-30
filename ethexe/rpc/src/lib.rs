@@ -45,12 +45,11 @@ use tokio::{
 use tower::Service;
 
 mod apis;
-mod common;
 mod errors;
+mod utils;
 
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
-pub(crate) mod util;
 
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
@@ -94,7 +93,7 @@ impl RpcService {
 
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
-        let cors = util::try_into_cors(self.config.cors)?;
+        let cors = utils::try_into_cors(self.config.cors)?;
 
         let http_middleware = tower::ServiceBuilder::new().layer(cors);
 

@@ -28,7 +28,7 @@ use crate::{
     state::HostState,
 };
 use alloc::vec::Vec;
-use gear_core::buffer::{Payload, PayloadSizeError};
+use gear_core::{buffer::Payload, limited::LimitedVecError};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 use parity_scale_codec::{Decode, MaxEncodedLen};
@@ -109,7 +109,7 @@ pub(crate) struct Read {
 }
 
 pub(crate) struct ReadPayloadLimited<const N: usize = { Payload::MAX_LEN }> {
-    result: Result<Result<Payload, MemoryAccessError>, PayloadSizeError>,
+    result: Result<Result<Payload, MemoryAccessError>, LimitedVecError>,
     size: u32,
 }
 
@@ -215,7 +215,7 @@ impl SyscallArg for Read {
 }
 
 impl<const N: usize> SyscallArg for ReadPayloadLimited<N> {
-    type Output = Result<WasmMemoryRead, PayloadSizeError>;
+    type Output = Result<WasmMemoryRead, LimitedVecError>;
     const REQUIRED_ARGS: usize = 2;
 
     fn pre_process<Caller, Ext>(
@@ -232,7 +232,7 @@ impl<const N: usize> SyscallArg for ReadPayloadLimited<N> {
         let size = SyscallValue(args[1]).try_into()?;
 
         if size as usize > N {
-            Ok(Err(PayloadSizeError))
+            Ok(Err(LimitedVecError))
         } else {
             Ok(Ok(registry
                 .get_or_insert_default()
@@ -461,7 +461,7 @@ impl Read {
 }
 
 impl<const N: usize> ReadPayloadLimited<N> {
-    pub fn into_inner(self) -> Result<Result<Payload, MemoryAccessError>, PayloadSizeError> {
+    pub fn into_inner(self) -> Result<Result<Payload, MemoryAccessError>, LimitedVecError> {
         self.result
     }
 

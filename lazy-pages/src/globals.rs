@@ -20,7 +20,7 @@
 
 use crate::common::{Error, GlobalNames};
 use core::any::Any;
-use gear_core::{memory::HostPointer, str::LimitedStr};
+use gear_core::{limited::LimitedStr, memory::HostPointer};
 use gear_lazy_pages_common::{GlobalsAccessError, GlobalsAccessMod, GlobalsAccessor};
 use gear_sandbox_host::sandbox::SandboxInstance;
 use sp_wasm_interface_common::Value;

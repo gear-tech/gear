@@ -27,10 +27,10 @@ use core::{any::Any, fmt::Debug};
 use gear_core::{
     costs::LazyPagesCosts,
     ids::ActorId,
+    limited::LimitedStr,
     memory::{HostPointer, Memory, MemoryInterval},
     pages::{GearPage, WasmPage, WasmPagesAmount},
     program::MemoryInfix,
-    str::LimitedStr,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use parity_scale_codec::{Decode, Encode};

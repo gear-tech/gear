@@ -114,6 +114,27 @@ pub enum DataSectionError {
     },
 }
 
+/// Type section error in WASM module.
+#[derive(Debug, derive_more::Display)]
+pub enum TypeSectionError {
+    /// Type section length exceeds the limit.
+    #[display("Type section length limit exceeded: limit={limit}, actual={actual}")]
+    LengthLimitExceeded {
+        /// Max length of type section.
+        limit: u32,
+        /// Actual length of type section.
+        actual: u32,
+    },
+    /// Type section number of parameters per type exceeds the limit.
+    #[display("Type section parameters per type limit exceeded: limit={limit}, actual={actual}")]
+    ParametersPerTypeLimitExceeded {
+        /// Max number of parameters per type.
+        limit: u32,
+        /// Actual number of parameters per type.
+        actual: u32,
+    },
+}
+
 /// Export error in WASM module.
 #[derive(Debug, derive_more::Display)]
 pub enum ExportError {
@@ -183,6 +204,9 @@ pub enum CodeError {
     /// The provided code contains data section error.
     #[display("Data section error: {_0}")]
     DataSection(DataSectionError),
+    /// The provided code contains type section error.
+    #[display("Type section error: {_0}")]
+    TypeSection(TypeSectionError),
     /// The provided code contains export error.
     #[display("Export error: {_0}")]
     Export(ExportError),
