@@ -4,4 +4,5 @@ runs:
   using: composite
   steps:
     - uses: cargo-bins/cargo-binstall@main
-    - cargo binstall cargo-hack cargo-nextest
+    - run: cargo binstall cargo-hack cargo-nextest
+      shell: bash
