@@ -24,7 +24,7 @@ clean:
 
 # Run pre-commit tasks and checks
 [group('actions')]
-pre-commit: fmt typos (clippy::all) test check-runtime-imports
+pre-commit: fmt typos clippy::all test check-runtime-imports
 
 # Format code via `rustfmt`
 [group('actions')]
