@@ -20,6 +20,7 @@ use crate::{
     Result,
     host::{api::MemoryWrap, threads},
 };
+use ethexe_common::db::HashStorageRead;
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};

@@ -18,15 +18,14 @@
 
 use crate::{
     db_sync::{
-        Config, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
+        Config, DbSyncDatabase, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
         InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
 use ethexe_common::db::{
-    AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, LatestDataStorageRead,
+    AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestDataStorageRead,
 };
-use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
@@ -44,13 +43,13 @@ struct OngoingResponse {
 
 pub(crate) struct OngoingResponses {
     response_id_counter: u64,
-    db: Database,
+    db: Box<dyn DbSyncDatabase>,
     db_readers: JoinSet<OngoingResponse>,
     max_simultaneous_responses: u32,
 }
 
 impl OngoingResponses {
-    pub(crate) fn new(db: Database, config: &Config) -> Self {
+    pub(crate) fn new(db: Box<dyn DbSyncDatabase>, config: &Config) -> Self {
         Self {
             response_id_counter: 0,
             db,
@@ -65,7 +64,7 @@ impl OngoingResponses {
         ResponseId(id)
     }
 
-    fn response_from_db(request: InnerRequest, db: &Database) -> InnerResponse {
+    fn response_from_db(request: InnerRequest, db: Box<dyn DbSyncDatabase>) -> InnerResponse {
         match request {
             InnerRequest::Hashes(request) => InnerHashesResponse(
                 request
@@ -137,9 +136,9 @@ impl OngoingResponses {
 
         let response_id = self.next_response_id();
 
-        let db = self.db.clone();
+        let db = self.db.clone_boxed();
         self.db_readers.spawn_blocking(move || {
-            let response = Self::response_from_db(request, &db);
+            let response = Self::response_from_db(request, db);
             OngoingResponse {
                 response_id,
                 peer_id,

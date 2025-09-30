@@ -94,11 +94,13 @@ async fn basics() {
         prometheus: None,
     };
 
-    Service::new(&config).await.unwrap();
+    let service = Service::new(&config).await.unwrap();
 
     // Enable all optional services
+    let network_key = service.signer.generate_key().unwrap();
     config.network = Some(ethexe_network::NetworkConfig::new_local(
-        tmp_dir.join("net"),
+        network_key,
+        config.ethereum.router_address,
     ));
 
     config.rpc = Some(RpcConfig {
