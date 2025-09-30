@@ -3,19 +3,5 @@ name: install-cargo-extensions
 runs:
   using: composite
   steps:
-    - if: ${{ runner.os == 'Linux' && (runner.arch == 'X64' || runner.arch == 'ARM64') }}
-      env:
-        HACK_ARCH: ${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}
-        NEXTEST_PLATFORM: ${{ runner.arch == 'X64' && 'linux' || 'linux-arm' }}
-      shell: bash
-      run: |
-        curl -L "https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-${HACK_ARCH}-unknown-linux-gnu.tar.gz" |
-          tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-        curl -LsSf "https://get.nexte.st/latest/${NEXTEST_PLATFORM}" |
-          tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-    - if: ${{ !(runner.os == 'Linux' && (runner.arch == 'X64' || runner.arch == 'ARM64')) }}
-      shell: bash
-      run: |
-        echo 'Unsupported OS or architecture for `cargo hack` and `cargo nextest` installation'
-        exit 1
+    - uses: cargo-bins/cargo-binstall@main
+    - cargo binstall cargo-hack cargo-nextest
