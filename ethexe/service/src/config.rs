@@ -44,6 +44,9 @@ impl Config {
             "📡 Ethereum router address: {}",
             self.ethereum.router_address
         );
+        if let Some(network) = &self.network {
+            log::info!("🛜  Network public key: {}", network.public_key);
+        }
     }
 }
 
