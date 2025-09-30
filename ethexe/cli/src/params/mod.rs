@@ -64,10 +64,8 @@ pub struct Params {
 impl Params {
     /// Load the parameters from a TOML file.
     pub fn from_file(path: PathBuf) -> Result<Self> {
-        let content =
-            std::fs::read_to_string(path).with_context(|| "failed to read params file")?;
-        let params =
-            toml::from_str(&content).with_context(|| "failed to parse toml params file")?;
+        let content = std::fs::read_to_string(path).context("failed to read params file")?;
+        let params = toml::from_str(&content).context("failed to parse toml params file")?;
 
         Ok(params)
     }
@@ -82,11 +80,11 @@ impl Params {
             prometheus,
         } = self;
 
-        let node = node.ok_or_else(|| anyhow!("missing node params"))?;
+        let node = node.context("missing node params")?;
         let net_dir = node.net_dir();
         let dev = node.dev;
 
-        let ethereum = ethereum.ok_or_else(|| anyhow!("missing ethereum params"))?;
+        let ethereum = ethereum.context("missing ethereum params")?;
         let node = node.into_config()?;
         let ethereum = ethereum.into_config()?;
         let network = network

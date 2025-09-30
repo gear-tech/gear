@@ -26,8 +26,8 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData,
-        LatestDataStorageRead, LatestDataStorageWrite, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
+        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
