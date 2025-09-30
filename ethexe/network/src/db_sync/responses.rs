@@ -18,15 +18,14 @@
 
 use crate::{
     db_sync::{
-        Config, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
+        Config, DbSyncDatabase, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
         InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
 use ethexe_common::db::{
-    AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, LatestDataStorageRead,
+    AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestDataStorageRead,
 };
-use ethexe_db::Database;
 use libp2p::request_response;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;

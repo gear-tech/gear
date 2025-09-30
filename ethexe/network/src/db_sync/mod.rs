@@ -27,7 +27,14 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
+use ethexe_common::{
+    Announce, AnnounceHash,
+    db::{
+        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, HashStorageRead,
+        LatestDataStorageRead,
+    },
+    gear::CodeState,
+};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -281,7 +288,14 @@ pub enum InnerResponse {
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
-pub trait DbSyncDatabase: Send + HashStorageRead + BlockMetaStorageRead + CodesStorageRead {
+pub trait DbSyncDatabase:
+    Send
+    + HashStorageRead
+    + LatestDataStorageRead
+    + BlockMetaStorageRead
+    + AnnounceStorageRead
+    + CodesStorageRead
+{
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }
 
