@@ -23,8 +23,17 @@ pub use ark_scale::{self, ark_serialize};
 
 use super::{BuiltinActorError, BuiltinContext};
 use alloc::{vec, vec::Vec};
-use ark_bls12_381::Bls12_381;
-use ark_ec::pairing::{MillerLoopOutput, Pairing};
+use ark_bls12_381::{
+    Bls12_381, G1Projective, G2Projective, g1::Config as G1Config, g2::Config as G2Config,
+};
+use ark_ec::{
+    CurveConfig, VariableBaseMSM,
+    bls12::Bls12Config,
+    hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
+    pairing::{MillerLoopOutput, Pairing},
+    short_weierstrass::{Affine as SWAffine, Projective as SWProjective, SWCurveConfig},
+};
+use ark_ff::fields::field_hashers::DefaultFieldHasher;
 use ark_scale::{
     HOST_CALL,
     rw::InputAsRead,
@@ -32,9 +41,11 @@ use ark_scale::{
 };
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
 use gear_core::str::LimitedStr;
+use sha2;
 
-const SCALE_USAGE: u8 = ark_scale::make_usage(Compress::No, Validate::No);
-type ArkScaleLocal<T> = ark_scale::ArkScale<T, SCALE_USAGE>;
+type ArkScaleLocal<T> = ark_scale::ArkScale<T, HOST_CALL>;
+const _: () = assert!(HOST_CALL == ark_scale::make_usage(Compress::No, Validate::No));
+type ArkScaleProjective<T> = ark_scale::hazmat::ArkScaleProjective<T>;
 
 const IS_COMPRESSED: Compress = ark_scale::is_compressed(HOST_CALL);
 const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
@@ -82,12 +93,96 @@ impl Bls12_381Ops {
         Ok(Self::encode(res.0))
     }
 
+    pub fn msm_g1(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        Self::msm_sw::<G1Config>(bases, scalars)
+    }
+
+    pub fn msm_g2(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        Self::msm_sw::<G2Config>(bases, scalars)
+    }
+
+    fn msm_sw<T: SWCurveConfig>(
+        bases: Vec<u8>,
+        scalars: Vec<u8>,
+    ) -> Result<Vec<u8>, BuiltinActorError> {
+        let bases = Self::decode::<Vec<SWAffine<T>>>(bases)?;
+        let scalars = Self::decode::<Vec<<T as CurveConfig>::ScalarField>>(scalars)?;
+        let res = <SWProjective<T> as VariableBaseMSM>::msm(&bases, &scalars).map_err(|_| {
+            BuiltinActorError::Custom(LimitedStr::from_small_str("MSM SW: computation error"))
+        })?;
+
+        Ok(Self::encode_proj_sw(&res))
+    }
+
+    pub fn projective_mul_g1(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        Self::projective_mul_sw::<G1Config>(base, scalar)
+    }
+
+    pub fn projective_mul_g2(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        Self::projective_mul_sw::<G2Config>(base, scalar)
+    }
+
+    pub fn projective_mul_sw<T: SWCurveConfig>(
+        base: Vec<u8>,
+        scalar: Vec<u8>,
+    ) -> Result<Vec<u8>, BuiltinActorError> {
+        let base = Self::decode_proj_sw::<T>(base)?;
+        let scalar = Self::decode::<Vec<u64>>(scalar)?;
+        let res = <T as SWCurveConfig>::mul_projective(&base, &scalar);
+
+        Ok(Self::encode_proj_sw(&res))
+    }
+
+    pub fn aggregate_g1(points: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        let points = Self::decode::<Vec<G1Projective>>(points)?;
+
+        let point_first = points.first().ok_or(BuiltinActorError::EmptyG1PointsList)?;
+
+        let point_aggregated = points
+            .iter()
+            .skip(1)
+            .fold(*point_first, |aggregated, point| aggregated + *point);
+
+        Ok(Self::encode(point_aggregated))
+    }
+
+    pub fn map_to_g2affine(message: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+
+        // Domain Separation Tag for signatures on G2.
+        const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
+        let mapper =
+            MapToCurveBasedHasher::<G2Projective, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(
+                DST_G2,
+            )
+            .map_err(|_| BuiltinActorError::MapperCreationError)?;
+
+        let point = mapper
+            .hash(&message)
+            .map_err(|_| BuiltinActorError::MessageMappingError)?;
+
+        Ok(Self::encode(point))
+    }
+
     pub fn encode<T: CanonicalSerialize>(val: T) -> Vec<u8> {
         ArkScaleLocal::from(val).encode()
     }
 
     fn decode<T: CanonicalDeserialize>(buf: Vec<u8>) -> Result<T, BuiltinActorError> {
         ArkScaleLocal::<T>::decode(&mut &buf[..])
+            .map(|v| v.0)
+            .map_err(|_| BuiltinActorError::DecodingError)
+    }
+
+    pub fn encode_proj_sw<T: SWCurveConfig>(val: &SWProjective<T>) -> Vec<u8> {
+        ArkScaleProjective::from(val).encode()
+    }
+
+    fn decode_proj_sw<T: SWCurveConfig>(
+        buf: Vec<u8>,
+    ) -> Result<SWProjective<T>, BuiltinActorError> {
+        ArkScaleProjective::decode(&mut &buf[..])
             .map(|v| v.0)
             .map_err(|_| BuiltinActorError::DecodingError)
     }
@@ -143,6 +238,118 @@ pub fn final_exponentiation<T: BlsOpsGasCost>(
     context.try_charge_gas(to_spend)?;
 
     final_exponentiation_impl(f)
+}
+
+/// Common function for BLS12-381 MSM operations.
+pub fn msm<T: BlsOpsGasCost>(
+    mut payload: &[u8],
+    context: &mut BuiltinContext,
+    gas_cost_fn: impl FnOnce(u32) -> u64,
+    msm_impl: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, BuiltinActorError>,
+) -> Result<Vec<u8>, BuiltinActorError> {
+    let bases = decode_vec::<T, _>(&mut payload, context)?;
+    let scalars = decode_vec::<T, _>(&mut payload, context)?;
+
+    // decode the count of items
+    let mut slice = bases.as_slice();
+    let mut reader = InputAsRead(&mut slice);
+    let count =
+        u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED).map_err(|_| {
+            log::debug!("Failed to decode items count in bases");
+
+            BuiltinActorError::DecodingError
+        })?;
+
+    let mut slice = scalars.as_slice();
+    let mut reader = InputAsRead(&mut slice);
+    match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) {
+        Ok(count_b) if count_b != count => {
+            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Multi scalar multiplication: uneven item count",
+            )));
+        }
+        Err(_) => {
+            log::debug!("Failed to decode items count in scalars");
+
+            return Err(BuiltinActorError::DecodingError);
+        }
+        Ok(_) => (),
+    }
+
+    let to_spend = gas_cost_fn(count as u32);
+    context.try_charge_gas(to_spend)?;
+
+    msm_impl(bases, scalars)
+}
+
+/// Common function for BLS12-381 projective multiplication operations.
+pub fn projective_multiplication<T: BlsOpsGasCost>(
+    mut payload: &[u8],
+    context: &mut BuiltinContext,
+    gas_cost_fn: impl FnOnce(u32) -> u64,
+    mul_impl: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, BuiltinActorError>,
+) -> Result<Vec<u8>, BuiltinActorError> {
+    let base = decode_vec::<T, _>(&mut payload, context)?;
+    let scalar = decode_vec::<T, _>(&mut payload, context)?;
+
+    // decode the count of items
+    let mut slice = scalar.as_slice();
+    let mut reader = InputAsRead(&mut slice);
+    let count =
+        u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED).map_err(|_| {
+            log::debug!("Failed to decode count of items in scalar");
+
+            BuiltinActorError::DecodingError
+        })?;
+
+    let to_spend = gas_cost_fn(count as u32);
+    context.try_charge_gas(to_spend)?;
+
+    mul_impl(base, scalar)
+}
+
+/// Common function for BLS12-381 G1 aggregation operation.
+pub fn aggregate_g1<T: BlsOpsGasCost>(
+    mut payload: &[u8],
+    context: &mut BuiltinContext,
+    aggregate_impl: impl FnOnce(Vec<u8>) -> Result<Vec<u8>, BuiltinActorError>,
+) -> Result<Vec<u8>, BuiltinActorError> {
+    let points = decode_vec::<T, _>(&mut payload, context)?;
+
+    // decode the count of items
+    let mut slice = points.as_slice();
+    let mut reader = InputAsRead(&mut slice);
+    let count =
+        u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED).map_err(|_| {
+            log::debug!("Failed to decode count of items in points");
+
+            BuiltinActorError::DecodingError
+        })?;
+
+    let to_spend = T::bls12_381_aggregate_g1(count as u32);
+    context.try_charge_gas(to_spend)?;
+
+    aggregate_impl(points)
+}
+
+/// Common function for BLS12-381 map to G2Affine operation.
+pub fn map_to_g2affine<T: BlsOpsGasCost>(
+    mut payload: &[u8],
+    context: &mut BuiltinContext,
+    map_impl: impl FnOnce(Vec<u8>) -> Result<Vec<u8>, BuiltinActorError>,
+) -> Result<Vec<u8>, BuiltinActorError> {
+    let len = Compact::<u32>::decode(&mut payload)
+        .map(u32::from)
+        .map_err(|_| BuiltinActorError::DecodingError)?;
+
+    if len != payload.len() as u32 {
+        return Err(BuiltinActorError::DecodingError);
+    }
+
+    let to_spend = T::bls12_381_map_to_g2affine(len);
+    context.try_charge_gas(to_spend)?;
+
+    map_impl(payload.to_vec())
 }
 
 /// Common function for decoding vectors in BLS12-381 operations.

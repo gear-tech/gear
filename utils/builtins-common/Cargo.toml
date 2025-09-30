@@ -21,6 +21,7 @@ ark-bls12-381 = { workspace = true, optional = true, features = ["curve"] }
 ark-ec = { workspace = true, optional = true }
 ark-ff = { workspace = true, optional = true }
 ark-scale = { workspace = true, optional = true, features = ["hazmat"] }
+sha2 = { workspace = true, optional = true }
 
 [lints]
 workspace = true
@@ -36,12 +37,14 @@ bls12-381 = [
     "ark-ff",
     "ark-scale",
     "sp-crypto-ec-utils",
+    "sha2",
 ]
 bls12-381-std = [
     "ark-bls12-381/std",
     "ark-ec/std",
     "ark-ff/std",
     "ark-scale/std",
-    "sp-crypto-ec-utils/std"
+    "sp-crypto-ec-utils/std",
+    "sha2/std",
 ]
 

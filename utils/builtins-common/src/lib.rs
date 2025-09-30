@@ -119,14 +119,15 @@ impl BuiltinActorError {
         }
     }
 
-    pub fn from_u32(code: u32) -> Self {
+    // Explain rationale
+    pub fn from_u32(code: u32, message: Option<&'static str>) -> Self {
         match code {
             0 => BuiltinActorError::InsufficientGas,
             1 => BuiltinActorError::InsufficientValue,
             2 => BuiltinActorError::DecodingError,
-            3 => {
-                BuiltinActorError::Custom(LimitedStr::from_small_str("Unknown builtin-actor error"))
-            }
+            3 => BuiltinActorError::Custom(LimitedStr::from_small_str(
+                message.unwrap_or("Unrecognized builtin actor error from RI call"),
+            )),
             4 => BuiltinActorError::GasAllowanceExceeded,
             5 => BuiltinActorError::EmptyG1PointsList,
             6 => BuiltinActorError::MapperCreationError,

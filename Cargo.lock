@@ -2103,6 +2103,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "sha2 0.10.8",
  "sp-crypto-ec-utils",
 ]
 

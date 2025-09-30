@@ -37,17 +37,8 @@ use sp_runtime_interface::{
 use sp_std::{result::Result, vec::Vec};
 #[cfg(feature = "std")]
 use {
-    ark_bls12_381::{G1Projective as G1, G2Affine, G2Projective as G2},
-    ark_ec::{
-        bls12::Bls12Config,
-        hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
-    },
-    ark_ff::fields::field_hashers::DefaultFieldHasher,
-    ark_scale::ArkScale,
-    builtins_common::bls12_381::Bls12_381Ops,
-    gear_lazy_pages::LazyPagesStorage,
+    builtins_common::bls12_381::Bls12_381Ops, gear_lazy_pages::LazyPagesStorage,
     gear_lazy_pages_common::ProcessAccessError,
-    sp_std::convert::TryFrom,
 };
 
 pub use gear_sandbox_interface::sandbox;
@@ -396,43 +387,34 @@ pub trait GearBls12_381 {
         Bls12_381Ops::final_exponentiation(f).map_err(|e| e.as_u32())
     }
 
+    // todo [sab] docs
+    fn msm_g1(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::msm_g1(bases, scalars).map_err(|e| e.as_u32())
+    }
+
+    // todo [sab] docs
+    fn msm_g2(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::msm_g2(bases, scalars).map_err(|e| e.as_u32())
+    }
+
+    fn projective_mul_g1(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::projective_mul_g1(base, scalar).map_err(|e| e.as_u32())
+    }
+
+    fn projective_mul_g2(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::projective_mul_g2(base, scalar).map_err(|e| e.as_u32())
+    }
+
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
     /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
     /// Result is scale-encoded `ArkScale<G1Projective>`.
-    fn aggregate_g1(points: &[u8]) -> Result<Vec<u8>, u32> {
-        // type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
-
-        // let ArkScale(points) = ArkScale::<Vec<G1>>::decode(&mut &points[..])
-        //     .map_err(|_| u32::from(GearBls12_381Error::Decode))?;
-
-        // let point_first = points
-        //     .first()
-        //     .ok_or(u32::from(GearBls12_381Error::EmptyPointList))?;
-
-        // let point_aggregated = points
-        //     .iter()
-        //     .skip(1)
-        //     .fold(*point_first, |aggregated, point| aggregated + *point);
-
-        // Ok(ArkScale::<G1>::from(point_aggregated).encode())
-        todo!()
+    fn aggregate_g1(points: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::aggregate_g1(points).map_err(|e| e.as_u32())
     }
 
     /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
     /// Result is encoded `ArkScale<G2Affine>`.
-    fn map_to_g2affine(message: &[u8]) -> Result<Vec<u8>, u32> {
-        // type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
-        // type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
-
-        // let mapper =
-        //     MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
-        //         .map_err(|_| u32::from(GearBls12_381Error::MapperCreation))?;
-
-        // let point = mapper
-        //     .hash(message)
-        //     .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
-
-        // Ok(ArkScale::<G2Affine>::from(point).encode())
-        todo!()
+    fn map_to_g2affine(message: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::map_to_g2affine(message).map_err(|e| e.as_u32())
     }
 }
