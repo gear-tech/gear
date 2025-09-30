@@ -20,8 +20,8 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, AnnouncesRequest, BlockData, CodeAndIdUnchecked, Digest,
-    ProgramStates, StateHashWithQueueSize,
+    Address, Announce, AnnounceHash, AnnouncesRequest, AnnouncesRequestUntil, BlockData,
+    CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
         FullAnnounceData, FullBlockData, OnChainStorageRead, OnChainStorageWrite,
@@ -198,8 +198,7 @@ async fn collect_announce(
         network,
         AnnouncesRequest {
             head: announce_hash,
-            tail: None,
-            max_chain_len: 1,
+            until: AnnouncesRequestUntil::ChainLen(1),
         }
         .into(),
     )

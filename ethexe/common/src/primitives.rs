@@ -235,18 +235,26 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
+/// Until condition for announces request (see [`AnnouncesRequest`]).
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+pub enum AnnouncesRequestUntil {
+    /// Request until a specific tail announce hash
+    Tail(AnnounceHash),
+    /// Request until a specific chain length
+    ChainLen(u32),
+}
+
 /// Request announces body (see [`Announce`]) chain from `head_announce_hash` to `tail_announce_hash`.
 /// `tail_announce_hash` must not be included in response.
 /// If `tail_announce_hash` is None, then only data `head_announce_hash` must be returned.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct AnnouncesRequest {
     /// Hash of the requested chain head announce
     pub head: AnnounceHash,
-    /// Hash of the announce which is parent for first announce in requested chain
-    pub tail: Option<AnnounceHash>,
-    /// Maximum length of the requested chain
-    pub max_chain_len: u32,
+    /// Request until this condition is met
+    pub until: AnnouncesRequestUntil,
 }
 
 // TODO +_+_+: can be optimized - no reasons to return all announces in chain,
@@ -284,7 +292,7 @@ pub enum AnnouncesResponseError {
         received: AnnounceHash,
     },
     #[display("announces len maximum {expected}, received {received}")]
-    LenOverflow { expected: usize, received: usize },
+    LenMismatch { expected: usize, received: usize },
     #[display("announces chain is not linked")]
     ChainIsNotLinked,
 }
@@ -305,23 +313,26 @@ impl CheckedAnnouncesResponse {
             });
         }
 
-        if let Some(tail) = request.tail
-            && tail != first.parent
-        {
-            return Err(AnnouncesResponseError::TailMismatch {
-                expected: tail,
-                received: first.parent,
-            });
+        match request.until {
+            AnnouncesRequestUntil::Tail(tail) => {
+                if tail != first.parent {
+                    return Err(AnnouncesResponseError::TailMismatch {
+                        expected: tail,
+                        received: first.parent,
+                    });
+                }
+            }
+            AnnouncesRequestUntil::ChainLen(len) => {
+                if response.announces.len() > len as usize {
+                    return Err(AnnouncesResponseError::LenMismatch {
+                        expected: len as usize,
+                        received: response.announces.len(),
+                    });
+                }
+            }
         }
 
-        if response.announces.len() > request.max_chain_len as usize {
-            return Err(AnnouncesResponseError::LenOverflow {
-                expected: request.max_chain_len as usize,
-                received: response.announces.len(),
-            });
-        }
-
-        // Check chain correctness
+        // Check chain linking
         let mut expected_parent_hash = first.to_hash();
         for announce in response.announces.iter().skip(1) {
             if announce.parent != expected_parent_hash {

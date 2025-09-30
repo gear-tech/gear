@@ -24,7 +24,7 @@ use crate::{
     export::PeerId,
 };
 use ethexe_common::{
-    AnnouncesRequest, AnnouncesResponse,
+    AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite, LatestData,
         LatestDataStorageRead,
@@ -91,60 +91,111 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
-            InnerRequest::Announces(AnnouncesRequest {
-                head,
-                tail,
-                max_chain_len,
-            }) => {
-                // +_+_+ change this to until
-                let max_chain_len = max_chain_len.min(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE);
+            InnerRequest::Announces(request) => Self::process_announce_request(db, request).into(),
+        }
+    }
 
-                let Some(LatestData {
-                    genesis_announce_hash,
-                    start_announce_hash,
-                    ..
-                }) = db.latest_data()
-                else {
-                    log::warn!("Cannot complete request: latest data not found in database");
+    fn process_announce_request(db: &Database, request: AnnouncesRequest) -> AnnouncesResponse {
+        let AnnouncesRequest { head, until } = request;
 
-                    return AnnouncesResponse::default().into();
-                };
+        // Check the requested chain length first to prevent abuse
+        if let AnnouncesRequestUntil::ChainLen(len) = until
+            && len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
+        {
+            log::warn!(
+                "Cannot complete request: requested chain len {len} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
+            );
 
-                let mut announces = vec![];
-                let mut announce_hash = head;
-                let mut counter = 0;
-                while counter < max_chain_len
-                    && announce_hash != start_announce_hash
-                    && Some(announce_hash) != tail
-                {
-                    let Some(announce) = db.announce(announce_hash) else {
-                        log::warn!(
-                            "Cannot complete request: announce {announce_hash} not found in database"
-                        );
+            // TODO #4874: use peer score to punish the peer for such requests
+            return Default::default();
+        }
 
-                        return AnnouncesResponse::default().into();
-                    };
+        let Some(LatestData {
+            genesis_announce_hash,
+            start_announce_hash,
+            ..
+        }) = db.latest_data()
+        else {
+            log::warn!("Cannot complete request: latest data not found in database");
 
-                    announce_hash = announce.parent;
-                    announces.push(announce);
-                    counter += 1;
+            return Default::default();
+        };
+
+        let mut announces = vec![];
+        let mut announce_hash = head;
+        let mut counter = 0;
+        while counter < MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE && announce_hash != start_announce_hash
+        {
+            let Some(announce) = db.announce(announce_hash) else {
+                log::warn!(
+                    "Cannot complete request: announce {announce_hash} not found in database"
+                );
+
+                return Default::default();
+            };
+
+            let parent = announce.parent;
+            announces.push(announce);
+            counter += 1;
+
+            match until {
+                AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
+                    return AnnouncesResponse { announces };
                 }
+                AnnouncesRequestUntil::ChainLen(len) if counter == len => {
+                    return AnnouncesResponse { announces };
+                }
+                _ => {}
+            }
 
-                if let Some(tail) = tail
-                    && announce_hash != tail
-                    && announce_hash != start_announce_hash
-                {
+            announce_hash = parent;
+        }
+
+        match until {
+            AnnouncesRequestUntil::Tail(tail) => {
+                assert_ne!(
+                    tail, announce_hash,
+                    "If tail match, we must have already found it"
+                );
+
+                log::trace!(
+                    "Cannot complete request: announce tail {tail} not found in the chain starting from head {head}"
+                );
+
+                if announce_hash == start_announce_hash {
+                    if start_announce_hash == genesis_announce_hash {
+                        // We reached the genesis announce, so it's an invalid request
+                        // TODO #4874: use peer score to punish the peer for such requests
+                    } else {
+                        // We reached the start announce, but it is not the genesis announce,
+                        // so this may be a valid request, but we cannot satisfy it
+                    }
+                } else {
+                    // Tail not found within MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
                     // TODO #4874: use peer score to punish the peer for such requests
-                    log::trace!(
-                        "Cannot complete request: announce tail {tail} not found in the chain starting from head {head} within {max_chain_len} announces"
-                    );
-
-                    return AnnouncesResponse::default().into();
                 }
+            }
+            AnnouncesRequestUntil::ChainLen(len) => {
+                assert_eq!(
+                    announce_hash, start_announce_hash,
+                    "If len does not match, only start announce can stop the chain"
+                );
 
-                AnnouncesResponse { announces }.into()
+                log::trace!(
+                    "Cannot complete request: announce chain length {counter} is smaller than requested {len}"
+                );
+
+                if start_announce_hash == genesis_announce_hash {
+                    // We reached the genesis announce, so it's an invalid request
+                    // TODO #4874: use peer score to punish the peer for such requests
+                } else {
+                    // We reached the start announce, but it is not the genesis announce,
+                    // so this may be a valid request, but we cannot satisfy it
+                }
             }
         }
+
+        Default::default()
     }
 
     pub(crate) fn handle_response(

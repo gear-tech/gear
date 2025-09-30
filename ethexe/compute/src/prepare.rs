@@ -56,16 +56,17 @@
 //! ### T1 Consequences
 //! If `announce` is committed in some block from `chain` and
 //! this `announce` is not computed by this node, then
-//! 1) `announce.block.height > lpb.height - commitment_delay_limit`
-//! 2) not computed announces chain len smaller than `chain.len() + commitment_delay_limit`
-//! 3) If `announce1` is predecessor of any announce from `lpb.announces`
+//! 1) (T1S1) `announce.block.height > lpb.height - commitment_delay_limit`
+//! 2) (T1S2) not computed announces chain len smaller than `chain.len() + commitment_delay_limit`
+//! 3) (T1S3) If `announce1` is predecessor of any announce from `lpb.announces`
 //!    and `announce1.block.height <= lpb.height - commitment_delay_limit`,
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
 use crate::{ComputeError, ConsensusGuaranteesError, DataRequest, Result, utils};
 use ethexe_common::{
-    Announce, AnnounceHash, AnnouncesRequest, CheckedAnnouncesResponse, SimpleBlockData,
+    Announce, AnnounceHash, AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse,
+    SimpleBlockData,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
         BlockMetaStorageWrite, CodesStorageRead, LatestDataStorageRead, LatestDataStorageWrite,
@@ -160,40 +161,29 @@ impl PrepareContext {
             }
         }
 
-        let announces =
-            if let Some(announce_hash) = last_committed_unknown_announce_hash {
-                // see T1 sequence 2
-                let max_chain_len = u32::try_from(chain.len())
-                    .ok()
-                    .and_then(|len| len.checked_add(commitment_delay_limit))
-                    .unwrap_or_else(|| unreachable!("Not supported: height is out of u32"));
+        let announces = if let Some(announce_hash) = last_committed_unknown_announce_hash {
+            let last_prepared_block = chain
+                .front()
+                .expect(
+                    "At least one block must be in chain if unknown committed announces was found",
+                )
+                .header
+                .parent_hash;
+            let tail = calculate_announces_common_predecessor(
+                &db,
+                commitment_delay_limit,
+                last_prepared_block,
+            )?;
 
-                debug_assert!(
-                    max_chain_len > 0,
-                    "Max chain length must be positive, because commitment delay limit is positive"
-                );
-
-                let last_prepared_block = chain
-            .front()
-            .expect("At least one block must be in chain if unknown committed announces was found")
-            .header
-            .parent_hash;
-                let tail = calculate_announces_common_predecessor(
-                    &db,
-                    commitment_delay_limit,
-                    last_prepared_block,
-                )?;
-
-                let announces_request = AnnouncesRequest {
-                    head: announce_hash,
-                    tail: Some(tail),
-                    max_chain_len,
-                };
-
-                Some(announces_request)
-            } else {
-                None
+            let announces_request = AnnouncesRequest {
+                head: announce_hash,
+                until: AnnouncesRequestUntil::Tail(tail),
             };
+
+            Some(announces_request)
+        } else {
+            None
+        };
 
         debug_assert!(
             missing_validated_codes
@@ -423,7 +413,7 @@ impl RequiredData {
     }
 }
 
-/// Returns announce hash from T1 sequence 3 or global genesis/start announce
+/// Returns announce hash from T1S3 or global genesis/start announce
 fn calculate_announces_common_predecessor(
     db: &Database,
     commitment_delay_limit: u32,
