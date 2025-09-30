@@ -173,10 +173,10 @@ mod tests {
     use super::*;
     use crate::{
         mock::*,
-        utils::{SignedProducerBlock, SignedValidationRequest},
+        utils::{SignedAnnounce, SignedValidationRequest},
         validator::mock::*,
     };
-    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment};
+    use ethexe_common::{AnnounceHash, Digest, ToDigest, gear::CodeCommitment};
     use gprimitives::H256;
 
     #[test]
@@ -213,17 +213,17 @@ mod tests {
         )));
 
         // Block from producer - must be kept
-        ctx.pending(SignedProducerBlock::mock((
+        ctx.pending(SignedAnnounce::mock((
             ctx.core.signer.clone(),
             producer,
-            H256::random(),
+            (H256::random(), AnnounceHash::random()),
         )));
 
         // Block from alice - must be kept
-        ctx.pending(SignedProducerBlock::mock((
+        ctx.pending(SignedAnnounce::mock((
             ctx.core.signer.clone(),
             alice,
-            H256::random(),
+            (H256::random(), AnnounceHash::random()),
         )));
 
         let (state, event) = Participant::create(ctx, block, producer.to_address())
@@ -238,8 +238,8 @@ mod tests {
 
         let ctx = state.into_context();
         assert_eq!(ctx.pending_events.len(), 3);
-        assert!(ctx.pending_events[0].is_producer_block());
-        assert!(ctx.pending_events[1].is_producer_block());
+        assert!(ctx.pending_events[0].is_announce());
+        assert!(ctx.pending_events[1].is_announce());
         assert!(ctx.pending_events[2].is_validation_request());
     }
 
@@ -248,7 +248,7 @@ mod tests {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         let signed_request = ctx
             .core
@@ -302,7 +302,7 @@ mod tests {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let mut batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Add a code that's not in the waiting queue
         let extra_code = CodeCommitment::mock(());
@@ -328,7 +328,8 @@ mod tests {
     async fn empty_batch_error() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
+        let block =
+            SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, AnnounceHash::random());
 
         // Create a request with empty blocks and codes
         let request = BatchCommitmentValidationRequest {
@@ -359,7 +360,7 @@ mod tests {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Create a request with duplicate codes
         let mut request = BatchCommitmentValidationRequest::new(&batch);
@@ -388,7 +389,7 @@ mod tests {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Create request with incorrect digest
         let mut request = BatchCommitmentValidationRequest::new(&batch);

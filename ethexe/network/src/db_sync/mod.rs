@@ -27,10 +27,7 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::{
-    db::{BlockMetaStorageRead, CodesStorageRead, HashStorageRead},
-    gear::CodeState,
-};
+use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -202,11 +199,20 @@ pub struct ValidCodesRequest {
     pub validated_count: u64,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AnnouncesRequest {
+    /// The hash of head announce
+    pub head: AnnounceHash,
+    /// Max chain length to return
+    pub max_chain_len: u64,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
     ValidCodes(ValidCodesRequest),
+    Announces(AnnouncesRequest),
 }
 
 impl Request {
@@ -233,11 +239,20 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+    Announces(Vec<Announce>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsRequest {
     at: H256,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct InnerAnnouncesRequest {
+    /// The hash of head announce
+    pub head: AnnounceHash,
+    /// Max chain length to return
+    pub max_chain_len: u64,
 }
 
 /// Network-only type to be encoded-decoded and sent over the network
@@ -246,6 +261,7 @@ pub enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
+    Announces(InnerAnnouncesRequest),
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
@@ -260,6 +276,7 @@ pub enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
+    Announces(Vec<Announce>),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
@@ -499,7 +516,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{StateHashWithQueueSize, db::BlockMetaStorageWrite};
+    use ethexe_common::{StateHashWithQueueSize, db::*};
     use ethexe_db::{Database, MemDb};
     use libp2p::{
         Swarm, Transport,
@@ -1223,8 +1240,17 @@ pub(crate) mod tests {
         left_data_provider
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
-        right_db.set_block_program_states(
-            H256::zero(),
+
+        let mut announce_hash = AnnounceHash::zero();
+        right_db.mutate_block_meta(H256::zero(), |meta| {
+            assert!(meta.announces.is_none());
+            let announce = Announce::base(H256::zero(), AnnounceHash::zero());
+            announce_hash = announce.to_hash();
+            meta.announces = Some(vec![announce_hash]);
+        });
+
+        right_db.set_announce_program_states(
+            announce_hash,
             iter::zip(
                 program_ids.clone(),
                 iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
