@@ -7147,6 +7147,7 @@ dependencies = [
  "ark-scale",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "builtins-common",
  "cargo_toml",
  "colored",
  "demo-constructor",

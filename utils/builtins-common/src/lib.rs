@@ -93,4 +93,45 @@ pub enum BuiltinActorError {
     /// Occurs if a builtin actor execution does not fit in the current block.
     #[display("Block gas allowance exceeded")]
     GasAllowanceExceeded,
+    /// Occurs when aggregation of G1 points is requested with an empty list.
+    #[display("Empty G1 points list")]
+    EmptyG1PointsList,
+    /// Occurs when creating a `MapToCurveBasedHasher` for mapping a message
+    /// to G2Affine-point fails.
+    #[display("Failed to create `MapToCurveBasedHasher`")]
+    MapperCreationError,
+    /// Occurs when mapping a message to a G2-point fails.
+    #[display("Failed to map a message to a G2-point")]
+    MessageMappingError,
+}
+
+impl BuiltinActorError {
+    pub fn as_u32(&self) -> u32 {
+        match self {
+            BuiltinActorError::InsufficientGas => 0,
+            BuiltinActorError::InsufficientValue => 1,
+            BuiltinActorError::DecodingError => 2,
+            BuiltinActorError::Custom(_) => 3,
+            BuiltinActorError::GasAllowanceExceeded => 4,
+            BuiltinActorError::EmptyG1PointsList => 5,
+            BuiltinActorError::MapperCreationError => 6,
+            BuiltinActorError::MessageMappingError => 7,
+        }
+    }
+
+    pub fn from_u32(code: u32) -> Self {
+        match code {
+            0 => BuiltinActorError::InsufficientGas,
+            1 => BuiltinActorError::InsufficientValue,
+            2 => BuiltinActorError::DecodingError,
+            3 => {
+                BuiltinActorError::Custom(LimitedStr::from_small_str("Unknown builtin-actor error"))
+            }
+            4 => BuiltinActorError::GasAllowanceExceeded,
+            5 => BuiltinActorError::EmptyG1PointsList,
+            6 => BuiltinActorError::MapperCreationError,
+            7 => BuiltinActorError::MessageMappingError,
+            _ => panic!("Invalid builtin-actor error code"),
+        }
+    }
 }

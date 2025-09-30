@@ -66,7 +66,6 @@ use core_processor::{
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ActorId,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     str::LimitedStr,
@@ -84,26 +83,6 @@ type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
-
-fn builtin_error_into_actor_error(err: BuiltinActorError) -> ActorExecutionErrorReplyReason {
-    match err {
-        BuiltinActorError::InsufficientGas => {
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
-        }
-        BuiltinActorError::InsufficientValue => ActorExecutionErrorReplyReason::Trap(
-            TrapExplanation::Panic(LimitedStr::from_small_str("Not enough value supplied").into()),
-        ),
-        BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
-            TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
-        ),
-        BuiltinActorError::Custom(e) => {
-            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
-        }
-        BuiltinActorError::GasAllowanceExceeded => {
-            unreachable!("Never supposed to be converted to error reply reason")
-        }
-    }
-}
 
 /// A trait representing an interface of a builtin actor that can handle a message
 /// from message queue (a `StoredDispatch`) to produce an outcome and gas spent.
@@ -414,5 +393,35 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                 )
             }
         }
+    }
+}
+
+// todo [sab] sign it, where to move it?
+fn builtin_error_into_actor_error(err: BuiltinActorError) -> ActorExecutionErrorReplyReason {
+    match err {
+        BuiltinActorError::InsufficientGas => {
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+        }
+        BuiltinActorError::InsufficientValue => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Not enough value supplied").into()),
+        ),
+        BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
+        ),
+        BuiltinActorError::Custom(e) => {
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
+        }
+        BuiltinActorError::GasAllowanceExceeded => {
+            unreachable!("Never supposed to be converted to error reply reason")
+        }
+        BuiltinActorError::EmptyG1PointsList => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Empty G1 points list").into()),
+        ),
+        BuiltinActorError::MapperCreationError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Mapper creation error").into()),
+        ),
+        BuiltinActorError::MessageMappingError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Message mapping error").into()),
+        ),
     }
 }

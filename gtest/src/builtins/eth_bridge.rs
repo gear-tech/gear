@@ -23,8 +23,8 @@
 
 pub use gbuiltin_eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
 
-use super::BuiltinActorError;
 use crate::state::bridge::BridgeBuiltinStorage;
+use builtins_common::BuiltinActorError;
 use gear_core::{ids::ActorId, message::StoredDispatch};
 use gprimitives::{H160, H256, U256};
 use parity_scale_codec::Decode;

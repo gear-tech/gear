@@ -16,15 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::u64;
+
 use super::*;
 use crate::{
     WasmProgram,
-    builtins::{self, BLS12_381_ID, BuiltinActorError, ETH_BRIDGE_ID},
+    builtins::{self, BLS12_381_ID, ETH_BRIDGE_ID},
     state::{
         blocks,
         programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID},
     },
 };
+use builtins_common::{BuiltinActorError, BuiltinContext};
 use core_processor::{
     ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
 };
@@ -423,24 +426,31 @@ impl ExtManager {
             unreachable!("Built-in messages can't be executed more than 1 time");
         }
 
-        let builtin_call_res =
-            match destination {
-                BLS12_381_ID => builtins::process_bls12_381_dispatch(&dispatch).map(|response| {
-                    log::debug!("BLS12-381 response: {response:?}");
+        // TODO #4832: Charge gas for built-in ops
+        let mut mock_builtin_context = BuiltinContext::new(u64::MAX, u64::MAX);
 
-                    response.encode().try_into().unwrap_or_else(|_| {
-                        unreachable!("Failed to encode BLS12-381 builtin reply")
-                    })
-                }),
-                ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch).map(|response| {
-                    log::debug!("Eth-bridge response: {response:?}");
+        let builtin_call_res = match destination {
+            BLS12_381_ID => {
+                builtins::process_bls12_381_dispatch(&dispatch, &mut mock_builtin_context).map(
+                    |response| {
+                        log::debug!("BLS12-381 response: {response:?}");
 
-                    response.encode().try_into().unwrap_or_else(|_| {
-                        unreachable!("Failed to encode eth-bridge builtin reply")
-                    })
-                }),
-                id => unimplemented!("Unknown builtin program id: {id}"),
-            };
+                        response.encode().try_into().unwrap_or_else(|_| {
+                            unreachable!("Failed to encode BLS12-381 builtin reply")
+                        })
+                    },
+                )
+            }
+            ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch).map(|response| {
+                log::debug!("Eth-bridge response: {response:?}");
+
+                response
+                    .encode()
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Failed to encode eth-bridge builtin reply"))
+            }),
+            id => unimplemented!("Unknown builtin program id: {id}"),
+        };
 
         let incoming_dispatch = dispatch.into_incoming(gas_limit);
         let gas_counter = GasCounter::new(gas_limit);
@@ -496,7 +506,7 @@ impl ExtManager {
                     destination,
                     gas_counter.burned(),
                     system_reservation_ctx,
-                    err,
+                    builtin_error_into_actor_error(err),
                 )
             }
         }
@@ -715,5 +725,34 @@ impl ExtManager {
             outgoing_limit: OUTGOING_LIMIT,
             outgoing_bytes_limit: OUTGOING_BYTES_LIMIT,
         }
+    }
+}
+
+fn builtin_error_into_actor_error(err: BuiltinActorError) -> ActorExecutionErrorReplyReason {
+    match err {
+        BuiltinActorError::InsufficientGas => {
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+        }
+        BuiltinActorError::InsufficientValue => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Not enough value supplied").into()),
+        ),
+        BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
+        ),
+        BuiltinActorError::Custom(e) => {
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
+        }
+        BuiltinActorError::GasAllowanceExceeded => {
+            unreachable!("Never supposed to be converted to error reply reason")
+        }
+        BuiltinActorError::EmptyG1PointsList => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Empty G1 points list").into()),
+        ),
+        BuiltinActorError::MapperCreationError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Mapper creation error").into()),
+        ),
+        BuiltinActorError::MessageMappingError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Message mapping error").into()),
+        ),
     }
 }

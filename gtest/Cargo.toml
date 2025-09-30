@@ -12,6 +12,7 @@ rust-version.workspace = true
 
 [dependencies]
 # Gear related dependencies
+builtins-common = { workspace = true, features = ["bls12-381-std"] }
 gprimitives = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-common = { workspace = true, features = ["std"] }
@@ -37,6 +38,7 @@ cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
 
+# todo [sab] remove and re-export from builtins-common
 # Builtins related dependencies
 ark-scale = { workspace = true, features = ["hazmat"] }
 ark-serialize = { workspace = true, features = ["derive"] }

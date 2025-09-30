@@ -349,42 +349,6 @@ pub trait GearDebug {
     }
 }
 
-/// Describes possible errors for `GearBls12_381`.
-#[cfg(feature = "std")]
-#[repr(u32)]
-pub enum GearBls12_381Error {
-    /// Failed to decode an array of G1-points.
-    Decode,
-    /// The array of G1-points is empty.
-    EmptyPointList,
-    /// Failed to create `MapToCurveBasedHasher`.
-    MapperCreation,
-    /// Failed to map a message to a G2-point.
-    MessageMapping,
-}
-
-// todo [sab] make it into builtin-error
-
-#[cfg(feature = "std")]
-impl From<GearBls12_381Error> for u32 {
-    fn from(value: GearBls12_381Error) -> Self {
-        value as u32
-    }
-}
-
-#[cfg(feature = "std")]
-impl From<u32> for GearBls12_381Error {
-    fn from(value: u32) -> Self {
-        match value {
-            0 => GearBls12_381Error::Decode,
-            1 => GearBls12_381Error::EmptyPointList,
-            2 => GearBls12_381Error::MapperCreation,
-            3 => GearBls12_381Error::MessageMapping,
-            _ => panic!("Unknown GearBls12_381Error code: {value}"),
-        }
-    }
-}
-
 #[runtime_interface]
 pub trait GearBls12_381 {
     /// Computes the multi Miller loop for BLS12-381 pairing operations.
@@ -409,43 +373,66 @@ pub trait GearBls12_381 {
     /// - Points must be valid curve points in their respective groups
     /// - For complete pairing, follow with [`final_exponentiation`]
     fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::multi_miller_loop(g1, g2).map_err(|_| u32::from(GearBls12_381Error::Decode))
+        Bls12_381Ops::multi_miller_loop(g1, g2).map_err(|e| e.as_u32())
     }
+
+    /// Performs the final exponentiation step of BLS12-381 pairing computation.
+    ///
+    /// The final exponentiation is the second and final phase of pairing computation,
+    /// applied to the result of the Miller loop. It computes f^((q^12 - 1) / r) where:
+    /// - f is the Miller loop result (an element of Fq12)
+    /// - q is the base field prime of BLS12-381
+    /// - r is the prime order of the G1/G2 groups
+    ///
+    /// # Parameters
+    ///
+    /// * `f` - SCALE-encoded `ArkScale<Fq12>` Miller loop result
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<u8>)` - SCALE-encoded `ArkScale<Fq12>` final pairing result in GT
+    /// * `Err(u32)` - u32 error code of `BuiltinActorError`.
+    fn final_exponentiation(f: Vec<u8>) -> Result<Vec<u8>, u32> {
+        Bls12_381Ops::final_exponentiation(f).map_err(|e| e.as_u32())
+    }
+
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
     /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
     /// Result is scale-encoded `ArkScale<G1Projective>`.
     fn aggregate_g1(points: &[u8]) -> Result<Vec<u8>, u32> {
-        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        // type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 
-        let ArkScale(points) = ArkScale::<Vec<G1>>::decode(&mut &points[..])
-            .map_err(|_| u32::from(GearBls12_381Error::Decode))?;
+        // let ArkScale(points) = ArkScale::<Vec<G1>>::decode(&mut &points[..])
+        //     .map_err(|_| u32::from(GearBls12_381Error::Decode))?;
 
-        let point_first = points
-            .first()
-            .ok_or(u32::from(GearBls12_381Error::EmptyPointList))?;
+        // let point_first = points
+        //     .first()
+        //     .ok_or(u32::from(GearBls12_381Error::EmptyPointList))?;
 
-        let point_aggregated = points
-            .iter()
-            .skip(1)
-            .fold(*point_first, |aggregated, point| aggregated + *point);
+        // let point_aggregated = points
+        //     .iter()
+        //     .skip(1)
+        //     .fold(*point_first, |aggregated, point| aggregated + *point);
 
-        Ok(ArkScale::<G1>::from(point_aggregated).encode())
+        // Ok(ArkScale::<G1>::from(point_aggregated).encode())
+        todo!()
     }
 
     /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
     /// Result is encoded `ArkScale<G2Affine>`.
     fn map_to_g2affine(message: &[u8]) -> Result<Vec<u8>, u32> {
-        type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
-        type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
+        // type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
+        // type WBMap = wb::WBMap<<ark_bls12_381::Config as Bls12Config>::G2Config>;
 
-        let mapper =
-            MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
-                .map_err(|_| u32::from(GearBls12_381Error::MapperCreation))?;
+        // let mapper =
+        //     MapToCurveBasedHasher::<G2, DefaultFieldHasher<sha2::Sha256>, WBMap>::new(DST_G2)
+        //         .map_err(|_| u32::from(GearBls12_381Error::MapperCreation))?;
 
-        let point = mapper
-            .hash(message)
-            .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
+        // let point = mapper
+        //     .hash(message)
+        //     .map_err(|_| u32::from(GearBls12_381Error::MessageMapping))?;
 
-        Ok(ArkScale::<G2Affine>::from(point).encode())
+        // Ok(ArkScale::<G2Affine>::from(point).encode())
+        todo!()
     }
 }

@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-// todo [sab] remove this deps
 use ark_scale::HOST_CALL;
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
 use builtins_common::bls12_381::{self as gear_bls_12_381_ops, BlsOpsGasCost};
@@ -30,47 +29,9 @@ use sp_crypto_ec_utils::bls12_381 as ri_sp_bls12_381;
 const IS_COMPRESSED: Compress = ark_scale::is_compressed(HOST_CALL);
 const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 
-struct RiGearBls12_381ErrorCodeConverter(u32);
+struct BlsOpsGasCostsImpl<T: Config>(PhantomData<T>);
 
-impl From<RiGearBls12_381ErrorCodeConverter> for BuiltinActorError {
-    fn from(err: RiGearBls12_381ErrorCodeConverter) -> Self {
-        use gear_runtime_interface::GearBls12_381Error;
-
-        match err.0.into() {
-            GearBls12_381Error::Decode => BuiltinActorError::DecodingError,
-            GearBls12_381Error::EmptyPointList => {
-                BuiltinActorError::Custom(LimitedStr::from_small_str("BLS12-381: empty point list"))
-            }
-            GearBls12_381Error::MapperCreation => BuiltinActorError::Custom(
-                LimitedStr::from_small_str("BLS12-381: mapper creation error"),
-            ),
-            GearBls12_381Error::MessageMapping => BuiltinActorError::Custom(
-                LimitedStr::from_small_str("BLS12-381: message mapping error"),
-            ),
-        }
-    }
-}
-
-enum RiGearBls12_381Call {
-    MultiMillerLoop(Vec<u8>, Vec<u8>),
-}
-
-impl RiGearBls12_381Call {
-    fn execute<T: Config>(self) -> Result<Vec<u8>, BuiltinActorError> {
-        match self {
-            RiGearBls12_381Call::MultiMillerLoop(a, b) => {
-                // ri_sp_bls12_381::host_calls::bls12_381_multi_miller_loop(a, b)
-                //     .map_err(|_| RiGearBls12_381ErrorCodeConverter(0).into())
-                ri_gear_bls_12_381::multi_miller_loop(a, b)
-                    .map_err(|e| RiGearBls12_381ErrorCodeConverter(e).into())
-            }
-        }
-    }
-}
-
-struct Bls12_381OpsImpl<T: Config>(PhantomData<T>);
-
-impl<T: Config> BlsOpsGasCost for Bls12_381OpsImpl<T> {
+impl<T: Config> BlsOpsGasCost for BlsOpsGasCostsImpl<T> {
     fn decode_bytes(len: u32) -> u64 {
         <T as Config>::WeightInfo::decode_bytes(len).ref_time()
     }
@@ -115,11 +76,23 @@ impl<T: Config> BuiltinActor for Actor<T> {
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<BuiltinReply, BuiltinActorError> {
-        let message = dispatch.message();
-        let payload = message.payload_bytes();
+        // todo [sab] this body can also be moved to a separate function and re-used
+        let payload = dispatch.payload_bytes();
         match payload.first().copied() {
-            Some(REQUEST_MULTI_MILLER_LOOP) => multi_miller_loop::<T>(&payload[1..], context),
-            Some(REQUEST_FINAL_EXPONENTIATION) => final_exponentiation::<T>(&payload[1..], context),
+            Some(REQUEST_MULTI_MILLER_LOOP) => gear_bls_12_381_ops::multi_miller_loop::<
+                BlsOpsGasCostsImpl<T>,
+            >(&payload[1..], context, |a, b| {
+                ri_gear_bls_12_381::multi_miller_loop(a, b)
+                    .map_err(|err_code| BuiltinActorError::from_u32(err_code))
+            })
+            .map(Response::MultiMillerLoop),
+            Some(REQUEST_FINAL_EXPONENTIATION) => gear_bls_12_381_ops::final_exponentiation::<
+                BlsOpsGasCostsImpl<T>,
+            >(&payload[1..], context, |f| {
+                ri_gear_bls_12_381::final_exponentiation(f)
+                    .map_err(|err_code| BuiltinActorError::from_u32(err_code))
+            })
+            .map(Response::FinalExponentiation),
             Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm_g1::<T>(&payload[1..], context),
             Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2) => msm_g2::<T>(&payload[1..], context),
             Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1) => {
@@ -150,16 +123,6 @@ impl<T: Config> BuiltinActor for Actor<T> {
     fn max_gas() -> u64 {
         Default::default()
     }
-}
-
-fn multi_miller_loop<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    gear_bls_12_381_ops::multi_miller_loop::<Bls12_381OpsImpl<T>, _>(payload, context, |a, b| {
-        RiGearBls12_381Call::MultiMillerLoop(a, b).execute::<T>()
-    })
-    .map(Response::MultiMillerLoop)
 }
 
 fn decode_vec<T: Config, I: Input>(

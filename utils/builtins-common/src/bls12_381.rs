@@ -18,13 +18,13 @@
 
 pub use ark_bls12_381;
 pub use ark_ec;
-use ark_ec::pairing::Pairing;
 pub use ark_ff;
 pub use ark_scale::{self, ark_serialize};
 
 use super::{BuiltinActorError, BuiltinContext};
 use alloc::{vec, vec::Vec};
 use ark_bls12_381::Bls12_381;
+use ark_ec::pairing::{MillerLoopOutput, Pairing};
 use ark_scale::{
     HOST_CALL,
     rw::InputAsRead,
@@ -65,11 +65,20 @@ pub trait BlsOpsGasCost {
 pub struct Bls12_381Ops;
 
 impl Bls12_381Ops {
-    pub fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, ()> {
+    pub fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
         let a = Self::decode::<Vec<<Bls12_381 as Pairing>::G1Affine>>(g1)?;
         let b = Self::decode::<Vec<<Bls12_381 as Pairing>::G2Affine>>(g2)?;
-
         let res = Bls12_381::multi_miller_loop(a, b);
+
+        Ok(Self::encode(res.0))
+    }
+
+    pub fn final_exponentiation(f: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        let f = Self::decode::<<Bls12_381 as Pairing>::TargetField>(f)?;
+        let res = Bls12_381::final_exponentiation(MillerLoopOutput(f)).ok_or(
+            BuiltinActorError::Custom(LimitedStr::from_small_str("Final exponentiation failed")),
+        )?;
+
         Ok(Self::encode(res.0))
     }
 
@@ -77,18 +86,18 @@ impl Bls12_381Ops {
         ArkScaleLocal::from(val).encode()
     }
 
-    fn decode<T: CanonicalDeserialize>(buf: Vec<u8>) -> Result<T, ()> {
+    fn decode<T: CanonicalDeserialize>(buf: Vec<u8>) -> Result<T, BuiltinActorError> {
         ArkScaleLocal::<T>::decode(&mut &buf[..])
             .map(|v| v.0)
-            .map_err(|_| ())
+            .map_err(|_| BuiltinActorError::DecodingError)
     }
 }
 
 /// Common function for BLS12-381 multi Miller loop operation.
-pub fn multi_miller_loop<T: BlsOpsGasCost, E: Into<BuiltinActorError>>(
+pub fn multi_miller_loop<T: BlsOpsGasCost>(
     mut payload: &[u8],
     context: &mut BuiltinContext,
-    multi_miller_loop_impl: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, E>,
+    multi_miller_loop_impl: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Vec<u8>, BuiltinActorError>,
 ) -> Result<Vec<u8>, BuiltinActorError> {
     // TODO: do we need further refactoring here as per #3841?
     let a = decode_vec::<T, _>(&mut payload, context)?;
@@ -120,7 +129,20 @@ pub fn multi_miller_loop<T: BlsOpsGasCost, E: Into<BuiltinActorError>>(
     let gas_cost = T::bls12_381_multi_miller_loop(count as u32);
     context.try_charge_gas(gas_cost)?;
 
-    multi_miller_loop_impl(a, b).map_err(|e| e.into())
+    multi_miller_loop_impl(a, b)
+}
+
+pub fn final_exponentiation<T: BlsOpsGasCost>(
+    mut payload: &[u8],
+    context: &mut BuiltinContext,
+    final_exponentiation_impl: impl FnOnce(Vec<u8>) -> Result<Vec<u8>, BuiltinActorError>,
+) -> Result<Vec<u8>, BuiltinActorError> {
+    let f = decode_vec::<T, _>(&mut payload, context)?;
+
+    let to_spend = T::bls12_381_final_exponentiation();
+    context.try_charge_gas(to_spend)?;
+
+    final_exponentiation_impl(f)
 }
 
 /// Common function for decoding vectors in BLS12-381 operations.
