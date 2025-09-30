@@ -23,7 +23,7 @@ use crate::{
     pages::{GearPage, tests::PageSizeManager},
     signal::ExceptionInfo,
 };
-use gear_core::str::LimitedStr;
+use gear_core::limited::LimitedStr;
 use gear_lazy_pages_common::LazyPagesInitContext;
 use numerated::tree::IntervalsTree;
 use region::Protection;

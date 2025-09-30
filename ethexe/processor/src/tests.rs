@@ -19,10 +19,7 @@
 use crate::*;
 use ethexe_common::{
     BlockHeader,
-    db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead,
-        OnChainStorageWrite,
-    },
+    db::*,
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
 };
 use ethexe_runtime_common::ScheduleRestorer;
@@ -32,21 +29,24 @@ use parity_scale_codec::Encode;
 use utils::*;
 
 fn init_genesis_block(processor: &mut Processor) -> H256 {
-    let block_hash = init_new_block(processor, Default::default());
+    let genesis_block_hash = init_new_block(processor, Default::default());
+
+    // Set zero hash announce for genesis block (genesis announce hash)
+    let genesis_announce_hash = AnnounceHash::zero();
 
     processor
         .db
-        .set_block_program_states(block_hash, Default::default());
+        .set_announce_program_states(genesis_announce_hash, Default::default());
     processor
         .db
-        .set_block_schedule(block_hash, Default::default());
+        .set_announce_schedule(genesis_announce_hash, Default::default());
 
-    block_hash
+    genesis_block_hash
 }
 
-fn init_new_block(processor: &mut Processor, meta: BlockHeader) -> H256 {
+fn init_new_block(processor: &mut Processor, header: BlockHeader) -> H256 {
     let chain_head = H256::random();
-    processor.db.set_block_header(chain_head, meta);
+    processor.db.set_block_header(chain_head, header);
     processor.creator.set_chain_head(chain_head);
     chain_head
 }
@@ -73,8 +73,8 @@ async fn process_observer_event() {
 
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
 
-    let parent = init_genesis_block(&mut processor);
-    let ch0 = init_new_block_from_parent(&mut processor, parent);
+    let genesis = init_genesis_block(&mut processor);
+    let block1 = init_new_block_from_parent(&mut processor, genesis);
 
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
@@ -85,11 +85,24 @@ async fn process_observer_event() {
         .expect("failed to upload code");
     assert!(valid);
 
-    // Process ch0 and save results
-    let result0 = processor.process_block_events(ch0, vec![]).await.unwrap();
-    processor.db.set_block_program_states(ch0, result0.states);
-    processor.db.set_block_schedule(ch0, result0.schedule);
-    let ch1 = init_new_block_from_parent(&mut processor, ch0);
+    let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
+    let block1_announce_hash = block1_announce.to_hash();
+
+    // Process and save results
+    let BlockProcessingResult {
+        states, schedule, ..
+    } = processor
+        .process_announce(block1_announce, vec![])
+        .await
+        .unwrap();
+    processor
+        .db
+        .set_announce_program_states(block1_announce_hash, states);
+    processor
+        .db
+        .set_announce_schedule(block1_announce_hash, schedule);
+
+    let block2 = init_new_block_from_parent(&mut processor, block1);
 
     let actor_id = ActorId::from(42);
 
@@ -113,21 +126,24 @@ async fn process_observer_event() {
         ),
     ];
 
-    // Process ch1 and save results
-    let result1 = processor
-        .process_block_events(ch1, create_program_events)
+    let block2_announce = Announce::with_default_gas(block2, block1_announce_hash);
+    let block2_announce_hash = block2_announce.to_hash();
+
+    // Process block2 announce and save results
+    let BlockProcessingResult {
+        states, schedule, ..
+    } = processor
+        .process_announce(block2_announce, create_program_events)
         .await
         .expect("failed to process create program");
     processor
         .db
-        .set_block_program_states(ch1, result1.states.clone());
+        .set_announce_program_states(block2_announce_hash, states);
     processor
         .db
-        .set_block_schedule(ch1, result1.schedule.clone());
+        .set_announce_schedule(block2_announce_hash, schedule);
 
-    log::debug!("\n\nCreate processing result: {result1:?}\n\n");
-
-    let ch2 = init_new_block_from_parent(&mut processor, ch1);
+    let block3 = init_new_block_from_parent(&mut processor, block2);
 
     let send_message_event = BlockRequestEvent::mirror(
         actor_id,
@@ -140,19 +156,13 @@ async fn process_observer_event() {
         },
     );
 
-    // Process ch2 and save results
-    let result2 = processor
-        .process_block_events(ch2, vec![send_message_event])
+    let block3_announce = Announce::with_default_gas(block3, block2_announce_hash);
+
+    // Process block3 announce
+    processor
+        .process_announce(block3_announce, vec![send_message_event])
         .await
         .expect("failed to process send message");
-    processor
-        .db
-        .set_block_program_states(ch2, result2.states.clone());
-    processor
-        .db
-        .set_block_schedule(ch2, result2.schedule.clone());
-
-    log::debug!("\n\nSend message processing result: {result2:?}\n\n");
 }
 
 #[test]
@@ -255,8 +265,9 @@ async fn ping_pong() {
 
     let mut processor = Processor::new(Database::memory()).unwrap();
 
-    let parent = init_genesis_block(&mut processor);
-    let ch0 = init_new_block_from_parent(&mut processor, parent);
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -266,7 +277,7 @@ async fn ping_pong() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(ch0).unwrap();
+    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -335,8 +346,9 @@ async fn async_and_ping() {
 
     let mut processor = Processor::new(Database::memory()).unwrap();
 
-    let parent = init_genesis_block(&mut processor);
-    let ch0 = init_new_block_from_parent(&mut processor, parent);
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
 
     let ping_id = ActorId::from(0x10000000);
     let async_id = ActorId::from(0x20000000);
@@ -351,7 +363,7 @@ async fn async_and_ping() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(ch0).unwrap();
+    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated {
@@ -475,15 +487,17 @@ async fn many_waits() {
 
     let mut processor = Processor::new(Database::memory()).unwrap();
 
-    let parent = init_genesis_block(&mut processor);
-    let ch0 = init_new_block_from_parent(&mut processor, parent);
+    let genesis = init_genesis_block(&mut processor);
+    let block1 = init_new_block_from_parent(&mut processor, genesis);
+    let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
+    let block1_announce_hash = block1_announce.to_hash();
 
     let code_id = processor
         .handle_new_code(code)
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(ch0).unwrap();
+    let mut handler = processor.handler(block1_announce).unwrap();
 
     let amount = 10000;
     for i in 0..amount {
@@ -551,23 +565,45 @@ async fn many_waits() {
     );
 
     let (_outcomes, states, schedule) = handler.transitions.finalize();
-    processor.db.set_block_program_states(ch0, states);
-    processor.db.set_block_schedule(ch0, schedule);
+    processor
+        .db
+        .set_announce_program_states(block1_announce_hash, states);
+    processor
+        .db
+        .set_announce_schedule(block1_announce_hash, schedule);
 
-    let mut block = ch0;
+    let mut block = block1;
+    let mut block_announce_hash = block1_announce_hash;
     for _ in 0..9 {
-        let parent = block;
-        block = init_new_block_from_parent(&mut processor, parent);
-        let states = processor.db.block_program_states(parent).unwrap();
-        processor.db.set_block_program_states(block, states);
-        let schedule = processor.db.block_schedule(parent).unwrap();
-        processor.db.set_block_schedule(block, schedule);
+        block = init_new_block_from_parent(&mut processor, block);
+        let block_announce = Announce::with_default_gas(block, block_announce_hash);
+        let parent_announce_hash = block_announce_hash;
+        block_announce_hash = block_announce.to_hash();
+
+        let states = processor
+            .db
+            .announce_program_states(parent_announce_hash)
+            .unwrap();
+        processor
+            .db
+            .set_announce_program_states(block_announce_hash, states);
+        let schedule = processor
+            .db
+            .announce_schedule(parent_announce_hash)
+            .unwrap();
+        processor
+            .db
+            .set_announce_schedule(block_announce_hash, schedule);
     }
 
-    let ch11 = init_new_block_from_parent(&mut processor, block);
+    let block12 = init_new_block_from_parent(&mut processor, block);
+    let block12_announce = Announce::with_default_gas(block12, block_announce_hash);
 
-    let states = processor.db.block_program_states(block).unwrap();
-    let schedule = processor.db.block_schedule(block).unwrap();
+    let states = processor
+        .db
+        .announce_program_states(block_announce_hash)
+        .unwrap();
+    let schedule = processor.db.announce_schedule(block_announce_hash).unwrap();
 
     // Reproducibility test.
     let restored_schedule = ScheduleRestorer::from_storage(&processor.db, &states, 0)
@@ -576,7 +612,7 @@ async fn many_waits() {
     // This could fail in case of handling more scheduled ops: please, update test than.
     assert_eq!(schedule, restored_schedule);
 
-    let mut handler = processor.handler(ch11).unwrap();
+    let mut handler = processor.handler(block12_announce).unwrap();
     handler.run_schedule();
     processor.process_queue(&mut handler).await;
 

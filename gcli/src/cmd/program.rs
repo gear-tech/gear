@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-//!
 use crate::{App, result::Result};
 use clap::Parser;
 use gclient::ext::sp_core::H256;

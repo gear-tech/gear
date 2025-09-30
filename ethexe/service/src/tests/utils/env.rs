@@ -37,13 +37,13 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, CodeAndId,
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
@@ -179,17 +179,17 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            Ethereum::deploy(
-                &rpc_url,
-                validators
-                    .iter()
-                    .map(|k| k.public_key.to_address())
-                    .collect(),
-                signer.clone(),
-                sender_address,
-                verifiable_secret_sharing_commitment,
-            )
-            .await?
+            let validators_addresses = validators
+                .iter()
+                .map(|k| k.public_key.to_address())
+                .collect();
+            EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+                .await
+                .unwrap()
+                .with_validators(validators_addresses)
+                .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .deploy()
+                .await?
         };
 
         let router = ethereum.router();
@@ -824,13 +824,14 @@ impl Node {
                             router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
+                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                         },
                     )
                     .await
                     .unwrap(),
                 )
             } else {
-                Box::pin(SimpleConnectService::new())
+                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
             };
 
         let (sender, receiver) = broadcast::channel(2048);
@@ -870,7 +871,7 @@ impl Node {
                 .run()
                 .instrument(tracing::info_span!("node", name))
                 .await
-                .unwrap()
+                .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
 
@@ -926,6 +927,7 @@ impl Node {
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
+            db: self.db.clone(),
         }
     }
 
