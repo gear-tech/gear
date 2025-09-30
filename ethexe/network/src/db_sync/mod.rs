@@ -27,7 +27,10 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::gear::CodeState;
+use ethexe_common::{
+    db::{BlockMetaStorageRead, CodesStorageRead, HashStorageRead},
+    gear::CodeState,
+};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -261,6 +264,16 @@ pub enum InnerResponse {
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
+pub trait DbSyncDatabase: Send + HashStorageRead + BlockMetaStorageRead + CodesStorageRead {
+    fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
+}
+
+impl DbSyncDatabase for Database {
+    fn clone_boxed(&self) -> Box<dyn DbSyncDatabase> {
+        Box::new(self.clone())
+    }
+}
+
 pub struct Behaviour {
     inner: InnerBehaviour,
     peer_score_handle: peer_score::Handle,
@@ -269,12 +282,11 @@ pub struct Behaviour {
 }
 
 impl Behaviour {
-    /// TODO: use database via traits
     pub(crate) fn new(
         config: Config,
         peer_score_handle: peer_score::Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
-        db: Database,
+        db: Box<dyn DbSyncDatabase>,
     ) -> Self {
         Self {
             inner: InnerBehaviour::new(
@@ -488,7 +500,7 @@ pub(crate) mod tests {
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use ethexe_common::{StateHashWithQueueSize, db::BlockMetaStorageWrite};
-    use ethexe_db::MemDb;
+    use ethexe_db::{Database, MemDb};
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -527,7 +539,7 @@ pub(crate) mod tests {
             config,
             peer_score::Handle::new_test(),
             data_provider.clone_boxed(),
-            db.clone(),
+            Box::new(db.clone()),
         );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;

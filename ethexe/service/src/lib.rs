@@ -239,7 +239,7 @@ impl Service {
                     net_config.clone(),
                     &signer,
                     Box::new(RouterDataProvider(router_query)),
-                    db.clone(),
+                    Box::new(db.clone()),
                 )
                 .with_context(|| "failed to create network service")?,
             )

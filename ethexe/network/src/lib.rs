@@ -25,9 +25,9 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
+use crate::db_sync::DbSyncDatabase;
 use anyhow::{Context, anyhow};
 use ethexe_common::{Address, ecdsa::PublicKey};
-use ethexe_db::Database;
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::utils::ByteSliceFormatter;
@@ -164,7 +164,7 @@ impl NetworkService {
         config: NetworkConfig,
         signer: &Signer,
         external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
+        db: Box<dyn DbSyncDatabase>,
     ) -> anyhow::Result<NetworkService> {
         let NetworkConfig {
             public_key,
@@ -487,7 +487,7 @@ impl NetworkService {
 struct BehaviourConfig {
     keypair: identity::Keypair,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-    db: Database,
+    db: Box<dyn DbSyncDatabase>,
     enable_mdns: bool,
     commitments_topic: gossipsub::IdentTopic,
     offchain_topic: gossipsub::IdentTopic,
@@ -619,7 +619,7 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::gear::CodeState;
-    use ethexe_db::MemDb;
+    use ethexe_db::{Database, MemDb};
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
     use std::{
@@ -699,7 +699,13 @@ mod tests {
         let signer = Signer::new(key_storage);
         let key = signer.generate_key().unwrap();
         let config = NetworkConfig::new_test(key, Address::default());
-        NetworkService::new(config.clone(), &signer, Box::new(data_provider), db).unwrap()
+        NetworkService::new(
+            config.clone(),
+            &signer,
+            Box::new(data_provider),
+            Box::new(db),
+        )
+        .unwrap()
     }
 
     fn new_service() -> NetworkService {

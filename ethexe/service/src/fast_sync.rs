@@ -23,7 +23,7 @@ use ethexe_common::{
     Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };

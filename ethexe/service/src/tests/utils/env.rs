@@ -273,7 +273,7 @@ impl TestEnv {
                 config,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
-                db.clone(),
+                Box::new(db.clone()),
             )
             .unwrap();
 
@@ -805,7 +805,7 @@ impl Node {
                 config,
                 &self.signer,
                 Box::new(RouterDataProvider(self.router_query.clone())),
-                self.db.clone(),
+                Box::new(self.db.clone()),
             )
             .unwrap();
             self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
