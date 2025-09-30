@@ -623,7 +623,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function _vaultOwner(address vault) internal view {
-        if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+        if (OwnableUpgradeable(vault).owner() != msg.sender) {
             revert NotVaultOwner();
         }
     }
