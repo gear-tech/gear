@@ -49,11 +49,8 @@ use libp2p::{
 use libp2p_swarm_test::SwarmExt;
 use std::{
     collections::HashSet,
-    fs,
     hash::{DefaultHasher, Hash, Hasher},
-    path::{Path, PathBuf},
     pin::Pin,
-    str::FromStr,
     task::Poll,
     time::Duration,
 };
@@ -97,20 +94,18 @@ impl TransportType {
 
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
-    pub config_dir: PathBuf,
-    pub public_key: Option<PublicKey>,
+    pub public_key: PublicKey,
+    pub router_address: Address,
     pub external_addresses: HashSet<Multiaddr>,
     pub bootstrap_addresses: HashSet<Multiaddr>,
     pub listen_addresses: HashSet<Multiaddr>,
     pub transport_type: TransportType,
-    pub router_address: Address,
 }
 
 impl NetworkConfig {
-    pub fn new_local(config_path: PathBuf, router_address: Address) -> Self {
+    pub fn new_local(public_key: PublicKey, router_address: Address) -> Self {
         Self {
-            config_dir: config_path,
-            public_key: None,
+            public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
@@ -119,10 +114,9 @@ impl NetworkConfig {
         }
     }
 
-    pub fn new_test(config_path: PathBuf, router_address: Address) -> Self {
+    pub fn new_test(public_key: PublicKey, router_address: Address) -> Self {
         Self {
-            config_dir: config_path,
-            public_key: None,
+            public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: Default::default(),
@@ -173,7 +167,6 @@ impl NetworkService {
         db: Database,
     ) -> anyhow::Result<NetworkService> {
         let NetworkConfig {
-            config_dir,
             public_key,
             external_addresses,
             bootstrap_addresses,
@@ -182,10 +175,7 @@ impl NetworkService {
             router_address,
         } = config;
 
-        fs::create_dir_all(&config_dir)
-            .context("failed to create network configuration directory")?;
-
-        let keypair = NetworkService::generate_keypair(signer, &config_dir, public_key)?;
+        let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
         let commitments_topic = Self::gossipsub_topic("commitments", router_address);
         let offchain_topic = Self::gossipsub_topic("offchain", router_address);
@@ -237,30 +227,7 @@ impl NetworkService {
         gossipsub::IdentTopic::new(format!("{name}-{router_address}"))
     }
 
-    fn generate_keypair(
-        signer: &Signer,
-        config_path: &Path,
-        public_key: Option<PublicKey>,
-    ) -> anyhow::Result<identity::Keypair> {
-        let key = if let Some(key) = public_key {
-            log::trace!("use networking key from command-line arguments");
-            key
-        } else {
-            let public_key_path = config_path.join("public_key");
-            if public_key_path.exists() {
-                log::trace!("use networking key saved on disk");
-                let key = fs::read_to_string(public_key_path)
-                    .context("failed to read networking public key")?;
-                PublicKey::from_str(&key)?
-            } else {
-                log::trace!("generate a new networking key");
-                let key = signer.generate_key()?;
-                fs::write(public_key_path, key.to_hex())
-                    .context("failed to write networking public key")?;
-                key
-            }
-        };
-
+    fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
         let key = signer.storage().get_private_key(key)?;
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
             .expect("Signer provided invalid key; qed");
@@ -729,9 +696,9 @@ mod tests {
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
         let key_storage = FSKeyStorage::tmp();
-        let config =
-            NetworkConfig::new_test(key_storage.path.clone().join("network"), Address::default());
         let signer = Signer::new(key_storage);
+        let key = signer.generate_key().unwrap();
+        let config = NetworkConfig::new_test(key, Address::default());
         NetworkService::new(config.clone(), &signer, Box::new(data_provider), db).unwrap()
     }
 
