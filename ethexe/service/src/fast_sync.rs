@@ -701,7 +701,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
-            announces: vec![announce_hash],
+            announces: [announce_hash].into(),
             // TODO #4812: using `latest_committed_batch` here is not correct,
             // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
             last_committed_batch: latest_committed_batch,

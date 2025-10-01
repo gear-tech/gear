@@ -4710,12 +4710,14 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "hex",
+ "itertools 0.13.0",
  "k256",
  "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
  "sha3",
+ "tap",
 ]
 
 [[package]]
