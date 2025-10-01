@@ -18,7 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::utils::load_block_data;
+use crate::utils::{load_block_batch_data, load_block_data};
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -36,7 +36,7 @@ use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStre
 use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fmt,
     pin::Pin,
     task::{Context, Poll},
@@ -307,6 +307,20 @@ impl ObserverService {
             self.config.router_address,
             self.config.wvara_address,
             None,
+        )
+    }
+
+    pub fn load_block_data_batch(
+        &self,
+        from: u64,
+        to: u64,
+    ) -> impl Future<Output = Result<HashMap<H256, BlockData>>> {
+        load_block_batch_data(
+            self.provider.clone(),
+            from,
+            to,
+            self.config.router_address,
+            self.config.wvara_address,
         )
     }
 

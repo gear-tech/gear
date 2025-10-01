@@ -29,10 +29,10 @@ use alloy::{
         },
     },
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
 use ethexe_ethereum::{mirror, router, wvara};
-use futures::{FutureExt, future, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, future, stream, stream::FuturesUnordered};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture};
 
@@ -62,7 +62,7 @@ pub(crate) fn logs_to_events(
     let block_hash_of = |log: &Log| -> Result<H256> {
         log.block_hash
             .map(|v| v.0.into())
-            .ok_or(anyhow!("Block hash is missing"))
+            .context("block hash is missing")
     };
 
     let mut res: HashMap<_, Vec<_>> = HashMap::new();
@@ -93,8 +93,7 @@ pub(crate) fn logs_to_events(
     Ok(res)
 }
 
-pub(crate) fn block_response_to_data(response: Option<Block>) -> Result<(H256, BlockHeader)> {
-    let block = response.ok_or_else(|| anyhow!("Block not found"))?;
+fn block_response_to_data(block: Block) -> (H256, BlockHeader) {
     let block_hash = H256(block.header.hash.0);
 
     let header = BlockHeader {
@@ -103,7 +102,7 @@ pub(crate) fn block_response_to_data(response: Option<Block>) -> Result<(H256, B
         parent_hash: H256(block.header.parent_hash.0),
     };
 
-    Ok((block_hash, header))
+    (block_hash, header)
 }
 
 pub(crate) async fn load_block_data(
@@ -118,38 +117,35 @@ pub(crate) async fn load_block_data(
     let filter = log_filter().at_block_hash(block.0);
     let logs_request = provider.get_logs(&filter);
 
-    let ((block_hash, header), logs) = if let Some(header) = header {
-        ((block, header), logs_request.await?)
+    let (block_hash, header, logs) = if let Some(header) = header {
+        (block, header, logs_request.await?)
     } else {
         let block_request = provider.get_block_by_hash(block.0.into()).into_future();
-
-        match future::try_join(block_request, logs_request).await {
-            Ok((response, logs)) => (block_response_to_data(response)?, logs),
-            Err(err) => Err(err)?,
-        }
+        let (response, logs) = future::try_join(block_request, logs_request).await?;
+        let response = response.context("block not found")?;
+        let (block, header) = block_response_to_data(response);
+        (block, header, logs)
     };
-
-    if block_hash != block {
-        return Err(anyhow!("Expected block hash {block}, got {block_hash}"));
-    }
+    debug_assert_eq!(
+        block_hash, block,
+        "expected block hash {block}, got {block_hash}"
+    );
 
     let events = logs_to_events(logs, router_address, wvara_address)?;
-
-    if events.len() > 1 {
-        return Err(anyhow!(
-            "Expected events for at most 1 block, but got for {}",
-            events.len()
-        ));
-    }
+    debug_assert!(
+        events.len() > 1,
+        "expected events for at most 1 block, but got for {}",
+        events.len()
+    );
 
     let (block_hash, events) = events
         .into_iter()
         .next()
         .unwrap_or_else(|| (block_hash, Vec::new()));
-
-    if block_hash != block {
-        return Err(anyhow!("Expected block hash {block}, got {block_hash}"));
-    }
+    debug_assert_eq!(
+        block_hash, block,
+        "expected block hash {block}, got {block_hash}"
+    );
 
     Ok(BlockData {
         hash: block,
@@ -158,36 +154,31 @@ pub(crate) async fn load_block_data(
     })
 }
 
-pub(crate) async fn load_blocks_data_batched(
+pub(crate) async fn load_block_batch_data(
     provider: RootProvider,
     from_block: u64,
     to_block: u64,
     router_address: Address,
     wvara_address: Address,
 ) -> Result<HashMap<H256, BlockData>> {
-    let batch_futures: FuturesUnordered<_> = (from_block..=to_block)
+    debug_assert!(from_block <= to_block);
+
+    let batch_futures = (from_block..=to_block)
         .step_by(MAX_QUERY_BLOCK_RANGE)
         .map(|start| {
             let end = (start + MAX_QUERY_BLOCK_RANGE as u64 - 1).min(to_block);
+            block_batch_request(provider.clone(), router_address, wvara_address, start, end)
+        });
 
-            load_blocks_batch_data(provider.clone(), router_address, wvara_address, start, end)
-                .boxed()
-        })
-        .collect();
-
-    future::try_join_all(batch_futures).await.map(|batches| {
-        batches
-            .into_iter()
-            .flat_map(|batch| {
-                batch
-                    .into_iter()
-                    .map(|block_data| (block_data.hash, block_data))
-            })
-            .collect()
-    })
+    let batches = future::try_join_all(batch_futures).await?;
+    Ok(batches
+        .into_iter()
+        .flatten()
+        .map(|block_data| (block_data.hash, block_data))
+        .collect())
 }
 
-async fn load_blocks_batch_data(
+async fn block_batch_request(
     provider: RootProvider,
     router_address: Address,
     wvara_address: Address,
@@ -197,31 +188,26 @@ async fn load_blocks_batch_data(
     log::trace!("Querying blocks batch from {from_block} to {to_block}");
 
     let mut batch = BatchRequest::new(provider.client());
-
-    let headers_request: FuturesUnordered<_> = (from_block..=to_block)
-        .map(|bn| {
-            batch
-                .add_call::<_, Option<<Ethereum as Network>::BlockResponse>>(
-                    "eth_getBlockByNumber",
-                    &(format!("0x{bn:x}"), false),
-                )
-                .expect("infallible")
-                .boxed()
-        })
-        .collect();
-
+    let headers_request = (from_block..=to_block).map(|bn| {
+        batch
+            .add_call::<_, Option<<Ethereum as Network>::BlockResponse>>(
+                "eth_getBlockByNumber",
+                &(format!("0x{bn:x}"), false),
+            )
+            .expect("infallible")
+    });
     batch.send().await?;
+    let headers_request = future::join_all(headers_request);
 
     let filter = log_filter().from_block(from_block).to_block(to_block);
     let logs_request = provider.get_logs(&filter);
 
-    let (blocks, logs) = future::join(future::join_all(headers_request), logs_request).await;
+    let (blocks, logs) = future::join(headers_request, logs_request).await;
     let logs = logs?;
 
     let mut blocks_data = Vec::new();
-
     for response in blocks {
-        let block = response?.ok_or_else(|| anyhow!("Block not found"))?;
+        let block = response?.context("Block not found")?;
         let block_hash = H256(block.header.hash.0);
 
         let header = BlockHeader {

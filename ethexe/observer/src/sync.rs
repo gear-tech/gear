@@ -20,7 +20,7 @@
 
 use crate::{
     RuntimeConfig,
-    utils::{load_block_data, load_blocks_data_batched},
+    utils::{load_block_batch_data, load_block_data},
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
@@ -157,7 +157,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        load_blocks_data_batched(
+        load_block_batch_data(
             self.provider.clone(),
             latest_synced_block_height as u64,
             header.height as u64,
