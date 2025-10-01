@@ -18,7 +18,10 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{RuntimeConfig, utils::BlockLoader};
+use crate::{
+    RuntimeConfig,
+    utils::{BlockLoader, EthereumBlockLoader, LazyBlockLoader},
+};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -48,14 +51,16 @@ pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,
     pub router_query: RouterQuery,
-    pub block_loader: BlockLoader,
+    pub block_loader: LazyBlockLoader<EthereumBlockLoader, DB>,
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
     pub fn new(db: DB, config: RuntimeConfig, provider: RootProvider) -> Self {
         let router_query =
             RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
-        let block_loader = BlockLoader::new(provider, config.router_address, config.wvara_address);
+        let block_loader =
+            EthereumBlockLoader::new(provider, config.router_address, config.wvara_address)
+                .lazy(db.clone());
         Self {
             db,
             config,

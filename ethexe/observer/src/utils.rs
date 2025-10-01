@@ -30,7 +30,11 @@ use alloy::{
     },
 };
 use anyhow::{Context, Result};
-use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
+use ethexe_common::{
+    Address, BlockData, BlockHeader,
+    db::{OnChainStorageRead, OnChainStorageWrite},
+    events::BlockEvent,
+};
 use ethexe_ethereum::{mirror, router, wvara};
 use futures::future;
 use gprimitives::H256;
@@ -105,14 +109,21 @@ fn block_response_to_data(block: Block) -> (H256, BlockHeader) {
     (block_hash, header)
 }
 
+#[allow(async_fn_in_trait)]
+pub trait BlockLoader {
+    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData>;
+
+    async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>>;
+}
+
 #[derive(Debug, Clone)]
-pub struct BlockLoader {
+pub struct EthereumBlockLoader {
     provider: RootProvider,
     router_address: Address,
     wvara_address: Address,
 }
 
-impl BlockLoader {
+impl EthereumBlockLoader {
     pub(crate) fn new(
         provider: RootProvider,
         router_address: Address,
@@ -125,50 +136,12 @@ impl BlockLoader {
         }
     }
 
-    pub async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
-        log::trace!("Querying data for one block {block:?}");
-
-        let filter = log_filter().at_block_hash(block.0);
-        let logs_request = self.provider.get_logs(&filter);
-
-        let (block_hash, header, logs) = if let Some(header) = header {
-            (block, header, logs_request.await?)
-        } else {
-            let block_request = self
-                .provider
-                .get_block_by_hash(block.0.into())
-                .into_future();
-            let (response, logs) = future::try_join(block_request, logs_request).await?;
-            let response = response.context("block not found")?;
-            let (block, header) = block_response_to_data(response);
-            (block, header, logs)
-        };
-        debug_assert_eq!(
-            block_hash, block,
-            "expected block hash {block}, got {block_hash}"
-        );
-
-        let events = logs_to_events(logs, self.router_address, self.wvara_address)?;
-        debug_assert!(
-            events.len() > 1,
-            "expected events for at most 1 block, but got for {}",
-            events.len()
-        );
-
-        let (block_hash, events) = events
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| (block_hash, Vec::new()));
-        debug_assert_eq!(
-            block_hash, block,
-            "expected block hash {block}, got {block_hash}"
-        );
-
-        Ok(BlockData {
-            hash: block,
-            header,
-            events,
-        })
+    pub fn lazy<DB>(self, db: DB) -> LazyBlockLoader<Self, DB> {
+        LazyBlockLoader {
+            db,
+            provider: self.provider.clone(),
+            inner: self,
+        }
     }
 
     async fn request_block_batch(&self, range: RangeInclusive<u64>) -> Result<Vec<BlockData>> {
@@ -224,8 +197,56 @@ impl BlockLoader {
 
         Ok(blocks_data)
     }
+}
 
-    pub async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
+impl BlockLoader for EthereumBlockLoader {
+    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
+        log::trace!("Querying data for one block {block:?}");
+
+        let filter = log_filter().at_block_hash(block.0);
+        let logs_request = self.provider.get_logs(&filter);
+
+        let (block_hash, header, logs) = if let Some(header) = header {
+            (block, header, logs_request.await?)
+        } else {
+            let block_request = self
+                .provider
+                .get_block_by_hash(block.0.into())
+                .into_future();
+            let (response, logs) = future::try_join(block_request, logs_request).await?;
+            let response = response.context("block not found")?;
+            let (block, header) = block_response_to_data(response);
+            (block, header, logs)
+        };
+        debug_assert_eq!(
+            block_hash, block,
+            "expected block hash {block}, got {block_hash}"
+        );
+
+        let events = logs_to_events(logs, self.router_address, self.wvara_address)?;
+        debug_assert!(
+            events.len() <= 1,
+            "expected events for at most 1 block, but got for {}",
+            events.len()
+        );
+
+        let (block_hash, events) = events
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| (block_hash, Vec::new()));
+        debug_assert_eq!(
+            block_hash, block,
+            "expected block hash {block}, got {block_hash}"
+        );
+
+        Ok(BlockData {
+            hash: block,
+            header,
+            events,
+        })
+    }
+
+    async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
         log::trace!("Querying blocks batch in {range:?} range");
 
         let batch_futures = range.clone().step_by(MAX_QUERY_BLOCK_RANGE).map(|start| {
@@ -239,5 +260,77 @@ impl BlockLoader {
             .flatten()
             .map(|data| (data.hash, data))
             .collect())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LazyBlockLoader<T, DB> {
+    inner: T,
+    db: DB,
+    provider: RootProvider,
+}
+
+impl<T, DB> BlockLoader for LazyBlockLoader<T, DB>
+where
+    T: BlockLoader,
+    DB: OnChainStorageRead + OnChainStorageWrite,
+{
+    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
+        let data = match (self.db.block_header(block), self.db.block_events(block)) {
+            (Some(header), Some(events)) => BlockData {
+                hash: block,
+                header,
+                events,
+            },
+            (Some(_), None) | (None, Some(_)) => unreachable!("inconsistent database state"),
+            (None, None) => {
+                let data = self.inner.load(block, header).await?;
+                self.db.set_block_header(data.hash, data.header);
+                self.db.set_block_events(data.hash, &data.events);
+                data
+            }
+        };
+        Ok(data)
+    }
+
+    async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
+        let end_block = self
+            .provider
+            .get_block_by_number((*range.end()).into())
+            .await?
+            .with_context(|| format!("block #{} not found", range.end()))?;
+        let end_block = H256(end_block.header.hash.0);
+
+        let mut blocks = HashMap::new();
+        let mut block = end_block;
+        let mut missing_end_block = None;
+        for bn in range.clone().rev() {
+            let header = self.db.block_header(block);
+            let events = self.db.block_events(block);
+            let data = match (header, events) {
+                (Some(header), Some(events)) => BlockData {
+                    hash: block,
+                    header,
+                    events,
+                },
+                (Some(_), None) | (None, Some(_)) => unreachable!("inconsistent database state"),
+                (None, None) => {
+                    missing_end_block = Some(bn);
+                    break;
+                }
+            };
+            debug_assert_eq!(bn, data.header.height as u64);
+
+            block = data.header.parent_hash;
+            blocks.insert(block, data);
+        }
+
+        if let Some(missing_end_block) = missing_end_block {
+            let range = *range.start()..=missing_end_block;
+            let missing_blocks = self.inner.load_many(range).await?;
+            blocks.extend(missing_blocks);
+        }
+
+        Ok(blocks)
     }
 }

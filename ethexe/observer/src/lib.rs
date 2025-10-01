@@ -18,7 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::utils::BlockLoader;
+use crate::utils::EthereumBlockLoader;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -45,7 +45,7 @@ use std::{
 use sync::ChainSync;
 
 mod sync;
-mod utils;
+pub mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -294,8 +294,8 @@ impl ObserverService {
         self.config.block_time.as_secs()
     }
 
-    pub fn block_loader(&self) -> BlockLoader {
-        BlockLoader::new(
+    pub fn block_loader(&self) -> EthereumBlockLoader {
+        EthereumBlockLoader::new(
             self.provider.clone(),
             self.config.router_address,
             self.config.wvara_address,

@@ -41,7 +41,7 @@ use ethexe_db::{
 };
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkEvent, NetworkService, db_sync};
-use ethexe_observer::ObserverService;
+use ethexe_observer::{ObserverService, utils::BlockLoader};
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -66,11 +66,10 @@ impl EventData {
     /// Collects metadata regarding the latest committed batch, block, and the previous committed block
     /// for a given blockchain observer and database.
     async fn collect(
-        observer: &mut ObserverService,
+        block_loader: &impl BlockLoader,
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let block_loader = observer.block_loader();
         let mut latest_committed: Option<(Digest, Option<H256>)> = None;
 
         let mut block = highest_block;
@@ -583,18 +582,13 @@ async fn instrument_codes(
 }
 
 async fn set_tx_pool_data_requirement(
-    observer: &mut ObserverService,
-    db: &Database,
+    block_loader: &impl BlockLoader,
     latest_committed_header: BlockHeader,
 ) -> Result<()> {
     let to = latest_committed_header.height as u64;
     let from = to - OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u64;
 
-    let blocks = observer.block_loader().load_many(from..=to).await?;
-    for (hash, data) in blocks {
-        db.set_block_header(hash, data.header);
-        db.set_block_events(hash, &data.events);
-    }
+    let _blocks = block_loader.load_many(from..=to).await?;
 
     Ok(())
 }
@@ -627,6 +621,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .expect("latest block always exist");
     let finalized_block = H256(finalized_block.header.hash.0);
 
+    let block_loader = observer.block_loader().lazy(db.clone());
+
     let Some(EventData {
         latest_committed_batch,
         latest_committed_block:
@@ -635,7 +631,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
                 header: latest_block_header,
                 events: latest_block_events,
             },
-    }) = EventData::collect(observer, db, finalized_block).await?
+    }) = EventData::collect(&block_loader, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
@@ -656,7 +652,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let schedule =
         ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
 
-    set_tx_pool_data_requirement(observer, db, latest_block_header).await?;
+    set_tx_pool_data_requirement(&block_loader, latest_block_header).await?;
 
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
