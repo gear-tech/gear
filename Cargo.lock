@@ -2094,17 +2094,16 @@ dependencies = [
 name = "builtins-common"
 version = "1.9.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-scale",
  "derive_more 2.0.1",
+ "gbuiltin-bls381",
+ "gbuiltin-eth-bridge",
  "gear-core",
+ "gprimitives",
  "log",
  "parity-scale-codec",
  "scale-info",
  "sha2 0.10.8",
- "sp-crypto-ec-utils",
+ "sha3",
 ]
 
 [[package]]
@@ -6483,10 +6482,6 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "1.9.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-scale",
  "builtins-common",
  "gear-core",
  "gear-lazy-pages",
@@ -6494,7 +6489,6 @@ dependencies = [
  "gear-sandbox-interface",
  "log",
  "parity-scale-codec",
- "sha2 0.10.8",
  "sp-io",
  "sp-runtime-interface",
  "sp-std",
@@ -7142,11 +7136,6 @@ version = "1.9.0"
 name = "gtest"
 version = "1.9.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-scale",
- "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "builtins-common",
  "cargo_toml",
@@ -7158,8 +7147,6 @@ dependencies = [
  "demo-piggy-bank",
  "demo-ping",
  "etc",
- "gbuiltin-bls381",
- "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
  "gear-core-errors",
@@ -7177,8 +7164,6 @@ dependencies = [
  "scale-info",
  "sha2 0.10.8",
  "sp-core",
- "sp-crypto-ec-utils",
- "sp-runtime",
  "thiserror 2.0.12",
  "tracing-subscriber",
 ]
@@ -11440,11 +11425,6 @@ dependencies = [
 name = "pallet-gear-builtin"
 version = "1.9.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-scale",
- "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "builtins-common",
  "demo-proxy-broker",
@@ -11456,7 +11436,6 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gbuiltin-bls381",
  "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
@@ -11524,7 +11503,6 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
  "gear-core-errors",

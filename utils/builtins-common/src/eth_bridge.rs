@@ -16,13 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Builtin actors implementations for gtest.
+pub use gbuiltin_eth_bridge::{Request, Response};
 
-mod bls12_381;
-mod eth_bridge;
+use gprimitives::{H160, H256, U256};
 
-pub use bls12_381::{BLS12_381_ID, Bls12_381Request, Bls12_381Response};
-pub use eth_bridge::{ETH_BRIDGE_ID, EthBridgeRequest, EthBridgeResponse};
+/// The function computes bridging call hash used by `pallet_gear_eth_bridge`
+/// to be later transmitted to Ethereum.
+pub fn bridge_call_hash(
+    nonce: U256,
+    source: H256,
+    destination: H160,
+    payload: &[u8],
+    hashing_fn: impl Fn(&[u8]) -> H256,
+) -> H256 {
+    let mut nonce_bytes = [0; 32];
+    nonce.to_little_endian(&mut nonce_bytes);
 
-pub(crate) use bls12_381::BlsOpsGasCostsImpl;
-pub(crate) use eth_bridge::process_eth_bridge_dispatch;
+    let bytes = [
+        nonce_bytes.as_ref(),
+        source.as_ref(),
+        destination.as_bytes(),
+        payload,
+    ]
+    .concat();
+
+    hashing_fn(&bytes)
+}
+
+pub fn keccak256_hash(data: &[u8]) -> H256 {
+    use sha3::Digest;
+    let hash: [u8; 32] = sha3::Keccak256::digest(data).into();
+
+    hash.into()
+}

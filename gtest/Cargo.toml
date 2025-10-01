@@ -12,7 +12,7 @@ rust-version.workspace = true
 
 [dependencies]
 # Gear related dependencies
-builtins-common = { workspace = true, features = ["bls12-381-std"] }
+builtins-common = { workspace = true, features = ["bls12-381-std", "eth-bridge-std"] }
 gprimitives = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-common = { workspace = true, features = ["std"] }
@@ -23,8 +23,6 @@ gear-lazy-pages-common.workspace = true
 gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gsys.workspace = true
-gbuiltin-bls381.workspace = true
-gbuiltin-eth-bridge.workspace = true
 
 # General dependencies
 parity-scale-codec = { workspace = true, features = ["derive"] }
@@ -38,20 +36,10 @@ cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
 
-# todo [sab] remove and re-export from builtins-common
-# Builtins related dependencies
-ark-scale = { workspace = true, features = ["hazmat"] }
-ark-serialize = { workspace = true, features = ["derive"] }
-ark-bls12-381 = { workspace = true, features = ["curve"] }
-ark-ec.workspace = true
-ark-ff.workspace = true
-sha2.workspace = true
-sp-crypto-ec-utils = { workspace = true, features = ["std", "bls12-381"] }
-sp-runtime = { workspace = true, features = ["std"] }
-
 [dev-dependencies]
 ark-std.workspace = true
 sp-core.workspace = true
+sha2.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true

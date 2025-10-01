@@ -21,19 +21,17 @@
 //! The main function the module is `process_eth_bridge_dispatch` which
 //! processes incoming dispatches to the eth-bridge builtin actor.
 
-pub use gbuiltin_eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
+pub use builtins_common::eth_bridge::{Request as EthBridgeRequest, Response as EthBridgeResponse};
 
 use crate::state::bridge::BridgeBuiltinStorage;
-use builtins_common::BuiltinActorError;
+use builtins_common::{BuiltinActorError, eth_bridge};
+use gear_common::Origin;
 use gear_core::{ids::ActorId, message::StoredDispatch};
 use gprimitives::{H160, H256, U256};
 use parity_scale_codec::Decode;
-use sp_runtime::traits::{Hash, Keccak256};
 
 /// The id of the ETH bridge builtin actor.
 pub const ETH_BRIDGE_ID: ActorId = ActorId::new(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0");
-
-// TODO #4832: Charge gas for eth-bridge ops
 
 /// Processes a dispatch message sent to the Eth-bridge builtin actor.
 pub(crate) fn process_eth_bridge_dispatch(
@@ -58,26 +56,15 @@ pub(crate) fn process_eth_bridge_dispatch(
 
 fn create_bridge_call_output(source: ActorId, destination: H160, payload: Vec<u8>) -> (U256, H256) {
     let nonce = BridgeBuiltinStorage::fetch_nonce();
-    let hash = bridge_call_hash(nonce, source, destination, &payload);
+    let hash = eth_bridge::bridge_call_hash(
+        nonce,
+        source.cast(),
+        destination,
+        &payload,
+        eth_bridge::keccak256_hash,
+    );
 
     (nonce, hash)
-}
-
-// The function is needed mostly for testing purposes not to fetch nonce with
-// storage mutation, like it's done in `create_bridge_call_output`.
-fn bridge_call_hash(nonce: U256, source: ActorId, destination: H160, payload: &[u8]) -> H256 {
-    let mut nonce_bytes = [0; 32];
-    nonce.to_little_endian(&mut nonce_bytes);
-
-    let bytes = [
-        nonce_bytes.as_ref(),
-        source.into_bytes().as_ref(),
-        destination.as_bytes(),
-        payload,
-    ]
-    .concat();
-
-    Keccak256::hash(&bytes)
 }
 
 #[cfg(test)]
@@ -100,11 +87,12 @@ mod tests {
 
         // Calculate expected hash and nonce using the same function as the builtin
         let expected_nonce = U256::zero();
-        let expected_hash = bridge_call_hash(
+        let expected_hash = eth_bridge::bridge_call_hash(
             expected_nonce,
-            proxy_program_id,
+            proxy_program_id.cast(),
             destination,
             &bridge_payload,
+            eth_bridge::keccak256_hash,
         );
 
         // Create the bridge request

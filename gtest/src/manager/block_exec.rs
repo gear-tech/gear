@@ -16,18 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::u64;
-
 use super::*;
 use crate::{
     WasmProgram,
-    builtins::{self, BLS12_381_ID, ETH_BRIDGE_ID},
+    builtins::{self, BLS12_381_ID, BlsOpsGasCostsImpl, ETH_BRIDGE_ID},
     state::{
         blocks,
         programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID},
     },
 };
-use builtins_common::{BuiltinActorError, BuiltinContext};
+use builtins_common::{
+    BuiltinActorError, BuiltinContext,
+    bls12_381::{self, Bls12_381OpsLowLevel},
+};
 use core_processor::{
     ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
 };
@@ -430,17 +431,18 @@ impl ExtManager {
         let mut mock_builtin_context = BuiltinContext::new(u64::MAX, u64::MAX);
 
         let builtin_call_res = match destination {
-            BLS12_381_ID => {
-                builtins::process_bls12_381_dispatch(&dispatch, &mut mock_builtin_context).map(
-                    |response| {
-                        log::debug!("BLS12-381 response: {response:?}");
+            BLS12_381_ID => bls12_381::execute_bls12_381_builtins::<
+                BlsOpsGasCostsImpl,
+                Bls12_381OpsLowLevel,
+            >(dispatch.payload_bytes(), &mut mock_builtin_context)
+            .map(|response| {
+                log::debug!("BLS12-381 response: {response:?}");
 
-                        response.encode().try_into().unwrap_or_else(|_| {
-                            unreachable!("Failed to encode BLS12-381 builtin reply")
-                        })
-                    },
-                )
-            }
+                response
+                    .encode()
+                    .try_into()
+                    .unwrap_or_else(|_| unreachable!("Failed to encode BLS12-381 builtin reply"))
+            }),
             ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch).map(|response| {
                 log::debug!("Eth-bridge response: {response:?}");
 

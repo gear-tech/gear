@@ -17,12 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Config, Error, Pallet, TransportFee, WeightInfo};
-use builtins_common::{BuiltinActorError, BuiltinContext};
+use builtins_common::{
+    BuiltinActorError, BuiltinContext,
+    eth_bridge::{Request, Response},
+};
 use common::Origin;
 use core::marker::PhantomData;
 use frame_support::traits::EnsureOrigin;
 use frame_system::RawOrigin;
-use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
     message::{StoredDispatch, Value},

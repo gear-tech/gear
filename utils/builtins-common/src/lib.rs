@@ -23,6 +23,9 @@ extern crate alloc;
 #[cfg(any(feature = "bls12-381", feature = "bls12-381-std"))]
 pub mod bls12_381;
 
+#[cfg(any(feature = "eth-bridge", feature = "eth-bridge-std"))]
+pub mod eth_bridge;
+
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     str::LimitedStr,
@@ -120,13 +123,13 @@ impl BuiltinActorError {
     }
 
     // Explain rationale
-    pub fn from_u32(code: u32, message: Option<&'static str>) -> Self {
+    pub fn from_u32(code: u32, custom_err_message: Option<&'static str>) -> Self {
         match code {
             0 => BuiltinActorError::InsufficientGas,
             1 => BuiltinActorError::InsufficientValue,
             2 => BuiltinActorError::DecodingError,
             3 => BuiltinActorError::Custom(LimitedStr::from_small_str(
-                message.unwrap_or("Unrecognized builtin actor error from RI call"),
+                custom_err_message.unwrap_or("Unrecognized builtin actor error from RI call"),
             )),
             4 => BuiltinActorError::GasAllowanceExceeded,
             5 => BuiltinActorError::EmptyG1PointsList,

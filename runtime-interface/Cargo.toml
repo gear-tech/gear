@@ -22,12 +22,6 @@ sp-std.workspace = true
 parity-scale-codec.workspace = true
 log = { workspace = true, optional = true }
 
-ark-bls12-381 = { workspace = true, features = ["curve"] }
-ark-ec = { workspace = true, optional = true }
-ark-ff = { workspace = true, optional = true }
-ark-scale = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
-
 [features]
 default = ["std"]
 std = [
@@ -42,9 +36,4 @@ std = [
 	"log",
 
 	"builtins-common/bls12-381-std",
-	"ark-bls12-381/std",
-	"ark-ec/std",
-	"ark-ff/std",
-	"ark-scale/std",
-	"sha2/std"
 ]

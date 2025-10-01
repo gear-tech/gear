@@ -396,7 +396,6 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     }
 }
 
-// todo [sab] sign it, where to move it?
 fn builtin_error_into_actor_error(err: BuiltinActorError) -> ActorExecutionErrorReplyReason {
     match err {
         BuiltinActorError::InsufficientGas => {

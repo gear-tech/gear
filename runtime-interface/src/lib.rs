@@ -37,7 +37,8 @@ use sp_runtime_interface::{
 use sp_std::{result::Result, vec::Vec};
 #[cfg(feature = "std")]
 use {
-    builtins_common::bls12_381::Bls12_381Ops, gear_lazy_pages::LazyPagesStorage,
+    builtins_common::bls12_381::{Bls12_381Ops, Bls12_381OpsLowLevel},
+    gear_lazy_pages::LazyPagesStorage,
     gear_lazy_pages_common::ProcessAccessError,
 };
 
@@ -342,79 +343,16 @@ pub trait GearDebug {
 
 #[runtime_interface]
 pub trait GearBls12_381 {
-    /// Computes the multi Miller loop for BLS12-381 pairing operations.
-    ///
-    /// The Miller loop is the first phase of pairing computation in bilinear cryptography.
-    /// This function performs Miller loops for multiple point pairs simultaneously,
-    /// computing ∏ᵢ f(Pᵢ, Qᵢ) where f is the Miller function for the BLS12-381 curve.
-    ///
-    /// # Parameters
-    ///
-    /// * `g1` - SCALE-encoded `ArkScale<Vec<G1Affine>>` containing G1 points
-    /// * `g2` - SCALE-encoded `ArkScale<Vec<G2Affine>>` containing G2 points
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Vec<u8>)` - SCALE-encoded `ArkScale<Fq12>` Miller loop result
-    /// * `Err(u32)` - Error code if decoding fails or invalid input
-    ///
-    /// # Requirements
-    ///
-    /// - Both arrays must have equal length and non-zero size
-    /// - Points must be valid curve points in their respective groups
-    /// - For complete pairing, follow with [`final_exponentiation`]
-    fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::multi_miller_loop(g1, g2).map_err(|e| e.as_u32())
-    }
-
-    /// Performs the final exponentiation step of BLS12-381 pairing computation.
-    ///
-    /// The final exponentiation is the second and final phase of pairing computation,
-    /// applied to the result of the Miller loop. It computes f^((q^12 - 1) / r) where:
-    /// - f is the Miller loop result (an element of Fq12)
-    /// - q is the base field prime of BLS12-381
-    /// - r is the prime order of the G1/G2 groups
-    ///
-    /// # Parameters
-    ///
-    /// * `f` - SCALE-encoded `ArkScale<Fq12>` Miller loop result
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Vec<u8>)` - SCALE-encoded `ArkScale<Fq12>` final pairing result in GT
-    /// * `Err(u32)` - u32 error code of `BuiltinActorError`.
-    fn final_exponentiation(f: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::final_exponentiation(f).map_err(|e| e.as_u32())
-    }
-
-    // todo [sab] docs
-    fn msm_g1(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::msm_g1(bases, scalars).map_err(|e| e.as_u32())
-    }
-
-    // todo [sab] docs
-    fn msm_g2(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::msm_g2(bases, scalars).map_err(|e| e.as_u32())
-    }
-
-    fn projective_mul_g1(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::projective_mul_g1(base, scalar).map_err(|e| e.as_u32())
-    }
-
-    fn projective_mul_g2(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::projective_mul_g2(base, scalar).map_err(|e| e.as_u32())
-    }
-
     /// Aggregate provided G1-points. Useful for cases with hundreds or more items.
     /// Accepts scale-encoded `ArkScale<Vec<G1Projective>>`.
     /// Result is scale-encoded `ArkScale<G1Projective>`.
     fn aggregate_g1(points: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::aggregate_g1(points).map_err(|e| e.as_u32())
+        Bls12_381OpsLowLevel::aggregate_g1(points).map_err(|e| e.as_u32())
     }
 
     /// Map a message to G2Affine-point using the domain separation tag from `milagro_bls`.
     /// Result is encoded `ArkScale<G2Affine>`.
     fn map_to_g2affine(message: Vec<u8>) -> Result<Vec<u8>, u32> {
-        Bls12_381Ops::map_to_g2affine(message).map_err(|e| e.as_u32())
+        Bls12_381OpsLowLevel::map_to_g2affine(message).map_err(|e| e.as_u32())
     }
 }

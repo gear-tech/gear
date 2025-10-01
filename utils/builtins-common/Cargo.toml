@@ -16,35 +16,35 @@ derive_more.workspace = true
 log.workspace = true
 
 # bls12-381 related deps
-sp-crypto-ec-utils = { workspace = true, optional = true, features = ["bls12-381"] }
-ark-bls12-381 = { workspace = true, optional = true, features = ["curve"] }
-ark-ec = { workspace = true, optional = true }
-ark-ff = { workspace = true, optional = true }
-ark-scale = { workspace = true, optional = true, features = ["hazmat"] }
+gbuiltin-bls381 = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
+
+# eth-bridge related deps
+gbuiltin-eth-bridge = { workspace = true, optional = true }
+gprimitives = { workspace = true, optional = true }
+sha3 = { workspace = true, optional = true }
 
 [lints]
 workspace = true
 
 [features]
-# todo [sab] is it proper?
 default = ["bls12-381-std", "eth-bridge-std"]
-eth-bridge = []
-eth-bridge-std = []
+eth-bridge = [
+    "gbuiltin-eth-bridge",
+    "gprimitives",
+    "sha3",
+]
+eth-bridge-std = [
+    "gbuiltin-eth-bridge/std",
+    "gprimitives/std",
+    "sha3/std",
+]
 bls12-381 = [
-    "ark-bls12-381",
-    "ark-ec",
-    "ark-ff",
-    "ark-scale",
-    "sp-crypto-ec-utils",
+    "gbuiltin-bls381",
     "sha2",
 ]
 bls12-381-std = [
-    "ark-bls12-381/std",
-    "ark-ec/std",
-    "ark-ff/std",
-    "ark-scale/std",
-    "sp-crypto-ec-utils/std",
+    "gbuiltin-bls381/std",
     "sha2/std",
 ]
 

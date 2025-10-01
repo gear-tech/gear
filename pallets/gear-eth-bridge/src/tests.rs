@@ -3,14 +3,16 @@ use crate::{
     internal::EthMessageExt,
     mock::{mock_builtin_id as builtin_id, *},
 };
+use builtins_common::{
+    BuiltinActorError,
+    eth_bridge::{Request, Response},
+};
 use common::Origin as _;
 use frame_support::{
     Blake2_256, StorageHasher, assert_noop, assert_ok, assert_storage_noop, traits::Get,
 };
-use gbuiltin_eth_bridge::{Request, Response};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use pallet_gear::Event as GearEvent;
-use pallet_gear_builtin::BuiltinActorError;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
 use parity_scale_codec::{Decode, Encode};

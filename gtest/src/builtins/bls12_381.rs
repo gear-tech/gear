@@ -21,37 +21,15 @@
 //! The main function of the module is `process_bls12_381_dispatch` which
 //! processes incoming dispatches to the bls12-381 builtin actor.
 
-// todo [sab] Check that non of crates defines as a dep ark twice
-// use exported from gbuiltins-bls381.
+pub use builtins_common::bls12_381::{Request as Bls12_381Request, Response as Bls12_381Response};
 
-pub use gbuiltin_bls381::{Request as Bls12_381Request, Response as Bls12_381Response};
-
-use ark_bls12_381::{Config as Bls12_381Config, G1Projective as G1, G2Projective as G2};
-use ark_ec::{
-    bls12::Bls12Config,
-    hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
-};
-use ark_ff::fields::field_hashers::DefaultFieldHasher;
-use ark_scale::ArkScale;
-use builtins_common::{BuiltinActorError, BuiltinContext, bls12_381::*};
-use gbuiltin_bls381::{
-    REQUEST_AGGREGATE_G1, REQUEST_FINAL_EXPONENTIATION, REQUEST_MAP_TO_G2AFFINE,
-    REQUEST_MULTI_MILLER_LOOP, REQUEST_MULTI_SCALAR_MULTIPLICATION_G1,
-    REQUEST_MULTI_SCALAR_MULTIPLICATION_G2, REQUEST_PROJECTIVE_MULTIPLICATION_G1,
-    REQUEST_PROJECTIVE_MULTIPLICATION_G2,
-};
-use gear_core::{ids::ActorId, message::StoredDispatch, str::LimitedStr};
-use parity_scale_codec::{Decode, Encode};
+use builtins_common::bls12_381::BlsOpsGasCost;
+use gear_core::ids::ActorId;
 
 /// The id of the BLS12-381 builtin actor.
 pub const BLS12_381_ID: ActorId = ActorId::new(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0");
 
-// const IS_COMPRESSED: Compress = ark_scale::is_compressed(HOST_CALL);
-// const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
-
-type ArkScaleLocal<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
-
-struct BlsOpsGasCostsImpl;
+pub(crate) struct BlsOpsGasCostsImpl;
 
 impl BlsOpsGasCost for BlsOpsGasCostsImpl {
     fn decode_bytes(_len: u32) -> u64 {
@@ -91,91 +69,34 @@ impl BlsOpsGasCost for BlsOpsGasCostsImpl {
     }
 }
 
-/// Processes a dispatch message sent to the BLS12-381 builtin actor.
-pub(crate) fn process_bls12_381_dispatch(
-    dispatch: &StoredDispatch,
-    context: &mut BuiltinContext,
-) -> Result<Bls12_381Response, BuiltinActorError> {
-    let payload = dispatch.payload_bytes();
-
-    match payload.first().copied() {
-        Some(REQUEST_MULTI_MILLER_LOOP) => {
-            multi_miller_loop::<BlsOpsGasCostsImpl>(&payload[1..], context, |a, b| {
-                Bls12_381Ops::multi_miller_loop(a, b)
-            })
-            .map(Bls12_381Response::MultiMillerLoop)
-        }
-        Some(REQUEST_FINAL_EXPONENTIATION) => {
-            final_exponentiation::<BlsOpsGasCostsImpl>(&payload[1..], context, |f| {
-                Bls12_381Ops::final_exponentiation(f)
-            })
-            .map(Bls12_381Response::FinalExponentiation)
-        }
-        Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm::<BlsOpsGasCostsImpl>(
-            &payload[1..],
-            context,
-            |count| BlsOpsGasCostsImpl::bls12_381_msm_g1(count),
-            |bases, scalars| Bls12_381Ops::msm_g1(bases, scalars),
-        )
-        .map(Bls12_381Response::MultiScalarMultiplicationG1),
-        Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2) => msm::<BlsOpsGasCostsImpl>(
-            &payload[1..],
-            context,
-            |count| BlsOpsGasCostsImpl::bls12_381_msm_g2(count),
-            |bases, scalars| Bls12_381Ops::msm_g2(bases, scalars),
-        )
-        .map(Bls12_381Response::MultiScalarMultiplicationG2),
-        Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1) => {
-            projective_multiplication::<BlsOpsGasCostsImpl>(
-                &payload[1..],
-                context,
-                |count| BlsOpsGasCostsImpl::bls12_381_mul_projective_g1(count),
-                |base, scalar| Bls12_381Ops::projective_mul_g1(base, scalar),
-            )
-            .map(Bls12_381Response::ProjectiveMultiplicationG1)
-        }
-        Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => {
-            projective_multiplication::<BlsOpsGasCostsImpl>(
-                &payload[1..],
-                context,
-                |count| BlsOpsGasCostsImpl::bls12_381_mul_projective_g2(count),
-                |base, scalar| Bls12_381Ops::projective_mul_g2(base, scalar),
-            )
-            .map(Bls12_381Response::ProjectiveMultiplicationG2)
-        }
-        Some(REQUEST_AGGREGATE_G1) => {
-            aggregate_g1::<BlsOpsGasCostsImpl>(&payload[1..], context, |points| {
-                Bls12_381Ops::aggregate_g1(points)
-            })
-            .map(Bls12_381Response::AggregateG1)
-        }
-        Some(REQUEST_MAP_TO_G2AFFINE) => {
-            map_to_g2affine::<BlsOpsGasCostsImpl>(&payload[1..], context, |message| {
-                Bls12_381Ops::map_to_g2affine(message)
-            })
-            .map(Bls12_381Response::MapToG2Affine)
-        }
-        _ => Err(BuiltinActorError::DecodingError),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{DEFAULT_USER_ALICE, Log, Program, System};
-    use ark_bls12_381::{Bls12_381, G1Affine, G2Affine};
+    use ark_bls12_381::{
+        Bls12_381, Config as Bls12_381Config, G1Affine, G1Projective as G1, G2Affine,
+        G2Projective as G2,
+    };
     use ark_ec::{
         Group, ScalarMul, VariableBaseMSM,
+        bls12::Bls12Config as Bls12ConfigTrait,
+        hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
         pairing::Pairing,
         short_weierstrass::{Projective as SWProjective, SWCurveConfig},
     };
-    use ark_ff::{UniformRand, biginteger::BigInt};
-    use ark_scale::hazmat::ArkScaleProjective;
+    use ark_ff::{UniformRand, biginteger::BigInt, field_hashers::DefaultFieldHasher};
+    use ark_scale::{
+        hazmat::ArkScaleProjective,
+        scale::{Decode, Encode},
+    };
     use ark_std::test_rng;
+    use builtins_common::bls12_381::{ark_bls12_381, ark_ec, ark_ff, ark_scale};
     use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_common::Origin;
+    use gear_core::str::LimitedStr;
     use std::ops::Mul;
 
+    type ArkScaleLocal<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
     type ScalarFieldG1 = <G1 as Group>::ScalarField;
     type ScalarFieldG2 = <G2 as Group>::ScalarField;
 
@@ -292,7 +213,7 @@ mod tests {
         let loop_result = <Bls12_381 as Pairing>::multi_miller_loop(vec![message], vec![pub_key]);
         let expected = <Bls12_381 as Pairing>::final_exponentiation(loop_result);
 
-        let f: ArkScale<<Bls12_381 as Pairing>::TargetField> = loop_result.0.into();
+        let f: ark_scale::ArkScale<<Bls12_381 as Pairing>::TargetField> = loop_result.0.into();
         let final_expon_req = Bls12_381Request::FinalExponentiation { f: f.encode() };
 
         // -----------------------------------------------------------------------
@@ -754,7 +675,7 @@ mod tests {
                 .expect("failed to decode result");
 
             // Verify the result matches what arkworks would produce
-            type WBMap = wb::WBMap<<Bls12_381Config as Bls12Config>::G2Config>;
+            type WBMap = wb::WBMap<<Bls12_381Config as Bls12ConfigTrait>::G2Config>;
             const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
             let mapper =
