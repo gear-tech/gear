@@ -20,11 +20,11 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, BlockHeader, CodeAndIdUnchecked, Digest, ProgramStates,
+    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
-        FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
+        FullAnnounceData, FullBlockData, HashStorageRead,
     },
     events::{BlockEvent, RouterEvent},
     tx_pool::OffchainTransaction,
@@ -606,9 +606,9 @@ async fn instrument_codes(
 
 async fn set_tx_pool_data_requirement(
     block_loader: &impl BlockLoader,
-    latest_committed_header: BlockHeader,
+    latest_committed_block_height: u32,
 ) -> Result<()> {
-    let to = latest_committed_header.height as u64;
+    let to = latest_committed_block_height as u64;
     let from = to - OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u64;
 
     let _blocks = block_loader.load_many(from..=to).await?;
@@ -666,7 +666,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         hash: block_hash,
         header,
         events,
-    } = EventData::get_block_data(observer, db, announce.block_hash).await?;
+    } = block_loader.load(announce.block_hash, None).await?;
 
     let code_ids = collect_code_ids(observer, network, db, announce.block_hash).await?;
     let program_code_ids = collect_program_code_ids(observer, network, announce.block_hash).await?;
@@ -681,7 +681,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
 
-    set_tx_pool_data_requirement(&block_loader, latest_block_header).await?;
+    set_tx_pool_data_requirement(&block_loader, header.height).await?;
 
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
