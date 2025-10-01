@@ -53,9 +53,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-/// The target that will be used when publishing logs related to this pallet.
-pub const LOG_TARGET: &str = "runtime::gear-eth-bridge";
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
