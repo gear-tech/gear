@@ -180,33 +180,26 @@ mod tests {
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();
 
-        let reply1 = BatchCommitmentValidationReply::mock((
-            ctx.core.signer.clone(),
-            keys[0],
-            ctx.core.router_address,
-            digest,
-        ));
+        let reply1 = ctx
+            .core
+            .signer
+            .validation_reply(keys[0], ctx.core.router_address, digest);
 
-        let reply2_invalid = BatchCommitmentValidationReply::mock((
-            ctx.core.signer.clone(),
-            keys[4],
-            ctx.core.router_address,
-            digest,
-        ));
+        let reply2_invalid =
+            ctx.core
+                .signer
+                .validation_reply(keys[4], ctx.core.router_address, digest);
 
-        let reply3_invalid = BatchCommitmentValidationReply::mock((
-            ctx.core.signer.clone(),
+        let reply3_invalid = ctx.core.signer.validation_reply(
             keys[1],
             ctx.core.router_address,
             H256::random().0.into(),
-        ));
+        );
 
-        let reply4 = BatchCommitmentValidationReply::mock((
-            ctx.core.signer.clone(),
-            keys[2],
-            ctx.core.router_address,
-            digest,
-        ));
+        let reply4 = ctx
+            .core
+            .signer
+            .validation_reply(keys[2], ctx.core.router_address, digest);
 
         let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());

@@ -18,8 +18,8 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    BlockMeta, SimpleBlockData,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
+    AnnounceHash, SimpleBlockData,
+    db::{AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
 };
 use gprimitives::H256;
 use std::collections::VecDeque;
@@ -53,13 +53,33 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
     Ok(chain)
 }
 
+/// Returns true if the announce is computed and included in the block `block_hash`.
+/// We cannot just use announce compute flag in some cases,
+/// because it's possible for an announce to be computed but not included in a block.
+/// For example, if node accidentally drops a block
+/// after computing an announce, the announce will be marked as computed, but not included
+/// in the block.
+pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStorageRead>(
+    db: &DB,
+    announce_hash: AnnounceHash,
+    block_hash: H256,
+) -> Result<bool> {
+    if !db.announce_meta(announce_hash).computed {
+        return Ok(false);
+    }
+
+    let meta = db.block_meta(block_hash);
+    Ok(meta.prepared
+        && meta
+            .announces
+            .ok_or(ComputeError::PreparedBlockAnnouncesSetMissing(block_hash))?
+            .contains(&announce_hash))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        BlockHeader,
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
-    };
+    use ethexe_common::{BlockHeader, db::*};
     use ethexe_db::Database as DB;
     use gprimitives::H256;
 
@@ -76,7 +96,6 @@ mod tests {
 
         // Setup genesis block (prepared)
         db.mutate_block_meta(genesis_hash, |meta| {
-            meta.synced = true;
             meta.prepared = true;
         });
         let genesis_header = BlockHeader {
@@ -88,7 +107,6 @@ mod tests {
 
         // Setup block1 (not prepared)
         db.mutate_block_meta(block1_hash, |meta| {
-            meta.synced = true;
             meta.prepared = false;
         });
         let block1_header = BlockHeader {
@@ -100,7 +118,6 @@ mod tests {
 
         // Setup block2 (not prepared)
         db.mutate_block_meta(block2_hash, |meta| {
-            meta.synced = true;
             meta.prepared = false;
         });
         let block2_header = BlockHeader {
@@ -112,7 +129,6 @@ mod tests {
 
         // Setup head (not prepared)
         db.mutate_block_meta(head_hash, |meta| {
-            meta.synced = true;
             meta.prepared = false;
         });
         let head_header = BlockHeader {
@@ -135,7 +151,7 @@ mod tests {
         assert_eq!(result[2].header, head_header);
 
         // Test: collect with filter that stops at block2
-        let result = collect_chain(&db, head_hash, |meta| !meta.prepared && meta.synced).unwrap();
+        let result = collect_chain(&db, head_hash, |meta| !meta.prepared).unwrap();
 
         // Should return the same result since all blocks match the filter
         assert_eq!(result.len(), 3);
@@ -155,7 +171,6 @@ mod tests {
 
         // Setup block meta but no header
         db.mutate_block_meta(head_hash, |meta| {
-            meta.synced = true;
             meta.prepared = false;
         });
 

@@ -4744,17 +4744,20 @@ name = "ethexe-common"
 version = "1.9.2"
 dependencies = [
  "alloy-primitives",
+ "anyhow",
  "auto_impl",
  "derive_more 2.0.1",
  "gear-core",
  "gprimitives",
  "hex",
+ "itertools 0.13.0",
  "k256",
  "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
  "sha3",
+ "tap",
 ]
 
 [[package]]

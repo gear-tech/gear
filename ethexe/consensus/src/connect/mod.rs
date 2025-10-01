@@ -21,31 +21,67 @@
 //! Simple "connect-node" consensus service implementation.
 
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
-    SignedValidationRequest,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
+    SignedValidationRequest, utils,
 };
-use anyhow::Result;
-use ethexe_common::SimpleBlockData;
+use anyhow::{Result, anyhow};
+use ethexe_common::{Address, AnnounceHash, SimpleBlockData, db::OnChainStorageRead};
+use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
+
+const MAX_PENDING_ANNOUNCES: usize = 10;
+const _: () = assert!(
+    MAX_PENDING_ANNOUNCES != 0,
+    "MAX_PENDING_ANNOUNCES must not be zero"
+);
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug)]
+enum State {
+    WaitingForBlock,
+    WaitingForSyncedBlock {
+        block: SimpleBlockData,
+    },
+    WaitingForPreparedBlock {
+        block: SimpleBlockData,
+        producer: Address,
+    },
+    WaitingForAnnounce {
+        block: SimpleBlockData,
+        producer: Address,
+    },
+}
 
 /// Consensus service which tracks the on-chain and ethexe events
 /// in order to keep the program states in local database actual.
-#[derive(Debug, Default)]
+#[derive(derive_more::Debug)]
 pub struct SimpleConnectService {
-    chain_head: Option<SimpleBlockData>,
+    #[debug(skip)]
+    db: Database,
+    slot_duration: Duration,
+
+    state: State,
+    pending_announces: VecDeque<SignedAnnounce>,
     output: VecDeque<ConsensusEvent>,
 }
 
 impl SimpleConnectService {
     /// Creates a new instance of `SimpleConnectService`.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(db: Database, slot_duration: Duration) -> Self {
+        Self {
+            db,
+            slot_duration,
+            state: State::WaitingForBlock,
+            pending_announces: VecDeque::with_capacity(MAX_PENDING_ANNOUNCES),
+            output: VecDeque::new(),
+        }
     }
 }
 
@@ -55,40 +91,88 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
-        self.chain_head = Some(block);
-
+        self.state = State::WaitingForSyncedBlock { block };
         Ok(())
     }
 
-    fn receive_synced_block(&mut self, block: H256) -> Result<()> {
-        let Some(block_data) = self.chain_head.as_ref() else {
-            self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {block}, but no chain-head was received yet",
-            )));
+    fn receive_synced_block(&mut self, block_hash: H256) -> Result<()> {
+        if let State::WaitingForSyncedBlock { block } = &self.state
+            && block.hash == block_hash
+        {
+            let validators = self.db.validators(block_hash).ok_or(anyhow!(
+                "validators not found for synced block({block_hash})"
+            ))?;
+            let producer = utils::block_producer_for(
+                &validators,
+                block.header.timestamp,
+                self.slot_duration.as_secs(),
+            );
 
-            return Ok(());
-        };
+            self.state = State::WaitingForPreparedBlock {
+                block: block.clone(),
+                producer,
+            };
+        }
+        Ok(())
+    }
 
-        if block_data.hash != block {
-            self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {block} is different from the expected block hash {}",
-                block_data.hash
-            )));
+    fn receive_prepared_block(&mut self, prepared_block_hash: H256) -> Result<()> {
+        if let State::WaitingForPreparedBlock { block, producer } = &self.state
+            && block.hash == prepared_block_hash
+        {
+            if let Some(index) = self.pending_announces.iter().position(|announce| {
+                announce.address() == *producer && announce.data().block_hash == block.hash
+            }) {
+                let (announce, _) = self
+                    .pending_announces
+                    .remove(index)
+                    .expect("Index must be valid")
+                    .into_parts();
+                self.output
+                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                self.state = State::WaitingForBlock;
+            } else {
+                self.state = State::WaitingForAnnounce {
+                    block: block.clone(),
+                    producer: *producer,
+                };
+            };
+        }
+        Ok(())
+    }
 
+    fn receive_computed_announce(&mut self, _announce: AnnounceHash) -> Result<()> {
+        Ok(())
+    }
+
+    fn receive_announce(&mut self, announce: SignedAnnounce) -> Result<()> {
+        debug_assert!(
+            self.pending_announces.len() <= MAX_PENDING_ANNOUNCES,
+            "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces because oldest ones are dropped"
+        );
+
+        if let State::WaitingForAnnounce { block, producer } = &self.state
+            && announce.address() == *producer
+            && announce.data().block_hash == block.hash
+        {
+            let (announce, _) = announce.into_parts();
+            self.output
+                .push_back(ConsensusEvent::ComputeAnnounce(announce));
+            self.state = State::WaitingForBlock;
             return Ok(());
         }
 
-        self.output
-            .push_back(ConsensusEvent::ComputeBlock(block_data.hash));
+        if self.pending_announces.len() == MAX_PENDING_ANNOUNCES {
+            let old_announce = self.pending_announces.pop_front().unwrap();
+            log::trace!(
+                "Pending announces limit reached, dropping oldest announce: {:?} from {}",
+                old_announce.data(),
+                old_announce.address()
+            );
+        }
 
-        Ok(())
-    }
+        self.pending_announces.push_back(announce);
 
-    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
-        Ok(())
-    }
-
-    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
         Ok(())
     }
 

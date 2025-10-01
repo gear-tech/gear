@@ -27,7 +27,14 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::gear::CodeState;
+use ethexe_common::{
+    Announce, AnnounceHash,
+    db::{
+        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, HashStorageRead,
+        LatestDataStorageRead,
+    },
+    gear::CodeState,
+};
 use ethexe_db::Database;
 use gprimitives::{ActorId, CodeId, H256};
 use libp2p::{
@@ -199,11 +206,20 @@ pub struct ValidCodesRequest {
     pub validated_count: u64,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AnnouncesRequest {
+    /// The hash of head announce
+    pub head: AnnounceHash,
+    /// Max chain length to return
+    pub max_chain_len: u64,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
     ProgramIds(ProgramIdsRequest),
     ValidCodes(ValidCodesRequest),
+    Announces(AnnouncesRequest),
 }
 
 impl Request {
@@ -230,11 +246,20 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+    Announces(Vec<Announce>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerProgramIdsRequest {
     at: H256,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
+pub struct InnerAnnouncesRequest {
+    /// The hash of head announce
+    pub head: AnnounceHash,
+    /// Max chain length to return
+    pub max_chain_len: u64,
 }
 
 /// Network-only type to be encoded-decoded and sent over the network
@@ -243,6 +268,7 @@ pub enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
+    Announces(InnerAnnouncesRequest),
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
@@ -257,9 +283,27 @@ pub enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
+    Announces(Vec<Announce>),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
+
+pub trait DbSyncDatabase:
+    Send
+    + HashStorageRead
+    + LatestDataStorageRead
+    + BlockMetaStorageRead
+    + AnnounceStorageRead
+    + CodesStorageRead
+{
+    fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
+}
+
+impl DbSyncDatabase for Database {
+    fn clone_boxed(&self) -> Box<dyn DbSyncDatabase> {
+        Box::new(self.clone())
+    }
+}
 
 pub struct Behaviour {
     inner: InnerBehaviour,
@@ -269,12 +313,11 @@ pub struct Behaviour {
 }
 
 impl Behaviour {
-    /// TODO: use database via traits
     pub(crate) fn new(
         config: Config,
         peer_score_handle: peer_score::Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
-        db: Database,
+        db: Box<dyn DbSyncDatabase>,
     ) -> Self {
         Self {
             inner: InnerBehaviour::new(
@@ -487,8 +530,8 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{StateHashWithQueueSize, db::BlockMetaStorageWrite};
-    use ethexe_db::MemDb;
+    use ethexe_common::{StateHashWithQueueSize, db::*};
+    use ethexe_db::{Database, MemDb};
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -527,7 +570,7 @@ pub(crate) mod tests {
             config,
             peer_score::Handle::new_test(),
             data_provider.clone_boxed(),
-            db.clone(),
+            Box::new(db.clone()),
         );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;
@@ -1211,8 +1254,17 @@ pub(crate) mod tests {
         left_data_provider
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
-        right_db.set_block_program_states(
-            H256::zero(),
+
+        let mut announce_hash = AnnounceHash::zero();
+        right_db.mutate_block_meta(H256::zero(), |meta| {
+            assert!(meta.announces.is_none());
+            let announce = Announce::base(H256::zero(), AnnounceHash::zero());
+            announce_hash = announce.to_hash();
+            meta.announces = Some([announce_hash].into());
+        });
+
+        right_db.set_announce_program_states(
+            announce_hash,
             iter::zip(
                 program_ids.clone(),
                 iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {

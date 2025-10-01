@@ -19,10 +19,12 @@
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
+use ethexe_common::Address;
 use ethexe_network::{
     NetworkConfig,
     export::{Multiaddr, Protocol},
 };
+use ethexe_signer::Signer;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -66,16 +68,33 @@ impl NetworkParams {
     pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
     /// Convert self into a proper `NetworkConfig` object, if network is enabled.
-    pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkConfig>> {
+    pub fn into_config(
+        self,
+        config_dir: PathBuf,
+        router_address: Address,
+    ) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
         }
 
-        let public_key = self
-            .network_key
-            .map(|k| k.parse())
-            .transpose()
-            .with_context(|| "invalid `network-key`")?;
+        let public_key = if let Some(key) = self.network_key {
+            log::trace!("use network key from command-line arguments");
+            key.parse().context("invalid network key")?
+        } else {
+            let signer = Signer::fs(config_dir);
+            let keys = signer.storage_mut().list_keys()?;
+            match keys.as_slice() {
+                [] => {
+                    log::trace!("generate a new network key");
+                    signer.generate_key()?
+                }
+                [key] => {
+                    log::trace!("use network key saved on disk");
+                    *key
+                }
+                _ => anyhow::bail!("only one network key is expected"),
+            }
+        };
 
         let external_addresses = self
             .network_public_addr
@@ -110,8 +129,8 @@ impl NetworkParams {
         };
 
         Ok(Some(NetworkConfig {
-            config_dir,
             public_key,
+            router_address,
             external_addresses,
             bootstrap_addresses,
             listen_addresses,
