@@ -24,7 +24,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
-        FullAnnounceData, FullBlockData, OnChainStorageRead, OnChainStorageWrite,
+        FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
 };

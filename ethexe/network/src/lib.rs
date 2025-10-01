@@ -25,15 +25,15 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
+use crate::db_sync::DbSyncDatabase;
 use anyhow::{Context, anyhow};
-use ethexe_common::ecdsa::PublicKey;
-use ethexe_db::Database;
+use ethexe_common::{Address, ecdsa::PublicKey};
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
-    core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
+    core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
     gossipsub, identify, identity, kad, mdns,
     multiaddr::Protocol,
@@ -49,11 +49,8 @@ use libp2p::{
 use libp2p_swarm_test::SwarmExt;
 use std::{
     collections::HashSet,
-    fmt, fs,
     hash::{DefaultHasher, Hash, Hasher},
-    path::{Path, PathBuf},
     pin::Pin,
-    str::FromStr,
     task::Poll,
     time::Duration,
 };
@@ -67,9 +64,10 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, derive_more::Debug)]
 pub enum NetworkEvent {
     Message {
+        #[debug("{:.8} ({} bytes)", ByteSliceFormatter::Dynamic(data), data.len())]
         data: Vec<u8>,
         source: Option<PeerId>,
     },
@@ -77,42 +75,23 @@ pub enum NetworkEvent {
     PeerConnected(PeerId),
 }
 
-impl fmt::Debug for NetworkEvent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NetworkEvent::Message { data, source } => f
-                .debug_struct("Message")
-                .field(
-                    "data",
-                    &format_args!(
-                        "{:.8} ({} bytes)",
-                        ByteSliceFormatter::Dynamic(data),
-                        data.len()
-                    ),
-                )
-                .field("source", source)
-                .finish(),
-            NetworkEvent::PeerBlocked(peer_id) => {
-                f.debug_tuple("PeerBlocked").field(peer_id).finish()
-            }
-            NetworkEvent::PeerConnected(peer_id) => {
-                f.debug_tuple("PeerConnected").field(peer_id).finish()
-            }
-        }
-    }
-}
-
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum TransportType {
     #[default]
     Default,
     Test,
 }
 
+impl TransportType {
+    fn mdns_enabled(&self) -> bool {
+        matches!(self, Self::Default)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
-    pub config_dir: PathBuf,
-    pub public_key: Option<PublicKey>,
+    pub public_key: PublicKey,
+    pub router_address: Address,
     pub external_addresses: HashSet<Multiaddr>,
     pub bootstrap_addresses: HashSet<Multiaddr>,
     pub listen_addresses: HashSet<Multiaddr>,
@@ -120,25 +99,25 @@ pub struct NetworkConfig {
 }
 
 impl NetworkConfig {
-    pub fn new_local(config_path: PathBuf) -> Self {
+    pub fn new_local(public_key: PublicKey, router_address: Address) -> Self {
         Self {
-            config_dir: config_path,
-            public_key: None,
+            public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
             transport_type: TransportType::Default,
+            router_address,
         }
     }
 
-    pub fn new_test(config_path: PathBuf) -> Self {
+    pub fn new_test(public_key: PublicKey, router_address: Address) -> Self {
         Self {
-            config_dir: config_path,
-            public_key: None,
+            public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: Default::default(),
             transport_type: TransportType::Test,
+            router_address,
         }
     }
 }
@@ -147,6 +126,8 @@ pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
+    commitments_topic: gossipsub::IdentTopic,
+    offchain_topic: gossipsub::IdentTopic,
 }
 
 impl Stream for NetworkService {
@@ -179,31 +160,43 @@ impl NetworkService {
         config: NetworkConfig,
         signer: &Signer,
         external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
+        db: Box<dyn DbSyncDatabase>,
     ) -> anyhow::Result<NetworkService> {
-        fs::create_dir_all(&config.config_dir)
-            .context("failed to create network configuration directory")?;
+        let NetworkConfig {
+            public_key,
+            external_addresses,
+            bootstrap_addresses,
+            listen_addresses,
+            transport_type,
+            router_address,
+        } = config;
 
-        let keypair =
-            NetworkService::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkService::create_swarm(
-            keypair,
+        let keypair = NetworkService::generate_keypair(signer, public_key)?;
+
+        let commitments_topic = Self::gossipsub_topic("commitments", router_address);
+        let offchain_topic = Self::gossipsub_topic("offchain", router_address);
+
+        let behaviour_config = BehaviourConfig {
+            keypair: keypair.clone(),
             external_data_provider,
             db,
-            config.transport_type,
-        )?;
+            enable_mdns: transport_type.mdns_enabled(),
+            commitments_topic: commitments_topic.clone(),
+            offchain_topic: offchain_topic.clone(),
+        };
+        let mut swarm = NetworkService::create_swarm(keypair, transport_type, behaviour_config)?;
 
-        for multiaddr in config.external_addresses {
+        for multiaddr in external_addresses {
             swarm.add_external_address(multiaddr);
         }
 
         let mut listeners = Vec::new();
-        for multiaddr in config.listen_addresses {
+        for multiaddr in listen_addresses {
             let id = swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
             listeners.push(id);
         }
 
-        for multiaddr in config.bootstrap_addresses {
+        for multiaddr in bootstrap_addresses {
             let peer_id = multiaddr
                 .iter()
                 .find_map(|p| {
@@ -218,33 +211,19 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        Ok(Self { swarm, listeners })
+        Ok(Self {
+            swarm,
+            listeners,
+            commitments_topic,
+            offchain_topic,
+        })
     }
 
-    fn generate_keypair(
-        signer: &Signer,
-        config_path: &Path,
-        public_key: Option<PublicKey>,
-    ) -> anyhow::Result<identity::Keypair> {
-        let key = if let Some(key) = public_key {
-            log::trace!("use networking key from command-line arguments");
-            key
-        } else {
-            let public_key_path = config_path.join("public_key");
-            if public_key_path.exists() {
-                log::trace!("use networking key saved on disk");
-                let key = fs::read_to_string(public_key_path)
-                    .context("failed to read networking public key")?;
-                PublicKey::from_str(&key)?
-            } else {
-                log::trace!("generate a new networking key");
-                let key = signer.generate_key()?;
-                fs::write(public_key_path, key.to_hex())
-                    .context("failed to write networking public key")?;
-                key
-            }
-        };
+    fn gossipsub_topic(name: &'static str, router_address: Address) -> gossipsub::IdentTopic {
+        gossipsub::IdentTopic::new(format!("{name}-{router_address}"))
+    }
 
+    fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
         let key = signer.storage().get_private_key(key)?;
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
             .expect("Signer provided invalid key; qed");
@@ -252,48 +231,51 @@ impl NetworkService {
         Ok(identity::Keypair::from(pair))
     }
 
-    fn create_swarm(
-        keypair: identity::Keypair,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
+    fn create_transport(
+        keypair: &identity::Keypair,
         transport_type: TransportType,
-    ) -> anyhow::Result<Swarm<Behaviour>> {
-        let transport = match transport_type {
+    ) -> anyhow::Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
+        match transport_type {
             TransportType::Default => {
                 let tcp = libp2p::tcp::tokio::Transport::default()
                     .upgrade(upgrade::Version::V1Lazy)
-                    .authenticate(libp2p::tls::Config::new(&keypair)?)
+                    .authenticate(libp2p::tls::Config::new(keypair)?)
                     .multiplex(yamux::Config::default())
                     .timeout(Duration::from_secs(20));
 
-                let quic_config = libp2p::quic::Config::new(&keypair);
+                let quic_config = libp2p::quic::Config::new(keypair);
                 let quic = libp2p::quic::tokio::Transport::new(quic_config);
 
-                quic.or_transport(tcp)
+                Ok(quic
+                    .or_transport(tcp)
                     .map(|either_output, _| match either_output {
                         Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
                         Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
                     })
-                    .boxed()
+                    .boxed())
             }
-            TransportType::Test => libp2p::core::transport::MemoryTransport::default()
+            TransportType::Test => Ok(transport::MemoryTransport::default()
                 .or_transport(libp2p::tcp::tokio::Transport::default())
                 .upgrade(upgrade::Version::V1Lazy)
-                .authenticate(libp2p::plaintext::Config::new(&keypair))
+                .authenticate(libp2p::plaintext::Config::new(keypair))
                 .multiplex(yamux::Config::default())
                 .timeout(Duration::from_secs(20))
-                .boxed(),
-        };
+                .boxed()),
+        }
+    }
 
-        let enable_mdns = match transport_type {
-            TransportType::Default => true,
-            TransportType::Test => false,
-        };
+    fn create_swarm(
+        keypair: identity::Keypair,
+        transport_type: TransportType,
+        config: BehaviourConfig,
+    ) -> anyhow::Result<Swarm<Behaviour>> {
+        let transport = Self::create_transport(&keypair, transport_type)?;
 
-        let behaviour = Behaviour::new(&keypair, external_data_provider, db, enable_mdns)?;
+        let behaviour = Behaviour::new(config)?;
+
         let local_peer_id = keypair.public().to_peer_id();
-        let mut config = SwarmConfig::with_tokio_executor();
 
+        let mut config = SwarmConfig::with_tokio_executor();
         if let TransportType::Test = transport_type {
             config = config.with_idle_connection_timeout(Duration::from_secs(5));
         }
@@ -403,10 +385,10 @@ impl NetworkService {
                         source,
                         data,
                         sequence_number: _,
-                        topic,
+                        topic: _,
                     },
                 ..
-            }) if commitments_topic().hash() == topic || offchain_tx_topic().hash() == topic => {
+            }) => {
                 return Some(NetworkEvent::Message { source, data });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
@@ -442,7 +424,7 @@ impl NetworkService {
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(commitments_topic(), data)
+            .publish(self.commitments_topic.clone(), data)
         {
             log::error!("gossipsub publishing failed: {e}")
         }
@@ -453,7 +435,7 @@ impl NetworkService {
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(offchain_tx_topic(), data)
+            .publish(self.offchain_topic.clone(), data)
         {
             log::error!("gossipsub publishing failed: {e}")
         }
@@ -483,6 +465,15 @@ impl NetworkService {
     }
 }
 
+struct BehaviourConfig {
+    keypair: identity::Keypair,
+    external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    db: Box<dyn DbSyncDatabase>,
+    enable_mdns: bool,
+    commitments_topic: gossipsub::IdentTopic,
+    offchain_topic: gossipsub::IdentTopic,
+}
+
 #[derive(NetworkBehaviour)]
 pub(crate) struct Behaviour {
     // custom options to limit connections
@@ -507,12 +498,16 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    fn new(
-        keypair: &identity::Keypair,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
-        enable_mdns: bool,
-    ) -> anyhow::Result<Self> {
+    fn new(config: BehaviourConfig) -> anyhow::Result<Self> {
+        let BehaviourConfig {
+            keypair,
+            external_data_provider,
+            db,
+            enable_mdns,
+            commitments_topic,
+            offchain_topic,
+        } = config;
+
         let peer_id = keypair.public().to_peer_id();
 
         // we use custom behaviour because
@@ -572,9 +567,8 @@ impl Behaviour {
                 gossipsub::PeerScoreThresholds::default(),
             )
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
-
-        gossipsub.subscribe(&commitments_topic())?;
-        gossipsub.subscribe(&offchain_tx_topic())?;
+        gossipsub.subscribe(&commitments_topic)?;
+        gossipsub.subscribe(&offchain_topic)?;
 
         let db_sync = db_sync::Behaviour::new(
             db_sync::Config::default(),
@@ -597,15 +591,6 @@ impl Behaviour {
     }
 }
 
-fn commitments_topic() -> gossipsub::IdentTopic {
-    // TODO: use router address in topic name to avoid obsolete router
-    gossipsub::IdentTopic::new("ethexe-commitments")
-}
-
-fn offchain_tx_topic() -> gossipsub::IdentTopic {
-    gossipsub::IdentTopic::new("ethexe-tx-pool")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,7 +600,7 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::gear::CodeState;
-    use ethexe_db::MemDb;
+    use ethexe_db::{Database, MemDb};
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
     use std::{
@@ -692,9 +677,16 @@ mod tests {
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
         let key_storage = FSKeyStorage::tmp();
-        let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
         let signer = Signer::new(key_storage);
-        NetworkService::new(config.clone(), &signer, Box::new(data_provider), db).unwrap()
+        let key = signer.generate_key().unwrap();
+        let config = NetworkConfig::new_test(key, Address::default());
+        NetworkService::new(
+            config.clone(),
+            &signer,
+            Box::new(data_provider),
+            Box::new(db),
+        )
+        .unwrap()
     }
 
     fn new_service() -> NetworkService {

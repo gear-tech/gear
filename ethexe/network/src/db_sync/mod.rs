@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,14 @@ pub(crate) use crate::{
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;
-use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
+use ethexe_common::{
+    Announce, AnnounceHash,
+    db::{
+        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, HashStorageRead,
+        LatestDataStorageRead,
+    },
+    gear::CodeState,
+};
 use ethexe_db::Database;
 use futures::FutureExt;
 use gprimitives::{ActorId, CodeId, H256};
@@ -358,6 +365,23 @@ pub(crate) enum InnerResponse {
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
+pub trait DbSyncDatabase:
+    Send
+    + HashStorageRead
+    + LatestDataStorageRead
+    + BlockMetaStorageRead
+    + AnnounceStorageRead
+    + CodesStorageRead
+{
+    fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
+}
+
+impl DbSyncDatabase for Database {
+    fn clone_boxed(&self) -> Box<dyn DbSyncDatabase> {
+        Box::new(self.clone())
+    }
+}
+
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
     handle: Handle,
@@ -368,12 +392,11 @@ pub(crate) struct Behaviour {
 }
 
 impl Behaviour {
-    /// TODO: use database via traits
     pub(crate) fn new(
         config: Config,
         peer_score_handle: peer_score::Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
-        db: Database,
+        db: Box<dyn DbSyncDatabase>,
     ) -> Self {
         let (handle, rx) = mpsc::unbounded_channel();
         let handle = Handle(handle);
@@ -599,7 +622,7 @@ pub(crate) mod tests {
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use ethexe_common::{StateHashWithQueueSize, db::*};
-    use ethexe_db::MemDb;
+    use ethexe_db::{Database, MemDb};
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -638,7 +661,7 @@ pub(crate) mod tests {
             config,
             peer_score::Handle::new_test(),
             data_provider.clone_boxed(),
-            db.clone(),
+            Box::new(db.clone()),
         );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.listen().with_memory_addr_external().await;

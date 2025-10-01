@@ -65,6 +65,11 @@ impl BlockMeta {
 }
 
 #[auto_impl::auto_impl(&, Box)]
+pub trait HashStorageRead {
+    fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
+}
+
+#[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
@@ -86,6 +91,7 @@ pub trait CodesStorageRead {
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
+    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -95,7 +101,6 @@ pub trait CodesStorageWrite {
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
-    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 #[auto_impl::auto_impl(&, Box)]
