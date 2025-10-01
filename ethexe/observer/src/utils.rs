@@ -171,17 +171,66 @@ impl BlockLoader {
         })
     }
 
+    async fn request_block_batch(&self, range: RangeInclusive<u64>) -> Result<Vec<BlockData>> {
+        let mut batch = BatchRequest::new(self.provider.client());
+        let headers_request = range
+            .clone()
+            .map(|bn| {
+                batch
+                    .add_call::<_, Option<<Ethereum as Network>::BlockResponse>>(
+                        "eth_getBlockByNumber",
+                        &(format!("0x{bn:x}"), false),
+                    )
+                    .expect("infallible")
+            })
+            .collect::<Vec<_>>();
+        batch.send().await?;
+        let headers_request = future::join_all(headers_request);
+
+        let filter = log_filter()
+            .from_block(*range.start())
+            .to_block(*range.end());
+        let logs_request = self.provider.get_logs(&filter);
+
+        let (blocks, logs) = future::join(headers_request, logs_request).await;
+        let logs = logs?;
+
+        let mut blocks_data = Vec::new();
+        for response in blocks {
+            let block = response?;
+            let Some(block) = block else {
+                break;
+            };
+
+            let block_hash = H256(block.header.hash.0);
+
+            let header = BlockHeader {
+                height: block.header.number as u32,
+                timestamp: block.header.timestamp,
+                parent_hash: H256(block.header.parent_hash.0),
+            };
+
+            blocks_data.push(BlockData {
+                hash: block_hash,
+                header,
+                events: Vec::new(),
+            });
+        }
+
+        let mut events = logs_to_events(logs, self.router_address, self.wvara_address)?;
+        for block_data in blocks_data.iter_mut() {
+            block_data.events = events.remove(&block_data.hash).unwrap_or_default();
+        }
+
+        Ok(blocks_data)
+    }
+
     pub async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
         log::trace!("Querying blocks batch in {range:?} range");
 
         let batch_futures = range.clone().step_by(MAX_QUERY_BLOCK_RANGE).map(|start| {
             let end = (start + MAX_QUERY_BLOCK_RANGE as u64 - 1).min(*range.end());
-            request_block_batch(
-                self.provider.clone(),
-                self.router_address,
-                self.wvara_address,
-                start..=end,
-            )
+            self.request_block_batch(start..=end)
         });
 
         let batches = future::try_join_all(batch_futures).await?;
@@ -191,63 +240,4 @@ impl BlockLoader {
             .map(|data| (data.hash, data))
             .collect())
     }
-}
-
-async fn request_block_batch(
-    provider: RootProvider,
-    router_address: Address,
-    wvara_address: Address,
-    range: RangeInclusive<u64>,
-) -> Result<Vec<BlockData>> {
-    let mut batch = BatchRequest::new(provider.client());
-    let headers_request = range
-        .clone()
-        .map(|bn| {
-            batch
-                .add_call::<_, Option<<Ethereum as Network>::BlockResponse>>(
-                    "eth_getBlockByNumber",
-                    &(format!("0x{bn:x}"), false),
-                )
-                .expect("infallible")
-        })
-        .collect::<Vec<_>>();
-    batch.send().await?;
-    let headers_request = future::join_all(headers_request);
-
-    let filter = log_filter()
-        .from_block(*range.start())
-        .to_block(*range.end());
-    let logs_request = provider.get_logs(&filter);
-
-    let (blocks, logs) = future::join(headers_request, logs_request).await;
-    let logs = logs?;
-
-    let mut blocks_data = Vec::new();
-    for response in blocks {
-        let block = response?;
-        let Some(block) = block else {
-            break;
-        };
-
-        let block_hash = H256(block.header.hash.0);
-
-        let header = BlockHeader {
-            height: block.header.number as u32,
-            timestamp: block.header.timestamp,
-            parent_hash: H256(block.header.parent_hash.0),
-        };
-
-        blocks_data.push(BlockData {
-            hash: block_hash,
-            header,
-            events: Vec::new(),
-        });
-    }
-
-    let mut events = logs_to_events(logs, router_address, wvara_address)?;
-    for block_data in blocks_data.iter_mut() {
-        block_data.events = events.remove(&block_data.hash).unwrap_or_default();
-    }
-
-    Ok(blocks_data)
 }
