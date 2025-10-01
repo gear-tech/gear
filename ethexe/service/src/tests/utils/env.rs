@@ -37,7 +37,7 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, CodeAndId,
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -263,17 +263,17 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let config_path = tempfile::tempdir().unwrap().keep();
+            let network_key = signer.generate_key().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
-            let mut config = NetworkConfig::new_test(config_path);
+            let mut config = NetworkConfig::new_test(network_key, router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
             let mut service = NetworkService::new(
                 config,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
-                db.clone(),
+                Box::new(db.clone()),
             )
             .unwrap();
 
@@ -791,10 +791,10 @@ impl Node {
         let wait_for_network = self.network_bootstrap_address.is_some();
 
         let network = self.network_address.as_ref().map(|addr| {
-            let config_path = tempfile::tempdir().unwrap().keep();
+            let network_key = self.signer.generate_key().unwrap();
             let multiaddr: Multiaddr = addr.parse().unwrap();
 
-            let mut config = NetworkConfig::new_test(config_path);
+            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
             if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
@@ -805,7 +805,7 @@ impl Node {
                 config,
                 &self.signer,
                 Box::new(RouterDataProvider(self.router_query.clone())),
-                self.db.clone(),
+                Box::new(self.db.clone()),
             )
             .unwrap();
             self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
@@ -824,13 +824,14 @@ impl Node {
                             router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
+                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                         },
                     )
                     .await
                     .unwrap(),
                 )
             } else {
-                Box::pin(SimpleConnectService::new())
+                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
             };
 
         let (sender, receiver) = broadcast::channel(2048);
@@ -870,7 +871,7 @@ impl Node {
                 .run()
                 .instrument(tracing::info_span!("node", name))
                 .await
-                .unwrap()
+                .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
 
@@ -926,6 +927,7 @@ impl Node {
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
+            db: self.db.clone(),
         }
     }
 

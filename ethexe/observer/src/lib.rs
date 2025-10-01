@@ -27,8 +27,8 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, Digest, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    Address, BlockHeader, SimpleBlockData,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -229,16 +229,14 @@ impl ObserverService {
     // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db<
-        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead + OnChainStorageWrite,
-    >(
-        db: &DB,
+    async fn pre_process_genesis_for_db(
+        db: &Database,
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<BlockHeader> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_meta(genesis_block_hash).computed {
+        if db.block_meta(genesis_block_hash).prepared {
             return db
                 .block_header(genesis_block_hash)
                 .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
@@ -261,23 +259,14 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
-        db.set_block_header(genesis_block_hash, genesis_header);
-        db.set_block_events(genesis_block_hash, &[]);
-        db.set_latest_synced_block_height(genesis_header.height);
-        db.mutate_block_meta(genesis_block_hash, |meta| {
-            meta.computed = true;
-            meta.prepared = true;
-            meta.synced = true;
-            meta.last_committed_batch = Some(Digest([0; 32]));
-            meta.last_committed_head = Some(genesis_block_hash);
-        });
-
-        db.set_block_codes_queue(genesis_block_hash, Default::default());
-        db.set_block_program_states(genesis_block_hash, Default::default());
-        db.set_block_schedule(genesis_block_hash, Default::default());
-        db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_validators(genesis_block_hash, genesis_validators);
+        ethexe_common::setup_genesis_in_db(
+            db,
+            SimpleBlockData {
+                hash: genesis_block_hash,
+                header: genesis_header,
+            },
+            genesis_validators,
+        );
 
         Ok(genesis_header)
     }

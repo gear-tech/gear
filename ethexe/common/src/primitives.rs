@@ -16,17 +16,48 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Digest, ToDigest, events::BlockEvent};
+use crate::{DEFAULT_BLOCK_GAS_LIMIT, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gear_core::ids::prelude::CodeIdExt as _;
+use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
+
+// TODO #4875: use HashOf here
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Encode,
+    Decode,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::Display,
+)]
+#[display("{}", self.0)]
+pub struct AnnounceHash(pub H256);
+
+impl AnnounceHash {
+    pub const fn zero() -> Self {
+        Self(H256::zero())
+    }
+
+    #[cfg(feature = "std")]
+    pub fn random() -> Self {
+        Self(H256::random())
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
@@ -71,23 +102,43 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct BlockMeta {
-    pub synced: bool,
-    pub prepared: bool,
-    pub computed: bool,
-    pub last_committed_batch: Option<Digest>,
-    pub last_committed_head: Option<H256>,
-}
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-pub struct ProducerBlock {
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct Announce {
     pub block_hash: H256,
+    pub parent: AnnounceHash,
     pub gas_allowance: Option<u64>,
     pub off_chain_transactions: Vec<H256>,
 }
 
-impl ToDigest for ProducerBlock {
+impl Announce {
+    pub fn to_hash(&self) -> AnnounceHash {
+        AnnounceHash(H256(utils::hash(&self.encode())))
+    }
+
+    pub fn base(block_hash: H256, parent: AnnounceHash) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: None,
+            off_chain_transactions: Vec::new(),
+        }
+    }
+
+    pub fn with_default_gas(block_hash: H256, parent: AnnounceHash) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            off_chain_transactions: Vec::new(),
+        }
+    }
+
+    pub fn is_base(&self) -> bool {
+        self.gas_allowance.is_none() && self.off_chain_transactions.is_empty()
+    }
+}
+
+impl ToDigest for Announce {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.block_hash);
         hasher.update(self.gas_allowance.encode());

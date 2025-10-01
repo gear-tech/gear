@@ -26,7 +26,7 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
@@ -36,11 +36,15 @@ use nonempty::NonEmpty;
 use std::collections::HashMap;
 
 pub(crate) trait SyncDB:
-    OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone
+    OnChainStorageRead + OnChainStorageWrite + LatestDataStorageRead + LatestDataStorageWrite + Clone
 {
 }
 impl<
-    T: OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone,
+    T: OnChainStorageRead
+        + OnChainStorageWrite
+        + LatestDataStorageRead
+        + LatestDataStorageWrite
+        + Clone,
 > SyncDB for T
 {
 }
@@ -95,7 +99,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let mut chain = Vec::new();
 
         let mut hash = block;
-        while !self.db.block_meta(hash).synced {
+        while !self.db.block_synced(hash) {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
@@ -137,38 +141,38 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
-            log::warn!("latest_synced_block_height is not set in the database");
+        let Some(latest) = self.db.latest_data() else {
+            log::warn!("latest data is not set in the database");
             return Ok(Default::default());
         };
 
-        if header.height <= latest_synced_block_height {
+        if header.height <= latest.synced_block_height {
             log::warn!(
                 "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest_synced_block_height
+                latest.synced_block_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest.synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                 header.height,
-                latest_synced_block_height,
+                latest.synced_block_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest.synced_block_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 
         self.block_loader
-            .load_many(latest_synced_block_height as u64..=header.height as u64)
+            .load_many(latest.synced_block_height as u64..=header.height as u64)
             .await
     }
 
@@ -194,9 +198,14 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            self.db.mutate_block_meta(hash, |meta| meta.synced = true);
+            self.db.set_block_synced(hash);
 
-            self.db.set_latest_synced_block_height(block_header.height);
+            let _ = self
+                .db
+                .mutate_latest_data_if_some(|data| data.synced_block_height = block_header.height)
+                .ok_or_else(|| {
+                    log::error!("Failed to update latest data for synced block {hash}");
+                });
         }
     }
 
