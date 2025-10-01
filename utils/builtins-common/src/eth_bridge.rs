@@ -30,11 +30,11 @@ pub fn bridge_call_hash(
     hashing_fn: impl Fn(&[u8]) -> H256,
 ) -> H256 {
     let mut nonce_bytes = [0; 32];
-    nonce.to_little_endian(&mut nonce_bytes);
+    nonce.to_big_endian(&mut nonce_bytes);
 
     let bytes = [
         nonce_bytes.as_ref(),
-        source.as_ref(),
+        source.as_bytes(),
         destination.as_bytes(),
         payload,
     ]

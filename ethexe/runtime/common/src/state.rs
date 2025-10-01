@@ -123,7 +123,7 @@ impl PayloadLookup {
 
     pub fn is_empty(&self) -> bool {
         if let Self::Direct(payload) = self {
-            payload.inner().is_empty()
+            payload.is_empty()
         } else {
             false
         }
@@ -1094,9 +1094,9 @@ impl MemoryPages {
 
     /// Granularity parameter of how memory pages hashes are stored.
     ///
-    /// Instead of a single huge map of GearPage to HashOf<PageBuf>, memory is
+    /// Instead of a single huge map of `GearPage` to `HashOf<PageBuf>`, memory is
     /// stored in page regions. Each region represents the same map,
-    /// but with a specific range of GearPage as keys.
+    /// but with a specific range of `GearPage` as keys.
     ///
     /// # Safety
     /// Be careful adjusting this value, as it affects the storage invariants.
@@ -1337,7 +1337,7 @@ pub trait Storage {
         let payload =
             Payload::try_from(payload).map_err(|_| anyhow!("payload exceeds size limit"))?;
 
-        let res = if payload.inner().len() < PayloadLookup::STORING_THRESHOLD {
+        let res = if payload.len() < PayloadLookup::STORING_THRESHOLD {
             PayloadLookup::Direct(payload)
         } else {
             PayloadLookup::Stored(self.write_payload(payload))

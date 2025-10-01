@@ -45,6 +45,10 @@ use sha3::Digest as _;
 pub struct Digest(pub [u8; 32]);
 
 impl Digest {
+    pub const fn zero() -> Self {
+        Digest([0; 32])
+    }
+
     #[cfg(feature = "std")]
     /// NOTE: This function is cryptographically insecure and should not be used in production.
     pub fn random() -> Self {

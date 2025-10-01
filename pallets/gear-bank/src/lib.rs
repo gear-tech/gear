@@ -23,7 +23,7 @@
 
 extern crate alloc;
 
-pub mod migrations;
+pub mod migrations {}
 
 #[cfg(test)]
 mod mock;
@@ -720,7 +720,7 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Getter for [`Bank<T>`](Bank)
+        /// Getter for `Bank<T>`
         pub fn account<K: EncodeLike<AccountIdOf<T>>>(
             account_id: K,
         ) -> Option<BankAccount<BalanceOf<T>>> {

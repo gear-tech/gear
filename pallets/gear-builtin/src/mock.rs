@@ -44,9 +44,9 @@ use sp_runtime::{
 use sp_std::convert::{TryFrom, TryInto};
 
 type AccountId = u64;
-type BlockNumber = u64;
+type BlockNumber = u32;
 type Balance = u128;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
 pub(crate) type QueueOf<T> = pallet_gear_messenger::Dispatches<T>;
@@ -99,7 +99,7 @@ construct_runtime!(
 );
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
@@ -412,7 +412,7 @@ impl ExtBuilder {
 }
 
 #[allow(unused)]
-pub(crate) fn run_to_block(n: u64) {
+pub(crate) fn run_to_block(n: BlockNumber) {
     while System::block_number() < n {
         let current_blk = System::block_number();
 
@@ -429,7 +429,7 @@ pub(crate) fn run_to_next_block() {
     run_for_n_blocks(1, None)
 }
 
-pub(crate) fn run_for_n_blocks(n: u64, remaining_weight: Option<u64>) {
+pub(crate) fn run_for_n_blocks(n: BlockNumber, remaining_weight: Option<u64>) {
     let now = System::block_number();
     let until = now + n;
     for current_blk in now..until {
@@ -456,7 +456,7 @@ pub(crate) fn run_for_n_blocks(n: u64, remaining_weight: Option<u64>) {
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
+    Timestamp::set_timestamp(u64::from(new_block_number).saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);

@@ -1,0 +1,44 @@
+{
+  "lib/forge-std": {
+    "branch": {
+      "name": "\"v1\"",
+      "rev": "ff47d4052a6018d9e5419e5cf013b16ff8006aae"
+    }
+  },
+  "lib/frost-secp256k1-evm": {
+    "branch": {
+      "name": "\"master\"",
+      "rev": "c7badcc70df1eda47a051f6fc46ea3f226ac86b1"
+    }
+  },
+  "lib/openzeppelin-contracts": {
+    "branch": {
+      "name": "\"release-v5.4\"",
+      "rev": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    }
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "branch": {
+      "name": "\"release-v5.4\"",
+      "rev": "e725abddf1e01cf05ace496e950fc8e243cc7cab"
+    }
+  },
+  "lib/openzeppelin-foundry-upgrades": {
+    "branch": {
+      "name": "\"main\"",
+      "rev": "cfd861bc18ef4737e82eae6ec75304e27af699ef"
+    }
+  },
+  "lib/symbiotic-core": {
+    "branch": {
+      "name": "\"gear-main\"",
+      "rev": "d50e2095647a7ad78de61f0032b8140e2ab045b7"
+    }
+  },
+  "lib/symbiotic-rewards": {
+    "branch": {
+      "name": "\"gear-main\"",
+      "rev": "e5f7b0a0607d4821f3cadb6d6e78067bbbb6e4c2"
+    }
+  }
+}

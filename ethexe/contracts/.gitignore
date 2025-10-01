@@ -13,9 +13,5 @@ docs/
 # Dotenv file
 .env
 
-# Remappings
-remappings.txt
-
 # npm
 package-lock.json
-package.json

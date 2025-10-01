@@ -29,4 +29,7 @@ mod block_builder;
 #[cfg(test)]
 mod tests;
 
-pub use crate::authorship::{DEFAULT_BLOCK_SIZE_LIMIT, Proposer, ProposerFactory};
+pub use crate::authorship::{
+    DEFAULT_BLOCK_SIZE_LIMIT, DEFAULT_DEADLINE_SLIPPAGE, DEFAULT_DISPATCH_RATIO, Proposer,
+    ProposerFactory,
+};

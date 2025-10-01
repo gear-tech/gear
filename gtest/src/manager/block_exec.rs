@@ -35,9 +35,9 @@ use core_processor::{
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
     gas::GasCounter,
+    limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     program::ProgramState,
-    str::LimitedStr,
 };
 use parity_scale_codec::Encode;
 

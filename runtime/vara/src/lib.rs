@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1900,
+    spec_version: 1920,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -196,7 +196,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1900,
+    spec_version: 1920,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -1246,22 +1246,6 @@ parameter_types! {
         = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 }
 
-/// Provides the set of accounts allowed to control the Gear ETH Bridge (admin and pauser).
-#[cfg(feature = "dev")]
-pub struct GearEthBridgeControlAccounts;
-#[cfg(feature = "dev")]
-impl SortedMembers<AccountId> for GearEthBridgeControlAccounts {
-    fn sorted_members() -> Vec<AccountId> {
-        let mut members = vec![
-            GearEthBridgeAdminAccount::get(),
-            GearEthBridgePauserAccount::get(),
-        ];
-        // Ensure the list is sorted, as required by EnsureSignedBy
-        members.sort();
-        members
-    }
-}
-
 #[cfg(feature = "dev")]
 pub struct GearEthBridgeAdminAccounts;
 #[cfg(feature = "dev")]
@@ -1276,7 +1260,6 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = GearEthBridgeBuiltinAddress;
-    type ControlOrigin = frame_system::EnsureSignedBy<GearEthBridgeControlAccounts, AccountId>;
     type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
@@ -2022,7 +2005,7 @@ where
 ///
 /// NOTE: Copy-paste from substrate/frame/system/src/extensions/check_nonce.rs,
 /// but without providers and sufficients checks, so contains revert of changes
-/// from substrate v1.3.0 https://github.com/paritytech/polkadot-sdk/pull/1578.
+/// from substrate v1.3.0 <https://github.com/paritytech/polkadot-sdk/pull/1578>.
 #[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct CustomCheckNonce<T: frame_system::Config>(#[codec(compact)] pub T::Nonce);

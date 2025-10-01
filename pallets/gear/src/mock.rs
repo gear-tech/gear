@@ -122,21 +122,23 @@ thread_local! {
 pub struct DynamicSchedule;
 
 impl DynamicSchedule {
+    fn with<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut Schedule<Test>) -> R,
+    {
+        SCHEDULE.with_borrow_mut(|schedule| f(schedule.get_or_insert_with(Default::default)))
+    }
+
     pub fn mutate<F>(f: F) -> DynamicScheduleReset
     where
         F: FnOnce(&mut Schedule<Test>),
     {
-        SCHEDULE.with(|schedule| f(schedule.borrow_mut().as_mut().unwrap()));
+        Self::with(f);
         DynamicScheduleReset(())
     }
 
     pub fn get() -> Schedule<Test> {
-        SCHEDULE.with(|schedule| {
-            schedule
-                .borrow_mut()
-                .get_or_insert_with(Default::default)
-                .clone()
-        })
+        Self::with(|schedule| schedule.clone())
     }
 }
 
