@@ -33,6 +33,13 @@ pub use pallet::*;
 pub use pallet_gear_eth_bridge_primitives::{EthMessage, Proof};
 pub use weights::WeightInfo;
 
+use bp_header_chain::{
+    AuthoritySet, ChainWithGrandpa, GrandpaConsensusLogReader, HeaderChain, InitializationData,
+    StoredHeaderData, StoredHeaderDataBuilder, StoredHeaderGrandpaInfo,
+    justification::GrandpaJustification,
+};
+use sp_runtime::generic::Header;
+
 /// Pallet migrations.
 pub mod migrations {
     /// Reset migration.
@@ -53,13 +60,16 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+/// The target that will be used when publishing logs related to this pallet.
+pub const LOG_TARGET: &str = "runtime::gear-eth-bridge";
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
     use crate::internal::QueueInfo;
     use common::Origin;
     use frame_support::{
-        PalletId,
+        Blake2_256, PalletId, StorageHasher,
         pallet_prelude::*,
         traits::{
             ConstBool, Currency, ExistenceRequirement, OneSessionHandler, StorageInstance,
@@ -194,6 +204,12 @@ pub mod pallet {
         /// The error happens when bridging thorough builtin and message value
         /// is inapplicable to operation or insufficient.
         InsufficientValueApplied,
+
+        /// The authority set from the underlying header chain is invalid.
+        InvalidAuthoritySet,
+
+        /// The given justification is invalid for the given header.
+        InvalidJustification,
     }
 
     /// Lifecycle storage.
@@ -571,5 +587,61 @@ pub mod pallet {
                 }
             }
         }
+    }
+
+    /// Verify a GRANDPA justification (finality proof) for a given header.
+    ///
+    /// Will use the GRANDPA current authorities known to the pallet.
+    ///
+    /// If successful it returns the decoded GRANDPA justification so we can refund any weight which
+    /// was overcharged in the initial call.
+    pub(crate) fn verify_justification<T: Config>(
+        justification: &GrandpaJustification<
+            Header<BlockNumberFor<T>, <T as frame_system::Config>::Hash>,
+        >,
+        hash: <<T as frame_system::Config>::Hash as sp_runtime::traits::Hash>::Output,
+        number: BlockNumberFor<T>,
+        authority_set: bp_header_chain::AuthoritySet,
+    ) -> Result<(), sp_runtime::DispatchError>
+    where
+        T: frame_system::Config,
+        <T as frame_system::Config>::Hash: sp_runtime::traits::Hash,
+    {
+        use bp_header_chain::justification::verify_justification;
+
+        // Verify that the authority set matches the stored hash
+        let keys_bytes = authority_set
+            .authorities
+            .iter()
+            .flat_map(|(_, key)| key.encode())
+            .collect::<Vec<_>>();
+        let computed_hash = Blake2_256::hash(&keys_bytes);
+        let stored_hash =
+            AuthoritySetHash::<T>::get().ok_or(Error::<T>::BridgeIsNotYetInitialized)?;
+        ensure!(
+            H256::from(computed_hash) == stored_hash,
+            Error::<T>::InvalidAuthoritySet
+        );
+
+        let verification_context = authority_set
+            .try_into()
+            .map_err(|_| Error::<T>::InvalidAuthoritySet)?;
+
+        Ok(
+            verify_justification::<Header<BlockNumberFor<T>, <T as frame_system::Config>::Hash>>(
+                (hash, number),
+                &verification_context,
+                justification,
+            )
+            .map_err(|e| {
+                log::error!(
+                    target: LOG_TARGET,
+                    "Received invalid justification for {:?}: {:?}",
+                    hash,
+                    e,
+                );
+                Error::<T>::InvalidJustification
+            })?,
+        )
     }
 }

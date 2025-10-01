@@ -114,6 +114,8 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::InsufficientValueApplied => "Send message: insufficient value applied",
+        Error::InvalidAuthoritySet => "Invalid authority set",
+        Error::InvalidJustification => "Invalid justification",
         Error::__Ignore(_, _) => unreachable!("never constructed"),
     }
 }

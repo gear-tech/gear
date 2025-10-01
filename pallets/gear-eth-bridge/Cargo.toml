@@ -27,6 +27,7 @@ pallet-gear-builtin.workspace = true
 pallet-gear-eth-bridge-primitives.workspace = true
 
 # Substrate deps.
+bp-header-chain.workspace = true
 binary-merkle-tree.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
@@ -72,6 +73,7 @@ std = [
     "pallet-gear-eth-bridge-primitives/std",
 
     # Substrate deps.
+	"bp-header-chain/std",
     "binary-merkle-tree/std",
     "frame-support/std",
     "frame-system/std",
