@@ -20,10 +20,11 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
+    Address, BlockData, BlockHeader, CodeAndIdUnchecked, Digest, ProgramStates,
+    StateHashWithQueueSize,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite,
-        OnChainStorageRead, OnChainStorageWrite,
+        OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
     tx_pool::OffchainTransaction,
@@ -54,25 +55,6 @@ use nonempty::NonEmpty;
 use parity_scale_codec::Decode;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-async fn get_block_data(
-    observer: &mut ObserverService,
-    db: &Database,
-    block: H256,
-) -> Result<BlockData> {
-    if let (Some(header), Some(events)) = (db.block_header(block), db.block_events(block)) {
-        Ok(BlockData {
-            hash: block,
-            header,
-            events,
-        })
-    } else {
-        let data = observer.load_block_data(block).await?;
-        db.set_block_header(block, data.header);
-        db.set_block_events(block, &data.events);
-        Ok(data)
-    }
-}
-
 struct EventData {
     /// Latest committed on the chain and not computed local batch
     latest_committed_batch: Digest,
@@ -88,11 +70,12 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
+        let block_loader = observer.block_loader();
         let mut latest_committed: Option<(Digest, Option<H256>)> = None;
 
         let mut block = highest_block;
         'computed: while !db.block_meta(block).computed {
-            let block_data = get_block_data(observer, db, block).await?;
+            let block_data = block_loader.load(block, None).await?;
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
@@ -127,8 +110,7 @@ impl EventData {
             return Ok(None);
         };
 
-        let latest_committed_block_data =
-            get_block_data(observer, db, latest_committed_block).await?;
+        let latest_committed_block_data = block_loader.load(latest_committed_block, None).await?;
 
         Ok(Some(Self {
             latest_committed_batch,
@@ -603,12 +585,15 @@ async fn instrument_codes(
 async fn set_tx_pool_data_requirement(
     observer: &mut ObserverService,
     db: &Database,
-    latest_committed_block: H256,
+    latest_committed_header: BlockHeader,
 ) -> Result<()> {
-    let mut block_hash = latest_committed_block;
-    for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
-        let block = get_block_data(observer, db, block_hash).await?;
-        block_hash = block.header.parent_hash;
+    let to = latest_committed_header.height as u64;
+    let from = to - OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u64;
+
+    let blocks = observer.block_loader().load_many(from..=to).await?;
+    for (hash, data) in blocks {
+        db.set_block_header(hash, data.header);
+        db.set_block_events(hash, &data.events);
     }
 
     Ok(())
@@ -671,7 +656,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let schedule =
         ScheduleRestorer::from_storage(db, &program_states, latest_block_header.height)?.restore();
 
-    set_tx_pool_data_requirement(observer, db, finalized_block).await?;
+    set_tx_pool_data_requirement(observer, db, latest_block_header).await?;
 
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
