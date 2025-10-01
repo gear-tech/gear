@@ -33,7 +33,7 @@ use gear_core::{buffer::Payload, limited::LimitedVecError};
 use gear_sandbox::{AsContextExt, Value};
 use gear_sandbox_env::HostError;
 
-const PTR_SPECIAL: u32 = u32::MAX;
+const NULL_PTR: u32 = u32::MAX;
 
 /// Actually just wrapper around [`Value`] to implement conversions.
 #[derive(Clone, Copy)]
@@ -324,7 +324,7 @@ impl<T: Pod> SyscallArg for ReadAsOption<T> {
 
         let ptr = SyscallValue(args[0]).try_into()?;
 
-        if ptr != PTR_SPECIAL {
+        if ptr != NULL_PTR {
             Ok(Some(registry.get_or_insert_default().register_read_as(ptr)))
         } else {
             Ok(None)
