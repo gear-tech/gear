@@ -20,8 +20,13 @@ use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
     Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo, ResetQueueOnInit,
 };
+use bp_header_chain::{
+    AuthoritySet,
+    justification::{self, GrandpaJustification},
+};
 use common::Origin;
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
+use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
 use gprimitives::{ActorId, H160, H256, U256};
 use pallet_gear_eth_bridge_primitives::EthMessage;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
@@ -32,7 +37,48 @@ use sp_runtime::{
 };
 use sp_std::vec::Vec;
 
+type FinalityProofOf<T> = FinalityProof<HeaderFor<T>>;
+type GrandpaJustificationOf<T> = GrandpaJustification<HeaderFor<T>>;
+
+/// NOTE: copy-pasted from `sc-consensus-grandpa` due to std-compatibility issues.
+#[derive(Debug, PartialEq, Encode, Decode, Clone)]
+pub struct FinalityProof<Header: sp_runtime::traits::Header> {
+    /// The hash of block F for which justification is provided.
+    pub block: Header::Hash,
+    /// Justification of the block F.
+    pub justification: Vec<u8>,
+    /// The set of headers in the range (B; F] that we believe are unknown to the caller. Ordered.
+    pub unknown_headers: Vec<Header>,
+}
+
 impl<T: Config> Pallet<T> {
+    /// See [`FinalityProof`].
+    #[allow(unused)]
+    pub(super) fn verify_finality_proof(
+        encoded_finality_proof: Vec<u8>,
+    ) -> Option<BlockNumberFor<T>> {
+        let finality_proof =
+            FinalityProofOf::<T>::decode(&mut encoded_finality_proof.as_ref()).ok()?;
+
+        let justification =
+            GrandpaJustificationOf::<T>::decode(&mut finality_proof.justification.as_ref()).ok()?;
+
+        let finalized_target = (
+            justification.commit.target_hash,
+            justification.commit.target_number,
+        );
+
+        let authorities: sp_consensus_grandpa::AuthorityList = todo!();
+        let set_id: sp_consensus_grandpa::SetId = todo!();
+
+        let authority_set = AuthoritySet::new(authorities, set_id);
+        let context = authority_set.try_into().ok()?;
+
+        justification::verify_justification(finalized_target, &context, &justification).ok()?;
+
+        Some(justification.commit.target_number)
+    }
+
     /// Updates the authority set hash in storage and emits an event.
     pub(super) fn update_authority_set_hash<'a, I>(validators: I)
     where
