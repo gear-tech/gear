@@ -526,7 +526,7 @@ impl OnChainStorageWrite for Database {
         });
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
@@ -627,15 +627,8 @@ impl LatestDataStorageRead for Database {
 }
 
 impl LatestDataStorageWrite for Database {
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>)) {
-        let mut data = self.latest_data();
-        let was_some = data.is_some();
-        f(&mut data);
-        if let Some(data) = data {
-            self.kv.put(&Key::LatestData.to_bytes(), data.encode());
-        } else if was_some {
-            todo!("Implement removals from db");
-        }
+    fn set_latest_data(&self, data: LatestData) {
+        self.kv.put(&Key::LatestData.to_bytes(), data.encode());
     }
 }
 
@@ -763,7 +756,7 @@ mod tests {
             start_block_hash: H256::random(),
             start_announce_hash: AnnounceHash::random(),
         };
-        db.mutate_latest_data(|data| *data = Some(latest_data.clone()));
+        db.set_latest_data(latest_data.clone());
         assert_eq!(db.latest_data(), Some(latest_data));
     }
 

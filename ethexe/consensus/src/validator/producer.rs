@@ -241,22 +241,23 @@ impl Producer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SignedValidationRequest, mock::*, validator::mock::*};
+    use crate::{
+        mock::*,
+        validator::{PendingEvent, mock::*},
+    };
     use async_trait::async_trait;
-    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, gear::CodeCommitment};
+    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]
     async fn create() {
         let (mut ctx, keys, _) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.core.signer.clone(),
-            keys[0],
-            (),
-        )));
+        ctx.pending(PendingEvent::ValidationRequest(
+            ctx.core.signer.mock_signed_data(keys[0], ()),
+        ));
 
         let producer = Producer::create(ctx, block, validators.clone()).unwrap();
 
@@ -273,13 +274,13 @@ mod tests {
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
-        let block = SimpleBlockData::mock(parent).prepare(&ctx.core.db, AnnounceHash::random());
-        let announce_hash = ctx.core.db.announce_hash(block.hash);
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let announce_hash = ctx.core.db.top_announce_hash(block.hash);
 
         // Set parent announce
         ctx.core.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some(vec![AnnounceHash::random()]);
+            meta.announces = Some([AnnounceHash::random()].into());
         });
 
         let state = Producer::create(ctx, block.clone(), validators)
@@ -303,9 +304,9 @@ mod tests {
     async fn complex() {
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let batch = prepared_mock_batch_commitment(&ctx.core.db);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
-        let announce_hash = ctx.core.db.announce_hash(block.hash);
+        let announce_hash = ctx.core.db.top_announce_hash(block.hash);
 
         // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
         // until batch is committed
@@ -364,16 +365,18 @@ mod tests {
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let parent = H256::random();
-        let block = SimpleBlockData::mock(parent).prepare(&ctx.core.db, AnnounceHash::random());
-        let announce_hash = ctx.core.db.announce_hash(block.hash);
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let announce_hash = ctx.core.db.top_announce_hash(block.hash);
 
         ctx.core.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some(vec![AnnounceHash::random()]);
+            meta.announces = Some([AnnounceHash::random()].into());
         });
 
-        let code1 = CodeCommitment::mock(()).prepare(&ctx.core.db, ());
-        let code2 = CodeCommitment::mock(()).prepare(&ctx.core.db, ());
+        let code1 = CodeCommitment::mock(());
+        let code2 = CodeCommitment::mock(());
+        ctx.core.db.set_code_valid(code1.id, code1.valid);
+        ctx.core.db.set_code_valid(code2.id, code2.valid);
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
             meta.codes_queue = Some([code1.id, code2.id].into_iter().collect())
         });

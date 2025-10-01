@@ -1380,7 +1380,7 @@ pub(crate) mod tests {
             assert!(meta.announces.is_none());
             let announce = Announce::base(H256::zero(), AnnounceHash::zero());
             announce_hash = announce.to_hash();
-            meta.announces = Some(vec![announce_hash]);
+            meta.announces = Some([announce_hash].into());
         });
 
         right_db.set_announce_program_states(
