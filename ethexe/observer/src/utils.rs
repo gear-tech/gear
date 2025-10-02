@@ -41,73 +41,7 @@ use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
 
 /// Max number of blocks to query in alloy.
-pub(crate) const MAX_QUERY_BLOCK_RANGE: usize = 256;
-
-pub(crate) fn log_filter() -> Filter {
-    let topic = Topic::from_iter(
-        [
-            router::events::signatures::ALL,
-            wvara::events::signatures::ALL,
-            mirror::events::signatures::ALL,
-        ]
-        .into_iter()
-        .flatten()
-        .copied(),
-    );
-
-    Filter::new().event_signature(topic)
-}
-
-pub(crate) fn logs_to_events(
-    logs: Vec<Log>,
-    router_address: Address,
-    wvara_address: Address,
-) -> Result<HashMap<H256, Vec<BlockEvent>>> {
-    let block_hash_of = |log: &Log| -> Result<H256> {
-        log.block_hash
-            .map(|v| v.0.into())
-            .context("block hash is missing")
-    };
-
-    let mut res: HashMap<_, Vec<_>> = HashMap::new();
-
-    for log in logs {
-        let block_hash = block_hash_of(&log)?;
-        let address = log.address();
-
-        if address.0 == router_address.0 {
-            if let Some(event) = router::events::try_extract_event(&log)? {
-                res.entry(block_hash).or_default().push(event.into());
-            }
-        } else if address.0 == wvara_address.0 {
-            if let Some(event) = wvara::events::try_extract_event(&log)? {
-                res.entry(block_hash).or_default().push(event.into());
-            }
-        } else {
-            let address = (*address.into_word()).into();
-
-            if let Some(event) = mirror::events::try_extract_event(&log)? {
-                res.entry(block_hash)
-                    .or_default()
-                    .push(BlockEvent::mirror(address, event));
-            }
-        }
-    }
-
-    Ok(res)
-}
-
-fn block_response_to_data(block: Block) -> (H256, BlockHeader) {
-    let block_hash = H256(block.header.hash.0);
-
-    let header = BlockHeader {
-        height: block.header.number as u32,
-        timestamp: block.header.timestamp,
-        parent_hash: H256(block.header.parent_hash.0),
-    };
-
-    (block_hash, header)
-}
+const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
 #[allow(async_fn_in_trait)]
 pub trait BlockLoader {
@@ -144,6 +78,68 @@ impl EthereumBlockLoader {
         }
     }
 
+    fn log_filter() -> Filter {
+        let topic = Topic::from_iter(
+            [
+                router::events::signatures::ALL,
+                wvara::events::signatures::ALL,
+                mirror::events::signatures::ALL,
+            ]
+            .into_iter()
+            .flatten()
+            .copied(),
+        );
+
+        Filter::new().event_signature(topic)
+    }
+
+    fn logs_to_events(&self, logs: Vec<Log>) -> Result<HashMap<H256, Vec<BlockEvent>>> {
+        let block_hash_of = |log: &Log| -> Result<H256> {
+            log.block_hash
+                .map(|v| v.0.into())
+                .context("block hash is missing")
+        };
+
+        let mut res: HashMap<_, Vec<_>> = HashMap::new();
+
+        for log in logs {
+            let block_hash = block_hash_of(&log)?;
+            let address = log.address();
+
+            if address.0 == self.router_address.0 {
+                if let Some(event) = router::events::try_extract_event(&log)? {
+                    res.entry(block_hash).or_default().push(event.into());
+                }
+            } else if address.0 == self.wvara_address.0 {
+                if let Some(event) = wvara::events::try_extract_event(&log)? {
+                    res.entry(block_hash).or_default().push(event.into());
+                }
+            } else {
+                let address = (*address.into_word()).into();
+
+                if let Some(event) = mirror::events::try_extract_event(&log)? {
+                    res.entry(block_hash)
+                        .or_default()
+                        .push(BlockEvent::mirror(address, event));
+                }
+            }
+        }
+
+        Ok(res)
+    }
+
+    fn block_response_to_data(block: Block) -> (H256, BlockHeader) {
+        let block_hash = H256(block.header.hash.0);
+
+        let header = BlockHeader {
+            height: block.header.number as u32,
+            timestamp: block.header.timestamp,
+            parent_hash: H256(block.header.parent_hash.0),
+        };
+
+        (block_hash, header)
+    }
+
     async fn request_block_batch(&self, range: RangeInclusive<u64>) -> Result<Vec<BlockData>> {
         let mut batch = BatchRequest::new(self.provider.client());
         let headers_request = range
@@ -160,7 +156,7 @@ impl EthereumBlockLoader {
         batch.send().await?;
         let headers_request = future::join_all(headers_request);
 
-        let filter = log_filter()
+        let filter = Self::log_filter()
             .from_block(*range.start())
             .to_block(*range.end());
         let logs_request = self.provider.get_logs(&filter);
@@ -175,14 +171,7 @@ impl EthereumBlockLoader {
                 break;
             };
 
-            let block_hash = H256(block.header.hash.0);
-
-            let header = BlockHeader {
-                height: block.header.number as u32,
-                timestamp: block.header.timestamp,
-                parent_hash: H256(block.header.parent_hash.0),
-            };
-
+            let (block_hash, header) = Self::block_response_to_data(block);
             blocks_data.push(BlockData {
                 hash: block_hash,
                 header,
@@ -190,7 +179,7 @@ impl EthereumBlockLoader {
             });
         }
 
-        let mut events = logs_to_events(logs, self.router_address, self.wvara_address)?;
+        let mut events = self.logs_to_events(logs)?;
         for block_data in blocks_data.iter_mut() {
             block_data.events = events.remove(&block_data.hash).unwrap_or_default();
         }
@@ -203,7 +192,7 @@ impl BlockLoader for EthereumBlockLoader {
     async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
         log::trace!("Querying data for one block {block:?}");
 
-        let filter = log_filter().at_block_hash(block.0);
+        let filter = Self::log_filter().at_block_hash(block.0);
         let logs_request = self.provider.get_logs(&filter);
 
         let (block_hash, header, logs) = if let Some(header) = header {
@@ -215,7 +204,7 @@ impl BlockLoader for EthereumBlockLoader {
                 .into_future();
             let (response, logs) = future::try_join(block_request, logs_request).await?;
             let response = response.context("block not found")?;
-            let (block, header) = block_response_to_data(response);
+            let (block, header) = Self::block_response_to_data(response);
             (block, header, logs)
         };
         debug_assert_eq!(
@@ -223,7 +212,7 @@ impl BlockLoader for EthereumBlockLoader {
             "expected block hash {block}, got {block_hash}"
         );
 
-        let events = logs_to_events(logs, self.router_address, self.wvara_address)?;
+        let events = self.logs_to_events(logs)?;
         debug_assert!(
             events.len() <= 1,
             "expected events for at most 1 block, but got for {}",
