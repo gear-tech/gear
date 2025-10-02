@@ -422,7 +422,7 @@ pub mod pallet {
             DispatchClass::Operational,
             // `Pays::No` on success
             Pays::Yes,
-    ))]
+        ))]
         pub fn submit_known_finality(
             origin: OriginFor<T>,
             encoded_finality_proof: Vec<u8>,
