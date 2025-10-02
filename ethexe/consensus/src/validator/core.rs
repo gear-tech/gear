@@ -113,14 +113,7 @@ impl ValidatorCore {
     }
 
     pub fn aggregate_chain_commitment(&self, block_hash: H256) -> Result<Option<ChainCommitment>> {
-        let head_announce = self
-            .db
-            .block_meta(block_hash)
-            .announces
-            .into_iter()
-            .flat_map(|a| a.into_iter())
-            .next()
-            .ok_or_else(|| anyhow!("No announces found for {block_hash} in block meta storage"))?;
+        let head_announce = utils::last_not_base_or_top_announce(&self.db, block_hash)?;
 
         let Some((commitment, deepness)) =
             // Max deepness is ignored here, because we want to create chain commitment (not validate)

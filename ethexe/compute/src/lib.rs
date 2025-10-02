@@ -74,8 +74,11 @@ pub enum ComputeError {
     #[error(transparent)]
     ConsensusGuarantees(#[from] ConsensusGuaranteesError),
 
-    #[error(transparent)]
+    #[error("processor error: {0}")]
     Processor(#[from] ProcessorError),
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 #[derive(thiserror::Error, Debug)]

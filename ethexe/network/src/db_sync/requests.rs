@@ -666,7 +666,7 @@ impl OngoingRequest {
         {
             Ok(response) => Ok(response),
             Err((processor, err)) => {
-                log::trace!("response processing failed for request from {peer}: {err:?}");
+                log::warn!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
                 self.response_handler = Some(processor);
                 Err(NewRequestRoundReason::PartialData)

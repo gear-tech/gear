@@ -35,11 +35,17 @@ impl ProcessingHandler {
                     return Err(ProcessorError::MissingCode(code_id));
                 }
 
-                if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DuplicatedProgram(actor_id));
+                if let Some(known_code_id) = self.db.program_code_id(actor_id) {
+                    if known_code_id != code_id {
+                        return Err(ProcessorError::CodeIdMismatch {
+                            program_id: actor_id,
+                            old: known_code_id,
+                            new: code_id,
+                        });
+                    }
+                } else {
+                    self.db.set_program_code_id(actor_id, code_id);
                 }
-
-                self.db.set_program_code_id(actor_id, code_id);
 
                 self.transitions.register_new(actor_id);
             }

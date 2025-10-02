@@ -32,7 +32,7 @@ use ethexe_common::{
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
-use gprimitives::CodeId;
+use gprimitives::{CodeId, H256};
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -252,8 +252,11 @@ pub fn aggregate_chain_commitment<
         if !db.announce_meta(announce_hash).computed {
             // This can happen when validator syncs from p2p network and skips some old blocks.
             if fail_if_not_computed {
-                return Err(anyhow!("Block {block_hash} is not computed"));
+                return Err(anyhow!("Announce {announce_hash} is not computed"));
             } else {
+                log::warn!(
+                    "Announce {announce_hash} is not computed, stopping chain commitment aggregation"
+                );
                 return Ok(None);
             }
         }
@@ -261,6 +264,11 @@ pub fn aggregate_chain_commitment<
         transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
             anyhow!("Cannot get from db outcome for computed block {block_hash}")
         })?);
+
+        log::trace!(
+            "+_+_+ collected {} transitions for announce {announce_hash} at block {block_hash}",
+            transitions.last().map(|t| t.len()).unwrap_or(0)
+        );
 
         announce_hash = db
             .announce(announce_hash)
@@ -341,6 +349,33 @@ pub fn block_producer_for(
         .get(index)
         .cloned()
         .unwrap_or_else(|| unreachable!("index must be valid"))
+}
+
+pub fn last_not_base_or_top_announce<DB: AnnounceStorageRead + BlockMetaStorageRead>(
+    db: &DB,
+    block_hash: H256,
+) -> Result<AnnounceHash> {
+    let mut result = None;
+
+    for announce_hash in db.block_meta(block_hash).announces.into_iter().flatten() {
+        log::trace!("+_+_+ considering announce {announce_hash} for block {block_hash}");
+        if result.is_some() {
+            // Prefer not base announce if there are multiple announces in the parent block
+            if !db
+                .announce(announce_hash)
+                .ok_or_else(|| anyhow!("No announce found for {announce_hash} in db"))?
+                .is_base()
+            {
+                log::trace!("+_+_+ selected announce {announce_hash} for block {block_hash}");
+                result = Some(announce_hash);
+            }
+        } else {
+            log::trace!("+_+_+ selected announce {announce_hash} for block {block_hash}");
+            result = Some(announce_hash);
+        }
+    }
+
+    result.ok_or_else(|| anyhow!("No announces found for parent block {} in db", block_hash))
 }
 
 #[cfg(test)]

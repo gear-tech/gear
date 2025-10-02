@@ -86,7 +86,7 @@ pub enum ProcessorError {
     #[error("`__heap_base` is not global")]
     HeapBaseIsNotGlobal,
     #[error("`__heap_base` is not i32")]
-    HeapBaseIsNoti32,
+    HeapBaseIsNotI32,
     #[error("failed to write call input: {0}")]
     CallInputWrite(String),
     #[error("host state should be set before call and reset after")]
@@ -98,9 +98,13 @@ pub enum ProcessorError {
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
     #[error(
-        "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}"
+        "receive program created with different code id for program {program_id}, old: {old}, new: {new}"
     )]
-    DuplicatedProgram(ActorId),
+    CodeIdMismatch {
+        program_id: ActorId,
+        old: CodeId,
+        new: CodeId,
+    },
 
     #[error(transparent)]
     Wasm(#[from] wasmtime::Error),

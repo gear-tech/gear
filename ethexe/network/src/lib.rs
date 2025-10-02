@@ -227,6 +227,8 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
+        log::info!("Local peer ID: {}", swarm.local_peer_id());
+
         Ok(Self { swarm, listeners })
     }
 

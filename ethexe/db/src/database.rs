@@ -580,7 +580,7 @@ impl AnnounceStorageRead for Database {
 
 impl AnnounceStorageWrite for Database {
     fn set_announce(&self, announce: Announce) -> AnnounceHash {
-        log::trace!("Set announce {announce:?}");
+        log::trace!("Set announce {}: {announce:?}", announce.to_hash());
         AnnounceHash(self.cas.write(&announce.encode()))
     }
 
@@ -600,7 +600,10 @@ impl AnnounceStorageWrite for Database {
     }
 
     fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>) {
-        log::trace!("Set outcome for {announce_hash}: len = {}", outcome.len());
+        log::trace!(
+            "Set outcome for {announce_hash}: len = {}, {outcome:?}",
+            outcome.len()
+        );
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
             outcome.encode(),

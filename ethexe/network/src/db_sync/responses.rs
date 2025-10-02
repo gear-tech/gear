@@ -23,6 +23,7 @@ use crate::{
     },
     export::PeerId,
 };
+use anyhow::{Result, anyhow};
 use ethexe_common::{
     AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse,
     db::{
@@ -39,6 +40,7 @@ use tokio::task::JoinSet;
 const MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: u32 = 10_000;
 const _: () = assert!(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE > 0, "cannot be zero");
 
+#[derive(Debug)]
 struct OngoingResponse {
     response_id: ResponseId,
     peer_id: PeerId,
@@ -91,23 +93,30 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
-            InnerRequest::Announces(request) => Self::process_announce_request(db, request).into(),
+            InnerRequest::Announces(request) => match Self::process_announce_request(db, request) {
+                Ok(response) => response.into(),
+                Err(e) => {
+                    log::warn!("cannot complete request: {e}");
+                    InnerResponse::Announces(Default::default())
+                }
+            },
         }
     }
 
-    fn process_announce_request(db: &Database, request: AnnouncesRequest) -> AnnouncesResponse {
+    fn process_announce_request(
+        db: &Database,
+        request: AnnouncesRequest,
+    ) -> Result<AnnouncesResponse> {
         let AnnouncesRequest { head, until } = request;
 
         // Check the requested chain length first to prevent abuse
         if let AnnouncesRequestUntil::ChainLen(len) = until
             && len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
         {
-            log::warn!(
-                "Cannot complete request: requested chain len {len} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
-            );
-
             // TODO #4874: use peer score to punish the peer for such requests
-            return Default::default();
+            return Err(anyhow!(
+                "requested chain length {len} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
+            ));
         }
 
         let Some(LatestData {
@@ -116,86 +125,47 @@ impl OngoingResponses {
             ..
         }) = db.latest_data()
         else {
-            log::warn!("Cannot complete request: latest data not found in database");
-
-            return Default::default();
+            return Err(anyhow!("latest data not found in database"));
         };
 
         let mut announces = vec![];
         let mut announce_hash = head;
-        let mut counter = 0;
-        while counter < MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE && announce_hash != start_announce_hash
-        {
+        for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE {
             let Some(announce) = db.announce(announce_hash) else {
-                log::warn!(
-                    "Cannot complete request: announce {announce_hash} not found in database"
-                );
-
-                return Default::default();
+                return Err(anyhow!("announce {announce_hash} not found in database"));
             };
 
             let parent = announce.parent;
             announces.push(announce);
-            counter += 1;
 
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
-                    return AnnouncesResponse { announces };
+                    return Ok(AnnouncesResponse { announces });
                 }
-                AnnouncesRequestUntil::ChainLen(len) if counter == len => {
-                    return AnnouncesResponse { announces };
+                AnnouncesRequestUntil::ChainLen(len) if announces.len() == len as usize => {
+                    return Ok(AnnouncesResponse { announces });
                 }
                 _ => {}
+            }
+
+            if announce_hash == start_announce_hash {
+                if start_announce_hash == genesis_announce_hash {
+                    // Reaching genesis - request is invalid and should be punished.
+                    // TODO #4874: use peer score to punish the peer for such requests
+                    return Err(anyhow!("reached genesis announce {genesis_announce_hash}"));
+                } else {
+                    // Reaching start announce - request can be valid, we just can't go further
+                    return Err(anyhow!("reached start announce {start_announce_hash}"));
+                }
             }
 
             announce_hash = parent;
         }
 
-        match until {
-            AnnouncesRequestUntil::Tail(tail) => {
-                assert_ne!(
-                    tail, announce_hash,
-                    "If tail match, we must have already found it"
-                );
-
-                log::trace!(
-                    "Cannot complete request: announce tail {tail} not found in the chain starting from head {head}"
-                );
-
-                if announce_hash == start_announce_hash {
-                    if start_announce_hash == genesis_announce_hash {
-                        // We reached the genesis announce, so it's an invalid request
-                        // TODO #4874: use peer score to punish the peer for such requests
-                    } else {
-                        // We reached the start announce, but it is not the genesis announce,
-                        // so this may be a valid request, but we cannot satisfy it
-                    }
-                } else {
-                    // Tail not found within MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
-                    // TODO #4874: use peer score to punish the peer for such requests
-                }
-            }
-            AnnouncesRequestUntil::ChainLen(len) => {
-                assert_eq!(
-                    announce_hash, start_announce_hash,
-                    "If len does not match, only start announce can stop the chain"
-                );
-
-                log::trace!(
-                    "Cannot complete request: announce chain length {counter} is smaller than requested {len}"
-                );
-
-                if start_announce_hash == genesis_announce_hash {
-                    // We reached the genesis announce, so it's an invalid request
-                    // TODO #4874: use peer score to punish the peer for such requests
-                } else {
-                    // We reached the start announce, but it is not the genesis announce,
-                    // so this may be a valid request, but we cannot satisfy it
-                }
-            }
-        }
-
-        Default::default()
+        // TODO #4874: use peer score to punish the peer for such requests
+        Err(anyhow!(
+            "reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
+        ))
     }
 
     pub(crate) fn handle_response(
@@ -213,12 +183,16 @@ impl OngoingResponses {
         let db = self.db.clone();
         self.db_readers.spawn_blocking(move || {
             let response = Self::response_from_db(request, &db);
-            OngoingResponse {
+            let ongoing_response = OngoingResponse {
                 response_id,
                 peer_id,
                 channel,
                 response,
-            }
+            };
+
+            log::debug!("responding on request {ongoing_response:?}");
+
+            ongoing_response
         });
 
         Some(response_id)

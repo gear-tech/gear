@@ -306,19 +306,19 @@ impl CheckedAnnouncesResponse {
             return Err(AnnouncesResponseError::Empty);
         };
 
-        if request.head != last.to_hash() {
+        if request.head != first.to_hash() {
             return Err(AnnouncesResponseError::HeadMismatch {
                 expected: request.head,
-                received: last.to_hash(),
+                received: first.to_hash(),
             });
         }
 
         match request.until {
             AnnouncesRequestUntil::Tail(tail) => {
-                if tail != first.parent {
+                if tail != last.to_hash() {
                     return Err(AnnouncesResponseError::TailMismatch {
                         expected: tail,
-                        received: first.parent,
+                        received: last.parent,
                     });
                 }
             }
@@ -333,8 +333,8 @@ impl CheckedAnnouncesResponse {
         }
 
         // Check chain linking
-        let mut expected_parent_hash = first.to_hash();
-        for announce in response.announces.iter().skip(1) {
+        let mut expected_parent_hash = last.to_hash();
+        for announce in response.announces.iter().rev().skip(1) {
             if announce.parent != expected_parent_hash {
                 return Err(AnnouncesResponseError::ChainIsNotLinked);
             }

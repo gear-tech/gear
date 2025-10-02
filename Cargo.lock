@@ -4712,6 +4712,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "k256",
+ "log",
  "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
@@ -4724,6 +4725,7 @@ dependencies = [
 name = "ethexe-compute"
 version = "1.9.2"
 dependencies = [
+ "anyhow",
  "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",

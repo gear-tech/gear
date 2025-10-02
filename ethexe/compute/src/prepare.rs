@@ -64,6 +64,7 @@
 //!    announce from `lpb.announces`.
 
 use crate::{ComputeError, ConsensusGuaranteesError, DataRequest, Result, utils};
+use anyhow::anyhow;
 use ethexe_common::{
     Announce, AnnounceHash, AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse,
     SimpleBlockData,
@@ -250,18 +251,12 @@ impl PrepareContext {
 
 impl PrepareContextInner {
     fn prepare_one_block(&mut self, block: SimpleBlockData) -> Result<()> {
+        log::trace!("Preparing next block in chain: {}", block.hash);
+
         let parent = block.header.parent_hash;
         let mut requested_codes = HashSet::new();
         let mut validated_codes = HashSet::new();
-
-        let parent_meta = self.db.block_meta(parent);
-        let mut last_committed_batch = parent_meta
-            .last_committed_batch
-            .ok_or(ComputeError::LastCommittedBatchNotFound(parent))?;
-        let mut codes_queue = parent_meta
-            .codes_queue
-            .ok_or(ComputeError::CodesQueueNotFound(parent))?;
-
+        let mut last_committed_batch = None;
         let mut last_committed_announce_hash = None;
 
         let events = self
@@ -271,7 +266,7 @@ impl PrepareContextInner {
         for event in events {
             match event {
                 BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
-                    last_committed_batch = digest;
+                    last_committed_batch = Some(digest);
                 }
                 BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
                     requested_codes.insert(code_id);
@@ -286,14 +281,22 @@ impl PrepareContextInner {
             }
         }
 
-        let last_committed_announce_hash = if let Some(hash) = last_committed_announce_hash {
+        if let Some(hash) = last_committed_announce_hash {
             self.announces_chain_recovery_if_needed(hash)?;
+        }
 
-            hash
-        } else {
-            parent_meta
+        let parent_meta = self.db.block_meta(parent);
+        let last_committed_announce_hash = match last_committed_announce_hash {
+            Some(hash) => hash,
+            None => parent_meta
                 .last_committed_announce
-                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
+                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?,
+        };
+        let last_committed_batch = match last_committed_batch {
+            Some(digest) => digest,
+            None => parent_meta
+                .last_committed_batch
+                .ok_or(ComputeError::LastCommittedBatchNotFound(parent))?,
         };
 
         // +_+_+ #4813 #4814 are fixed now
@@ -319,8 +322,11 @@ impl PrepareContextInner {
             ConsensusGuaranteesError::CommitmentDelayLimitExceeded
         })?;
 
-        codes_queue.retain(|code_id| !validated_codes.contains(code_id));
+        let mut codes_queue = parent_meta
+            .codes_queue
+            .ok_or(ComputeError::CodesQueueNotFound(parent))?;
         codes_queue.extend(requested_codes);
+        codes_queue.retain(|code_id| !validated_codes.contains(code_id));
 
         self.db.mutate_block_meta(block.hash, |meta| {
             *meta = BlockMeta {
@@ -350,6 +356,11 @@ impl PrepareContextInner {
         parent_announce_hash: AnnounceHash,
         last_committed_announce_hash: AnnounceHash,
     ) -> Result<Option<AnnounceHash>> {
+        log::trace!(
+            "Trying propagating announce for block {block_hash} from parent announce {parent_announce_hash}, \
+             last committed announce is {last_committed_announce_hash}",
+        );
+
         // Check that parent announce branch is not expired
         // The branch is expired if:
         // 1. It does not includes last committed announce
@@ -357,26 +368,77 @@ impl PrepareContextInner {
         //
         // We check here till commitment delay limit, because T1 guaranties that enough.
         let mut predecessor = parent_announce_hash;
-        for i in 0..self.commitment_delay_limit {
+        for i in 0..=self.commitment_delay_limit {
             if predecessor == last_committed_announce_hash {
                 // We found last committed announce in the branch, until commitment delay limit
                 // that means this branch is still not expired.
                 break;
             }
 
-            let announce = self
+            let predecessor_announce = self
                 .db
                 .announce(predecessor)
                 .ok_or_else(|| ComputeError::AnnounceNotFound(predecessor))?;
 
-            if i == self.commitment_delay_limit + 1 && !announce.is_base() {
+            if i == self.commitment_delay_limit - 1 && !predecessor_announce.is_base() {
                 // We reached the oldest announce in commitment delay limit which is not not committed yet.
                 // This announce cannot be committed any more if it is not base announce,
-                // so this branch as expired and have to skip propagation from `parent`.
+                // so this branch is expired and we have to skip propagation from `parent`.
+                log::trace!(
+                    "predecessor {predecessor} is too old and not base, so {parent_announce_hash} branch is expired",
+                );
                 return Ok(None);
             }
 
-            predecessor = announce.parent;
+            // Check neighbor announces to be last committed announce
+            if self
+                .db
+                .block_meta(predecessor_announce.block_hash)
+                .announces
+                .ok_or_else(|| {
+                    ComputeError::PreparedBlockAnnouncesSetMissing(predecessor_announce.block_hash)
+                })?
+                .contains(&last_committed_announce_hash)
+            {
+                // We found last committed announce in the neighbor branch, until commitment delay limit
+                // that means this branch is already expired.
+                return Ok(None);
+            };
+
+            predecessor = predecessor_announce.parent;
+        }
+
+        log::trace!("branch from {parent_announce_hash} is not expired, propagating announce");
+
+        // +_+_+ debug_assert
+        if !ethexe_common::announce_is_successor_of(
+            &self.db,
+            parent_announce_hash,
+            last_committed_announce_hash,
+        )
+        .map_err(|err| {
+            ComputeError::Other(anyhow!(
+                "Failed to verify that announce {parent_announce_hash}
+                    is successor of last committed announce {last_committed_announce_hash}: {err}"
+            ))
+        })? {
+            let chain1: String =
+                ethexe_common::announces_chain(&self.db, parent_announce_hash, None)?
+                    .into_iter()
+                    .map(|a| format!("({} {}) ", a.to_hash(), a.is_base()))
+                    .collect();
+            let chain2: String =
+                ethexe_common::announces_chain(&self.db, last_committed_announce_hash, None)?
+                    .into_iter()
+                    .map(|a| format!("({} {}) ", a.to_hash(), a.is_base()))
+                    .collect();
+
+            log::error!("Chain1: {chain1}");
+            log::error!("Chain2: {chain2}");
+
+            return Err(ComputeError::Other(anyhow!(
+                "Announce {parent_announce_hash} is not successor of last committed announce {last_committed_announce_hash}"
+            )));
         }
 
         let new_base_announce = Announce::base(block_hash, parent_announce_hash);
@@ -392,10 +454,14 @@ impl PrepareContextInner {
         // Include chain of announces, which are not included yet
         let mut announce_hash = last_committed_announce_hash;
         while !utils::announce_is_included(&self.db, announce_hash) {
+            log::debug!("Committed announces was not included yet, including...");
+
             let announce = self
                 .collected_announces
                 .remove(&announce_hash)
-                .expect("All not included announces should be collected");
+                .ok_or_else(|| {
+                    anyhow!("Committed announce {announce_hash} not found in collected announces")
+                })?;
 
             announce_hash = announce.parent;
 
@@ -431,19 +497,24 @@ fn calculate_announces_common_predecessor(
         .into_iter()
         .collect::<HashSet<_>>();
 
+    log::trace!(
+        "+_+_+ starting common predecessor search for block {block_hash} from announces: {announces:?}",
+    );
+
     for _ in 0..commitment_delay_limit {
+        if announces.len() == 1 && announces.contains(&start_announce) {
+            return Ok(start_announce);
+        }
+
         announces = announces
             .into_iter()
             .map(|announce_hash| {
+                log::trace!("+_+_+ checking predecessor {announce_hash} for common predecessor");
                 db.announce(announce_hash)
                     .map(|a| a.parent)
                     .ok_or(ComputeError::AnnounceNotFound(announce_hash))
             })
             .collect::<Result<HashSet<_>>>()?;
-
-        if announces.len() == 1 && announces.contains(&start_announce) {
-            return Ok(start_announce);
-        }
     }
 
     if let Some(&announce) = announces.iter().next()
@@ -452,7 +523,9 @@ fn calculate_announces_common_predecessor(
         return Ok(announce);
     }
 
-    // If we reached here - common predecessor not found by some reasons
+    // If we reached this point - common predecessor not found by some reasons
+    // This can happen for example, if some old not base announce was committed
+    // and T1S3 cannot be applied.
     Err(ConsensusGuaranteesError::Other(format!(
         "By some reasons common announces predecessor was not found for block {block_hash:?}"
     ))

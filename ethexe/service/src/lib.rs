@@ -31,7 +31,10 @@ use ethexe_consensus::{
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{NetworkEvent, NetworkService, db_sync::ExternalDataProvider};
+use ethexe_network::{
+    NetworkEvent, NetworkService,
+    db_sync::{ExternalDataProvider, Request as DBSyncRequest, Response as DBSyncResponse},
+};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -420,8 +423,13 @@ impl Service {
                         if !codes.is_empty() {
                             blob_loader.load_codes(codes, None)?;
                         }
-                        if let Some(_announces) = announces {
-                            todo!("+_+_+");
+                        if let Some(request) = announces {
+                            let network = network.as_mut().with_context(
+                                || "couldn't request announces without network service",
+                            )?;
+
+                            let _request_id =
+                                network.db_sync().request(DBSyncRequest::Announces(request));
                         }
                     }
                     ComputeEvent::AnnounceComputed(announce_hash) => {
@@ -435,7 +443,7 @@ impl Service {
                         consensus.receive_prepared_block(block_hash)?
                     }
                     ComputeEvent::CodeProcessed(_) => {
-                        // Nothing
+                        // Nothing to do
                     }
                 },
                 Event::Network(event) => {
@@ -475,10 +483,15 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::DbResponse { .. } => {
-                            unreachable!("`db-sync` is never used for requests in the main loop")
+                        NetworkEvent::DbResponse {
+                            request_id: _,
+                            result: Ok(DBSyncResponse::Announces(response)),
+                        } => {
+                            compute.receive_announces_response(response);
                         }
-                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                        NetworkEvent::DbResponse { .. }
+                        | NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
                 Event::Prometheus(event) => {

@@ -19,7 +19,7 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, validator::DefaultProcessing};
+use crate::{ConsensusEvent, utils, validator::DefaultProcessing};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -205,20 +205,12 @@ impl Producer {
             ));
         }
 
-        let parent_announce = self
-            .ctx
-            .core
-            .db
-            .block_meta(self.block.header.parent_hash)
-            .announces
-            .into_iter()
-            .flat_map(|meta| meta.into_iter())
-            .next()
-            .ok_or_else(|| anyhow!("No announces found for prepared block"))?;
-
         let announce = Announce {
             block_hash: self.block.hash,
-            parent: parent_announce,
+            parent: utils::last_not_base_or_top_announce(
+                &self.ctx.core.db,
+                self.block.header.parent_hash,
+            )?,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
             // TODO #4639: append off-chain transactions
             off_chain_transactions: Vec::new(),

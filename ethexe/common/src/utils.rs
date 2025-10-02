@@ -19,10 +19,12 @@
 use crate::{
     Address, Announce, AnnounceHash, SimpleBlockData,
     db::{
-        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, FullAnnounceData, FullBlockData,
-        LatestData, LatestDataStorageWrite, OnChainStorageWrite,
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite,
+        FullAnnounceData, FullBlockData, LatestData, LatestDataStorageRead, LatestDataStorageWrite,
+        OnChainStorageRead, OnChainStorageWrite,
     },
 };
+use alloc::vec::Vec;
 use gprimitives::H256;
 use nonempty::NonEmpty;
 
@@ -163,4 +165,84 @@ pub fn setup_announce_in_db<DB: AnnounceStorageWrite>(
     db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
 
     announce_hash
+}
+
+pub fn announce_is_successor_of<
+    DB: AnnounceStorageRead + OnChainStorageRead + LatestDataStorageRead,
+>(
+    db: &DB,
+    announce_hash: AnnounceHash,
+    potential_predecessor_hash: AnnounceHash,
+) -> Result<bool, anyhow::Error> {
+    let predecessor_announce_block_height = if potential_predecessor_hash != AnnounceHash::zero() {
+        db.block_header(
+            db.announce(potential_predecessor_hash)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("No announce found for {potential_predecessor_hash} in db")
+                })?
+                .block_hash,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No block header found for announce block"))?
+        .height
+    } else {
+        let genesis = db
+            .latest_data()
+            .ok_or_else(|| anyhow::anyhow!("No latest data found in db"))?
+            .genesis_block_hash;
+        db.block_header(genesis)
+            .ok_or_else(|| anyhow::anyhow!("No block header found for genesis block"))?
+            .height
+            - 1
+    };
+
+    let announce_block_height = db
+        .block_header(
+            db.announce(announce_hash)
+                .ok_or_else(|| anyhow::anyhow!("No announce found for {announce_hash} in db"))?
+                .block_hash,
+        )
+        .ok_or_else(|| anyhow::anyhow!("No block header found for announce block"))?
+        .height;
+
+    if announce_block_height < predecessor_announce_block_height {
+        return Ok(false);
+    }
+
+    let mut current_hash = announce_hash;
+    for _ in predecessor_announce_block_height..=announce_block_height {
+        if current_hash == potential_predecessor_hash {
+            return Ok(true);
+        }
+
+        let announce = db
+            .announce(current_hash)
+            .ok_or_else(|| anyhow::anyhow!("No announce found for {current_hash} in db"))?;
+
+        current_hash = announce.parent;
+    }
+
+    Ok(false)
+}
+
+pub fn announces_chain(
+    db: &impl AnnounceStorageRead,
+    mut head: AnnounceHash,
+    tail: Option<AnnounceHash>,
+) -> Result<Vec<Announce>, anyhow::Error> {
+    let mut result = Vec::new();
+    loop {
+        if head == tail.unwrap_or(AnnounceHash::zero()) {
+            break;
+        }
+
+        let announce = db
+            .announce(head)
+            .ok_or_else(|| anyhow::anyhow!("No announce found for {head} in db"))?;
+        let parent = announce.parent;
+        result.push(announce);
+
+        head = parent;
+    }
+
+    Ok(result)
 }

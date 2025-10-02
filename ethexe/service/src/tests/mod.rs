@@ -684,9 +684,18 @@ async fn incoming_transfers() {
 async fn ping_reorg() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::new(TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    // Start a separate connect node, to be able to request missed announces.
+    let mut connect_node = env.new_node(NodeConfig::named("connect"));
+    connect_node.start_service().await;
+
+    let mut node = env.new_node(NodeConfig::named("validator").validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
