@@ -112,6 +112,8 @@ pub enum Event {
     /// Request canceled
     ///
     /// User dropped [`HandleFuture`].
+    ///
+    /// NOTE: `Event` is not guaranteed in a multithreaded environment
     RequestCancelled {
         /// The canceled request
         request_id: RequestId,
