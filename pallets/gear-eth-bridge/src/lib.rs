@@ -173,6 +173,9 @@ pub mod pallet {
             root: H256,
         },
 
+        /// Queue has been overflowed and now requires reset.
+        QueueOverflowed,
+
         /// Queue was reset.
         ///
         /// Related to bridge clearing on initialization of the second block in a new era.

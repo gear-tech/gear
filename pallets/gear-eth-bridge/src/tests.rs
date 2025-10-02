@@ -1,5 +1,5 @@
 use crate::{
-    Config, EthMessage, QueueId, QueuesInfo, WeightInfo,
+    Config, EthMessage, QueueId, QueueOverflowedSince, QueuesInfo, WeightInfo,
     internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
 };
@@ -595,6 +595,9 @@ fn bridge_queue_capacity_exceeded_and_reset() {
             );
         }
 
+        let block_number = <frame_system::Pallet<Test>>::block_number();
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
+
         run_block_and_assert_messaging_error(
             Request::SendEthMessage {
                 destination: H160::zero(),
@@ -602,6 +605,10 @@ fn bridge_queue_capacity_exceeded_and_reset() {
             },
             ERR,
         );
+
+        System::assert_has_event(Event::QueueOverflowed.into());
+
+        assert_eq!(QueueOverflowedSince::<Test>::get(), Some(block_number));
 
         // Due to wrong "finality proof".
         assert_noop!(
@@ -615,6 +622,8 @@ fn bridge_queue_capacity_exceeded_and_reset() {
             RuntimeOrigin::signed(SIGNER),
             vec![42]
         ));
+        System::assert_last_event(Event::QueueReset.into());
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
 
         // Due to already reset => not overflowed.
         assert_noop!(
@@ -622,7 +631,6 @@ fn bridge_queue_capacity_exceeded_and_reset() {
             Error::InvalidQueueReset
         );
 
-        System::assert_has_event(Event::QueueReset.into());
         assert_eq!(Queue::get().len(), 0);
 
         let Some(QueueInfo::NonEmpty {

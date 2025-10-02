@@ -209,8 +209,9 @@ impl<T: Config> Pallet<T> {
             // If we reached queue capacity, it's time to reset the queue,
             // so it could handle further messages with next queue id.
             x if x >= QueueCapacityOf::<T>::get() as usize => {
-                log::debug!("Queue is overflowed and requires reset");
                 QueueOverflowedSince::<T>::put(<frame_system::Pallet<T>>::block_number());
+
+                Self::deposit_event(Event::<T>::QueueOverflowed);
             }
             _ => {}
         }

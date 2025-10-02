@@ -3468,6 +3468,9 @@ pub mod runtime_types {
                         root: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 7)]
+                    #[doc = "Queue has been overflowed and now requires reset."]
+                    QueueOverflowed,
+                    #[codec(index = 8)]
                     #[doc = "Queue was reset."]
                     #[doc = ""]
                     #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
