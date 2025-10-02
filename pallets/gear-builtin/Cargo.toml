@@ -20,7 +20,6 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive", "serde"] }
 primitive-types = { workspace = true, features = ["scale-info"] }
 log.workspace = true
-derive_more.workspace = true
 impl-trait-for-tuples.workspace = true
 ark-std = { workspace = true, optional = true }
 
