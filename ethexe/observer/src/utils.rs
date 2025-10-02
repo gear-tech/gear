@@ -207,13 +207,13 @@ impl BlockLoader for EthereumBlockLoader {
             let (block, header) = Self::block_response_to_data(response);
             (block, header, logs)
         };
-        debug_assert_eq!(
-            block_hash, block,
+        anyhow::ensure!(
+            block_hash == block,
             "expected block hash {block}, got {block_hash}"
         );
 
         let events = self.logs_to_events(logs)?;
-        debug_assert!(
+        anyhow::ensure!(
             events.len() <= 1,
             "expected events for at most 1 block, but got for {}",
             events.len()
@@ -223,8 +223,8 @@ impl BlockLoader for EthereumBlockLoader {
             .into_iter()
             .next()
             .unwrap_or_else(|| (block_hash, Vec::new()));
-        debug_assert_eq!(
-            block_hash, block,
+        anyhow::ensure!(
+            block_hash == block,
             "expected block hash {block}, got {block_hash}"
         );
 
