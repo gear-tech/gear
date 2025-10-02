@@ -26,7 +26,7 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{LatestDataStorageWrite, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
 };
@@ -35,19 +35,8 @@ use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::collections::HashMap;
 
-pub(crate) trait SyncDB:
-    OnChainStorageRead + OnChainStorageWrite + LatestDataStorageRead + LatestDataStorageWrite + Clone
-{
-}
-impl<
-    T: OnChainStorageRead
-        + OnChainStorageWrite
-        + LatestDataStorageRead
-        + LatestDataStorageWrite
-        + Clone,
-> SyncDB for T
-{
-}
+pub(crate) trait SyncDB: OnChainStorageWrite + LatestDataStorageWrite + Clone {}
+impl<T: OnChainStorageWrite + LatestDataStorageWrite + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -183,7 +172,7 @@ impl<DB: SyncDB> ChainSync<DB> {
                 ))?
             }
         };
-        self.db.set_validators(block, validators.clone());
+        self.db.set_block_validators(block, validators.clone());
         Ok(())
     }
 
@@ -198,7 +187,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             let _ = self
                 .db
-                .mutate_latest_data_if_some(|data| data.synced_block_height = block_header.height)
+                .mutate_latest_data(|data| data.synced_block_height = block_header.height)
                 .ok_or_else(|| {
                     log::error!("Failed to update latest data for synced block {hash}");
                 });

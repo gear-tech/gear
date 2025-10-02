@@ -220,7 +220,10 @@ impl ValidatorCore {
                 1,
                 "There should be only one announce in the current block"
             );
-            let local_announce = local_announces[0];
+            let local_announce = local_announces
+                .first()
+                .copied()
+                .expect("Just checked, that there is one announce");
 
             // TODO #4791: support head != current block hash, have to check head is predecessor of current block
             ensure!(
