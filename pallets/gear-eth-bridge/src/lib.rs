@@ -435,26 +435,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
 
-            let Some(overflowed_since) = QueueOverflowedSince::<T>::get() else {
-                return Err(Error::<T>::InvalidQueueReset.into());
-            };
-
-            let finalized_number = Self::verify_finality_proof(encoded_finality_proof)
-                .ok_or(Error::<T>::InvalidQueueReset)?;
-
-            ensure!(
-                finalized_number >= overflowed_since,
-                Error::<T>::InvalidQueueReset
-            );
-
-            log::debug!(
-                "Resetting queue that is overflowed since {:?}, current block is {:?}, received info about finalization of {:?}",
-                overflowed_since,
-                <frame_system::Pallet<T>>::block_number(),
-                finalized_number
-            );
-
-            Self::reset_queue();
+            Self::reset_overflowed_queue_impl(encoded_finality_proof)?;
 
             Ok(Pays::No.into())
         }

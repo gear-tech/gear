@@ -53,14 +53,59 @@ pub struct FinalityProof<Header: sp_runtime::traits::Header> {
 }
 
 impl<T: Config> Pallet<T> {
+    #[cfg(not(test))]
+    pub(super) fn reset_overflowed_queue_impl(
+        encoded_finality_proof: Vec<u8>,
+    ) -> Result<(), Error<T>> {
+        let Some(overflowed_since) = QueueOverflowedSince::<T>::get() else {
+            return Err(Error::<T>::InvalidQueueReset);
+        };
+
+        let finalized_number = Self::verify_finality_proof(encoded_finality_proof)
+            .ok_or(Error::<T>::InvalidQueueReset)?;
+
+        ensure!(
+            finalized_number >= overflowed_since,
+            Error::<T>::InvalidQueueReset
+        );
+
+        log::debug!(
+            "Resetting queue that is overflowed since {:?}, current block is {:?}, received info about finalization of {:?}",
+            overflowed_since,
+            <frame_system::Pallet<T>>::block_number(),
+            finalized_number
+        );
+
+        Self::reset_queue();
+
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn reset_overflowed_queue_impl(
+        encoded_finality_proof: Vec<u8>,
+    ) -> Result<(), Error<T>> {
+        ensure!(
+            QueueOverflowedSince::<T>::get().is_some(),
+            Error::<T>::InvalidQueueReset
+        );
+
+        ensure!(
+            encoded_finality_proof == vec![42u8],
+            Error::<T>::InvalidQueueReset
+        );
+
+        Self::reset_queue();
+
+        Ok(())
+    }
+
     /// Verifies given finality proof for actual grandpa set.
     ///
     /// Returns latest known finalized block number on success.
     ///
     /// See [`FinalityProof`].
-    pub(super) fn verify_finality_proof(
-        encoded_finality_proof: Vec<u8>,
-    ) -> Option<BlockNumberFor<T>> {
+    pub fn verify_finality_proof(encoded_finality_proof: Vec<u8>) -> Option<BlockNumberFor<T>> {
         // Decoding finality proof.
         let finality_proof = FinalityProofOf::<T>::decode(&mut encoded_finality_proof.as_ref())
             .inspect_err(|_| log::debug!("verify finality error: proof decoding"))
