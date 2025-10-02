@@ -183,6 +183,10 @@ pub mod pallet {
     #[pallet::error]
     #[cfg_attr(test, derive(Clone))]
     pub enum Error<T> {
+        /// The error happens when bridge queue is temporarily overflowed
+        /// and needs cleanup to proceed.
+        BridgeCleanupRequired,
+
         /// The error happens when bridge got called before
         /// proper initialization after deployment.
         BridgeIsNotYetInitialized,
@@ -285,12 +289,20 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
+    // TODO (breathx): delete me.
     /// Operational storage.
     ///
     /// Defines if queue should be reset in the next block initialization.
     /// Intended to support unlimited queue capacity.
     #[pallet::storage]
     pub(crate) type ResetQueueOnInit<T> = StorageValue<_, bool, ValueQuery>;
+
+    /// Operational storage.
+    ///
+    /// Defines since when queue was last pushed to that caused overflow.
+    /// Intended to support unlimited queue capacity.
+    #[pallet::storage]
+    pub(crate) type QueueOverflowedSince<T> = StorageValue<_, BlockNumberFor<T>>;
 
     /// Operational storage.
     ///
@@ -383,11 +395,11 @@ pub mod pallet {
 
             // Transfer fee or skip it if it's zero or governance origin.
             let fee = TransportFee::<T>::get();
+
             if !(fee.is_zero() || from_governance) {
-                let builtin_id = T::BuiltinAddress::get();
                 CurrencyOf::<T>::transfer(
                     &origin,
-                    &builtin_id,
+                    &T::BuiltinAddress::get(),
                     fee,
                     ExistenceRequirement::AllowDeath,
                 )?;

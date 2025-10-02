@@ -18,7 +18,8 @@
 
 use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
-    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo, ResetQueueOnInit,
+    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueueOverflowedSince,
+    QueuesInfo, ResetQueueOnInit,
 };
 use bp_header_chain::{
     AuthoritySet,
@@ -253,28 +254,51 @@ impl<T: Config> Pallet<T> {
         source: ActorId,
         destination: H160,
         payload: Vec<u8>,
-    ) -> Result<(U256, H256), Error<T>> {
+    ) -> Result<(U256, H256), Error<T>>
+    where
+        T::AccountId: Origin,
+    {
         // Ensuring that pallet is initialized.
         ensure!(
             Initialized::<T>::get(),
             Error::<T>::BridgeIsNotYetInitialized
         );
 
-        // Ensuring that pallet isn't paused.
-        ensure!(!Paused::<T>::get(), Error::<T>::BridgeIsPaused);
+        let from_governance = Self::ensure_admin_or_pauser(source).is_ok();
 
-        // Creating new message from given data.
-        //
-        // Inside goes query and bump of nonce,
-        // as well as checking payload size.
-        let message = EthMessage::try_new(source, destination, payload)?;
-        let hash = message.hash();
+        // Ensuring that pallet isn't paused if it's not forced from governance.
+        if !from_governance {
+            ensure!(!Paused::<T>::get(), Error::<T>::BridgeIsPaused);
+        }
 
-        // Appending hash of the message into the queue.
-        Queue::<T>::mutate(|v| v.push(hash));
+        let (message, hash) = Queue::<T>::mutate(|queue| {
+            let capacity = QueueCapacityOf::<T>::get() as usize;
 
-        // Marking queue as changed, so root will be updated later.
-        QueueChanged::<T>::put(true);
+            // Ensuring that queue isn't full if it's not forced from governance.
+            if !from_governance && queue.len() >= capacity {
+                return Err(Error::<T>::BridgeCleanupRequired);
+            }
+
+            // Creating new message from given data.
+            //
+            // Inside goes query and bump of nonce,
+            // as well as checking payload size.
+            let message = EthMessage::try_new(source, destination, payload)?;
+            let hash = message.hash();
+
+            // Appending hash of the message into the queue.
+            queue.push(hash);
+
+            // Marking queue as changed, so root will be updated later.
+            QueueChanged::<T>::put(true);
+
+            // Marking queue overflow time, if reached.
+            if queue.len() >= capacity {
+                QueueOverflowedSince::<T>::put(frame_system::Pallet::<T>::block_number());
+            }
+
+            Ok((message, hash))
+        })?;
 
         // Extracting nonce to return.
         let nonce = message.nonce();

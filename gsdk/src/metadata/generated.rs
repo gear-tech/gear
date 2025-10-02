@@ -3409,20 +3409,24 @@ pub mod runtime_types {
                 #[doc = "Pallet Gear Eth Bridge's error."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The error happens when bridge queue is temporarily overflowed"]
+                    #[doc = "and needs cleanup to proceed."]
+                    BridgeCleanupRequired,
+                    #[codec(index = 1)]
                     #[doc = "The error happens when bridge got called before"]
                     #[doc = "proper initialization after deployment."]
                     BridgeIsNotYetInitialized,
-                    #[codec(index = 1)]
+                    #[codec(index = 2)]
                     #[doc = "The error happens when bridge got called when paused."]
                     BridgeIsPaused,
-                    #[codec(index = 2)]
+                    #[codec(index = 3)]
                     #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
-                    #[codec(index = 3)]
+                    #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
                     InsufficientValueApplied,
-                    #[codec(index = 4)]
+                    #[codec(index = 5)]
                     #[doc = "The error happens when incorrect finality proof provided."]
                     InvalidFinalityProof,
                 }
@@ -11613,6 +11617,7 @@ pub mod storage {
         MessageNonce,
         QueueChanged,
         ResetQueueOnInit,
+        QueueOverflowedSince,
         TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
@@ -11631,6 +11636,7 @@ pub mod storage {
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
                 Self::ResetQueueOnInit => "ResetQueueOnInit",
+                Self::QueueOverflowedSince => "QueueOverflowedSince",
                 Self::TransportFee => "TransportFee",
             }
         }
