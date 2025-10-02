@@ -199,10 +199,20 @@ impl<T: Config> Pallet<T> {
 
         // Querying actual queue.
         let queue = Queue::<T>::get();
+        let queue_len = queue.len();
 
-        if queue.is_empty() {
-            log::error!("Queue were changed within the block, but it's empty");
-            return;
+        match queue_len {
+            0 => {
+                log::error!("Queue were changed within the block, but it's empty");
+                return;
+            }
+            // If we reached queue capacity, it's time to reset the queue,
+            // so it could handle further messages with next queue id.
+            x if x >= QueueCapacityOf::<T>::get() as usize => {
+                log::debug!("Queue is overflowed and requires reset");
+                QueueOverflowedSince::<T>::put(<frame_system::Pallet<T>>::block_number());
+            }
+            _ => {}
         }
 
         // Calculating new root.
@@ -304,10 +314,8 @@ impl<T: Config> Pallet<T> {
         }
 
         let (message, hash) = Queue::<T>::mutate(|queue| {
-            let capacity = QueueCapacityOf::<T>::get() as usize;
-
             // Ensuring that queue isn't full if it's not forced from governance.
-            if !from_governance && queue.len() >= capacity {
+            if !from_governance && queue.len() >= QueueCapacityOf::<T>::get() as usize {
                 return Err(Error::<T>::BridgeCleanupRequired);
             }
 
@@ -323,11 +331,6 @@ impl<T: Config> Pallet<T> {
 
             // Marking queue as changed, so root will be updated later.
             QueueChanged::<T>::put(true);
-
-            // Marking queue overflow time, if reached.
-            if queue.len() >= capacity {
-                QueueOverflowedSince::<T>::put(frame_system::Pallet::<T>::block_number());
-            }
 
             Ok((message, hash))
         })?;
