@@ -3399,8 +3399,9 @@ pub mod runtime_types {
                     #[doc = "Root extrinsic that sets fee for the transport of messages."]
                     set_fee { fee: ::core::primitive::u128 },
                     #[codec(index = 4)]
-                    #[doc = "Extrinsic that verifies some block finality."]
-                    submit_known_finality {
+                    #[doc = "Extrinsic that verifies some block finality that resets"]
+                    #[doc = "overflowed within the current era queue."]
+                    reset_overflowed_queue {
                         encoded_finality_proof:
                             ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
@@ -3427,8 +3428,9 @@ pub mod runtime_types {
                     #[doc = "is inapplicable to operation or insufficient."]
                     InsufficientValueApplied,
                     #[codec(index = 5)]
-                    #[doc = "The error happens when incorrect finality proof provided."]
-                    InvalidFinalityProof,
+                    #[doc = "The error happens when attempted to reset overflowed queue, but"]
+                    #[doc = "queue isn't overflowed or incorrect finality proof provided."]
+                    InvalidQueueReset,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
@@ -10767,7 +10769,7 @@ pub mod calls {
         Unpause,
         SendEthMessage,
         SetFee,
-        SubmitKnownFinality,
+        ResetOverflowedQueue,
     }
     impl CallInfo for GearEthBridgeCall {
         const PALLET: &'static str = "GearEthBridge";
@@ -10777,7 +10779,7 @@ pub mod calls {
                 Self::Unpause => "unpause",
                 Self::SendEthMessage => "send_eth_message",
                 Self::SetFee => "set_fee",
-                Self::SubmitKnownFinality => "submit_known_finality",
+                Self::ResetOverflowedQueue => "reset_overflowed_queue",
             }
         }
     }

@@ -118,8 +118,7 @@ pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::InsufficientValueApplied => "Send message: insufficient value applied",
-        // TODO (breathx): put here actual name of the call
-        Error::InvalidFinalityProof => "Prove finality: invalid finality proof",
+        Error::InvalidQueueReset => "Reset overflowed queue: invalid proof or not overflowed",
         Error::__Ignore(_, _) => unreachable!("never constructed"),
     }
 }

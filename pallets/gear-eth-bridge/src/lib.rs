@@ -201,8 +201,9 @@ pub mod pallet {
         /// is inapplicable to operation or insufficient.
         InsufficientValueApplied,
 
-        /// The error happens when incorrect finality proof provided.
-        InvalidFinalityProof,
+        /// The error happens when attempted to reset overflowed queue, but
+        /// queue isn't overflowed or incorrect finality proof provided.
+        InvalidQueueReset,
     }
 
     /// Lifecycle storage.
@@ -416,7 +417,8 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Extrinsic that verifies some block finality.
+        /// Extrinsic that verifies some block finality that resets
+        /// overflowed within the current era queue.
         #[pallet::call_index(4)]
         #[pallet::weight((
             T::BlockWeights::get()
@@ -427,19 +429,32 @@ pub mod pallet {
             // `Pays::No` on success
             Pays::Yes,
         ))]
-        pub fn submit_known_finality(
+        pub fn reset_overflowed_queue(
             origin: OriginFor<T>,
             encoded_finality_proof: Vec<u8>,
         ) -> DispatchResultWithPostInfo {
             ensure_signed(origin)?;
 
+            let Some(overflowed_since) = QueueOverflowedSince::<T>::get() else {
+                return Err(Error::<T>::InvalidQueueReset.into());
+            };
+
             let finalized_number = Self::verify_finality_proof(encoded_finality_proof)
-                .ok_or(Error::<T>::InvalidFinalityProof)?;
+                .ok_or(Error::<T>::InvalidQueueReset)?;
+
+            ensure!(
+                finalized_number >= overflowed_since,
+                Error::<T>::InvalidQueueReset
+            );
 
             log::debug!(
-                "Finalized block number: {finalized_number:?}, current block: {:?}",
-                <frame_system::Pallet<T>>::block_number()
+                "Resetting queue that is overflowed since {:?}, current block is {:?}, received info about finalization of {:?}",
+                overflowed_since,
+                <frame_system::Pallet<T>>::block_number(),
+                finalized_number
             );
+
+            Self::reset_queue();
 
             Ok(Pays::No.into())
         }

@@ -237,7 +237,6 @@ impl<T: Config> Pallet<T> {
         T::DbWeight::get().writes(5)
     }
 
-    // TODO (breathx): return bn as well?
     pub(crate) fn queue_message(
         source: ActorId,
         destination: H160,
