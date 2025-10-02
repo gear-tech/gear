@@ -289,14 +289,6 @@ pub mod pallet {
     #[pallet::storage]
     pub(crate) type QueueChanged<T> = StorageValue<_, bool, ValueQuery>;
 
-    // TODO (breathx): delete me.
-    /// Operational storage.
-    ///
-    /// Defines if queue should be reset in the next block initialization.
-    /// Intended to support unlimited queue capacity.
-    #[pallet::storage]
-    pub(crate) type ResetQueueOnInit<T> = StorageValue<_, bool, ValueQuery>;
-
     /// Operational storage.
     ///
     /// Defines since when queue was last pushed to that caused overflow.
@@ -497,11 +489,8 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Resulting weight of the hook.
             //
-            // Initially consists of one read of `ClearTimer` and one write to `ResetQueueOnInit` storages.
-            let mut weight = T::DbWeight::get().reads_writes(1, 1);
-
-            // Flag defining if queue was reset within the hook.
-            let mut was_reset = false;
+            // Initially consists of one read of `ClearTimer` storage item.
+            let mut weight = T::DbWeight::get().reads_writes(1, 0);
 
             // Querying timer and checking its value if some.
             if let Some(timer) = ClearTimer::<T>::get() {
@@ -517,19 +506,12 @@ pub mod pallet {
                 if new_timer.is_zero() {
                     // Clearing the bridge, including queue.
                     let clear_weight = Self::clear_bridge();
-                    was_reset = true;
                     weight = weight.saturating_add(clear_weight);
                 } else {
                     // Rescheduling clearing by putting back non-zero timer.
                     ClearTimer::<T>::put(new_timer);
                     weight = weight.saturating_add(T::DbWeight::get().writes(1));
                 }
-            }
-
-            // Resetting queue on request from previous block if there wasn't reset.
-            if ResetQueueOnInit::<T>::take() && !was_reset {
-                let reset_weight = Self::reset_queue();
-                weight = weight.saturating_add(reset_weight);
             }
 
             weight

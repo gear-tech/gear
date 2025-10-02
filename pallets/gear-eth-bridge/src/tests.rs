@@ -503,15 +503,14 @@ fn bridge_queues_governance_messages_when_over_capacity() {
             0,
         );
 
-        // Queue got reset on init.
-        System::assert_has_event(Event::QueueReset.into());
-        assert_eq!(Queue::get().len(), 0);
+        // Queue wasn't reset yet.
+        assert!(QueuesInfo::<Test>::get(1).is_none());
 
         let Some(QueueInfo::NonEmpty {
             latest_nonce_used, ..
         }) = QueuesInfo::<Test>::get(0)
         else {
-            panic!("empty queue info for past id");
+            panic!("empty queue info for current id");
         };
 
         // Expected len is `msg_queue_len + 2`, so latest nonce (idx) used is -1.

@@ -19,8 +19,8 @@
 //! This migration totally resets bridge.
 
 use crate::{
-    Config, MessageNonce, Queue, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo,
-    ResetQueueOnInit,
+    Config, MessageNonce, Queue, QueueChanged, QueueId, QueueMerkleRoot, QueueOverflowedSince,
+    QueuesInfo,
 };
 use frame_support::{
     pallet_prelude::Weight,
@@ -72,7 +72,7 @@ impl<T: Config> OnRuntimeUpgrade for ResetMigration<T> {
         QueueChanged::<T>::kill();
         weight = weight.saturating_add(db_weight.writes(1));
 
-        ResetQueueOnInit::<T>::kill();
+        QueueOverflowedSince::<T>::kill();
         weight = weight.saturating_add(db_weight.writes(1));
 
         // TransportFee::<T>::kill();

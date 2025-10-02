@@ -11616,7 +11616,6 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
-        ResetQueueOnInit,
         QueueOverflowedSince,
         TransportFee,
     }
@@ -11635,7 +11634,6 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
-                Self::ResetQueueOnInit => "ResetQueueOnInit",
                 Self::QueueOverflowedSince => "QueueOverflowedSince",
                 Self::TransportFee => "TransportFee",
             }

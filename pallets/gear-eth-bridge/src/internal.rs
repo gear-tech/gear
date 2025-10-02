@@ -19,7 +19,7 @@
 use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
     Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueueOverflowedSince,
-    QueuesInfo, ResetQueueOnInit,
+    QueuesInfo,
 };
 use bp_header_chain::{
     AuthoritySet,
@@ -154,23 +154,8 @@ impl<T: Config> Pallet<T> {
 
         // Querying actual queue.
         let queue = Queue::<T>::get();
-        let queue_len = queue.len();
 
-        match queue_len {
-            0 => {
-                log::error!("Queue were changed within the block, but it's empty");
-                return;
-            }
-            // If we reached queue capacity, it's time to reset the queue,
-            // so it could handle further messages with next queue id.
-            x if x >= QueueCapacityOf::<T>::get() as usize => {
-                log::debug!("Queue reached it's capacity. Scheduling next block reset");
-                ResetQueueOnInit::<T>::put(true);
-            }
-            _ => {}
-        }
-
-        if queue_len == 0 {
+        if queue.is_empty() {
             log::error!("Queue were changed within the block, but it's empty");
             return;
         }
@@ -231,6 +216,9 @@ impl<T: Config> Pallet<T> {
         // Removing queued messages from storage.
         Queue::<T>::kill();
 
+        // Removing overflowed since block.
+        QueueOverflowedSince::<T>::kill();
+
         // Bumping queue id for future use.
         let new_queue_id = QueueId::<T>::mutate(|id| {
             *id = id.saturating_add(1);
@@ -246,7 +234,7 @@ impl<T: Config> Pallet<T> {
         // Depositing event about queue being reset.
         Self::deposit_event(Event::<T>::QueueReset);
 
-        T::DbWeight::get().writes(4)
+        T::DbWeight::get().writes(5)
     }
 
     // TODO (breathx): return bn as well?
