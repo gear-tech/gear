@@ -52,28 +52,36 @@ pub struct FinalityProof<Header: sp_runtime::traits::Header> {
 }
 
 impl<T: Config> Pallet<T> {
+    /// Verifies given finality proof for actual grandpa set.
+    ///
+    /// Returns latest known finalized block number on success.
+    ///
     /// See [`FinalityProof`].
-    #[allow(unused)]
     pub(super) fn verify_finality_proof(
         encoded_finality_proof: Vec<u8>,
     ) -> Option<BlockNumberFor<T>> {
+        // Decoding finality proof.
         let finality_proof =
             FinalityProofOf::<T>::decode(&mut encoded_finality_proof.as_ref()).ok()?;
 
+        // Extracting justification from the proof.
         let justification =
             GrandpaJustificationOf::<T>::decode(&mut finality_proof.justification.as_ref()).ok()?;
 
+        // Extracting finalized target from the justification.
         let finalized_target = (
             justification.commit.target_hash,
             justification.commit.target_number,
         );
 
-        let authorities: sp_consensus_grandpa::AuthorityList = todo!();
-        let set_id: sp_consensus_grandpa::SetId = todo!();
+        // Actual authorities and their set id.
+        let authorities = <pallet_grandpa::Pallet<T>>::grandpa_authorities();
+        let set_id = <pallet_grandpa::Pallet<T>>::current_set_id();
 
         let authority_set = AuthoritySet::new(authorities, set_id);
         let context = authority_set.try_into().ok()?;
 
+        // Verification of the finality.
         justification::verify_justification(finalized_target, &context, &justification).ok()?;
 
         Some(justification.commit.target_number)

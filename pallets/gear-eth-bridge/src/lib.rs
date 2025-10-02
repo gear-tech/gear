@@ -88,7 +88,9 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
+    pub trait Config:
+        frame_system::Config + pallet_gear_bank::Config + pallet_grandpa::Config
+    {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -408,6 +410,26 @@ pub mod pallet {
 
             // Returning successful result without weight refund.
             Ok(().into())
+        }
+
+        /// Extrinsic that verifies some block finality.
+        #[pallet::call_index(4)]
+        #[pallet::weight(Weight::zero())]
+        pub fn submit_known_finality(
+            origin: OriginFor<T>,
+            encoded_finality_proof: Vec<u8>,
+        ) -> DispatchResultWithPostInfo {
+            ensure_signed(origin)?;
+
+            let finalized_number = Self::verify_finality_proof(encoded_finality_proof)
+                .ok_or(Error::<T>::InvalidFinalityProof)?;
+
+            log::debug!(
+                "Finalized block number: {finalized_number:?}, current block: {:?}",
+                <frame_system::Pallet<T>>::block_number()
+            );
+
+            Ok(Pays::No.into())
         }
     }
 
