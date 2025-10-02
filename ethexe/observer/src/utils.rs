@@ -317,6 +317,13 @@ where
         if let Some(missing_end_block) = missing_end_block {
             let range = *range.start()..=missing_end_block;
             let missing_blocks = self.inner.load_many(range).await?;
+
+            for (block, data) in &missing_blocks {
+                debug_assert_eq!(*block, data.hash);
+                self.db.set_block_header(data.hash, data.header);
+                self.db.set_block_events(data.hash, &data.events);
+            }
+
             blocks.extend(missing_blocks);
         }
 

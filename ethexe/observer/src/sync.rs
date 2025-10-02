@@ -129,10 +129,6 @@ impl<DB: SyncDB> ChainSync<DB> {
             }
 
             let parent_hash = block_data.header.parent_hash;
-
-            self.db.set_block_header(hash, block_data.header);
-            self.db.set_block_events(hash, &block_data.events);
-
             chain.push(hash);
             hash = parent_hash;
         }
