@@ -414,7 +414,15 @@ pub mod pallet {
 
         /// Extrinsic that verifies some block finality.
         #[pallet::call_index(4)]
-        #[pallet::weight(Weight::zero())]
+        #[pallet::weight((
+            T::BlockWeights::get()
+                .get(DispatchClass::Operational)
+                .max_total
+                .unwrap_or(Weight::MAX),
+            DispatchClass::Operational,
+            // `Pays::No` on success
+            Pays::Yes,
+    ))]
         pub fn submit_known_finality(
             origin: OriginFor<T>,
             encoded_finality_proof: Vec<u8>,
