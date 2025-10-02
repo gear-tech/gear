@@ -23,8 +23,6 @@ use builtins_common::{
 };
 use common::Origin;
 use core::marker::PhantomData;
-use frame_support::traits::EnsureOrigin;
-use frame_system::RawOrigin;
 use gear_core::{
     buffer::Payload,
     limited::LimitedStr,

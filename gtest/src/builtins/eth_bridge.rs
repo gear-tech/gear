@@ -36,6 +36,7 @@ pub const ETH_BRIDGE_ID: ActorId = ActorId::new(*b"modl/bia/eth-bridge/v-\x01\0/
 /// Processes a dispatch message sent to the Eth-bridge builtin actor.
 pub(crate) fn process_eth_bridge_dispatch(
     dispatch: &StoredDispatch,
+    block_number: u32,
 ) -> Result<EthBridgeResponse, BuiltinActorError> {
     let source = dispatch.source();
     let mut payload = dispatch.payload_bytes();
@@ -49,7 +50,12 @@ pub(crate) fn process_eth_bridge_dispatch(
         } => {
             let (nonce, hash) = create_bridge_call_output(source, destination, payload);
 
-            Ok(EthBridgeResponse::EthMessageQueued { nonce, hash })
+            Ok(EthBridgeResponse::EthMessageQueued {
+                nonce,
+                hash,
+                block_number,
+                queue_id: 0,
+            })
         }
     }
 }
@@ -134,6 +140,8 @@ mod tests {
         let res = sys.run_next_block();
         assert!(res.succeed.contains(&init_mid));
 
+        let expected_block_number = res.block_info.height;
+
         // Send a message to the proxy to trigger the bridge interaction
         let mid = proxy_program.send_bytes(alice_actor_id, b"");
         let res = sys.run_next_block();
@@ -151,9 +159,16 @@ mod tests {
         let mut logs = res.decoded_log();
         let response = logs.pop().expect("no log found");
 
-        let EthBridgeResponse::EthMessageQueued { nonce, hash } = response.payload();
+        let EthBridgeResponse::EthMessageQueued {
+            nonce,
+            hash,
+            block_number,
+            queue_id,
+        } = response.payload();
 
-        assert_eq!(nonce, &expected_nonce);
-        assert_eq!(hash, &expected_hash);
+        assert_eq!(*nonce, expected_nonce);
+        assert_eq!(*hash, expected_hash);
+        assert_eq!(*block_number, expected_block_number + 1);
+        assert_eq!(*queue_id, 0);
     }
 }

@@ -33,7 +33,7 @@ use ark_scale::{
     scale::{Decode, Encode},
 };
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Validate};
-use gear_core::str::LimitedStr;
+use gear_core::limited::LimitedStr;
 use sha2;
 
 type ArkScaleLocal<T> = ark_scale::ArkScale<T, HOST_CALL>;

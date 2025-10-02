@@ -28,7 +28,7 @@ pub mod eth_bridge;
 
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    str::LimitedStr,
+    limited::LimitedStr,
 };
 use parity_scale_codec::{Decode, Encode};
 

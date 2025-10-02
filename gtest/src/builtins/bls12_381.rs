@@ -93,12 +93,13 @@ mod tests {
     use builtins_common::bls12_381::{ark_bls12_381, ark_ec, ark_ff, ark_scale};
     use demo_constructor::{Arg, Call, Calls, Scheme, WASM_BINARY};
     use gear_common::Origin;
-    use gear_core::str::LimitedStr;
+    use gear_core::limited::LimitedStr;
     use std::ops::Mul;
 
     type ArkScaleLocal<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
     type ScalarFieldG1 = <G1 as Group>::ScalarField;
     type ScalarFieldG2 = <G2 as Group>::ScalarField;
+    type LimitedStr1024 = LimitedStr<'static, 1024>;
 
     fn create_proxy_program(
         sys: &System,
@@ -303,7 +304,7 @@ mod tests {
         // ----------------------- Check error response --------------------------
         // -----------------------------------------------------------------------
         let err_payload =
-            LimitedStr::from_small_str("Multi scalar multiplication: uneven item count")
+            LimitedStr1024::from_small_str("Multi scalar multiplication: uneven item count")
                 .into_inner()
                 .into_owned()
                 .into_bytes();
@@ -414,7 +415,7 @@ mod tests {
         // ----------------------- Check error response --------------------------
         // -----------------------------------------------------------------------
         let err_payload =
-            LimitedStr::from_small_str("Multi scalar multiplication: uneven item count")
+            LimitedStr1024::from_small_str("Multi scalar multiplication: uneven item count")
                 .into_inner()
                 .into_owned()
                 .into_bytes();

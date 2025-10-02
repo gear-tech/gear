@@ -443,14 +443,14 @@ impl ExtManager {
                     .try_into()
                     .unwrap_or_else(|_| unreachable!("Failed to encode BLS12-381 builtin reply"))
             }),
-            ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch).map(|response| {
-                log::debug!("Eth-bridge response: {response:?}");
+            ETH_BRIDGE_ID => builtins::process_eth_bridge_dispatch(&dispatch, self.block_height())
+                .map(|response| {
+                    log::debug!("Eth-bridge response: {response:?}");
 
-                response
-                    .encode()
-                    .try_into()
-                    .unwrap_or_else(|_| unreachable!("Failed to encode eth-bridge builtin reply"))
-            }),
+                    response.encode().try_into().unwrap_or_else(|_| {
+                        unreachable!("Failed to encode eth-bridge builtin reply")
+                    })
+                }),
             id => unimplemented!("Unknown builtin program id: {id}"),
         };
 

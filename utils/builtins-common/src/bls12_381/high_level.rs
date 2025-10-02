@@ -23,7 +23,7 @@ use ark_scale::{
     scale::{Compact, Decode, Input},
 };
 use ark_serialize::{CanonicalDeserialize, Compress, Validate};
-use gear_core::str::LimitedStr;
+use gear_core::limited::LimitedStr;
 
 const IS_COMPRESSED: Compress = ark_scale::is_compressed(HOST_CALL);
 const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
