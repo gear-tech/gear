@@ -103,6 +103,10 @@ pub enum Request {
     /// Set the reward destination.
     #[codec(index = 8)]
     SetPayee { payee: RewardAccount },
+
+    /// Get the active era.
+    #[codec(index = 9)]
+    ActiveEra,
 }
 
 /// An account where the rewards should accumulate on.
@@ -119,4 +123,23 @@ pub enum RewardAccount {
     Custom(ActorId),
     /// Opt for not receiving any rewards at all.
     None,
+}
+
+/// Response type for staking built-in actor operations.
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
+pub enum Response {
+    /// Response containing the active era details amd when it was executed.
+    ActiveEra {
+        // Current active era index.
+        index: u32,
+        /// Moment of start expressed as millisecond from `$UNIX_EPOCH`.
+        ///
+        /// Start can be none if start hasn't been set for the era yet,
+        /// Start is set on the first on_finalize of the era to guarantee usage of `Time`.
+        start: Option<u64>,
+        // Block number when the request was executed.
+        executed_at: u32,
+        // Gear block number when the request was executed.
+        executed_at_gear_block: u32,
+    },
 }
