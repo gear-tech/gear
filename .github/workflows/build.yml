@@ -151,6 +151,7 @@ jobs:
           path: artifact
 
   docs:
+    needs: node
     runs-on: ubuntu-latest
     permissions:
       contents: write
