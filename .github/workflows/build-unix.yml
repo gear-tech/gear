@@ -1,9 +1,12 @@
-name: Build MacOS
+name: Build *NIX
 
 on:
   workflow_call:
     inputs:
       profiles:
+        type: string
+        required: true
+      targets:
         type: string
         required: true
 
@@ -18,18 +21,14 @@ env:
   NEXTEST_PROFILE: ci
 
 jobs:
-  macos:
+  unix:
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
-        arch:
-          - name: aarch64
-            target: aarch64-apple-darwin
-          - name: x86
-            target: x86_64-apple-darwin
+        targets: ${{ fromJSON(inputs.targets) }}
       fail-fast: false
-    runs-on: macos-latest
-    name: macos-${{ matrix.arch.name }} (${{ matrix.profiles.name }})
+    name: ${{ matrix.targets.name }} (${{ matrix.profiles.name }})
+    runs-on: ${{ matrix.targets.runs-on }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -37,7 +36,7 @@ jobs:
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
         with:
-          name: node-and-runtime-release-${{ matrix.arch.target }}
+          name: node-and-runtime-release-${{ matrix.targets.target }}
           path: target/release
 
       - name: "Install: Rust toolchain"
@@ -46,7 +45,7 @@ jobs:
       - name: "Install: Compilation environment"
         uses: ./.github/actions/setup-compilation-env
         with:
-          target: "${{ matrix.arch.target }}"
+          target: "${{ matrix.targets.target }}"
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"

@@ -9,6 +9,9 @@ on:
       windows:
         type: boolean
         default: false
+      linux-aarch64:
+        type: boolean
+        default: false
       release:
         type: boolean
         default: false
@@ -33,7 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       profiles: ${{ steps.profiles.outputs.value }}
-      targets: ${{ steps.targets.outputs.value }}
+      targets: ${{ steps.targets.outputs.targets }}
+      unix-targets: ${{ steps.targets.outputs.unix-targets }}
     steps:
       - id: profiles
         run: |
@@ -50,16 +54,12 @@ jobs:
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
               "runs-on": ["kuberunner", "github-runner-02"]
-            },
-            {
-              name: "linux-aarch64",
-              target: "aarch64-unknown-linux-gnu",
-              "runs-on": "ubuntu-24.04-arm"
             }
           ]')
+          unix_targets="[]"
           
           if ${{ inputs.macos }}; then
-            targets=$(echo "$targets" | jq -c '. += [
+            macos='[
               {
                 name: "macos-aarch64",
                 target: "aarch64-apple-darwin",
@@ -70,7 +70,21 @@ jobs:
                 target: "x86_64-apple-darwin",
                 "runs-on": "macos-latest"
               }
-            ]')
+            ]'
+            targets=$(echo "$targets" | jq -c ". += $macos")
+            unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
+          fi
+          
+          if ${{ inputs.linux-aarch64 }}; then
+            linux_aarch64='[
+              {
+                name: "linux-aarch64",
+                target: "aarch64-unknown-linux-gnu",
+                "runs-on": "ubuntu-24.04-arm"
+              }
+            ]'
+            targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
+            unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
           
           if ${{ inputs.windows }}; then
@@ -84,7 +98,10 @@ jobs:
           fi
           
           echo "Targets: ${targets}"
-          echo "value=${targets}" >> $GITHUB_OUTPUT
+          echo "targets=${targets}" >> $GITHUB_OUTPUT
+          
+          echo "*NIX targets: ${unix_targets}"
+          echo "unix-targets=${unix_targets} >> $GITHUB_OUTPUT"
 
   node:
     needs: dynamic-matrix
@@ -141,18 +158,18 @@ jobs:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
       production: ${{ inputs.production }}
 
+  unix:
+    needs: [dynamic-matrix, node]
+    uses: ./.github/workflows/build-unix.yml
+    secrets: inherit
+    with:
+      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
+      targets: ${{ needs.dynamic-matrix.outputs.unix-targets }}
+
   windows:
     needs: [dynamic-matrix, node, linux]
     if: ${{ inputs.windows }}
     uses: ./.github/workflows/build-windows.yml
-    secrets: inherit
-    with:
-      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
-
-  macos:
-    needs: [dynamic-matrix, node, linux]
-    if: ${{ inputs.macos }}
-    uses: ./.github/workflows/build-macos.yml
     secrets: inherit
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
