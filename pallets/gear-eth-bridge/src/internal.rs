@@ -104,7 +104,7 @@ impl<T: Config> Pallet<T> {
     ///
     /// Returns latest known finalized block number on success.
     ///
-    /// See [`FinalityProof`].
+    /// See `FinalityProof` above.
     pub fn verify_finality_proof(encoded_finality_proof: Vec<u8>) -> Option<BlockNumberFor<T>> {
         // Decoding finality proof.
         let finality_proof = FinalityProofOf::<T>::decode(&mut encoded_finality_proof.as_ref())
