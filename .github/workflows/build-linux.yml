@@ -103,11 +103,8 @@ jobs:
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - name: "Build: Workspace"
-        run: echo $HOSTNAME && (cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }} || sleep 18000)
+        run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload example WASMs"
         uses: actions/upload-artifact@v4

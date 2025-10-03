@@ -9,6 +9,7 @@ runs:
     - name: "Install: mold on Linux"
       if: runner.os == 'Linux'
       run: |
+        rm -rf /var/cache/apt/apt-fast/
         sudo apt-fast update
         sudo apt-fast install -y mold
       shell: bash
