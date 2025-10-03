@@ -101,7 +101,7 @@ jobs:
           echo "targets=${targets}" >> $GITHUB_OUTPUT
           
           echo "*NIX targets: ${unix_targets}"
-          echo "unix-targets=${unix_targets} >> $GITHUB_OUTPUT"
+          echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
 
   node:
     needs: dynamic-matrix
