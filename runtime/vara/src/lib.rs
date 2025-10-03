@@ -77,9 +77,6 @@ use sp_std::{
 };
 use sp_version::RuntimeVersion;
 
-#[cfg(not(feature = "dev"))]
-use sp_runtime::traits::OpaqueKeys;
-
 #[cfg(any(feature = "std", test))]
 use {
     sp_api::{CallApiAt, CallContext, ProofRecorder},
@@ -430,7 +427,6 @@ impl_opaque_keys! {
     }
 }
 
-#[cfg(feature = "dev")]
 mod grandpa_keys_handler {
     use super::{AccountId, GearEthBridge, Grandpa};
     use frame_support::traits::OneSessionHandler;
@@ -486,16 +482,12 @@ mod grandpa_keys_handler {
     }
 }
 
-#[cfg(feature = "dev")]
 pub type VaraSessionHandler = (
     Babe,
     grandpa_keys_handler::GrandpaAndGearEthBridge,
     ImOnline,
     AuthorityDiscovery,
 );
-
-#[cfg(not(feature = "dev"))]
-pub type VaraSessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -1043,7 +1035,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => {
                 // Dev pallets.
                 #[cfg(feature = "dev")]
-                if matches!(c, |RuntimeCall::GearEthBridge(..)| RuntimeCall::Sudo(..)) {
+                if matches!(c, RuntimeCall::Sudo(..)) {
                     return false;
                 }
 
@@ -1053,6 +1045,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     RuntimeCall::Balances(..) | RuntimeCall::Vesting(..)
                     // Gear pallets.
                     | RuntimeCall::Gear(..)
+                    | RuntimeCall::GearEthBridge(..)
                     | RuntimeCall::GearVoucher(..)
                     | RuntimeCall::StakingRewards(..)
                 )
@@ -1199,26 +1192,13 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
-/// Builtin actors arranged in a tuple.
-///
-/// # Security
-/// Make sure to mint ED for each new builtin actor added to the tuple.
-#[cfg(not(feature = "dev"))]
-pub type BuiltinActors = (
-    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
-    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    // The ID = 3 is for the pallet_gear_eth_bridge::Actor.
-    ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
-);
-
-#[cfg(feature = "dev")]
 const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
 /// Builtin actors arranged in a tuple.
 ///
 /// # Security
 /// Make sure to mint ED for each new builtin actor added to the tuple.
-#[cfg(feature = "dev")]
+/// (see migrations.rs/LockEdForBuiltin).
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
@@ -1240,22 +1220,19 @@ parameter_types! {
     pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
 }
 
-#[cfg(feature = "dev")]
 parameter_types! {
     pub GearEthBridgeBuiltinAddress: AccountId
         = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 }
 
-#[cfg(feature = "dev")]
 pub struct GearEthBridgeAdminAccounts;
-#[cfg(feature = "dev")]
+
 impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
     fn sorted_members() -> Vec<AccountId> {
         vec![GearEthBridgeAdminAccount::get()]
     }
 }
 
-#[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
@@ -1650,9 +1627,8 @@ mod runtime {
     #[runtime::pallet_index(109)]
     pub type GearBuiltin = pallet_gear_builtin;
 
-    // Uncomment me, once ready for prod runtime.
-    // #[runtime::pallet_index(110)]
-    // pub type GearEthBridge = pallet_gear_eth_bridge;
+    #[runtime::pallet_index(110)]
+    pub type GearEthBridge = pallet_gear_eth_bridge;
 
     // NOTE (!): `pallet_sudo` used to be idx(99).
     // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1699,7 +1675,7 @@ mod tests;
 #[cfg(test)]
 mod integration_tests;
 
-#[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
+#[cfg(feature = "runtime-benchmarks")]
 mod benches {
     define_benchmarks!(
         // Substrate pallets
@@ -1712,21 +1688,6 @@ mod benches {
         [pallet_gear_voucher, GearVoucher]
         [pallet_gear_builtin, GearBuiltin]
         [pallet_gear_eth_bridge, GearEthBridge]
-    );
-}
-
-#[cfg(all(feature = "runtime-benchmarks", not(feature = "dev")))]
-mod benches {
-    define_benchmarks!(
-        // Substrate pallets
-        [frame_system, SystemBench::<Runtime>]
-        [pallet_balances, Balances]
-        [pallet_timestamp, Timestamp]
-        [pallet_utility, Utility]
-        // Gear pallets
-        [pallet_gear, Gear]
-        [pallet_gear_voucher, GearVoucher]
-        [pallet_gear_builtin, GearBuiltin]
     );
 }
 
@@ -1873,15 +1834,7 @@ impl_runtime_apis_plus_common! {
 
     impl pallet_gear_eth_bridge_rpc_runtime_api::GearEthBridgeApi<Block> for Runtime {
         fn merkle_proof(hash: H256) -> Option<pallet_gear_eth_bridge_rpc_runtime_api::Proof> {
-            match () {
-                #[cfg(not(feature = "dev"))]
-                () => {
-                    let _ = hash;
-                    None
-                },
-                #[cfg(feature = "dev")]
-                () => GearEthBridge::merkle_proof(hash),
-            }
+            GearEthBridge::merkle_proof(hash)
         }
     }
 
