@@ -35,9 +35,9 @@ use sp_runtime::{
 use sp_std::convert::{TryFrom, TryInto};
 
 type AccountId = u64;
-type BlockNumber = u64;
+type BlockNumber = u32;
 type Balance = u128;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -59,7 +59,7 @@ construct_runtime!(
 );
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
@@ -172,7 +172,7 @@ impl ExtBuilder {
 }
 
 #[allow(unused)]
-pub(crate) fn run_to_block(n: u64) {
+pub(crate) fn run_to_block(n: BlockNumber) {
     while System::block_number() < n {
         let current_blk = System::block_number();
 
@@ -187,7 +187,7 @@ pub(crate) fn run_to_block(n: u64) {
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-    Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
+    Timestamp::set_timestamp(u64::from(new_block_number).saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new_block_number);
     GearGas::on_initialize(new_block_number);
     GearMessenger::on_initialize(new_block_number);

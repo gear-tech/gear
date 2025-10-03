@@ -22,16 +22,16 @@ use crate::{
     CASDatabase, KVDatabase, MemDb,
     overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::{Result, bail};
 use ethexe_common::{
-    Address, BlockHeader, BlockMeta, CodeBlobInfo, Digest, ProgramStates, Schedule,
+    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
     db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
-        CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
+        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
     gear::StateTransition,
-    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
+    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -46,27 +46,28 @@ use gear_core::{
 use gprimitives::H256;
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::BTreeSet;
 
 #[repr(u64)]
 enum Key {
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
-    BlockProgramStates(H256) = 2,
-    BlockOutcome(H256) = 3,
-    BlockSchedule(H256) = 4,
+    ValidatorSet(H256) = 2,
 
-    ProgramToCodeId(ActorId) = 5,
-    InstrumentedCode(u32, CodeId) = 6,
-    CodeMetadata(CodeId) = 7,
-    CodeUploadInfo(CodeId) = 8,
-    CodeValid(CodeId) = 9,
+    AnnounceProgramStates(AnnounceHash) = 3,
+    AnnounceOutcome(AnnounceHash) = 4,
+    AnnounceSchedule(AnnounceHash) = 5,
+    AnnounceMeta(AnnounceHash) = 6,
 
-    SignedTransaction(H256) = 10,
+    ProgramToCodeId(ActorId) = 7,
+    InstrumentedCode(u32, CodeId) = 8,
+    CodeMetadata(CodeId) = 9,
+    CodeUploadInfo(CodeId) = 10,
+    CodeValid(CodeId) = 11,
 
-    LatestComputedBlock = 11,
-    LatestSyncedBlockHeight = 12,
-    ValidatorSet(H256) = 13,
+    SignedTransaction(H256) = 12,
+
+    LatestData = 13,
 }
 
 impl Key {
@@ -81,13 +82,14 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash)
-            | Self::BlockEvents(hash)
-            | Self::BlockProgramStates(hash)
-            | Self::BlockOutcome(hash)
-            | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash)
-            | Self::ValidatorSet(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::ValidatorSet(hash) => {
+                [prefix.as_ref(), hash.as_ref()].concat()
+            }
+            Self::AnnounceProgramStates(AnnounceHash(hash))
+            | Self::AnnounceOutcome(AnnounceHash(hash))
+            | Self::AnnounceSchedule(AnnounceHash(hash))
+            | Self::AnnounceMeta(AnnounceHash(hash))
+            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -101,8 +103,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-
-            Self::LatestComputedBlock | Self::LatestSyncedBlockHeight => prefix.as_ref().to_vec(),
+            Self::LatestData => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -149,10 +150,6 @@ impl Database {
         }
     }
 
-    pub fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
-        self.cas.read(hash)
-    }
-
     pub fn contains_hash(&self, hash: H256) -> bool {
         self.cas.contains(hash)
     }
@@ -174,49 +171,6 @@ impl Database {
         let tx_hash = tx.tx_hash();
         self.kv
             .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
-    }
-
-    // TODO #4559: test this method
-    pub fn check_within_recent_blocks(&self, reference_block_hash: H256) -> Result<bool> {
-        let Some((latest_computed_block_hash, latest_computed_block_header)) =
-            self.latest_computed_block()
-        else {
-            bail!("No latest valid block found");
-        };
-        let Some(reference_block_header) = self.block_header(reference_block_hash) else {
-            bail!("No reference block found");
-        };
-
-        // If reference block is far away from the latest valid block, it's not in the window.
-        let Some(actual_window) = latest_computed_block_header
-            .height
-            .checked_sub(reference_block_header.height)
-        else {
-            bail!(
-                "Can't calculate actual window: reference block hash doesn't suit actual blocks state"
-            );
-        };
-
-        if actual_window > OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
-            return Ok(false);
-        }
-
-        // Check against reorgs.
-        let mut block_hash = latest_computed_block_hash;
-        for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
-            if block_hash == reference_block_hash {
-                return Ok(true);
-            }
-
-            let Some(block_header) = self.block_header(block_hash) else {
-                bail!(
-                    "Block with {block_hash} hash not found in the window. Possibly reorg happened"
-                );
-            };
-            block_hash = block_header.parent_hash;
-        }
-
-        Ok(false)
     }
 
     fn with_small_data<R>(
@@ -246,27 +200,19 @@ impl Database {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
+}
 
-    /// # Safety
-    ///
-    /// If the block is actually empty but forced to be not, then database invariants are violated.
-    pub unsafe fn set_non_empty_block_outcome(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set non-empty outcome");
-        self.kv.put(
-            &Key::BlockOutcome(block_hash).to_bytes(),
-            BlockOutcome::ForcedNonEmpty.encode(),
-        );
+impl HashStorageRead for Database {
+    fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
+        self.cas.read(hash)
     }
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 struct BlockSmallData {
     block_header: Option<BlockHeader>,
+    block_is_synced: bool,
     meta: BlockMeta,
-    prev_not_empty_block: Option<H256>,
-    last_committed_batch: Option<Digest>,
-    commitment_queue: Option<VecDeque<H256>>,
-    codes_queue: Option<VecDeque<CodeId>>,
 }
 
 impl BlockMetaStorageRead for Database {
@@ -274,92 +220,14 @@ impl BlockMetaStorageRead for Database {
         self.with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
-
-    fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>> {
-        self.with_small_data(block_hash, |data| data.codes_queue)?
-    }
-
-    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates> {
-        self.kv
-            .get(&Key::BlockProgramStates(block_hash).to_bytes())
-            .map(|data| {
-                BTreeMap::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BTreeMap`")
-            })
-    }
-
-    fn block_outcome(&self, block_hash: H256) -> Option<BlockOutcome> {
-        self.kv
-            .get(&Key::BlockOutcome(block_hash).to_bytes())
-            .map(|data| {
-                BlockOutcome::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<StateTransition>`")
-            })
-    }
-
-    fn block_schedule(&self, block_hash: H256) -> Option<Schedule> {
-        self.kv
-            .get(&Key::BlockSchedule(block_hash).to_bytes())
-            .map(|data| {
-                Schedule::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BTreeMap`")
-            })
-    }
-
-    fn latest_computed_block(&self) -> Option<(H256, BlockHeader)> {
-        self.kv
-            .get(&Key::LatestComputedBlock.to_bytes())
-            .map(|data| {
-                <(H256, BlockHeader)>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `(H256, BlockHeader)`")
-            })
-    }
 }
 
 impl BlockMetaStorageWrite for Database {
-    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
-    where
-        F: FnOnce(&mut BlockMeta),
-    {
+    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
         log::trace!("For block {block_hash} mutate meta");
         self.mutate_small_data(block_hash, |data| {
             f(&mut data.meta);
         });
-    }
-
-    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>) {
-        log::trace!("For block {block_hash} set codes queue: {queue:?}");
-        self.mutate_small_data(block_hash, |data| data.codes_queue = Some(queue));
-    }
-
-    fn set_block_program_states(&self, block_hash: H256, map: ProgramStates) {
-        log::trace!("For block {block_hash} set program states: {map:?}");
-        self.kv.put(
-            &Key::BlockProgramStates(block_hash).to_bytes(),
-            map.encode(),
-        );
-    }
-
-    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>) {
-        log::trace!("For block {block_hash} set outcome: {outcome:?}");
-        self.kv.put(
-            &Key::BlockOutcome(block_hash).to_bytes(),
-            BlockOutcome::Transitions(outcome).encode(),
-        );
-    }
-
-    fn set_block_schedule(&self, block_hash: H256, map: Schedule) {
-        log::trace!("For block {block_hash} set schedule: {map:?}");
-        self.kv
-            .put(&Key::BlockSchedule(block_hash).to_bytes(), map.encode());
-    }
-
-    fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader) {
-        log::trace!("Set latest computed block: {block_hash} {header:?}");
-        self.kv.put(
-            &Key::LatestComputedBlock.to_bytes(),
-            (block_hash, header).encode(),
-        );
     }
 }
 
@@ -410,6 +278,25 @@ impl CodesStorageRead for Database {
                 bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
             })
     }
+
+    fn valid_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValid(Default::default()).prefix();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, valid)| {
+                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
+                let code_id =
+                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
+
+                let valid =
+                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+
+                (code_id, valid)
+            })
+            .filter_map(|(code_id, valid)| valid.then_some(code_id))
+            .collect()
+    }
 }
 
 impl CodesStorageWrite for Database {
@@ -441,25 +328,6 @@ impl CodesStorageWrite for Database {
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
-    }
-
-    fn valid_codes(&self) -> BTreeSet<CodeId> {
-        let key_prefix = Key::CodeValid(Default::default()).prefix();
-        self.kv
-            .iter_prefix(&key_prefix)
-            .map(|(key, valid)| {
-                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
-                debug_assert_eq!(split_key_prefix, key_prefix);
-                let code_id =
-                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
-
-                let valid =
-                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
-
-                (code_id, valid)
-            })
-            .filter_map(|(code_id, valid)| valid.then_some(code_id))
-            .collect()
     }
 }
 
@@ -579,7 +447,7 @@ impl Storage for Database {
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
-        unsafe { HashOf::new(self.cas.write(payload.inner())) }
+        unsafe { HashOf::new(self.cas.write(&payload)) }
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
@@ -616,12 +484,9 @@ impl OnChainStorageRead for Database {
             })
     }
 
-    fn latest_synced_block_height(&self) -> Option<u32> {
-        self.kv
-            .get(&Key::LatestSyncedBlockHeight.to_bytes())
-            .map(|data| {
-                u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
-            })
+    fn block_synced(&self, block_hash: H256) -> bool {
+        self.with_small_data(block_hash, |data| data.block_is_synced)
+            .unwrap_or_default()
     }
 
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
@@ -638,25 +503,30 @@ impl OnChainStorageRead for Database {
 
 impl OnChainStorageWrite for Database {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
+        log::trace!("Set block header for {block_hash}");
         self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }
 
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
+        log::trace!("Set block events for {block_hash}");
         self.kv
             .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
     }
 
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
+        log::trace!("Set code upload info for {code_id}");
         self.kv
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
-    fn set_latest_synced_block_height(&self, height: u32) {
-        self.kv
-            .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
+    fn set_block_synced(&self, block_hash: H256) {
+        log::trace!("For block {block_hash} set synced");
+        self.mutate_small_data(block_hash, |data| {
+            data.block_is_synced = true;
+        });
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
@@ -664,11 +534,111 @@ impl OnChainStorageWrite for Database {
     }
 }
 
+impl AnnounceStorageRead for Database {
+    fn announce(&self, hash: AnnounceHash) -> Option<Announce> {
+        self.cas.read(hash.0).map(|data| {
+            Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
+        })
+    }
+
+    fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates> {
+        self.kv
+            .get(&Key::AnnounceProgramStates(announce_hash).to_bytes())
+            .map(|data| {
+                ProgramStates::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ProgramStates`")
+            })
+    }
+
+    fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>> {
+        self.kv
+            .get(&Key::AnnounceOutcome(announce_hash).to_bytes())
+            .map(|data| {
+                Vec::<StateTransition>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
+            })
+    }
+
+    fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule> {
+        self.kv
+            .get(&Key::AnnounceSchedule(announce_hash).to_bytes())
+            .map(|data| {
+                Schedule::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Schedule`")
+            })
+    }
+
+    fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta {
+        self.kv
+            .get(&Key::AnnounceMeta(announce_hash).to_bytes())
+            .map(|data| {
+                AnnounceMeta::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `AnnounceMeta`")
+            })
+            .unwrap_or_default()
+    }
+}
+
+impl AnnounceStorageWrite for Database {
+    fn set_announce(&self, announce: Announce) -> AnnounceHash {
+        AnnounceHash(self.cas.write(&announce.encode()))
+    }
+
+    fn set_announce_program_states(
+        &self,
+        announce_hash: AnnounceHash,
+        program_states: ProgramStates,
+    ) {
+        self.kv.put(
+            &Key::AnnounceProgramStates(announce_hash).to_bytes(),
+            program_states.encode(),
+        );
+    }
+
+    fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>) {
+        self.kv.put(
+            &Key::AnnounceOutcome(announce_hash).to_bytes(),
+            outcome.encode(),
+        );
+    }
+
+    fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule) {
+        self.kv.put(
+            &Key::AnnounceSchedule(announce_hash).to_bytes(),
+            schedule.encode(),
+        );
+    }
+
+    fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta)) {
+        let mut meta = self.announce_meta(announce_hash);
+        f(&mut meta);
+        self.kv
+            .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
+    }
+}
+
+impl LatestDataStorageRead for Database {
+    fn latest_data(&self) -> Option<LatestData> {
+        self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
+            LatestData::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `LatestData`")
+        })
+    }
+}
+
+impl LatestDataStorageWrite for Database {
+    fn set_latest_data(&self, data: LatestData) {
+        self.kv.put(&Key::LatestData.to_bytes(), data.encode());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ethexe_common::{
-        ecdsa::PrivateKey, events::RouterEvent, tx_pool::RawOffchainTransaction::SendMessage,
+        ecdsa::PrivateKey,
+        events::RouterEvent,
+        tx_pool::{OffchainTransaction, RawOffchainTransaction::SendMessage},
     };
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
@@ -694,269 +664,51 @@ mod tests {
     }
 
     #[test]
-    fn check_within_recent_blocks_scenarios() {
-        const WINDOW_SIZE: u32 = OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE;
-        const BASE_HEIGHT: u32 = 100;
+    fn test_announce() {
+        let db = Database::memory();
 
-        // --- Success: Latest Block ---
-        {
-            println!("Scenario: Success - Latest Block");
-            let db = Database::memory();
-            let block_hash = H256::random();
-            let block_header = BlockHeader {
-                height: BASE_HEIGHT,
-                ..Default::default()
-            };
-            db.set_block_header(block_hash, block_header);
-            db.set_latest_computed_block(block_hash, block_header);
-            assert!(db.check_within_recent_blocks(block_hash).unwrap());
-        }
-
-        // --- Success: Within Window ---
-        {
-            println!("Scenario: Success - Within Window");
-            let db = Database::memory();
-            let mut current_hash = H256::random();
-            let mut current_header = BlockHeader {
-                height: BASE_HEIGHT + WINDOW_SIZE,
-                ..Default::default()
-            };
-            db.set_latest_computed_block(current_hash, current_header);
-
-            let mut history = vec![(current_hash, current_header)];
-
-            // Build history within the window
-            for i in 0..WINDOW_SIZE {
-                let parent_hash = H256::random();
-                current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header);
-                history.push((current_hash, current_header));
-
-                current_hash = parent_hash;
-                current_header = BlockHeader {
-                    height: BASE_HEIGHT + WINDOW_SIZE - 1 - i,
-                    ..Default::default()
-                };
-            }
-            // Oldest in window
-            db.set_block_header(current_hash, current_header);
-            history.push((current_hash, current_header));
-
-            // Check block near the end of the window
-            let reference_block_hash_mid = history[WINDOW_SIZE as usize - 5].0;
-            assert!(
-                db.check_within_recent_blocks(reference_block_hash_mid)
-                    .unwrap()
-            );
-
-            // Check block at the edge of the window
-            // Block at BASE_HEIGHT
-            let reference_block_hash_edge = history[WINDOW_SIZE as usize].0;
-            assert!(
-                db.check_within_recent_blocks(reference_block_hash_edge)
-                    .unwrap()
-            );
-        }
-
-        // --- Fail: Outside Window ---
-        {
-            println!("Scenario: Fail - Outside Window");
-            let db = Database::memory();
-            let mut current_hash = H256::random();
-            // One block beyond the window
-            let mut current_header = BlockHeader {
-                height: BASE_HEIGHT + WINDOW_SIZE + 1,
-                parent_hash: H256::random(),
-                ..Default::default()
-            };
-            db.set_latest_computed_block(current_hash, current_header);
-
-            let mut reference_block_hash = H256::zero();
-
-            // Build history
-            for i in 0..(WINDOW_SIZE + 1) {
-                let parent_hash = H256::random();
-                current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header);
-
-                // This is the block just outside the window (height BASE_HEIGHT)
-                if i == WINDOW_SIZE {
-                    reference_block_hash = current_hash;
-                }
-
-                current_hash = parent_hash;
-                current_header = BlockHeader {
-                    height: BASE_HEIGHT + WINDOW_SIZE - i,
-                    parent_hash: H256::random(),
-                    ..Default::default()
-                };
-            }
-            // Oldest block
-            db.set_block_header(current_hash, current_header);
-
-            assert!(!db.check_within_recent_blocks(reference_block_hash).unwrap());
-        }
-
-        // --- Fail: Reorg ---
-        {
-            println!("Scenario: Fail - Reorg");
-            let db = Database::memory();
-            let mut current_hash = H256::random();
-            let mut current_header = BlockHeader {
-                height: BASE_HEIGHT + WINDOW_SIZE,
-                parent_hash: H256::random(),
-                ..Default::default()
-            };
-            db.set_latest_computed_block(current_hash, current_header);
-
-            // Build canonical chain history
-            for i in 0..WINDOW_SIZE {
-                let parent_hash = H256::random();
-                current_header.parent_hash = parent_hash;
-                db.set_block_header(current_hash, current_header);
-
-                current_hash = parent_hash;
-                current_header = BlockHeader {
-                    height: BASE_HEIGHT + WINDOW_SIZE - 1 - i,
-                    parent_hash: H256::random(),
-                    ..Default::default()
-                };
-            }
-            // Oldest canonical block
-            db.set_block_header(current_hash, current_header);
-
-            // Create a fork (reference block not on the canonical chain)
-            let fork_block_hash = H256::random();
-            // Within height window
-            // Different parent
-            let fork_block_header = BlockHeader {
-                height: BASE_HEIGHT + 1,
-                parent_hash: H256::random(),
-                ..Default::default()
-            };
-            db.set_block_header(fork_block_hash, fork_block_header);
-
-            assert!(!db.check_within_recent_blocks(fork_block_hash).unwrap());
-        }
-
-        // --- Error: No Latest Block ---
-        {
-            println!("Scenario: Error - No Latest Block");
-            let db = Database::memory();
-            let reference_block_hash = H256::random();
-            let result = db.check_within_recent_blocks(reference_block_hash);
-            assert!(result.is_err());
-            assert!(
-                result
-                    .unwrap_err()
-                    .to_string()
-                    .contains("No latest valid block found")
-            );
-        }
-
-        // --- Error: No Reference Block ---
-        {
-            println!("Scenario: Error - No Reference Block");
-            let db = Database::memory();
-            let latest_hash = H256::random();
-            let latest_header = BlockHeader {
-                height: BASE_HEIGHT,
-                ..Default::default()
-            };
-            db.set_latest_computed_block(latest_hash, latest_header);
-            // Need the latest header itself
-            db.set_block_header(latest_hash, latest_header);
-
-            // This block doesn't exist
-            let reference_block_hash = H256::random();
-            let result = db.check_within_recent_blocks(reference_block_hash);
-            assert!(result.is_err());
-            assert!(
-                result
-                    .unwrap_err()
-                    .to_string()
-                    .contains("No reference block found")
-            );
-        }
-
-        // --- Error: Missing History ---
-        {
-            println!("Scenario: Error - Missing History");
-            let db = Database::memory();
-            let latest_hash = H256::random();
-            let missing_parent_hash = H256::random();
-            // This parent won't be in the DB
-            let latest_header = BlockHeader {
-                height: BASE_HEIGHT + WINDOW_SIZE,
-                parent_hash: missing_parent_hash,
-                ..Default::default()
-            };
-            db.set_latest_computed_block(latest_hash, latest_header);
-            // Add latest block header
-            db.set_block_header(latest_hash, latest_header);
-
-            let reference_block_hash = H256::random();
-            // Within height range
-            let reference_header = BlockHeader {
-                height: BASE_HEIGHT,
-                parent_hash: H256::random(),
-                ..Default::default()
-            };
-            // Add reference block header
-            db.set_block_header(reference_block_hash, reference_header);
-
-            let result = db.check_within_recent_blocks(reference_block_hash);
-            assert!(result.is_err());
-            assert!(
-                result
-                    .unwrap_err()
-                    .to_string()
-                    .contains("not found in the window")
-            );
-        }
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: AnnounceHash::random(),
+            gas_allowance: Some(1000),
+            off_chain_transactions: vec![],
+        };
+        let announce_hash = db.set_announce(announce.clone());
+        assert_eq!(announce_hash, announce.to_hash());
+        assert_eq!(db.announce(announce_hash), Some(announce));
     }
 
     #[test]
-    fn test_block_program_states() {
+    fn test_announce_program_states() {
         let db = Database::memory();
 
-        let block_hash = H256::random();
-        let program_states = BTreeMap::new();
-        db.set_block_program_states(block_hash, program_states.clone());
-        assert_eq!(db.block_program_states(block_hash), Some(program_states));
-    }
-
-    #[test]
-    fn test_block_outcome() {
-        let db = Database::memory();
-
-        let block_hash = H256::random();
-        let block_outcome = vec![StateTransition::default()];
-        db.set_block_outcome(block_hash, block_outcome.clone());
+        let announce_hash = AnnounceHash::random();
+        let program_states = ProgramStates::default();
+        db.set_announce_program_states(announce_hash, program_states.clone());
         assert_eq!(
-            db.block_outcome(block_hash),
-            Some(BlockOutcome::Transitions(block_outcome))
+            db.announce_program_states(announce_hash),
+            Some(program_states)
         );
     }
 
     #[test]
-    fn test_block_schedule() {
+    fn test_announce_outcome() {
         let db = Database::memory();
 
-        let block_hash = H256::random();
-        let schedule = Schedule::default();
-        db.set_block_schedule(block_hash, schedule.clone());
-        assert_eq!(db.block_schedule(block_hash), Some(schedule));
+        let announce_hash = AnnounceHash::random();
+        let block_outcome = vec![StateTransition::default()];
+        db.set_announce_outcome(announce_hash, block_outcome.clone());
+        assert_eq!(db.announce_outcome(announce_hash), Some(block_outcome));
     }
 
     #[test]
-    fn test_latest_computed_block() {
+    fn test_announce_schedule() {
         let db = Database::memory();
 
-        let block_hash = H256::random();
-        let block_header = BlockHeader::default();
-        db.set_latest_computed_block(block_hash, block_header);
-        assert_eq!(db.latest_computed_block(), Some((block_hash, block_header)));
+        let announce_hash = AnnounceHash::random();
+        let schedule = Schedule::default();
+        db.set_announce_schedule(announce_hash, schedule.clone());
+        assert_eq!(db.announce_schedule(announce_hash), Some(schedule));
     }
 
     #[test]
@@ -984,17 +736,28 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        db.mutate_block_meta(block_hash, |meta| meta.synced = true);
-        assert!(db.block_meta(block_hash).synced);
+        assert!(!db.block_synced(block_hash));
+        db.set_block_synced(block_hash);
+        assert!(db.block_synced(block_hash));
     }
 
     #[test]
-    fn test_latest_synced_block_height() {
+    fn test_latest_data() {
         let db = Database::memory();
 
-        let height = 42;
-        db.set_latest_synced_block_height(height);
-        assert_eq!(db.latest_synced_block_height(), Some(height));
+        assert!(db.latest_data().is_none());
+
+        let latest_data = LatestData {
+            synced_block_height: 42,
+            prepared_block_hash: H256::random(),
+            computed_announce_hash: AnnounceHash::random(),
+            genesis_block_hash: H256::random(),
+            genesis_announce_hash: AnnounceHash::random(),
+            start_block_hash: H256::random(),
+            start_announce_hash: AnnounceHash::random(),
+        };
+        db.set_latest_data(latest_data.clone());
+        assert_eq!(db.latest_data(), Some(latest_data));
     }
 
     #[test]
