@@ -1192,14 +1192,13 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
-// TODO (breathx): mint ed to bridge bia
-
 const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
 /// Builtin actors arranged in a tuple.
 ///
 /// # Security
 /// Make sure to mint ED for each new builtin actor added to the tuple.
+/// (see migrations.rs/LockEdForBuiltin).
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
