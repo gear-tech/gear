@@ -18,7 +18,10 @@
 
 use super::*;
 use core_processor::common::JournalNote;
-use gear_core::{ids::ActorId, message::StoredDispatch};
+use gear_core::{
+    ids::{ActorId, MessageId},
+    message::StoredDispatch,
+};
 
 /// The result of a builtin actor `handle` call.
 #[derive(Debug)]
@@ -80,6 +83,12 @@ pub trait BuiltinDispatcherFactory {
     type Output: BuiltinDispatcher<Context = Self::Context, Error = Self::Error>;
 
     fn create() -> (Self::Output, u64);
+
+    fn record_precharge_hint(_message_id: MessageId, _amount: u64) {}
+
+    fn take_precharge_hint(_message_id: MessageId) -> Option<u64> {
+        None
+    }
 }
 
 impl BuiltinDispatcherFactory for () {

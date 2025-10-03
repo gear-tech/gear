@@ -53,6 +53,7 @@ pub use weights::WeightInfo;
 use alloc::{
     collections::{BTreeMap, btree_map::Entry},
     format,
+    vec::Vec,
 };
 use common::{BlockLimiter, storage::Limiter};
 use core::marker::PhantomData;
@@ -67,7 +68,7 @@ use core_processor::{
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
-    ids::ActorId,
+    ids::{ActorId, MessageId},
     limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
     utils::hash,
@@ -79,6 +80,40 @@ use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
 pub use pallet_gear::BuiltinReply;
+
+/// RPC-only cache for the strongest `can_charge_gas` observed in a builtin.
+/// Uses thread-local storage, so it exists only for the native `std` build.
+#[cfg(feature = "std")]
+mod precharge_hint {
+    use super::*;
+    use std::{cell::RefCell, collections::BTreeMap};
+
+    thread_local! {
+        static HINTS: RefCell<BTreeMap<MessageId, u64>> = const { RefCell::new(BTreeMap::new()) };
+    }
+
+    /// Store the biggest check for `message_id`.
+    pub fn record(message_id: MessageId, amount: u64) {
+        HINTS.with(|map| {
+            map.borrow_mut().insert(message_id, amount);
+        });
+    }
+
+    /// Take and remove the stored hint for `message_id`.
+    pub fn take(message_id: MessageId) -> Option<u64> {
+        HINTS.with(|map| map.borrow_mut().remove(&message_id))
+    }
+}
+
+#[cfg(not(feature = "std"))]
+mod precharge_hint {
+    use super::*;
+
+    pub fn record(_message_id: MessageId, _amount: u64) {}
+    pub fn take(_message_id: MessageId) -> Option<u64> {
+        None
+    }
+}
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
@@ -136,11 +171,17 @@ impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
 pub struct BuiltinContext {
     pub(crate) gas_counter: GasCounter,
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
+    /// Tracks pre-validated gas amounts so we can enforce the minimum limit accurately.
+    pending_precharges: Vec<u64>,
+    /// Maximum gas amount that has been pre-validated for the current builtin execution.
+    pub(crate) max_precharge: u64,
 }
 
 impl BuiltinContext {
     // Tries to charge the gas amount from the gas counters.
     pub fn try_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
+        let prechecked = self.pending_precharges.pop();
+
         if self.gas_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
             return Err(BuiltinActorError::InsufficientGas);
         }
@@ -149,11 +190,20 @@ impl BuiltinContext {
             return Err(BuiltinActorError::GasAllowanceExceeded);
         }
 
+        if let Some(required) = prechecked
+            && let Some(diff) = required.checked_sub(amount)
+            && diff != 0
+        {
+            // `can_charge_gas` already verified the counters so the reduction must succeed.
+            let reduce_result = self.gas_counter.reduce(diff);
+            debug_assert_eq!(reduce_result, ChargeResult::Enough);
+        }
+
         Ok(())
     }
 
     // Checks if an amount of gas can be charged without actually modifying the inner counters.
-    pub fn can_charge_gas(&self, amount: u64) -> Result<(), BuiltinActorError> {
+    pub fn can_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
         if self.gas_counter.left() < amount {
             return Err(BuiltinActorError::InsufficientGas);
         }
@@ -161,6 +211,9 @@ impl BuiltinContext {
         if self.gas_allowance_counter.left() < amount {
             return Err(BuiltinActorError::GasAllowanceExceeded);
         }
+
+        self.pending_precharges.push(amount);
+        self.max_precharge = self.max_precharge.max(amount);
 
         Ok(())
     }
@@ -345,6 +398,14 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
             <T as Config>::WeightInfo::create_dispatcher().ref_time(),
         )
     }
+
+    fn record_precharge_hint(message_id: MessageId, amount: u64) {
+        precharge_hint::record(message_id, amount);
+    }
+
+    fn take_precharge_hint(message_id: MessageId) -> Option<u64> {
+        precharge_hint::take(message_id)
+    }
 }
 
 pub struct BuiltinRegistry<T: Config> {
@@ -418,15 +479,26 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         let mut context = BuiltinContext {
             gas_counter: GasCounter::new(gas_limit),
             gas_allowance_counter: GasAllowanceCounter::new(current_gas_allowance),
+            pending_precharges: Vec::new(),
+            max_precharge: 0,
         };
 
         // Actual call to the builtin actor
         let res = handle(&dispatch, &mut context);
 
+        let message_id = dispatch.id();
         let dispatch = dispatch.into_incoming(gas_limit);
 
         // Consume the context and extract the amount of gas spent.
         let gas_amount = context.to_gas_amount();
+
+        // Keep the declared limit for the RPC estimator (no-op in WASM runtime).
+        if context.max_precharge > 0 {
+            <Pallet<T> as BuiltinDispatcherFactory>::record_precharge_hint(
+                message_id,
+                context.max_precharge,
+            );
+        }
 
         match res {
             Ok(reply) => {
