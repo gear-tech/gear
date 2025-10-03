@@ -244,26 +244,26 @@ jobs:
 
   try-runtime:
     runs-on: ubuntu-latest
+    container:
+      image: rust:slim-bullseye
+      options: --init
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
       fail-fast: false
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
+      - name: Base deps
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git aria2 build-essential clang lld pkg-config libssl-dev wget protobuf-compiler binaryen binutils
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
-      - name: "Install: Setup linker"
-        uses: ./.github/actions/setup-linker
-
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
-
-      - name: "Install: Compilation environment"
-        uses: ./.github/actions/setup-compilation-env
-        with:
-          target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
@@ -278,12 +278,65 @@ jobs:
         run: |
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
+        
+      - name: Show disk headroom
+        run: |
+          echo "Workspace:" && df -hT .
+          echo "Runner temp:" && df -hT "$RUNNER_TEMP" || true
+          echo "Top space hogs:" && du -h -d1 /home/runner | sort -h | tail -20
 
       - name: "Build: Vara mainnet runtime"
-        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
+        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }} --target x86_64-unknown-linux-gnu
+
+      - name: "Test: Download Vara Testnet snapshot"
+        run: |
+          aria2c \
+            --retry-wait=10 \
+            --max-tries=15 \
+            --timeout=60 \
+            --connect-timeout=60 \
+            --max-connection-per-server=8 \
+            --split=8 \
+            --min-split-size=64M \
+            --allow-overwrite=true \
+            --auto-file-renaming=false \
+            --continue=true \
+            --file-allocation=none \
+            --console-log-level=notice \
+            --summary-interval=5 \
+            --out=vara_ci_testnet.snap \
+            https://snapshots.vara-network.io/vara-testnet.snap
+
+      - name: "Test: on-runtime-upgrade try-state (Testnet)"
+        run: >-
+          ./try-runtime
+          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --disable-spec-name-check
+          on-runtime-upgrade
+          --blocktime 3000
+          --checks try-state
+          --disable-spec-version-check
+          --no-weight-warnings
+          snap -p vara_ci_testnet.snap
 
       - name: "Test: Download Vara Mainnet snapshot"
-        run: curl -o vara_ci.snap -L https://snapshots.vara-network.io/vara-mainnet.snap
+        run: |
+          aria2c \
+            --retry-wait=10 \
+            --max-tries=15 \
+            --timeout=60 \
+            --connect-timeout=60 \
+            --max-connection-per-server=8 \
+            --split=8 \
+            --min-split-size=64M \
+            --allow-overwrite=true \
+            --auto-file-renaming=false \
+            --continue=true \
+            --file-allocation=none \
+            --console-log-level=notice \
+            --summary-interval=5 \
+            --out=vara_ci.snap \
+            https://snapshots.vara-network.io/vara-mainnet.snap
 
       - name: "Test: on-runtime-upgrade"
         run: >-
