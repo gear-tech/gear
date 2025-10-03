@@ -28,7 +28,8 @@ use crate::{
     state::HostState,
 };
 use alloc::{format, vec::Vec};
-use core::{marker::PhantomData, mem::MaybeUninit, slice};
+use bytemuck::Pod;
+use core::marker::PhantomData;
 use gear_core::{
     buffer::RuntimeBuffer,
     limited::LimitedVecError,
@@ -38,7 +39,6 @@ use gear_core::{
 use gear_core_errors::MemoryError as FallibleMemoryError;
 use gear_lazy_pages_common::ProcessAccessError;
 use gear_sandbox::{AsContextExt, SandboxMemory};
-use parity_scale_codec::{Decode, DecodeAll, MaxEncodedLen};
 
 pub type ExecutorMemory = gear_sandbox::default_executor::Memory;
 
@@ -98,8 +98,6 @@ pub(crate) enum MemoryAccessError {
     Memory(MemoryError),
     ProcessAccess(ProcessAccessError),
     RuntimeBuffer(LimitedVecError),
-    // TODO: remove #2164
-    Decode,
 }
 
 impl BackendSyscallError for MemoryAccessError {
@@ -122,15 +120,6 @@ impl BackendSyscallError for MemoryAccessError {
             // it will be parsed and handled further (issue #3018).
             MemoryAccessError::ProcessAccess(ProcessAccessError::GasLimitExceeded) => {
                 UndefinedTerminationReason::ProcessAccessErrorResourcesExceed
-            }
-            e @ MemoryAccessError::Decode => {
-                let err_msg = format!(
-                    "MemoryAccessError::into_termination_reason: failed to decode memory. \
-                    Got error - {e:?}"
-                );
-
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}")
             }
         }
     }
@@ -212,20 +201,6 @@ where
         }
     }
 
-    pub(crate) fn register_read_decoded<T: Decode + MaxEncodedLen>(
-        &mut self,
-        ptr: u32,
-    ) -> WasmMemoryReadDecoded<T> {
-        let size = T::max_encoded_len() as u32;
-        if size > 0 {
-            self.reads.push(MemoryInterval { offset: ptr, size });
-        }
-        WasmMemoryReadDecoded {
-            ptr,
-            _phantom: PhantomData,
-        }
-    }
-
     pub(crate) fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
@@ -293,48 +268,19 @@ where
         Ok(buff)
     }
 
-    pub(crate) fn read_as<T: Sized>(
+    pub(crate) fn read_as<T: Pod>(
         &self,
         ctx: &mut CallerWrap<Context>,
         read: WasmMemoryReadAs<T>,
     ) -> Result<T, MemoryAccessError> {
-        let mut buf = MaybeUninit::<T>::uninit();
+        let mut value = bytemuck::zeroed();
 
-        let size = size_of::<T>();
-        if size > 0 {
-            // # Safety:
-            //
-            // Usage of mutable slice is safe for the same reason from `write_as`.
-            // `MaybeUninit` is presented on stack as a contiguous sequence of bytes.
-            //
-            // It's also safe to construct T from any bytes, because we use the fn
-            // only for reading primitive const-size types that are `[repr(C)]`,
-            // so they always represented from a sequence of bytes.
-            //
-            // Bytes in memory are always stored continuously and without paddings, properly
-            // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-            let mut_slice = unsafe { slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, size) };
-
-            self.memory.read(ctx.caller, read.ptr, mut_slice)?;
+        if core::mem::size_of::<T>() != 0 {
+            self.memory
+                .read(ctx.caller, read.ptr, bytemuck::bytes_of_mut(&mut value))?;
         }
-        Ok(unsafe { buf.assume_init() })
-    }
 
-    pub(crate) fn read_decoded<T: Decode + MaxEncodedLen>(
-        &self,
-        ctx: &mut CallerWrap<Context>,
-        read: WasmMemoryReadDecoded<T>,
-    ) -> Result<T, MemoryAccessError> {
-        let size = T::max_encoded_len();
-        let buff = if size == 0 {
-            Vec::new()
-        } else {
-            let mut buff = RuntimeBuffer::try_repeat(0, size)?.into_vec();
-            self.memory.read(ctx.caller, read.ptr, &mut buff)?;
-            buff
-        };
-        let decoded = T::decode_all(&mut &buff[..]).map_err(|_| MemoryAccessError::Decode)?;
-        Ok(decoded)
+        Ok(value)
     }
 
     pub(crate) fn write(
@@ -365,47 +311,19 @@ where
         }
     }
 
-    pub(crate) fn write_as<T: Sized>(
+    pub(crate) fn write_as<T: Pod>(
         &mut self,
         ctx: &mut CallerWrap<Context>,
         write: WasmMemoryWriteAs<T>,
-        obj: T,
+        obj: &T,
     ) -> Result<(), MemoryAccessError> {
-        let size = size_of::<T>();
-        if size > 0 {
-            // # Safety:
-            //
-            // A given object is `Sized` and we own them in the context of calling this
-            // function (it's on stack), it's safe to take ptr on the object and
-            // represent it as slice.
-            // Object will be dropped after `memory.write`
-            // finished execution, and no one will rely on this slice.
-            //
-            // Bytes in memory are always stored continuously and without paddings, properly
-            // aligned due to `[repr(C, packed)]` attribute of the types we use as T.
-            let slice = unsafe { slice::from_raw_parts(&obj as *const T as *const u8, size) };
-
+        if core::mem::size_of::<T>() != 0 {
             self.memory
-                .write(ctx.caller, write.ptr, slice)
-                .map_err(Into::into)
-        } else {
-            Ok(())
+                .write(ctx.caller, write.ptr, bytemuck::bytes_of(obj))?
         }
+
+        Ok(())
     }
-}
-
-/// Read static size type access wrapper.
-#[must_use]
-pub(crate) struct WasmMemoryReadAs<T> {
-    pub ptr: u32,
-    _phantom: PhantomData<T>,
-}
-
-/// Read decoded type access wrapper.
-#[must_use]
-pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
-    pub ptr: u32,
-    _phantom: PhantomData<T>,
 }
 
 /// Read access wrapper.
@@ -413,6 +331,13 @@ pub(crate) struct WasmMemoryReadDecoded<T: Decode + MaxEncodedLen> {
 pub(crate) struct WasmMemoryRead {
     pub ptr: u32,
     pub size: u32,
+}
+
+/// Read static size type access wrapper.
+#[must_use]
+pub(crate) struct WasmMemoryReadAs<T> {
+    pub ptr: u32,
+    _phantom: PhantomData<T>,
 }
 
 /// Write static size type access wrapper.
@@ -436,6 +361,7 @@ mod tests {
         mock::{MockExt, MockMemory},
         state::State,
     };
+    use bytemuck::Zeroable;
     use gear_core::pages::WasmPage;
     use gear_sandbox::{SandboxStore, default_executor::Store};
     use parity_scale_codec::Encode;
@@ -445,7 +371,8 @@ mod tests {
     type MemoryAccessIo<'a> =
         crate::memory::MemoryAccessIo<Store<HostState<MockExt, MockMemory>>, MockMemory>;
 
-    #[derive(Encode, Decode, MaxEncodedLen)]
+    #[derive(Encode, Clone, Copy, Pod, Zeroable)]
+    #[repr(C)]
     struct ZeroSizeStruct;
 
     fn new_store() -> Store<HostState<MockExt, MockMemory>> {
@@ -542,9 +469,9 @@ mod tests {
         let mut caller_wrap = CallerWrap::new(&mut store);
 
         let mut registry = MemoryAccessRegistry::default();
-        let read = registry.register_read_decoded::<ZeroSizeStruct>(0);
+        let read = registry.register_read_as::<ZeroSizeStruct>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded(&mut caller_wrap, read).unwrap();
+        io.read_as(&mut caller_wrap, read).unwrap();
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
@@ -580,72 +507,16 @@ mod tests {
     }
 
     #[test]
-    fn test_read_decoded_with_valid_encoded_data() {
-        #[derive(Encode, Decode, Debug, PartialEq)]
-        struct MockEncodeData {
-            data: u64,
-        }
-
-        let mut store = new_store();
-        let mut caller_wrap = CallerWrap::new(&mut store);
-        let memory = &mut caller_wrap.state_mut().memory;
-        *memory = MockMemory::new(1);
-        let encoded = MockEncodeData { data: 1234 }.encode();
-        memory.write(&mut (), 0, &encoded).unwrap();
-
-        let mut registry = MemoryAccessRegistry::default();
-        let read = registry.register_read_decoded::<u64>(0);
-        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        let data: u64 = io.read_decoded(&mut caller_wrap, read).unwrap();
-        assert_eq!(data, 1234u64);
-    }
-
-    #[test]
-    fn test_read_decoded_with_invalid_encoded_data() {
-        #[derive(Debug)]
-        struct InvalidDecode {}
-
-        impl Decode for InvalidDecode {
-            fn decode<T>(_input: &mut T) -> Result<Self, parity_scale_codec::Error> {
-                Err("Invalid decoding".into())
-            }
-        }
-
-        impl Encode for InvalidDecode {
-            fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, _dest: &mut T) {}
-        }
-
-        impl MaxEncodedLen for InvalidDecode {
-            fn max_encoded_len() -> usize {
-                0
-            }
-        }
-
-        let mut store = new_store();
-        let mut caller_wrap = CallerWrap::new(&mut store);
-        let memory = &mut caller_wrap.state_mut().memory;
-        *memory = MockMemory::new(1);
-        let encoded = alloc::vec![7u8; WasmPage::SIZE as usize];
-        memory.write(&mut (), 0, &encoded).unwrap();
-
-        let mut registry = MemoryAccessRegistry::default();
-        let read = registry.register_read_decoded::<InvalidDecode>(0);
-        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded::<InvalidDecode>(&mut caller_wrap, read)
-            .unwrap_err();
-    }
-
-    #[test]
-    fn test_read_decoded_reading_error() {
+    fn test_read_as_reading_error() {
         let mut store = new_store();
         let mut caller_wrap = CallerWrap::new(&mut store);
         caller_wrap.state_mut().memory = MockMemory::new(1);
         let mut registry = MemoryAccessRegistry::default();
-        let _read = registry.register_read_decoded::<u64>(0);
+        let _read = registry.register_read_as::<u64>(0);
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_decoded::<u64>(
+        io.read_as::<u64>(
             &mut caller_wrap,
-            WasmMemoryReadDecoded {
+            WasmMemoryReadAs {
                 ptr: u32::MAX,
                 _phantom: PhantomData,
             },
@@ -668,6 +539,38 @@ mod tests {
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         let decoded = io.read_as::<u64>(&mut caller_wrap, read).unwrap();
         assert_eq!(decoded, 1234);
+    }
+
+    #[test]
+    fn test_read_as_struct() {
+        #[derive(Encode, Debug, PartialEq, Clone, Copy, Zeroable, Pod)]
+        #[repr(C)]
+        struct MockEncodeData {
+            a: u64,
+            b: u64,
+            c: u32,
+            d: u32,
+        }
+
+        let mut store = new_store();
+        let mut caller_wrap = CallerWrap::new(&mut store);
+        let memory = &mut caller_wrap.state_mut().memory;
+        *memory = MockMemory::new(1);
+        let original_data = MockEncodeData {
+            a: 12,
+            b: 34,
+            c: 56,
+            d: 78,
+        };
+        memory
+            .write(&mut (), 0, bytemuck::bytes_of(&original_data))
+            .unwrap();
+
+        let mut registry = MemoryAccessRegistry::default();
+        let read = registry.register_read_as::<MockEncodeData>(0);
+        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
+        let data = io.read_as(&mut caller_wrap, read).unwrap();
+        assert_eq!(data, original_data);
     }
 
     #[test]
@@ -710,7 +613,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<ZeroSizeStruct>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, ZeroSizeStruct)
+        io.write_as(&mut caller_wrap, write, &ZeroSizeStruct)
             .unwrap();
 
         assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
@@ -766,7 +669,7 @@ mod tests {
         let mut registry = MemoryAccessRegistry::default();
         let write = registry.register_write_as::<u32>(0);
         let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, 0).unwrap();
+        io.write_as(&mut caller_wrap, write, &0).unwrap();
     }
 
     #[test]
@@ -784,7 +687,7 @@ mod tests {
                 ptr: 0,
                 _phantom: PhantomData,
             },
-            1u8,
+            &1u8,
         )
         .unwrap();
     }
@@ -804,7 +707,7 @@ mod tests {
                 ptr: WasmPage::SIZE,
                 _phantom: PhantomData,
             },
-            7u8,
+            &7u8,
         )
         .unwrap_err();
     }
@@ -842,10 +745,10 @@ mod tests {
     }
 
     #[test]
-    fn test_register_read_of_zero_size_encoded_value() {
+    fn test_register_read_of_zero_size_value() {
         let mut mem_access_manager = MemoryAccessRegistry::default();
 
-        let _read = mem_access_manager.register_read_decoded::<ZeroSizeStruct>(142);
+        let _read = mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
 
         assert_eq!(mem_access_manager.reads.len(), 0);
     }
@@ -876,7 +779,8 @@ mod tests {
         assert_eq!(registry.reads[0].size, size_of::<u8>() as u32);
     }
 
-    #[derive(Debug, PartialEq, Eq, Encode, Decode, MaxEncodedLen)]
+    #[repr(C, packed)]
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Zeroable, Pod)]
     struct TestStruct {
         a: u32,
         b: u64,
@@ -886,26 +790,32 @@ mod tests {
     fn test_register_read_decoded_with_valid_interval() {
         let mut registry = MemoryAccessRegistry::default();
 
-        let result = registry.register_read_decoded::<TestStruct>(0);
+        let result = registry.register_read_as::<TestStruct>(0);
 
         assert_eq!(result.ptr, 0);
         assert_eq!(registry.reads.len(), 1);
         assert_eq!(registry.writes.len(), 0);
         assert_eq!(registry.reads[0].offset, 0);
-        assert_eq!(registry.reads[0].size, TestStruct::max_encoded_len() as u32);
+        assert_eq!(
+            registry.reads[0].size,
+            core::mem::size_of::<TestStruct>() as u32
+        );
     }
 
     #[test]
-    fn test_register_read_decoded_with_zero_size() {
+    fn test_register_read_with_non_zero_size() {
         let mut registry = MemoryAccessRegistry::default();
 
-        let result = registry.register_read_decoded::<TestStruct>(0);
+        let result = registry.register_read_as::<TestStruct>(0);
 
         assert_eq!(result.ptr, 0);
         assert_eq!(registry.reads.len(), 1);
         assert_eq!(registry.writes.len(), 0);
         assert_eq!(registry.reads[0].offset, 0);
-        assert_eq!(registry.reads[0].size, TestStruct::max_encoded_len() as u32);
+        assert_eq!(
+            registry.reads[0].size,
+            core::mem::size_of::<TestStruct>() as u32
+        );
     }
 
     #[test]
