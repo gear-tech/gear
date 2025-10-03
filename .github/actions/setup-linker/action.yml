@@ -9,9 +9,11 @@ runs:
     - name: "Install: mold on Linux"
       if: runner.os == 'Linux'
       run: |
-        rm -rf /var/cache/apt/apt-fast/
-        sudo apt-fast update
-        sudo apt-fast install -y mold
+        # sudo apt-fast update
+        # sudo apt-fast install -y mold
+        wget https://github.com/rui314/mold/releases/download/v2.40.4/mold-2.40.4-x86_64-linux.tar.gz
+        sudo tar -xvf mold-2.40.4-x86_64-linux.tar.gz -C /usr/local --strip-components=1
+        rm mold-2.40.4-x86_64-linux.tar.gz
       shell: bash
 
     - name: "Setup linker on Linux"
