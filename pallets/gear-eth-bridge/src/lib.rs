@@ -426,7 +426,7 @@ pub mod pallet {
         #[pallet::weight((
             T::BlockWeights::get()
                 .get(DispatchClass::Operational)
-                .max_total
+                .max_extrinsic
                 .unwrap_or(Weight::MAX),
             DispatchClass::Operational,
             // `Pays::No` on success
