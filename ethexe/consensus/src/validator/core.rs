@@ -34,7 +34,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
-use ethexe_ethereum::middleware::MiddlewareQuery;
+use ethexe_ethereum::middleware::ElectionProvider;
 use ethexe_signer::Signer;
 use gprimitives::H256;
 use hashbrown::{HashMap, HashSet};
@@ -90,18 +90,6 @@ impl ValidatorCore {
         let validators_commitment = self.aggregate_validators_commitment(&block).await?;
         let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
 
-        if chain_commitment.is_none()
-            && code_commitments.is_empty()
-            && validators_commitment.is_none()
-            && rewards_commitment.is_none()
-        {
-            tracing::debug!(
-                "No commitments for block {} - skip batch commitment",
-                block.hash
-            );
-            return Ok(None);
-        }
-
         utils::create_batch_commitment(
             &self.db,
             &block,
@@ -153,7 +141,7 @@ impl ValidatorCore {
             - timelines.election;
 
         if header.timestamp < election_ts {
-            tracing::debug!(
+            tracing::error!(
                 block = %hash,
                 block.timestamp = %header.timestamp,
                 election_ts = %election_ts,
@@ -170,7 +158,14 @@ impl ValidatorCore {
         };
 
         let elected_validators = self.middleware.make_election_at(request).await?;
+
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
+        tracing::info!("commitment: {:?}", commitment);
+        tracing::info!(
+            "Local commitment hash: {:?}",
+            Some(commitment.clone()).to_digest()
+        );
+
         Ok(Some(commitment))
     }
 
@@ -187,6 +182,8 @@ impl ValidatorCore {
         block: SimpleBlockData,
         request: BatchCommitmentValidationRequest,
     ) -> Result<Digest> {
+        tracing::error!("Participant: i am validating batch commitment");
+
         let BatchCommitmentValidationRequest {
             digest,
             head,
@@ -196,7 +193,7 @@ impl ValidatorCore {
         } = request;
 
         ensure!(
-            !(head.is_none() && codes.is_empty()),
+            !(head.is_none() && codes.is_empty() && !validators),
             "Empty batch (change when other commitments are supported)"
         );
 
@@ -299,47 +296,45 @@ pub struct ElectionRequest {
     max_validators: u32,
 }
 
-/// Trait for executing elections in the blockchain
-#[async_trait]
-pub trait MiddlewareExt: Send + Sync {
-    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec>;
-}
-
-/// [`MiddlewareWrapper`] is a wrapper around the dyn [`MiddlewareExt`] trait.
+/// [`MiddlewareWrapper`] is a wrapper around the dyn [`ElectionProvider`] trait.
 /// It caches the elections results to reduce the number of rpc calls.
 #[derive(Clone)]
 pub struct MiddlewareWrapper {
-    inner: Arc<dyn MiddlewareExt + 'static>,
+    inner: Arc<dyn ElectionProvider + 'static>,
     cached_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
 impl MiddlewareWrapper {
-    pub fn from_inner<M: MiddlewareExt + 'static>(inner: M) -> Self {
+    #[allow(unused)]
+    pub fn from_inner<M: ElectionProvider + 'static>(inner: M) -> Self {
         Self {
             inner: Arc::new(inner),
             cached_elections: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
-        match self.cached_elections.read().await.get(&request) {
-            Some(cached_result) => Ok(cached_result.clone()),
-            None => {
-                let elected_validators = self.inner.make_election_at(request).await?;
-                self.cached_elections
-                    .write()
-                    .await
-                    .insert(request, elected_validators.clone());
-                Ok(elected_validators)
-            }
+    pub fn from_inner_arc(inner: Arc<dyn ElectionProvider + 'static>) -> Self {
+        Self {
+            inner,
+            cached_elections: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-}
 
-#[async_trait]
-impl MiddlewareExt for MiddlewareQuery {
-    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
-        self.make_election_at(request.at_timestamp, request.max_validators as u128)
+    pub async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
+        if let Some(cached_result) = self.cached_elections.read().await.get(&request) {
+            return Ok(cached_result.clone());
+        }
+
+        let elected_validators = self
+            .inner
+            .make_election_at(request.at_timestamp, request.max_validators as u128)
+            .await?;
+
+        self.cached_elections
+            .write()
             .await
+            .insert(request, elected_validators.clone());
+
+        Ok(elected_validators)
     }
 }

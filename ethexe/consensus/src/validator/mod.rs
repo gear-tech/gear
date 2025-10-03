@@ -56,7 +56,7 @@ use anyhow::Result;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -65,6 +65,7 @@ use std::{
     collections::VecDeque,
     fmt,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -121,17 +122,13 @@ impl ValidatorService {
     ///
     /// # Returns
     /// A new `ValidatorService` instance
-    pub async fn new(signer: Signer, db: Database, config: ValidatorConfig) -> Result<Self> {
-        let ethereum = Ethereum::new(
-            &config.ethereum_rpc,
-            config.router_address.into(),
-            signer.clone(),
-            config.pub_key.to_address(),
-        )
-        .await?;
-
-        let router = ethereum.router();
-
+    pub fn new(
+        signer: Signer,
+        election_provider: Arc<dyn ElectionProvider + 'static>,
+        router: Router,
+        db: Database,
+        config: ValidatorConfig,
+    ) -> Result<Self> {
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
@@ -141,7 +138,7 @@ impl ValidatorService {
                 signer,
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),
-                middleware: MiddlewareWrapper::from_inner(ethereum.middleware().query()),
+                middleware: MiddlewareWrapper::from_inner_arc(election_provider),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
             },

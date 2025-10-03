@@ -35,6 +35,7 @@ use ethexe_common::{
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
+use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
@@ -280,12 +281,22 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
 pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
     let validators_identifiers = validators
         .iter()
-        .map(|validator| Identifier::deserialize(&validator.0).unwrap())
+        .map(|validator| {
+            let mut bytes = [0u8; 32];
+            bytes[12..32].copy_from_slice(&validator.0);
+            tracing::error!("bytes: {bytes:?}");
+            Identifier::deserialize(&bytes).unwrap()
+        })
         .collect::<Vec<_>>();
+
     let identifiers = IdentifierList::Custom(&validators_identifiers);
 
+    let threshold = ((validators.len() * 6666 + 9999) / 10000) as u16;
+
+    let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
+
     let (mut secret_shares, public_key_package) =
-        keys::generate_with_dealer(1, 1, identifiers, rand::thread_rng()).unwrap();
+        keys::generate_with_dealer(validators.len() as u16, threshold, identifiers, rng).unwrap();
 
     let verifiable_secret_sharing_commitment = secret_shares
         .pop_first()
@@ -321,7 +332,15 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     validators_commitment: Option<ValidatorsCommitment>,
     rewards_commitment: Option<RewardsCommitment>,
 ) -> Result<Option<BatchCommitment>> {
-    if chain_commitment.is_none() && code_commitments.is_empty() {
+    if chain_commitment.is_none()
+        && code_commitments.is_empty()
+        && validators_commitment.is_none()
+        && rewards_commitment.is_none()
+    {
+        tracing::debug!(
+            "No commitments for block {} - skip batch commitment",
+            block.hash
+        );
         return Ok(None);
     }
 

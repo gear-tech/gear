@@ -26,6 +26,7 @@ ethexe-tx-pool.workspace = true
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 log.workspace = true
+tracing.workspace = true
 anyhow.workspace = true
 alloy.workspace = true
 tokio = { workspace = true, features = [

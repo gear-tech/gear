@@ -46,6 +46,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::{
     Ethereum,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
+    middleware::MockElectionProvider,
     router::RouterQuery,
 };
 use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
@@ -65,7 +66,10 @@ use roast_secp256k1_evm::frost::{
 use std::{
     net::SocketAddr,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tokio::{
@@ -83,6 +87,7 @@ pub struct TestEnv {
     #[allow(unused)]
     pub wallets: Wallets,
     pub blobs_storage: LocalBlobStorage,
+    pub election_provider: MockElectionProvider,
     pub provider: RootProvider,
     pub ethereum: Ethereum,
     pub signer: Signer,
@@ -129,13 +134,8 @@ impl TestEnv {
             EnvRpcConfig::CustomAnvil {
                 slots_in_epoch,
                 genesis_timestamp,
-                blocks_type,
             } => {
                 let mut anvil = Anvil::new();
-
-                // if continuous_block_generation {
-                //     anvil = anvil.block_time(block_time.as_secs())
-                // }
 
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
@@ -143,15 +143,6 @@ impl TestEnv {
                 if let Some(genesis_timestamp) = genesis_timestamp {
                     anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                 }
-
-                // match blocks_type {
-                //     AnvilBlockGenerationType::Continuous(duration) => {
-                //         anvil = anvil.block_time(duration.as_secs())
-                //     }
-                //     AnvilBlockGenerationType::AutoMine => {
-                //         // nothing to do, anvil is in automine mode by default
-                //     }
-                // }
 
                 let anvil = anvil.spawn();
 
@@ -195,14 +186,14 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            let validators_addresses = validators
+            let validators_addresses: Vec<Address> = validators
                 .iter()
                 .map(|k| k.public_key.to_address())
                 .collect();
             EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
-                .with_validators(validators_addresses)
+                .with_validators(validators_addresses.try_into().unwrap())
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
                 .with_params(deploy_params)
                 .deploy()
@@ -323,6 +314,7 @@ impl TestEnv {
             wallets,
             provider,
             blobs_storage,
+            election_provider: MockElectionProvider::new(),
             ethereum,
             signer,
             validators,
@@ -373,6 +365,7 @@ impl TestEnv {
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
             blob_storage: self.blobs_storage.clone(),
+            election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
             block_time: self.block_time,
@@ -622,20 +615,12 @@ pub enum EnvNetworkConfig {
     EnabledWithCustomAddress(String),
 }
 
-pub enum AnvilBlockGenerationType {
-    // Blocks are created in constant time intervals.
-    Continuous(Duration),
-    // Blocks are created only when tx are sent.
-    AutoMine,
-}
-
 pub enum EnvRpcConfig {
     #[allow(unused)]
     ProvidedURL(String),
     CustomAnvil {
         slots_in_epoch: Option<u64>,
         genesis_timestamp: Option<u64>,
-        blocks_type: AnvilBlockGenerationType,
     },
 }
 
@@ -671,7 +656,6 @@ impl Default for TestEnvConfig {
                 slots_in_epoch: Some(1),
                 // For deterministic tests we need to set fixed genesis timestamp
                 genesis_timestamp: Some(1),
-                blocks_type: AnvilBlockGenerationType::Continuous(Duration::from_secs(1)),
             },
             wallets: None,
             router_address: None,
@@ -797,6 +781,7 @@ pub struct Node {
     eth_cfg: EthereumConfig,
     receiver: Option<TestingEventReceiver>,
     blob_storage: LocalBlobStorage,
+    election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
     block_time: Duration,
@@ -843,9 +828,19 @@ impl Node {
 
         let consensus: Pin<Box<dyn ConsensusService>> =
             if let Some(config) = self.validator_config.as_ref() {
+                let ethereum = Ethereum::new(
+                    &self.eth_cfg.rpc,
+                    self.eth_cfg.router_address.into(),
+                    self.signer.clone(),
+                    config.public_key.to_address(),
+                )
+                .await
+                .unwrap();
                 Box::pin(
                     ValidatorService::new(
                         self.signer.clone(),
+                        Arc::new(self.election_provider.clone()),
+                        ethereum.router(),
                         self.db.clone(),
                         ethexe_consensus::ValidatorConfig {
                             ethereum_rpc: self.eth_cfg.rpc.clone(),
@@ -855,7 +850,6 @@ impl Node {
                             slot_duration: self.block_time,
                         },
                     )
-                    .await
                     .unwrap(),
                 )
             } else {

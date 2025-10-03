@@ -24,14 +24,11 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, OperatorWithStake, SymbioticEnv, SymbioticEnvConfig,
-        TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig, VaultConfig, init_logger,
+        EnvNetworkConfig, EnvRpcConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+        ValidatorsConfig, init_logger,
     },
 };
-use alloy::{
-    primitives::U256,
-    providers::{Provider as _, RootProvider, ext::AnvilApi},
-};
+use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
     ScheduledTask,
     db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
@@ -39,9 +36,7 @@ use ethexe_common::{
     gear::Origin,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::{
-    deploy::ContractsDeploymentParams, middleware::MiddlewareQuery, router::RouterQuery,
-};
+use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -57,7 +52,6 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
-    ops::Mul,
     time::Duration,
     u128,
 };
@@ -1306,7 +1300,6 @@ async fn validators_election() {
 
     let election_ts = 20 * 60 * 60;
     let era_duration = 24 * 60 * 60;
-    let block_time = Duration::from_secs(1);
     let deploy_params = ContractsDeploymentParams {
         with_middleware: true,
         era_duration,
@@ -1314,25 +1307,31 @@ async fn validators_election() {
     };
 
     let env_config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(3),
-        block_time,
+        validators: ValidatorsConfig::PreDefined(6),
         deploy_params,
+        network: EnvNetworkConfig::Enabled,
         ..Default::default()
     };
+
+    let genesis_ts = match env_config.rpc {
+        EnvRpcConfig::CustomAnvil {
+            genesis_timestamp, ..
+        } => genesis_timestamp.unwrap(),
+        _ => 0,
+    };
+
     let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let router = env.ethereum.router().query();
+    tracing::info!(
+        "Signing threshold: {:?}",
+        router.signing_threshold_percentage().await.unwrap()
+    );
 
     let validators = env.ethereum.router().query().validators().await.unwrap();
     tracing::info!("📗 Current validators: {validators:?}");
 
-    let vaults = vec![VaultConfig {
-        operators: validators
-            .iter()
-            .map(|validator| OperatorWithStake((*validator).into(), U256::from(1_000_000)))
-            .collect(),
-        total_vault_stake: U256::from(u128::MAX),
-    }];
-    let symbiotic_config = SymbioticEnvConfig { vaults };
-    let symbiotic_env = SymbioticEnv::new(symbiotic_config, &env.ethereum).await;
+    let next_validators = validators.clone().into_iter().take(3).collect::<Vec<_>>();
 
     let mut validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
@@ -1342,9 +1341,16 @@ async fn validators_election() {
         validators.push(validator);
     }
 
+    env.election_provider
+        .set_predefined_election_at(
+            election_ts + genesis_ts,
+            next_validators.try_into().unwrap(),
+        )
+        .await;
+
     // Force creation new block with given timestamp.
     env.provider
-        .anvil_set_next_block_timestamp(election_ts + 10)
+        .anvil_set_next_block_timestamp(election_ts + genesis_ts)
         .await
         .unwrap();
     env.force_new_block().await;

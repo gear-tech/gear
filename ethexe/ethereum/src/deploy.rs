@@ -38,10 +38,11 @@ use alloy::{
     sol_types::SolCall,
 };
 use anyhow::Result;
-use ethexe_common::{Address as LocalAddress, ecdsa::PublicKey, gear::AggregatedPublicKey};
+use ethexe_common::{
+    Address as LocalAddress, ValidatorsVec, ecdsa::PublicKey, gear::AggregatedPublicKey,
+};
 use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, H160, U256 as GearU256};
-use nonempty::NonEmpty;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
@@ -60,7 +61,7 @@ pub struct EthereumDeployer {
 
     // Customizable parameters
     /// Validators`s addresses. If not provided, will use as vec with one element.
-    validators: NonEmpty<LocalAddress>,
+    validators: ValidatorsVec,
 
     /// Customizable deployment parameters for smart contracts.
     params: ContractsDeploymentParams,
@@ -95,6 +96,13 @@ impl Default for ContractsDeploymentParams {
     }
 }
 
+#[macro_export]
+macro_rules! call {
+    ($builder:expr) => {
+        $builder.call().await.unwrap()
+    };
+}
+
 // Public methods
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
@@ -102,7 +110,7 @@ impl EthereumDeployer {
         let provider = create_provider(rpc, signer, sender_address).await?;
         Ok(EthereumDeployer {
             provider,
-            validators: nonempty::nonempty![LocalAddress([1u8; 20])],
+            validators: nonempty::nonempty![LocalAddress([1u8; 20])].into(),
             params: Default::default(),
             verifiable_secret_sharing_commitment: None,
         })
@@ -128,9 +136,8 @@ impl EthereumDeployer {
         self
     }
 
-    pub fn with_validators(mut self, validators: Vec<LocalAddress>) -> Self {
-        self.validators =
-            NonEmpty::from_vec(validators).expect("at least one validator is required");
+    pub fn with_validators(mut self, validators: ValidatorsVec) -> Self {
+        self.validators = validators;
         self
     }
 
@@ -347,6 +354,7 @@ where
         *network_middleware_service.address(),
     )
     .await?;
+
     let staker_rewards_factory =
         DefaultStakerRewardsFactory::deploy(provider.clone(), *staker_rewards_impl.address())
             .await?;
@@ -394,7 +402,7 @@ where
         vaultGracePeriod: Uint::from(2 * 24 * 60 * 60), // 2 eras
         minVetoDuration: Uint::from(2 * 60 * 60),       // 2 h
         minSlashExecutionDelay: Uint::from(5 * 60),     // 5 min
-        allowedVaultImplVersion: vault_factory.lastVersion().call().await?,
+        allowedVaultImplVersion: call!(vault_factory.lastVersion()),
 
         // TODO (kuzmin-dev): remove this constant and use slasher type from slasher factory
         // TODO (kuzmin-dev): add delegator type also (means that we will support only one type of delegator)
@@ -478,7 +486,7 @@ mod tests {
     async fn test_deployment_with_middleware() -> Result<()> {
         gear_utils::init_default_logger();
 
-        let anvil = Anvil::new().try_spawn()?;
+        let anvil = Anvil::new().block_time_f64(0.1).try_spawn()?;
         let signer = LocalSigner::memory();
 
         let sender_public_key = signer.storage_mut().add_key(

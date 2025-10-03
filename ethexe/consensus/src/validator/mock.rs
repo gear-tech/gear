@@ -28,7 +28,7 @@ use tokio::sync::RwLock;
 #[derive(Default, Clone)]
 pub struct MockEthereum {
     pub committed_batch: Arc<RwLock<Option<MultisignedBatchCommitment>>>,
-    pub predefined_election_at: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
+    pub predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
 }
 
 #[async_trait]
@@ -44,9 +44,9 @@ impl BatchCommitter for MockEthereum {
 }
 
 #[async_trait]
-impl MiddlewareExt for MockEthereum {
-    async fn make_election_at(&self, request: ElectionRequest) -> Result<ValidatorsVec> {
-        match self.predefined_election_at.read().await.get(&request) {
+impl ElectionProvider for MockEthereum {
+    async fn make_election_at(&self, ts: u64, _max_validators: u128) -> Result<ValidatorsVec> {
+        match self.predefined_election_at.read().await.get(&ts) {
             Some(election_result) => Ok(election_result.clone()),
             None => Err(anyhow!(
                 "No predefined election result for the given request"

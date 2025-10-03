@@ -93,6 +93,7 @@ impl StateHandler for Producer {
             State::WaitingBlockComputed => {}
             State::AggregateBatchCommitment(future) => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
+                    tracing::error!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
                     return Coordinator::create(self.ctx, self.validators, batch)
                         .map(|s| (Poll::Ready(()), s));
                 }

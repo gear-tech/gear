@@ -155,6 +155,7 @@ impl Participant {
             return Ok(self.into());
         };
 
+        tracing::info!("Start processing validation request");
         self.state = State::ProcessingValidationRequest {
             future: self
                 .ctx

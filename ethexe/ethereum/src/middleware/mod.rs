@@ -24,11 +24,19 @@ use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, RootProvider},
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use ethexe_common::{Address as LocalAddress, ValidatorsVec};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::RwLock;
 
 type Instance = IMiddleware::IMiddlewareInstance<AlloyProvider>;
 type QueryInstance = IMiddleware::IMiddlewareInstance<RootProvider>;
+
+/// Trait for executing elections in the blockchain
+#[async_trait::async_trait]
+pub trait ElectionProvider: Send + Sync {
+    async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec>;
+}
 
 #[derive(Clone)]
 pub struct Middleware {
@@ -57,6 +65,24 @@ impl Middleware {
 #[derive(Clone)]
 pub struct MiddlewareQuery(QueryInstance);
 
+#[async_trait::async_trait]
+impl ElectionProvider for MiddlewareQuery {
+    async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
+        let validators = self
+            .0
+            .makeElectionAt(
+                alloy::primitives::Uint::from(ts),
+                AlloyU256::from(max_validators),
+            )
+            .call()
+            .await?;
+
+        validators.try_into().map_err(|err| {
+            Into::<anyhow::Error>::into(err).context("MiddlewareQuery make_election_at failed")
+        })
+    }
+}
+
 impl MiddlewareQuery {
     pub fn new(provider: RootProvider, middleware_address: LocalAddress) -> Self {
         Self(QueryInstance::new(
@@ -72,19 +98,38 @@ impl MiddlewareQuery {
     pub async fn symbiotic_contracts(&self) -> Result<middleware_abi::Gear::SymbioticContracts> {
         self.0.symbioticContracts().call().await.map_err(Into::into)
     }
+}
 
-    pub async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
-        let validators = self
-            .0
-            .makeElectionAt(
-                alloy::primitives::Uint::from(ts),
-                AlloyU256::from(max_validators),
-            )
-            .call()
-            .await?;
+#[derive(Clone)]
+pub struct MockElectionProvider {
+    predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
+}
 
-        validators.try_into().map_err(|err| {
-            Into::<anyhow::Error>::into(err).context("MiddlewareQuery make_election_at failed")
-        })
+#[async_trait::async_trait]
+impl ElectionProvider for MockElectionProvider {
+    async fn make_election_at(&self, ts: u64, _max_validators: u128) -> Result<ValidatorsVec> {
+        match self.predefined_election_at.read().await.get(&ts).cloned() {
+            Some(election_result) => Ok(election_result),
+            None => {
+                tracing::warn!(timestamp = %ts, "election not found");
+                Err(anyhow!("Election not found"))
+            }
+        }
+    }
+}
+
+impl MockElectionProvider {
+    pub fn new() -> Self {
+        Self {
+            predefined_election_at: Arc::new(Default::default()),
+        }
+    }
+
+    pub async fn set_predefined_election_at(&self, ts: u64, validators: ValidatorsVec) {
+        tracing::info!(timestamp = ts, validators = ?validators, "election result set");
+        self.predefined_election_at
+            .write()
+            .await
+            .insert(ts, validators);
     }
 }
