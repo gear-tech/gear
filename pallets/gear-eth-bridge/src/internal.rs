@@ -20,9 +20,14 @@ use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
     Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo, ResetQueueOnInit,
 };
+use bp_header_chain::{
+    AuthoritySet,
+    justification::{self, GrandpaJustification},
+};
 use builtins_common::eth_bridge;
 use common::Origin;
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
+use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
 use gprimitives::{ActorId, H160, H256, U256};
 use pallet_gear_eth_bridge_primitives::EthMessage;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
@@ -33,7 +38,90 @@ use sp_runtime::{
 };
 use sp_std::vec::Vec;
 
+type FinalityProofOf<T> = FinalityProof<HeaderFor<T>>;
+type GrandpaJustificationOf<T> = GrandpaJustification<HeaderFor<T>>;
+
+/// NOTE: copy-pasted from `sc-consensus-grandpa` due to std-compatibility issues.
+#[derive(Debug, PartialEq, Encode, Decode, Clone)]
+pub struct FinalityProof<Header: sp_runtime::traits::Header> {
+    /// The hash of block F for which justification is provided.
+    pub block: Header::Hash,
+    /// Justification of the block F.
+    pub justification: Vec<u8>,
+    /// The set of headers in the range (B; F] that we believe are unknown to the caller. Ordered.
+    pub unknown_headers: Vec<Header>,
+}
+
 impl<T: Config> Pallet<T> {
+    /// Verifies given finality proof for actual grandpa set.
+    ///
+    /// Returns latest known finalized block number on success.
+    ///
+    /// See [`FinalityProof`].
+    pub(super) fn verify_finality_proof(
+        encoded_finality_proof: Vec<u8>,
+    ) -> Option<BlockNumberFor<T>> {
+        // Decoding finality proof.
+        let finality_proof = FinalityProofOf::<T>::decode(&mut encoded_finality_proof.as_ref())
+            .inspect_err(|_| log::debug!("verify finality error: proof decoding"))
+            .ok()?;
+
+        // Extracting justification from the proof.
+        let mut justification =
+            GrandpaJustificationOf::<T>::decode(&mut finality_proof.justification.as_ref())
+                .inspect_err(|_| log::debug!("verify finality error: justification decoding"))
+                .ok()?;
+
+        // Extracting finalized target from the justification.
+        let finalized_target = (
+            justification.commit.target_hash,
+            justification.commit.target_number,
+        );
+
+        // Actual authorities and their set id.
+        let authorities = <pallet_grandpa::Pallet<T>>::grandpa_authorities();
+        let set_id = <pallet_grandpa::Pallet<T>>::current_set_id();
+
+        let authority_set = AuthoritySet::new(authorities, set_id);
+        let context = authority_set
+            .try_into()
+            .inspect_err(|_| log::debug!("verify finality error: invalid authority list"))
+            .ok()?;
+
+        // Verification of the finality.
+        justification::verify_and_optimize_justification(
+            finalized_target,
+            &context,
+            &mut justification,
+        )
+        .inspect_err(|e| {
+            use bp_header_chain::justification::{
+                JustificationVerificationError::*, PrecommitError::*,
+            };
+
+            log::debug!(
+                "verify finality error: verification ({})",
+                match e {
+                    InvalidAuthorityList => "invalid authority list",
+                    InvalidJustificationTarget => "invalid justification target",
+                    DuplicateVotesAncestries => "duplicate votes ancestries",
+                    Precommit(e) => match e {
+                        RedundantAuthorityVote => "precommit: redundant authority vote",
+                        UnknownAuthorityVote => "precommit: unknown authority vote",
+                        DuplicateAuthorityVote => "precommit: duplicate authority vote",
+                        InvalidAuthoritySignature => "precommit: invalid authority signature",
+                        UnrelatedAncestryVote => "precommit: unrelated ancestry vote",
+                    },
+                    TooLowCumulativeWeight => "too low cumulative weight",
+                    RedundantVotesAncestries => "redundant votes ancestries",
+                }
+            );
+        })
+        .ok()?;
+
+        Some(justification.commit.target_number)
+    }
+
     /// Updates the authority set hash in storage and emits an event.
     pub(super) fn update_authority_set_hash<'a, I>(validators: I)
     where
