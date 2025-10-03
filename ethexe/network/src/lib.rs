@@ -66,10 +66,6 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(Eq, PartialEq, derive_more::Debug)]
 pub enum NetworkEvent {
-    DbResponse {
-        request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
-    },
     Message {
         #[debug("{:.8} ({} bytes)", ByteSliceFormatter::Dynamic(data), data.len())]
         data: Vec<u8>,
@@ -405,21 +401,6 @@ impl NetworkService {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id,
-                response,
-            }) => {
-                return Some(NetworkEvent::DbResponse {
-                    request_id,
-                    result: Ok(response),
-                });
-            }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request, error }) => {
-                return Some(NetworkEvent::DbResponse {
-                    request_id: request.id(),
-                    result: Err((request, error)),
-                });
-            }
             BehaviourEvent::DbSync(_) => {}
         }
 
@@ -432,6 +413,10 @@ impl NetworkService {
 
     pub fn score_handle(&self) -> peer_score::Handle {
         self.swarm.behaviour().peer_score.handle()
+    }
+
+    pub fn db_sync_handle(&self) -> db_sync::Handle {
+        self.swarm.behaviour().db_sync.handle()
     }
 
     pub fn publish_message(&mut self, data: Vec<u8>) {
@@ -454,10 +439,6 @@ impl NetworkService {
         {
             log::error!("gossipsub publishing failed: {e}")
         }
-    }
-
-    pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
-        &mut self.swarm.behaviour_mut().db_sync
     }
 }
 
@@ -727,6 +708,7 @@ mod tests {
         init_logger();
 
         let mut service1 = new_service();
+        let service1_handle = service1.db_sync_handle();
 
         // second service
         let db = Database::from_one(&MemDb::default());
@@ -737,24 +719,19 @@ mod tests {
         let mut service2 = new_service_with(db, Default::default());
 
         service1.connect(&mut service2).await;
+        tokio::spawn(service1.loop_on_next());
         tokio::spawn(service2.loop_on_next());
 
-        let request_id = service1
-            .db_sync()
-            .request(db_sync::Request::hashes([hello, world]));
-
-        let event = timeout(Duration::from_secs(5), service1.next())
+        let request = service1_handle.request(db_sync::Request::hashes([hello, world]));
+        let response = timeout(Duration::from_secs(5), request)
             .await
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(db_sync::Response::Hashes(
-                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-                ))
-            }
+            response,
+            db_sync::Response::Hashes(
+                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+            )
         );
     }
 
@@ -787,28 +764,21 @@ mod tests {
 
         let alice_data_provider = DataProvider::default();
         let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
+        let alice_handle = alice.db_sync_handle();
         let bob_db = Database::memory();
         let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
 
         alice.connect(&mut bob).await;
+        tokio::spawn(alice.loop_on_next());
         tokio::spawn(bob.loop_on_next());
 
         let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
 
-        let request_id = alice
-            .db_sync()
-            .request(db_sync::Request::program_ids(H256::zero(), 2));
-
-        let event = timeout(Duration::from_secs(5), alice.next())
+        let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
+        let response = timeout(Duration::from_secs(5), request)
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(expected_response)
-            }
-        );
+        assert_eq!(response, expected_response);
     }
 }
