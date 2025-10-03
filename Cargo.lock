@@ -2067,6 +2067,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "bp-header-chain"
+version = "0.18.0"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+dependencies = [
+ "bp-runtime",
+ "finality-grandpa",
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-consensus-grandpa",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "bp-runtime"
+version = "0.18.0"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "hash-db",
+ "impl-trait-for-tuples",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "trie-db",
+]
+
+[[package]]
 name = "bs58"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4720,12 +4760,14 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "hex",
+ "itertools 0.13.0",
  "k256",
  "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
  "sha3",
+ "tap",
 ]
 
 [[package]]
@@ -11509,6 +11551,7 @@ name = "pallet-gear-eth-bridge"
 version = "1.9.2"
 dependencies = [
  "binary-merkle-tree",
+ "bp-header-chain",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",

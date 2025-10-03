@@ -242,7 +242,7 @@ impl Service {
                     net_config.clone(),
                     &signer,
                     Box::new(RouterDataProvider(router_query)),
-                    db.clone(),
+                    Box::new(db.clone()),
                 )
                 .with_context(|| "failed to create network service")?,
             )
@@ -469,9 +469,6 @@ impl Service {
                                     }
                                 }
                             };
-                        }
-                        NetworkEvent::DbResponse { .. } => {
-                            unreachable!("`db-sync` is never used for requests in the main loop")
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }

@@ -26,7 +26,7 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, LatestData,
+        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
         LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
     },
     events::BlockEvent,
@@ -150,10 +150,6 @@ impl Database {
         }
     }
 
-    pub fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
-        self.cas.read(hash)
-    }
-
     pub fn contains_hash(&self, hash: H256) -> bool {
         self.cas.contains(hash)
     }
@@ -203,6 +199,12 @@ impl Database {
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
+    }
+}
+
+impl HashStorageRead for Database {
+    fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
+        self.cas.read(hash)
     }
 }
 
@@ -276,6 +278,25 @@ impl CodesStorageRead for Database {
                 bool::decode(&mut data.as_slice()).expect("Failed to decode data into `bool`")
             })
     }
+
+    fn valid_codes(&self) -> BTreeSet<CodeId> {
+        let key_prefix = Key::CodeValid(Default::default()).prefix();
+        self.kv
+            .iter_prefix(&key_prefix)
+            .map(|(key, valid)| {
+                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
+                debug_assert_eq!(split_key_prefix, key_prefix);
+                let code_id =
+                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
+
+                let valid =
+                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
+
+                (code_id, valid)
+            })
+            .filter_map(|(code_id, valid)| valid.then_some(code_id))
+            .collect()
+    }
 }
 
 impl CodesStorageWrite for Database {
@@ -307,25 +328,6 @@ impl CodesStorageWrite for Database {
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
-    }
-
-    fn valid_codes(&self) -> BTreeSet<CodeId> {
-        let key_prefix = Key::CodeValid(Default::default()).prefix();
-        self.kv
-            .iter_prefix(&key_prefix)
-            .map(|(key, valid)| {
-                let (split_key_prefix, code_id) = key.split_at(key_prefix.len());
-                debug_assert_eq!(split_key_prefix, key_prefix);
-                let code_id =
-                    CodeId::try_from(code_id).expect("Failed to decode key into `CodeId`");
-
-                let valid =
-                    bool::decode(&mut valid.as_slice()).expect("Failed to decode data into `bool`");
-
-                (code_id, valid)
-            })
-            .filter_map(|(code_id, valid)| valid.then_some(code_id))
-            .collect()
     }
 }
 
@@ -524,7 +526,7 @@ impl OnChainStorageWrite for Database {
         });
     }
 
-    fn set_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
@@ -625,15 +627,8 @@ impl LatestDataStorageRead for Database {
 }
 
 impl LatestDataStorageWrite for Database {
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut Option<LatestData>)) {
-        let mut data = self.latest_data();
-        let was_some = data.is_some();
-        f(&mut data);
-        if let Some(data) = data {
-            self.kv.put(&Key::LatestData.to_bytes(), data.encode());
-        } else if was_some {
-            todo!("Implement removals from db");
-        }
+    fn set_latest_data(&self, data: LatestData) {
+        self.kv.put(&Key::LatestData.to_bytes(), data.encode());
     }
 }
 
@@ -761,7 +756,7 @@ mod tests {
             start_block_hash: H256::random(),
             start_announce_hash: AnnounceHash::random(),
         };
-        db.mutate_latest_data(|data| *data = Some(latest_data.clone()));
+        db.set_latest_data(latest_data.clone());
         assert_eq!(db.latest_data(), Some(latest_data));
     }
 
