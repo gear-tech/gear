@@ -19,7 +19,7 @@ scale-info.workspace = true
 
 # Gear deps.
 common.workspace = true
-gbuiltin-eth-bridge.workspace = true
+builtins-common = { workspace = true, features = ["eth-bridge"] }
 gear-core.workspace = true
 gprimitives.workspace = true
 pallet-gear-bank.workspace = true
@@ -69,6 +69,7 @@ std = [
 
     # Gear deps.
     "common/std",
+    "builtins-common/eth-bridge-std",
     "gear-core/std",
     "gprimitives/std",
     "pallet-gear-builtin/std",

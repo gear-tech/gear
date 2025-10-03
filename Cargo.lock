@@ -2131,6 +2131,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "builtins-common"
+version = "1.9.2"
+dependencies = [
+ "derive_more 2.0.1",
+ "gbuiltin-bls381",
+ "gbuiltin-eth-bridge",
+ "gear-core",
+ "gprimitives",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sha2 0.10.8",
+ "sha3",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6515,17 +6531,13 @@ dependencies = [
 name = "gear-runtime-interface"
 version = "1.9.2"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-scale",
+ "builtins-common",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-sandbox-interface",
  "log",
  "parity-scale-codec",
- "sha2 0.10.8",
  "sp-io",
  "sp-runtime-interface",
  "sp-std",
@@ -7173,6 +7185,8 @@ version = "1.9.2"
 name = "gtest"
 version = "1.9.2"
 dependencies = [
+ "ark-std 0.4.0",
+ "builtins-common",
  "cargo_toml",
  "colored",
  "demo-constructor",
@@ -7190,11 +7204,14 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gear-utils",
+ "gprimitives",
  "gsys",
  "log",
  "parity-scale-codec",
  "path-clean",
  "rand 0.8.5",
+ "scale-info",
+ "sha2 0.10.8",
  "sp-core",
  "thiserror 2.0.12",
  "tracing-subscriber",
@@ -11454,22 +11471,16 @@ dependencies = [
 name = "pallet-gear-builtin"
 version = "1.9.2"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-scale",
- "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+ "builtins-common",
  "demo-proxy-broker",
  "demo-staking-broker",
  "demo-waiting-proxy",
- "derive_more 2.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gbuiltin-bls381",
  "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
@@ -11533,11 +11544,11 @@ version = "1.9.2"
 dependencies = [
  "binary-merkle-tree",
  "bp-header-chain",
+ "builtins-common",
  "frame-benchmarking",
  "frame-support",
  "frame-support-test",
  "frame-system",
- "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
  "gear-core-errors",
