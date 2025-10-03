@@ -147,7 +147,7 @@ fn gas_allowance_respected() {
         let gas_cost_proxy_message = pallet_proxy::Call::<Test>::remove_proxy {
             delegate: <Test as frame_system::Config>::Lookup::unlookup(SIGNER.cast()),
             proxy_type: ProxyType::Any.into(),
-            delay: 0_u64,
+            delay: 0,
         }
         .get_dispatch_info()
         .weight

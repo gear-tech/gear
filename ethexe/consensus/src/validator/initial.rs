@@ -20,11 +20,11 @@ use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
+use crate::utils;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData, db::OnChainStorageRead};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRead};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -60,11 +60,16 @@ impl StateHandler for Initial {
             State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
                 let validators = self
                     .ctx
+                    .core
                     .db
                     .validators(block_hash)
                     .ok_or(anyhow!("validators not found for block({block_hash})"))?;
-                let producer = self.producer_for(block.header.timestamp, &validators);
-                let my_address = self.ctx.pub_key.to_address();
+                let producer = utils::block_producer_for(
+                    &validators,
+                    block.header.timestamp,
+                    self.ctx.core.slot_duration.as_secs(),
+                );
+                let my_address = self.ctx.core.pub_key.to_address();
 
                 if my_address == producer {
                     log::info!("👷 Start to work as a producer for block: {}", block.hash);
@@ -113,53 +118,46 @@ impl Initial {
         }
         .into())
     }
-
-    fn producer_for(&self, timestamp: u64, validators: &NonEmpty<Address>) -> Address {
-        let slot = timestamp / self.ctx.slot_duration.as_secs();
-        let index = crate::block_producer_index(validators.len(), slot);
-        validators
-            .get(index)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("index must be valid"))
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::db::OnChainStorageWrite;
+    use crate::{ConsensusEvent, validator::mock::*};
+    use ethexe_common::{db::*, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
     #[test]
     fn create_initial_success() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context();
         let initial = Initial::create(ctx).unwrap();
         assert!(initial.is_initial());
     }
 
     #[test]
     fn create_with_chain_head_success() {
-        let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let (ctx, _, _) = mock_validator_context();
+        let block = SimpleBlockData::mock(());
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
 
     #[tokio::test]
     async fn switch_to_producer() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
-            ctx.pub_key.to_address(),
+            ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(H256::random());
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 0;
 
-        ctx.db.set_validators(block.hash, validators.clone());
+        ctx.core
+            .db
+            .set_block_validators(block.hash, validators.clone());
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -168,17 +166,17 @@ mod tests {
 
     #[test]
     fn switch_to_subordinate() {
-        let (ctx, keys) = mock_validator_context();
+        let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
-            ctx.pub_key.to_address(),
+            ctx.core.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(H256::random());
+        let mut block = SimpleBlockData::mock(());
         block.header.timestamp = 1;
 
-        ctx.db.set_validators(block.hash, validators);
+        ctx.core.db.set_block_validators(block.hash, validators);
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial.process_synced_block(block.hash).unwrap();
@@ -187,8 +185,8 @@ mod tests {
 
     #[test]
     fn process_synced_block_rejected() {
-        let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let (ctx, _, _) = mock_validator_context();
+        let block = SimpleBlockData::mock(());
 
         let initial = Initial::create(ctx)
             .unwrap()
@@ -211,19 +209,5 @@ mod tests {
             initial.context().output[1],
             ConsensusEvent::Warning(_)
         ));
-    }
-
-    #[test]
-    fn producer_for_calculates_correct_producer() {
-        let (ctx, keys) = mock_validator_context();
-        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
-        let timestamp = 10;
-
-        let producer = Initial {
-            ctx,
-            state: State::WaitingForChainHead,
-        }
-        .producer_for(timestamp, &validators);
-        assert_eq!(producer, validators[10 % validators.len()]);
     }
 }

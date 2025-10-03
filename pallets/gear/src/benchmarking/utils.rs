@@ -34,6 +34,7 @@ use frame_support::traits::{Currency, Get};
 use gear_core::{
     code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
     ids::{ActorId, CodeId, MessageId, prelude::*},
+    limited::LimitedVecError,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
     pages::WasmPagesAmount,
 };
@@ -95,6 +96,8 @@ where
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.type_section_len.into(),
+                schedule.limits.parameters.into(),
             )
             .map_err(|_| "Code failed to load")?;
 
@@ -116,7 +119,9 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -139,7 +144,9 @@ where
                     root_message_id,
                     source.cast(),
                     program_id,
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     None,
@@ -152,7 +159,9 @@ where
                 root_message_id,
                 source.cast(),
                 dest,
-                payload.try_into()?,
+                payload
+                    .try_into()
+                    .map_err(|err: LimitedVecError| err.as_str())?,
                 Some(u64::MAX),
                 config.value,
                 None,
@@ -167,7 +176,9 @@ where
                     root_message_id,
                     source.cast(),
                     msg.source(),
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     Some(ReplyDetails::new(msg.id(), exit_code).into()),
@@ -183,7 +194,9 @@ where
                     root_message_id,
                     source.cast(),
                     msg.source(),
-                    payload.try_into()?,
+                    payload
+                        .try_into()
+                        .map_err(|err: LimitedVecError| err.as_str())?,
                     Some(u64::MAX),
                     config.value,
                     Some(SignalDetails::new(msg.id(), status_code).into()),
