@@ -7,7 +7,7 @@ runs:
       with:
         packages: mold
         execute_install_scripts: true
-        version: 1.0
+        version: 2
 
     - name: "Setup linker on Linux"
       if: ${{ runner.os == 'Linux' }}
