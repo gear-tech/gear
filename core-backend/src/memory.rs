@@ -184,6 +184,8 @@ where
     Mem: Memory<Caller> + Clone + 'static,
 {
     pub(crate) fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
+        debug_assert!(size != 0, "Reading zero bytes from memory is likely a bug");
+
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
@@ -191,7 +193,13 @@ where
     }
 
     pub(crate) fn register_read_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryReadAs<T> {
+        debug_assert!(
+            core::mem::size_of::<T>() != 0,
+            "Reading a ZST from memory is likely a bug"
+        );
+
         let size = size_of::<T>() as u32;
+
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
@@ -202,6 +210,8 @@ where
     }
 
     pub(crate) fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
+        debug_assert!(size != 0, "Writing zero bytes into memory is likely a bug");
+
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
@@ -210,6 +220,12 @@ where
 
     pub(crate) fn register_write_as<T: Sized>(&mut self, ptr: u32) -> WasmMemoryWriteAs<T> {
         let size = size_of::<T>() as u32;
+
+        debug_assert!(
+            core::mem::size_of::<T>() != 0,
+            "Writing a ZST into memory is likely a bug"
+        );
+
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
@@ -275,6 +291,12 @@ where
     ) -> Result<T, MemoryAccessError> {
         let mut value = bytemuck::zeroed();
 
+        debug_assert_ne!(
+            core::mem::size_of::<T>(),
+            0,
+            "Reading a ZST from memory is likely a bug"
+        );
+
         if core::mem::size_of::<T>() != 0 {
             self.memory
                 .read(ctx.caller, read.ptr, bytemuck::bytes_of_mut(&mut value))?;
@@ -317,10 +339,14 @@ where
         write: WasmMemoryWriteAs<T>,
         obj: &T,
     ) -> Result<(), MemoryAccessError> {
-        if core::mem::size_of::<T>() != 0 {
-            self.memory
-                .write(ctx.caller, write.ptr, bytemuck::bytes_of(obj))?
-        }
+        debug_assert_ne!(
+            core::mem::size_of::<T>(),
+            0,
+            "Writing a ZST into memory is likely a bug"
+        );
+
+        self.memory
+            .write(ctx.caller, write.ptr, bytemuck::bytes_of(obj))?;
 
         Ok(())
     }
