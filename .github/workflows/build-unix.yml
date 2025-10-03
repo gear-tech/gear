@@ -33,6 +33,12 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
+      - name: "Install: cargo-binstall"
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: "Install: cargo-nextest"
+        run: cargo binstall --no-confirm cargo-nextest
+
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
         with:
@@ -56,9 +62,6 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
-
-      - name: "Install: cargo-nextest"
-        run: curl -LsSf https://get.nexte.st/latest/mac | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: "Test: Lazy pages"
         run: >-
