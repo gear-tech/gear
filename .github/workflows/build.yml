@@ -333,7 +333,7 @@ jobs:
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
-    needs: dynamic-matrix
+    needs: [ dynamic-matrix, node ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
