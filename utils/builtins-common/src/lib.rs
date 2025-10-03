@@ -16,13 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Common utilities for gear protocol built-ins
+
 #![no_std]
 
 extern crate alloc;
 
+/// Common utilities for gear protocol BLS12-381 built-in.
 #[cfg(any(feature = "bls12-381", feature = "bls12-381-std"))]
 pub mod bls12_381;
 
+/// Common utilities for gear protocol eth-bridge built-in.
 #[cfg(any(feature = "eth-bridge", feature = "eth-bridge-std"))]
 pub mod eth_bridge;
 
@@ -40,6 +44,7 @@ pub struct BuiltinContext {
 }
 
 impl BuiltinContext {
+    /// Creates a new `BuiltinContext` with the specified initial gas and gas allowance.
     pub fn new(counter_initial: u64, allowance_initial: u64) -> Self {
         Self {
             gas_counter: GasCounter::new(counter_initial),
@@ -47,7 +52,7 @@ impl BuiltinContext {
         }
     }
 
-    // Tries to charge the gas amount from the gas counters.
+    /// Tries to charge the gas amount from the gas counters.
     pub fn try_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
         if self.gas_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
             return Err(BuiltinActorError::InsufficientGas);
@@ -60,7 +65,7 @@ impl BuiltinContext {
         Ok(())
     }
 
-    // Checks if an amount of gas can be charged without actually modifying the inner counters.
+    /// Checks if an amount of gas can be charged without actually modifying the inner counters.
     pub fn can_charge_gas(&self, amount: u64) -> Result<(), BuiltinActorError> {
         if self.gas_counter.left() < amount {
             return Err(BuiltinActorError::InsufficientGas);
@@ -73,6 +78,7 @@ impl BuiltinContext {
         Ok(())
     }
 
+    /// Converts the current gas counter to a `GasAmount`.
     pub fn to_gas_amount(&self) -> GasAmount {
         self.gas_counter.to_amount()
     }
@@ -109,6 +115,11 @@ pub enum BuiltinActorError {
 }
 
 impl BuiltinActorError {
+    /// Converts a `BuiltinActorError` to a u32 error code.
+    ///
+    /// Gear runtime-interface (RI) defines bls12-381 calls (aggregate g1 and map to g2), which return
+    /// the `BuiltinActorError`. So in order to pass the error from RI to the runtime, we convert
+    /// the error to a u32 code.
     pub fn as_u32(&self) -> u32 {
         match self {
             BuiltinActorError::InsufficientGas => 0,
@@ -122,7 +133,9 @@ impl BuiltinActorError {
         }
     }
 
-    // Explain rationale
+    /// Converts a u32 error code back to a `BuiltinActorError`.
+    ///
+    /// This function does the opposite conversion in comparison to `as_u32`.
     pub fn from_u32(code: u32, custom_err_message: Option<&'static str>) -> Self {
         match code {
             0 => BuiltinActorError::InsufficientGas,

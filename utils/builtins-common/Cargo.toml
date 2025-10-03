@@ -1,9 +1,13 @@
 [package]
 name = "builtins-common"
+description = "Common utilities for gear protocol built-ins"
+documentation = "https://docs.rs/builtins-common"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]

@@ -43,6 +43,7 @@ pub fn bridge_call_hash(
     hashing_fn(&bytes)
 }
 
+/// Computes the Keccak-256 (SHA-3) hash of the input data.
 pub fn keccak256_hash(data: &[u8]) -> H256 {
     use sha3::Digest;
     let hash: [u8; 32] = sha3::Keccak256::digest(data).into();
