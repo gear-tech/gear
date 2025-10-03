@@ -26,8 +26,8 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
-      - name: "Build: Init"
-        run: ./scripts/gear.sh init cargo
+      - name: "Install: Cargo extensions"
+        uses: ./.github/actions/install-cargo-extensions
 
       - name: "Generate comparison tables (${{ inputs.runtime }})"
         run: |

@@ -28,15 +28,17 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: dsherret/rust-toolchain-file@v1
 
+      - name: "Install: Cargo extensions"
+        uses: ./.github/actions/install-cargo-extensions
+
       - name: "Show: Versioning"
-        run: ./scripts/gear.sh show
+        run: rustup show
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release --locked --features=runtime-benchmarks
+        run: cargo build -p gear-cli --release --locked --features=runtime-benchmarks
 
       - name: "Collect: Gear workspace tests"
         run: |
-          ./scripts/gear.sh check_extensions
           mkdir -p ./target/analysis/tests/
           mkdir -p ./target/analysis/output/
           cargo build --release --package regression-analysis
