@@ -159,7 +159,7 @@ jobs:
       production: ${{ inputs.production }}
 
   unix:
-    needs: [dynamic-matrix, node]
+    needs: [dynamic-matrix, node, linux]
     uses: ./.github/workflows/build-unix.yml
     secrets: inherit
     with:
