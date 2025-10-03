@@ -28,7 +28,7 @@ ignored_warnings_from = [
 fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "lib" } ]
 
 # Temporary disabled lint rules
-[lint]
+[profile.lint]
 exclude_lints = ["asm-keccak256"]
 
 [rpc_endpoints]
