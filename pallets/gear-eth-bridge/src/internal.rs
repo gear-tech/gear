@@ -18,7 +18,8 @@
 
 use crate::{
     AuthoritySetHash, ClearTimer, Config, Error, Event, Initialized, MessageNonce, Pallet, Paused,
-    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueuesInfo, ResetQueueOnInit,
+    Queue, QueueCapacityOf, QueueChanged, QueueId, QueueMerkleRoot, QueueOverflowedSince,
+    QueuesInfo,
 };
 use bp_header_chain::{
     AuthoritySet,
@@ -52,14 +53,59 @@ pub struct FinalityProof<Header: sp_runtime::traits::Header> {
 }
 
 impl<T: Config> Pallet<T> {
+    #[cfg(not(test))]
+    pub(super) fn reset_overflowed_queue_impl(
+        encoded_finality_proof: Vec<u8>,
+    ) -> Result<(), Error<T>> {
+        let Some(overflowed_since) = QueueOverflowedSince::<T>::get() else {
+            return Err(Error::<T>::InvalidQueueReset);
+        };
+
+        let finalized_number = Self::verify_finality_proof(encoded_finality_proof)
+            .ok_or(Error::<T>::InvalidQueueReset)?;
+
+        ensure!(
+            finalized_number >= overflowed_since,
+            Error::<T>::InvalidQueueReset
+        );
+
+        log::debug!(
+            "Resetting queue that is overflowed since {:?}, current block is {:?}, received info about finalization of {:?}",
+            overflowed_since,
+            <frame_system::Pallet<T>>::block_number(),
+            finalized_number
+        );
+
+        Self::reset_queue();
+
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn reset_overflowed_queue_impl(
+        encoded_finality_proof: Vec<u8>,
+    ) -> Result<(), Error<T>> {
+        ensure!(
+            QueueOverflowedSince::<T>::get().is_some(),
+            Error::<T>::InvalidQueueReset
+        );
+
+        ensure!(
+            encoded_finality_proof == vec![42u8],
+            Error::<T>::InvalidQueueReset
+        );
+
+        Self::reset_queue();
+
+        Ok(())
+    }
+
     /// Verifies given finality proof for actual grandpa set.
     ///
     /// Returns latest known finalized block number on success.
     ///
-    /// See [`FinalityProof`].
-    pub(super) fn verify_finality_proof(
-        encoded_finality_proof: Vec<u8>,
-    ) -> Option<BlockNumberFor<T>> {
+    /// See `FinalityProof` above.
+    pub fn verify_finality_proof(encoded_finality_proof: Vec<u8>) -> Option<BlockNumberFor<T>> {
         // Decoding finality proof.
         let finality_proof = FinalityProofOf::<T>::decode(&mut encoded_finality_proof.as_ref())
             .inspect_err(|_| log::debug!("verify finality error: proof decoding"))
@@ -163,15 +209,11 @@ impl<T: Config> Pallet<T> {
             // If we reached queue capacity, it's time to reset the queue,
             // so it could handle further messages with next queue id.
             x if x >= QueueCapacityOf::<T>::get() as usize => {
-                log::debug!("Queue reached it's capacity. Scheduling next block reset");
-                ResetQueueOnInit::<T>::put(true);
+                QueueOverflowedSince::<T>::put(<frame_system::Pallet<T>>::block_number());
+
+                Self::deposit_event(Event::<T>::QueueOverflowed);
             }
             _ => {}
-        }
-
-        if queue_len == 0 {
-            log::error!("Queue were changed within the block, but it's empty");
-            return;
         }
 
         // Calculating new root.
@@ -230,6 +272,9 @@ impl<T: Config> Pallet<T> {
         // Removing queued messages from storage.
         Queue::<T>::kill();
 
+        // Removing overflowed since block.
+        QueueOverflowedSince::<T>::kill();
+
         // Bumping queue id for future use.
         let new_queue_id = QueueId::<T>::mutate(|id| {
             *id = id.saturating_add(1);
@@ -245,36 +290,51 @@ impl<T: Config> Pallet<T> {
         // Depositing event about queue being reset.
         Self::deposit_event(Event::<T>::QueueReset);
 
-        T::DbWeight::get().writes(4)
+        T::DbWeight::get().writes(5)
     }
 
-    // TODO (breathx): return bn as well?
     pub(crate) fn queue_message(
         source: ActorId,
         destination: H160,
         payload: Vec<u8>,
-    ) -> Result<(U256, H256), Error<T>> {
+    ) -> Result<(U256, H256), Error<T>>
+    where
+        T::AccountId: Origin,
+    {
         // Ensuring that pallet is initialized.
         ensure!(
             Initialized::<T>::get(),
             Error::<T>::BridgeIsNotYetInitialized
         );
 
-        // Ensuring that pallet isn't paused.
-        ensure!(!Paused::<T>::get(), Error::<T>::BridgeIsPaused);
+        let from_governance = Self::ensure_admin_or_pauser(source).is_ok();
 
-        // Creating new message from given data.
-        //
-        // Inside goes query and bump of nonce,
-        // as well as checking payload size.
-        let message = EthMessage::try_new(source, destination, payload)?;
-        let hash = message.hash();
+        // Ensuring that pallet isn't paused if it's not forced from governance.
+        if !from_governance {
+            ensure!(!Paused::<T>::get(), Error::<T>::BridgeIsPaused);
+        }
 
-        // Appending hash of the message into the queue.
-        Queue::<T>::mutate(|v| v.push(hash));
+        let (message, hash) = Queue::<T>::mutate(|queue| {
+            // Ensuring that queue isn't full if it's not forced from governance.
+            if !from_governance && queue.len() >= QueueCapacityOf::<T>::get() as usize {
+                return Err(Error::<T>::BridgeCleanupRequired);
+            }
 
-        // Marking queue as changed, so root will be updated later.
-        QueueChanged::<T>::put(true);
+            // Creating new message from given data.
+            //
+            // Inside goes query and bump of nonce,
+            // as well as checking payload size.
+            let message = EthMessage::try_new(source, destination, payload)?;
+            let hash = message.hash();
+
+            // Appending hash of the message into the queue.
+            queue.push(hash);
+
+            // Marking queue as changed, so root will be updated later.
+            QueueChanged::<T>::put(true);
+
+            Ok((message, hash))
+        })?;
 
         // Extracting nonce to return.
         let nonce = message.nonce();
