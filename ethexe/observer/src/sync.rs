@@ -18,7 +18,10 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{RuntimeConfig, utils};
+use crate::{
+    RuntimeConfig,
+    utils::{BlockLoader, EthereumBlockLoader, LazyBlockLoader},
+};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -40,10 +43,25 @@ impl<T: OnChainStorageWrite + LatestDataStorageWrite + Clone> SyncDB for T {}
 pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,
-    pub provider: RootProvider,
+    pub router_query: RouterQuery,
+    pub block_loader: LazyBlockLoader<EthereumBlockLoader, DB>,
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
+    pub fn new(db: DB, config: RuntimeConfig, provider: RootProvider) -> Self {
+        let router_query =
+            RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
+        let block_loader =
+            EthereumBlockLoader::new(provider, config.router_address, config.wvara_address)
+                .lazy(db.clone());
+        Self {
+            db,
+            config,
+            router_query,
+            block_loader,
+        }
+    }
+
     pub async fn sync(self, chain_head: Header) -> Result<H256> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
@@ -74,14 +92,9 @@ impl<DB: SyncDB> ChainSync<DB> {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
-                    utils::load_block_data(
-                        self.provider.clone(),
-                        hash,
-                        self.config.router_address,
-                        self.config.wvara_address,
-                        (hash == block).then_some(header),
-                    )
-                    .await?
+                    self.block_loader
+                        .load(hash, (hash == block).then_some(header))
+                        .await?
                 }
             };
 
@@ -105,10 +118,6 @@ impl<DB: SyncDB> ChainSync<DB> {
             }
 
             let parent_hash = block_data.header.parent_hash;
-
-            self.db.set_block_header(hash, block_data.header);
-            self.db.set_block_events(hash, &block_data.events);
-
             chain.push(hash);
             hash = parent_hash;
         }
@@ -147,14 +156,9 @@ impl<DB: SyncDB> ChainSync<DB> {
             return Ok(Default::default());
         }
 
-        utils::load_blocks_data_batched(
-            self.provider.clone(),
-            latest.synced_block_height as u64,
-            header.height as u64,
-            self.config.router_address,
-            self.config.wvara_address,
-        )
-        .await
+        self.block_loader
+            .load_many(latest.synced_block_height as u64..=header.height as u64)
+            .await
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
@@ -162,13 +166,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
-                let fetched_validators = RouterQuery::from_provider(
-                    self.config.router_address.0.into(),
-                    self.provider.clone(),
-                )
-                .validators_at(block)
-                .await?;
-
+                let fetched_validators = self.router_query.validators_at(block).await?;
                 NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
                     "validator set is empty on router for block({block})"
                 ))?

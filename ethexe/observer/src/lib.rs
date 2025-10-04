@@ -18,7 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::utils::load_block_data;
+use crate::utils::EthereumBlockLoader;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -27,7 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, SimpleBlockData,
+    Address, BlockHeader, SimpleBlockData,
     db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use ethexe_db::Database;
@@ -45,7 +45,7 @@ use std::{
 use sync::ChainSync;
 
 mod sync;
-mod utils;
+pub mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -212,20 +212,14 @@ impl ObserverService {
             era_duration: timelines.era,
         };
 
-        let chain_sync = ChainSync {
-            db,
-            provider: provider.clone(),
-            config: config.clone(),
-        };
+        let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
 
         Ok(Self {
             provider,
             config,
-
             chain_sync,
             sync_future: None,
             block_sync_queue: VecDeque::new(),
-
             last_block_number: 0,
             subscription_future: None,
             headers_stream,
@@ -289,13 +283,11 @@ impl ObserverService {
         self.config.block_time.as_secs()
     }
 
-    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
-        load_block_data(
+    pub fn block_loader(&self) -> EthereumBlockLoader {
+        EthereumBlockLoader::new(
             self.provider.clone(),
-            block,
             self.config.router_address,
             self.config.wvara_address,
-            None,
         )
     }
 
