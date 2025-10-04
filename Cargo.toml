@@ -42,6 +42,7 @@ members = [
     "examples/compose",
     "examples/constructor",
     "examples/create-program-reentrance",
+    "examples/ctor",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
@@ -209,6 +210,7 @@ tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
 nonempty = { version = "0.12.0", default-features = false }
+cc = "1.2.37"
 tap = "1.0.1"
 
 # Published deps
