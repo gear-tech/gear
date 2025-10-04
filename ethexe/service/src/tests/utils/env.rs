@@ -250,19 +250,8 @@ impl TestEnv {
 
         let threshold = router_query.threshold().await?;
 
-        let network_address = match network {
-            EnvNetworkConfig::Enabled => None,
-            EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(address),
-        };
-
-        static NONCE: AtomicUsize = AtomicUsize::new(1);
-
-        // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
-        let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
-        let address = network_address.unwrap_or_else(|| format!("/memory/{nonce}"));
-
         let network_key = signer.generate_key().unwrap();
-        let multiaddr: Multiaddr = address.parse().unwrap();
+        let (nonce, multiaddr) = network.into_nonce_and_address();
 
         let mut config = NetworkConfig::new_test(network_key, router_address);
         config.listen_addresses = [multiaddr.clone()].into();
@@ -286,7 +275,7 @@ impl TestEnv {
             .instrument(tracing::trace_span!("network-stream")),
         );
 
-        let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
+        let bootstrap_address = format!("{multiaddr}/p2p/{local_peer_id}");
         let bootstrap_network = (handle, bootstrap_address, nonce);
 
         // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
@@ -332,12 +321,10 @@ impl TestEnv {
         let (_, bootstrap_address, nonce) = &mut self.bootstrap_network;
 
         *nonce += 1;
-
-        if (*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST) {
-            panic!(
-                "Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}"
-            );
-        }
+        assert!(
+            !(*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST),
+            "Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}"
+        );
 
         let network_address = format!("/memory/{nonce}");
         let network_bootstrap_address = bootstrap_address.clone();
@@ -593,9 +580,30 @@ pub enum ValidatorsConfig {
 pub enum EnvNetworkConfig {
     /// Network service is enabled. Network address will be generated.
     Enabled,
-    #[allow(unused)]
     /// Network service is enabled. Network address is provided as String.
-    EnabledWithCustomAddress(String),
+    #[allow(unused)]
+    CustomAddress(String),
+}
+
+impl EnvNetworkConfig {
+    pub fn into_nonce_and_address(self) -> (usize, Multiaddr) {
+        static NONCE: AtomicUsize = AtomicUsize::new(1);
+
+        let addr = match self {
+            EnvNetworkConfig::Enabled => None,
+            EnvNetworkConfig::CustomAddress(address) => Some(address),
+        };
+
+        // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
+        let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
+
+        let addr = addr
+            .unwrap_or_else(|| format!("/memory/{nonce}"))
+            .parse()
+            .unwrap();
+
+        (nonce, addr)
+    }
 }
 
 pub enum EnvRpcConfig {
@@ -622,7 +630,7 @@ pub struct TestEnvConfig {
     pub router_address: Option<String>,
     /// Identify whether networks works (or have to works) in continuous block generation mode, false by default.
     pub continuous_block_generation: bool,
-    /// Network service configuration, disabled by default.
+    /// Network service configuration.
     pub network: EnvNetworkConfig,
 }
 
