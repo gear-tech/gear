@@ -1,13 +1,26 @@
 runs:
   using: composite
   steps:
-    - name: "Install mold on Linux"
+    - name: "Install: apt-fast on Linux"
       if: ${{ runner.os == 'Linux' }}
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: mold
-        execute_install_scripts: true
-        version: 1.0
+      run: /bin/bash -c "$(curl -sL https://git.io/vokNn)"
+      shell: bash
+
+    - name: "Install: mold"
+      if: runner.os == 'Linux'
+      run: |
+        ARCH=$(uname -m)
+        if [ "$ARCH" = "x86_64" ]; then
+          echo "Installing mold from GitHub release for x86_64..."
+          wget https://github.com/rui314/mold/releases/download/v2.40.4/mold-2.40.4-x86_64-linux.tar.gz
+          sudo tar -xvf mold-2.40.4-x86_64-linux.tar.gz -C /usr/local --strip-components=1
+          rm mold-2.40.4-x86_64-linux.tar.gz
+        else
+          echo "Installing mold from apt for $ARCH..."
+          sudo apt-fast update
+          sudo apt-fast install -y mold
+        fi
+      shell: bash
 
     - name: "Setup linker on Linux"
       if: ${{ runner.os == 'Linux' }}

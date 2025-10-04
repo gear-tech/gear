@@ -57,6 +57,7 @@ impl Upload {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let signer: Signer = app.signer().await?.into();
 
+        #[allow(clippy::cmp_owned)]
         let code = if self.code == PathBuf::from("-") {
             let mut stdin = io::stdin();
             let mut code = Vec::new();

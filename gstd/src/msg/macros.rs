@@ -114,5 +114,3 @@ macro_rules! impl_futures {
         }
     };
 }
-
-pub(super) use impl_futures;
