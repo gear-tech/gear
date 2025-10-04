@@ -56,11 +56,6 @@ pub struct NetworkParams {
     #[arg(long, alias = "net-port")]
     #[serde(rename = "port")]
     pub network_port: Option<u16>,
-
-    /// Flag to disable network service.
-    #[arg(long, alias = "no-net")]
-    #[serde(default, rename = "no-network", alias = "no-net")]
-    pub no_network: bool,
 }
 
 impl NetworkParams {
@@ -72,11 +67,7 @@ impl NetworkParams {
         self,
         config_dir: PathBuf,
         router_address: Address,
-    ) -> Result<Option<NetworkConfig>> {
-        if self.no_network {
-            return Ok(None);
-        }
-
+    ) -> Result<NetworkConfig> {
         let public_key = if let Some(key) = self.network_key {
             log::trace!("use network key from command-line arguments");
             key.parse().context("invalid network key")?
@@ -128,14 +119,14 @@ impl NetworkParams {
             network_listen_addr.into_iter().collect()
         };
 
-        Ok(Some(NetworkConfig {
+        Ok(NetworkConfig {
             public_key,
             router_address,
             external_addresses,
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
-        }))
+        })
     }
 }
 
@@ -147,7 +138,6 @@ impl MergeParams for NetworkParams {
             network_public_addr: self.network_public_addr.or(with.network_public_addr),
             network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
             network_port: self.network_port.or(with.network_port),
-            no_network: self.no_network || with.no_network,
         }
     }
 }

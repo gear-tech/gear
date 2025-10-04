@@ -30,7 +30,7 @@ use std::{path::PathBuf, str::FromStr};
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
-    pub network: Option<NetworkConfig>,
+    pub network: NetworkConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
 }
@@ -44,9 +44,7 @@ impl Config {
             "📡 Ethereum router address: {}",
             self.ethereum.router_address
         );
-        if let Some(network) = &self.network {
-            log::info!("🛜  Network public key: {}", network.public_key);
-        }
+        log::info!("🛜  Network public key: {}", self.network.public_key);
     }
 }
 

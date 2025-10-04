@@ -108,9 +108,9 @@ pub struct Service {
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
     tx_pool: TxPoolService,
+    network: NetworkService,
 
     // Optional services
-    network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcService>,
 
@@ -236,19 +236,13 @@ impl Service {
             None
         };
 
-        let network = if let Some(net_config) = &config.network {
-            Some(
-                NetworkService::new(
-                    net_config.clone(),
-                    &signer,
-                    Box::new(RouterDataProvider(router_query)),
-                    Box::new(db.clone()),
-                )
-                .with_context(|| "failed to create network service")?,
-            )
-        } else {
-            None
-        };
+        let network = NetworkService::new(
+            config.network.clone(),
+            &signer,
+            Box::new(RouterDataProvider(router_query)),
+            Box::new(db.clone()),
+        )
+        .with_context(|| "failed to create network service")?;
 
         let rpc = config
             .rpc
@@ -296,8 +290,8 @@ impl Service {
         processor: Processor,
         signer: Signer,
         tx_pool: TxPoolService,
+        network: NetworkService,
         consensus: Pin<Box<dyn ConsensusService>>,
-        network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
         sender: tests::utils::TestingEventSender,
@@ -370,7 +364,7 @@ impl Service {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
                 event = consensus.select_next_some() => event?.into(),
-                event = network.maybe_next_some() => event.into(),
+                event = network.select_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
@@ -434,10 +428,6 @@ impl Service {
                     }
                 },
                 Event::Network(event) => {
-                    let Some(_) = network.as_mut() else {
-                        unreachable!("couldn't produce event without network");
-                    };
-
                     match event {
                         NetworkEvent::Message { source: _, data } => {
                             let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
@@ -529,25 +519,13 @@ impl Service {
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
                     ConsensusEvent::PublishAnnounce(block) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(NetworkMessage::from(block).encode());
+                        network.publish_message(NetworkMessage::from(block).encode());
                     }
                     ConsensusEvent::PublishValidationRequest(request) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(NetworkMessage::from(request).encode());
+                        network.publish_message(NetworkMessage::from(request).encode());
                     }
                     ConsensusEvent::PublishValidationReply(reply) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(NetworkMessage::from(reply).encode());
+                        network.publish_message(NetworkMessage::from(reply).encode());
                     }
                     ConsensusEvent::CommitmentSubmitted(tx) => {
                         log::info!("Commitment submitted, tx: {tx}");
@@ -558,15 +536,9 @@ impl Service {
                 },
                 Event::TxPool(event) => match event {
                     TxPoolEvent::PublishOffchainTransaction(transaction) => {
-                        let Some(n) = network.as_mut() else {
-                            log::debug!(
-                                "Validated offchain transaction won't be propagated, network service isn't defined"
-                            );
-
-                            continue;
-                        };
-
-                        n.publish_offchain_transaction(NetworkMessage::from(transaction).encode());
+                        network.publish_offchain_transaction(
+                            NetworkMessage::from(transaction).encode(),
+                        );
                     }
                 },
             }
