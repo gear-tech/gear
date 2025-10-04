@@ -94,11 +94,16 @@ impl<S: Storage> TransitionController<'_, S> {
 
         let res = f(&mut state, self.storage, self.transitions);
 
-        let queue_size = state.queue.cached_queue_size;
+        let canonical_queue_size = state.canonical_queue.cached_queue_size;
+        let injected_queue_size = state.injected_queue.cached_queue_size;
         let new_state_hash = self.storage.write_program_state(state);
 
-        self.transitions
-            .modify_state(program_id, new_state_hash, queue_size);
+        self.transitions.modify_state(
+            program_id,
+            new_state_hash,
+            canonical_queue_size,
+            injected_queue_size,
+        );
 
         res
     }
@@ -121,13 +126,13 @@ where
 
     log::trace!("Processing queue for program {program_id}");
 
-    if program_state.queue.hash.is_empty() {
+    if program_state.canonical_queue.hash.is_empty() {
         // Queue is empty, nothing to process.
         return (Vec::new(), 0);
     }
 
     let queue = program_state
-        .queue
+        .canonical_queue
         .hash
         .map(|hash| {
             ri.storage()

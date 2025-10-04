@@ -150,14 +150,16 @@ impl ToDigest for Announce {
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
-    pub cached_queue_size: u8,
+    pub canonical_queue_size: u8,
+    pub injected_queue_size: u8,
 }
 
 impl StateHashWithQueueSize {
     pub fn zero() -> Self {
         Self {
             hash: H256::zero(),
-            cached_queue_size: 0,
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
         }
     }
 }

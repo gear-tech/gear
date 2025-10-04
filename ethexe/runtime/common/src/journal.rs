@@ -55,7 +55,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     })
                 } else {
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
@@ -179,7 +179,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.queue.modify_queue(storage, |queue| {
+                state.canonical_queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -247,7 +247,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                 let dispatch =
                     Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
 
-                state.queue.modify_queue(storage, |queue| {
+                state.canonical_queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -291,7 +291,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                 };
 
                 state
-                    .queue
+                    .canonical_queue
                     .modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
