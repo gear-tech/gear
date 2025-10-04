@@ -506,8 +506,14 @@ async fn sync_from_network(
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
                     // Save restored cached queue sizes
                     let program_state_hash = ethexe_db::hash(&data);
-                    restored_cached_queue_sizes
-                        .insert(program_state_hash, state.queue.cached_queue_size);
+                    restored_cached_queue_sizes.insert(
+                        program_state_hash,
+                        (
+                            state.canonical_queue.cached_queue_size,
+                            state.injected_queue.cached_queue_size,
+                        ),
+                    );
+
                     ethexe_db::visitor::walk(
                         &mut manager,
                         ProgramStateNode {
@@ -566,14 +572,15 @@ async fn sync_from_network(
     program_states
         .into_iter()
         .map(|(program_id, hash)| {
-            let cached_queue_size = *restored_cached_queue_sizes
+            let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
                 .get(&hash)
                 .expect("program state cached queue size must be restored");
             (
                 program_id,
                 StateHashWithQueueSize {
                     hash,
-                    cached_queue_size,
+                    canonical_queue_size,
+                    injected_queue_size,
                 },
             )
         })
