@@ -7,7 +7,10 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::{mem, num::NonZero};
-use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
+use core_processor::{
+    common::{DispatchOutcome, JournalHandler, JournalNote},
+    configs::BlockInfo,
+};
 use ethexe_common::{
     ScheduledTask,
     gear::{Message, Origin},
@@ -386,6 +389,8 @@ where
     pub program_state: &'s mut ProgramState,
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
     pub stop_processing: bool,
+    pub origin: Origin,
+    pub block_info: BlockInfo,
 }
 
 impl<S> RuntimeJournalHandler<'_, S>
@@ -461,8 +466,10 @@ where
         }
 
         // Some notes were processed, thus state changed
-        let maybe_state_hash = (notes_cnt != filtered.len())
-            .then(|| self.storage.write_program_state(*self.program_state));
+        let maybe_state_hash = (notes_cnt != filtered.len()).then(|| {
+            self.update_last_modified();
+            self.storage.write_program_state(*self.program_state)
+        });
 
         (filtered, maybe_state_hash)
     }
@@ -552,6 +559,12 @@ where
             pages_hash.modify_pages(self.storage, |pages| {
                 pages.remove_and_store_regions(self.storage, &removed_pages);
             })
+        }
+    }
+
+    fn update_last_modified(&mut self) {
+        if Origin::Ethereum == self.origin {
+            self.program_state.last_modified_from_eth = self.block_info.height;
         }
     }
 }
