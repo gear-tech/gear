@@ -136,7 +136,7 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// should be transferred.
 ///
 /// Note: All registered global destructors
-/// (via [`gcore::dtor!`]/[`gcore::atexit`]) are invoked before termination.
+/// (via `gcore::dtor!()`/`gcore::ctor::atexit`) are invoked before termination.
 ///
 /// # Examples
 ///
@@ -284,7 +284,7 @@ pub fn gas_available() -> u64 {
 /// state.
 ///
 /// Note: All registered global destructors
-/// (via [`gcore::dtor!`]/[`gcore::atexit`]) are invoked before leaving.
+/// (via `gcore::dtor!()`/`gcore::ctor::atexit`) are invoked before leaving.
 ///
 /// # Examples
 ///
