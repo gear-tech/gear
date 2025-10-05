@@ -541,7 +541,6 @@ impl Service {
                         compute.process_block(producer_block.block_hash);
                     }
                     ConsensusEvent::PublishProducerBlock(block) => {
-                        tracing::error!("PUBLIC PRODUCER BLOCK");
                         let Some(n) = network.as_mut() else {
                             continue;
                         };
@@ -549,9 +548,7 @@ impl Service {
                         n.publish_message(NetworkMessage::from(block).encode());
                     }
                     ConsensusEvent::PublishValidationRequest(request) => {
-                        tracing::error!("PUBLISH BATCH VALIDATION REQUEST");
                         let Some(n) = network.as_mut() else {
-                            tracing::error!("NO NETWORK");
                             continue;
                         };
 

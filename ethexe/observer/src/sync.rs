@@ -29,7 +29,6 @@ use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
 };
-use ethexe_ethereum::{ router::RouterQuery};
 use gprimitives::H256;
 use std::collections::HashMap;
 
@@ -63,7 +62,6 @@ impl<DB: SyncDB> ChainSync<DB> {
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
 
-        self.propagate_validators(block, &header).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
 
         Ok(block)
@@ -163,32 +161,6 @@ impl<DB: SyncDB> ChainSync<DB> {
             self.config.wvara_address,
         )
         .await
-    }
-
-    /// Propagate validators from parent block to the current. If parent block doesn't have validators
-    /// then fetch them from router.
-    async fn propagate_validators(&self, block: H256, header: &BlockHeader) -> Result<()> {
-        match self.db.validators(header.parent_hash) {
-            Some(validators) => {
-                self.db.set_validators(block, validators);
-            }
-            None => {
-                tracing::trace!(
-                    parent_block = %header.parent_hash,
-                    "No validators info for parent block, query from router",
-                );
-
-                let router_query = RouterQuery::from_provider(
-                    self.config.router_address.into(),
-                    self.provider.clone(),
-                );
-
-                let validators = router_query.validators_at(header.parent_hash).await?;
-                self.db.set_validators(block, validators);
-            }
-        };
-
-        Ok(())
     }
 
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {

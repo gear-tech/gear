@@ -284,19 +284,16 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
         .map(|validator| {
             let mut bytes = [0u8; 32];
             bytes[12..32].copy_from_slice(&validator.0);
-            tracing::error!("bytes: {bytes:?}");
             Identifier::deserialize(&bytes).unwrap()
         })
         .collect::<Vec<_>>();
 
     let identifiers = IdentifierList::Custom(&validators_identifiers);
 
-    let threshold = ((validators.len() * 6666 + 9999) / 10000) as u16;
-
     let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
 
     let (mut secret_shares, public_key_package) =
-        keys::generate_with_dealer(validators.len() as u16, threshold, identifiers, rng).unwrap();
+        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng).unwrap();
 
     let verifiable_secret_sharing_commitment = secret_shares
         .pop_first()
@@ -319,7 +316,7 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
     Ok(ValidatorsCommitment {
         aggregated_public_key,
         verifiable_secret_sharing_commitment,
-        validators: validators.into(),
+        validators,
         era_index: era,
     })
 }

@@ -137,16 +137,19 @@ impl ValidatorCore {
             .ok_or(anyhow!("gear exe timelines not found"))?;
 
         let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
-        let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
-            - timelines.election;
+        let end_of_era = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
+        let election_ts = end_of_era - timelines.election;
+        // let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
+        //     - timelines.election;
 
         if header.timestamp < election_ts {
-            tracing::error!(
+            tracing::info!(
                 block = %hash,
                 block.timestamp = %header.timestamp,
                 election_ts = %election_ts,
-                "no election in this block, election not reached yet"
-            );
+                end_of_era = %end_of_era,
+                genesis_ts = %timelines.genesis_ts,
+                "No election in this block, election not reached yet");
             return Ok(None);
         }
 
@@ -158,14 +161,7 @@ impl ValidatorCore {
         };
 
         let elected_validators = self.middleware.make_election_at(request).await?;
-
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
-        tracing::info!("commitment: {:?}", commitment);
-        tracing::info!(
-            "Local commitment hash: {:?}",
-            Some(commitment.clone()).to_digest()
-        );
-
         Ok(Some(commitment))
     }
 
@@ -182,8 +178,6 @@ impl ValidatorCore {
         block: SimpleBlockData,
         request: BatchCommitmentValidationRequest,
     ) -> Result<Digest> {
-        tracing::error!("Participant: i am validating batch commitment");
-
         let BatchCommitmentValidationRequest {
             digest,
             head,

@@ -31,7 +31,7 @@ use ethexe_common::{
     db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
 };
 use ethexe_db::Database;
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::router::{RouterQuery};
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
 use std::{
@@ -251,8 +251,6 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
-        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
-
         let router_timelines = router_query.timelines().await?;
         let timelines = GearExeTimelines {
             genesis_ts: genesis_header.timestamp,
@@ -276,7 +274,6 @@ impl ObserverService {
         db.set_block_schedule(genesis_block_hash, Default::default());
         db.set_block_outcome(genesis_block_hash, Default::default());
         db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_validators(genesis_block_hash, genesis_validators);
         db.set_gear_exe_timelines(timelines);
 
         Ok(())

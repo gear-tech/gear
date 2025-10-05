@@ -245,11 +245,17 @@ impl ToDigest for Option<ValidatorsCommitment> {
         hasher.update(
             validators
                 .iter()
-                .flat_map(|v| v.encode().into_iter())
+                .flat_map(|v| {
+                    // Adjust to 32 bytes, because of `encodePacked` in Gear.validatorCommitmentHash
+                    let mut bytes = [0u8; 32];
+                    bytes[12..32].copy_from_slice(&v.0);
+                    bytes.into_iter()
+                })
                 .collect::<Vec<u8>>(),
         );
 
-        hasher.update(AlloyU256::from(*era_index).to_be_bytes::<32>().as_ref());
+        let bytes = AlloyU256::from(*era_index).to_be_bytes::<32>();
+        hasher.update(bytes);
     }
 }
 

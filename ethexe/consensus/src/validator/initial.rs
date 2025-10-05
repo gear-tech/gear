@@ -20,10 +20,12 @@ use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData, ValidatorsVec, db::OnChainStorageRead};
+use ethexe_common::{Address, SimpleBlockData, ValidatorsVec};
+use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
+use std::task::{Context, Poll};
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -32,13 +34,17 @@ use gprimitives::H256;
 #[display("INITIAL in {:?}", self.state)]
 pub struct Initial {
     ctx: ValidatorContext,
-    state: State,
+    state: WaitingState,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum State {
-    WaitingForChainHead,
-    WaitingForSyncedBlock(SimpleBlockData),
+#[derive(Debug)]
+enum WaitingState {
+    ChainHead,
+    SyncedBlock(SimpleBlockData),
+    BlockValidators(
+        SimpleBlockData,
+        #[debug(skip)] BoxFuture<'static, Result<ValidatorsVec>>,
+    ),
 }
 
 impl StateHandler for Initial {
@@ -54,42 +60,60 @@ impl StateHandler for Initial {
         self.ctx
     }
 
-    fn process_synced_block(self, block_hash: H256) -> Result<ValidatorState> {
-        match &self.state {
-            State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
-                let validators = self
+    fn process_synced_block(mut self, block_hash: H256) -> Result<ValidatorState> {
+        match &mut self.state {
+            WaitingState::SyncedBlock(block) if block.hash == block_hash => {
+                let validators_fut = self
                     .ctx
-                    .core
-                    .db
-                    .validators(block_hash)
-                    .ok_or(anyhow!("validators not found for block({block_hash})"))?;
-                let producer = self.producer_for(block.header.timestamp, &validators);
-                let my_address = self.ctx.core.pub_key.to_address();
+                    .validators_manager
+                    .clone()
+                    .get_validators(block.hash)
+                    .boxed();
 
-                if my_address == producer {
-                    tracing::info!(block= %block.hash, "👷 Start to work as a producer");
+                self.state = WaitingState::BlockValidators(*block, validators_fut);
 
-                    Producer::create(self.ctx, block.clone(), validators)
-                } else {
-                    // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-                    let is_validator_for_current_block = validators.contains(&my_address);
-
-                    tracing::info!(
-                        block = %block.hash,
-                        "👷 Start to work as a subordinate, producer is {producer}, \
-                        I'm validator for current block: {is_validator_for_current_block}",
-                    );
-
-                    Subordinate::create(
-                        self.ctx,
-                        block.clone(),
-                        producer,
-                        is_validator_for_current_block,
-                    )
-                }
+                Ok(self.into())
             }
             _ => DefaultProcessing::synced_block(self, block_hash),
         }
+    }
+
+    fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
+        let (block, validators) = match &mut self.state {
+            WaitingState::BlockValidators(block, fut) => match fut.poll_unpin(cx) {
+                Poll::Ready(validators_result) => (*block, validators_result?),
+                Poll::Pending => return Ok((Poll::Pending, self.into())),
+            },
+            _ => return Ok((Poll::Pending, self.into())),
+        };
+
+        let producer = self.producer_for(block.header.timestamp, &validators);
+        let my_address = self.ctx.core.pub_key.to_address();
+
+        let state = if my_address == producer {
+            tracing::info!(block= %block.hash, "👷 Start to work as a producer");
+
+            Producer::create(self.ctx, block, validators)?
+        } else {
+            // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
+            let is_validator_for_current_block = validators.contains(&my_address);
+
+            if is_validator_for_current_block {
+                tracing::info!(
+                    block = %block.hash,
+                    "👷 Start to work as a subordinate, producer is {producer}, \
+                    I'm validator for current block: {is_validator_for_current_block}",
+                );
+            } else {
+                tracing::info!(
+                    block = %block.hash,
+                    "👷 I am not a validators for this block, producer is {producer}"
+                );
+            }
+
+            Subordinate::create(self.ctx, block, producer, is_validator_for_current_block)?
+        };
+        Ok((Poll::Ready(()), state))
     }
 }
 
@@ -97,7 +121,7 @@ impl Initial {
     pub fn create(ctx: ValidatorContext) -> Result<ValidatorState> {
         Ok(Self {
             ctx,
-            state: State::WaitingForChainHead,
+            state: WaitingState::ChainHead,
         }
         .into())
     }
@@ -109,7 +133,7 @@ impl Initial {
     ) -> Result<ValidatorState> {
         Ok(Self {
             ctx,
-            state: State::WaitingForSyncedBlock(block),
+            state: WaitingState::SyncedBlock(block),
         }
         .into())
     }
@@ -149,7 +173,7 @@ mod tests {
 
     #[tokio::test]
     async fn switch_to_producer() {
-        let (ctx, keys, _) = mock_validator_context();
+        let (ctx, keys, mock_eth) = mock_validator_context();
         let validators = nonempty![
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
@@ -159,20 +183,28 @@ mod tests {
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 0;
+        ctx.core.db.set_block_header(block.hash, block.header);
 
-        ctx.core.db.set_validators(block.hash, validators);
+        mock_eth.set_validators_at(block.hash, validators).await;
 
-        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        let producer = initial.process_synced_block(block.hash).unwrap();
+        let initial = Initial::create_with_chain_head(ctx, block).unwrap();
+        let (producer, _e) = initial
+            .process_synced_block(block.hash)
+            .unwrap()
+            .wait_for_event()
+            .await
+            .unwrap();
         assert!(producer.is_producer());
     }
 
-    #[test]
-    fn switch_to_subordinate() {
-        let (ctx, keys, _) = mock_validator_context();
+    #[tokio::test]
+    async fn switch_to_subordinate() {
+        let (ctx, keys, mock_eth) = mock_validator_context();
 
         let mut block = SimpleBlockData::mock(H256::random());
         block.header.timestamp = 1;
+
+        ctx.core.db.set_block_header(block.hash, block.header);
 
         let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
@@ -180,10 +212,15 @@ mod tests {
             keys[2].to_address(),
         ]
         .into();
-        ctx.core.db.set_validators(block.hash, validators);
+        mock_eth.set_validators_at(block.hash, validators).await;
 
-        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        let producer = initial.process_synced_block(block.hash).unwrap();
+        let initial = Initial::create_with_chain_head(ctx, block).unwrap();
+        let (producer, _e) = initial
+            .process_synced_block(block.hash)
+            .unwrap()
+            .wait_for_event()
+            .await
+            .unwrap();
         assert!(producer.is_subordinate());
     }
 
@@ -217,14 +254,15 @@ mod tests {
 
     #[test]
     fn producer_for_calculates_correct_producer() {
-        let (ctx, keys, _) = mock_validator_context(); let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect())
+        let (ctx, keys, _) = mock_validator_context();
+        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect())
             .unwrap()
             .into();
         let timestamp = 10;
 
         let producer = Initial {
             ctx,
-            state: State::WaitingForChainHead,
+            state: WaitingState::ChainHead,
         }
         .producer_for(timestamp, &validators);
         assert_eq!(producer, validators[10 % validators.len()]);

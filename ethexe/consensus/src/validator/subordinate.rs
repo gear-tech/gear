@@ -191,7 +191,7 @@ mod tests {
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(H256::random());
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         assert!(s.is_subordinate());
         assert_eq!(
@@ -238,7 +238,7 @@ mod tests {
         ctx.pending(request1.clone());
         ctx.pending(request2.clone());
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         assert!(s.is_subordinate());
         assert_eq!(
@@ -266,7 +266,7 @@ mod tests {
             ctx.pending(pb);
         }
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         assert!(s.is_subordinate());
         assert_eq!(s.context().output, vec![pb.data().clone().into()]);
@@ -280,7 +280,7 @@ mod tests {
         let block = SimpleBlockData::mock(H256::random());
         let pb = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
         assert_eq!(
             s.context().output,
@@ -308,7 +308,7 @@ mod tests {
         let block = SimpleBlockData::mock(H256::random());
         let pb = SignedProducerBlock::mock((ctx.core.signer.clone(), producer, block.hash));
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), false).unwrap();
         assert!(s.is_subordinate());
         assert_eq!(s.context().output.len(), 1);
         assert_eq!(
@@ -354,7 +354,7 @@ mod tests {
         let invalid_pb =
             SignedProducerBlock::mock((ctx.core.signer.clone(), pub_keys[1], block.hash));
 
-        let mut s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let mut s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         s = s.process_block_from_producer(invalid_pb.clone()).unwrap();
         assert_eq!(s.context().output.len(), 2);
@@ -370,7 +370,7 @@ mod tests {
         let block = SimpleBlockData::mock(H256::random());
         let unexpected_hash = H256::random();
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         let s = s.process_computed_block(unexpected_hash).unwrap();
         assert_eq!(s.context().output.len(), 2);

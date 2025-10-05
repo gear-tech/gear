@@ -155,13 +155,12 @@ impl Participant {
             return Ok(self.into());
         };
 
-        tracing::info!("Start processing validation request");
         self.state = State::ProcessingValidationRequest {
             future: self
                 .ctx
                 .core
                 .clone()
-                .validate_batch_commitment_request(self.block.clone(), request)
+                .validate_batch_commitment_request(self.block, request)
                 .boxed(),
         };
 
@@ -371,7 +370,7 @@ mod tests {
 
         let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
 
-        let state = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state

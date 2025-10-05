@@ -45,6 +45,11 @@ pub mod events;
 type Instance = IRouter::IRouterInstance<AlloyProvider>;
 type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 
+#[async_trait::async_trait]
+pub trait ValidatorsProvider: Send + Sync {
+    async fn validators_at(&self, block: H256) -> Result<ValidatorsVec>;
+}
+
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
     pending_builder: PendingTransactionBuilder<AlloyEthereum>,
@@ -219,6 +224,21 @@ pub struct RouterQuery {
     instance: QueryInstance,
 }
 
+#[async_trait::async_trait]
+impl ValidatorsProvider for RouterQuery {
+    async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+        let validators: Vec<_> = self
+            .instance
+            .validators()
+            .call()
+            .block(B256::from(block.0).into())
+            .await
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::<anyhow::Error>::into)?;
+        validators.try_into().map_err(Into::into)
+    }
+}
+
 impl RouterQuery {
     pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
@@ -306,18 +326,6 @@ impl RouterQuery {
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)
-    }
-
-    pub async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
-        let validators: Vec<_> = self
-            .instance
-            .validators()
-            .call()
-            .block(B256::from(block.0).into())
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::<anyhow::Error>::into)?;
-        validators.try_into().map_err(Into::into)
     }
 
     pub async fn threshold(&self) -> Result<u64> {

@@ -44,6 +44,7 @@ pub use utils::{
 pub use validator::{ValidatorConfig, ValidatorService};
 
 mod connect;
+mod manager;
 mod utils;
 mod validator;
 

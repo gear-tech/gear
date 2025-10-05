@@ -75,7 +75,7 @@ impl StateHandler for Producer {
             self.ctx
                 .core
                 .clone()
-                .aggregate_batch_commitment(self.block.clone())
+                .aggregate_batch_commitment(self.block)
                 .boxed(),
         );
 
@@ -93,7 +93,7 @@ impl StateHandler for Producer {
             State::WaitingBlockComputed => {}
             State::AggregateBatchCommitment(future) => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
-                    tracing::error!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
+                    tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
                     return Coordinator::create(self.ctx, self.validators, batch)
                         .map(|s| (Poll::Ready(()), s));
                 }
@@ -165,11 +165,7 @@ mod tests {
     use super::*;
     use crate::{SignedValidationRequest, mock::*, validator::mock::*};
     use async_trait::async_trait;
-    use ethexe_common::{
-        Digest, ToDigest,
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
-        gear::CodeCommitment,
-    };
+    use ethexe_common::{Digest, ToDigest, db::BlockMetaStorageWrite, gear::CodeCommitment};
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -201,7 +197,7 @@ mod tests {
             nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
 
-        let state = Producer::create(ctx, block.clone(), validators)
+        let state = Producer::create(ctx, block, validators)
             .unwrap()
             .skip_timer()
             .await
@@ -228,7 +224,7 @@ mod tests {
 
         // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
         // until batch is committed
-        let (state, event) = Producer::create(ctx, block.clone(), validators.clone())
+        let (state, event) = Producer::create(ctx, block, validators.clone())
             .unwrap()
             .skip_timer()
             .await
@@ -264,7 +260,7 @@ mod tests {
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
         ctx.core.signatures_threshold = 2;
-        let (state, event) = Producer::create(ctx, block.clone(), validators.clone())
+        let (state, event) = Producer::create(ctx, block, validators.clone())
             .unwrap()
             .skip_timer()
             .await
@@ -284,7 +280,6 @@ mod tests {
         let validators: ValidatorsVec =
             nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
-        ctx.core.db.set_validators(block.hash, validators.clone());
 
         let code1 = CodeCommitment::mock(()).prepare(&ctx.core.db, ());
         let code2 = CodeCommitment::mock(()).prepare(&ctx.core.db, ());
@@ -296,11 +291,14 @@ mod tests {
             meta.last_committed_head = Some(H256::random());
         });
 
-        let initial = create_producer_skip_timer(ctx, block.clone(), validators.clone())
+        let initial = create_producer_skip_timer(ctx, block, validators.clone())
             .await
             .unwrap()
             .0
             .process_computed_block(block.hash)
+            .unwrap()
+            .wait_for_initial()
+            .await
             .unwrap();
 
         assert!(initial.is_initial());
@@ -343,7 +341,7 @@ mod tests {
         block: SimpleBlockData,
         validators: ValidatorsVec,
     ) -> Result<(ValidatorState, ConsensusEvent, ConsensusEvent)> {
-        let producer = Producer::create(ctx, block.clone(), validators)?;
+        let producer = Producer::create(ctx, block, validators)?;
         assert!(producer.is_producer());
 
         let (producer, publish_event) = producer.wait_for_event().await?;

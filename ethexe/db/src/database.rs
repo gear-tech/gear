@@ -25,7 +25,6 @@ use crate::{
 use anyhow::{Result, bail};
 use ethexe_common::{
     BlockHeader, BlockMeta, CodeBlobInfo, Digest, GearExeTimelines, ProgramStates, Schedule,
-    ValidatorsVec,
     db::{
         BlockMetaStorageRead, BlockMetaStorageWrite, BlockOutcome, CodesStorageRead,
         CodesStorageWrite, OnChainStorageRead, OnChainStorageWrite, StaticData,
@@ -63,11 +62,10 @@ enum Key {
     CodeValid(CodeId) = 9,
 
     SignedTransaction(H256) = 10,
-    Validators(H256) = 11,
 
-    LatestComputedBlock = 12,
-    LatestSyncedBlockHeight = 13,
-    StaticData = 14,
+    LatestComputedBlock = 11,
+    LatestSyncedBlockHeight = 12,
+    StaticData = 13,
 }
 
 impl Key {
@@ -87,8 +85,7 @@ impl Key {
             | Self::BlockProgramStates(hash)
             | Self::BlockOutcome(hash)
             | Self::BlockSchedule(hash)
-            | Self::SignedTransaction(hash)
-            | Self::Validators(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -651,15 +648,6 @@ impl OnChainStorageRead for Database {
                 u32::decode(&mut data.as_slice()).expect("Failed to decode data into `u32`")
             })
     }
-
-    fn validators(&self, block_hash: H256) -> Option<ValidatorsVec> {
-        self.kv
-            .get(&Key::Validators(block_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `ValidatorsVec`")
-            })
-    }
 }
 
 impl OnChainStorageWrite for Database {
@@ -684,11 +672,6 @@ impl OnChainStorageWrite for Database {
     fn set_latest_synced_block_height(&self, height: u32) {
         self.kv
             .put(&Key::LatestSyncedBlockHeight.to_bytes(), height.encode());
-    }
-
-    fn set_validators(&self, block_hash: H256, validators: ValidatorsVec) {
-        self.kv
-            .put(&Key::Validators(block_hash).to_bytes(), validators.encode());
     }
 }
 

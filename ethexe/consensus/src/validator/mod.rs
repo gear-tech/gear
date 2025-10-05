@@ -43,6 +43,7 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
     SignedValidationRequest,
+    manager::ValidatorsManager,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -129,6 +130,7 @@ impl ValidatorService {
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
+        let router_query = router.query();
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
@@ -142,6 +144,7 @@ impl ValidatorService {
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
             },
+            validators_manager: ValidatorsManager::new(db, router_query),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
@@ -440,6 +443,8 @@ struct ValidatorContext {
     /// Core validator parameters and utilities.
     core: ValidatorCore,
 
+    #[debug(skip)]
+    validators_manager: ValidatorsManager<Database>,
     /// ## Important
     /// New events are pushed-front, in order to process the most recent event first.
     /// So, actually it is a stack.

@@ -686,8 +686,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
         let router_query = observer.router_query();
 
-        let validators = router_query.validators_at(latest_committed_block).await?;
-
         let genesis_block = router_query.genesis_block_hash().await?;
 
         let genesis_header = observer
@@ -702,7 +700,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             election: router_timelines.election,
         };
 
-        db.set_validators(latest_committed_block, validators);
         db.set_gear_exe_timelines(timelines);
     }
 

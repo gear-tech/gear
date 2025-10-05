@@ -134,7 +134,6 @@ fn generate_chain(db: Database, chain_len: u32) -> VecDeque<H256> {
             parent_hash: H256::zero(),
         },
     );
-    db.set_validators(genesis_hash, Default::default());
 
     let mut chain = VecDeque::new();
 

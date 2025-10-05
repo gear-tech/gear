@@ -116,6 +116,7 @@ impl TestEnv {
             block_time,
             rpc,
             wallets,
+            signer,
             router_address,
             continuous_block_generation,
             network,
@@ -151,8 +152,6 @@ impl TestEnv {
             }
         };
 
-        let signer = Signer::memory();
-
         let mut wallets = if let Some(wallets) = wallets {
             Wallets::custom(&signer, wallets)
         } else {
@@ -160,6 +159,7 @@ impl TestEnv {
         };
 
         let validators: Vec<_> = match validators {
+            ValidatorsConfig::ProvidedValidators(validators_keys) => validators_keys,
             ValidatorsConfig::PreDefined(amount) => (0..amount).map(|_| wallets.next()).collect(),
             ValidatorsConfig::Custom(keys) => keys
                 .iter()
@@ -597,6 +597,8 @@ impl TestEnv {
 }
 
 pub enum ValidatorsConfig {
+    /// Use provided public keys
+    ProvidedValidators(Vec<PublicKey>),
     /// Take validator addresses from provided wallet, amount of validators is provided.
     PreDefined(usize),
     /// Custom validator eth-addresses in hex string format.
@@ -634,6 +636,8 @@ pub struct TestEnvConfig {
     pub rpc: EnvRpcConfig,
     /// By default uses anvil hardcoded wallets if custom wallets are not provided.
     pub wallets: Option<Vec<String>>,
+    /// Signer
+    pub signer: Signer,
     /// If None (by default) new router will be deployed.
     /// In case of Some(_), will connect to existing router contract.
     pub router_address: Option<String>,
@@ -655,9 +659,10 @@ impl Default for TestEnvConfig {
                 // when the next finalized block is produced, which is convenient for tests
                 slots_in_epoch: Some(1),
                 // For deterministic tests we need to set fixed genesis timestamp
-                genesis_timestamp: Some(1),
+                genesis_timestamp: Some(1_000_000),
             },
             wallets: None,
+            signer: Signer::memory(),
             router_address: None,
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
@@ -726,6 +731,7 @@ pub struct ValidatorConfig {
 }
 
 /// Provides access to hardcoded anvil wallets or custom set wallets.
+#[derive(Clone)]
 pub struct Wallets {
     wallets: Vec<PublicKey>,
     next_wallet: usize,

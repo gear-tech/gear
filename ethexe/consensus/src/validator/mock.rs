@@ -21,6 +21,7 @@ use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{GearExeTimelines, ValidatorsVec, db::OnChainStorageWrite};
+use ethexe_ethereum::router::ValidatorsProvider;
 use hashbrown::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -29,6 +30,7 @@ use tokio::sync::RwLock;
 pub struct MockEthereum {
     pub committed_batch: Arc<RwLock<Option<MultisignedBatchCommitment>>>,
     pub predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
+    pub predefined_validators_at: Arc<RwLock<HashMap<H256, ValidatorsVec>>>,
 }
 
 #[async_trait]
@@ -52,6 +54,25 @@ impl ElectionProvider for MockEthereum {
                 "No predefined election result for the given request"
             )),
         }
+    }
+}
+
+#[async_trait]
+impl ValidatorsProvider for MockEthereum {
+    async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+        match self.predefined_validators_at.read().await.get(&block) {
+            Some(validators) => Ok(validators.clone()),
+            None => Err(anyhow!("Validators not found")),
+        }
+    }
+}
+
+impl MockEthereum {
+    pub async fn set_validators_at(&self, block: H256, validators: ValidatorsVec) {
+        self.predefined_validators_at
+            .write()
+            .await
+            .insert(block, validators);
     }
 }
 
@@ -123,6 +144,7 @@ impl WaitFor for ValidatorState {
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
+    let db = Database::memory();
 
     let ctx = ValidatorContext {
         core: ValidatorCore {
@@ -131,12 +153,13 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             router_address: 12345.into(),
             pub_key: keys.pop().unwrap(),
             signer,
-            db: Database::memory(),
+            db: db.clone(),
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },
+        validators_manager: ValidatorsManager::new(db, ethereum.clone()),
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
     };
