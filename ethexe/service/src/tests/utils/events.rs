@@ -20,7 +20,8 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData, db::*, events::BlockEvent, tx_pool::SignedOffchainTransaction,
+    AnnounceHash, SimpleBlockData, db::*, events::BlockEvent, network::NetworkMessage,
+    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -42,9 +43,10 @@ pub type TestingEventReceiver = Receiver<TestingEvent>;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum TestingNetworkEvent {
     Message {
-        data: Vec<u8>,
+        message: NetworkMessage,
         source: Option<PeerId>,
     },
+    OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -52,10 +54,13 @@ pub(crate) enum TestingNetworkEvent {
 impl TestingNetworkEvent {
     fn new(event: &NetworkEvent) -> Self {
         match event {
-            NetworkEvent::Message { data, source } => Self::Message {
-                data: data.clone(),
+            NetworkEvent::Message { message, source } => Self::Message {
+                message: message.clone(),
                 source: *source,
             },
+            NetworkEvent::OffchainTransaction(transaction) => {
+                Self::OffchainTransaction(transaction.clone())
+            }
             NetworkEvent::PeerBlocked(peer) => Self::PeerBlocked(*peer),
             NetworkEvent::PeerConnected(peer) => Self::PeerConnected(*peer),
         }

@@ -27,10 +27,11 @@ pub mod export {
 
 use crate::db_sync::DbSyncDatabase;
 use anyhow::{Context, anyhow};
-use ethexe_common::{Address, ecdsa::PublicKey};
+use ethexe_common::{
+    Address, ecdsa::PublicKey, network::NetworkMessage, tx_pool::SignedOffchainTransaction,
+};
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
-use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -47,6 +48,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::HashSet,
     hash::{DefaultHasher, Hash, Hasher},
@@ -67,10 +69,10 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 #[derive(Eq, PartialEq, derive_more::Debug)]
 pub enum NetworkEvent {
     Message {
-        #[debug("{:.8} ({} bytes)", ByteSliceFormatter::Dynamic(data), data.len())]
-        data: Vec<u8>,
+        message: NetworkMessage,
         source: Option<PeerId>,
     },
+    OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -388,9 +390,19 @@ impl NetworkService {
                         topic: _,
                     },
                 ..
-            }) => {
-                return Some(NetworkEvent::Message { source, data });
-            }
+            }) => match NetworkMessage::decode(&mut &data[..]) {
+                Ok(message) => return Some(NetworkEvent::Message { source, message }),
+                Err(error) => {
+                    log::trace!("failed to decode network message from {source:?}: {error}");
+                    if let Some(peer) = source {
+                        self.swarm
+                            .behaviour()
+                            .peer_score
+                            .handle()
+                            .invalid_data(peer);
+                    }
+                }
+            },
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported");
                 self.swarm
@@ -419,23 +431,23 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    pub fn publish_message(&mut self, data: Vec<u8>) {
+    pub fn publish_message(&mut self, data: impl Into<NetworkMessage>) {
         if let Err(e) = self
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.commitments_topic.clone(), data)
+            .publish(self.commitments_topic.clone(), data.into().encode())
         {
             log::error!("gossipsub publishing failed: {e}")
         }
     }
 
-    pub fn publish_offchain_transaction(&mut self, data: Vec<u8>) {
+    pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
         if let Err(e) = self
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.offchain_topic.clone(), data)
+            .publish(self.offchain_topic.clone(), data.encode())
         {
             log::error!("gossipsub publishing failed: {e}")
         }
