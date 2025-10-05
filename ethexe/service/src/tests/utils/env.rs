@@ -92,9 +92,8 @@ pub struct TestEnv {
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     broadcaster: Sender<ObserverEvent>,
     db: Database,
-    /// If network is enabled by test, then we store here:
-    /// network service polling thread, bootstrap address and nonce for new node address generation.
-    bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
+    /// Network service polling thread, bootstrap address and nonce for new node address generation.
+    bootstrap_network: (JoinHandle<()>, String, usize),
 
     _anvil: Option<AnvilInstance>,
     _events_stream: JoinHandle<()>,
@@ -250,48 +249,33 @@ impl TestEnv {
 
         let threshold = router_query.threshold().await?;
 
-        let network_address = match network {
-            EnvNetworkConfig::Disabled => None,
-            EnvNetworkConfig::Enabled => Some(None),
-            EnvNetworkConfig::EnabledWithCustomAddress(address) => Some(Some(address)),
-        };
+        let network_key = signer.generate_key().unwrap();
+        let (nonce, multiaddr) = network.into_nonce_and_address();
 
-        let bootstrap_network = network_address.map(|maybe_address| {
-            static NONCE: AtomicUsize = AtomicUsize::new(1);
+        let mut config = NetworkConfig::new_test(network_key, router_address);
+        config.listen_addresses = [multiaddr.clone()].into();
+        config.external_addresses = [multiaddr.clone()].into();
+        let mut service = NetworkService::new(
+            config,
+            &signer,
+            Box::new(RouterDataProvider(router_query.clone())),
+            Box::new(db.clone()),
+        )
+        .unwrap();
 
-            // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
-            let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
-            let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
+        let local_peer_id = service.local_peer_id();
 
-            let network_key = signer.generate_key().unwrap();
-            let multiaddr: Multiaddr = address.parse().unwrap();
-
-            let mut config = NetworkConfig::new_test(network_key, router_address);
-            config.listen_addresses = [multiaddr.clone()].into();
-            config.external_addresses = [multiaddr.clone()].into();
-            let mut service = NetworkService::new(
-                config,
-                &signer,
-                Box::new(RouterDataProvider(router_query.clone())),
-                Box::new(db.clone()),
-            )
-            .unwrap();
-
-            let local_peer_id = service.local_peer_id();
-
-            let handle = task::spawn(
-                async move {
-                    loop {
-                        let _event = service.select_next_some().await;
-                    }
+        let handle = task::spawn(
+            async move {
+                loop {
+                    let _event = service.select_next_some().await;
                 }
-                .instrument(tracing::trace_span!("network-stream")),
-            );
+            }
+            .instrument(tracing::trace_span!("network-stream")),
+        );
 
-            let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
-
-            (handle, bootstrap_address, nonce)
-        });
+        let bootstrap_address = format!("{multiaddr}/p2p/{local_peer_id}");
+        let bootstrap_network = (handle, bootstrap_address, nonce);
 
         // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
         if anvil.is_some() && !continuous_block_generation {
@@ -333,19 +317,16 @@ impl TestEnv {
 
         let db = db.unwrap_or_else(Database::memory);
 
-        let (network_address, network_bootstrap_address) = self
-            .bootstrap_network
-            .as_mut()
-            .map(|(_, bootstrap_address, nonce)| {
-                *nonce += 1;
+        let (_, bootstrap_address, nonce) = &mut self.bootstrap_network;
 
-                if (*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST) {
-                    panic!("Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}");
-                }
+        *nonce += 1;
+        assert!(
+            !(*nonce).is_multiple_of(MAX_NETWORK_SERVICES_PER_TEST),
+            "Too many network services created by one test env: max is {MAX_NETWORK_SERVICES_PER_TEST}"
+        );
 
-                (format!("/memory/{nonce}"), bootstrap_address.clone())
-            })
-            .unzip();
+        let network_address = format!("/memory/{nonce}");
+        let network_bootstrap_address = bootstrap_address.clone();
 
         Node {
             name,
@@ -596,13 +577,32 @@ pub enum ValidatorsConfig {
 
 /// Configuration for the network service.
 pub enum EnvNetworkConfig {
-    /// Network service is disabled.
-    Disabled,
     /// Network service is enabled. Network address will be generated.
     Enabled,
-    #[allow(unused)]
     /// Network service is enabled. Network address is provided as String.
-    EnabledWithCustomAddress(String),
+    #[allow(unused)]
+    CustomAddress(String),
+}
+
+impl EnvNetworkConfig {
+    pub fn into_nonce_and_address(self) -> (usize, Multiaddr) {
+        static NONCE: AtomicUsize = AtomicUsize::new(1);
+
+        let addr = match self {
+            EnvNetworkConfig::Enabled => None,
+            EnvNetworkConfig::CustomAddress(address) => Some(address),
+        };
+
+        // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
+        let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
+
+        let addr = addr
+            .unwrap_or_else(|| format!("/memory/{nonce}"))
+            .parse()
+            .unwrap();
+
+        (nonce, addr)
+    }
 }
 
 pub enum EnvRpcConfig {
@@ -629,7 +629,7 @@ pub struct TestEnvConfig {
     pub router_address: Option<String>,
     /// Identify whether networks works (or have to works) in continuous block generation mode, false by default.
     pub continuous_block_generation: bool,
-    /// Network service configuration, disabled by default.
+    /// Network service configuration.
     pub network: EnvNetworkConfig,
 }
 
@@ -648,7 +648,7 @@ impl Default for TestEnvConfig {
             wallets: None,
             router_address: None,
             continuous_block_generation: false,
-            network: EnvNetworkConfig::Disabled,
+            network: EnvNetworkConfig::Enabled,
         }
     }
 }
@@ -773,8 +773,8 @@ pub struct Node {
     block_time: Duration,
     running_service_handle: Option<JoinHandle<()>>,
     validator_config: Option<ValidatorConfig>,
-    network_address: Option<String>,
-    network_bootstrap_address: Option<String>,
+    network_address: String,
+    network_bootstrap_address: String,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
 }
@@ -788,29 +788,26 @@ impl Node {
 
         let processor = Processor::new(self.db.clone()).unwrap();
 
-        let wait_for_network = self.network_bootstrap_address.is_some();
+        let network_key = self.signer.generate_key().unwrap();
+        let multiaddr: Multiaddr = self.network_address.parse().unwrap();
 
-        let network = self.network_address.as_ref().map(|addr| {
-            let network_key = self.signer.generate_key().unwrap();
-            let multiaddr: Multiaddr = addr.parse().unwrap();
-
-            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
-            config.listen_addresses = [multiaddr.clone()].into();
-            config.external_addresses = [multiaddr.clone()].into();
-            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
-                let multiaddr = bootstrap_addr.parse().unwrap();
-                config.bootstrap_addresses = [multiaddr].into();
-            }
-            let network = NetworkService::new(
-                config,
-                &self.signer,
-                Box::new(RouterDataProvider(self.router_query.clone())),
-                Box::new(self.db.clone()),
-            )
-            .unwrap();
-            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
-            network
-        });
+        let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
+        config.listen_addresses = [multiaddr.clone()].into();
+        config.external_addresses = [multiaddr.clone()].into();
+        let multiaddr = self.network_bootstrap_address.parse().unwrap();
+        config.bootstrap_addresses = [multiaddr].into();
+        let network = NetworkService::new(
+            config,
+            &self.signer,
+            Box::new(RouterDataProvider(self.router_query.clone())),
+            Box::new(self.db.clone()),
+        )
+        .unwrap();
+        self.multiaddr = Some(format!(
+            "{addr}/p2p/{peer}",
+            addr = self.network_address,
+            peer = network.local_peer_id()
+        ));
 
         let consensus: Pin<Box<dyn ConsensusService>> =
             if let Some(config) = self.validator_config.as_ref() {
@@ -857,8 +854,8 @@ impl Node {
             processor,
             self.signer.clone(),
             tx_pool_service,
-            consensus,
             network,
+            consensus,
             None,
             rpc,
             sender,
@@ -894,7 +891,7 @@ impl Node {
             .await;
 
         // fast sync implies network has connections
-        if wait_for_network && !self.fast_sync {
+        if !self.fast_sync {
             self.wait_for(|e| {
                 matches!(
                     e,
