@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Events, TxInBlock, client::Rpc, config::GearConfig, metadata::Event, signer::Signer,
+    Blocks, Events, ProgramStateChanges, TxInBlock, client::Rpc, config::GearConfig,
+    metadata::Event, signer::Signer,
 };
 use anyhow::Result;
 use core::ops::{Deref, DerefMut};
-use subxt::OnlineClient;
+use sp_core::H256;
+use subxt::{OnlineClient, rpc_params};
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
 const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
@@ -103,6 +105,23 @@ impl Api {
     /// Same as `events` but only finalized events.
     pub async fn finalized_events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
+    }
+
+    /// Subscribe to program state changes reported by the node.
+    pub async fn subscribe_program_state_changes(
+        &self,
+        program_ids: Option<Vec<H256>>,
+    ) -> Result<ProgramStateChanges> {
+        let subscription = self
+            .rpc()
+            .subscribe(
+                "gear_subscribeProgramStateChanges",
+                rpc_params![program_ids],
+                "gear_unsubscribeProgramStateChanges",
+            )
+            .await?;
+
+        Ok(ProgramStateChanges::new(subscription))
     }
 
     /// New signer from api

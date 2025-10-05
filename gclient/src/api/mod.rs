@@ -27,10 +27,11 @@ use crate::{EventListener, ws::WSAddress};
 use error::*;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
-    Api, ApiBuilder,
+    Api, ApiBuilder, ProgramStateChanges,
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
 };
+use sp_core::H256;
 use std::{ffi::OsStr, sync::Arc};
 
 /// The API instance contains methods to access the node.
@@ -124,6 +125,18 @@ impl GearApi {
     pub async fn subscribe(&self) -> Result<EventListener> {
         let events = self.0.api().subscribe_finalized_blocks().await?;
         Ok(EventListener(events))
+    }
+
+    /// Subscribe to program state changes.
+    pub async fn subscribe_program_state_changes(
+        &self,
+        program_ids: Option<Vec<H256>>,
+    ) -> Result<ProgramStateChanges> {
+        self.0
+            .api()
+            .subscribe_program_state_changes(program_ids)
+            .await
+            .map_err(Into::into)
     }
 
     /// Set the number used once (`nonce`) that will be used while sending

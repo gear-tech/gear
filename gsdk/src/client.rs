@@ -39,6 +39,7 @@ use subxt::{
         rpc::{
             RawRpcFuture as RpcFuture, RawRpcSubscription as RpcSubscription, RawValue,
             RpcClient as SubxtRpcClient, RpcClientT, RpcParams,
+            RpcSubscription as TypedRpcSubscription,
         },
     },
     error::RpcError,
@@ -195,6 +196,19 @@ impl Rpc {
             retries += 1;
             log::warn!("Failed to send request: {:?}, retries: {retries}", r.err());
         }
+    }
+
+    /// Subscribe to an RPC endpoint and return a typed subscription stream.
+    pub async fn subscribe<Res: DeserializeOwned>(
+        &self,
+        sub: &str,
+        params: RpcParams,
+        unsub: &str,
+    ) -> Result<TypedRpcSubscription<Res>> {
+        self.rpc
+            .subscribe(sub, params, unsub)
+            .await
+            .map_err(Into::into)
     }
 }
 

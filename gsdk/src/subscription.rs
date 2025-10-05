@@ -18,12 +18,17 @@
 
 //! Subscription implementation.
 
-use crate::{config::GearConfig, metadata::Event};
-use anyhow::Result;
+use crate::{config::GearConfig, metadata::Event, result::Result};
 use futures::{Stream, StreamExt};
+use serde::Deserialize;
 use sp_core::H256;
 use std::{marker::Unpin, ops::Deref, pin::Pin, task::Poll};
-use subxt::{OnlineClient, backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents};
+use subxt::{
+    OnlineClient,
+    backend::{StreamOfResults, rpc::RpcSubscription},
+    blocks::Block,
+    events::Events as SubxtEvents,
+};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
 type BlockSubscription = StreamOfResults<SubxtBlock>;
@@ -117,6 +122,46 @@ impl BlockEvents {
             .collect::<Result<Vec<_>>>()
     }
 }
+
+/// Program state change item.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct ProgramStateChange {
+    /// Hash of the block that triggered the notification.
+    pub block_hash: H256,
+    /// List of programs whose states changed in that block.
+    pub program_ids: Vec<H256>,
+}
+
+/// Subscription of program state changes.
+pub struct ProgramStateChanges(RpcSubscription<ProgramStateChange>);
+
+impl ProgramStateChanges {
+    pub(crate) fn new(inner: RpcSubscription<ProgramStateChange>) -> Self {
+        Self(inner)
+    }
+
+    /// Obtain the underlying subscription identifier if available.
+    pub fn subscription_id(&self) -> Option<&str> {
+        self.0.subscription_id()
+    }
+}
+
+impl Stream for ProgramStateChanges {
+    type Item = Result<ProgramStateChange>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        match futures::ready!(self.0.poll_next_unpin(cx)) {
+            Some(Ok(change)) => Poll::Ready(Some(Ok(change))),
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
+            None => Poll::Ready(None),
+        }
+    }
+}
+
+impl Unpin for ProgramStateChanges {}
 
 impl Deref for BlockEvents {
     type Target = SubxtEvents<GearConfig>;
