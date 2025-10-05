@@ -19,10 +19,9 @@
 use crate::{
     Announce, AnnounceHash, Digest, ToDigest,
     ecdsa::{ContractSignature, SignedData},
-    gear::{BatchCommitment, CodeCommitment},
-    mock::Mock,
+    gear::BatchCommitment,
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::CodeId;
 use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
 
