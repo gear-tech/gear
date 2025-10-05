@@ -415,7 +415,7 @@ impl Service {
                     }
                 },
                 Event::Network(event) => match event {
-                    NetworkEvent::Message { source: _, message } => {
+                    NetworkEvent::Message(message) => {
                         match message {
                             NetworkMessage::ProducerBlock(block) => {
                                 consensus.receive_announce(block)?

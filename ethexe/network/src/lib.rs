@@ -66,12 +66,9 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Eq, PartialEq, derive_more::Debug)]
+#[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    Message {
-        message: NetworkMessage,
-        source: Option<PeerId>,
-    },
+    Message(NetworkMessage),
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -387,22 +384,31 @@ impl NetworkService {
                         source,
                         data,
                         sequence_number: _,
-                        topic: _,
+                        topic,
                     },
                 ..
-            }) => match NetworkMessage::decode(&mut &data[..]) {
-                Ok(message) => return Some(NetworkEvent::Message { source, message }),
-                Err(error) => {
-                    log::trace!("failed to decode network message from {source:?}: {error}");
-                    if let Some(peer) = source {
-                        self.swarm
-                            .behaviour()
-                            .peer_score
-                            .handle()
-                            .invalid_data(peer);
+            }) => {
+                let peer_score = self.swarm.behaviour().peer_score.handle();
+
+                let res = if topic == self.commitments_topic.hash() {
+                    NetworkMessage::decode(&mut &data[..]).map(NetworkEvent::Message)
+                } else if topic == self.offchain_topic.hash() {
+                    SignedOffchainTransaction::decode(&mut &data[..])
+                        .map(NetworkEvent::OffchainTransaction)
+                } else {
+                    unreachable!("topic we never subscribed to: {topic:?}");
+                };
+
+                match res {
+                    Ok(event) => return Some(event),
+                    Err(error) => {
+                        if let Some(peer) = source {
+                            log::trace!("failed to decode gossip message from {source:?}: {error}");
+                            peer_score.invalid_data(peer);
+                        }
                     }
                 }
-            },
+            }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported");
                 self.swarm
