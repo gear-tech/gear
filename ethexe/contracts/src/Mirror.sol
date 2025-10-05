@@ -51,7 +51,7 @@ contract Mirror is IMirror {
         _;
     }
 
-    function _onlyAfterInitMessage() internal {
+    function _onlyAfterInitMessage() internal view {
         require(nonce > 0, "initializer hasn't created init message yet");
     }
 
@@ -61,7 +61,7 @@ contract Mirror is IMirror {
         _;
     }
 
-    function _onlyAfterInitMessageOrInitializer() internal {
+    function _onlyAfterInitMessageOrInitializer() internal view {
         require(
             nonce > 0 || msg.sender == initializer,
             "initializer hasn't created init message yet; and caller is not the initializer"
@@ -74,7 +74,7 @@ contract Mirror is IMirror {
         _;
     }
 
-    function _onlyIfActive() internal {
+    function _onlyIfActive() internal view {
         require(!exited, "program is exited");
     }
 
@@ -84,7 +84,7 @@ contract Mirror is IMirror {
         _;
     }
 
-    function _onlyIfExited() internal {
+    function _onlyIfExited() internal view {
         require(exited, "program is not exited");
     }
 
@@ -94,7 +94,7 @@ contract Mirror is IMirror {
         _;
     }
 
-    function _onlyRouter() internal {
+    function _onlyRouter() internal view {
         require(msg.sender == router, "caller is not the router");
     }
 
@@ -111,15 +111,27 @@ contract Mirror is IMirror {
         }
     }
 
+    /// @dev Non-zero Ether value must be transferred from source to router in functions marked with this modifier.
+    function _retrievingEther(uint128 value) internal {
+        if (value != 0) {
+            (bool success,) = router.call{value: value}("");
+            require(success, "failed to transfer non-zero amount of Ether from source to router");
+        }
+    }
+
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata _payload, uint128 _value, bool _callReply)
-        public
+    function sendMessage(bytes calldata _payload, bool _callReply)
+        external
+        payable
         onlyIfActive
         onlyAfterInitMessageOrInitializer
-        retrievingVara(_value)
         returns (bytes32)
     {
+        uint128 _value = uint128(msg.value);
+
+        _retrievingEther(_value);
+
         bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
 
         emit MessageQueueingRequested(id, msg.sender, _payload, _value, _callReply);
@@ -127,12 +139,16 @@ contract Mirror is IMirror {
         return id;
     }
 
-    function sendReply(bytes32 _repliedTo, bytes calldata _payload, uint128 _value)
+    function sendReply(bytes32 _repliedTo, bytes calldata _payload)
         external
+        payable
         onlyIfActive
         onlyAfterInitMessage
-        retrievingVara(_value)
     {
+        uint128 _value = uint128(msg.value);
+
+        _retrievingEther(_value);
+
         emit ReplyQueueingRequested(_repliedTo, msg.sender, _payload, _value);
     }
 
@@ -146,8 +162,8 @@ contract Mirror is IMirror {
     }
 
     function transferLockedValueToInheritor() public onlyIfExited {
-        uint256 balance = _wvara(router).balanceOf(address(this));
-        _transferVara(inheritor, uint128(balance));
+        uint256 balance = address(this).balance;
+        _transferEther(inheritor, uint128(balance));
     }
 
     /* Router-driven state and funds management */
@@ -293,6 +309,7 @@ contract Mirror is IMirror {
             !(
                 topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
+                    && topic1 != ReducibleBalanceTopUpRequested.selector
                     && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
                     && topic1 != Reply.selector && topic1 != ValueClaimed.selector
             )
@@ -344,7 +361,7 @@ contract Mirror is IMirror {
 
     /// @dev Non-zero value always sent since never goes to mailbox.
     function _sendReplyMessage(Gear.Message calldata _message) private {
-        _transferVara(_message.destination, _message.value);
+        _transferEther(_message.destination, _message.value);
 
         if (_message.call) {
             bool isSuccessReply = _message.replyDetails.code[0] == 0;
@@ -383,7 +400,7 @@ contract Mirror is IMirror {
 
             valueClaimsBytes = bytes.concat(valueClaimsBytes, Gear.valueClaimBytes(claim));
 
-            _transferVara(claim.destination, claim.value);
+            _transferEther(claim.destination, claim.value);
 
             emit ValueClaimed(claim.messageId, claim.value);
         }
@@ -416,33 +433,38 @@ contract Mirror is IMirror {
         return IWrappedVara(wvaraAddr);
     }
 
-    function _transferVara(address destination, uint128 value) private {
+    function _transferEther(address destination, uint128 value) private {
         if (value != 0) {
-            bool success = _wvara(router).transfer(destination, value);
-            require(success, "failed to transfer WVara");
+            (bool success,) = destination.call{value: value}("");
+            require(success, "failed to transfer Ether");
         }
     }
 
     fallback() external payable {
+        if (msg.value > 0 && msg.data.length == 0) {
+            uint128 value = uint128(msg.value);
+
+            emit ReducibleBalanceTopUpRequested(value);
+
+            return;
+        }
+
         // We only allow arbitrary calls to full mirror contracts, which are
         // more likely to come from their ERC1967 implementor.
         require(!isSmall);
 
         // The minimum call data length is 0x44 (68 bytes) because:
         // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
-        // - 0x20 (32 bytes) for the uint128 `value`    [0x04..0x24)
-        // - 0x20 (32 bytes) for the bool `callReply`   [0x24..0x44)
-        require(msg.data.length >= 0x44);
+        // - 0x20 (32 bytes) for the bool `callReply`   [0x04..0x24)
+        require(msg.data.length >= 0x24);
 
-        uint256 value;
         uint256 callReply;
 
         assembly ("memory-safe") {
-            value := calldataload(0x04)
-            callReply := calldataload(0x24)
+            callReply := calldataload(0x04)
         }
 
-        bytes32 messageId = sendMessage(msg.data, uint128(value), callReply != 0);
+        bytes32 messageId = IMirror(address(this)).sendMessage{value: msg.value}(msg.data, callReply != 0);
 
         assembly ("memory-safe") {
             mstore(0x00, messageId)

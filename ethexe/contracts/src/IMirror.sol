@@ -39,6 +39,14 @@ interface IMirror {
     event ValueClaimingRequested(bytes32 claimedId, address indexed source);
 
     /**
+     * @dev Emitted when a user requests program's reducible balance top up with his Ether.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to top up balance of the program (in Ether).
+     */
+    event ReducibleBalanceTopUpRequested(uint128 value);
+
+    /**
      * @dev Emitted when a user requests program's executable balance top up with his tokens.
      *
      * NOTE:    It's event for NODES:
@@ -103,9 +111,9 @@ interface IMirror {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value, bool callReply) external returns (bytes32);
+    function sendMessage(bytes calldata payload, bool callReply) external payable returns (bytes32);
 
-    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external;
+    function sendReply(bytes32 repliedTo, bytes calldata payload) external payable;
 
     function claimValue(bytes32 claimedId) external;
 

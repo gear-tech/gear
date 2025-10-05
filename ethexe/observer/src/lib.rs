@@ -81,7 +81,6 @@ impl fmt::Debug for ObserverEvent {
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     router_address: Address,
-    wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
     block_time: Duration,
@@ -183,8 +182,6 @@ impl ObserverService {
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
 
-        let wvara_address = Address(router_query.wvara_address().await?.0.0);
-
         let provider = ProviderBuilder::default()
             .connect(rpc)
             .await
@@ -203,7 +200,6 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             router_address: *router_address,
-            wvara_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
@@ -294,7 +290,6 @@ impl ObserverService {
             self.provider.clone(),
             block,
             self.config.router_address,
-            self.config.wvara_address,
             None,
         )
     }

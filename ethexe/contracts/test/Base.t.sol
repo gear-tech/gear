@@ -105,22 +105,24 @@ contract Base is POCBaseTest {
         vm.startPrank(admin, admin);
         {
             router = Router(
-                Upgrades.deployTransparentProxy(
-                    "Router.sol",
-                    admin,
-                    abi.encodeCall(
-                        Router.initialize,
-                        (
-                            admin,
-                            mirrorAddress,
-                            wrappedVaraAddress,
-                            middlewareAddress,
-                            uint256(eraDuration),
-                            uint256(electionDuration),
-                            uint256(validationDelay),
-                            _aggregatedPublicKey,
-                            "",
-                            _validators
+                payable(
+                    Upgrades.deployTransparentProxy(
+                        "Router.sol",
+                        admin,
+                        abi.encodeCall(
+                            Router.initialize,
+                            (
+                                admin,
+                                mirrorAddress,
+                                wrappedVaraAddress,
+                                middlewareAddress,
+                                uint256(eraDuration),
+                                uint256(electionDuration),
+                                uint256(validationDelay),
+                                _aggregatedPublicKey,
+                                "",
+                                _validators
+                            )
                         )
                     )
                 )

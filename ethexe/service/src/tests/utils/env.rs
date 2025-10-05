@@ -430,6 +430,7 @@ impl TestEnv {
         wvara.approve_all(program_address.0.into()).await.unwrap();
     }
 
+    #[allow(dead_code)]
     pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
         log::info!("📗 Transferring {value} WVara to {program_id}");
 

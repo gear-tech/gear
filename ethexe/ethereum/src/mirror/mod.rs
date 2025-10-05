@@ -16,10 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AlloyProvider, TryGetReceipt, abi::IMirror};
+use crate::{
+    AlloyProvider, TryGetReceipt,
+    abi::{self, IMirror},
+};
 use alloy::{
+    contract::CallBuilder,
     eips::BlockId,
-    primitives::{Address, U256},
+    primitives::{Address, Bytes, U256},
     providers::{Provider, RootProvider},
 };
 use anyhow::{Result, anyhow};
@@ -50,6 +54,24 @@ impl Mirror {
         ))
     }
 
+    pub async fn get_balance(&self) -> Result<u128> {
+        self.0
+            .provider()
+            .get_balance(*self.0.address())
+            .await
+            .map(abi::utils::uint256_to_u128_lossy)
+            .map_err(Into::into)
+    }
+
+    pub async fn reducible_balance_top_up(&self, value: u128) -> Result<H256> {
+        let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
+            .to(*self.0.address())
+            .value(value.try_into().expect("failed to convert u128 to U256"));
+        let receipt = builder.send().await?.try_get_receipt().await?;
+
+        Ok((*receipt.transaction_hash).into())
+    }
+
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
         let builder = self.0.executableBalanceTopUp(value);
         let receipt = builder.send().await?.try_get_receipt().await?;
@@ -64,7 +86,8 @@ impl Mirror {
     ) -> Result<(H256, MessageId)> {
         let builder = self
             .0
-            .sendMessage(payload.as_ref().to_vec().into(), value, false);
+            .sendMessage(payload.as_ref().to_vec().into(), false)
+            .value(value.try_into().expect("failed to convert u128 to U256"));
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
@@ -92,11 +115,13 @@ impl Mirror {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<H256> {
-        let builder = self.0.sendReply(
-            replied_to.into_bytes().into(),
-            payload.as_ref().to_vec().into(),
-            value,
-        );
+        let builder = self
+            .0
+            .sendReply(
+                replied_to.into_bytes().into(),
+                payload.as_ref().to_vec().into(),
+            )
+            .value(value.try_into().expect("failed to convert u128 to U256"));
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())

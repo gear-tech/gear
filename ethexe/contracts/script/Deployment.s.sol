@@ -41,22 +41,24 @@ contract DeploymentScript is Script {
         address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
 
         router = Router(
-            Upgrades.deployTransparentProxy(
-                "Router.sol",
-                deployerAddress,
-                abi.encodeCall(
-                    Router.initialize,
-                    (
-                        deployerAddress,
-                        mirrorAddress,
-                        address(wrappedVara),
-                        middlewareAddress,
-                        1 days,
-                        2 hours,
-                        5 minutes,
-                        Gear.AggregatedPublicKey(aggregatedPublicKeyX, aggregatedPublicKeyY),
-                        verifiableSecretSharingCommitment,
-                        validatorsArray
+            payable(
+                Upgrades.deployTransparentProxy(
+                    "Router.sol",
+                    deployerAddress,
+                    abi.encodeCall(
+                        Router.initialize,
+                        (
+                            deployerAddress,
+                            mirrorAddress,
+                            address(wrappedVara),
+                            middlewareAddress,
+                            1 days,
+                            2 hours,
+                            5 minutes,
+                            Gear.AggregatedPublicKey(aggregatedPublicKeyX, aggregatedPublicKeyY),
+                            verifiableSecretSharingCommitment,
+                            validatorsArray
+                        )
                     )
                 )
             )
