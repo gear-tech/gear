@@ -414,31 +414,29 @@ impl Service {
                         // Nothing
                     }
                 },
-                Event::Network(event) => {
-                    match event {
-                        NetworkEvent::Message { source: _, message } => {
-                            match message {
-                                NetworkMessage::ProducerBlock(block) => {
-                                    consensus.receive_announce(block)?
-                                }
-                                NetworkMessage::RequestBatchValidation(request) => {
-                                    consensus.receive_validation_request(request)?
-                                }
-                                NetworkMessage::ApproveBatch(reply) => {
-                                    consensus.receive_validation_reply(reply)?
-                                }
-                            };
-                        }
-                        NetworkEvent::OffchainTransaction(transaction) => {
-                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
-                                log::warn!(
-                                    "Failed to process offchain transaction received by p2p: {e}"
-                                );
+                Event::Network(event) => match event {
+                    NetworkEvent::Message { source: _, message } => {
+                        match message {
+                            NetworkMessage::ProducerBlock(block) => {
+                                consensus.receive_announce(block)?
                             }
-                        }
-                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                            NetworkMessage::RequestBatchValidation(request) => {
+                                consensus.receive_validation_request(request)?
+                            }
+                            NetworkMessage::ApproveBatch(reply) => {
+                                consensus.receive_validation_reply(reply)?
+                            }
+                        };
                     }
-                }
+                    NetworkEvent::OffchainTransaction(transaction) => {
+                        if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
+                            log::warn!(
+                                "Failed to process offchain transaction received by p2p: {e}"
+                            );
+                        }
+                    }
+                    NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                },
                 Event::Prometheus(event) => {
                     let Some(p) = prometheus.as_mut() else {
                         unreachable!("couldn't produce event without prometheus");
@@ -512,9 +510,7 @@ impl Service {
                 },
                 Event::TxPool(event) => match event {
                     TxPoolEvent::PublishOffchainTransaction(transaction) => {
-                        network.publish_offchain_transaction(
-                            NetworkMessage::from(transaction).encode(),
-                        );
+                        network.publish_offchain_transaction(transaction);
                     }
                 },
             }
