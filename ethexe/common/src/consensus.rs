@@ -85,18 +85,6 @@ impl ToDigest for BatchCommitmentValidationRequest {
     }
 }
 
-impl Mock<()> for BatchCommitmentValidationRequest {
-    fn mock(_args: ()) -> Self {
-        BatchCommitmentValidationRequest {
-            digest: H256::random().0.into(),
-            head: Some(AnnounceHash(H256::random())),
-            codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
-            validators: false,
-            rewards: false,
-        }
-    }
-}
-
 /// A reply to a batch commitment validation request.
 /// Contains the digest of the batch and a signature confirming the validation.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
