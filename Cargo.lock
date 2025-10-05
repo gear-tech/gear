@@ -11704,15 +11704,21 @@ dependencies = [
 name = "pallet-gear-rpc"
 version = "1.9.2"
 dependencies = [
+ "futures",
  "gear-common",
  "gear-core",
  "gear-core-errors",
  "jsonrpsee 0.24.7",
+ "log",
  "pallet-gear-rpc-runtime-api",
+ "sc-client-api",
+ "sc-rpc",
+ "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",
  "sp-runtime",
+ "sp-storage",
 ]
 
 [[package]]

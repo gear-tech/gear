@@ -24,7 +24,9 @@ use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use runtime_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
-use sc_client_api::{AuxStore, Backend, BlockBackend, StorageProvider, backend::StateBackend};
+use sc_client_api::{
+    AuxStore, Backend, BlockBackend, BlockchainEvents, StorageProvider, backend::StateBackend,
+};
 use sc_consensus_babe::BabeWorkerHandle;
 use sc_consensus_grandpa::{
     FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
@@ -68,6 +70,8 @@ pub struct GearDeps {
     pub allowance_multiplier: u64,
     /// maximum batch size for rpc call.
     pub max_batch_size: u64,
+    /// Executor for gear-specific subscriptions.
+    pub subscription_executor: SubscriptionTaskExecutor,
 }
 
 /// Full client dependencies.
@@ -124,6 +128,7 @@ where
     P: TransactionPool + 'static,
     SC: SelectChain<Block> + 'static,
     B: Backend<Block> + Send + Sync + 'static,
+    C: BlockchainEvents<Block>,
     B::State: StateBackend<sp_runtime::traits::HashingFor<Block>>,
 {
     use pallet_gear_builtin_rpc::{GearBuiltin, GearBuiltinApiServer};
@@ -149,13 +154,14 @@ where
         shared_voter_state,
         shared_authority_set,
         justification_stream,
-        subscription_executor,
+        subscription_executor: grandpa_subscription_executor,
         finality_provider,
     } = grandpa;
 
     let GearDeps {
         allowance_multiplier,
         max_batch_size,
+        subscription_executor: gear_subscription_executor,
     } = gear;
 
     io.merge(System::new(client.clone(), pool).into_rpc())?;
@@ -171,7 +177,7 @@ where
     )?;
     io.merge(
         Grandpa::new(
-            subscription_executor,
+            grandpa_subscription_executor,
             shared_authority_set.clone(),
             shared_voter_state,
             justification_stream,
@@ -193,7 +199,15 @@ where
     io.merge(StateMigration::new(client.clone(), backend).into_rpc())?;
     io.merge(Dev::new(client.clone()).into_rpc())?;
 
-    io.merge(Gear::new(client.clone(), allowance_multiplier, max_batch_size).into_rpc())?;
+    io.merge(
+        Gear::new(
+            client.clone(),
+            allowance_multiplier,
+            max_batch_size,
+            gear_subscription_executor,
+        )
+        .into_rpc(),
+    )?;
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 
