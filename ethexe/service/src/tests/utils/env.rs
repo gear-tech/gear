@@ -92,8 +92,7 @@ pub struct TestEnv {
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     broadcaster: Sender<ObserverEvent>,
     db: Database,
-    /// If network is enabled by test, then we store here:
-    /// network service polling thread, bootstrap address and nonce for new node address generation.
+    /// Network service polling thread, bootstrap address and nonce for new node address generation.
     bootstrap_network: (JoinHandle<()>, String, usize),
 
     _anvil: Option<AnvilInstance>,
