@@ -21,6 +21,7 @@ use crate::{
     ecdsa::{ContractSignature, SignedData},
     gear::BatchCommitment,
 };
+use alloc::vec::Vec;
 use gprimitives::CodeId;
 use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
