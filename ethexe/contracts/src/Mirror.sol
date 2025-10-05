@@ -453,7 +453,7 @@ contract Mirror is IMirror {
         // more likely to come from their ERC1967 implementor.
         require(!isSmall);
 
-        // The minimum call data length is 0x44 (68 bytes) because:
+        // The minimum call data length is 0x24 (36 bytes) because:
         // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
         // - 0x20 (32 bytes) for the bool `callReply`   [0x04..0x24)
         require(msg.data.length >= 0x24);
