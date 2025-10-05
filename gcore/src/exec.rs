@@ -135,6 +135,9 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// `inheritor_id` specifies the address to which all available program value
 /// should be transferred.
 ///
+/// Note: All registered global destructors
+/// (via `gcore::dtor!()`/`gcore::ctor::atexit`) are invoked before termination.
+///
 /// # Examples
 ///
 /// Terminate the program and transfer the available value to the message
@@ -150,6 +153,10 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// }
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        crate::ctor::dtors()
+    }
     unsafe { gsys::gr_exit(inheritor_id.as_ptr()) }
 }
 
@@ -276,6 +283,9 @@ pub fn gas_available() -> u64 {
 /// Use this function to break the current message processing and save the
 /// state.
 ///
+/// Note: All registered global destructors
+/// (via `gcore::dtor!()`/`gcore::ctor::atexit`) are invoked before leaving.
+///
 /// # Examples
 ///
 /// ```
@@ -289,6 +299,10 @@ pub fn gas_available() -> u64 {
 /// }
 /// ```
 pub fn leave() -> ! {
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        crate::ctor::dtors()
+    }
     unsafe { gsys::gr_leave() }
 }
 
