@@ -184,8 +184,6 @@ where
     Mem: Memory<Caller> + Clone + 'static,
 {
     pub(crate) fn register_read(&mut self, ptr: u32, size: u32) -> WasmMemoryRead {
-        debug_assert!(size != 0, "Reading zero bytes from memory is likely a bug");
-
         if size > 0 {
             self.reads.push(MemoryInterval { offset: ptr, size });
         }
@@ -210,8 +208,6 @@ where
     }
 
     pub(crate) fn register_write(&mut self, ptr: u32, size: u32) -> WasmMemoryWrite {
-        debug_assert!(size != 0, "Writing zero bytes into memory is likely a bug");
-
         if size > 0 {
             self.writes.push(MemoryInterval { offset: ptr, size });
         }
