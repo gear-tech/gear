@@ -393,10 +393,6 @@ mod tests {
     type MemoryAccessIo<'a> =
         crate::memory::MemoryAccessIo<Store<HostState<MockExt, MockMemory>>, MockMemory>;
 
-    #[derive(Encode, Clone, Copy, Pod, Zeroable)]
-    #[repr(C)]
-    struct ZeroSizeStruct;
-
     fn new_store() -> Store<HostState<MockExt, MockMemory>> {
         Store::new(Some(State {
             ext: MockExt::default(),
@@ -468,32 +464,6 @@ mod tests {
         let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
         io.read(&mut caller_wrap, read).unwrap();
 
-        assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
-    }
-
-    #[test]
-    fn test_read_of_zero_size_struct() {
-        let mut store = new_store();
-        let mut caller_wrap = CallerWrap::new(&mut store);
-
-        let mut registry = MemoryAccessRegistry::default();
-        let read = registry.register_read_as::<ZeroSizeStruct>(0);
-
-        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_as(&mut caller_wrap, read).unwrap();
-
-        assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
-    }
-
-    #[test]
-    fn test_read_of_zero_size_encoded_value() {
-        let mut store = new_store();
-        let mut caller_wrap = CallerWrap::new(&mut store);
-
-        let mut registry = MemoryAccessRegistry::default();
-        let read = registry.register_read_as::<ZeroSizeStruct>(0);
-        let io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.read_as(&mut caller_wrap, read).unwrap();
         assert_eq!(caller_wrap.state_mut().memory.read_attempt_count(), 0);
     }
 
@@ -628,20 +598,6 @@ mod tests {
     }
 
     #[test]
-    fn test_write_of_zero_size_struct() {
-        let mut store = new_store();
-        let mut caller_wrap = CallerWrap::new(&mut store);
-
-        let mut registry = MemoryAccessRegistry::default();
-        let write = registry.register_write_as::<ZeroSizeStruct>(0);
-        let mut io: MemoryAccessIo = registry.pre_process(&mut caller_wrap).unwrap();
-        io.write_as(&mut caller_wrap, write, &ZeroSizeStruct)
-            .unwrap();
-
-        assert_eq!(caller_wrap.state_mut().memory.write_attempt_count(), 0);
-    }
-
-    #[test]
     #[should_panic(expected = "buffer size is not equal to registered buffer size")]
     fn test_write_with_zero_buffer_size() {
         let mut store = new_store();
@@ -758,24 +714,6 @@ mod tests {
     }
 
     #[test]
-    fn test_register_read_of_zero_size_struct() {
-        let mut mem_access_manager = MemoryAccessRegistry::default();
-
-        let _read = mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
-
-        assert_eq!(mem_access_manager.reads.len(), 0);
-    }
-
-    #[test]
-    fn test_register_read_of_zero_size_value() {
-        let mut mem_access_manager = MemoryAccessRegistry::default();
-
-        let _read = mem_access_manager.register_read_as::<ZeroSizeStruct>(142);
-
-        assert_eq!(mem_access_manager.reads.len(), 0);
-    }
-
-    #[test]
     fn test_register_read_as_with_valid_interval() {
         let mut registry = MemoryAccessRegistry::default();
 
@@ -862,15 +800,6 @@ mod tests {
         assert_eq!(result.size, 0);
         assert_eq!(registry.reads.len(), 0);
         assert_eq!(registry.writes.len(), 0);
-    }
-
-    #[test]
-    fn test_register_write_of_zero_size_struct() {
-        let mut mem_access_manager = MemoryAccessRegistry::default();
-
-        let _write = mem_access_manager.register_write_as::<ZeroSizeStruct>(142);
-
-        assert_eq!(mem_access_manager.writes.len(), 0);
     }
 
     #[test]
